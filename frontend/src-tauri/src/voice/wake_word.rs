@@ -1,7 +1,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use log::{info, error};
+use log::{info, error, warn};
 use tokio::io::AsyncWriteExt;
 use tokio::sync::mpsc;
 use tauri::Emitter;
@@ -10,6 +10,10 @@ use crate::voice::mic_capture::MicCapture;
 
 use cpal::traits::HostTrait;
 use sherpa_onnx::{KeywordSpotter, KeywordSpotterConfig};
+
+/// Set by device_monitor when a new audio input device appears.
+/// The retry loop checks this flag to skip the sleep and poll immediately.
+pub(crate) static RETRY_NOW: AtomicBool = AtomicBool::new(false);
 
 const SAMPLE_RATE: u32 = 16000;
 const MODEL_DIR: &str = ".evoloop/models/kws";
@@ -127,11 +131,12 @@ pub struct WakeWordDetector {
     thread_handle: Option<std::thread::JoinHandle<()>>,
     stop_flag: Arc<AtomicBool>,
     thread_alive: Arc<AtomicBool>,
+    last_params: Arc<Mutex<Option<(tauri::AppHandle, String, String)>>>,
 }
 
 impl WakeWordDetector {
     pub fn new() -> Self {
-        Self { cmd_tx: None, thread_handle: None, stop_flag: Arc::new(AtomicBool::new(false)), thread_alive: Arc::new(AtomicBool::new(false)) }
+        Self { cmd_tx: None, thread_handle: None, stop_flag: Arc::new(AtomicBool::new(false)), thread_alive: Arc::new(AtomicBool::new(false)), last_params: Arc::new(Mutex::new(None)) }
     }
 
     pub fn start(
@@ -142,6 +147,10 @@ impl WakeWordDetector {
     ) -> Result<(), String> {
         if self.thread_alive.load(Ordering::SeqCst) {
             return Ok(());
+        }
+
+        if let Ok(mut p) = self.last_params.lock() {
+            *p = Some((app_handle.clone(), word.clone(), voice.clone()));
         }
 
         let paths = kws_paths().ok_or("KWS model not found")?;
@@ -174,11 +183,11 @@ impl WakeWordDetector {
                                     Some(WakeWordCmd::Stop) | None => break,
                                 }
                             }
-                            _ = tokio::time::sleep(Duration::from_secs(5)) => {
-                                if cpal::default_host().default_input_device().is_some() {
-                                    info!("[wake] mic re-detected, retrying");
-                                    need_retry = false;
-                                }
+                            _ = tokio::time::sleep(Duration::from_secs(2)) => {
+                                if RETRY_NOW.swap(false, Ordering::SeqCst) || cpal::default_host().default_input_device().is_some() {
+                                info!("[wake] mic re-detected, retrying");
+                                need_retry = false;
+                            }
                             }
                         }
                     } else {
@@ -213,6 +222,9 @@ impl WakeWordDetector {
         if let Some(h) = self.thread_handle.take() {
             let _ = h.join();
         }
+        if let Ok(mut p) = self.last_params.lock() {
+            *p = None;
+        }
     }
 
     pub fn set_wake_word(&self, _word: String) {
@@ -220,6 +232,23 @@ impl WakeWordDetector {
 
     pub fn is_running(&self) -> bool {
         self.thread_alive.load(Ordering::SeqCst)
+    }
+
+    /// Stop the detector (called when voice session starts).
+    pub fn pause(&mut self) {
+        self.stop_flag.store(true, Ordering::SeqCst);
+        self.cmd_tx.take();
+        if let Some(h) = self.thread_handle.take() {
+            let _ = h.join();
+        }
+    }
+
+    /// Resume the detector with last known params (voice session ended).
+    pub fn resume(&mut self) {
+        let params = self.last_params.lock().ok().and_then(|p| p.clone());
+        if let Some((app_handle, word, voice)) = params {
+            let _ = self.start(app_handle, word, voice);
+        }
     }
 }
 

@@ -41,8 +41,8 @@ impl VoiceWsClient {
         }
     }
 
-    pub fn is_connected(&self) -> bool {
-        *self.connected.blocking_read()
+    pub async fn is_connected(&self) -> bool {
+        *self.connected.read().await
     }
 
     /// Connect and auto-reconnect on disconnect.

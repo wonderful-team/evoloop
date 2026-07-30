@@ -74,6 +74,7 @@ pub struct VoiceSession {
     // TTS playback state — ffplay streaming
     ffplay_stdin: Arc<Mutex<Option<ChildStdin>>>,
     ffplay_child: Arc<Mutex<Option<Child>>>,
+    tts_active: Arc<AtomicBool>,
     last_activity: Arc<AtomicU64>,
 }
 
@@ -93,6 +94,7 @@ impl VoiceSession {
             tts_speed: Arc::new(RwLock::new(1.0)),
             ffplay_stdin: Arc::new(Mutex::new(None)),
             ffplay_child: Arc::new(Mutex::new(None)),
+            tts_active: Arc::new(AtomicBool::new(false)),
             last_activity: Arc::new(AtomicU64::new(0)),
         }
     }
@@ -116,6 +118,37 @@ impl VoiceSession {
         self.emit_event("voice:log", serde_json::json!({"message": message}));
     }
 
+    pub fn get_thread_id(&self) -> Arc<RwLock<String>> {
+        self.thread_id.clone()
+    }
+
+    pub fn get_lang(&self) -> Arc<RwLock<String>> {
+        self.lang.clone()
+    }
+
+    /// Shared TTS cleanup: kill ffplay, close stdin, clear queue.
+    /// Caller is responsible for `tts_active` and other session-level flags.
+    fn _stop_tts_playback(
+        ffplay_stdin: &Mutex<Option<ChildStdin>>,
+        ffplay_child: &Mutex<Option<Child>>,
+        audio_queue: &Mutex<VecDeque<f32>>,
+    ) {
+        audio_queue.lock().unwrap().clear();
+        let _ = std::process::Command::new("pkill")
+            .arg("-x").arg("ffplay")
+            .output();
+        if let Ok(mut stdin_guard) = ffplay_stdin.lock() {
+            drop(stdin_guard.take());
+        }
+        if let Ok(mut child) = ffplay_child.lock() {
+            if let Some(ref mut c) = *child {
+                let _ = c.kill();
+                let _ = c.wait();
+            }
+            *child = None;
+        }
+    }
+
     pub async fn init_engines(
         &self,
         _vad_model_path: &str,
@@ -133,6 +166,7 @@ impl VoiceSession {
         };
         let session_audio_queue = self.audio_queue.clone();
         let session_shared_state = self.shared_state.clone();
+        let session_tts_active = self.tts_active.clone();
         let ffplay_stdin = self.ffplay_stdin.clone();
         let ffplay_child = self.ffplay_child.clone();
 
@@ -141,6 +175,7 @@ impl VoiceSession {
             let body = envelope.body.clone().unwrap_or(serde_json::Value::Null);
             let session_audio_queue = session_audio_queue.clone();
             let session_shared_state = session_shared_state.clone();
+            let session_tts_active = session_tts_active.clone();
             let event_bus = event_bus.clone();
             let ffplay_stdin = ffplay_stdin.clone();
             let ffplay_child = ffplay_child.clone();
@@ -148,9 +183,18 @@ impl VoiceSession {
             if msg_type == "voice.audio_frame" {
                 tokio::task::spawn_blocking(move || {
                     use std::io::Write as IoWrite;
+                    if !session_tts_active.load(Ordering::SeqCst) {
+                        return;
+                    }
                     if let Some(bytes) = envelope.raw_bytes {
                         let mut stdin_guard = ffplay_stdin.lock().unwrap();
                         if stdin_guard.is_none() {
+                            // Double-check tts_active before spawning — a prior
+                            // task may have killed ffplay and reset stdin after
+                            // our initial check above.
+                            if !session_tts_active.load(Ordering::SeqCst) {
+                                return;
+                            }
                             info!("[tts-play] spawning ffplay (first audio frame, {}b)", bytes.len());
                             let child = Command::new("ffplay")
                                 .args(["-f", "f32le", "-ar", "24000", "-nodisp", "-autoexit", "-"])
@@ -162,7 +206,14 @@ impl VoiceSession {
                                     let stdin = c.stdin.take()
                                         .expect("failed to capture ffplay stdin");
                                     *stdin_guard = Some(stdin);
-                                    *ffplay_child.lock().unwrap() = Some(c);
+                                    // Reap any previous zombie before replacing (e.g.
+                                    // ffplay that exited on its own from -autoexit)
+                                    if let Ok(mut child_guard) = ffplay_child.lock() {
+                                        if let Some(ref mut old) = *child_guard {
+                                            let _ = old.wait();
+                                        }
+                                        *child_guard = Some(c);
+                                    }
                                     info!("[tts-play] ffplay spawned OK");
                                 }
                                 Err(e) => {
@@ -175,8 +226,16 @@ impl VoiceSession {
                         if let Some(stdin) = stdin_guard.as_mut() {
                             if let Err(e) = stdin.write_all(&bytes) {
                                 warn!("[tts-play] ffplay write failed ({}b): {} — resetting", bytes.len(), e);
+                                // Reap the old child before dropping it (avoid zombie)
+                                if let Ok(mut child) = ffplay_child.lock() {
+                                    if let Some(ref mut c) = *child {
+                                        let _ = c.kill();
+                                        let _ = c.wait();
+                                    }
+                                    *child = None;
+                                }
                                 *stdin_guard = None;
-                                *ffplay_child.lock().unwrap() = None;
+                                return;
                             }
                         }
                         let dump_path = std::env::temp_dir().join("tts_debug_raw.pcm");
@@ -193,18 +252,11 @@ impl VoiceSession {
                 match mt {
                     "voice.barge_in" | "voice.cancel" => {
                         info!("[tts-play] barge_in/cancel — killing ffplay");
-                        session_audio_queue.lock().unwrap().clear();
-                        // Kill ffplay and close stdin
-                        if let Ok(mut stdin_guard) = ffplay_stdin.lock() {
-                            drop(stdin_guard.take());
-                        }
-                        if let Ok(mut child) = ffplay_child.lock() {
-                            if let Some(ref mut c) = *child {
-                                let _ = c.kill();
-                                let _ = c.wait();
-                            }
-                            *child = None;
-                        }
+                        Self::_stop_tts_playback(
+                            ffplay_stdin.as_ref(),
+                            ffplay_child.as_ref(),
+                            session_audio_queue.as_ref(),
+                        );
                         event_bus.emit("voice:state", serde_json::json!({"state": "interrupted"}));
                     }
                     "dictation.paste" => {
@@ -249,21 +301,18 @@ impl VoiceSession {
                         event_bus.emit("system:config_changed", body.clone());
                     }
                     "voice:state" => {
-                        info!("[tts-play] received msg_type=voice:state (non-audio event)");
                         let is_listening = body.get("state").and_then(|v| v.as_str()) == Some("listening");
                         let event_name = msg_type.replace(".", ":");
                         event_bus.emit(&event_name, body);
                         if is_listening {
                             if let Ok(mut stdin_guard) = ffplay_stdin.lock() {
                                 if stdin_guard.is_some() {
-                                    info!("[tts-play] state=listening — closing ffplay stdin");
                                     drop(stdin_guard.take());
                                 }
                             }
                         }
                     }
                     _ => {
-                        info!("[tts-play] received msg_type={} (non-audio event)", msg_type);
                         let event_name = msg_type.replace(".", ":");
                         event_bus.emit(&event_name, body);
                     }
@@ -280,65 +329,40 @@ impl VoiceSession {
     pub async fn start(&self, thread_id: String, lang: String, mode: String) -> Result<(), String> {
         let ws_client = {
             let read_lock = self.ws_client.read().await;
-            if read_lock.is_none() {
-                drop(read_lock);
+            let should_reconnect = match read_lock.as_ref() {
+                Some(ws) => !ws.is_connected().await,
+                None => true,
+            };
+            drop(read_lock);
+            if should_reconnect {
                 let port = crate::sidecar::BACKEND_PORT;
                 let ws_url = format!("ws://127.0.0.1:{}/api/v1/voice/ws", port);
                 info!("[voice-session] WS not connected, attempting auto-connection to {}", ws_url);
                 self.connect_backend(&ws_url).await?;
                 self.ws_client.read().await.as_ref().cloned().ok_or("WS connection failed")?
             } else {
-                read_lock.as_ref().cloned().ok_or("WS not connected")?
+                self.ws_client.read().await.as_ref().cloned().ok_or("WS not connected")?
             }
         };
 
         *self.thread_id.write().await = thread_id.clone();
         *self.lang.write().await = lang.clone();
         *self.mode.write().await = mode.clone();
+        self.tts_active.store(mode == "dialogue", Ordering::SeqCst);
         self.running.store(true, Ordering::SeqCst);
 
-        // Notify Python backend to start session
-        if let Err(e) = ws_client.send_voice_start(&thread_id, &mode).await {
-            warn!("[voice-session] failed to notify backend (connection dead), resetting: {}", e);
-            drop(ws_client);
-            *self.ws_client.write().await = None;
-            return Err(format!("backend not reachable: {}", e));
-        }
-        self.emit_log(&format!("voice session started, mode={}", mode));
-
-        // Start microphone capture and stream to backend
+        // Start microphone capture BEFORE notifying the backend.
+        // CoreAudio initialization can take tens of milliseconds; if we send
+        // voice.start first, that audio is lost. Starting the mic first means
+        // a few frames may arrive before the backend is ready, but the Python
+        // handler simply drops them with a warning.
         let audio_queue = self.audio_queue.clone();
         let running = self.running.clone();
         let ws = ws_client.clone();
         let rt_handle = tokio::runtime::Handle::current();
 
-        // 10min inactivity timeout (dialogue only)
-        if mode == "dialogue" {
-            let running = self.running.clone();
-            let ws = ws_client.clone();
-            let tid = thread_id.clone();
-            let activity = self.last_activity.clone();
-            let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
-            activity.store(now, Ordering::SeqCst);
-            tokio::spawn(async move {
-                loop {
-                    tokio::time::sleep(Duration::from_secs(30)).await;
-                    if !running.load(Ordering::SeqCst) { break; }
-                    let last = activity.load(Ordering::SeqCst);
-                    if last == 0 { continue; }
-                    let elapsed = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() - last;
-                    if elapsed > 600 {
-                        info!("[voice-session] 10min inactivity timeout for {}", tid);
-                        let _ = ws.send("voice.cancel",
-                            serde_json::json!({"thread_id": tid})).await;
-                        break;
-                    }
-                }
-            });
-        }
-
         let mut mic = self.mic.write().await;
-        mic.start(audio_queue, move |samples: &[f32]| {
+        if let Err(e) = mic.start(audio_queue, move |samples: &[f32]| {
             if !running.load(Ordering::SeqCst) {
                 return;
             }
@@ -357,20 +381,73 @@ impl VoiceSession {
             }
 
             let ws_clone = ws.clone();
+            let running_clone = running.clone();
             rt_handle.spawn(async move {
                 if let Err(e) = ws_clone.send_binary(pcm).await {
-                    warn!("[voice-session] failed to send audio: {}", e);
+                    warn!("[voice-session] failed to send audio: {} — stopping session", e);
+                    running_clone.store(false, Ordering::SeqCst);
                 }
             });
-        })?;
+        }) {
+            self.running.store(false, Ordering::SeqCst);
+            self.tts_active.store(false, Ordering::SeqCst);
+            return Err(e);
+        }
+
+        // Notify Python backend to start session
+        if let Err(e) = ws_client.send_voice_start(&thread_id, &mode).await {
+            warn!("[voice-session] failed to notify backend (connection dead), resetting: {}", e);
+            drop(ws_client);
+            *self.ws_client.write().await = None;
+            self.running.store(false, Ordering::SeqCst);
+            self.tts_active.store(false, Ordering::SeqCst);
+            self.mic.write().await.stop();
+            return Err(format!("backend not reachable: {}", e));
+        }
+        self.emit_log(&format!("voice session started, mode={}", mode));
+
+        // 10min inactivity timeout (dialogue only)
+        if mode == "dialogue" {
+            let running = self.running.clone();
+            let ws = ws_client.clone();
+            let tid = thread_id.clone();
+            let activity = self.last_activity.clone();
+            let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+            activity.store(now, Ordering::SeqCst);
+            tokio::spawn(async move {
+                loop {
+                    tokio::time::sleep(Duration::from_secs(30)).await;
+                    if !running.load(Ordering::SeqCst) { break; }
+                    // Check WS connection health
+                    if !ws.is_connected().await {
+                        info!("[voice-session] WS disconnected, stopping session for {}", tid);
+                        let _ = ws.send("voice.cancel",
+                            serde_json::json!({"thread_id": tid})).await;
+                        running.store(false, Ordering::SeqCst);
+                        break;
+                    }
+                    let last = activity.load(Ordering::SeqCst);
+                    if last == 0 { continue; }
+                    let elapsed = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() - last;
+                    if elapsed > 600 {
+                        info!("[voice-session] 10min inactivity timeout for {}", tid);
+                        let _ = ws.send("voice.cancel",
+                            serde_json::json!({"thread_id": tid})).await;
+                        break;
+                    }
+                }
+            });
+        }
 
         Ok(())
     }
 
     pub async fn stop(&self) {
         self.running.store(false, Ordering::SeqCst);
-        self.audio_queue.lock().unwrap().clear();
+        self.tts_active.store(false, Ordering::SeqCst);
         self.mic.write().await.stop();
+
+        Self::_stop_tts_playback(&self.ffplay_stdin, &self.ffplay_child, &self.audio_queue);
 
         let tid = self.thread_id.read().await.clone();
         if let Some(ws) = self.ws_client.read().await.as_ref() {
@@ -395,13 +472,32 @@ impl VoiceSession {
     }
 
     pub async fn switch_mode(&self, mode: String) -> Result<(), String> {
+        let old_mode = self.mode.read().await.clone();
         *self.mode.write().await = mode.clone();
         let tid = self.thread_id.read().await.clone();
-        if !tid.is_empty() {
-            if let Some(ws) = self.ws_client.read().await.as_ref() {
-                let _ = ws.send_voice_start(&tid, &mode).await;
-            }
+        if tid.is_empty() {
+            return Ok(());
         }
+
+        // Stop TTS playback when leaving dialogue mode
+        if old_mode == "dialogue" && mode != "dialogue" {
+            self.tts_active.store(false, Ordering::SeqCst);
+            Self::_stop_tts_playback(&self.ffplay_stdin, &self.ffplay_child, &self.audio_queue);
+        }
+        // Enable TTS when entering dialogue (both fresh start and dictation→dialogue)
+        if mode == "dialogue" {
+            self.tts_active.store(true, Ordering::SeqCst);
+        }
+
+        let ws = match self.ws_client.read().await.as_ref().cloned() {
+            Some(ws) if ws.is_connected().await => ws,
+            _ => {
+                return Err("WebSocket not connected, need restart".to_string());
+            }
+        };
+        ws.send_voice_start(&tid, &mode).await
+            .map_err(|e| format!("switch_mode failed: {}", e))?;
+
         Ok(())
     }
 
@@ -429,6 +525,10 @@ impl VoiceSession {
 
     pub fn get_tts_speed(&self) -> f32 {
         self.tts_speed.try_read().map(|g| *g).unwrap_or(1.0)
+    }
+
+    pub fn is_alive(&self) -> bool {
+        self.running.load(Ordering::SeqCst)
     }
 }
 
