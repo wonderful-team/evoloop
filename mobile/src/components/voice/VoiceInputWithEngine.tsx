@@ -3,7 +3,7 @@
 
 import React, { forwardRef, useImperativeHandle, useRef, useCallback, useMemo, useEffect } from 'react';
 import { VoiceInput, VoiceInputHandle, InputMode } from './VoiceInput';
-import { useVoiceInput, type UseVoiceInputOptions } from '@/hooks/useVoiceInput';
+import { useVoiceInput } from '@/hooks/useVoiceInput';
 import { useVoiceSessionStore } from '@/stores/voiceSessionStore';
 import { MessageReference } from '@/types/conversation';
 
