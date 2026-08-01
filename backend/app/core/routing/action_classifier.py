@@ -12,12 +12,15 @@ from typing import Any
 import numpy as np
 from tokenizers import Tokenizer
 
+from app.core.config import settings
+
 logger = logging.getLogger(__name__)
 
 _DEFAULT_MARGIN_THRESHOLD = 0.12
-_MODEL_DIR = Path.home() / ".evoloop" / "models" / "action_classifier"
+_MODEL_DIR = Path(settings.MODELS_DIR) / "action_classifier"
 _MODEL_PATH = _MODEL_DIR / "classifier.onnx"
 _LABEL_PATH = _MODEL_DIR / "labels.json"
+_TOKENIZER_PATH = _MODEL_DIR / "tokenizer.json"
 
 _session: Any = None
 _tokenizer: Any = None
@@ -59,12 +62,12 @@ def _load() -> bool:
     try:
         session = ort.InferenceSession(str(_MODEL_PATH))
         if _LABEL_PATH.exists():
-            with open(_LABEL_PATH) as f:
+            with open(_LABEL_PATH, encoding="utf-8") as f:
                 mapping = json.load(f)
                 id2name = mapping.get("id2name", {})
         else:
             id2name = {}
-        tokenizer = Tokenizer.from_file(str(_MODEL_DIR / "tokenizer.json"))
+        tokenizer = Tokenizer.from_file(str(_TOKENIZER_PATH))
         tokenizer.enable_truncation(max_length=32)
         tokenizer.enable_padding(length=32)
         _session, _tokenizer, _id2name = session, tokenizer, id2name
