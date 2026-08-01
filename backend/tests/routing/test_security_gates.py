@@ -17,10 +17,11 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.api.routes import route as route_api
-from app.core.routing import deps, executor
+from app.core.routing import deps
 from app.core.routing.schemas import RouteDecision
 
 # ---- Gate 1: WS loopback (close 4403) --------------------------------------
+
 
 def _fake_ws(host: str | None, close_mock: AsyncMock) -> SimpleNamespace:
     client = SimpleNamespace(host=host) if host is not None else None
@@ -55,6 +56,7 @@ async def test_ws_allows_loopback(host: str) -> None:
 
 # ---- Gate 2: /route/* HTTP loopback (403 vs allow) --------------------------
 
+
 def _app() -> FastAPI:
     app = FastAPI()
     app.include_router(route_api.router, prefix="/route")
@@ -85,25 +87,4 @@ def test_route_init_allows_loopback(monkeypatch) -> None:
     assert resp.status_code in (200, 202)
 
 
-# ---- Gate 3: backend never executes a local (incl. destructive) decision -----
 
-@pytest.mark.unit
-@pytest.mark.asyncio
-@pytest.mark.parametrize("action", ["quit_app", "lock_screen", "press_key"])
-async def test_backend_local_decision_is_noop(action: str, monkeypatch) -> None:
-    async def _boom(*_a, **_k):  # must never be reached for local
-        raise AssertionError(f"backend must not execute local action {action}")
-
-    monkeypatch.setattr(executor, "_run_skill", _boom)
-    monkeypatch.setattr(executor, "_run_agent", _boom)
-    push = AsyncMock()
-    monkeypatch.setattr(executor.manager, "push", push)
-
-    decision = RouteDecision(
-        status="routed", target_type="local",
-        target={"type": "local", "id": action}, params={"app": "微信"},
-    )
-
-    await executor.execute("t-sec", decision)  # must not raise, must not dispatch
-
-    push.assert_not_awaited()  # no failed pushback for local

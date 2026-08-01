@@ -6,7 +6,7 @@ Requires LM Studio running on 127.0.0.1:1234 with qwen3-4b-instruct-2507.
 import asyncio
 import time
 
-from app.core.routing.executor import stream_llm_response, manager
+from app.core.voice.executor import manager
 
 
 async def test_llm_stream_produces_tts_boundaries():

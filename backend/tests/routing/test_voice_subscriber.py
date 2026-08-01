@@ -20,7 +20,7 @@ from app.core.events.schemas.lifecycle import (
     SessionCompletedData,
     SessionCompletedEvent,
 )
-from app.core.routing import executor
+from app.core.voice import executor
 from app.models.schemas.events import TokenEvent
 
 

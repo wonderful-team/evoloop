@@ -5,7 +5,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.core.routing import executor, thread_locks
+from app.core.voice import executor
+from app.core.routing import thread_locks
 
 
 def setup_function():
@@ -37,7 +38,7 @@ class TestThreadLock:
 
 @pytest.mark.asyncio
 class TestCancelVoiceTask:
-    @patch("app.core.routing.executor.worker_registry")
+    @patch("app.core.voice.executor.worker_registry")
     async def test_cancel_calls_worker_registry(self, mock_registry):
         mock_registry.cancel_worker = AsyncMock(return_value=True)
         result = await executor.cancel_voice_task("t1")

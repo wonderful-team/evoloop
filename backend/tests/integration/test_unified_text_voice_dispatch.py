@@ -28,7 +28,6 @@ from app.core.engine.nodes.supervisor import SupervisorNode
 from app.core.engine.schemas import EngineResult
 from app.core.engine.signals.signals import RouteToSignal, RoutingContext
 from app.core.engine.state import AgentState
-from app.core.routing.schemas import IntentHint
 
 
 @dataclass
@@ -187,7 +186,8 @@ async def test_chat_entry_to_supervisor_routes_to_worker(monkeypatch):
     inputs = captured.inputs[0]
     assert inputs["metadata"]["source"] == "web"
     intent_hint = inputs["metadata"].get("intent_hint")
-    assert isinstance(intent_hint, IntentHint)
+    assert isinstance(intent_hint, dict)
+    assert intent_hint["domain"] == "coding_ops"
 
     assert len(captured.supervisor_results) == 1
     update = captured.supervisor_results[0]
@@ -245,7 +245,9 @@ async def test_chat_entry_to_supervisor_direct_answer(monkeypatch):
 
     assert len(captured.inputs) == 1
     assert captured.inputs[0]["metadata"]["source"] == "web"
-    assert isinstance(captured.inputs[0]["metadata"].get("intent_hint"), IntentHint)
+    intent_hint = captured.inputs[0]["metadata"].get("intent_hint")
+    assert isinstance(intent_hint, dict)
+    assert intent_hint["domain"] == "greeting"
 
     update = captured.supervisor_results[0]
     from app.core.engine.routers import RoutingTarget
@@ -334,23 +336,23 @@ def fake_voice_deps(monkeypatch):
     )
 
     # Patch the executor functions used by VoiceInputChannel and the voice presenters.
-    monkeypatch.setattr("app.core.routing.executor._mark_voice", AsyncMock())
-    monkeypatch.setattr("app.core.routing.executor.consume_voice", AsyncMock())
-    monkeypatch.setattr("app.core.routing.executor.push_voice_result", AsyncMock())
-    monkeypatch.setattr("app.core.routing.executor.push_voice_token", AsyncMock())
+    monkeypatch.setattr("app.core.voice.executor._mark_voice", AsyncMock())
+    monkeypatch.setattr("app.core.voice.executor.consume_voice", AsyncMock())
+    monkeypatch.setattr("app.core.voice.executor.push_voice_result", AsyncMock())
+    monkeypatch.setattr("app.core.voice.executor.push_voice_token", AsyncMock())
     monkeypatch.setattr(
-        "app.core.routing.executor.push_voice_tts_boundary", AsyncMock()
+        "app.core.voice.executor.push_voice_tts_boundary", AsyncMock()
     )
-    monkeypatch.setattr("app.core.routing.executor.cancel_voice_task", AsyncMock())
+    monkeypatch.setattr("app.core.voice.executor.cancel_voice_task", AsyncMock())
     # The presenters still use the real executor.push_macro_result/handle_navigate,
     # so keep manager/envelope_fn/message_type wired.
-    monkeypatch.setattr("app.core.routing.executor.manager", manager)
+    monkeypatch.setattr("app.core.voice.executor.manager", manager)
     monkeypatch.setattr(
-        "app.core.routing.executor.envelope_fn",
+        "app.core.voice.executor.envelope_fn",
         lambda mt, body: {"type": mt, "body": body},
     )
     monkeypatch.setattr(
-        "app.core.routing.executor.message_type",
+        "app.core.voice.executor.message_type",
         MagicMock(VOICE_ROUTE_RESULT="voice.route_result"),
     )
     yield
@@ -389,7 +391,8 @@ async def test_voice_route_to_supervisor_routes_to_worker(monkeypatch, fake_voic
     inputs = captured.inputs[0]
     assert inputs["metadata"]["source"] == "voice"
     intent_hint = inputs["metadata"].get("intent_hint")
-    assert isinstance(intent_hint, IntentHint)
+    assert isinstance(intent_hint, dict)
+    assert intent_hint["domain"] == "coding_ops"
 
     update = captured.supervisor_results[0]
     assert update.next_node == "worker"
@@ -422,7 +425,9 @@ async def test_voice_route_to_supervisor_direct_answer(monkeypatch, fake_voice_d
 
     assert len(captured.inputs) == 1
     assert captured.inputs[0]["metadata"]["source"] == "voice"
-    assert isinstance(captured.inputs[0]["metadata"].get("intent_hint"), IntentHint)
+    intent_hint = captured.inputs[0]["metadata"].get("intent_hint")
+    assert isinstance(intent_hint, dict)
+    assert intent_hint["domain"] == "greeting"
 
     update = captured.supervisor_results[0]
     from app.core.engine.routers import RoutingTarget

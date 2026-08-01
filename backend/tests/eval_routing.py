@@ -32,7 +32,7 @@ sys.path.insert(0, "/Users/huangjinhuan/Projects/develop-assistant.cn/evoloop/ba
 from app.core.routing.command_router import CommandRouter
 from app.core.routing.conversation_state import clear_thread_intent_state
 from app.core.routing.init_spec import build_and_enrich_spec, build_init_spec
-from app.core.routing.intent_classifier import initialize as init_classifier
+from app.core.routing.action_classifier import initialize as init_classifier
 from app.core.routing.intent_resolution import IntentResolver
 from app.core.routing.local_matcher import LocalMatcher
 from app.core.routing.macro_resolver import MacroResolver

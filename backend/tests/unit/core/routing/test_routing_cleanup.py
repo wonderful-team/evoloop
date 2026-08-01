@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.core.routing import executor
+from app.core.voice import executor
 from app.core.routing.compound_detector import _ACTION_WORDS, is_compound_intent
 from app.core.routing.conversation_state import (
     clear_thread_intent_state,
@@ -92,6 +92,18 @@ class TestExecutorDeadCodeRemoved:
         assert not hasattr(executor, "_MACRO_TIMEOUT"), (
             "_MACRO_TIMEOUT only fed the deleted dispatch_macro wrapper; it "
             "must not come back."
+        )
+
+    def test_execute_function_removed(self) -> None:
+        assert not hasattr(executor, "execute"), (
+            "executor.execute was legacy voice entrypoint dead code; it must not reappear."
+        )
+
+    def test_executor_module_removed_from_routing(self) -> None:
+        import app.core.routing
+        assert not hasattr(app.core.routing, "executor"), (
+            "routing.executor has been moved to app.core.voice.executor; it must "
+            "not exist under routing."
         )
 
     def test_live_helpers_still_present(self) -> None:

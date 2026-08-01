@@ -14,12 +14,40 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.core.channel.input.voice_input import VoiceInputChannel
-from app.core.routing import executor as routing_executor
+from app.core.voice import executor as routing_executor
 from app.core.routing.actions import run_builtin, run_macro
-from app.core.routing.channels.voice import execute_route_for_voice
-from app.core.routing.executor import push_macro_result
+from app.core.voice.executor import push_macro_result
 from app.core.routing.local_matcher import LocalMatcher
 from app.core.routing.schemas import RouteDecision
+
+async def execute_route_for_voice(
+    text: str,
+    *,
+    thread_id: str,
+    project_id: int,
+    worker_registry = None,
+) -> bool:
+    from app.core.routing.dispatch_handler import dispatch_user_message
+    from app.core.channel.input.voice_input import voice_input
+    from app.core.context.manager import EvoContext
+    from app.api.routes.voice_ws import _present_voice_outcome
+
+    ctx = EvoContext(thread_id=thread_id, project_id=project_id)
+    raw = {"thread_id": thread_id, "text": text}
+    outcome = await dispatch_user_message(
+        raw,
+        source="voice",
+        input_channel=voice_input,
+        thread_id=thread_id,
+        project_id=project_id,
+        member_id=0,
+        context=ctx,
+        worker_registry=worker_registry,
+    )
+    if outcome.handled and outcome.local_response:
+        await _present_voice_outcome(thread_id, outcome.local_response)
+    return outcome.handled
+
 from tests.unit.core.routing import fixtures as routing_fixtures
 
 
@@ -268,7 +296,7 @@ class TestVoiceRouterExecuteRoute:
             source="voice",
         )
         with patch(
-            "app.core.routing.channels.voice.CommandRouter.resolve",
+            "app.core.routing.dispatch_handler.CommandRouter.resolve",
             AsyncMock(return_value=decision),
         ):
             handled = await execute_route_for_voice(
@@ -290,7 +318,7 @@ class TestVoiceRouterExecuteRoute:
             source="voice",
         )
         with patch(
-            "app.core.routing.channels.voice.CommandRouter.resolve",
+            "app.core.routing.dispatch_handler.CommandRouter.resolve",
             AsyncMock(return_value=decision),
         ):
             handled = await execute_route_for_voice(

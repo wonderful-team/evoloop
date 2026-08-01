@@ -16,7 +16,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from app.core.routing import idempotency
-from app.core.routing.connection import VoiceConnectionManager
+from app.core.voice.connection import VoiceConnectionManager
 
 
 @pytest.mark.unit

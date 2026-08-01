@@ -227,7 +227,7 @@ class TestThreadStateRoundTrip:
             clear_thread_intent_state("t-B")
 
     @pytest.mark.asyncio
-    async def test_macro_fast_path_still_records_intent(self) -> None:
+    async def test_macro_fast_path_still_records_intent(self, _real_db) -> None:
         """Bug #1 regression: a turn that resolves via the macro fast-path
         (returning early before the delegate branch) must still write
         the resolved label so a following anaphora turn can find prior context.
@@ -241,9 +241,46 @@ class TestThreadStateRoundTrip:
         """
         from app.core.routing.command_router import CommandRouter
         from app.core.routing.conversation_state import _get_thread_intent_state
+        from app.core.routing.navigation_macro_cache import NavigationMacroCache
+        from app.infrastructure.database import session_scope
+        from app.models.macro import Macro
+        from app.utils.time import utcnow
 
-        router = CommandRouter()
+        router = CommandRouter(nav_macro_cache=NavigationMacroCache(ttl_seconds=3600))
         try:
+            async with session_scope() as db:
+                db.add(
+                    Macro(
+                        name="回首页",
+                        description="Navigate to /chat",
+                        trigger_patterns=["回首页"],
+                        parameters=[],
+                        macro_script=(
+                            "version: '1.0'\n"
+                            "metadata:\n"
+                            "  format: evoloop-macro\n"
+                            "  step_count: 1\n"
+                            "steps:\n"
+                            "- type: action\n"
+                            "  event_type: frontend_navigate\n"
+                            "  source: desktop\n"
+                            "  payload:\n"
+                            "    route: /chat\n"
+                        ),
+                        risk_tier="observe",
+                        requires_confirmation=False,
+                        allow_self_healing=False,
+                        status="verified",
+                        is_active=True,
+                        namespace="preset",
+                        feedback="已回到主界面",
+                        project_id=None,
+                        member_id=0,
+                        created_at=utcnow(),
+                        updated_at=utcnow(),
+                    )
+                )
+
             # Turn 1 — agent path, records system_info.
             d1 = await router.resolve(
                 "当前 CPU 是什么型号",
@@ -254,10 +291,7 @@ class TestThreadStateRoundTrip:
             assert d1.intent_hint.domain == "system_info"
             assert _get_thread_intent_state("t-macro-path")[0] == "system_info"
 
-            # Turn 2 — built-in ack ("对/没错" typically resolves to builtin ack
-            # OR a direct route). We use a direct-route phrase (handled in
-            # branch 1) to deterministically exercise the non-delegate path:
-            # "回首页" is in the direct route table.
+            # Turn 2 — navigation macro (DB-backed, exact phrase match).
             await router.resolve(
                 "回首页",
                 thread_id="t-macro-path",

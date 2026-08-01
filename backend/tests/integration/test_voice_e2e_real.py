@@ -69,25 +69,25 @@ async def _voice_round(thread_id: str, text: str, timeout: float = 15) -> dict:
 
 class TestVoiceL0Hit:
 
-    async def test_screenshot(self, server):
-        body = await _voice_round(f"e2e-{uuid.uuid4().hex[:6]}", "截图")
-        assert body.get("status") == "routed"
-        assert body.get("target", {}).get("action") == "screenshot"
+    async def test_ack(self, server):
+        body = await _voice_round(f"e2e-{uuid.uuid4().hex[:6]}", "对对对")
+        assert body.get("status") == "done"
+        assert body.get("summary") == "好的"
 
-    async def test_mute(self, server):
-        body = await _voice_round(f"e2e-{uuid.uuid4().hex[:6]}", "静音")
-        assert body.get("status") == "routed"
-        assert body.get("target", {}).get("action") == "mute"
+    async def test_cancel(self, server):
+        body = await _voice_round(f"e2e-{uuid.uuid4().hex[:6]}", "取消")
+        assert body.get("status") == "done"
+        assert body.get("summary") == "没有正在执行的任务"
 
-    async def test_lock_screen(self, server):
-        body = await _voice_round(f"e2e-{uuid.uuid4().hex[:6]}", "锁屏")
-        assert body.get("status") == "routed"
-        assert body.get("target", {}).get("action") == "lock_screen"
+    async def test_end(self, server):
+        body = await _voice_round(f"e2e-{uuid.uuid4().hex[:6]}", "再见")
+        assert body.get("status") == "done"
+        assert body.get("summary") == "再见"
 
-    async def test_next_track(self, server):
-        body = await _voice_round(f"e2e-{uuid.uuid4().hex[:6]}", "下一首")
-        assert body.get("status") == "routed"
-        assert body.get("target", {}).get("action") == "next_track"
+    async def test_rename(self, server):
+        body = await _voice_round(f"e2e-{uuid.uuid4().hex[:6]}", "你以后叫小爱")
+        assert body.get("status") == "done"
+        assert "小爱" in body.get("summary", "")
 
 
 class TestVoiceDispatch:
