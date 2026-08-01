@@ -13,6 +13,10 @@ class ProjectContextPlugin(ContextPlugin):
     Links thread_id to working_directory and project_id via ThreadContextStore.
     """
 
+    def is_needed(self, intent: str | None) -> bool:
+        """Always hydrate thread/project binding unless explicitly skipped."""
+        return True
+
     def hydrate(self, ctx: EvoContext) -> None:
         if not ctx.thread_id:
             # We can't do much without a thread_id hint

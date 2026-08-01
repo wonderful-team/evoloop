@@ -136,6 +136,39 @@ class AgentStateBase(DynamicBaseModel):
         return self
 
 
+def merge_dicts(a: dict | None, b: dict | None) -> dict:
+    """Merge two optional dicts; values from ``b`` override ``a``."""
+    result = dict(a or {})
+    if b:
+        result.update(b)
+    return result
+
+
+def add_unique_items(a: list | None, b: list | None) -> list:
+    """Concatenate two optional lists while preserving order and removing duplicates."""
+    combined = (a or []) + (b or [])
+    seen: set = set()
+    result = []
+    for item in combined:
+        if item not in seen:
+            seen.add(item)
+            result.append(item)
+    return result
+
+
+def add_unique_subtasks(a: list[SubtaskResult] | None, b: list[SubtaskResult] | None) -> list[SubtaskResult]:
+    """Merge two optional SubtaskResult lists, deduplicating by subtask_id."""
+    combined = (a or []) + (b or [])
+    seen: set[str] = set()
+    result = []
+    for item in combined:
+        key = item.subtask_id
+        if key not in seen:
+            seen.add(key)
+            result.append(item)
+    return result
+
+
 class AgentState(AgentStateBase):
     workspace_context: WorkspaceContext | None = None
     tool_history: list[str] = Field(default_factory=list)

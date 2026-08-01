@@ -30,6 +30,7 @@ class MacroStepType(str, Enum):
     IF = "if"
     LOOP = "loop"
     NATIVE = "native"
+    BASH = "bash"
 
 
 class MacroActionType(str, Enum):
@@ -70,13 +71,17 @@ class MacroActionType(str, Enum):
     SCREENSHOT = "screenshot"
     DUMP_UI = "dump_ui"
 
+    # Code execution / system-level escape hatches
+    APPLESCRIPT = "applescript"
+    BASH = "bash"
+    EVALUATE = "evaluate"
+
     # OS / App
     OPEN_APP = "open_app"
     CLOSE_APP = "close_app"
     HOME = "home"
     BACK_KEY = "back_key"
     MOUSE_CLICK = "mouse_click"
-    APPLESCRIPT = "applescript"
     GET_ACTIVE_APP = "get_active_app"
     GET_INFO = "get_info"
     NOOP = "noop"
@@ -111,9 +116,9 @@ def action_family(step_type: MacroStepType, event_type: MacroActionType | str | 
     3. control — type in (CONTROL, IF, LOOP)
     4. act     — everything else
     """
-    if step_type == MacroStepType.NATIVE:
+    if step_type in (MacroStepType.NATIVE, MacroStepType.BASH):
         return "escape"
-    if event_type and str(event_type) in ("applescript", "run_js"):
+    if event_type and str(event_type) in ("applescript", "run_js", "bash"):
         return "escape"
     if step_type in (MacroStepType.EXTRACT, MacroStepType.DUMP):
         return "observe"
@@ -145,7 +150,7 @@ def action_risk(event_type: MacroActionType | str | None) -> str:
         # Browser tabs — act
         "new_tab": "act", "switch_tab": "act", "dialog_handle": "act",
         # Code execution — escape
-        "run_js": "escape", "applescript": "escape",
+        "run_js": "escape", "applescript": "escape", "bash": "escape",
         # Perception / read-only — observe
         "get_text": "observe", "get_attribute": "observe", "get_html": "observe",
         "get_links": "observe", "screenshot": "observe", "dump_ui": "observe",
@@ -258,12 +263,23 @@ class ExtractionPayload(DynamicBaseModel):
     data_capture: dict[str, str] = Field(default_factory=dict)
 
 
+class BashPayload(DynamicBaseModel):
+    """Payload for a bash step that runs a shell command."""
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    command: str
+    key: str = "bash_output"
+    timeout: int | float = Field(default=30, ge=1)
+    continue_on_error: bool = False
+
+
 # Unified Payload Type
 MacroPayload = (
     NavigationPayload
     | InteractionPayload
     | ControlPayload
     | ExtractionPayload
+    | BashPayload
     | dict[str, Any]
 )
 

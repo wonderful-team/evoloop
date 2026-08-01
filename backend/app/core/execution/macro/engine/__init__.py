@@ -3,6 +3,7 @@ import re
 from typing import Any
 
 from app.core.context import ContextManager, EvoContext
+from app.core.execution.macro.engine._bash import BashMixin
 from app.core.execution.macro.engine._control import ControlMixin
 from app.core.execution.macro.engine._dump import DumpMixin
 from app.core.execution.macro.engine._executors import ExecutorMixin
@@ -39,6 +40,7 @@ class MacroEngine(
     ExtractionMixin,
     DumpMixin,
     NativeMixin,
+    BashMixin,
     ExecutorMixin,
 ):
     @classmethod
@@ -138,6 +140,8 @@ class MacroEngine(
                     desc += f"(max_iterations={max_iters})"
             elif step.type == MacroStepType.EXTRACT:
                 desc += f"(key='{step.key}')"
+            elif step.type == MacroStepType.BASH:
+                desc += f"(command='{str(payload.get('command', ''))[:60]}')"
 
             if not skip_activity_log:
                 await activity_monitor.log_event("macro_thought", {"text": desc}, thread_id)
@@ -192,6 +196,24 @@ class MacroEngine(
 
             if step.type == MacroStepType.NATIVE:
                 await cls._handle_native(thread_id, payload, extracted_data)
+                continue
+
+            if step.type == MacroStepType.BASH:
+                try:
+                    await cls._execute_bash_step(thread_id, payload, extracted_data)
+                except _STEP_EXCEPTIONS as e:
+                    error_msg = str(e)
+                    await cls._handle_action_error(
+                        thread_id, step_num, "bash", error_msg
+                    )
+                    return (
+                        False,
+                        error_msg,
+                        {
+                            "step_number": step_num,
+                            "event_type": "bash",
+                        },
+                    )
                 continue
 
             if step.type == MacroStepType.ACTION:

@@ -1,60 +1,34 @@
-"""Build the VoiceInitSpec (Layer-0 dynamic data) from backend sources.
+"""Build the RouteCatalog (Layer-0 dynamic data) from backend sources.
 
 Data sources (see design §6.4): Environment (host apps / usage rank), Atlas
-(bundle ids), ActionRegistry (desktop safe subset), plus voice-local media /
-self / system actions that the registry does not cover. Everything is produced
-as data; the client does deterministic matching only. All sources are probed
-defensively so the spec still builds on first run or non-macOS hosts.
+(bundle ids), plus voice-local media / self / system actions that the registry
+does not cover. Everything is produced as data; the client does deterministic
+matching only. All sources are probed defensively so the spec still builds on
+first run or non-macOS hosts.
+
+Language-specific builtin templates, aliases, and voice-local actions are loaded
+from ``app.core.routing.routing_data`` (``app/core/routing/data/{lang}/``).  The
+spec is further enriched with Atlas aliases and DB macro triggers before being
+used by the client or the server-side LocalMatcher.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Any
 
+from sqlalchemy import case, select
+
 from app.core.routing.local_matcher import sorted_templates
-from app.core.routing.schemas import VoiceInitSpec
+from app.core.routing.pinyin import to_pinyin
+from app.core.routing.routing_data import get_store
+from app.core.routing.schemas import RouteCatalog
 
 logger = logging.getLogger(__name__)
 
-# Voice-local actions not covered by ActionRegistry (Evoloop self commands).
-_VOICE_LOCAL_ACTIONS: list[dict[str, Any]] = [
-    {"id": "paste", "params": {}},
-    {"id": "speak", "params": {}},
-    {"id": "clarify", "params": {}},
-    {"id": "rename", "params": {"name": "str"}},
-    {"id": "end", "params": {}},
-    {"id": "ack", "params": {}},
-    {"id": "cancel", "params": {}},
-]
-
-# Static deterministic templates for Evoloop self commands.
-_TEMPLATES: list[dict[str, Any]] = [
-    {"action": "clarify", "patterns": ["再说一遍", "没听清", "重说"], "slots": {}},
-    {
-        "action": "rename",
-        "patterns": ["你以后叫{name}", "改名{name}", "你的名字是{name}"],
-        "slots": {"name": "str"},
-    },
-    {"action": "end", "patterns": ["再见", "拜拜", "结束", "退出对话"], "slots": {}},
-    {"action": "ack", "patterns": ["对对对", "没错", "就这个", "可以", "对的", "是的"], "slots": {}},
-    {"action": "cancel", "patterns": ["算了", "不用了", "不要", "取消"], "slots": {}},
-]
-
-_ALIASES: dict[str, str] = {"音乐": "Apple Music", "浏览器": "Safari"}
-
-
-def _pinyin(text: str) -> str | None:
-    """Best-effort pinyin; None when pypinyin is unavailable (client degrades)."""
-    try:
-        from pypinyin import lazy_pinyin  # type: ignore
-    except ImportError:
-        return None
-    try:
-        return "".join(lazy_pinyin(text))
-    except (ValueError, RuntimeError, TypeError):
-        return None
+_routing_store = get_store()
 
 
 def _probe_apps() -> tuple[list[dict[str, Any]], list[str]]:
@@ -69,8 +43,8 @@ def _probe_apps() -> tuple[list[dict[str, Any]], list[str]]:
     raw: list[Any] = []
     try:
         raw = macos_driver.list_installed_apps() or []
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as exc:
-        logger.debug("[init_spec] list_installed_apps failed: %s", exc)
+    except Exception:
+        logger.debug("[init_spec] list_installed_apps failed", exc_info=True)
         return entries, rank
 
     for item in raw:
@@ -84,17 +58,12 @@ def _probe_apps() -> tuple[list[dict[str, Any]], list[str]]:
         if not name:
             continue
         entry: dict[str, Any] = {"name": name, "bundle_id": bundle, "aliases": []}
-        py = _pinyin(name)
+        py = to_pinyin(name)
         if py:
             entry["pinyin"] = py
         entries.append(entry)
         rank.append(name)
     return entries, rank
-
-
-def _registry_actions() -> list[dict[str, Any]]:
-    """Legacy registry probe — all previously registered actions are now preset Macros."""
-    return []
 
 
 async def _atlas_app_aliases() -> list[tuple[str, str, str]]:
@@ -132,7 +101,7 @@ async def _atlas_app_aliases() -> list[tuple[str, str, str]]:
     return out
 
 
-async def enrich_spec_with_atlas_aliases(spec: VoiceInitSpec) -> VoiceInitSpec:
+async def enrich_spec_with_atlas_aliases(spec: RouteCatalog) -> RouteCatalog:
     """Fold Atlas-surveyed Chinese aliases into the L0 app slot dictionary.
 
     The L0 client matches '打开微信' via slot_dictionaries['app'][].aliases;
@@ -141,8 +110,8 @@ async def enrich_spec_with_atlas_aliases(spec: VoiceInitSpec) -> VoiceInitSpec:
     """
     try:
         triples = await _atlas_app_aliases()
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as exc:
-        logger.debug("[init_spec] atlas alias probe failed: %s", exc)
+    except Exception:
+        logger.debug("[init_spec] atlas alias probe failed", exc_info=True)
         return spec
     if not triples:
         return spec
@@ -177,7 +146,7 @@ async def enrich_spec_with_atlas_aliases(spec: VoiceInitSpec) -> VoiceInitSpec:
     return spec
 
 
-async def enrich_spec_with_macro_triggers(spec: VoiceInitSpec) -> VoiceInitSpec:
+async def enrich_spec_with_macro_triggers(spec: RouteCatalog) -> RouteCatalog:
     """从 DB 加载 routable Macro 的 trigger_patterns，注入为 L0 templates。
 
     作用域：全局（project_id IS NULL）+ 当前项目（shared_state.project_id）。
@@ -186,7 +155,6 @@ async def enrich_spec_with_macro_triggers(spec: VoiceInitSpec) -> VoiceInitSpec:
     from app.core.shared_state import shared_state
     from app.infrastructure.database import session_scope
     from app.models.macro import Macro
-    from sqlmodel import select, case
 
     current_project_id = int(await shared_state.get("project_id", "0"))
 
@@ -201,8 +169,8 @@ async def enrich_spec_with_macro_triggers(spec: VoiceInitSpec) -> VoiceInitSpec:
                 Macro.created_at.asc(),
             )
             macros = (await session.execute(stmt)).scalars().all()
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as exc:
-        logger.debug("[init_spec] macro trigger load skipped: %s", exc)
+    except Exception:
+        logger.debug("[init_spec] macro trigger load skipped", exc_info=True)
         return spec
 
     seen_patterns: set[str] = set()
@@ -223,7 +191,7 @@ async def enrich_spec_with_macro_triggers(spec: VoiceInitSpec) -> VoiceInitSpec:
         if not deduped:
             continue
         slot_names = [p.get("name") for p in (macro.parameters or []) if p.get("name")]
-        slots = {name: "str" for name in slot_names}
+        slots = dict.fromkeys(slot_names, "str")
         spec.templates.append({
             "action": f"macro:{macro.id}",
             "patterns": deduped,
@@ -231,24 +199,33 @@ async def enrich_spec_with_macro_triggers(spec: VoiceInitSpec) -> VoiceInitSpec:
             "args": {},
         })
         added += 1
-    logger.info("[init_spec] enriched %d macro templates (%d macros scanned, %d patterns deduped)",
-                added, len(macros), len(seen_patterns))
+    logger.info(
+        "[init_spec] enriched %d macro templates (%d macros scanned, %d patterns deduped)",
+        added,
+        len(macros),
+        len(seen_patterns),
+    )
     return spec
 
 
-def build_init_spec() -> VoiceInitSpec:
-    """Synchronous build (called by the Huey task / on-demand)."""
+def build_init_spec() -> RouteCatalog:
+    """Synchronous build (called by the Huey task / on-demand).
+
+    Uses the language-specific builtin templates / aliases / voice-local actions
+    exported by ``app.core.routing.routing_data``.  The returned spec should then
+    be enriched with Atlas aliases and DB macro triggers before use.
+    """
     apps, rank = _probe_apps()
-    actions = list(_VOICE_LOCAL_ACTIONS)
 
     # Inject well-known spoken aliases when the canonical app is installed but
     # the Chinese spoken name is not already an installed display name. This
-    # lets "打开微信" match as a local action even if the system lists the app
-    # as "WeChat" and Atlas has not surveyed the alias yet.
-    installed_names = {e.get("name") for e in apps if isinstance(e, dict)}
-    aliases = dict(_ALIASES)
-    if "WeChat" in installed_names and "微信" not in installed_names:
-        aliases.setdefault("微信", "WeChat")
+    # only matters for the Chinese language pack and lets "打开微信" match even
+    # if the system lists the app as "WeChat" and Atlas has not surveyed it.
+    aliases = dict(_routing_store.aliases)
+    if _routing_store.lang == "zh":
+        installed_names = {e.get("name") for e in apps if isinstance(e, dict)}
+        if "WeChat" in installed_names and "微信" not in installed_names:
+            aliases.setdefault("微信", "WeChat")
 
     slot_dictionaries: dict[str, Any] = {
         "app": apps,
@@ -264,14 +241,22 @@ def build_init_spec() -> VoiceInitSpec:
     }
 
     version = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-    return VoiceInitSpec(
+    return RouteCatalog(
         version=version,
-        actions=actions,
-        templates=sorted_templates(_TEMPLATES),
+        actions=list(_routing_store.voice_local_actions),
+        templates=sorted_templates(_routing_store.templates),
         slot_dictionaries=slot_dictionaries,
         aliases=aliases,
         default_apps={"browser": "Safari", "music": "Apple Music"},
         app_usage_rank=rank[:50],
         capabilities=capabilities,
-        preferences={"lang": "zh"},
+        preferences={"lang": _routing_store.lang},
     )
+
+
+async def build_and_enrich_spec() -> RouteCatalog:
+    """Full async build: base spec + Atlas aliases + DB macro triggers."""
+    spec = await asyncio.to_thread(build_init_spec)
+    spec = await enrich_spec_with_atlas_aliases(spec)
+    spec = await enrich_spec_with_macro_triggers(spec)
+    return spec

@@ -19,14 +19,16 @@ from app.api.schemas.agent import (
     ResumeRequest,
     StopChatResponse,
 )
+from app.core.channel.input.web_input import web_input
 from app.core.config import settings
 from app.core.context import thread_context_store
 from app.core.context.manager import ContextManager, EvoContext
 from app.core.engine.background_agent import run_agent_background
-from app.core.channel.input.web_input import web_input
 from app.core.engine.graph_runner import resume_graph_background
 from app.core.engine.message.native_classes import HumanMessage, ToolMessage
 from app.core.monitoring.activity import activity_monitor
+from app.core.routing.channels.web import WebPresenter
+from app.core.routing.dispatch_handler import dispatch_user_message, route_lock_scope
 from app.infrastructure.database import session_scope
 from app.models import Message
 from app.utils.id import gen_uuid
@@ -34,16 +36,6 @@ from app.utils.id import gen_uuid
 router = APIRouter()
 
 logger = logging.getLogger(__name__)
-
-_thread_locks: dict[str, asyncio.Lock] = {}
-_thread_locks_guard = asyncio.Lock()
-
-
-async def _acquire_thread_lock(thread_id: str) -> asyncio.Lock:
-    async with _thread_locks_guard:
-        if thread_id not in _thread_locks:
-            _thread_locks[thread_id] = asyncio.Lock()
-        return _thread_locks[thread_id]
 
 
 async def _check_thread_not_running(thread_id: str) -> None:
@@ -65,41 +57,61 @@ async def chat_endpoint(
     if not req.thread_id:
         req.thread_id = gen_uuid()
 
-    lock = await _acquire_thread_lock(req.thread_id)
-    async with lock:
-        await _check_thread_not_running(req.thread_id)
+    await _check_thread_not_running(req.thread_id)
 
-        await activity_monitor._state_service.start_run(req.thread_id, req.message or "")
+    await activity_monitor._state_service.start_run(req.thread_id, req.message or "")
 
-        ctx = EvoContext(
-            request_id=f"req-{req.thread_id}-{int(time.time())}",
+    ctx = EvoContext(
+        request_id=f"req-{req.thread_id}-{int(time.time())}",
+        thread_id=req.thread_id,
+        project_id=req.project_id,
+        command_id=req.command_id,
+        active_model=req.model,
+        token=token,
+    )
+    member_id = _current_user.id if _current_user else 0
+
+    async with route_lock_scope(req.thread_id, ctx):
+        logger.debug("[ChatEndpoint] Run initialized for thread %s", req.thread_id)
+
+        raw = req.__dict__ if hasattr(req, "__dict__") else dict(req)
+        outcome = await dispatch_user_message(
+            raw,
+            source="web",
+            input_channel=web_input,
+            presenter=WebPresenter(),
             thread_id=req.thread_id,
-            project_id=req.project_id,
-            command_id=req.command_id,
-            active_model=req.model,
-            token=token,
-        )
-        ContextManager.set(ctx)
-
-        logger.debug(f"[ChatEndpoint] Run initialized for thread {req.thread_id}")
-
-        msg = await web_input.receive(
-            req.__dict__ if hasattr(req, '__dict__') else dict(req),
+            project_id=req.project_id or 0,
+            member_id=member_id,
             context=ctx,
-            member_id=_current_user.id if _current_user else 0,
         )
-        if msg is None:
-            return JSONResponse({"error": "invalid request"}, status_code=400)
-        result = await web_input.dispatch(msg)
-        if result.status == "failed":
-            raise HTTPException(status_code=500, detail=result.error)
 
-        bg_tasks.add_task(run_agent_background, req.thread_id, result.inputs)
+        if outcome.msg is None:
+            return JSONResponse({"error": "invalid request"}, status_code=400)
+
+        if outcome.handled:
+            await activity_monitor.end_run(
+                req.thread_id,
+                status="done",
+                final_outcome=(outcome.local_response or {}).get("summary", ""),
+            )
+            response = outcome.local_response or {
+                "status": "done",
+                "thread_id": req.thread_id,
+            }
+            response.setdefault("thread_id", req.thread_id)
+            return response
+
+        dispatch_result = outcome.inputs
+        if dispatch_result.status == "failed":
+            raise HTTPException(status_code=500, detail=dispatch_result.error)
+
+        bg_tasks.add_task(run_agent_background, req.thread_id, dispatch_result.inputs)
 
     return {
         "status": "queued",
         "thread_id": req.thread_id,
-        "message_id": result.message_id,
+        "message_id": dispatch_result.message_id,
     }
 
 
@@ -165,14 +177,28 @@ async def retry_chat(
             target_msg = result.scalar_one_or_none()
 
             if not target_msg:
-                logger.warning(f"[Retry] Message {req.message_id} not found in database")
-                raise HTTPException(status_code=404, detail=f"Message {req.message_id} not found")
+                logger.warning(
+                    f"[Retry] Message {req.message_id} not found in database"
+                )
+                raise HTTPException(
+                    status_code=404, detail=f"Message {req.message_id} not found"
+                )
             if target_msg.thread_id != req.thread_id:
-                logger.warning(f"[Retry] Message {req.message_id} belongs to thread {target_msg.thread_id}")
-                raise HTTPException(status_code=404, detail=f"Message {req.message_id} not found in thread")
+                logger.warning(
+                    f"[Retry] Message {req.message_id} belongs to thread {target_msg.thread_id}"
+                )
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Message {req.message_id} not found in thread",
+                )
             if target_msg.role != "human":
-                logger.warning(f"[Retry] Message {req.message_id} has role '{target_msg.role}'")
-                raise HTTPException(status_code=404, detail=f"Message {req.message_id} is not a human message")
+                logger.warning(
+                    f"[Retry] Message {req.message_id} has role '{target_msg.role}'"
+                )
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Message {req.message_id} is not a human message",
+                )
             last_human_msg = target_msg
         else:
             stmt = (
@@ -187,14 +213,18 @@ async def retry_chat(
             last_human_msg = result.scalar_one_or_none()
 
         if not last_human_msg:
-            raise HTTPException(status_code=404, detail="No human message found to retry")
+            raise HTTPException(
+                status_code=404, detail="No human message found to retry"
+            )
 
         references = None
         if last_human_msg.references:
             references = [
                 {
-                    "type": ref.type, "id": ref.target_id,
-                    "target_id": ref.target_id, "target_name": ref.target_name,
+                    "type": ref.type,
+                    "id": ref.target_id,
+                    "target_id": ref.target_id,
+                    "target_name": ref.target_name,
                     "meta_data": ref.meta_data,
                 }
                 for ref in last_human_msg.references
@@ -226,7 +256,9 @@ async def retry_chat(
         )
 
     except MessageNotFoundError:
-        raise HTTPException(status_code=404, detail="Target message not found for retry")
+        raise HTTPException(
+            status_code=404, detail="Target message not found for retry"
+        )
     except NoHumanMessageError:
         raise HTTPException(status_code=404, detail="No human message found to retry")
     except RewindError as e:
@@ -291,13 +323,19 @@ async def resume_chat(
 
     from app.core.hitl.orchestrator import HITLOrchestrator
 
-    pending_tool = await HITLOrchestrator.get_pending_request(req.thread_id, active_model)
+    pending_tool = await HITLOrchestrator.get_pending_request(
+        req.thread_id, active_model
+    )
 
     inputs = None
     if pending_tool:
         logger.info(f"Auto-completing tool call {pending_tool['name']} on resume")
-        normalized_input = await HITLOrchestrator.handle_resume(req.thread_id, pending_tool, req.user_input)
-        tool_msg = ToolMessage(tool_call_id=pending_tool["id"], content=normalized_input)
+        normalized_input = await HITLOrchestrator.handle_resume(
+            req.thread_id, pending_tool, req.user_input
+        )
+        tool_msg = ToolMessage(
+            tool_call_id=pending_tool["id"], content=normalized_input
+        )
         inputs = {"messages": [tool_msg]}
 
     elif req.user_input:
@@ -307,6 +345,7 @@ async def resume_chat(
                 temp_project_id = parsed.get("project_id")
                 thread_context_store.set_temp_project(req.thread_id, temp_project_id)
                 from app.utils.controller_response import SystemToolsFormatter
+
                 sel_msg = SystemToolsFormatter.signals(
                     [f"Selected project: {parsed.get('project_name', temp_project_id)}"]
                 )
@@ -322,6 +361,7 @@ async def resume_chat(
             ContextManager.set(ctx)
 
         from app.core.engine.dispatch import persist_user_message
+
         await persist_user_message(
             thread_id=req.thread_id,
             content=req.user_input,
@@ -330,8 +370,12 @@ async def resume_chat(
         )
 
     if pending_tool:
-        normalized_input = await HITLOrchestrator.handle_resume(req.thread_id, pending_tool, req.user_input)
-        tool_msg = ToolMessage(tool_call_id=pending_tool["id"], content=normalized_input)
+        normalized_input = await HITLOrchestrator.handle_resume(
+            req.thread_id, pending_tool, req.user_input
+        )
+        tool_msg = ToolMessage(
+            tool_call_id=pending_tool["id"], content=normalized_input
+        )
         if inputs and "messages" in inputs:
             inputs["messages"] = [tool_msg]
         else:
@@ -348,16 +392,24 @@ async def resume_chat(
 
     if settings.EMBEDDED_MODE:
         bg_tasks.add_task(
-            resume_graph_background, req.thread_id, inputs, config,
-            run_label="Resuming...", clear_human_request_flag=True,
+            resume_graph_background,
+            req.thread_id,
+            inputs,
+            config,
+            run_label="Resuming...",
+            clear_human_request_flag=True,
         )
     else:
         from app.core.engine.message.converter import EvoMessageConverter
+
         serialized_inputs = inputs.copy() if inputs else {}
         if "messages" in serialized_inputs:
-            serialized_inputs["messages"] = EvoMessageConverter.repair(serialized_inputs["messages"])
+            serialized_inputs["messages"] = EvoMessageConverter.repair(
+                serialized_inputs["messages"]
+            )
 
         from app.infrastructure.queue.factory import get_scheduler
+
         get_scheduler().send_task(
             "engine_resume_graph_background",
             args=(req.thread_id, serialized_inputs, config, "Resuming...", True),

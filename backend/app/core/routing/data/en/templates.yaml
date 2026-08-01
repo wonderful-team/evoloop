@@ -1,0 +1,65 @@
+voice_local_actions:
+- id: paste
+  params: {}
+- id: speak
+  params: {}
+- id: clarify
+  params: {}
+- id: rename
+  params:
+    name: str
+- id: end
+  params: {}
+- id: ack
+  params: {}
+- id: cancel
+  params: {}
+templates:
+- action: clarify
+  patterns:
+  - say that again
+  - i didn't catch that
+  - repeat
+  - pardon
+  - what did you say
+  slots: {}
+- action: rename
+  patterns:
+  - call you {name}
+  - rename to {name}
+  - your name is {name}
+  - from now on call you {name}
+  slots:
+    name: str
+- action: end
+  patterns:
+  - goodbye
+  - bye
+  - end
+  - exit conversation
+  - end conversation
+  slots: {}
+- action: ack
+  patterns:
+  - yes yes yes
+  - exactly
+  - that's right
+  - that's it
+  - okay
+  - ok
+  - right
+  - yes
+  - sure
+  slots: {}
+- action: cancel
+  patterns:
+  - never mind
+  - forget it
+  - don't
+  - cancel
+  - abort
+  - stop that
+  slots: {}
+aliases:
+  music: Apple Music
+  browser: Safari

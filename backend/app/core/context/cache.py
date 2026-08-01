@@ -16,9 +16,8 @@ import time
 
 from pydantic import Field
 
-from app.core.context.schemas import DynamicContextLayer
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.constants import DEFAULT_PROJECT_ID
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +29,6 @@ class StaticContextLayer(DynamicBaseModel):
     active_skills_index: list = Field(default_factory=list)
     active_macros_index: list = Field(default_factory=list)
     operation_map: str = ""
-    environment_telemetry: dict = Field(default_factory=dict)
     system_preferences: dict = Field(default_factory=dict)
 
     # Memory pipeline fields — populated by AgentContextHydrator
@@ -67,7 +65,7 @@ class LayeredContextCache:
 
     @classmethod
     async def get_static_layer(
-        cls, session_id: str, project_id: int | None, loader_fn: callable
+        cls, session_id: str, project_id: int | None, loader_fn: callable, intent: str | None = None,
     ) -> StaticContextLayer:
         """
         Get static context layer with caching.
@@ -78,7 +76,8 @@ class LayeredContextCache:
             loader_fn: Async function to load static data
         """
         project_id = project_id if project_id is not None else DEFAULT_PROJECT_ID
-        cache_key = f"{session_id}:{project_id}"
+        intent_key = intent or "none"
+        cache_key = f"{session_id}:{project_id}:{intent_key}"
 
         # Check cache
         if cache_key in cls._static_cache:
@@ -105,7 +104,6 @@ class LayeredContextCache:
             active_skills_index=static_data.get("active_skills", []),
             active_macros_index=static_data.get("active_macros", []),
             operation_map=static_data.get("operation_map", ""),
-            environment_telemetry=static_data.get("telemetry", {}),
             system_preferences=static_data.get("preferences", {}),
             # Memory pipeline — carry through from loader_fn output
             hot_memory=static_data.get("hot_memory"),

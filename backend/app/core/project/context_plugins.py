@@ -8,12 +8,11 @@ instead of `async with`.
 """
 import logging
 
-from sqlalchemy import or_, select
+from sqlalchemy import select
 
 from app.core.context.manager import EvoContext
 from app.core.context.plugins import ContextPlugin, plugin_registry
 from app.infrastructure.database import sync_session_scope
-from app.models.todo import TodoItem, TodoPriority, TodoStatus
 
 logger = logging.getLogger(__name__)
 
@@ -25,26 +24,21 @@ class ProjectStateContextPlugin(ContextPlugin):
     - High-priority or In-Progress Todos
     """
 
+    _SKIP_FOR_INTENTS: frozenset[str | None] = frozenset({"direct_answer", "environment_query"})
+
+    def is_needed(self, intent: str | None) -> bool:
+        """Project state is not needed for greetings or raw environment questions."""
+        return intent not in self._SKIP_FOR_INTENTS
+
     def hydrate(self, ctx: EvoContext) -> None:
         if not ctx.project_id:
             return
 
         try:
             with sync_session_scope() as session:
-                todos = session.execute(
-                    select(TodoItem).where(
-                        TodoItem.project_id == ctx.project_id,
-                        TodoItem.status == TodoStatus.PENDING,
-                        or_(
-                            TodoItem.priority == TodoPriority.HIGH,
-                            TodoItem.priority == TodoPriority.MEDIUM,
-                        ),
-                    )
-                ).scalars().all()
-
-                active_plan = None
                 if ctx.thread_id:
                     from app.models.planning import Plan, PlanStep
+
                     stmt = select(Plan).where(Plan.thread_id == ctx.thread_id, Plan.status == "active")
                     res = session.execute(stmt)
                     db_plan = res.scalars().first()
@@ -77,8 +71,8 @@ class ProjectStateContextPlugin(ContextPlugin):
 
                         ctx.metadata.active_plan_context = active_plan_context
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
-            logger.error(f"[ProjectStateContextPlugin] Failed to fetch context from DB: {e}")
+        except Exception:
+            logger.exception("[ProjectStateContextPlugin] Failed to fetch context from DB")
 
 
 plugin_registry.register(ProjectStateContextPlugin())

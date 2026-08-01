@@ -7,6 +7,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from sqlalchemy import select
+
 from app.core.channel.base import IncomingMessage, InputChannel
 
 logger = logging.getLogger(__name__)
@@ -33,9 +35,8 @@ class WebInputChannel(InputChannel):
         skill_ids = raw.get("skill_ids")
         if skill_ids:
             try:
-                from sqlalchemy import select
-                from app.models.learning import LearnedSkill
                 from app.infrastructure.database import session_scope
+                from app.models.learning import LearnedSkill
 
                 async with session_scope() as session:
                     stmt = select(LearnedSkill).where(LearnedSkill.id.in_(skill_ids))

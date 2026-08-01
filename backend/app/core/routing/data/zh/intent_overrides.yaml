@@ -1,0 +1,91 @@
+# Intent overrides and keyword data for the Layer-0 router.
+#
+# These were previously hardcoded in app/core/routing/layer0_router.py.
+# Moving them to data files lets product/UX tune behavior without changing
+# routing code.
+
+# Context-aware intent redirect: when BERT predicts a vague intent (e.g. 录制)
+# we look at the currently active application/phone and redirect to a concrete
+# intent name that will be resolved against DB macros.
+context_map:
+  录制:
+    __default__: ""
+    __phone__: 手机录屏
+    QuickTime Player: 开始录屏
+    录音: 开始录音
+    Voice Memos: 开始录音
+  播放:
+    __default__: ""
+    Music: 播放音乐
+    Spotify: 播放音乐
+    IINA: 播放暂停
+    QuickTime Player: 播放暂停
+  下一曲:
+    __default__: ""
+    Music: 下一曲
+    Spotify: 下一曲
+    IINA: 下一曲
+
+# BERT intent labels that map to built-in L0 actions (ack, cancel, end, clarify, rename).
+builtin_aliases:
+  取消: cancel
+  结束: end
+  重说: clarify
+  改名: rename
+
+# BERT intent label that is always treated as a complex query and delegated to the agent.
+complex_query_intent: 复杂查询
+
+# Intents that require a guard regex to be present in the text before being accepted.
+# The router rejects the BERT prediction when the guard regex does not match.
+intent_guards:
+  报时: 几[号点时]|星期|时间|日期|报时
+  打开应用: (打开|启动|开一下|切换到|去|退出|关闭|关掉)\s*\w
+  切换到应用: (打开|启动|开一下|切换到|去|退出|关闭|关掉)\s*\w
+  退出应用: (打开|启动|开一下|切换到|去|退出|关闭|关掉)\s*\w
+
+# Intents that allow device keyword redirects to override candidate macro resolution.
+device_intent_trigger_intents:
+  - 打开应用
+  - 打开_WiFi
+  - 打开信息
+  - 退出应用
+  - 关闭_WiFi
+  - 切换到应用
+
+# Canonical built-in L0 actions used by the decision builder.
+builtin_actions:
+  - ack
+  - cancel
+  - end
+  - clarify
+  - rename
+
+# Device keyword redirects: when a device keyword is present in the text and
+# the predicted intent is one of the open/switch/close intents, prefer these
+# candidate intent names for macro resolution.
+device_intents:
+  WiFi:
+    - 打开_WiFi
+    - 关闭_WiFi
+    - 打开 WiFi
+    - 关闭 WiFi
+  蓝牙:
+    - 打开蓝牙
+    - 关闭蓝牙
+  蓝牙设备:
+    - 连接蓝牙设备
+    - 断开蓝牙设备
+
+# Chinese prefixes that are stripped when extracting a slot value from raw text.
+slot_prefixes:
+  - 帮我打开
+  - 打开
+  - 启动
+  - 关闭
+  - 退出
+  - 切换到
+  - 去
+  - 搜索
+  - 搜一下
+

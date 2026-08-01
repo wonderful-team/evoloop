@@ -29,7 +29,6 @@ class ContextMetadata(DynamicBaseModel):
     active_skills: Any | None = None
     active_macros: Any | None = None
     operation_map: str | None = None
-    environment_telemetry: Any | None = None
     shared_context: dict[str, str] = Field(default_factory=dict)
     tool_memory: dict | None = None
     execution_ticket: Any | None = None
@@ -42,3 +41,6 @@ class ContextMetadata(DynamicBaseModel):
     # Corresponds to Jinja2 template vars: memory.core_raw / memory.episodic_raw
     core_memory_raw: str | None = None
     episodic_memory_raw: str | None = None
+
+    # L0 intent hint passed from entry points to context hydrator
+    intent_hint: Any | None = None

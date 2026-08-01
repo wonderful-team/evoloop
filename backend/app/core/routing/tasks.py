@@ -1,4 +1,4 @@
-"""Huey tasks that (re)build the VoiceInitSpec.
+"""Huey tasks that (re)build the Layer-0 RouteCatalog.
 
 Runs in the separate Huey worker process and writes the result to the cache
 (``voice:init_spec:current``), which ``GET /route/init`` reads on demand. Clients
@@ -8,7 +8,6 @@ notification (design §6.4.2 / §17).
 
 from __future__ import annotations
 
-import asyncio
 import logging
 
 from app.infrastructure.queue.factory import periodic_task, shared_task
@@ -19,18 +18,17 @@ SPEC_CACHE_KEY = "voice:init_spec:current"
 
 
 async def _rebuild() -> str:
-    from app.core.routing.init_spec import build_init_spec, enrich_spec_with_atlas_aliases
+    from app.core.routing.init_spec import build_and_enrich_spec
     from app.infrastructure.cache import cache
 
-    spec = await asyncio.to_thread(build_init_spec)
-    spec = await enrich_spec_with_atlas_aliases(spec)
+    spec = await build_and_enrich_spec()
     try:
         await cache.set(SPEC_CACHE_KEY, spec.model_dump_json())
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as exc:
-        logger.warning("[voice] cache write failed: %s", exc)
+    except Exception:
+        logger.warning("[voice] cache write failed", exc_info=True)
 
     logger.info(
-        "[voice] VoiceInitSpec rebuilt: version=%s actions=%d",
+        "[voice] RouteCatalog rebuilt: version=%s actions=%d",
         spec.version,
         len(spec.actions),
     )

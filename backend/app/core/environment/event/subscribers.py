@@ -4,7 +4,7 @@ Environment Event Subscribers
 
 Event subscribers for the Awakening/Environment domain.
 """
-
+import asyncio
 import logging
 
 from app.core.environment.event.types import EventType
@@ -64,10 +64,12 @@ class EnvironmentLifecycleSubscriber:
         Handle APP_STOPPING event:
         1. Stop Device Watcher
         2. Cleanup all active mirror sessions
+        3. Cancel any pending background tasks (awaken + dynamic triage)
         """
         try:
             from app.core.environment.controllers.device_watcher import device_watcher
             from app.core.environment.controllers.mirror_session import mirror_manager
+            from app.core.environment.discovery import cancel_dynamic_triage_tasks
 
             # 1. Stop Watcher
             device_watcher.stop()
@@ -76,6 +78,19 @@ class EnvironmentLifecycleSubscriber:
             # 2. Cleanup Mirrors (Sync)
             mirror_manager.cleanup()
             logger.info("[Environment] All mirror sessions and containers cleaned up")
+
+            # 3. Cancel pending background tasks
+            await cancel_dynamic_triage_tasks()
+            for task in list(_background_tasks):
+                if task.done():
+                    continue
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+            _background_tasks.clear()
+            logger.info("[Environment] Background tasks cancelled")
         except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"[Environment] Cleanup errors during shutdown: {e}")
 

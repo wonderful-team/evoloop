@@ -55,7 +55,7 @@ class ContextMiddleware(BaseHTTPMiddleware):
 
         try:
             # 3b. Hydrate Subconscious Plugins
-            plugin_registry.hydrate_context(ctx)
+            await plugin_registry.ahydrate_context(ctx)
 
             response = await call_next(request)
 

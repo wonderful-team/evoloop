@@ -16,7 +16,19 @@ class EnvironmentContextPlugin(ContextPlugin):
     Injects dynamic environmental state and active boundaries
     into the EvoContext (Subconscious Pool).
     """
+
+    _LOAD_FOR_INTENTS: frozenset[str | None] = frozenset({
+        None, "environment_query", "worker_task", "ambiguous", "macro_task",
+    })
+
+    def is_needed(self, intent: str | None) -> bool:
+        """Only pay the sensing cost when the intent may require it."""
+        return intent in self._LOAD_FOR_INTENTS
+
     def hydrate(self, ctx: EvoContext) -> None:
+        # Reset to avoid carrying stale summaries into intents that skip hydration.
+        ctx.environment_summaries = {}
+
         try:
             from app.core.environment import get_awakened_state
             state = get_awakened_state()
@@ -96,8 +108,8 @@ class EnvironmentContextPlugin(ContextPlugin):
             # This pre-rendered block is what the Engine will use.
             ctx.environment_block = AppEnvironmentPrompt.render_environment_block(skip_hydrate=True)
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
-            logger.error(f"Failed to hydrate EnvironmentContextPlugin: {e}")
+        except Exception:
+            logger.exception("Failed to hydrate EnvironmentContextPlugin")
 
 
 # Register the plugin instance

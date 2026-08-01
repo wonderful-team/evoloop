@@ -88,7 +88,7 @@ async def session_scope():
         try:
             yield session
             await session.commit()
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError):
+        except Exception:
             await session.rollback()
             raise
         finally:
@@ -108,7 +108,7 @@ def sync_session_scope():
         try:
             yield session
             session.commit()
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError):
+        except Exception:
             session.rollback()
             raise
         finally:

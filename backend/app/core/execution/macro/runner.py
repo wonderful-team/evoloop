@@ -29,7 +29,7 @@ from app.core.execution.macro.schemas import (
 )
 from app.models.macro import Macro
 from app.utils.parameters import missing_required_params
-from app.utils.yaml import YAMLError
+from app.utils.yaml import YAMLError, macro_from_yaml
 
 logger = logging.getLogger(__name__)
 
@@ -115,18 +115,17 @@ class ExecutionOutcome:
 
 def is_navigation_macro(macro: Macro) -> str | None:
     """Check if macro is a frontend navigation. Returns route path or None."""
-    import yaml
     try:
-        parsed = yaml.safe_load(macro.macro_script)
-        if not isinstance(parsed, list):
-            return None
-        for step in parsed:
-            if isinstance(step, dict) and step.get("event_type") == "frontend_navigate":
-                payload = step.get("payload", {})
-                if isinstance(payload, dict):
-                    return payload.get("route")
-    except Exception:
-        pass
+        steps = macro_from_yaml(macro.macro_script)
+    except (YAMLError, ValueError, TypeError, AttributeError):
+        return None
+    if not isinstance(steps, list):
+        return None
+    for step in steps:
+        if isinstance(step, dict) and step.get("event_type") == "frontend_navigate":
+            payload = step.get("payload", {})
+            if isinstance(payload, dict):
+                return payload.get("route")
     return None
 
 

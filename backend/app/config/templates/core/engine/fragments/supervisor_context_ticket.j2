@@ -9,18 +9,23 @@
 {%- endif %}
 
 {%- if active_skills %}
+{%- set total_active_skills = active_skills|length %}
+{%- set displayed_skills = active_skills[:20] %}
 ## Available Skills (Direct Match)
-{%- for namespace, group in active_skills|sort(attribute='namespace')|groupby('namespace') %}
+{%- for namespace, group in displayed_skills|sort(attribute='namespace')|groupby('namespace') %}
 ### {{ namespace }}
 {% for s in group -%}
-- {{ s.name }} (ID: {{ s.id }}): {{ s.description }}
+- {{ s.name }} (ID: {{ s.id }}): {{ s.description | default('', true) | truncate(180, True, '…') }}
 {% endfor -%}
 {%- endfor %}
+{%- if total_active_skills > 20 %}
+- … and {{ total_active_skills - 20 }} more skill(s)
+{%- endif %}
 {%- endif %}
 
 {%- if active_macros %}
-## Available Macros (Deterministic Scripts)
-There are {{ active_macros|length }} active verified macros for this project. Use `list_macros(query="...")` to find relevant macros by task description. Prefer `run_macro(macro_id, params)` over manual tool sequences when one matches the user's intent. Before calling `run_macro`, check the macro's required parameters via `list_macros(macro_id=<id>)` and provide them all at once.
+## Available Macros
+{{ active_macros|length }} active macro(s). Use `list_macros(query="...")` to find relevant scripts; prefer `run_macro(macro_id, params)` over manual tool sequences when one matches.
 {%- endif %}
 
 {% if session_goal %}
@@ -49,15 +54,18 @@ There are {{ active_macros|length }} active verified macros for this project. Us
 
 {%- if plan %}
 ## Active Plan: {{ plan.title }} ({{ 'APPROVED' if plan_approved else 'PENDING' }})
-  {% for s in plan.steps -%}
+  {% for s in plan.steps[:10] -%}
   {{ loop.index }}. {{ '[DONE]' if s.status == 'done' else '[TODO]' }} {{ s.title or s.action or 'Step ' ~ loop.index }}
   {% endfor %}
+  {%- if plan.steps|length > 10 %}
+  … and {{ plan.steps|length - 10 }} more step(s)
+  {%- endif %}
 {%- endif %}
 
 {%- if subtask_results %}
 ## Subtask Results
   {% for res in subtask_results -%}
-  - {{ res.subtask_id }}: {{ (res.result[:300] + '…') if res.result|length > 300 else res.result }}
+  - {{ res.subtask_id }}: {{ (res.result[:200] + '…') if res.result|length > 200 else res.result }}
   {% endfor %}
 {%- endif %}
 
@@ -65,23 +73,16 @@ There are {{ active_macros|length }} active verified macros for this project. Us
 ## Verification: {{ verification.status|upper }}
 {%- endif %}
 
-{%- if metadata %}
-## Dynamic Metadata
-  {% for k, v in metadata.items() -%}
-  - {{ k }}: {{ v }}
-  {% endfor %}
-{%- endif %}
-
 {%- if memory and memory.core_raw %}
 ## Project Memory (MEMORY.md)
-{{ memory.core_raw | truncate(8000, True, "... [MEMORY.md truncated for brevity]") }}
+{{ memory.core_raw | truncate(1500, True, "... [project memory truncated; use recall/query_concepts for full detail]") }}
 {%- endif %}
 {%- if memory and memory.episodic_raw %}
-## Relevant Past Episodes
-{{ memory.episodic_raw }}
+## Recent Episodes
+{{ memory.episodic_raw | truncate(1000, True, "... [recent episodes truncated; use search_history for more]") }}
 {%- endif %}
 
-{%- if environment_block %}
+{%- if environment_summaries %}
 ## Environment
-{{ environment_block.strip() }}
+{% include 'core/engine/fragments/supervisor_environment_summary.j2' %}
 {%- endif %}

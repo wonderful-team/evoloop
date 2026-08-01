@@ -88,6 +88,24 @@ def route_supervisor(state: AgentState) -> str:
     return "finish"
 
 
+def route_by_next_node(state: AgentState) -> str:
+    """
+    Simple pass-through router used by the sequential_workflow node.
+
+    Returns ``state.next_node`` when it is one of the allowed targets, otherwise
+    falls back to ``finish`` so the graph terminates safely.
+    """
+    next_node = state.next_node
+    if next_node in {
+        RoutingTarget.FINISH,
+        RoutingTarget.SUPERVISOR,
+        RoutingTarget.SEQUENTIAL_WORKFLOW,
+        RoutingTarget.END,
+    }:
+        return next_node
+    return RoutingTarget.FINISH
+
+
 def route_finish(state: AgentState) -> str:
     """Decides the next node after Finish."""
     # Respect explicit supervisor routing (e.g. from Worker truncation recovery)

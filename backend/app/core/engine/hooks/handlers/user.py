@@ -3,18 +3,27 @@ User prompt submission hook handler.
 """
 
 from app.core.engine.hooks.core import HookContext, HookResult
+from app.core.routing.command_router import CommandRouter
+
+command_router = CommandRouter()
 
 
 async def user_prompt_submit_handler(context: HookContext) -> HookResult:
     """
     Process user prompt before it's handled.
 
-    Useful for:
+    Runs a lightweight L0 intent classification for every user prompt and
+    attaches the resulting ``intent_hint`` to the context metadata so the
+    downstream hydrator can load context telescopically.  If the caller has
+    already supplied an ``intent_hint`` (e.g. from the chat endpoint which runs
+    L0 for fast-path local actions), we keep it and skip re-classification.
+
+    Other responsibilities:
     - Prompt validation
     - Command shortcuts
     - Context injection
     """
-    prompt = context.metadata.get("prompt", "")
+    prompt = context.metadata.prompt or ""
 
     # Example: Command shortcuts
     shortcuts = {
@@ -30,6 +39,36 @@ async def user_prompt_submit_handler(context: HookContext) -> HookResult:
             success=True,
             message=f"Expanded shortcut: {prompt}",
             modified_context=modified_context,
+        )
+
+    # Reuse an already-computed intent hint if the entry point provided one.
+    existing = context.metadata.get("intent_hint")
+    if existing:
+        return HookResult(success=True, message="intent_hint already provided")
+
+    # L0 classification is best-effort; failures must not block the request.
+    try:
+        decision = await command_router.resolve(
+            prompt,
+            thread_id=context.thread_id or "",
+            project_id=context.project_id or 0,
+            source=context.metadata.get("source", "chat"),
+        )
+    except Exception as exc:  # noqa: BLE001
+        return HookResult(
+            success=True,
+            message=f"L0 classification failed: {exc}",
+            data={"intent_hint": None},
+        )
+
+    if decision.intent_hint:
+        intent_hint_dict = decision.intent_hint.model_dump()
+        context.metadata.intent_hint = intent_hint_dict
+        return HookResult(
+            success=True,
+            message="L0 intent_hint attached",
+            modified_context=context,
+            data={"intent_hint": intent_hint_dict},
         )
 
     return HookResult(success=True)

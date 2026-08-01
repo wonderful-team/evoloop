@@ -5,11 +5,10 @@ Project Event Subscribers
 Event subscribers for project lifecycle, synchronization, and memory context.
 """
 
-import asyncio
 import logging
 import os
 
-from app.constants import DEFAULT_PROJECT_ID, PROJECT_NORM_FILES
+from app.constants import DEFAULT_PROJECT_ID
 from app.core.context import thread_context_store
 from app.core.engine.event.schemas import WebSocketMessageReceivedEvent
 from app.core.events.decorators import event_register, event_subscribe
@@ -17,7 +16,6 @@ from app.core.events.registry import SystemEventType
 from app.core.project.sync_service import ProjectSyncService
 from app.core.project.utils import get_project_path
 from app.infrastructure.config import SystemConfigService
-from app.utils.template import render_template
 
 from .schemas import (
     ProjectCreatedEvent,
@@ -184,8 +182,8 @@ class ProjectDomainSubscriber:
         await shared_state.set("project_id", str(project_id))
 
         # Rebuild L0 local matcher so preset + current project macros are available
-        from app.core.routing.router import rebuild_local_matcher
-        await rebuild_local_matcher()
+        from app.core.routing.matcher_cache import matcher_cache
+        await matcher_cache.rebuild()
 
         if path:
             if not os.path.isdir(path):
@@ -281,7 +279,6 @@ class ProjectContextHydratorSubscriber:
         """Resolve project details and enrich EvoContext."""
         logger.info(f"[ProjectHydrator] Received SESSION_STARTED event for project_id: {event.data.get('project_id')}")
         from app.core.context import ContextManager, thread_context_store
-        from app.core.project.utils import get_project_path
 
         ctx = ContextManager.current()
         if not ctx:

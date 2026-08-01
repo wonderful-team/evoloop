@@ -59,6 +59,10 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
         self._send_queue: asyncio.Queue[dict | str] = asyncio.Queue(maxsize=1000)
         self._send_queue_task: asyncio.Task | None = None
 
+        # Background lifecycle tasks (stored so stop() can cancel them cleanly)
+        self._heartbeat_task: asyncio.Task | None = None
+        self._ws_connect_task: asyncio.Task | None = None
+
         # Rate-limit backoff: suppress non-critical outbound traffic after
         # receiving user_rate_limited from the gateway.
         self._rate_limit_backoff_until = 0.0
@@ -101,9 +105,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
         # 0. Explicit override for local/dev testing
         env_key = os.environ.get("EVOCLOUD_DEVICE_KEY", "").strip()
         if env_key:
-            logger.info(
-                f"[EvoCloud] Device key loaded from EVOCLOUD_DEVICE_KEY: {env_key[:20]}..."
-            )
+            logger.info(f"[EvoCloud] Device key loaded from EVOCLOUD_DEVICE_KEY: {env_key[:20]}...")
             await identity_service.store.save_device_key(env_key)
             return env_key
 
@@ -127,9 +129,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
             is_new = data.get("is_new", True)
             if dk:
                 await identity_service.store.save_device_key(dk)
-                logger.info(
-                    f"[EvoCloud] Device claimed successfully: {dk[:20]}... (is_new={is_new})"
-                )
+                logger.info(f"[EvoCloud] Device claimed successfully: {dk[:20]}... (is_new={is_new})")
                 return dk
             else:
                 raise RuntimeError("Server returned empty device_key")
@@ -158,27 +158,20 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
         logged as warnings for debugging.
         """
         if isinstance(message, dict) and not is_canonical_envelope(message):
-            logger.warning(
-                f"[EvoCloud] send_message: non-canonical envelope type={message.get('type', 'unknown')}"
-            )
+            logger.warning(f"[EvoCloud] send_message: non-canonical envelope type={message.get('type', 'unknown')}")
 
         if self.is_connected() and self.ws:
-            try:
-                payload = message if isinstance(message, str) else json.dumps(message)
-                logger.info(f"[EvoCloud] WS SEND RAW: {payload[:500]}...")
-                await self.ws.send(payload)
-                return True
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
-                logger.warning(f"[EvoCloud] WS Send Error: {e}, enqueueing for retry")
+            payload = message if isinstance(message, str) else json.dumps(message)
+            logger.info(f"[EvoCloud] WS SEND RAW: {payload[:500]}...")
+            await self.ws.send(payload)
+            return True
         else:
             logger.debug("[EvoCloud] WS not connected, enqueueing message for retry")
 
         # Enqueue for retry when connection is restored
         try:
             self._send_queue.put_nowait(message)
-            logger.debug(
-                f"[EvoCloud] Message enqueued for retry, queue_size={self._send_queue.qsize()}"
-            )
+            logger.debug(f"[EvoCloud] Message enqueued for retry, queue_size={self._send_queue.qsize()}")
             return False
         except asyncio.QueueFull:
             logger.warning("[EvoCloud] Send queue full, dropping message")
@@ -199,28 +192,34 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
 
         dk = await self.ensure_device_key()
         if not dk:
-            logger.error(
-                "[EvoCloud] Cannot start Device Link: No valid device_key from server"
-            )
+            logger.error("[EvoCloud] Cannot start Device Link: No valid device_key from server")
             return
 
         self._running = True
 
-        logger.info(
-            f"[EvoCloud] Starting Device Link (device_key={self.device_key})..."
-        )
+        logger.info(f"[EvoCloud] Starting Device Link (device_key={self.device_key})...")
         self._send_queue_task = asyncio.create_task(self._send_queue_loop())
-        asyncio.create_task(self._heartbeat_loop())
-        asyncio.create_task(self._ws_connect_loop())
+        self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
+        self._ws_connect_task = asyncio.create_task(self._ws_connect_loop())
 
     async def stop(self):
         self._running = False
-        if self._send_queue_task:
-            self._send_queue_task.cancel()
-            try:
-                await self._send_queue_task
-            except asyncio.CancelledError:
-                pass
+
+        async def _cancel_task(task: asyncio.Task | None) -> None:
+            if task and not task.done():
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+
+        await _cancel_task(self._send_queue_task)
+        self._send_queue_task = None
+        await _cancel_task(self._heartbeat_task)
+        self._heartbeat_task = None
+        await _cancel_task(self._ws_connect_task)
+        self._ws_connect_task = None
+
         if self.ws:
             try:
                 # Close with timeout to avoid hanging
@@ -243,33 +242,25 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
 
                 # Process messages from queue with timeout to allow periodic connection checks
                 try:
-                    message = await asyncio.wait_for(
-                        self._send_queue.get(), timeout=1.0
-                    )
+                    message = await asyncio.wait_for(self._send_queue.get(), timeout=1.0)
                 except asyncio.TimeoutError:
                     continue
 
                 # Try to send
                 try:
-                    payload = (
-                        message if isinstance(message, str) else json.dumps(message)
-                    )
+                    payload = message if isinstance(message, str) else json.dumps(message)
                     await self.ws.send(payload)
                     logger.info(f"[EvoCloud] WS SEND RETRY: {payload[:200]}")
                     self._send_queue.task_done()
                 except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
-                    logger.warning(
-                        f"[EvoCloud] WS retry send failed: {e}, re-enqueueing"
-                    )
+                    logger.warning(f"[EvoCloud] WS retry send failed: {e}, re-enqueueing")
                     # Re-enqueue at the front for next retry
                     try:
                         # Put back at front using a temporary list (Queue doesn't support put_front)
                         # We'll just put it back at the end; order may shift slightly but all msgs will retry
                         self._send_queue.put_nowait(message)
                     except asyncio.QueueFull:
-                        logger.warning(
-                            "[EvoCloud] Send queue full during retry, dropping message"
-                        )
+                        logger.warning("[EvoCloud] Send queue full during retry, dropping message")
                     self._send_queue.task_done()
             except asyncio.CancelledError:
                 break
@@ -308,14 +299,9 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                     # Also send JSON text ping to refresh deviceMgr heartbeat,
                     # but avoid aggravating the gateway while rate-limited.
                     if time.time() < self._rate_limit_backoff_until:
-                        logger.debug(
-                            "[EvoCloud] Skipping JSON text ping due to rate-limit backoff"
-                        )
+                        logger.debug("[EvoCloud] Skipping JSON text ping due to rate-limit backoff")
                     else:
-                        ping_env = create_envelope(
-                            type="ping",
-                            body={"timestamp": int(time.time())},
-                        )
+                        ping_env = create_envelope(type="ping", body={"timestamp": int(time.time())})
                         await self.send_message(ping_env.model_dump())
                 except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                     logger.debug(f"[EvoCloud] JSON text ping failed: {e}")
@@ -332,9 +318,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
             if not self.config.ssl_verify:
                 # Create unverified SSL context for development
                 ssl_context = ssl._create_unverified_context()
-                logger.debug(
-                    "[EvoCloud] SSL verification disabled for WebSocket (unverified context)"
-                )
+                logger.debug("[EvoCloud] SSL verification disabled for WebSocket (unverified context)")
             else:
                 # Use certifi to ensure we have valid CA certificates
                 ssl_context = ssl.create_default_context(cafile=certifi.where())
@@ -351,17 +335,18 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                     parsed = urlparse(ws_url)
                     query = parse_qs(parsed.query)
                     query["token"] = [token]
-                    ws_url = urlunparse(
-                        parsed._replace(query=urlencode(query, doseq=True))
-                    )
+                    ws_url = urlunparse(parsed._replace(query=urlencode(query, doseq=True)))
                 else:
-                    logger.warning(
-                        "[EvoCloud] No access token available; WS handshake will likely fail"
-                    )
+                    logger.warning("[EvoCloud] No access token available; WS handshake will likely fail")
 
                 logger.info(f"[EvoCloud) Connecting WS to {ws_url}...")
 
-                async with websockets.connect(ws_url, ssl=ssl_context) as ws:
+                async with websockets.connect(
+                    ws_url,
+                    ssl=ssl_context,
+                    ping_interval=None,
+                    ping_timeout=None,
+                ) as ws:
                     self.ws = ws
                     self._rate_limit_backoff_until = 0.0  # reset on new connection
                     logger.debug("[EvoCloud] WS Connected. Sending handshake...")
@@ -374,7 +359,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                         "device_type": EnvironmentProbe.get_inferred_device_type(),
                         "device_key": self.device_key,
                         "device_name": self.device_name,
-                                        "description": self.device_description,
+                        "description": self.device_description,
                         "os_info": platform.platform(),
                     }
                     connect_env = create_envelope(
@@ -388,22 +373,12 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                         await self._handle_ws_message(str(message))
             except ssl.SSLError as e:
                 logger.error(f"[EvoCloud] SSL Certificate Error: {e}")
-                if not self.config.ssl_verify:
-                    logger.error(
-                        "[EvoCloud] SSL verification is already disabled, but error persists"
-                    )
-                else:
-                    logger.info(
-                        "[EvoCloud] Tip: Set EVOCLOUD_SSL_VERIFY=false to disable SSL verification (development only)"
-                    )
             except asyncio.CancelledError:
                 raise  # Let cancellation propagate cleanly
             except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError, websockets.WebSocketException) as e:
                 logger.warning(f"[EvoCloud] WS Connection Error: {e}")
                 if not self._handshake_completed and self.device_key:
-                    logger.warning(
-                        "[EvoCloud] Connection closed before handshake completed. Cached device key might be invalid. Clearing device key to force sync..."
-                    )
+                    logger.warning("[EvoCloud] Connection closed before handshake completed. Cached device key might be invalid. Clearing device key to force sync...")
                     await identity_service.store.delete_device_key()
                     self._device_key = ""
             finally:
@@ -432,9 +407,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
 
         # Deduplication
         if cmd_id and cmd_id in self._processed_commands:
-            logger.info(
-                f"[EvoCloud] command.relay skipped (duplicate): cmd_id={cmd_id}"
-            )
+            logger.info(f"[EvoCloud] command.relay skipped (duplicate): cmd_id={cmd_id}")
             return False
         if cmd_id:
             self._processed_commands.append(cmd_id)
@@ -471,9 +444,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
         if code == "user_rate_limited":
             backoff = 30
             self._rate_limit_backoff_until = time.time() + backoff
-            logger.warning(
-                f"[EvoCloud] Rate limited by server, suppressing non-critical sends for {backoff}s"
-            )
+            logger.warning(f"[EvoCloud] Rate limited by server, suppressing non-critical sends for {backoff}s")
             return False
 
         if code == "invalid_token":
@@ -497,9 +468,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
 
         return True
 
-    _LINK_LAYER_HANDLERS: dict[
-        str, Callable[["EvoCloudWebSocketLink", dict], Awaitable[bool]]
-    ] = {
+    _LINK_LAYER_HANDLERS: dict[str, Callable[["EvoCloudWebSocketLink", dict], Awaitable[bool]]] = {
         "command.relay": _on_command_relay_protocol,
         "system.init": _on_init_protocol,
         "system.error": _on_error_protocol,
@@ -514,9 +483,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
         try:
             raw = json.loads(message)
             if not is_canonical_envelope(raw):
-                logger.warning(
-                    f"[EvoCloud] Non-canonical message dropped: type={raw.get('type', 'unknown')}"
-                )
+                logger.warning(f"[EvoCloud] Non-canonical message dropped: type={raw.get('type', 'unknown')}")
                 return
 
             msg_type = raw.get("type", "unknown")
@@ -530,9 +497,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                     return
 
             if msg_type == "command.ack":
-                logger.debug(
-                    f"[EvoCloud] command.ack received: cmd_id={body.get('command_id')} status={body.get('status')}"
-                )
+                logger.debug(f"[EvoCloud] command.ack received: cmd_id={body.get('command_id')} status={body.get('status')}")
                 return
 
             from app.core.engine.event.publishers import publish_ws_message_received
@@ -551,9 +516,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
         so the next handshake uses the latest token."""
         if not self._running or not self.ws or not token:
             return
-        logger.info(
-            "[EvoCloud] Token changed, triggering reconnect to use new token..."
-        )
+
         try:
             asyncio.get_running_loop().create_task(self._force_reconnect())
         except RuntimeError:
@@ -565,9 +528,6 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
         Used when a command times out or the connection is stuck,
         to let Gateway detect disconnect and clean up device status.
         """
-        logger.warning(
-            "[EvoCloud] Force reconnect triggered due to stuck command/timeout"
-        )
         if self.ws:
             try:
                 await self.ws.close()

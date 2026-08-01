@@ -1,6 +1,6 @@
 """Reference Layer-0 local matcher (client matching spec, report §三十四).
 
-The client does deterministic matching against VoiceInitSpec data; this is the
+The client does deterministic matching against RouteCatalog data; this is the
 canonical backend implementation the client ports, and the artifact our
 corpora validate. Five rules:
 
@@ -27,6 +27,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from app.core.routing.pinyin import to_pinyin
+
 _PREFIXES = ("请", "帮我", "麻烦", "帮忙", "把", "给我")
 _SUFFIXES = ("一下", "吧", "呀", "啊", "呗")
 _APP_SUFFIX_NOISE = ("浏览器", "软件", "app", "APP", "App")
@@ -44,17 +46,6 @@ _SLOT_FILLER_CHARS: dict[str, frozenset[str]] = {
     "delta": frozenset("调给我到一点下把"),
     "key": frozenset("键一下"),
 }
-
-
-def _pinyin(text: str) -> str | None:
-    try:
-        from pypinyin import lazy_pinyin
-    except ImportError:
-        return None
-    try:
-        return "".join(lazy_pinyin(text))
-    except (ValueError, RuntimeError, TypeError):
-        return None
 
 
 def _edit_distance_le1(a: str, b: str) -> bool:
@@ -88,7 +79,7 @@ def _literal_len(pattern: str) -> int:
 
 
 class LocalMatcher:
-    """Deterministic Layer-0 matcher over VoiceInitSpec data."""
+    """Deterministic Layer-0 matcher over RouteCatalog data."""
 
     def __init__(
         self,
@@ -168,13 +159,13 @@ class LocalMatcher:
                 if canonical == e.get("name") or canonical in (e.get("aliases") or []):
                     return self._canonical(canonical)
 
-        cleaned_py = _pinyin(cleaned)
+        cleaned_py = to_pinyin(cleaned)
         if cleaned_py:
             candidates = []
             for e in entries:
                 if not isinstance(e, dict):
                     continue
-                entry_py = e.get("pinyin") or _pinyin(e.get("name", ""))
+                entry_py = e.get("pinyin") or to_pinyin(e.get("name", ""))
                 if entry_py and entry_py == cleaned_py:
                     candidates.append(e["name"])
             if candidates:

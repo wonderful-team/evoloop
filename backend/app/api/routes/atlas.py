@@ -111,7 +111,7 @@ async def generate_app_map(
 
     read_only_file_tools = [
         t
-        for t in get_tool_bundle("core_file_tools")
+        for t in get_tool_bundle("file_tools")
         if t not in ("edit_file", "delete_file", "move_file", "execute_command")
     ]
     ticket = ExecutionTicket(

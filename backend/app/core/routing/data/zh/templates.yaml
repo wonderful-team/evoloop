@@ -1,0 +1,56 @@
+voice_local_actions:
+- id: paste
+  params: {}
+- id: speak
+  params: {}
+- id: clarify
+  params: {}
+- id: rename
+  params:
+    name: str
+- id: end
+  params: {}
+- id: ack
+  params: {}
+- id: cancel
+  params: {}
+templates:
+- action: clarify
+  patterns:
+  - 再说一遍
+  - 没听清
+  - 重说
+  slots: {}
+- action: rename
+  patterns:
+  - 你以后叫{name}
+  - 改名{name}
+  - 你的名字是{name}
+  slots:
+    name: str
+- action: end
+  patterns:
+  - 再见
+  - 拜拜
+  - 结束
+  - 退出对话
+  slots: {}
+- action: ack
+  patterns:
+  - 对对对
+  - 没错
+  - 就这个
+  - 可以
+  - 对的
+  - 是的
+  slots: {}
+- action: cancel
+  patterns:
+  - 算了
+  - 不用了
+  - 不要
+  - 取消
+  slots: {}
+aliases:
+  音乐: Apple Music
+  浏览器: Safari

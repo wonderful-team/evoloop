@@ -162,7 +162,7 @@ async def generate_wiki(
             tools=[
                 "write_wiki_page", "edit_wiki_page", "read_wiki_page", "list_wiki_pages",
                 "create_plan", "update_step_status",
-            ] + [t for t in get_tool_bundle("core_file_tools") if t not in ("edit_file", "delete_file", "move_file", "execute_command")],
+            ] + [t for t in get_tool_bundle("file_tools") if t not in ("edit_file", "delete_file", "move_file", "execute_command")],
         ),
     )
     result.inputs["ticket"] = ticket.model_dump(mode="json")

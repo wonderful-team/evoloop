@@ -36,6 +36,9 @@ class EvoCloudLifecycleSubscriber:
     - Cleaning up resources on app stop
     """
 
+    def __init__(self):
+        self._warm_cache_task: asyncio.Task | None = None
+
     async def _warm_evocloud_cache(self):
         """Background task to warm EvoCloud projects cache."""
         try:
@@ -48,7 +51,18 @@ class EvoCloudLifecycleSubscriber:
     async def _start_services(self):
         """Start EvoCloud services (WebSocket link + cache warming)."""
         await evocloud_manager.start()
-        asyncio.create_task(self._warm_evocloud_cache())
+        self._warm_cache_task = asyncio.create_task(self._warm_evocloud_cache())
+
+    async def _stop_services(self):
+        """Stop EvoCloud services and cancel background cache warming."""
+        if self._warm_cache_task and not self._warm_cache_task.done():
+            self._warm_cache_task.cancel()
+            try:
+                await self._warm_cache_task
+            except asyncio.CancelledError:
+                pass
+            self._warm_cache_task = None
+        await evocloud_manager.stop()
 
     @event_subscribe(SystemEventType.APP_STARTED)
     async def on_application_started(self, event):
@@ -80,7 +94,7 @@ class EvoCloudLifecycleSubscriber:
         """Stop EvoCloud services when user logs out."""
         logger.debug("[EvoCloud] User logged out, stopping services...")
         try:
-            await evocloud_manager.stop()
+            await self._stop_services()
             logger.debug("[EvoCloud] Services stopped successfully")
         except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[EvoCloud] Error during logout shutdown: {e}")
@@ -92,7 +106,7 @@ class EvoCloudLifecycleSubscriber:
         """
         logger.debug("[EvoCloud] Application stopping, cleaning up...")
         try:
-            await evocloud_manager.stop()
+            await self._stop_services()
             logger.debug("[EvoCloud] Services stopped successfully")
         except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[EvoCloud] Error during shutdown: {e}")

@@ -10,15 +10,19 @@ from app.infrastructure.pydantic_base import DynamicBaseModel
 
 class HookMetadata(DynamicBaseModel):
     """Dynamic metadata for hook events."""
+
     summary: str | None = None
     audit_tier: str | None = None
     final_outcome: str | None = None
     duration_ms: float | None = None
     prompt: str | None = None
+    intent_hint: Any | None = None
+    source: str | None = None
 
 
 class ToolInput(DynamicBaseModel):
     """Typed wrapper for tool input arguments."""
+
     command: str | None = None
     path: str | None = None
     content: str | None = None
@@ -28,6 +32,7 @@ class ToolInput(DynamicBaseModel):
 
 class ToolResult(DynamicBaseModel):
     """Structured wrapper for tool execution results."""
+
     output: Any | None = None
     error: str | None = None
     data: dict[str, Any] | None = None
@@ -35,6 +40,7 @@ class ToolResult(DynamicBaseModel):
 
 class HookContext(DynamicBaseModel):
     """Context passed to hook handlers."""
+
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     thread_id: str
@@ -59,6 +65,7 @@ class HookContext(DynamicBaseModel):
 
 class HookResult(DynamicBaseModel):
     """Result from hook handler."""
+
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     success: bool = True

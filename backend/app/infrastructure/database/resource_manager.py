@@ -18,6 +18,7 @@ Thread-safety note:
 import asyncio
 import logging
 import threading
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
@@ -253,6 +254,25 @@ class DatabaseResourceManager:
     @property
     def placeholder(self) -> str:
         return "?" if settings.EMBEDDED_MODE else "%s"
+
+    @asynccontextmanager
+    async def get_raw_connection(self):
+        """Return a raw async DBAPI connection for the current event loop.
+
+        This is an async context manager. Tests and low-level utilities can use it
+        to execute statements directly against the underlying driver without going
+        through SQLAlchemy's ORM/session layer.
+        """
+        engine = self.engine
+        if engine is None:
+            raise RuntimeError(
+                "Database engine not initialized for this event loop"
+            )
+        raw = await engine.raw_connection()
+        try:
+            yield raw
+        finally:
+            await raw.close()
 
     @property
     def task_queue_path(self) -> Path:

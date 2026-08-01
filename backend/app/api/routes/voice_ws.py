@@ -12,26 +12,29 @@ voice.barge_in) enable near-real-time conversation with barge-in support.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
-import json
 from typing import Any
 
 import websockets
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
-from app.infrastructure.voice.volc_dialog import VolcDialogClient
-from app.core.context import ContextManager, EvoContext
+from app.core.context import EvoContext
+from app.core.routing.channels.voice import VoicePresenter
 from app.core.routing.connection import manager
 from app.core.routing.deps import enforce_loopback_ws
+from app.core.routing.dispatch_handler import dispatch_user_message
 from app.core.routing.idempotency import is_duplicate
+from app.core.routing.thread_locks import route_lock_scope
 from app.core.schemas.canonical import (
     MessageType,
     create_envelope,
     is_canonical_envelope,
 )
 from app.core.voice.state_machine import VoiceSessionState, voice_state_machine
+from app.infrastructure.voice.volc_dialog import VolcDialogClient
 from app.utils.id import gen_uuid
 
 logger = logging.getLogger(__name__)
@@ -73,10 +76,10 @@ async def _ensure_voice_input() -> None:
     if _voice_input_bound:
         return
     from app.core.channel.input.voice_input import voice_input
-    from app.core.routing import executor as voice_executor
     from app.core.engine.worker_registry import worker_registry
-    from app.core.voice.state_machine import VoiceSessionState, voice_state_machine
+    from app.core.routing import executor as voice_executor
     from app.core.schemas.canonical import MessageType
+    from app.core.voice.state_machine import VoiceSessionState, voice_state_machine
 
     voice_input.bind(
         manager=manager,
@@ -94,8 +97,8 @@ async def _ensure_voice_input() -> None:
 
 
 async def _handle_route(body: dict[str, Any], conn_id: str) -> None:
-    from app.core.routing import executor
     from app.core.channel.input.voice_input import voice_input
+    from app.core.engine.worker_registry import worker_registry
 
     await _ensure_voice_input()
 
@@ -106,74 +109,97 @@ async def _handle_route(body: dict[str, Any], conn_id: str) -> None:
     message_id = body.get("message_id")
     t_total_start = time.time()
 
-    # Lock phase: input processing (L0 check + dispatch is fast)
-    lock = await executor.get_thread_lock(thread_id)
-    async with lock:
-        from app.core.engine.worker_registry import worker_registry
+    from app.core.identity import identity_service
+    from app.core.shared_state import shared_state
 
+    project_id = int(body.get("project_id", 0)) or int(
+        await shared_state.get("project_id", "0")
+    )
+    member_id = await identity_service.get_member_id() or 0
+
+    ctx = EvoContext(
+        thread_id=thread_id,
+        project_id=project_id,
+        member_id=member_id,
+        request_id=message_id or gen_uuid(),
+    )
+
+    async with route_lock_scope(thread_id, ctx):
         # Barge-in: if state can't accept route & no worker running
         if not await voice_state_machine.can_accept_route(thread_id):
             running_worker = await worker_registry.get_worker(thread_id)
             if not running_worker:
-                await voice_state_machine.force_set(thread_id, VoiceSessionState.INTERRUPTED)
+                await voice_state_machine.force_set(
+                    thread_id, VoiceSessionState.INTERRUPTED
+                )
                 logger.info("[voice] barge_in for thread %s", thread_id)
 
-        from app.core.shared_state import shared_state
-        project_id = int(body.get("project_id", 0)) or int(await shared_state.get("project_id", "0"))
-        from app.core.identity import identity_service
-        member_id = await identity_service.get_member_id() or 0
-        ctx = EvoContext(thread_id=thread_id, project_id=project_id, member_id=member_id, request_id=message_id or gen_uuid())
-        token = ContextManager.set(ctx)
-        try:
-            await manager.bind_thread(thread_id, conn_id)
-            await voice_state_machine.set(thread_id, VoiceSessionState.PROCESSING)
+        await manager.bind_thread(thread_id, conn_id)
+        await voice_state_machine.set(thread_id, VoiceSessionState.PROCESSING)
 
-            # Idempotency
-            if message_id and await is_duplicate(str(message_id)):
-                terminal = await manager.get_terminal_result(str(message_id))
-                if terminal is not None:
-                    await manager.push(thread_id, _envelope(MessageType.VOICE_ROUTE_RESULT, terminal))
-                else:
-                    await manager.push(thread_id, _envelope(MessageType.VOICE_ROUTE_RESULT, {
-                        "thread_id": thread_id, "status": "duplicate_no_cache",
-                        "target": {"type": "noop"}, "params": {}, "candidates": [],
-                    }))
-                return
+        # Idempotency
+        if message_id and await is_duplicate(str(message_id)):
+            terminal = await manager.get_terminal_result(str(message_id))
+            if terminal is not None:
+                await manager.push(
+                    thread_id, _envelope(MessageType.VOICE_ROUTE_RESULT, terminal)
+                )
+            else:
+                await manager.push(
+                    thread_id,
+                    _envelope(
+                        MessageType.VOICE_ROUTE_RESULT,
+                        {
+                            "thread_id": thread_id,
+                            "status": "duplicate_no_cache",
+                            "target": {"type": "noop"},
+                            "params": {},
+                            "candidates": [],
+                        },
+                    ),
+                )
+            return
 
-            # Let VoiceInputChannel decide: L0 match → local push, L0 miss → IncomingMessage
-            msg = await voice_input.receive(body)
-            if msg is None:
-                # L0 hit or invalid — handled internally
-                # 恢复音频转发：L0 完成后允许 Volcengine 的 TTS 音频通过
-                _is_sending_chat_tts_text.pop(thread_id, None)
-                return
-
-            # L0 miss → dispatch to agent
-            logger.info("[voice-perf] %s L0 miss → agent dispatch", thread_id)
-            # State set to SPEAKING inside voice_input.receive()
-
-            result = await voice_input.dispatch(msg)
-            post = await voice_input.post_dispatch(msg, result)
-            if post is None:
-                # dispatch failed — handled internally
-                return
-            task = post["task"]
-        finally:
-            ContextManager.reset(token)
-    # Lock released — await Worker outside lock
-    if msg is not None:
-        from app.core.engine.worker_registry import worker_registry
-        running = await worker_registry.get_worker(thread_id)
-        desc = running.description if running else ""
-        post = post or {}
-        await voice_input.await_and_finalize(
-            thread_id,
-            post.get("task"),
-            post.get("old_worker_task"),
-            worker_desc=desc,
+        outcome = await dispatch_user_message(
+            body,
+            source="voice",
+            input_channel=voice_input,
+            presenter=VoicePresenter(thread_id),
+            thread_id=thread_id,
+            project_id=project_id,
+            member_id=member_id,
+            context=ctx,
+            worker_registry=worker_registry,
         )
-        total_ms = (time.time() - t_total_start) * 1000
-        logger.info("[voice-perf] %s agent complete total=%.0fms", thread_id, total_ms)
+
+        if outcome.msg is None:
+            # Invalid or empty payload — nothing to do.
+            _is_sending_chat_tts_text.pop(thread_id, None)
+            return
+
+        if outcome.handled:
+            # L0 hit: restore chat TTS passthrough
+            _is_sending_chat_tts_text.pop(thread_id, None)
+            return
+
+        # L0 miss → dispatch to agent
+        logger.info("[voice-perf] %s L0 miss → agent dispatch", thread_id)
+
+        post = await voice_input.post_dispatch(outcome.msg, outcome.inputs)
+        if post is None:
+            return
+
+    # Lock released — await Worker outside lock
+    running = await worker_registry.get_worker(thread_id)
+    desc = running.description if running else ""
+    await voice_input.await_and_finalize(
+        thread_id,
+        post.get("task"),
+        post.get("old_worker_task"),
+        worker_desc=desc,
+    )
+    total_ms = (time.time() - t_total_start) * 1000
+    logger.info("[voice-perf] %s agent complete total=%.0fms", thread_id, total_ms)
 
 
 async def _handle_dictation_finalize(body: dict[str, Any], conn_id: str) -> None:
@@ -184,21 +210,27 @@ async def _handle_dictation_finalize(body: dict[str, Any], conn_id: str) -> None
 
     raw_text = str(body.get("raw_text", "")).strip()
     thread_id = str(body.get("thread_id", "")).strip()
-    target_locale = str(body.get("target_locale", "zh"))
     if not raw_text:
         return
 
     await manager.bind_thread(thread_id, conn_id)
 
     # Check if dictation LLM polishing is enabled
-    polish_enabled = SystemConfigService.get_value("EVOLOOP_DICTATION_LLM_POLISH", "true")
+    polish_enabled = SystemConfigService.get_value(
+        "EVOLOOP_DICTATION_LLM_POLISH", "true"
+    )
     if polish_enabled == "false":
-        logger.info(f"[voice-ws] Dictation LLM polish is disabled, pushing raw text directly: {raw_text}")
+        logger.info(
+            f"[voice-ws] Dictation LLM polish is disabled, pushing raw text directly: {raw_text}"
+        )
         await manager.push(thread_id, _envelope("dictation.paste", {"text": raw_text}))
-        await manager.push(thread_id, _envelope(
-            MessageType.VOICE_DICTATION_POLISHED,
-            {"changes": []},
-        ))
+        await manager.push(
+            thread_id,
+            _envelope(
+                MessageType.VOICE_DICTATION_POLISHED,
+                {"changes": []},
+            ),
+        )
         return
 
     model_name = SystemConfigService.get_value("LLM_MODEL") or ""
@@ -215,7 +247,9 @@ async def _handle_dictation_finalize(body: dict[str, Any], conn_id: str) -> None
         result = await llm.ainvoke(messages)
         content = ""
         if isinstance(result, dict):
-            content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+            content = (
+                result.get("choices", [{}])[0].get("message", {}).get("content", "")
+            )
         elif hasattr(result, "content"):
             content = result.content
 
@@ -228,38 +262,59 @@ async def _handle_dictation_finalize(body: dict[str, Any], conn_id: str) -> None
             start = polished.find(clarify_tag) + len(clarify_tag)
             end = polished.find("</CLARIFY>", start)
             msg = polished[start:end] if end > start else polished[start:]
-            await manager.push(thread_id, _envelope(
-                MessageType.VOICE_DICTATION_POLISHED,
-                {"changes": [{"clarify": msg}], "error": "clarify"},
-            ))
+            await manager.push(
+                thread_id,
+                _envelope(
+                    MessageType.VOICE_DICTATION_POLISHED,
+                    {"changes": [{"clarify": msg}], "error": "clarify"},
+                ),
+            )
         else:
             # Paste polished text
-            await manager.push(thread_id, _envelope(
-                "dictation.paste",
-                {"text": polished.strip()},
-            ))
-            await manager.push(thread_id, _envelope(
-                MessageType.VOICE_DICTATION_POLISHED,
-                {"changes": []},
-            ))
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as exc:
+            await manager.push(
+                thread_id,
+                _envelope(
+                    "dictation.paste",
+                    {"text": polished.strip()},
+                ),
+            )
+            await manager.push(
+                thread_id,
+                _envelope(
+                    MessageType.VOICE_DICTATION_POLISHED,
+                    {"changes": []},
+                ),
+            )
+    except (
+        ValueError,
+        OSError,
+        RuntimeError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ) as exc:
         logger.warning("[voice] dictation polish failed: %s", exc)
         # Fallback paste raw text
-        await manager.push(thread_id, _envelope(
-            "dictation.paste",
-            {"text": raw_text},
-        ))
-        await manager.push(thread_id, _envelope(
-            MessageType.VOICE_DICTATION_POLISHED,
-            {"changes": [], "error": str(exc)[:200]},
-        ))
+        await manager.push(
+            thread_id,
+            _envelope(
+                "dictation.paste",
+                {"text": raw_text},
+            ),
+        )
+        await manager.push(
+            thread_id,
+            _envelope(
+                MessageType.VOICE_DICTATION_POLISHED,
+                {"changes": [], "error": str(exc)[:200]},
+            ),
+        )
 
 
-
-from app.core.events import system_bus
-from app.core.events.registry import SystemEventType
-from app.core.events.schemas.lifecycle import ConfigChangedEvent
-from app.infrastructure.config.service import SystemConfigService
+from app.core.events import system_bus  # noqa: E402
+from app.core.events.registry import SystemEventType  # noqa: E402
+from app.core.events.schemas.lifecycle import ConfigChangedEvent  # noqa: E402
+from app.infrastructure.config.service import SystemConfigService  # noqa: E402
 
 
 async def _on_config_changed_event(event: Any) -> None:
@@ -276,11 +331,14 @@ async def _on_config_changed_event(event: Any) -> None:
 
         if key:
             await manager.broadcast(
-                _envelope("system.config_changed", {
-                    "key": str(key),
-                    "old_value": str(old_val or ""),
-                    "new_value": str(new_val or ""),
-                })
+                _envelope(
+                    "system.config_changed",
+                    {
+                        "key": str(key),
+                        "old_value": str(old_val or ""),
+                        "new_value": str(new_val or ""),
+                    },
+                )
             )
     except Exception as exc:
         logger.error("[voice_ws] failed to broadcast config change: %s", exc)
@@ -293,10 +351,13 @@ async def _on_state_changed_event(event: Any) -> None:
     try:
         if hasattr(event, "key") and hasattr(event, "new_value"):
             await manager.broadcast(
-                _envelope("system.state_changed", {
-                    "key": str(event.key),
-                    "value": str(event.new_value),
-                })
+                _envelope(
+                    "system.state_changed",
+                    {
+                        "key": str(event.key),
+                        "value": str(event.new_value),
+                    },
+                )
             )
     except Exception as exc:
         logger.error("[voice_ws] failed to broadcast state change: %s", exc)
@@ -353,12 +414,17 @@ async def generate_volc_tts(text: str, voice: str) -> bytes:
 
 @router.post("/tts")
 async def generate_tts(req: TTSRequest) -> Any:
-    from fastapi.responses import Response
     from fastapi import HTTPException
+    from fastapi.responses import Response
+
     t0 = time.time()
     try:
         audio_bytes = await generate_volc_tts(req.text, req.voice)
-        logger.info("[voice-ws] /tts generated %d bytes in %.1fs", len(audio_bytes), time.time() - t0)
+        logger.info(
+            "[voice-ws] /tts generated %d bytes in %.1fs",
+            len(audio_bytes),
+            time.time() - t0,
+        )
         return Response(content=audio_bytes, media_type="audio/pcm")
     except TimeoutError as exc:
         logger.error("[voice-ws] /tts timed out after %.1fs: %s", time.time() - t0, exc)
@@ -374,7 +440,14 @@ _is_sending_chat_tts_text: dict[str, bool] = {}
 _volc_gen: dict[str, int] = {}  # generation counter for voice_receive_loop staleness
 
 
-async def voice_receive_loop(websocket: WebSocket, volc_client: VolcDialogClient, thread_id: str, conn_id: str, mode: str, gen: int = 0):
+async def voice_receive_loop(
+    websocket: WebSocket,
+    volc_client: VolcDialogClient,
+    thread_id: str,
+    conn_id: str,
+    mode: str,
+    gen: int = 0,
+):
     """Volcengine 接收循环 — ASR 事件共用，459/599 按 mode 分叉"""
     if mode == "dialogue":
         _is_sending_chat_tts_text[thread_id] = False
@@ -383,7 +456,9 @@ async def voice_receive_loop(websocket: WebSocket, volc_client: VolcDialogClient
             try:
                 resp = await volc_client.receive_response()
             except websockets.exceptions.ConnectionClosed:
-                logger.info(f"[voice-ws] Volcengine connection closed for thread {thread_id} ({mode})")
+                logger.info(
+                    f"[voice-ws] Volcengine connection closed for thread {thread_id} ({mode})"
+                )
                 await volc_client.close()
                 break
 
@@ -402,7 +477,9 @@ async def voice_receive_loop(websocket: WebSocket, volc_client: VolcDialogClient
                     try:
                         await websocket.send_bytes(payload)
                     except Exception as e:
-                        logger.warning(f"[voice-ws] Failed to send audio bytes to Rust: {e}")
+                        logger.warning(
+                            f"[voice-ws] Failed to send audio bytes to Rust: {e}"
+                        )
             elif mtype == "SERVER_FULL_RESPONSE":
                 # --- Shared: event 451 ASR partial ---
                 if event == 451 and isinstance(payload, dict):
@@ -419,7 +496,10 @@ async def voice_receive_loop(websocket: WebSocket, volc_client: VolcDialogClient
                         if mode == "dialogue":
                             try:
                                 await websocket.send_json(
-                                    _envelope("voice.partial", {"thread_id": thread_id, "text": asr_text})
+                                    _envelope(
+                                        "voice.partial",
+                                        {"thread_id": thread_id, "text": asr_text},
+                                    )
                                 )
                             except Exception:
                                 pass
@@ -431,7 +511,9 @@ async def voice_receive_loop(websocket: WebSocket, volc_client: VolcDialogClient
                     else:
                         try:
                             await websocket.send_json(
-                                _envelope(MessageType.VOICE_BARGE_IN, {"thread_id": thread_id})
+                                _envelope(
+                                    MessageType.VOICE_BARGE_IN, {"thread_id": thread_id}
+                                )
                             )
                         except Exception:
                             pass
@@ -447,26 +529,42 @@ async def voice_receive_loop(websocket: WebSocket, volc_client: VolcDialogClient
                         if mode == "dialogue":
                             try:
                                 await websocket.send_json(
-                                    _envelope("voice.partial", {"thread_id": thread_id, "text": asr_text})
+                                    _envelope(
+                                        "voice.partial",
+                                        {"thread_id": thread_id, "text": asr_text},
+                                    )
                                 )
                             except Exception:
                                 pass
                             _is_sending_chat_tts_text[thread_id] = True
-                            asyncio.create_task(_run_agent_pipeline(websocket, thread_id, asr_text))
+                            asyncio.create_task(
+                                _run_agent_pipeline(websocket, thread_id, asr_text)
+                            )
                         else:
                             await manager.bind_thread(thread_id, conn_id)
-                            asyncio.create_task(_handle_dictation_finalize(
-                                {"raw_text": asr_text, "thread_id": thread_id, "target_locale": "zh"},
-                                conn_id
-                            ))
+                            asyncio.create_task(
+                                _handle_dictation_finalize(
+                                    {
+                                        "raw_text": asr_text,
+                                        "thread_id": thread_id,
+                                        "target_locale": "zh",
+                                    },
+                                    conn_id,
+                                )
+                            )
 
                 # --- Dialogue-only: event 359 TTS play ended ---
                 elif event == 359 and mode == "dialogue":
                     _is_sending_chat_tts_text[thread_id] = False
-                    await voice_state_machine.set(thread_id, VoiceSessionState.LISTENING)
+                    await voice_state_machine.set(
+                        thread_id, VoiceSessionState.LISTENING
+                    )
                     try:
                         await websocket.send_json(
-                            _envelope("voice:state", {"state": "listening", "thread_id": thread_id})
+                            _envelope(
+                                "voice:state",
+                                {"state": "listening", "thread_id": thread_id},
+                            )
                         )
                     except Exception:
                         pass
@@ -478,7 +576,11 @@ async def voice_receive_loop(websocket: WebSocket, volc_client: VolcDialogClient
                 # --- Dialogue-only: event 350 injected TTS start ---
                 elif event == 350 and isinstance(payload, dict) and mode == "dialogue":
                     tts_type = payload.get("tts_type", "")
-                    logger.info("[voice-ws] Event 350 tts_type=%r for thread %s", tts_type, thread_id)
+                    logger.info(
+                        "[voice-ws] Event 350 tts_type=%r for thread %s",
+                        tts_type,
+                        thread_id,
+                    )
                     if tts_type in ("chat_tts_text", "external_rag"):
                         _is_sending_chat_tts_text[thread_id] = False
 
@@ -487,24 +589,40 @@ async def voice_receive_loop(websocket: WebSocket, volc_client: VolcDialogClient
                     asr_text = _last_asr_text.pop(thread_id, "")
                     logger.info(f"[voice-ws] ASR timeout: {asr_text} ({mode})")
                     if mode == "dialogue":
-                        asyncio.create_task(_run_agent_pipeline(websocket, thread_id, asr_text))
+                        asyncio.create_task(
+                            _run_agent_pipeline(websocket, thread_id, asr_text)
+                        )
                     else:
                         await manager.bind_thread(thread_id, conn_id)
-                        asyncio.create_task(_handle_dictation_finalize(
-                            {"raw_text": asr_text, "thread_id": thread_id, "target_locale": "zh"},
-                            conn_id
-                        ))
+                        asyncio.create_task(
+                            _handle_dictation_finalize(
+                                {
+                                    "raw_text": asr_text,
+                                    "thread_id": thread_id,
+                                    "target_locale": "zh",
+                                },
+                                conn_id,
+                            )
+                        )
 
             elif mtype == "SERVER_ERROR":
                 logger.error(f"[voice-ws] Volcengine error: {payload}")
                 try:
                     await websocket.send_json(
-                        _envelope(MessageType.SYSTEM_ERROR, {"code": "volc_error", "message": str(payload)})
+                        _envelope(
+                            MessageType.SYSTEM_ERROR,
+                            {"code": "volc_error", "message": str(payload)},
+                        )
                     )
                 except Exception:
                     pass
             else:
-                logger.debug("[voice-ws] unhandled event %s %s for thread %s", mtype, event, thread_id)
+                logger.debug(
+                    "[voice-ws] unhandled event %s %s for thread %s",
+                    mtype,
+                    event,
+                    thread_id,
+                )
     except asyncio.CancelledError:
         logger.debug("[voice-ws] Voice receive loop cancelled for thread %s", thread_id)
         # Normal cancellation (voice.stop / mode switch) — WS stays open
@@ -525,52 +643,70 @@ async def voice_receive_loop(websocket: WebSocket, volc_client: VolcDialogClient
             _is_sending_chat_tts_text.pop(thread_id, None)
 
 
-async def _run_agent_pipeline(websocket: WebSocket, thread_id: str, text: str):
+async def _run_agent_pipeline(websocket: WebSocket, thread_id: str, text: str) -> None:
     from app.core.channel.input.voice_input import voice_input
-    from app.core.routing import executor
+    from app.core.engine.worker_registry import worker_registry
 
     await _ensure_voice_input()
 
-    lock = await executor.get_thread_lock(thread_id)
-    async with lock:
-        try:
-            # Set state to PROCESSING
-            await voice_state_machine.set(thread_id, VoiceSessionState.PROCESSING)
-            await websocket.send_json(
-                _envelope("voice:state", {"state": "processing", "thread_id": thread_id})
-            )
+    from app.core.identity import identity_service
+    from app.core.shared_state import shared_state
 
-            body = {
-                "thread_id": thread_id,
-                "text": text,
-            }
-            msg = await voice_input.receive(body)
-            if msg is None:
-                # L0 matched locally (e.g. macro or builtin) - handled internally
+    project_id = int(await shared_state.get("project_id", "0"))
+    member_id = await identity_service.get_member_id() or 0
+
+    ctx = EvoContext(
+        thread_id=thread_id,
+        project_id=project_id,
+        member_id=member_id,
+        request_id=gen_uuid(),
+    )
+
+    try:
+        async with route_lock_scope(thread_id, ctx):
+            await voice_state_machine.set(thread_id, VoiceSessionState.PROCESSING)
+            try:
+                await websocket.send_json(
+                    _envelope(
+                        "voice:state", {"state": "processing", "thread_id": thread_id}
+                    )
+                )
+            except Exception:
+                pass
+
+            body = {"thread_id": thread_id, "text": text}
+            outcome = await dispatch_user_message(
+                body,
+                source="voice",
+                input_channel=voice_input,
+                presenter=VoicePresenter(thread_id),
+                thread_id=thread_id,
+                project_id=project_id,
+                member_id=member_id,
+                context=ctx,
+                worker_registry=worker_registry,
+            )
+            if outcome.msg is None:
+                return
+            if outcome.handled:
                 return
 
             logger.info("[voice-perf] %s L0 miss → agent dispatch", thread_id)
-            result = await voice_input.dispatch(msg)
-            post = await voice_input.post_dispatch(msg, result)
+            post = await voice_input.post_dispatch(outcome.msg, outcome.inputs)
             if post is None:
                 return
 
-            # Wait for the agent task to complete
-            task = post["task"]
-            old_worker_task = post["old_worker_task"]
-
-            from app.core.engine.worker_registry import worker_registry
-            running = await worker_registry.get_worker(thread_id)
-            desc = running.description if running else ""
-
-            await voice_input.await_and_finalize(
-                thread_id,
-                task,
-                old_worker_task,
-                worker_desc=desc,
-            )
-        except Exception as e:
-            logger.error(f"[voice-ws] Agent pipeline failed: {e}", exc_info=e)
+        # Lock released — await Worker outside lock
+        running = await worker_registry.get_worker(thread_id)
+        desc = running.description if running else ""
+        await voice_input.await_and_finalize(
+            thread_id,
+            post.get("task"),
+            post.get("old_worker_task"),
+            worker_desc=desc,
+        )
+    except Exception as e:
+        logger.error("[voice-ws] Agent pipeline failed: %s", e, exc_info=e)
 
 
 @router.websocket("/ws")
@@ -584,19 +720,28 @@ async def voice_ws(websocket: WebSocket) -> None:
 
     configs = {cfg.key: cfg.value for cfg in SystemConfigService.get_all()}
     from app.core.shared_state import shared_state
+
     state = await shared_state.get_all()
     await websocket.send_json(
-        _envelope(MessageType.SYSTEM_INIT, {
-            "client_id": conn_id,
-            "device_key": "",
-            "configs": configs,
-            "state": state,
-        })
+        _envelope(
+            MessageType.SYSTEM_INIT,
+            {
+                "client_id": conn_id,
+                "device_key": "",
+                "configs": configs,
+                "state": state,
+            },
+        )
     )
-    logger.info("[voice] client connected: %s (sent %d config keys, %d state keys)", conn_id, len(configs), len(state))
+    logger.info(
+        "[voice] client connected: %s (sent %d config keys, %d state keys)",
+        conn_id,
+        len(configs),
+        len(state),
+    )
 
-    volc_client: Optional[VolcDialogClient] = None
-    volc_receive_task: Optional[asyncio.Task] = None
+    volc_client: VolcDialogClient | None = None
+    volc_receive_task: asyncio.Task | None = None
     active_threads: set[str] = set()
 
     try:
@@ -607,7 +752,10 @@ async def voice_ws(websocket: WebSocket) -> None:
             # Handle WebSocket disconnect message (Starlette may return this
             # as a dict instead of raising WebSocketDisconnect in some edge cases)
             if raw_msg.get("type") == "websocket.disconnect":
-                logger.info("[voice-ws] received disconnect message, code=%s", raw_msg.get("code"))
+                logger.info(
+                    "[voice-ws] received disconnect message, code=%s",
+                    raw_msg.get("code"),
+                )
                 break
 
             # 1. Binary audio frame from Rust (microphone PCM)
@@ -616,7 +764,10 @@ async def voice_ws(websocket: WebSocket) -> None:
                 if volc_client:
                     await volc_client.send_audio(pcm_bytes)
                 else:
-                    logger.warning("[voice-ws] received %d bytes but no VolcEngine client", len(pcm_bytes))
+                    logger.warning(
+                        "[voice-ws] received %d bytes but no VolcEngine client",
+                        len(pcm_bytes),
+                    )
                 continue
 
             # 2. Text/JSON message
@@ -640,39 +791,51 @@ async def voice_ws(websocket: WebSocket) -> None:
                 configs = {cfg.key: cfg.value for cfg in SystemConfigService.get_all()}
                 await websocket.send_json(
                     _envelope(
-                        MessageType.SYSTEM_INIT, {
+                        MessageType.SYSTEM_INIT,
+                        {
                             "client_id": conn_id,
                             "ack": True,
                             "configs": configs,
-                        }
+                        },
                     )
                 )
             elif mtype in (MessageType.VOICE_ROUTE, "voice.route"):
                 body.setdefault("message_id", data.get("message_id"))
                 _route_task = asyncio.create_task(_handle_route(body, conn_id))
 
-                def _on_route_done(t: asyncio.Task) -> None:
+                route_tid = str(body.get("thread_id", ""))
+
+                def _on_route_done(t: asyncio.Task, route_tid: str = route_tid) -> None:
                     if t.cancelled():
                         return
                     exc = t.exception()
                     if exc is not None:
                         logger.error("[voice] route task failed: %s", exc, exc_info=exc)
-                        tid = str(body.get("thread_id", ""))
-                        if tid:
-                            asyncio.create_task(manager.push(
-                                tid, _envelope(MessageType.VOICE_ROUTE_RESULT, {
-                                    "thread_id": tid, "status": "failed",
-                                    "summary": "处理出错",
-                                })
-                            ))
+                        if route_tid:
+                            asyncio.create_task(
+                                manager.push(
+                                    route_tid,
+                                    _envelope(
+                                        MessageType.VOICE_ROUTE_RESULT,
+                                        {
+                                            "thread_id": route_tid,
+                                            "status": "failed",
+                                            "summary": "处理出错",
+                                        },
+                                    ),
+                                )
+                            )
 
                 _route_task.add_done_callback(_on_route_done)
             elif mtype in (MessageType.VOICE_CANCEL, "voice.cancel"):
                 thread_id = str(body.get("thread_id", "")).strip()
                 if thread_id:
                     from app.core.routing import executor
+
                     await executor.cancel_voice_task(thread_id)
-                    await voice_state_machine.force_set(thread_id, VoiceSessionState.IDLE)
+                    await voice_state_machine.force_set(
+                        thread_id, VoiceSessionState.IDLE
+                    )
                     logger.info("[voice] cancel for thread %s", thread_id)
             elif mtype in (MessageType.VOICE_BARGE_IN, "voice.barge_in"):
                 thread_id = str(body.get("thread_id", "")).strip()
@@ -684,13 +847,18 @@ async def voice_ws(websocket: WebSocket) -> None:
                     await manager.bind_thread(thread_id, conn_id)
                     if not await voice_state_machine.can_accept_route(thread_id):
                         await _handle_barge_in(thread_id)
-                    await voice_state_machine.set(thread_id, VoiceSessionState.LISTENING)
+                    await voice_state_machine.set(
+                        thread_id, VoiceSessionState.LISTENING
+                    )
                     active_threads.add(thread_id)
 
                     # Notify Rust client of the listening state
                     try:
                         await websocket.send_json(
-                            _envelope("voice:state", {"state": "listening", "thread_id": thread_id})
+                            _envelope(
+                                "voice:state",
+                                {"state": "listening", "thread_id": thread_id},
+                            )
                         )
                     except Exception:
                         pass
@@ -698,7 +866,9 @@ async def voice_ws(websocket: WebSocket) -> None:
                     # Store session mode
                     mode = str(body.get("mode", "dialogue")).strip()
                     session_modes[thread_id] = mode
-                    logger.info(f"[voice-ws] Starting session for thread {thread_id} in {mode} mode")
+                    logger.info(
+                        f"[voice-ws] Starting session for thread {thread_id} in {mode} mode"
+                    )
 
                     # Initialize and connect Volcengine client dynamically
                     app_id = SystemConfigService.get_value("SEEDUPLEX_APP_ID")
@@ -715,33 +885,65 @@ async def voice_ws(websocket: WebSocket) -> None:
                             volc_client = None
 
                         from app.core.routing.executor import active_volc_clients
+
                         # Bump generation so any stale voice_receive_loop's
                         # finally won't touch the state machine.
                         gen = _volc_gen.get(thread_id, 0) + 1
                         _volc_gen[thread_id] = gen
-                        volc_client = VolcDialogClient(app_id, access_key, session_id=thread_id)
+                        volc_client = VolcDialogClient(
+                            app_id, access_key, session_id=thread_id
+                        )
                         try:
                             await volc_client.connect()
                             active_volc_clients[thread_id] = volc_client
                             # 根据 mode 选择不同的 receive loop
                             mode = str(body.get("mode", "dialogue")).strip()
-                            volc_receive_task = asyncio.create_task(voice_receive_loop(websocket, volc_client, thread_id, conn_id, mode, gen=gen))
-                            logger.info(f"[voice-ws] Connected VolcDialogClient for thread {thread_id} in {mode} mode")
+                            volc_receive_task = asyncio.create_task(
+                                voice_receive_loop(
+                                    websocket,
+                                    volc_client,
+                                    thread_id,
+                                    conn_id,
+                                    mode,
+                                    gen=gen,
+                                )
+                            )
+                            logger.info(
+                                f"[voice-ws] Connected VolcDialogClient for thread {thread_id} in {mode} mode"
+                            )
                         except Exception as e:
-                            logger.error(f"[voice-ws] VolcDialogClient connect failed: {e}", exc_info=e)
+                            logger.error(
+                                f"[voice-ws] VolcDialogClient connect failed: {e}",
+                                exc_info=e,
+                            )
                             await websocket.send_json(
-                                _envelope(MessageType.SYSTEM_ERROR, {"code": "volc_connect_failed", "message": str(e)})
+                                _envelope(
+                                    MessageType.SYSTEM_ERROR,
+                                    {"code": "volc_connect_failed", "message": str(e)},
+                                )
                             )
                     else:
-                        logger.warning("[voice-ws] Volcengine app_id/access_key not configured")
+                        logger.warning(
+                            "[voice-ws] Volcengine app_id/access_key not configured"
+                        )
                         await websocket.send_json(
-                            _envelope(MessageType.SYSTEM_ERROR, {"code": "volc_not_configured", "message": "火山引擎未配置 AppID/AccessKey"})
+                            _envelope(
+                                MessageType.SYSTEM_ERROR,
+                                {
+                                    "code": "volc_not_configured",
+                                    "message": "火山引擎未配置 AppID/AccessKey",
+                                },
+                            )
                         )
             elif mtype in ("voice.stop",):
                 thread_id = str(body.get("thread_id", "")).strip()
                 if thread_id:
                     current = await voice_state_machine.get(thread_id)
-                    if current in (VoiceSessionState.LISTENING, VoiceSessionState.SPEAKING, VoiceSessionState.PROCESSING):
+                    if current in (
+                        VoiceSessionState.LISTENING,
+                        VoiceSessionState.SPEAKING,
+                        VoiceSessionState.PROCESSING,
+                    ):
                         await voice_state_machine.set(thread_id, VoiceSessionState.IDLE)
                     active_threads.discard(thread_id)
                     session_modes.pop(thread_id, None)
@@ -751,6 +953,7 @@ async def voice_ws(websocket: WebSocket) -> None:
 
                     # Clean up Volcengine client
                     from app.core.routing.executor import active_volc_clients
+
                     active_volc_clients.pop(thread_id, None)
                     if volc_client:
                         await volc_client.close()
@@ -758,7 +961,10 @@ async def voice_ws(websocket: WebSocket) -> None:
                     if volc_receive_task:
                         volc_receive_task.cancel()
                         volc_receive_task = None
-            elif mtype in (MessageType.VOICE_DICTATION_FINALIZE, "voice.dictation.finalize"):
+            elif mtype in (
+                MessageType.VOICE_DICTATION_FINALIZE,
+                "voice.dictation.finalize",
+            ):
                 asyncio.create_task(_handle_dictation_finalize(body, conn_id))
             elif mtype == "ping":
                 await websocket.send_json(
@@ -781,12 +987,19 @@ async def voice_ws(websocket: WebSocket) -> None:
             await volc_client.close()
         if volc_receive_task:
             volc_receive_task.cancel()
+        from app.core.routing.conversation_state import (
+            clear_thread_intent_state_for_threads,
+        )
         from app.core.routing.executor import active_volc_clients
+
         for tid in active_threads:
             active_volc_clients.pop(tid, None)
             session_modes.pop(tid, None)
             _last_asr_text.pop(tid, None)
             _is_sending_chat_tts_text.pop(tid, None)
             _volc_gen.pop(tid, None)
+        # Drop the multi-turn L0 state so a reconnect or a later session
+        # on the same thread starts cold (no stale previous_intent leaking
+        # into the new session — see routing §5.9 multi-turn coreference).
+        clear_thread_intent_state_for_threads(list(active_threads))
         await manager.unregister(conn_id)
-

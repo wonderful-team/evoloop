@@ -87,7 +87,7 @@ async def _run_wiki(project_id: int) -> None:
         raise RuntimeError(result.error or "Agent dispatch failed")
 
     read_only_tools = [
-        t for t in get_tool_bundle("core_file_tools")
+        t for t in get_tool_bundle("file_tools")
         if t not in ("edit_file", "delete_file", "move_file", "execute_command")
     ]
     ticket = ExecutionTicket(
@@ -243,7 +243,7 @@ async def _run_appmap(project_id: int) -> None:
         raise RuntimeError(result.error or "Agent dispatch failed")
 
     read_only_tools = [
-        t for t in get_tool_bundle("core_file_tools")
+        t for t in get_tool_bundle("file_tools")
         if t not in ("edit_file", "delete_file", "move_file")
     ]
     ticket = ExecutionTicket(

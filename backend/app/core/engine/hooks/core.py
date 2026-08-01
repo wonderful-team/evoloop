@@ -255,8 +255,8 @@ class HookSystem:
                 if result.modified_context:
                     context = result.modified_context
 
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
-                logger.error(f"[HookSystem] Handler {handler.__name__} failed: {e}")
+            except Exception as e:
+                logger.exception("[HookSystem] Handler %s failed", handler.__name__)
                 if event == HookEvent.ERROR:
                     # Don't recurse on error
                     break

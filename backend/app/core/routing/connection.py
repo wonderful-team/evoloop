@@ -85,22 +85,8 @@ class VoiceConnectionManager:
             await ws.send_json(envelope)
             logger.info("[voice] push OK — type=%s thread=%s", msg_type, thread_id)
             return True
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as exc:
-            logger.warning("[voice] push to thread %s failed: %s", thread_id, exc)
-            return False
-
-    async def push_bytes(self, thread_id: str, data: bytes) -> bool:
-        """Send raw binary bytes to the connection owning `thread_id`."""
-        async with self._lock:
-            conn_id = self._thread_to_conn.get(thread_id)
-            ws = self._conns.get(conn_id) if conn_id else None
-        if ws is None:
-            return False
-        try:
-            await ws.send_bytes(data)
-            return True
         except Exception as exc:
-            logger.warning("[voice] push bytes to thread %s failed: %s", thread_id, exc)
+            logger.warning("[voice] push to thread %s failed: %s", thread_id, exc)
             return False
 
     async def broadcast(self, envelope: dict[str, Any]) -> None:

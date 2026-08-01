@@ -4,7 +4,12 @@ App Environment Prompt
 Centralizes the logic for generating the "Awakening" section of the system prompt.
 This ensures both the Supervisor and Skills share the same understanding of the environment.
 """
+import asyncio
 import logging
+import shutil
+from datetime import datetime
+
+import psutil
 
 from app.core.context.manager import ContextManager
 from app.core.context.plugins import plugin_registry
@@ -22,11 +27,6 @@ class AppEnvironmentPrompt:
     """
 
     @staticmethod
-    def build(messages: list[dict] = None) -> str:
-        """Legacy alias for render_environment_block."""
-        return AppEnvironmentPrompt.render_environment_block()
-
-    @staticmethod
     def render_environment_block(tips: bool = True, skip_hydrate: bool = False) -> str:
         """
         Render the full 'Awakening' block using localized sensing templates.
@@ -34,9 +34,13 @@ class AppEnvironmentPrompt:
         """
         try:
             ctx = ContextManager.current()
-            # Hydrate if not already done (usually done by middleware/registry)
+            # Hydrate only when called from a synchronous context. Async callers
+            # should already have awaited plugin_registry.ahydrate_context(ctx).
             if not skip_hydrate and not ctx.environment_summaries:
-                plugin_registry.hydrate_context(ctx)
+                try:
+                    asyncio.get_running_loop()
+                except RuntimeError:
+                    plugin_registry.hydrate_context(ctx)
 
             template_vars = {
                 "environment": ctx.environment_summaries, # Now contains raw data
@@ -57,8 +61,8 @@ class AppEnvironmentPrompt:
 
             return render_template("core/environment/awakening.prompt.j2", **template_vars)
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
-            logger.error(f"Failed to render environment block: {e}")
+        except Exception as e:
+            logger.exception("Failed to render environment block: %s", e)
             return ""
 
 
@@ -84,7 +88,8 @@ def _get_active_background_tasks() -> list[dict]:
             }
             for t in active_tasks
         ]
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+    except Exception:
+        logger.exception("Failed to load active background tasks")
         return []
 
 
@@ -123,7 +128,8 @@ def _get_listening_local_ports() -> list[dict]:
              for name, ports in by_process.items()],
             key=lambda x: x["name"]
         )
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+    except Exception:
+        logger.exception("Failed to enumerate listening local ports")
         return []
 
 
@@ -140,6 +146,20 @@ def _parse_docker_host_ports(docker_containers: list[dict]) -> set[int]:
             if m:
                 host_ports.add(int(m.group(1)))
     return host_ports
+
+
+def _get_active_window() -> str | None:
+    """Best-effort fetch of the current foreground window/app name."""
+    try:
+        from app.infrastructure.drivers.macos import macos_driver
+
+        info = macos_driver.get_current_app()
+        if isinstance(info, dict):
+            return info.get("name") or info.get("title")
+        return str(info) if info else None
+    except Exception:
+        logger.debug("Could not fetch active window", exc_info=True)
+        return None
 
 
 def build_environment_summaries(relevance: str = "auto") -> dict:
@@ -175,16 +195,34 @@ def build_environment_summaries(relevance: str = "auto") -> dict:
             }
             if relevance in ["macos", "both", "auto"]:
                 if state.host.app_usage_stats:
-                    host_info["running_apps"] = [s.app_name for s in state.host.app_usage_stats if s.is_running][:5]
+                    host_info["running_apps"] = [s.app_name for s in state.host.app_usage_stats if s.is_running][:20]
                 if state.host.installed_apps:
                     host_info["app_count"] = len(state.host.installed_apps)
+                if state.host.os_name == "macOS":
+                    host_info["active_window"] = _get_active_window()
             # Linux specific details
             if state.host.os_name == "Linux":
                 host_info["distro"] = state.host.distro
                 host_info["sudo_available"] = state.host.sudo_available
-                host_info["disk_space"] = state.host.disk_space
                 host_info["systemd_services"] = state.host.systemd_services
                 host_info["gpus"] = state.host.gpus
+
+            # Real-time telemetry for all platforms (lightweight only)
+            try:
+                host_info["cpu_percent"] = psutil.cpu_percent(interval=None)
+                mem = psutil.virtual_memory()
+                host_info["memory_percent"] = mem.percent
+                host_info["memory_available_gb"] = round(mem.available / (1024 ** 3), 1)
+                disk = shutil.disk_usage("/")
+                host_info["disk_space"] = {
+                    "total_gb": round(disk.total / (2**30), 1),
+                    "free_gb": round(disk.free / (2**30), 1),
+                    "percent_used": round((disk.used / disk.total) * 100, 1),
+                }
+            except Exception:
+                logger.debug("Failed to collect real-time host telemetry", exc_info=True)
+
+            host_info["current_time"] = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
 
             data["host"] = host_info
 
@@ -233,40 +271,9 @@ def build_environment_summaries(relevance: str = "auto") -> dict:
 
         return data
 
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+    except Exception:
+        logger.exception("Failed to build environment summaries")
         return {}
-
-
-def build_environment_prompt(relevance: str = "auto") -> str:
-    """Legacy wrapper for build_environment_summaries.
-
-    build_environment_summaries returns a dict, not a list.
-    This wrapper formats it into a string with boundary info.
-    """
-    data = build_environment_summaries(relevance=relevance)
-    if not data:
-        return ""
-
-    lines = []
-    host = data.get("host", {})
-    if host:
-        lines.append(f"Host: {host.get('platform', 'unknown')}")
-
-    devices = data.get("android_devices", [])
-    for dev in devices:
-        lines.append(f"Device: {dev.get('serial', 'unknown')} (battery: {dev.get('battery_percent', '?')}%)")
-
-    net = data.get("network", {})
-    if net:
-        lines.append(f"Network: {'connected' if net.get('internet_connected') else 'offline'}")
-
-    boundaries = get_capability_boundaries()
-    if boundaries:
-        lines.append("Limitations:")
-        for boundary in boundaries[:5]:
-            lines.append(f"  - {boundary}")
-
-    return "\n".join(lines)
 
 
 def get_capability_boundaries() -> list[str]:
@@ -278,13 +285,15 @@ def get_capability_boundaries() -> list[str]:
     try:
         from app.core.environment.boundaries import boundary_manager
         return boundary_manager.get_all_boundaries()
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+    except Exception:
+        logger.exception("Failed to load boundaries from boundary_manager")
         # Fallback to state boundaries if manager unavailable
         try:
             from app.core.environment import get_awakened_state
             state = get_awakened_state()
             return state.capability_boundaries if state else []
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+        except Exception:
+            logger.exception("Failed to load boundaries from awakened state")
             return []
 
 
@@ -294,6 +303,6 @@ def _get_browser_status() -> dict | None:
         return browser_manager.get_status()
     except ImportError:
         return None
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
-        logger.debug(f"Failed to get browser status: {e}")
+    except Exception:
+        logger.debug("Failed to get browser status", exc_info=True)
         return None

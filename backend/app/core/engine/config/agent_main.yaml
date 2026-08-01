@@ -52,22 +52,24 @@ nodes:
   - id: "supervisor"
     path: "app.core.engine.nodes.supervisor.SupervisorNode"
     tools:
+      # Triage & orchestration
       - "route_to"
       - "decompose_task"
       - "update_blackboard"
+      # Skill & macro discovery (for routing, not execution)
       - "list_skills"
       - "read_skill_sop"
       - "list_macros"
       - "run_macro"
       - "create_macro"
+      # Memory & concepts
       - "search_history"
       - "query_concepts"
-      - "search_web"
-      - "read_file"
-      - "list_dir"
-      - "grep_search"
-      - "find_files"
+      - "remember"
+      - "recall"
+      # Planning
       - "create_plan"
+      # Human interaction / multi-agent dispatch
       - "ask_confirm"
       - "ask_human"
       - "list_agents"

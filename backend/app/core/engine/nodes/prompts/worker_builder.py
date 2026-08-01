@@ -53,7 +53,7 @@ class WorkerPromptBuilder(BasePromptBuilder):
         Dynamic context (blackboard, telemetry, memory) is now moved to build_mission_message().
         """
         ctx = ContextManager.current()
-        plugin_registry.hydrate_context(ctx)
+        await plugin_registry.ahydrate_context(ctx)
 
         mode = self.get_sandbox_mode()
 

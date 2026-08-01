@@ -1,0 +1,232 @@
+nav_routes:
+- phrase: show main interface
+  route: /chat
+  feedback: Returned to the main screen
+- phrase: enter chat
+  route: /chat
+  feedback: Returned to the main screen
+- phrase: open chat
+  route: /chat
+  feedback: Returned to the main screen
+- phrase: start chat
+  route: /chat
+  feedback: Returned to the main screen
+- phrase: back to home
+  route: /chat
+  feedback: Returned to the main screen
+- phrase: back to main interface
+  route: /chat
+  feedback: Returned to the main screen
+- phrase: show home page
+  route: /chat
+  feedback: Returned to the main screen
+- phrase: home page
+  route: /chat
+  feedback: Returned to the main screen
+- phrase: main interface
+  route: /chat
+  feedback: Returned to the main screen
+- phrase: open home page
+  route: /chat
+  feedback: Returned to the main screen
+- phrase: return home
+  route: /chat
+  feedback: Returned to the main screen
+- phrase: return to main interface
+  route: /chat
+  feedback: Returned to the main screen
+- phrase: back to chat
+  route: /chat
+  feedback: Returned to the main screen
+- phrase: open project management
+  route: /projects
+  feedback: Project management opened
+- phrase: project management
+  route: /projects
+  feedback: Project management opened
+- phrase: projects
+  route: /projects
+  feedback: Project management opened
+- phrase: my projects
+  route: /projects
+  feedback: Project management opened
+- phrase: view projects
+  route: /projects
+  feedback: Project management opened
+- phrase: project list
+  route: /projects
+  feedback: Project management opened
+- phrase: todo items
+  route: /todos
+  feedback: Todo list opened
+- phrase: todos
+  route: /todos
+  feedback: Todo list opened
+- phrase: todo list
+  route: /todos
+  feedback: Todo list opened
+- phrase: my todos
+  route: /todos
+  feedback: Todo list opened
+- phrase: view todos
+  route: /todos
+  feedback: Todo list opened
+- phrase: enter learning center
+  route: /learning
+  feedback: Entered the learning center
+- phrase: learning center
+  route: /learning
+  feedback: Entered the learning center
+- phrase: learn
+  route: /learning
+  feedback: Entered the learning center
+- phrase: go learn
+  route: /learning
+  feedback: Entered the learning center
+- phrase: enter settings
+  route: /settings
+  feedback: Settings opened
+- phrase: open settings
+  route: /settings
+  feedback: Settings opened
+- phrase: settings
+  route: /settings
+  feedback: Settings opened
+- phrase: manage subscriptions
+  route: /subscription
+  feedback: Subscription management opened
+- phrase: subscriptions
+  route: /subscription
+  feedback: Subscription management opened
+- phrase: my subscriptions
+  route: /subscription
+  feedback: Subscription management opened
+- phrase: login
+  route: /login
+  feedback: Login page opened
+- phrase: new chat
+  route: /chat?new=true
+  feedback: New chat created
+- phrase: new conversation
+  route: /chat?new=true
+  feedback: New chat created
+- phrase: close main window
+  route: __HIDE_WINDOW__
+  feedback: Main window hidden
+- phrase: close window
+  route: __HIDE_WINDOW__
+  feedback: Main window hidden
+- phrase: hide interface
+  route: __HIDE_WINDOW__
+  feedback: Main window hidden
+- phrase: minimize to tray
+  route: __HIDE_WINDOW__
+  feedback: Main window hidden
+- phrase: show phone desktop
+  route: /learning?tab=android
+  feedback: Phone desktop opened
+- phrase: phone desktop
+  route: /learning?tab=android
+  feedback: Phone desktop opened
+- phrase: phone screen
+  route: /learning?tab=android
+  feedback: Phone desktop opened
+- phrase: phone mirror
+  route: /learning?tab=android
+  feedback: Phone desktop opened
+- phrase: skill recording
+  route: /learning?tab=macros
+  feedback: Entered skill recording
+- phrase: start skill recording
+  route: /learning?tab=macros
+  feedback: Entered skill recording
+- phrase: end skill recording
+  route: /learning?tab=macros
+  feedback: Entered skill recording
+- phrase: stop skill recording
+  route: /learning?tab=macros
+  feedback: Entered skill recording
+- phrase: stop recording
+  route: /learning?tab=macros
+  feedback: Entered skill recording
+- phrase: command library
+  route: /learning?tab=macros
+  feedback: Entered skill recording
+- phrase: open command library
+  route: /learning?tab=macros
+  feedback: Entered skill recording
+- phrase: switch to command library
+  route: /learning?tab=macros
+  feedback: Entered skill recording
+- phrase: view commands
+  route: /learning?tab=macros
+  feedback: Entered skill recording
+- phrase: view macros
+  route: /learning?tab=macros
+  feedback: Entered skill recording
+- phrase: phone screen recording
+  route: /learning?tab=android
+  feedback: Phone desktop opened
+- phrase: switch project
+  route: __SWITCH_PROJECT__
+  feedback: Okay
+- phrase: register
+  route: /signup
+  feedback: Okay
+- phrase: create account
+  route: /signup
+  feedback: Okay
+- phrase: go register
+  route: /signup
+  feedback: Okay
+- phrase: sign up now
+  route: /signup
+  feedback: Okay
+- phrase: project overview
+  route: /projects/current
+  feedback: Okay
+- phrase: project files
+  route: /projects/current/files
+  feedback: Okay
+- phrase: view files
+  route: /projects/current/files
+  feedback: Okay
+- phrase: code files
+  route: /projects/current/files
+  feedback: Okay
+- phrase: project tasks
+  route: /projects/current/tasks
+  feedback: Okay
+- phrase: view tasks
+  route: /projects/current/tasks
+  feedback: Okay
+- phrase: work tasks
+  route: /projects/current/tasks
+  feedback: Okay
+- phrase: project wiki
+  route: /projects/current/wiki
+  feedback: Okay
+- phrase: project docs
+  route: /projects/current/wiki
+  feedback: Okay
+- phrase: view docs
+  route: /projects/current/wiki
+  feedback: Okay
+- phrase: knowledge base
+  route: /projects/current/wiki
+  feedback: Okay
+- phrase: vault
+  route: /projects/current/vault
+  feedback: Okay
+- phrase: key management
+  route: /projects/current/vault
+  feedback: Okay
+- phrase: project config
+  route: /projects/current/v2/profile
+  feedback: Okay
+- phrase: project profile
+  route: /projects/current/v2/profile
+  feedback: Okay
+- phrase: project assets
+  route: /projects/current/v2/assets
+  feedback: Okay

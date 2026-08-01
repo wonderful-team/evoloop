@@ -29,6 +29,8 @@ from typing import Any
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
 from app.core.context.manager import ContextManager, EvoContext
+from app.core.engine.hooks import HookContext, HookEvent, hook_system
+from app.core.engine.hooks.schemas import HookMetadata
 from app.core.engine.message.reference import reference_service
 from app.core.project.utils import get_project_path
 from app.infrastructure.database import session_scope
@@ -74,6 +76,7 @@ async def dispatch_agent_run(
 
     Model must be explicitly provided or available in EvoContext.
     """
+    metadata = metadata or {}
     # ------------------------------------------------------------------
     # 0. Ensure execution context
     # ------------------------------------------------------------------
@@ -135,6 +138,37 @@ async def dispatch_agent_run(
     await ContextManager.save(thread_id)
 
     # ------------------------------------------------------------------
+    # 1.6 L0 intent classification via USER_PROMPT_SUBMIT hook
+    # ------------------------------------------------------------------
+    # The hook computes (or reuses) a high-level intent hint so the downstream
+    # hydrator can load context telescopically.  We copy the result into both
+    # the EvoContext and the graph inputs metadata.
+    context.metadata.prompt = message_content
+    context.metadata.source = source or "unknown"
+    if metadata.get("intent_hint"):
+        context.metadata.intent_hint = metadata["intent_hint"]
+
+    hook_ctx = HookContext(
+        thread_id=thread_id,
+        run_id=context.request_id,
+        project_id=project_id,
+        member_id=member_id,
+        metadata=HookMetadata(
+            prompt=message_content,
+            source=source or "unknown",
+            intent_hint=context.metadata.get("intent_hint"),
+        ),
+    )
+    hook_result = await hook_system.trigger(HookEvent.USER_PROMPT_SUBMIT, hook_ctx)
+    if hook_result.modified_context:
+        context.metadata.intent_hint = (
+            hook_result.modified_context.metadata.get("intent_hint")
+            or context.metadata.get("intent_hint")
+        )
+    if context.metadata.get("intent_hint"):
+        metadata["intent_hint"] = context.metadata.intent_hint
+
+    # ------------------------------------------------------------------
     # 1.5 Handle Upload Session Promotion (Migration from tmp to thread)
     # ------------------------------------------------------------------
     if upload_session_id:
@@ -155,8 +189,8 @@ async def dispatch_agent_run(
                 logger.info(
                     f"[Dispatch] Upload session {upload_session_id} promoted to thread {thread_id}"
                 )
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
-                logger.warning(f"[Dispatch] Failed to promote upload session: {e}")
+            except (OSError, shutil.Error) as e:
+                logger.warning(f"[Dispatch] Failed to promote upload session: {e}", exc_info=True)
 
     # ------------------------------------------------------------------
     # 2. Process references (images, files, skills)
@@ -180,14 +214,13 @@ async def dispatch_agent_run(
             )
         content_blocks = ref_context.content_blocks
         references_list = ref_context.references
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
-        logger.warning(f"[Dispatch] Reference service failed: {e}, falling back to raw message_content")
+    except Exception as e:
+        logger.warning(f"[Dispatch] Reference service failed: {e}, falling back to raw message_content", exc_info=True)
         content_blocks = message_content
 
     # ------------------------------------------------------------------
     # 2.5 Extract explicit skill_ids from references for downstream routing
     # ------------------------------------------------------------------
-    metadata = metadata or {}
     explicit_skills = []
     for att in combined_refs:
         if att.get("type") == "skill":
@@ -195,13 +228,11 @@ async def dispatch_agent_run(
             sid = skill_meta.get("skill_id") or att.get("id")
             sname = skill_meta.get("skill_name") or att.get("target_name") or "Unknown"
             if sid:
-                explicit_skills.append(
-                    {
-                        "id": sid,
-                        "name": sname,
-                        "description": skill_meta.get("description", ""),
-                    }
-                )
+                explicit_skills.append({
+                    "id": sid,
+                    "name": sname,
+                    "description": skill_meta.get("description", ""),
+                })
     if explicit_skills:
         metadata["explicit_skills"] = explicit_skills
         logger.info(

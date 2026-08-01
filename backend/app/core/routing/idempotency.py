@@ -15,6 +15,8 @@ import asyncio
 import logging
 import time
 
+from app.infrastructure.config import SystemConfigService
+
 logger = logging.getLogger(__name__)
 
 _DEFAULT_TTL = 300
@@ -24,16 +26,14 @@ _seen: dict[str, float] = {}
 _PURGE_THRESHOLD = 1024
 
 
-def _ttl_seconds() -> int:
+async def _ttl_seconds() -> int:
     """Read `ROUTE_IDEMPOTENCY_TTL` (seconds), falling back to the default."""
     try:
-        from app.infrastructure.config import SystemConfigService
-
-        raw = SystemConfigService.get_value("ROUTE_IDEMPOTENCY_TTL")
+        raw = await asyncio.to_thread(SystemConfigService.get_value, "ROUTE_IDEMPOTENCY_TTL")
         if raw is not None:
             return max(1, int(raw))
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError):
-        pass
+    except Exception:
+        logger.debug("[idempotency] failed to read ROUTE_IDEMPOTENCY_TTL", exc_info=True)
     return _DEFAULT_TTL
 
 
@@ -46,7 +46,7 @@ async def is_duplicate(message_id: str, ttl: int | None = None) -> bool:
     if not message_id:
         return False
     if ttl is None:
-        ttl = _ttl_seconds()
+        ttl = await _ttl_seconds()
     now = time.monotonic()
     async with _LOCK:
         if len(_seen) > _PURGE_THRESHOLD:

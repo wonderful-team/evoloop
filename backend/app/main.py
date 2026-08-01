@@ -83,8 +83,8 @@ async def lifespan(app: FastAPI):
     # Preheat L0 local matcher: build + enrich + compile regex so the first
     # voice.route does not pay the cold-start penalty (~1s).
     try:
-        from app.core.routing.router import rebuild_local_matcher
-        await rebuild_local_matcher()
+        from app.core.routing.matcher_cache import matcher_cache
+        await matcher_cache.rebuild()
         logger.info("[Startup] L0 local matcher preheated")
     except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.warning(f"[Startup] L0 local matcher preheat failed (non-critical): {e}")
@@ -93,10 +93,10 @@ async def lifespan(app: FastAPI):
     # streaming) can push to WS regardless of which code path triggered the
     # Agent — not just the first voice.route.
     try:
+        from app.api.routes.voice_ws import _envelope as _ws_envelope
         from app.core.routing import executor as voice_executor
         from app.core.routing.connection import manager as _ws_manager
         from app.core.schemas.canonical import MessageType as _MsgType
-        from app.api.routes.voice_ws import _envelope as _ws_envelope
         voice_executor.manager = _ws_manager
         voice_executor.envelope_fn = _ws_envelope
         voice_executor.message_type = _MsgType

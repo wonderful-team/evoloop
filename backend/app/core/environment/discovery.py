@@ -23,6 +23,31 @@ logger = logging.getLogger(__name__)
 _logged_device_ids: set[str] = set()
 _logged_macos_triage: bool = False
 
+# Background dynamic-app triage tasks created by EnvironmentProbe.
+# Stored so they can be cancelled cleanly during shutdown.
+_dynamic_triage_tasks: set[asyncio.Task] = set()
+
+
+def _register_triage_task(task: asyncio.Task) -> None:
+    """Track a background triage task and remove it when it finishes."""
+    _dynamic_triage_tasks.add(task)
+    task.add_done_callback(_dynamic_triage_tasks.discard)
+
+
+async def cancel_dynamic_triage_tasks() -> None:
+    """Cancel all pending dynamic-app triage tasks and wait for them."""
+    tasks = list(_dynamic_triage_tasks)
+    _dynamic_triage_tasks.clear()
+    for task in tasks:
+        if task.done():
+            continue
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+    logger.debug("[EnvironmentProbe] Dynamic triage tasks cancelled")
+
 
 class EnvironmentProbe:
     """Collects environment information from various sources."""
@@ -237,7 +262,8 @@ class EnvironmentProbe:
             try:
                 triage = DynamicAppTriage()
                 # Run in background - don't block startup for LLM classification
-                asyncio.create_task(triage.sync_dynamic_apps(macos_apps=apps))
+                task = asyncio.create_task(triage.sync_dynamic_apps(macos_apps=apps))
+                _register_triage_task(task)
                 global _logged_macos_triage
                 if not _logged_macos_triage:
                     logger.info("[EnvironmentProbe] macOS dynamic app triage scheduled (first time)")
@@ -305,7 +331,8 @@ class EnvironmentProbe:
                     # Autonomous triage for discovered packages (run in background)
                     try:
                         triage = DynamicAppTriage()
-                        asyncio.create_task(triage.sync_dynamic_apps(android_packages=packages))
+                        task = asyncio.create_task(triage.sync_dynamic_apps(android_packages=packages))
+                        _register_triage_task(task)
                         # Only log once per device to avoid repetitive logs
                         if device_id not in _logged_device_ids:
                             logger.info(f"[EnvironmentProbe] Android triage scheduled for {device_id} (first time)")
