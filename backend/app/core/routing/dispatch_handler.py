@@ -5,7 +5,8 @@ This module consolidates the previously duplicated routing logic in
 
 1. Normalize raw input into an ``IncomingMessage`` via an ``InputChannel``.
 2. Run ``CommandRouter.resolve`` to get a ``RouteDecision``.
-3. Keep the ``intent_hint`` as a Pydantic object on the message metadata.
+3. Store the ``intent_hint`` as a JSON-safe dict on the message metadata
+   (the metadata is persisted before the engine hydrates it).
 4. Dispatch any L0 hit through ``dispatch_decision`` + a channel presenter.
 5. For L0 misses, return the normalized message and the ``dispatch_agent_run``
    inputs so the caller can start the agent background worker in the
@@ -21,29 +22,31 @@ from typing import Any
 
 from app.core.channel.base import IncomingMessage, InputChannel
 from app.core.context import EvoContext
-from app.core.routing.channels.dispatch import RoutePresenter, dispatch_decision
+from app.core.routing.actions import ActionOutcome, run_builtin, run_macro
 from app.core.routing.command_router import CommandRouter
+from app.core.routing.routing_data import get_store
+from app.core.routing.schemas import IntentHint
 from app.core.routing.thread_locks import route_lock_scope
 
 logger = logging.getLogger(__name__)
 
 command_router = CommandRouter()
+_routing_store = get_store()
 
 
 @dataclass
 class DispatchOutcome:
     """Outcome of a unified route dispatch attempt.
 
-    - ``handled=True``: an L0/local route resolved the request. For the web
-      channel ``local_response`` holds the JSON payload; for voice it is
-      ``None`` because the result was already pushed to the WebSocket.
+    - ``handled=True``: an L0/local route resolved the request.
+      ``local_response`` holds the ``ActionOutcome`` containing the execution details.
     - ``handled=False``: the request must be delegated to the agent.
       ``msg`` is the normalized ``IncomingMessage`` and ``inputs`` is the
       value returned by ``InputChannel.dispatch`` (the agent run inputs).
     """
 
     handled: bool
-    local_response: Any = None
+    local_response: ActionOutcome | None = None
     msg: IncomingMessage | None = None
     inputs: Any = None
 
@@ -53,7 +56,6 @@ async def dispatch_user_message(
     *,
     source: str,
     input_channel: InputChannel,
-    presenter: RoutePresenter,
     thread_id: str,
     project_id: int,
     member_id: int,
@@ -63,8 +65,8 @@ async def dispatch_user_message(
     """Normalize, route, and dispatch a user message from any channel.
 
     The caller is responsible for holding the route lock and setting an active
-    ``EvoContext`` (use ``route_lock_scope``).  This function performs the
-    channel-agnostic work that was previously duplicated across chat and voice.
+    ``EvoContext`` (use ``route_lock_scope``). This function performs the
+    channel-agnostic routing work.
     """
     msg = await input_channel.receive(raw, context=context, member_id=member_id)
     if msg is None:
@@ -86,31 +88,115 @@ async def dispatch_user_message(
 
     if decision.intent_hint:
         msg.metadata = msg.metadata or {}
-        msg.metadata["intent_hint"] = decision.intent_hint
+        # The metadata dict is persisted to JSON before the engine hydrates it,
+        # so keep the intent hint as a plain dict to avoid serialization errors.
+        msg.metadata["intent_hint"] = (
+            decision.intent_hint.model_dump()
+            if isinstance(decision.intent_hint, IntentHint)
+            else decision.intent_hint
+        )
 
-    local_result = await dispatch_decision(
-        decision,
-        presenter,
-        thread_id=thread_id,
-        project_id=project_id,
-        worker_registry=worker_registry,
-    )
+    target_type = decision.target_type
 
-    if local_result.handled:
+    if target_type == "agent":
         logger.info(
-            "[dispatch] %s L0 handled for thread %s (target=%s)",
+            "[dispatch] %s L0 miss for thread %s (intent=%s) → agent",
             source,
             thread_id,
-            decision.target_type,
+            decision.intent_hint,
         )
-        return DispatchOutcome(handled=True, local_response=local_result.payload)
+        inputs = await input_channel.dispatch(msg)
+        return DispatchOutcome(handled=False, msg=msg, inputs=inputs)
 
-    logger.info(
-        "[dispatch] %s L0 miss for thread %s (intent=%s) → agent",
-        source,
-        thread_id,
-        decision.intent_hint,
-    )
+    if target_type == "local":
+        action = decision.target.get("action", "")
+        args = decision.params
+        route = (
+            decision.target.get("route")
+            if decision.target.get("type") == "navigate"
+            else None
+        )
+        if route is not None:
+            local_outcome = ActionOutcome(
+                ok=True,
+                message=_routing_store.builtin_responses["generic"]["ok"],
+                action_type="navigate",
+                data={"route": route},
+            )
+            logger.info("[dispatch] %s L0 navigate handled for thread %s", source, thread_id)
+            return DispatchOutcome(handled=True, local_response=local_outcome)
+        else:
+            if source == "voice":
+                local_outcome = ActionOutcome(
+                    ok=True,
+                    message=_routing_store.builtin_responses["local"]["success"],
+                    action_type="local",
+                    data={"action": action, "args": args},
+                )
+                logger.info("[dispatch] %s L0 local action handled for thread %s", source, thread_id)
+                return DispatchOutcome(handled=True, local_response=local_outcome)
+            else:
+                logger.info("[dispatch] web local non-navigate action delegates to agent")
+                inputs = await input_channel.dispatch(msg)
+                return DispatchOutcome(handled=False, msg=msg, inputs=inputs)
+
+    if target_type == "builtin":
+        action = decision.target.get("action", "")
+        args = decision.params
+        outcome = await run_builtin(
+            action,
+            args,
+            thread_id=thread_id,
+            worker_registry=worker_registry,
+        )
+        handled = True
+        if source == "voice" and not outcome.ok:
+            handled = False
+        logger.info(
+            "[dispatch] %s L0 builtin handled=%s for thread %s",
+            source,
+            handled,
+            thread_id,
+        )
+        if handled:
+            return DispatchOutcome(handled=True, local_response=outcome)
+        else:
+            inputs = await input_channel.dispatch(msg)
+            return DispatchOutcome(handled=False, msg=msg, inputs=inputs)
+
+    if target_type == "macro":
+        macro_id = decision.target.get("id")
+        if not isinstance(macro_id, int):
+            logger.warning("[dispatch] macro decision missing id: %s", decision)
+            inputs = await input_channel.dispatch(msg)
+            return DispatchOutcome(handled=False, msg=msg, inputs=inputs)
+        
+        macro_timeout = 3.0 if source == "voice" else None
+        outcome = await run_macro(
+            macro_id,
+            decision.params,
+            thread_id=thread_id,
+            project_id=project_id,
+            source=source,
+            timeout=macro_timeout,
+            worker_registry=worker_registry,
+        )
+        handled = True
+        if source == "voice" and outcome.action_type != "navigate" and not outcome.ok:
+            handled = False
+        logger.info(
+            "[dispatch] %s L0 macro handled=%s for thread %s",
+            source,
+            handled,
+            thread_id,
+        )
+        if handled:
+            return DispatchOutcome(handled=True, local_response=outcome)
+        else:
+            inputs = await input_channel.dispatch(msg)
+            return DispatchOutcome(handled=False, msg=msg, inputs=inputs)
+
+    logger.warning("[dispatch] unknown target_type: %s", target_type)
     inputs = await input_channel.dispatch(msg)
     return DispatchOutcome(handled=False, msg=msg, inputs=inputs)
 

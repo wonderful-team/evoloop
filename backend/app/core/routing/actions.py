@@ -19,7 +19,7 @@ from app.core.execution.macro.runner import (
     WEB_POLICY,
     ExecutionOutcome,
     MacroGateError,
-    is_navigation_macro,
+    get_navigation_info,
     load_macro,
     preflight,
     run_deterministic,
@@ -99,15 +99,16 @@ async def run_macro(
     if macro is None:
         return ActionOutcome(False, responses["macro"]["not_found"], "macro", {})
 
+    # Navigation macros are a special case: they don't run, they just redirect.
+    nav_info = get_navigation_info(macro)
+    if nav_info is not None:
+        route, feedback = nav_info
+        return ActionOutcome(True, feedback, "navigate", {"route": route, "feedback": feedback})
+
     try:
         script = preflight(macro, args)
     except MacroGateError as exc:
         return ActionOutcome(False, exc.message, "macro", {})
-
-    # Navigation macros are a special case: they don't run, they just redirect.
-    route = is_navigation_macro(macro)
-    if route:
-        return ActionOutcome(True, "", "navigate", {"route": route})
 
     policy = VOICE_POLICY if source == "voice" else WEB_POLICY
 

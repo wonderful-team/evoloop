@@ -64,23 +64,6 @@ def _build_routing_data(lang: str) -> dict[str, Any]:
     templates_data = _load_yaml(lang_dir / "templates.yaml")
     intent_overrides = _load_yaml(lang_dir / "intent_overrides.yaml")
     builtin_responses = _load_yaml(lang_dir / "builtin_responses.yaml")
-    nav_routes = _load_yaml(lang_dir / "nav_routes.yaml")
-
-    # Navigation
-    nav_data: dict[str, dict[str, str]] = {}
-    for entry in nav_routes.get("nav_routes", []):
-        if isinstance(entry, dict) and "phrase" in entry:
-            nav_data[entry["phrase"]] = {
-                "route": entry.get("route", ""),
-                "feedback": entry.get("feedback", ""),
-            }
-
-    direct_routes = {phrase: info["route"] for phrase, info in nav_data.items()}
-    nav_feedback = {
-        info["route"]: info["feedback"]
-        for info in nav_data.values()
-        if info.get("route")
-    }
 
     # Builtin templates / aliases / voice local actions
     voice_local_actions: list[dict[str, Any]] = list(templates_data.get("voice_local_actions", []))
@@ -142,8 +125,6 @@ def _build_routing_data(lang: str) -> dict[str, Any]:
 
     return {
         "language": lang,
-        "DIRECT_ROUTES": direct_routes,
-        "NAV_FEEDBACK": nav_feedback,
         "VOICE_LOCAL_ACTIONS": voice_local_actions,
         "TEMPLATES": templates,
         "ALIASES": aliases,
@@ -174,14 +155,6 @@ class RoutingLanguageStore:
     @property
     def lang(self) -> str:
         return self._data["language"]
-
-    @property
-    def direct_routes(self) -> dict[str, str]:
-        return self._data["DIRECT_ROUTES"]
-
-    @property
-    def nav_feedback(self) -> dict[str, str]:
-        return self._data["NAV_FEEDBACK"]
 
     @property
     def voice_local_actions(self) -> list[dict[str, Any]]:

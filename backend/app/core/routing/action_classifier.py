@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import threading
 from pathlib import Path
 from typing import Any
@@ -13,8 +14,8 @@ from tokenizers import Tokenizer
 
 logger = logging.getLogger(__name__)
 
-_MARGIN_THRESHOLD = 0.08
-_MODEL_DIR = Path.home() / ".evoloop" / "models" / "intent_classifier"
+_DEFAULT_MARGIN_THRESHOLD = 0.12
+_MODEL_DIR = Path.home() / ".evoloop" / "models" / "action_classifier"
 _MODEL_PATH = _MODEL_DIR / "classifier.onnx"
 _LABEL_PATH = _MODEL_DIR / "labels.json"
 
@@ -22,6 +23,24 @@ _session: Any = None
 _tokenizer: Any = None
 _id2name: dict[str, str] = {}
 _lock = threading.Lock()
+
+
+def _get_threshold() -> float:
+    """Read the L0 intent-classifier margin threshold from env or system config."""
+    if env_val := os.getenv("EVOLOOP_L0_MARGIN_THRESHOLD"):
+        try:
+            return float(env_val)
+        except ValueError:
+            logger.warning("Invalid EVOLOOP_L0_MARGIN_THRESHOLD=%s, using default", env_val)
+    try:
+        from app.infrastructure.config.service import SystemConfigService
+
+        cfg = SystemConfigService.get_value("EVOLOOP_L0_MARGIN_THRESHOLD")
+        if cfg is not None:
+            return float(cfg)
+    except Exception as exc:
+        logger.debug("Could not read L0 threshold from system config: %s", exc)
+    return _DEFAULT_MARGIN_THRESHOLD
 
 
 def _load() -> bool:
@@ -50,8 +69,8 @@ def _load() -> bool:
         tokenizer.enable_padding(length=32)
         _session, _tokenizer, _id2name = session, tokenizer, id2name
         logger.info(
-            "Intent classifier loaded from %s (%d labels, margin_threshold=%.2f)",
-            _MODEL_DIR, len(_id2name), _MARGIN_THRESHOLD,
+            "Intent classifier loaded from %s (%d labels, default_margin_threshold=%.2f)",
+            _MODEL_DIR, len(_id2name), _DEFAULT_MARGIN_THRESHOLD,
         )
         return True
     except Exception as e:
@@ -101,7 +120,7 @@ def predict(text: str) -> tuple[str | None, float]:
     margin = top1_prob - top2_prob
     idx = int(sorted_idx[0])
 
-    if margin >= _MARGIN_THRESHOLD and str(idx) in _id2name:
+    if margin >= _get_threshold() and str(idx) in _id2name:
         return _id2name[str(idx)], margin
 
     return None, margin
