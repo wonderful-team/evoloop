@@ -33,6 +33,8 @@ pub struct AecMicCapture {
     running: Arc<AtomicBool>,
     #[cfg(target_os = "macos")]
     mac: Option<MacAecCapture>,
+    #[cfg(target_os = "macos")]
+    mac_running: Arc<AtomicBool>,
     fallback: MicCapture,
 }
 
@@ -45,6 +47,8 @@ impl AecMicCapture {
             running: Arc::new(AtomicBool::new(false)),
             #[cfg(target_os = "macos")]
             mac: MacAecCapture::new().ok(),
+            #[cfg(target_os = "macos")]
+            mac_running: Arc::new(AtomicBool::new(false)),
             fallback: MicCapture::new(),
         }
     }
@@ -75,6 +79,7 @@ impl AecMicCapture {
             match mac.start(tts_source, callback.clone()) {
                 Ok(()) => {
                     info!("[aec] VoiceProcessingIO capture started with AEC");
+                    self.mac_running.store(true, Ordering::SeqCst);
                     // Success with AEC - skip fallback
                     self.fallback.stop();
                     return Ok(());
@@ -82,6 +87,7 @@ impl AecMicCapture {
                 Err(e) => {
                     warn!("[aec] VoiceProcessingIO failed to start ({}), falling back to MicCapture", e);
                     mac.stop();
+                    self.mac_running.store(false, Ordering::SeqCst);
                     // Discard the broken AudioUnit so next start() creates a fresh one.
                     // After Bluetooth reconnect the old instance is in a bad state.
                     self.mac = None;
@@ -120,6 +126,7 @@ impl AecMicCapture {
         self.running.store(false, Ordering::SeqCst);
         #[cfg(target_os = "macos")]
         {
+            self.mac_running.store(false, Ordering::SeqCst);
             if let Some(mac) = self.mac.as_mut() {
                 mac.stop();
             }
@@ -127,10 +134,25 @@ impl AecMicCapture {
             // The next start() will create a fresh one.
             self.mac = None;
         }
+        // Stop fallback capture explicitly so cpal releases the mic before we
+        // drop the MicCapture.  On macOS this also triggers the dummy AudioUnit
+        // workaround that extinguishes the yellow indicator.
+        self.fallback.stop();
         // Replace with a fresh MicCapture so cpal fully releases the old audio unit.
         // Dropping MicCapture drops the Stream, which tells CoreAudio to release the mic.
         let old = std::mem::replace(&mut self.fallback, MicCapture::new());
         drop(old); // drops MicCapture → drops Stream → CoreAudio releases mic
+    }
+
+    pub fn is_live(&self) -> bool {
+        #[cfg(target_os = "macos")]
+        {
+            self.mac_running.load(Ordering::SeqCst) || self.fallback.is_live()
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            self.fallback.is_live()
+        }
     }
 }
 

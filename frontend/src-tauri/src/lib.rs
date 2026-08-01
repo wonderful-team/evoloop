@@ -227,6 +227,7 @@ enum VoiceCommand {
         respond: oneshot::Sender<Result<(), String>>,
     },
     ConnectBackend {
+        app_handle: tauri::AppHandle,
         ws_url: String,
         respond: oneshot::Sender<Result<(), String>>,
     },
@@ -308,7 +309,7 @@ fn spawn_voice_manager(app_handle: tauri::AppHandle, model_search_paths: Vec<std
         });
         rt.block_on(async {
             use crate::voice::tts_engine::TtsEngineKind;
-            let session = VoiceSession::new(model_search_paths);
+            let session = Arc::new(VoiceSession::new(model_search_paths));
             let mut current_engine = TtsEngineKind::EdgeTts;
             let mut current_voice = String::new();
             let mut current_speed = 1.0;
@@ -327,11 +328,15 @@ fn spawn_voice_manager(app_handle: tauri::AppHandle, model_search_paths: Vec<std
                                 let res = session.init_engines(&vad_model_path, vad_silence_ms, qwen3_dir_str.as_deref()).await;
                                 let _ = respond.send(res);
                             }
-                            Some(VoiceCommand::ConnectBackend { ws_url, respond }) => {
+                            Some(VoiceCommand::ConnectBackend { app_handle, ws_url, respond }) => {
+                                session.set_app_handle(app_handle.clone());
+                                let bus = Arc::new(TauriEventBus { handle: app_handle }) as Arc<dyn VoiceEventBus>;
+                                session.set_event_bus(bus);
                                 let res = session.connect_backend(&ws_url).await;
                                 let _ = respond.send(res);
                             }
                             Some(VoiceCommand::Start { app_handle, thread_id, lang, mode, tts_engine, tts_voice, respond }) => {
+                                session.set_app_handle(app_handle.clone());
                                 if let Ok(mut detector) = WAK_WORD_DETECTOR.lock() { detector.pause(); }
                                 session_active = true;
                                 let engine = tts_engine.as_deref().map(TtsEngineKind::from_str).unwrap_or(current_engine);
@@ -348,7 +353,17 @@ fn spawn_voice_manager(app_handle: tauri::AppHandle, model_search_paths: Vec<std
                                 if failed {
                                     log::warn!("[voice-manager] session start failed, resetting active flag");
                                     session_active = false;
-                                    if let Ok(mut detector) = WAK_WORD_DETECTOR.lock() { detector.resume(); }
+                                    if let Ok(mut detector) = WAK_WORD_DETECTOR.lock() {
+                                        if let Err(e) = detector.resume() {
+                                            log::warn!("[voice-manager] failed to resume wake-word detector after session start failure: {}", e);
+                                        }
+                                    }
+                                } else {
+                                    // Spawn mic watchdog + reconnect monitor for the active session.
+                                    let session_monitors = session.clone();
+                                    tokio::spawn(async move {
+                                        session_monitors.spawn_monitors().await;
+                                    });
                                 }
                             }
                             Some(VoiceCommand::SwitchMode { mode, respond }) => {
@@ -377,7 +392,11 @@ fn spawn_voice_manager(app_handle: tauri::AppHandle, model_search_paths: Vec<std
                             Some(VoiceCommand::Stop) => {
                                 session.stop().await;
                                 session_active = false;
-                                if let Ok(mut detector) = WAK_WORD_DETECTOR.lock() { detector.resume(); }
+                                if let Ok(mut detector) = WAK_WORD_DETECTOR.lock() {
+                                    if let Err(e) = detector.resume() {
+                                        log::warn!("[voice-manager] failed to resume wake-word detector after session stop: {}", e);
+                                    }
+                                }
                             }
                             Some(VoiceCommand::BargeIn) => { session.barge_in().await; }
                             Some(VoiceCommand::GetState { respond }) => { let state = session.get_state().await; let _ = respond.send(state); }
@@ -419,7 +438,9 @@ fn spawn_voice_manager(app_handle: tauri::AppHandle, model_search_paths: Vec<std
                                         if let Ok(mut detector) = WAK_WORD_DETECTOR.lock() {
                                             // Kill any retrying/failed detector and restart fresh
                                             if detector.is_running() { detector.pause(); }
-                                            detector.resume();
+                                            if let Err(e) = detector.resume() {
+                                                log::warn!("[voice-manager] failed to resume wake-word detector after device change: {}", e);
+                                            }
                                         }
                                     }).await.ok();
                                 }
@@ -435,7 +456,11 @@ fn spawn_voice_manager(app_handle: tauri::AppHandle, model_search_paths: Vec<std
                             log::info!("[voice-manager] session died unexpectedly, cleaning up");
                             session.stop().await;
                             session_active = false;
-                            if let Ok(mut detector) = WAK_WORD_DETECTOR.lock() { detector.resume(); }
+                            if let Ok(mut detector) = WAK_WORD_DETECTOR.lock() {
+                                if let Err(e) = detector.resume() {
+                                    log::warn!("[voice-manager] failed to resume wake-word detector after session cleanup: {}", e);
+                                }
+                            }
                         }
                     }
                 }
@@ -468,10 +493,12 @@ async fn init_voice_engines(
 #[cfg(desktop)]
 async fn connect_voice_backend(
     state: tauri::State<'_, AppServiceState>,
+    app: tauri::AppHandle,
     ws_url: String,
 ) -> Result<(), String> {
     let (tx, rx) = oneshot::channel();
     state.voice_manager.send(VoiceCommand::ConnectBackend {
+        app_handle: app,
         ws_url,
         respond: tx,
     }).await?;

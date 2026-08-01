@@ -108,7 +108,6 @@ impl MicCapture {
         let running = self.running.clone();
         let callback = Arc::new(std::sync::Mutex::new(callback));
         let stream_live = self.stream_live.clone();
-        stream_live.store(true, Ordering::SeqCst);
 
         let stream = device
             .build_input_stream(
@@ -156,6 +155,7 @@ impl MicCapture {
             .map_err(|e| format!("Failed to start stream: {}", e))?;
 
         self.running.store(true, Ordering::SeqCst);
+        stream_live.store(true, Ordering::SeqCst);
         info!("[mic] capture started");
 
         Ok(())
@@ -163,6 +163,7 @@ impl MicCapture {
 
     pub fn stop(&mut self) {
         self.running.store(false, Ordering::SeqCst);
+        self.stream_live.store(false, Ordering::SeqCst);
         if let Some(stream) = self.stream.take() {
             let _ = stream.pause();
             info!("[mic] stream paused, dropping...");

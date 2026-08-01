@@ -1,7 +1,9 @@
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tokio::sync::{mpsc, Mutex, RwLock};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
+use tokio::sync::{mpsc, oneshot, Mutex, RwLock};
 use tokio_tungstenite::tungstenite::Message;
 use log::{info, warn, error};
 
@@ -28,6 +30,7 @@ pub struct VoiceWsClient {
     url: String,
     connected: Arc<RwLock<bool>>,
     ping_failures: Arc<Mutex<u32>>,
+    stop_reconnect: Arc<AtomicBool>,
 }
 
 #[allow(dead_code)]
@@ -39,6 +42,7 @@ impl VoiceWsClient {
             url,
             connected: Arc::new(RwLock::new(false)),
             ping_failures: Arc::new(Mutex::new(0)),
+            stop_reconnect: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -47,15 +51,26 @@ impl VoiceWsClient {
     }
 
     /// Connect and auto-reconnect on disconnect.
+    /// Waits for the first successful WebSocket handshake and returns an error
+    /// if it does not happen within 5 seconds.
     pub async fn connect(&self) -> Result<(), String> {
+        self.stop_reconnect.store(false, Ordering::SeqCst);
         let url = self.url.clone();
         let handler = self.handler.clone();
         let tx_state = self.tx.clone();
         let connected_state = self.connected.clone();
         let ping_failures = self.ping_failures.clone();
+        let stop_reconnect = self.stop_reconnect.clone();
+
+        let (first_connect_tx, first_connect_rx) = oneshot::channel::<()>();
+        let first_connect_tx = Arc::new(Mutex::new(Some(first_connect_tx)));
 
         tokio::spawn(async move {
             loop {
+                if stop_reconnect.load(Ordering::SeqCst) {
+                    break;
+                }
+
                 match tokio_tungstenite::connect_async(&url).await {
                     Ok((ws_stream, _)) => {
                         info!("[voice-ws] connected to {}", url);
@@ -66,12 +81,16 @@ impl VoiceWsClient {
                         *connected_state.write().await = true;
                         *ping_failures.lock().await = 0;
 
+                        if let Some(sender) = first_connect_tx.lock().await.take() {
+                            let _ = sender.send(());
+                        }
+
                         let handler = handler.clone();
                         let connected_inner = connected_state.clone();
                         let tx_state_inner = tx_state.clone();
                         let last_recv = Arc::new(Mutex::new(tokio::time::Instant::now()));
 
-                        // Receive loop (no ping, just update last_recv timestamp) (no ping, just update last_recv timestamp)
+                        // Receive loop (updates last_recv timestamp)
                         let last_recv_recv = last_recv.clone();
                         let recv = tokio::spawn(async move {
                             while let Some(msg_result) = ws_receiver.next().await {
@@ -129,7 +148,7 @@ impl VoiceWsClient {
                                     }
                                 }
                                 _ = tokio::time::sleep_until(
-                                    (last_ping + std::time::Duration::from_secs(PING_INTERVAL_SECS)).into()
+                                    (last_ping + Duration::from_secs(PING_INTERVAL_SECS)).into()
                                 ) => {
                                     // JSON ping keepalive
                                     let ping = serde_json::json!({
@@ -148,7 +167,7 @@ impl VoiceWsClient {
 
                                     // Timeout detection
                                     let elapsed = last_recv.lock().await.elapsed();
-                                    if elapsed > std::time::Duration::from_secs(PING_TIMEOUT_SECS) {
+                                    if elapsed > Duration::from_secs(PING_TIMEOUT_SECS) {
                                         warn!("[voice-ws] no message for {:?}, reconnecting", elapsed);
                                         break;
                                     }
@@ -165,10 +184,17 @@ impl VoiceWsClient {
                     }
                 }
 
-                tokio::time::sleep(std::time::Duration::from_secs(RECONNECT_DELAY_SECS)).await;
+                if stop_reconnect.load(Ordering::SeqCst) {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_secs(RECONNECT_DELAY_SECS)).await;
             }
         });
 
+        tokio::time::timeout(Duration::from_secs(5), first_connect_rx)
+            .await
+            .map_err(|_| "timeout waiting for voice-ws connection".to_string())?
+            .map_err(|_| "voice-ws connect task dropped".to_string())?;
         Ok(())
     }
 
@@ -180,14 +206,14 @@ impl VoiceWsClient {
             "body": body,
         });
         let text = serde_json::to_string(&envelope).map_err(|e| e.to_string())?;
-        // Wait for connection (max ~3s = reconnect interval)
+        // Wait for connection (max ~3s)
         for _ in 0..30 {
             let tx = self.tx.lock().await;
             if let Some(tx) = tx.as_ref() {
                 return tx.send(Message::Text(text)).map_err(|e| e.to_string());
             }
             drop(tx);
-            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            tokio::time::sleep(Duration::from_millis(100)).await;
         }
         Err("WebSocket not connected".to_string())
     }
@@ -200,7 +226,7 @@ impl VoiceWsClient {
                 return tx.send(Message::Binary(bytes)).map_err(|e| e.to_string());
             }
             drop(tx);
-            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            tokio::time::sleep(Duration::from_millis(100)).await;
         }
         Err("WebSocket not connected".to_string())
     }
@@ -250,6 +276,7 @@ impl VoiceWsClient {
     }
 
     pub async fn disconnect(&self) {
+        self.stop_reconnect.store(true, Ordering::SeqCst);
         *self.tx.lock().await = None;
         *self.connected.write().await = false;
         info!("[voice-ws] disconnected");

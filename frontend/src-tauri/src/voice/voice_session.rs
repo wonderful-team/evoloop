@@ -24,6 +24,7 @@ use crate::voice::aec_engine::AecMicCapture;
 #[cfg(target_os = "macos")]
 use crate::voice::aec_engine::TtsAudioSource;
 use crate::voice::event::VoiceEventBus;
+use tauri::{AppHandle, Manager};
 
 #[cfg(target_os = "macos")]
 #[allow(unexpected_cfgs)]
@@ -80,11 +81,13 @@ pub struct VoiceSession {
     lang: Arc<RwLock<String>>,
     mode: Arc<RwLock<String>>,
     event_bus: Arc<Mutex<Option<Arc<dyn VoiceEventBus>>>>,
+    app_handle: Arc<std::sync::Mutex<Option<AppHandle>>>,
     shared_state: Arc<RwLock<HashMap<String, String>>>,
     tts_voice: Arc<RwLock<String>>,
     tts_speed: Arc<RwLock<f32>>,
     tts_active: Arc<AtomicBool>,
     last_activity: Arc<AtomicU64>,
+    state: Arc<Mutex<VoiceState>>,
     #[cfg(target_os = "macos")]
     tts_audio_producer: Arc<Mutex<Option<HeapProd<f32>>>>,
     #[cfg(target_os = "macos")]
@@ -105,11 +108,13 @@ impl VoiceSession {
             lang: Arc::new(RwLock::new("zh-CN".to_string())),
             mode: Arc::new(RwLock::new("dialogue".to_string())),
             event_bus: Arc::new(Mutex::new(None)),
+            app_handle: Arc::new(std::sync::Mutex::new(None)),
             shared_state: Arc::new(RwLock::new(HashMap::new())),
             tts_voice: Arc::new(RwLock::new(String::new())),
             tts_speed: Arc::new(RwLock::new(1.0)),
             tts_active: Arc::new(AtomicBool::new(false)),
             last_activity: Arc::new(AtomicU64::new(0)),
+            state: Arc::new(Mutex::new(VoiceState::Idle)),
             #[cfg(target_os = "macos")]
             tts_audio_producer: Arc::new(Mutex::new(None)),
             #[cfg(target_os = "macos")]
@@ -124,6 +129,12 @@ impl VoiceSession {
     pub fn set_event_bus(&self, bus: Arc<dyn VoiceEventBus>) {
         if let Ok(mut lock) = self.event_bus.lock() {
             *lock = Some(bus);
+        }
+    }
+
+    pub fn set_app_handle(&self, handle: AppHandle) {
+        if let Ok(mut lock) = self.app_handle.lock() {
+            *lock = Some(handle);
         }
     }
 
@@ -146,6 +157,12 @@ impl VoiceSession {
 
     pub fn get_lang(&self) -> Arc<RwLock<String>> {
         self.lang.clone()
+    }
+
+    fn set_state(&self, state: VoiceState) {
+        if let Ok(mut lock) = self.state.lock() {
+            *lock = state;
+        }
     }
 
     /// Shared TTS cleanup: on macOS drain the VoiceProcessingIO output queue,
@@ -201,6 +218,8 @@ impl VoiceSession {
         };
         let session_shared_state = self.shared_state.clone();
         let session_tts_active = self.tts_active.clone();
+        let session_state = self.state.clone();
+        let app_handle = self.app_handle.clone();
         #[cfg(target_os = "macos")]
         let session_tts_producer = self.tts_audio_producer.clone();
         #[cfg(target_os = "macos")]
@@ -223,7 +242,9 @@ impl VoiceSession {
             let ffplay_child = ffplay_child.clone();
             let session_shared_state = session_shared_state.clone();
             let session_tts_active = session_tts_active.clone();
+            let session_state = session_state.clone();
             let event_bus = event_bus.clone();
+            let app_handle = app_handle.clone();
 
             if msg_type == "voice.audio_frame" {
                 #[cfg(target_os = "macos")]
@@ -330,6 +351,9 @@ impl VoiceSession {
                             info!("[tts-play] barge_in/cancel — killing ffplay");
                             Self::_stop_tts_playback(ffplay_stdin.as_ref(), ffplay_child.as_ref());
                         }
+                        if let Ok(mut lock) = session_state.lock() {
+                            *lock = VoiceState::Interrupted;
+                        }
                         event_bus.emit("voice:state", serde_json::json!({"state": "interrupted"}));
                     }
                     "dictation.paste" => {
@@ -375,6 +399,13 @@ impl VoiceSession {
                     }
                     "voice:state" => {
                         let is_listening = body.get("state").and_then(|v| v.as_str()) == Some("listening");
+                        if let Some(state_str) = body.get("state").and_then(|v| v.as_str()) {
+                            if let Ok(mut lock) = session_state.lock() {
+                                if let Some(parsed) = VoiceState::parse(state_str) {
+                                    *lock = parsed;
+                                }
+                            }
+                        }
                         let event_name = msg_type.replace(".", ":");
                         event_bus.emit(&event_name, body);
                         if is_listening {
@@ -392,6 +423,33 @@ impl VoiceSession {
                             }
                         }
                     }
+                    "voice.navigate" => {
+                        log::info!("[voice-session] received voice.navigate: {:?}", body);
+                        if let Some(route) = body.get("route").and_then(|v| v.as_str()) {
+                            if let Ok(guard) = app_handle.lock() {
+                                if let Some(app) = guard.as_ref() {
+                                    if route == "__HIDE_WINDOW__" {
+                                        log::info!("[voice-session] hiding main window");
+                                        if let Some(window) = app.get_webview_window("main") {
+                                            let _ = window.hide();
+                                        }
+                                    } else {
+                                        log::info!("[voice-session] showing/focusing main window for route {}", route);
+                                        #[cfg(target_os = "macos")]
+                                        app.set_activation_policy(tauri::ActivationPolicy::Regular).ok();
+                                        if let Some(window) = app.get_webview_window("main") {
+                                            let _ = window.show();
+                                            let _ = window.set_focus();
+                                        }
+                                    }
+                                } else {
+                                    log::warn!("[voice-session] app_handle not set, cannot control main window");
+                                }
+                            }
+                        }
+                        let event_name = msg_type.replace(".", ":");
+                        event_bus.emit(&event_name, body);
+                    }
                     _ => {
                         let event_name = msg_type.replace(".", ":");
                         event_bus.emit(&event_name, body);
@@ -402,6 +460,9 @@ impl VoiceSession {
 
         let ws = Arc::new(VoiceWsClient::new(ws_url.to_string(), handler));
         ws.connect().await?;
+        if let Some(old) = self.ws_client.write().await.take() {
+            old.disconnect().await;
+        }
         *self.ws_client.write().await = Some(ws);
         Ok(())
     }
@@ -479,6 +540,148 @@ impl VoiceSession {
         self._start_mic_capture(ws_client).await
     }
 
+    /// Monitor the microphone stream and try to recover if it dies unexpectedly.
+    /// Called once per active session.
+    pub async fn mic_watchdog(&self) {
+        const CHECK_INTERVAL: Duration = Duration::from_millis(1000);
+        const MAX_RETRIES: usize = 3;
+        let mut retries = 0;
+
+        while self.running.load(Ordering::SeqCst) {
+            tokio::time::sleep(CHECK_INTERVAL).await;
+            if !self.running.load(Ordering::SeqCst) {
+                break;
+            }
+
+            if self.mic.read().await.is_live() {
+                retries = 0;
+                continue;
+            }
+
+            warn!("[voice-session] microphone stream not live");
+            self.emit_event(
+                "voice:error",
+                serde_json::json!({
+                    "code": "mic_stream_error",
+                    "message": "麦克风流中断，正在尝试恢复",
+                }),
+            );
+
+            if retries >= MAX_RETRIES {
+                self.emit_event(
+                    "voice:error",
+                    serde_json::json!({
+                        "code": "mic_recovery_failed",
+                        "message": "麦克风恢复失败，请检查设备",
+                    }),
+                );
+                self.stop().await;
+                break;
+            }
+
+            retries += 1;
+            if let Err(e) = self.restart_mic().await {
+                warn!("[voice-session] mic restart attempt {} failed: {}", retries, e);
+            } else {
+                info!("[voice-session] microphone restarted after stream error");
+                retries = 0;
+            }
+        }
+    }
+
+    /// Re-send voice.start after a WebSocket reconnect so a restarted backend
+    /// resumes the same session without the user having to re-trigger.
+    async fn reconnect_handshake(&self) -> Result<(), String> {
+        let ws = {
+            let read_lock = self.ws_client.read().await;
+            match read_lock.as_ref() {
+                Some(ws) if ws.is_connected().await => ws.clone(),
+                _ => return Err("WebSocket not connected".to_string()),
+            }
+        };
+
+        let tid = self.thread_id.read().await.clone();
+        let mode = self.mode.read().await.clone();
+        if tid.is_empty() {
+            return Err("no active thread_id".to_string());
+        }
+
+        ws.send_voice_start(&tid, &mode)
+            .await
+            .map_err(|e| format!("failed to re-send voice.start: {}", e))?;
+
+        self.set_state(VoiceState::Listening);
+        self.emit_log(&format!("session resumed after reconnect, mode={}", mode));
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+        self.last_activity.store(now, Ordering::SeqCst);
+        Ok(())
+    }
+
+    /// Monitor WebSocket health: re-handshake after reconnect and stop the
+    /// session if the backend stays unreachable.
+    async fn reconnect_monitor(&self) {
+        const CHECK_INTERVAL: Duration = Duration::from_secs(5);
+        const DISCONNECT_TIMEOUT: u32 = 60;
+        let mut was_connected = true;
+        let mut disconnect_seconds: u32 = 0;
+
+        while self.running.load(Ordering::SeqCst) {
+            tokio::time::sleep(CHECK_INTERVAL).await;
+            if !self.running.load(Ordering::SeqCst) {
+                break;
+            }
+
+            let connected = match self.ws_client.read().await.as_ref() {
+                Some(ws) => ws.is_connected().await,
+                None => false,
+            };
+
+            if connected {
+                if !was_connected {
+                    info!("[voice-session] WebSocket reconnected, re-handshaking");
+                    if let Err(e) = self.reconnect_handshake().await {
+                        warn!("[voice-session] re-handshake failed: {}", e);
+                    }
+                }
+                disconnect_seconds = 0;
+            } else {
+                disconnect_seconds += CHECK_INTERVAL.as_secs() as u32;
+                if disconnect_seconds >= DISCONNECT_TIMEOUT {
+                    warn!(
+                        "[voice-session] WebSocket disconnected for {}s, stopping session",
+                        disconnect_seconds
+                    );
+                    self.stop().await;
+                    break;
+                }
+            }
+            was_connected = connected;
+
+            // 10min inactivity timeout
+            let last = self.last_activity.load(Ordering::SeqCst);
+            if last != 0 {
+                let elapsed = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs()
+                    - last;
+                if elapsed > 600 {
+                    info!("[voice-session] 10min inactivity timeout");
+                    self.stop().await;
+                    break;
+                }
+            }
+        }
+    }
+
+    /// Spawn background monitors for an active session.
+    pub async fn spawn_monitors(self: Arc<Self>) {
+        let mic_session = self.clone();
+        tokio::spawn(async move { mic_session.mic_watchdog().await });
+        let reconnect_session = self.clone();
+        tokio::spawn(async move { reconnect_session.reconnect_monitor().await });
+    }
+
     pub async fn start(&self, thread_id: String, lang: String, mode: String) -> Result<(), String> {
         let ws_client = {
             let read_lock = self.ws_client.read().await;
@@ -512,6 +715,7 @@ impl VoiceSession {
         if let Err(e) = self._start_mic_capture(ws_client.clone()).await {
             self.running.store(false, Ordering::SeqCst);
             self.tts_active.store(false, Ordering::SeqCst);
+            self.set_state(VoiceState::Idle);
             #[cfg(target_os = "macos")]
             {
                 *self.tts_audio_producer.lock().unwrap() = None;
@@ -527,43 +731,12 @@ impl VoiceSession {
             *self.ws_client.write().await = None;
             self.running.store(false, Ordering::SeqCst);
             self.tts_active.store(false, Ordering::SeqCst);
+            self.set_state(VoiceState::Idle);
             self.mic.write().await.stop();
             return Err(format!("backend not reachable: {}", e));
         }
+        self.set_state(VoiceState::Listening);
         self.emit_log(&format!("voice session started, mode={}", mode));
-
-        // 10min inactivity timeout (dialogue only)
-        if mode == "dialogue" {
-            let running = self.running.clone();
-            let ws = ws_client.clone();
-            let tid = thread_id.clone();
-            let activity = self.last_activity.clone();
-            let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
-            activity.store(now, Ordering::SeqCst);
-            tokio::spawn(async move {
-                loop {
-                    tokio::time::sleep(Duration::from_secs(30)).await;
-                    if !running.load(Ordering::SeqCst) { break; }
-                    // Check WS connection health
-                    if !ws.is_connected().await {
-                        info!("[voice-session] WS disconnected, stopping session for {}", tid);
-                        let _ = ws.send("voice.cancel",
-                            serde_json::json!({"thread_id": tid})).await;
-                        running.store(false, Ordering::SeqCst);
-                        break;
-                    }
-                    let last = activity.load(Ordering::SeqCst);
-                    if last == 0 { continue; }
-                    let elapsed = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() - last;
-                    if elapsed > 600 {
-                        info!("[voice-session] 10min inactivity timeout for {}", tid);
-                        let _ = ws.send("voice.cancel",
-                            serde_json::json!({"thread_id": tid})).await;
-                        break;
-                    }
-                }
-            });
-        }
 
         Ok(())
     }
@@ -571,6 +744,7 @@ impl VoiceSession {
     pub async fn stop(&self) {
         self.running.store(false, Ordering::SeqCst);
         self.tts_active.store(false, Ordering::SeqCst);
+        self.set_state(VoiceState::Idle);
         self.mic.write().await.stop();
 
         #[cfg(target_os = "macos")]
@@ -592,6 +766,8 @@ impl VoiceSession {
         #[cfg(not(target_os = "macos"))]
         Self::_stop_tts_playback(&self.ffplay_stdin, &self.ffplay_child);
 
+        self.set_state(VoiceState::Interrupted);
+
         let tid = self.thread_id.read().await.clone();
         if let Some(ws) = self.ws_client.read().await.as_ref() {
             let _ = ws.send_barge_in(&tid).await;
@@ -601,7 +777,7 @@ impl VoiceSession {
     }
 
     pub async fn get_state(&self) -> VoiceState {
-        VoiceState::Idle
+        self.state.lock().map(|v| *v).unwrap_or(VoiceState::Idle)
     }
 
     pub async fn switch_mode(&self, mode: String) -> Result<(), String> {
@@ -679,6 +855,17 @@ pub enum VoiceState {
 }
 
 impl VoiceState {
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "idle" => Some(VoiceState::Idle),
+            "listening" => Some(VoiceState::Listening),
+            "processing" => Some(VoiceState::Processing),
+            "speaking" => Some(VoiceState::Speaking),
+            "interrupted" => Some(VoiceState::Interrupted),
+            _ => None,
+        }
+    }
+
     pub fn as_str(&self) -> &'static str {
         match self {
             VoiceState::Idle => "idle",
@@ -687,5 +874,47 @@ impl VoiceState {
             VoiceState::Speaking => "speaking",
             VoiceState::Interrupted => "interrupted",
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn voice_state_parse_round_trip() {
+        let states = [
+            VoiceState::Idle,
+            VoiceState::Listening,
+            VoiceState::Processing,
+            VoiceState::Speaking,
+            VoiceState::Interrupted,
+        ];
+        for state in states {
+            assert_eq!(VoiceState::parse(state.as_str()), Some(state));
+        }
+        assert_eq!(VoiceState::parse("unknown"), None);
+    }
+
+    #[tokio::test]
+    async fn voice_session_state_transitions() {
+        let session = VoiceSession::new(vec![]);
+        assert_eq!(session.get_state().await, VoiceState::Idle);
+
+        session.set_state(VoiceState::Listening);
+        assert_eq!(session.get_state().await, VoiceState::Listening);
+
+        // Simulate backend pushing a state update
+        session.set_state(VoiceState::Processing);
+        assert_eq!(session.get_state().await, VoiceState::Processing);
+
+        session.set_state(VoiceState::Speaking);
+        assert_eq!(session.get_state().await, VoiceState::Speaking);
+
+        session.set_state(VoiceState::Interrupted);
+        assert_eq!(session.get_state().await, VoiceState::Interrupted);
+
+        session.set_state(VoiceState::Idle);
+        assert_eq!(session.get_state().await, VoiceState::Idle);
     }
 }

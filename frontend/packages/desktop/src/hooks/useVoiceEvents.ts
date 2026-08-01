@@ -266,87 +266,36 @@ export function useVoiceEvents() {
       }),
     )
 
-    // Frontend navigation from voice commands — also show & focus main window
+    // Frontend navigation from voice commands — window show/hide and HUD feedback
+    // are handled by Rust and the HUD window respectively.
     unlisteners.push(
       await safeListen<{ route: string; feedback?: string }>(
         "voice:navigate",
         async (event) => {
           const route = event.payload.route
-          const feedback = event.payload.feedback
-          if (route) {
-            try {
-              const { WebviewWindow } = await import(
-                "@tauri-apps/api/webviewWindow"
-              )
-              const mainWin = await WebviewWindow.getByLabel("main")
-              if (mainWin) {
-                await mainWin.show()
-                await mainWin.setFocus()
-              }
-            } catch (e) {
-              console.error("[voice-navigate] Failed to show main window:", e)
-            }
-              if (route === "__SWITCH_PROJECT__") {
-                const { useProjectStore } = await import(
-                  "../stores/projectStore"
-                )
-                useProjectStore.getState().openProjectSwitcher()
-                return
-              }
-              if (route === "__HIDE_WINDOW__") {
-              try {
-                const { WebviewWindow } = await import(
-                  "@tauri-apps/api/webviewWindow"
-                )
-                const mainWin = await WebviewWindow.getByLabel("main")
-                if (mainWin) {
-                  await mainWin.hide()
-                }
-              } catch (e) {
-                console.error(
-                  "[voice-navigate] Failed to hide main window:",
-                  e,
-                )
-              }
-              // Show HUD feedback briefly before hiding
-              const { emit } = await import("@tauri-apps/api/event")
-              await emit("hud-update", {
-                mode: "dialogue",
-                state: "idle",
-                text: feedback || "",
-              })
-              return
-            }
-            navigate({ to: route })
-            // 技能录制：导航到学习中心后切换录制状态
-            if (route.includes("tab=macros")) {
-              const { useRecordingStore } = await import(
-                "../stores/recordingStore"
-              )
-              const state = useRecordingStore.getState()
-              if (state.isRecording || state.isPreparing) {
-                state.setPostRecordingAction("synthesize")
-                state.stopRecording()
-              } else {
-                state.initiateRecording("global")
-              }
-            }
-            // Show HUD feedback
-            if (feedback) {
-              const { emit } = await import("@tauri-apps/api/event")
-              await emit("hud-update", {
-                mode: "dialogue",
-                state: "idle",
-                text: feedback,
-              })
-              // Reset to listening after 2s
-              setTimeout(() => {
-                emit("hud-update", {
-                  mode: "dialogue",
-                  state: "listening",
-                  text: "",
-                }).catch(console.error)
-              }, 2000)
+          if (!route) return
+
+          if (route === "__SWITCH_PROJECT__") {
+            const { useProjectStore } = await import("../stores/projectStore")
+            useProjectStore.getState().openProjectSwitcher()
+            return
+          }
+
+          if (route === "__HIDE_WINDOW__") {
+            // Rust hides the main window; HUD shows the feedback.
+            return
+          }
+
+          navigate({ to: route })
+          // 技能录制：导航到学习中心后切换录制状态
+          if (route.includes("tab=macros")) {
+            const { useRecordingStore } = await import("../stores/recordingStore")
+            const state = useRecordingStore.getState()
+            if (state.isRecording || state.isPreparing) {
+              state.setPostRecordingAction("synthesize")
+              state.stopRecording()
+            } else {
+              state.initiateRecording("global")
             }
           }
         },

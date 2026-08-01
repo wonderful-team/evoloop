@@ -76,8 +76,35 @@ function VoiceHUD() {
       setHudState(event.payload)
     })
 
+    // Rust controls the main window show/hide, but HUD handles the feedback
+    // because it is visible even when the main window is hidden/trayed.
+    const unlistenNavPromise = listen<{ route: string; feedback?: string }>(
+      "voice:navigate",
+      async (event) => {
+        const route = event.payload.route
+        const feedback = event.payload.feedback
+        if (feedback) {
+          const { emit } = await import("@tauri-apps/api/event")
+          await emit("hud-update", {
+            mode: "dialogue",
+            state: "idle",
+            text: feedback,
+          })
+          // Reset to listening after 2s
+          setTimeout(() => {
+            emit("hud-update", {
+              mode: "dialogue",
+              state: "listening",
+              text: "",
+            }).catch(console.error)
+          }, 2000)
+        }
+      },
+    )
+
     return () => {
       unlistenPromise.then((fn) => fn())
+      unlistenNavPromise.then((fn) => fn())
     }
   }, [])
 

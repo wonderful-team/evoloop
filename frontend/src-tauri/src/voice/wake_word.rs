@@ -243,11 +243,22 @@ impl WakeWordDetector {
     }
 
     /// Resume the detector with last known params (voice session ended).
-    pub fn resume(&mut self) {
+    pub fn resume(&mut self) -> Result<(), String> {
         let params = self.last_params.lock().ok().and_then(|p| p.clone());
         if let Some((app_handle, word, voice)) = params {
-            let _ = self.start(app_handle, word, voice);
+            if let Err(e) = self.start(app_handle.clone(), word, voice) {
+                error!("[wake] resume failed: {}", e);
+                let _ = app_handle.emit(
+                    "wake:error",
+                    serde_json::json!({
+                        "code": "resume_failed",
+                        "message": format!("唤醒词监听恢复失败: {}", e),
+                    }),
+                );
+                return Err(e);
+            }
         }
+        Ok(())
     }
 }
 
