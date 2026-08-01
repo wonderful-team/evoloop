@@ -47,7 +47,7 @@ async def lifespan(app: FastAPI):
         from app.core.channel import register_default_channels
         register_default_channels()
         logger.info("Channel registry initialized (SSE + Mobile).")
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+    except Exception as e:
         logger.warning(f"Failed to initialize Channel registry: {e}")
 
     # Memory System Init
@@ -56,7 +56,7 @@ async def lifespan(app: FastAPI):
         memory_container = await MemoryLifespanManager.ainitialize()
         _app.state.memory_container = memory_container
         logger.info("Memory Service initialized via MemoryLifespanManager.")
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+    except Exception as e:
         logger.warning(f"Failed to initialize Memory Service: {e}")
 
     # Agent Awakening - Discovery & Lifecycle Handlers
@@ -64,7 +64,7 @@ async def lifespan(app: FastAPI):
         from app.core.events.discovery import auto_discover_handlers
         auto_discover_handlers()
         logger.info("Discovery and registration of all domain lifecycle handlers complete.")
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+    except Exception as e:
         logger.warning(f"Agent Awakening/Discovery failed (non-critical): {e}")
 
     # Publish Application Started Event
@@ -77,7 +77,7 @@ async def lifespan(app: FastAPI):
         from app.core.routing import tasks as _voice_tasks
         _voice_tasks.build_voice_init_spec.delay()
         logger.info("[Startup] Voice Init Spec build dispatched")
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+    except Exception as e:
         logger.warning(f"[Startup] Voice Init Spec dispatch failed (non-critical): {e}")
 
     # Preheat L0 local matcher: build + enrich + compile regex so the first
@@ -86,7 +86,7 @@ async def lifespan(app: FastAPI):
         from app.core.routing.matcher_cache import matcher_cache
         await matcher_cache.rebuild()
         logger.info("[Startup] L0 local matcher preheated")
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+    except Exception as e:
         logger.warning(f"[Startup] L0 local matcher preheat failed (non-critical): {e}")
 
     # Wire voice executor globals at startup so VoiceChannel (Agent TTS
@@ -94,8 +94,8 @@ async def lifespan(app: FastAPI):
     # Agent — not just the first voice.route.
     try:
         from app.api.routes.voice_ws import _envelope as _ws_envelope
-        from app.core.routing import executor as voice_executor
-        from app.core.routing.connection import manager as _ws_manager
+        from app.core.voice import executor as voice_executor
+        from app.core.voice.connection import manager as _ws_manager
         from app.core.schemas.canonical import MessageType as _MsgType
         voice_executor.manager = _ws_manager
         voice_executor.envelope_fn = _ws_envelope
@@ -116,7 +116,7 @@ async def lifespan(app: FastAPI):
             stats.get("skipped", 0),
             stats.get("failed", 0),
         )
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+    except Exception as e:
         logger.warning(f"[Startup] Macro migration failed (non-critical): {e}")
 
     yield
@@ -130,7 +130,7 @@ async def lifespan(app: FastAPI):
         from app.core.events.publishers import publish_app_stopping
         await publish_app_stopping()
         logger.info("[Shutdown] APP_STOPPING event published")
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+    except Exception as e:
         logger.error(f"[Shutdown] Failed to publish APP_STOPPING event: {e}")
 
     # 2. Cleanup Core Infrastructure (Infrastructure MUST be last)

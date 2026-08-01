@@ -89,7 +89,7 @@ async def _get_authenticated_user(request: Request, token: str | None = None) ->
                     return User(id=member_id, is_active=True)
 
         return None
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+    except Exception as e:
         logger.error(f"Auth error during user resolution: {str(e)}", exc_info=True)
         return None
 

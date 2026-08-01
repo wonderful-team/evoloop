@@ -2,13 +2,13 @@ import gzip
 import json
 import uuid
 import logging
-import asyncio
 from typing import Dict, Any, Optional
 import websockets
 
 from app.infrastructure.voice import volc_protocol as protocol
 
 logger = logging.getLogger(__name__)
+
 
 class VolcDialogClient:
     def __init__(self, app_id: str, access_key: str, session_id: str) -> None:
@@ -37,7 +37,6 @@ class VolcDialogClient:
         self.ws = await websockets.connect(
             self.base_url,
             additional_headers=headers,
-            ping_interval=5,
             ssl=ssl_ctx,
         )
         self.logid = ""

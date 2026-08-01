@@ -13,6 +13,7 @@ Safety guarantees:
 
 import logging
 import time
+from typing import Any
 
 from pydantic import Field
 
@@ -20,6 +21,15 @@ from app.constants import DEFAULT_PROJECT_ID
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
+
+
+def _coerce_to_list(value: Any) -> list:
+    """Normalize empty/None values to empty list while preserving real lists."""
+    if value is None or value == "":
+        return []
+    if isinstance(value, list):
+        return value
+    return list(value)
 
 
 class StaticContextLayer(DynamicBaseModel):
@@ -101,10 +111,10 @@ class LayeredContextCache:
         # Create cached layer
         layer = StaticContextLayer(
             project_concepts=static_data.get("project_concepts"),
-            active_skills_index=static_data.get("active_skills", []),
-            active_macros_index=static_data.get("active_macros", []),
+            active_skills_index=_coerce_to_list(static_data.get("active_skills", [])),
+            active_macros_index=_coerce_to_list(static_data.get("active_macros", [])),
             operation_map=static_data.get("operation_map", ""),
-            system_preferences=static_data.get("preferences", {}),
+            system_preferences=static_data.get("preferences", {}) or {},
             # Memory pipeline — carry through from loader_fn output
             hot_memory=static_data.get("hot_memory"),
             episodes=static_data.get("episodes"),

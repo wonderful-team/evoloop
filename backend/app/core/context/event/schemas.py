@@ -15,7 +15,7 @@ class ContextPolishingEvent(BaseEvent):
     event_type: str = SystemEventType.CONTEXT_POLISHING
     thread_id: str | None = None
     project_id: int | None = None
-    model: str = ""
+    model: str | None = None
     context: dict[str, Any] = Field(default_factory=dict)
 
     def model_post_init(self, __context: Any) -> None:

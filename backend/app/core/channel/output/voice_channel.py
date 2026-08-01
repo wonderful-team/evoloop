@@ -32,7 +32,7 @@ import time
 from typing import Any
 
 from app.core.engine.message.schemas import MessageBlock
-from app.core.routing import executor as voice_executor
+from app.core.voice import executor as voice_executor
 from app.core.voice.state_machine import VoiceSessionState, voice_state_machine
 
 from ..base import Channel, ChannelContext
@@ -89,6 +89,32 @@ class VoiceChannel(Channel):
     # Streaming TTS state: push to Volcengine progressively
     _tts_accumulator: dict[str, str] = {}
     _tts_started: dict[str, bool] = {}
+    _cancelled_threads: set[str] = set()
+
+    @classmethod
+    def reset_thread(cls, thread_id: str) -> None:
+        """Clear per-thread streaming TTS state for a new turn."""
+        cls._cancelled_threads.discard(thread_id)
+        cls._tts_accumulator.pop(thread_id, None)
+        cls._tts_started.pop(thread_id, None)
+        cls._token_buffers.pop(thread_id, None)
+        cls._streamed_texts.pop(thread_id, None)
+        cls._filler_texts.pop(thread_id, None)
+
+    @classmethod
+    def cancel_thread(cls, thread_id: str) -> bool:
+        """Cancel any in-flight streaming TTS for a thread.
+
+        Returns True if a streaming TTS segment was active and had to be
+        aborted.
+        """
+        was_streaming = cls._tts_started.pop(thread_id, False)
+        cls._tts_accumulator.pop(thread_id, None)
+        cls._token_buffers.pop(thread_id, None)
+        cls._streamed_texts.pop(thread_id, None)
+        cls._filler_texts.pop(thread_id, None)
+        cls._cancelled_threads.add(thread_id)
+        return was_streaming
 
     async def push_tts_chunk(
         self, thread_id: str, text: str, end: bool, *, force_start: bool = False
@@ -99,7 +125,10 @@ class VoiceChannel(Channel):
             force_start: If True, treat this as the start of a new TTS segment
                          (used by confirmation TTS from L0 macros).
         """
-        from app.core.routing.executor import active_volc_clients
+        from app.core.voice.executor import active_volc_clients
+
+        if thread_id in self._cancelled_threads:
+            return
 
         client = active_volc_clients.get(thread_id)
         if not client:
@@ -141,7 +170,7 @@ class VoiceChannel(Channel):
 
         if isinstance(payload, TokenEvent):
             tid = ctx.thread_id
-            from app.core.routing.executor import _voice_registry
+            from app.core.voice.executor import _voice_registry
 
             if tid not in _voice_registry:
                 return
@@ -178,7 +207,7 @@ class VoiceChannel(Channel):
                 return
             if payload.role == "ai" and payload.content:
                 tid = ctx.thread_id
-                from app.core.routing.executor import _voice_registry
+                from app.core.voice.executor import _voice_registry
 
                 if tid not in _voice_registry:
                     return
@@ -216,11 +245,22 @@ class VoiceChannel(Channel):
 
         # ── 最终回复 ──────────────────────────────────────────
         if isinstance(payload, SessionCompletedEvent):
-            self._filler_texts.pop(payload.thread_id, None)
+            thread_id = payload.thread_id
+            was_cancelled = thread_id in self._cancelled_threads
+            self._cancelled_threads.discard(thread_id)
+            self._filler_texts.pop(thread_id, None)
             data = payload.data
             if not data or data.source != "voice":
                 return
-            thread_id = payload.thread_id
+
+            # If this turn was barge-in cancelled, do not flush stale TTS or
+            # push a done result.
+            if was_cancelled:
+                self._tts_accumulator.pop(thread_id, None)
+                self._tts_started.pop(thread_id, None)
+                self._streamed_texts.pop(thread_id, None)
+                self._token_buffers.pop(thread_id, None)
+                return
 
             # Flush remaining TTS accumulator with end=True
             rem = self._tts_accumulator.pop(thread_id, "").strip()
@@ -235,7 +275,7 @@ class VoiceChannel(Channel):
                         "[VoiceChannel][tts-chunk] %s end=True (empty flush)", thread_id
                     )
                     try:
-                        from app.core.routing.executor import active_volc_clients
+                        from app.core.voice.executor import active_volc_clients
 
                         client = active_volc_clients.get(thread_id)
                         if client:
@@ -293,6 +333,7 @@ class VoiceChannel(Channel):
             if payload.source != "voice":
                 return
             thread_id = payload.thread_id
+            self._cancelled_threads.discard(thread_id)
             self._token_buffers.pop(thread_id, None)
             self._streamed_texts.pop(thread_id, None)
             self._filler_texts.pop(thread_id, None)

@@ -226,12 +226,13 @@ class AdaptiveChatOpenAI:
         while True:
             try:
                 req_params = {
-                    "model": self.model,
                     "messages": api_messages,
                     "temperature": state.current_temperature,
                     "stream": True,
                     "extra_body": self.extra_body,
                 }
+                if self.model:
+                    req_params["model"] = self.model
                 if state.current_max_tokens:
                     req_params["max_tokens"] = state.current_max_tokens
                 if self._tools:

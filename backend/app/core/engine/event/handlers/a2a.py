@@ -22,6 +22,7 @@ from app.core.engine.background_agent import run_agent_background
 from app.core.engine.dispatch import dispatch_agent_run
 from app.core.evocloud.manager import evocloud_manager
 from app.core.evocloud.schemas import AgentTask, AgentTaskResult, RemoteCommand
+from app.core.file import compute_file_hash
 from app.infrastructure.config import SystemConfigService
 from app.infrastructure.database import session_scope
 from app.models import Conversation, Message

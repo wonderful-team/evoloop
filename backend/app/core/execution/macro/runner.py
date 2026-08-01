@@ -115,6 +115,12 @@ class ExecutionOutcome:
 
 def is_navigation_macro(macro: Macro) -> str | None:
     """Check if macro is a frontend navigation. Returns route path or None."""
+    info = get_navigation_info(macro)
+    return info[0] if info is not None else None
+
+
+def get_navigation_info(macro: Macro) -> tuple[str, str] | None:
+    """Check if macro is a frontend navigation. Returns (route, feedback) or None."""
     try:
         steps = macro_from_yaml(macro.macro_script)
     except (YAMLError, ValueError, TypeError, AttributeError):
@@ -125,7 +131,14 @@ def is_navigation_macro(macro: Macro) -> str | None:
         if isinstance(step, dict) and step.get("event_type") == "frontend_navigate":
             payload = step.get("payload", {})
             if isinstance(payload, dict):
-                return payload.get("route")
+                route = payload.get("route")
+                if route:
+                    feedback = ""
+                    if macro.feedback:
+                        feedback = macro.feedback
+                    else:
+                        feedback = payload.get("feedback", "")
+                    return str(route), str(feedback)
     return None
 
 

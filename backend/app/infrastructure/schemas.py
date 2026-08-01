@@ -111,6 +111,7 @@ class PlatformModel(DynamicBaseModel):
     icon: str = "default"
     available: bool = True
     quota_required: bool = True
+    sort_order: int = 0
 
     # --- Engine Tuning Parameters (formerly in ModelProfile) ---
     context_window_ratio: float = 0.6  # Use 60% of context for history

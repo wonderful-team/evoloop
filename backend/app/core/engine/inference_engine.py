@@ -109,7 +109,7 @@ class InferenceEngine:
         run_id: str | None,
         config: dict,
     ) -> tuple[list[BaseMessage], dict[str, Any] | None]:
-        if model:
+        if model is not None:
             trim_result = self._context_trimmer.trim(
                 messages=loop_messages,
                 model=model,
@@ -161,7 +161,7 @@ class InferenceEngine:
                         break
 
         msg_count = len(loop_messages)
-        if model:
+        if model is not None:
             from app.core.engine.context_monitor import ContextMonitor
             stats = ContextMonitor.calculate(loop_messages, model=model)
             logger.info(

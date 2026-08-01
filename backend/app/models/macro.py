@@ -36,6 +36,10 @@ class Macro(Base):
     requires_confirmation: Mapped[bool] = mapped_column(Boolean, default=False)
     allow_self_healing: Mapped[bool] = mapped_column(Boolean, default=True)
 
+    # Short feedback message returned to the user for navigation macros.
+    # Nullable: generic fallback is used when absent.
+    feedback: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
     # Lifecycle: pending_review | verified | obsolete
     status: Mapped[str] = mapped_column(
         String(20), default="pending_review", index=True

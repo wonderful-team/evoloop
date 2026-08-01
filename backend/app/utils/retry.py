@@ -174,7 +174,7 @@ class RetryContext:
                     result = await api.call()
                     retry.success()
                     break
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+                except Exception as e:
                     retry.fail(e)
     """
     

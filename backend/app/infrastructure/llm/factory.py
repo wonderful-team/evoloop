@@ -9,6 +9,7 @@ import httpx
 from app.core.file import compute_md5
 from app.infrastructure.config import SystemConfigService
 from app.infrastructure.llm.adaptive import AdaptiveChatOpenAI
+from app.infrastructure.llm.platform_service import llm_platform_service
 from app.infrastructure.llm.thinking_adapter import (
     build_anthropic_thinking_kwargs,
     build_gemini_thinking_extra,
@@ -178,6 +179,29 @@ class LLMFactory:
         return compute_md5(key_data)[:16]
 
     @staticmethod
+    async def _resolve_default_platform_model() -> str:
+        """Return the platform default model_id when no explicit model is given.
+
+        Uses the cached model list if available; otherwise fetches it from the
+        EvoLoop Gateway. The first available LLM model sorted by gateway order
+        is used as the default.
+        """
+        cached = llm_platform_service.get_cached_models()
+        models = cached or await llm_platform_service.fetch_platform_models()
+        candidates = [
+            m for m in models
+            if m.model_type == "llm" and m.available
+        ]
+        if not candidates:
+            return ""
+        candidates.sort(key=lambda m: m.sort_order)
+        default_model = candidates[0].model_id
+        logger.info(
+            f"[LLMFactory] Resolved platform default model: {default_model}"
+        )
+        return default_model
+
+    @staticmethod
     async def create_llm(config: LLMConfig | str | None = None, **kwargs) -> Any:
         """
         Create a standard LLM instance using structured configuration.
@@ -192,9 +216,9 @@ class LLMFactory:
         """
         # 兼容性处理：如果第一个参数是 None，尝试从 kwargs 提取 model_name
         if config is None:
-            model_name = kwargs.pop("model_name", None) or kwargs.pop("model", None)
+            model_name = kwargs.pop("model_name", None) or kwargs.pop("model", None) or ""
             if not model_name:
-                raise ValueError("[LLMFactory] model_name or LLMConfig must be specified.")
+                logger.info("[LLMFactory] No model_name provided; creating platform LLM and letting the cloud gateway pick the default model.")
             config = LLMConfig(model_name=model_name, **kwargs)
 
         # 将字符串类型的 model_name 转换为 LLMConfig
@@ -215,12 +239,9 @@ class LLMFactory:
         else:
             # Check if this model is a lightning (local) model
             lightning_mode = SystemConfigService.get_value("LIGHTNING_MODE", "none")
-            if lightning_mode not in ("none", "") and \
-               SystemConfigService.get_value("LIGHTNING_LLM_MODEL", ""):
+            if lightning_mode not in ("none", "") and SystemConfigService.get_value("LIGHTNING_LLM_MODEL", ""):
                 lightning_base = SystemConfigService.get_value("LIGHTNING_BASE_URL", "")
-                use_lightning = lightning_mode == "llama.cpp" or \
-                    (lightning_base and config.model_name ==
-                     SystemConfigService.get_value("LIGHTNING_LLM_MODEL", ""))
+                use_lightning = lightning_mode == "llama.cpp" or (lightning_base and config.model_name == SystemConfigService.get_value("LIGHTNING_LLM_MODEL", ""))
                 if use_lightning:
                     if lightning_mode == "llama.cpp":
                         # llama.cpp mode: use LlamaCppChatModel directly
@@ -240,22 +261,28 @@ class LLMFactory:
                     config.api_key = lightning_api_key or "lm-studio"
                     config_type = "direct"
                     base_url = lightning_base
-                    logger.info(
-                        f"[LLMFactory] Lightning model auto-detected: "
-                        f"model={config.model_name}, mode={lightning_mode}"
-                    )
-                else:
-                    # Fallback: check if custom LLM is configured in the database.
-                    db_base_url = SystemConfigService.get_value("LLM_BASE_URL")
-                    db_api_key = SystemConfigService.get_value("LLM_API_KEY")
-                    if db_base_url:
-                        config_type = "direct"
-                        base_url = db_base_url
-                        db_provider_type = SystemConfigService.get_value("LLM_PROVIDER_TYPE") or "openai"
-                        provider = db_provider_type
-                        config.base_url = db_base_url
-                        config.api_key = config.api_key or db_api_key
-                        config.provider_type = db_provider_type
+                    logger.info(f"[LLMFactory] Lightning model auto-detected: model={config.model_name}, mode={lightning_mode}")
+
+            # Fallback: check if custom LLM is configured in the database.
+            if not config.base_url:
+                db_base_url = SystemConfigService.get_value("LLM_BASE_URL")
+                db_api_key = SystemConfigService.get_value("LLM_API_KEY")
+                if db_base_url:
+                    config_type = "direct"
+                    base_url = db_base_url
+                    db_provider_type = SystemConfigService.get_value("LLM_PROVIDER_TYPE") or "openai"
+                    provider = db_provider_type
+                    config.base_url = db_base_url
+                    config.api_key = config.api_key or db_api_key
+                    config.provider_type = db_provider_type
+
+        # If no model is specified for the standard platform path, ask the gateway
+        # for the default model from its available platform model list.
+        if config_type == "standard" and not config.model_name:
+            default_model = await LLMFactory._resolve_default_platform_model()
+            if not default_model:
+                raise ValueError("[LLMFactory] No model_name provided and no platform default model available.")
+            config.model_name = default_model
 
         # Generate cache key
         cache_key = LLMFactory._generate_cache_key(
@@ -518,7 +545,7 @@ def get_default_llm(model_name: str | None = None, temperature: float = 0.3, **k
     the caller to use ``await get_default_llm(...)`` or
     ``await LLMFactory.create_llm(...)`` directly instead.
     """
-    config = LLMConfig(model_name=model_name, temperature=temperature, **kwargs)
+    config = LLMConfig(model_name=model_name or "", temperature=temperature, **kwargs)
 
     try:
         loop = asyncio.get_running_loop()

@@ -81,7 +81,7 @@ class ContextTrimmer:
         self,
         messages: list[Any],
         *,
-        model: str,
+        model: str | None = None,
         node_source: Literal["supervisor", "worker", "finish", "aggregator", "default"] = "default",
         tool_memory: ToolOutputMemory | None = None,
         is_retry: bool = False,
@@ -109,7 +109,7 @@ class ContextTrimmer:
             stage_log.append({"stage": "prune_trailing_errors", "removed": pruned_errors})
 
         # --- Stage 1: Quick exit ---
-        effective_budget, hard_limit = _compute_budget(model, node_source)
+        effective_budget, hard_limit = _compute_budget(model or "", node_source)
         if before_tokens <= int(effective_budget * TRIM_THRESHOLD_RATIO) and not is_retry:
             if "repair" in stages:
                 working = EvoMessageConverter.repair(working)
@@ -254,7 +254,7 @@ class ContextTrimmer:
         if not messages:
             return messages
 
-        effective_budget, hard_limit = _compute_budget(model, node_source)
+        effective_budget, hard_limit = _compute_budget(model or "", node_source)
         current_tokens = count_total_tokens(messages)
         if current_tokens <= effective_budget:
             return messages

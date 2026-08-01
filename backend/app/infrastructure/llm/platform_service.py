@@ -110,7 +110,8 @@ class LLMPlatformService:
                         description=m.get("description", ""),
                         icon=m.get("icon", "default"),
                         available=m.get("available", True),
-                        quota_required=m.get("quota_required", True)
+                        quota_required=m.get("quota_required", True),
+                        sort_order=m.get("sort_order", 0),
                     )
                     platform_models.append(model)
                     self._models_cache[model.model_id] = model

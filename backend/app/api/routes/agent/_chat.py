@@ -27,7 +27,6 @@ from app.core.engine.background_agent import run_agent_background
 from app.core.engine.graph_runner import resume_graph_background
 from app.core.engine.message.native_classes import HumanMessage, ToolMessage
 from app.core.monitoring.activity import activity_monitor
-from app.core.routing.channels.web import WebPresenter
 from app.core.routing.dispatch_handler import dispatch_user_message, route_lock_scope
 from app.infrastructure.database import session_scope
 from app.models import Message
@@ -79,28 +78,41 @@ async def chat_endpoint(
             raw,
             source="web",
             input_channel=web_input,
-            presenter=WebPresenter(),
             thread_id=req.thread_id,
             project_id=req.project_id or 0,
             member_id=member_id,
             context=ctx,
         )
 
-        if outcome.msg is None:
-            return JSONResponse({"error": "invalid request"}, status_code=400)
-
         if outcome.handled:
+            local_outcome = outcome.local_response
+            
+            # Map ActionOutcome to WebPresenter-compatible JSON response
+            status = "done" if local_outcome.ok else "failed"
+            summary = local_outcome.message
+            
+            response = {
+                "status": status,
+                "action_type": local_outcome.action_type,
+                "summary": summary,
+            }
+            
+            if local_outcome.action_type == "navigate":
+                response["navigate"] = local_outcome.data.get("route")
+            elif local_outcome.action_type == "macro":
+                response["fell_back"] = local_outcome.data.get("fell_back", False)
+                
+            response["thread_id"] = req.thread_id
+            
             await activity_monitor.end_run(
                 req.thread_id,
                 status="done",
-                final_outcome=(outcome.local_response or {}).get("summary", ""),
+                final_outcome=summary,
             )
-            response = outcome.local_response or {
-                "status": "done",
-                "thread_id": req.thread_id,
-            }
-            response.setdefault("thread_id", req.thread_id)
             return response
+
+        if outcome.msg is None:
+            return JSONResponse({"error": "invalid request"}, status_code=400)
 
         dispatch_result = outcome.inputs
         if dispatch_result.status == "failed":
