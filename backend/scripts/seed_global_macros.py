@@ -20,6 +20,8 @@ import asyncio
 import os
 import sys
 
+from app.utils.yaml import safe_yaml_dumps
+
 sys.path.append(os.getcwd())
 
 # ─── Helper ────────────────────────────────────────────────────────────
@@ -27,7 +29,7 @@ sys.path.append(os.getcwd())
 
 def yaml_action(event_type: str, source: str = "desktop", **kw) -> str:
     lines = [
-        f"- type: action",
+        "- type: action",
         f"  event_type: {event_type}",
         f"  source: {source}",
     ]
@@ -40,6 +42,27 @@ def yaml_action(event_type: str, source: str = "desktop", **kw) -> str:
 
 def yaml_applescript(script: str) -> str:
     return yaml_action("applescript", script=script)
+
+
+def yaml_bash(
+    command: str,
+    key: str = "bash_output",
+    timeout: int = 30,
+    continue_on_error: bool = False,
+    source: str = "desktop",
+) -> str:
+    step = {
+        "type": "bash",
+        "event_type": "bash",
+        "source": source,
+        "payload": {
+            "command": command,
+            "key": key,
+            "timeout": timeout,
+            "continue_on_error": continue_on_error,
+        },
+    }
+    return safe_yaml_dumps([step])
 
 
 def yaml_open_app(app_name: str) -> str:
@@ -250,7 +273,7 @@ MACROS = [
         "description": "播放或暂停当前媒体",
         "trigger_patterns": [
             "暂停", "继续播放", "开始播放", "继续", "接着放",
-            "停一下", "别放了", "先停", "暂停播放",
+            "停一下", "别放了", "先停", "暂停播放", "停止播放",
             "放一下", "播起来", "开始放", "别播了", "先暂停",
         ],
         "macro_script": yaml_applescript('tell application "System Events" to key code 16'),
@@ -896,8 +919,8 @@ MACROS = [
         "name": "搜索",
         "description": "在 Google 中搜索指定内容",
         "trigger_patterns": [
-            "搜索{query}", "搜一下{query}", "查一下{query}",
-            "百度一下{query}", "帮我搜{query}", "查查{query}",
+            "搜索{query}", "搜一下{query}",
+            "帮我搜{query}", "查查{query}",
         ],
         "parameters": [{"name": "query", "type": "str"}],
         "macro_script": yaml_applescript(
@@ -1046,7 +1069,7 @@ MACROS = [
         "description": "打开系统设置的指定面板",
         "trigger_patterns": [
             "打开{panel}设置", "打开{panel}",
-            "设置{panel}", "进{panel}设置",
+            "进{panel}设置",
         ],
         "parameters": [{"name": "panel", "type": "str"}],
         "macro_script": yaml_settings_script(),
@@ -1241,7 +1264,7 @@ MACROS = [
         "name": "退出当前应用",
         "description": "退出当前前台应用",
         "trigger_patterns": [
-            "退出当前应用", "退出程序", "关闭程序",
+            "退出当前应用", "退出程序", "关闭程序", "关闭当前应用",
             "退出这个", "结束当前应用", "关掉这个程序",
         ],
         "macro_script": yaml_applescript(
@@ -1370,6 +1393,37 @@ MACROS = [
             'sendToWeChat("{{ contact }}", (the clipboard as text))'
         ),
     },
+    # ═══════════════════════════════════════════════════════════════════
+    # 🔍 系统设备发现
+    # ═══════════════════════════════════════════════════════════════════
+    {
+        "name": "discover_connected_devices",
+        "description": "发现本机连接的 Agent、Android 设备与局域网设备（ARP 表）",
+        "trigger_patterns": [
+            "有哪些设备", "连接了哪些设备", "有哪些设备连接了",
+            "发现设备", "查看设备", "什么设备连了", "连了哪些设备",
+        ],
+        "macro_script": "".join([
+            yaml_bash(
+                "python3 scripts/discover_a2a_agents.py",
+                key="online_agents",
+                timeout=30,
+                continue_on_error=True,
+            ),
+            yaml_bash(
+                "adb devices -l",
+                key="mobile_devices",
+                timeout=15,
+                continue_on_error=True,
+            ),
+            yaml_bash(
+                "arp -a",
+                key="local_network",
+                timeout=10,
+                continue_on_error=True,
+            ),
+        ]),
+    },
 ]
 
 TOTAL = len(MACROS)
@@ -1382,10 +1436,11 @@ async def seed():
     from app.infrastructure.database.resource_manager import db_resource_manager
     await db_resource_manager.initialize(create_tables=False)
 
-    from app.infrastructure.database.sql.database import session_scope, engine
+    from sqlalchemy import text
+
+    from app.infrastructure.database.sql.database import engine, session_scope
     from app.models.macro import Macro
     from app.utils.time import utcnow
-    from sqlalchemy import text
 
     async with engine.begin() as conn:
         await conn.execute(text("DELETE FROM macros"))
