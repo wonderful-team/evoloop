@@ -170,7 +170,7 @@ class AgentMacroValidator:
             # Generate final response
             return await self._build_response()
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[Validator] Verification failed: {e}")
             return self._build_error_response(str(e))
 
@@ -629,7 +629,7 @@ class AgentMacroValidator:
                 )
                 state["current_activity"] = current_app.get("activity")
                 state["package_name"] = current_app.get("package")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning(f"[Validator] Failed to capture app state: {e}")
 
         return state
@@ -655,7 +655,7 @@ class AgentMacroValidator:
                 )
         except asyncio.TimeoutError:
             return {"error": "timeout", "message": f"Step timed out after {config.timeout_per_step}s"}
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             return {"error": "execution_failed", "message": str(e)}
 
     def _has_engine_error(self, result: Any) -> bool:

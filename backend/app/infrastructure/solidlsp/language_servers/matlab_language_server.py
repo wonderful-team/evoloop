@@ -232,7 +232,7 @@ class MatlabLanguageServer(SolidLanguageServer):
             log.info("MATLAB extension extracted successfully")
             return True
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             log.error(f"Error downloading/extracting MATLAB extension: {e}")
             return False
 

@@ -164,7 +164,7 @@ def read_file(
     # Get file info
     try:
         info = get_file_info(file_path)
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         return ReadResult(
             content="",
             encoding=encoding or "utf-8",
@@ -212,7 +212,7 @@ def read_file(
             metadata=info,
             error_message=f"Encoding error: {e}"
         )
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         return ReadResult(
             content="",
             encoding=encoding,
@@ -319,7 +319,7 @@ def write_file(
 
             # Atomic rename
             os.replace(temp_path, file_path)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             if os.path.exists(temp_path):
                 os.remove(temp_path)
             raise e
@@ -340,7 +340,7 @@ def write_file(
             status=FileStatus.PERMISSION_DENIED,
             error_message=f"Permission denied: {e}"
         )
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         return WriteResult(
             path=file_path,
             status=FileStatus.ERROR,
@@ -377,7 +377,7 @@ def append_to_file(
             new_hash=new_hash
         )
 
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         return WriteResult(
             path=file_path,
             status=FileStatus.ERROR,
@@ -399,7 +399,7 @@ def ensure_dir(directory: str) -> bool:
     try:
         os.makedirs(directory, exist_ok=True)
         return True
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+    except Exception:
         return False
 
 

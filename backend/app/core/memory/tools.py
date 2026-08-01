@@ -52,7 +52,7 @@ async def write_handover_notes(notes: str, key: str = "general") -> str:
             logger.info(f"[MemoryTool] Wrote handover notes for key: {key}")
             return f"Successfully saved handover notes under key '{key}'."
         return "Error: State context not available."
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.error(f"[MemoryTool] Failed to write handover notes: {e}")
         return f"Failed to write handover notes: {str(e)}"
 
@@ -127,7 +127,7 @@ async def remember(content: str, context: str = "", is_user_preference: bool = F
         logger.info(f"[MemoryTool] Remembered: {title[:40]}... (ID: {entry_id})")
         return f"Remembered: {title} (ID: {entry_id})"
 
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.error(f"[MemoryTool] Failed to remember: {e}")
         return f"Failed to save memory: {str(e)}"
 
@@ -181,7 +181,7 @@ async def recall(query: str, limit: int = 5) -> str:
 
         return "\n".join(lines), {"count": len(entries)}
 
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.error(f"[MemoryTool] Recall failed: {e}")
         return f"Failed to recall: {str(e)}"
 
@@ -215,7 +215,7 @@ async def forget_memory(memory_id: str) -> str:
         else:
             return f"Could not find memory with ID '{memory_id}' to delete."
             
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.error(f"[MemoryTool] Failed to forget memory: {e}")
         return f"Error deleting memory: {str(e)}"
 
@@ -267,7 +267,7 @@ async def search_history(
         meta["top_k"] = limit
         return text, meta
 
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.error(f"[MemoryTool] History search failed: {e}")
         return f"Failed to search history: {str(e)}"
 
@@ -364,7 +364,7 @@ async def forget_tool_outputs(
                         pass  # Already forgotten
                 state.tool_memory = memory.to_dict()
                 ctx.metadata.tool_memory = memory.to_dict()
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning(f"[ContextMgmt] Failed to persist tool_memory: {e}")
 
         msg = f"Successfully forgot {len(results['forgotten'])} outputs, saved {total_saved} chars."
@@ -376,7 +376,7 @@ async def forget_tool_outputs(
             "_signal": "forget_tool_outputs"
         }
 
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.error(f"[ContextMgmt] Forget failed: {e}")
         return f"Error: {str(e)}", {"status": "error"}
 
@@ -417,7 +417,7 @@ async def recall_tool_output(
                     memory.remove_from_forgotten(tool_call_id)
                     state.tool_memory = memory.to_dict()
                     ctx.metadata.tool_memory = memory.to_dict()
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.warning(f"[ContextMgmt] Failed to update tool_memory on recall: {e}")
 
             return f"Successfully recalled content for {tool_call_id} (Length: {len(msg.content)})", {
@@ -426,7 +426,7 @@ async def recall_tool_output(
                 "_signal": "recall_tool_output"
             }
 
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.error(f"[ContextMgmt] Recall failed: {e}")
         return f"Error: {str(e)}", {"status": "error"}
 
@@ -468,7 +468,7 @@ async def list_forgotten_outputs(
             lines.append("")
 
         return "\n".join(lines), {"count": len(forgotten_records)}
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.error(f"[ContextMgmt] List forgotten failed: {e}")
         return f"Error retrieving forgotten outputs: {str(e)}"
 

@@ -61,7 +61,7 @@ async def get_pending_hitl_call(config: dict) -> dict | None:
                             "args": t_args,
                             "request_id": request_id,
                         }
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.warning(f"Failed to find pending HITL call: {e}")
 
     return None
@@ -102,7 +102,7 @@ async def close_hitl_interaction(
             logger.warning(
                 f"Failed to find HITL message for tool_call_id: {tool_call_id}"
             )
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.error(f"Error closing HITL interaction: {e}")
 
 
@@ -133,7 +133,7 @@ class HITLOrchestrator:
         if request_id:
             try:
                 await complete_request(request_id, normalized)
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.warning(f"[HITL] complete_request failed for {request_id}: {e}")
         return normalized
 
@@ -149,7 +149,7 @@ class HITLOrchestrator:
         if request_id:
             try:
                 await cancel_request(request_id)
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.warning(f"[HITL] cancel_request failed for {request_id}: {e}")
         return "CANCELLED"
 

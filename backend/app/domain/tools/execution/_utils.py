@@ -53,7 +53,7 @@ def format_command_result(
             stderr=stderr,
             returncode=returncode,
         )
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+    except Exception:
         output_details = f"STDOUT:\n{stdout}\n\nSTDERR:\n{stderr}"
 
     if returncode == 0:

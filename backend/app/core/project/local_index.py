@@ -57,7 +57,7 @@ class LocalProjectIndex:
         except json.JSONDecodeError as e:
             logger.warning(f"[LocalProjectIndex] Invalid JSON at {meta_path}: {e}")
             return None
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning(f"[LocalProjectIndex] Failed to read {meta_path}: {e}")
             return None
 
@@ -121,7 +121,7 @@ class LocalProjectIndex:
             # If not a project, scan subdirectories
             try:
                 entries = list(FileTraverser.list_entries(current_dir))
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.warning(f"[LocalProjectIndex] Failed to list {current_dir}: {e}")
                 return
 

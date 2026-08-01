@@ -118,7 +118,7 @@ class ClientWebSocketManager:
                 )
                 self._zeroconf.register_service(self._service_info)
                 logger.info(f"[mDNS] Registered service: {self._service_info.name} at {local_ip}:{port}")
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.warning(f"[mDNS] Failed to register service: {e}")
         else:
             logger.info("[mDNS] Zeroconf not installed, local discovery disabled.")
@@ -145,7 +145,7 @@ class ClientWebSocketManager:
                 self._zeroconf.close()
                 self._zeroconf = None
                 logger.info("[mDNS] Unregistered service")
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.warning(f"[mDNS] Failed to unregister service: {e}")
 
         logger.info("[WebSocket] Tool server stopped")
@@ -171,7 +171,7 @@ class ClientWebSocketManager:
                     await self._handle_message(data)
                 except json.JSONDecodeError as e:
                     logger.error(f"[WebSocket] Invalid JSON: {e}")
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                except Exception as e:
                     logger.error(f"[WebSocket] Error handling message: {e}")
 
         except ConnectionClosed:
@@ -300,7 +300,7 @@ class ClientWebSocketManager:
                 self._pending_requests.pop(request_id, None)
             raise TimeoutError(f"Tool execution timed out after {timeout}s")
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             async with self._lock:
                 self._pending_requests.pop(request_id, None)
             raise
@@ -371,7 +371,7 @@ class DirectClientToolExecutor:
                     params=params,
                     timeout=timeout
                 )
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.warning(f"[WebSocket] Failed, falling back to HTTP: {e}")
                 # Fall through to HTTP
 

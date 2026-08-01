@@ -51,7 +51,7 @@ async def handle_read(
                 start_range=start_line,
                 end_range=end_line
             )
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             import logging
             logger = logging.getLogger(__name__)
             logger.error(f"Extraction failed for {path}: {e}")
@@ -81,7 +81,7 @@ async def handle_read(
                     path=path,
                     siblings=siblings_str,
                 )
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.debug("Suppressed error: %s", e, exc_info=True)
         return i18n.get("domain_tools.files.read_not_found", path=path)
 
@@ -157,7 +157,7 @@ Use `read_file(path='{path}', start_line=N, end_line=M)` to read specific line r
 
         return result.content, {"start_line": start_line or 1, "end_line": end_line or 1000}
 
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         return i18n.get("domain_tools.files.read_error", error=str(e))
 
 

@@ -65,14 +65,14 @@ def _is_path_safe(
 
     try:
         resolved = os.path.realpath(candidate)
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+    except Exception:
         resolved = os.path.abspath(candidate)
 
     # Boundary 1: Active Project Workspace Root
     if project_path:
         try:
             resolved_proj = os.path.realpath(os.path.expanduser(project_path))
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+        except Exception:
             resolved_proj = os.path.abspath(os.path.expanduser(project_path))
         if resolved == resolved_proj or resolved.startswith(resolved_proj + os.sep):
             return True
@@ -80,7 +80,7 @@ def _is_path_safe(
     # Boundary 2: App Data Directory (~/.evoloop)
     try:
         app_data = os.path.realpath(os.path.expanduser(settings.APP_DATA_DIR))
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+    except Exception:
         app_data = os.path.abspath(os.path.expanduser(settings.APP_DATA_DIR))
     if resolved == app_data or resolved.startswith(app_data + os.sep):
         return True
@@ -89,7 +89,7 @@ def _is_path_safe(
     for prefix in settings.ALLOWED_PATH_PREFIXES:
         try:
             resolved_prefix = os.path.realpath(os.path.expanduser(prefix))
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+        except Exception:
             resolved_prefix = os.path.abspath(os.path.expanduser(prefix))
         if resolved == resolved_prefix or resolved.startswith(resolved_prefix + os.sep):
             return True
@@ -129,7 +129,7 @@ async def authorization_gate(context: HookContext) -> HookResult:
         resource_path, action = extracted
         try:
             project_path = await get_project_path(context.project_id)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+        except Exception:
             project_path = None
 
         try:
@@ -154,7 +154,7 @@ async def authorization_gate(context: HookContext) -> HookResult:
                         rel = os.path.relpath(resource_path, project_path)
                         if not rel.startswith(".."):
                             check_paths.append(rel)
-                    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                    except Exception as e:
                         logger.debug("Suppressed error: %s", e, exc_info=True)
                 if grant.action == action and grant.path in check_paths:
                     if not grant.is_expired(now):

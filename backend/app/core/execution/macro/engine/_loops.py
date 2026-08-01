@@ -48,7 +48,7 @@ class LoopMixin:
                 if bundle_id:
                     dynamic_apps = await DynamicAppTriage.get_dynamic_apps(platform="android")
                     is_dynamic = bundle_id in dynamic_apps
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.warning(f"Failed to detect dynamic status: {e}")
 
         max_retries = payload.get("max_retries", 3)
@@ -97,7 +97,7 @@ class LoopMixin:
                         logger.error(f"[{thread_id}] Functional error in batch iteration {index}: {msg}")
                         return False, msg, fallback
 
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                except Exception as e:
                     last_error = str(e)
                     logger.error(f"[{thread_id}] Unexpected error in batch iteration {index}: {e}")
                     retry_count += 1
@@ -134,7 +134,7 @@ class LoopMixin:
             try:
                 with open(state_file, encoding='utf-8') as f:
                     state = json.load(f)
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.warning(f"[{thread_id}] Failed to load state file, starting fresh: {e}")
 
         if (collect_mode in ("list", "auto")) and (state["phase"] == "list" or collect_mode == "list"):
@@ -161,7 +161,7 @@ class LoopMixin:
                         xml = await asyncio.to_thread(adb_driver.dump_ui, device_id, compressed=False)
                     else:
                         raise NotImplementedError(f"Collect mode not implemented for source: {step.source}")
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                except Exception as e:
                     logger.error(f"[{thread_id}] Failed to get UI dump: {e}")
                     break
 
@@ -201,7 +201,7 @@ class LoopMixin:
                         break
 
                     await asyncio.sleep(wait_ms / 1000)
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                except Exception as e:
                     logger.error(f"[{thread_id}] Scroll action exception: {e}")
                     break
 
@@ -299,7 +299,7 @@ class LoopMixin:
                     )
                     await asyncio.sleep(0.8)
 
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                except Exception as e:
                     logger.error(f"[{thread_id}] Error processing item {i}: {e}")
                     item["status"] = "failed"
                     item["error"] = str(e)
@@ -404,7 +404,7 @@ class LoopMixin:
 
                     items.append(item)
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning(f"Error parsing XML for collect items: {e}")
 
         return items

@@ -37,7 +37,7 @@ async def _search_duckduckgo(query: str) -> list[str] | None:
                     f"Description: {result['body']}\n"
                 )
         return results if results else None
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.debug("Suppressed error: %s", e, exc_info=True)
         return None
 
@@ -102,7 +102,7 @@ async def _search_baidu(query: str) -> list[str] | None:
                     f"URL: {result_url}\n"
                     f"Description: {description}\n"
                 )
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+        except Exception:
             continue
 
     return results if results else None
@@ -155,7 +155,7 @@ async def _search_wikipedia(query: str) -> list[str] | None:
 
         return results if results else None
 
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.debug("Suppressed error: %s", e, exc_info=True)
         return None
 
@@ -188,7 +188,7 @@ async def _fetch_wikipedia_summary(title: str, lang: str = "en") -> str | None:
             if extract:
                 return extract.strip()
         return None
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.debug("Suppressed error: %s", e, exc_info=True)
         return None
 

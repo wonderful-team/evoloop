@@ -124,7 +124,7 @@ class AppMixin:
             if result.returncode == 0 and result.stdout.strip():
                 parts = result.stdout.strip().split("|")
                 return {"name": parts[0], "pid": -1, "bounds": parts[1] if len(parts) > 1 else "0,0,0,0"}
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.debug(f"AppleScript get_current_app failed: {e}")
 
         return {"name": "unknown", "pid": -1, "bounds": "0,0,0,0"}
@@ -174,7 +174,7 @@ class AppMixin:
                     bounds = _window_bounds_str(front_window)
 
             return {"app_name": app_name, "window_title": title, "bounds": bounds}
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.debug(f"Native get_active_window failed: {e}")
 
         try:
@@ -200,7 +200,7 @@ class AppMixin:
                     "window_title": parts[1] if len(parts) > 1 else "",
                     "bounds": parts[2] if len(parts) > 2 else "0,0,0,0",
                 }
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.debug(f"AppleScript get_active_window failed: {e}")
 
         current_app = AppMixin.get_current_app()
@@ -217,6 +217,6 @@ class AppMixin:
             result = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=10)
             if result.returncode == 0 and result.stdout.strip():
                 return sorted(line.strip() for line in result.stdout.strip().split(",") if line.strip())
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.debug(f"list_installed_apps failed: {e}")
         return []

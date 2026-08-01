@@ -77,7 +77,7 @@ class FileCachePipelineAdapter(CachePipeline):
             try:
                 result = await method(*args, **kwargs)
                 results.append(result)
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.debug("Pipeline command %s failed: %s", method_name, e)
                 results.append(None)
         self._commands.clear()

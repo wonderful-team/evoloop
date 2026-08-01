@@ -61,7 +61,7 @@ class AuthMixin:
             user_info = await self.get_user_info(token=token)
             if user_info.get("code") == 0:
                 return user_info.get("data", {}).get("member_id", 0)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.debug("Suppressed error: %s", e, exc_info=True)
         return 0
 

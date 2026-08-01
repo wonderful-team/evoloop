@@ -226,7 +226,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                 await asyncio.wait_for(self.ws.close(), timeout=2.0)
             except asyncio.TimeoutError:
                 logger.debug("[EvoCloud] WS close timed out, forcing disconnect")
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.debug(f"[EvoCloud] Error closing WS: {e}")
             finally:
                 self.ws = None
@@ -252,7 +252,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                     await self.ws.send(payload)
                     logger.info(f"[EvoCloud] WS SEND RETRY: {payload[:200]}")
                     self._send_queue.task_done()
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                except Exception as e:
                     logger.warning(f"[EvoCloud] WS retry send failed: {e}, re-enqueueing")
                     # Re-enqueue at the front for next retry
                     try:
@@ -264,7 +264,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                     self._send_queue.task_done()
             except asyncio.CancelledError:
                 break
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.warning(f"[EvoCloud] Send queue loop error: {e}")
                 await asyncio.sleep(1)
 
@@ -292,7 +292,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                     await asyncio.wait_for(self.ws.ping(), timeout=10)
                 except asyncio.TimeoutError:
                     logger.debug("[EvoCloud] WebSocket ping timed out, will reconnect")
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                except Exception as e:
                     logger.debug(f"[EvoCloud] WebSocket ping failed: {e}")
 
                 try:
@@ -303,7 +303,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                     else:
                         ping_env = create_envelope(type="ping", body={"timestamp": int(time.time())})
                         await self.send_message(ping_env.model_dump())
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                except Exception as e:
                     logger.debug(f"[EvoCloud] JSON text ping failed: {e}")
             await asyncio.sleep(30)
 
@@ -531,6 +531,6 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
         if self.ws:
             try:
                 await self.ws.close()
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.debug(f"[EvoCloud] Error during force reconnect close: {e}")
         self.ws = None

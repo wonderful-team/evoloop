@@ -145,7 +145,7 @@ class BaseAgentNode(BaseNode, ABC):
             )
             return outcome
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[{self.node_name}] Execution failed: {e}")
             return await self.handle_error(state, e, config=config)
 

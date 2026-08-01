@@ -190,7 +190,7 @@ def _get_python_outline_ast(file_path: str, max_entries: int = 100) -> list[dict
     except SyntaxError:
         # File has syntax errors
         pass
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.debug(f"Failed to parse Python AST for {file_path}: {e}")
 
     return outline

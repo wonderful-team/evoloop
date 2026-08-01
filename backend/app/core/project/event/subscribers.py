@@ -46,7 +46,7 @@ class ProjectSwitchWebSocketSubscriber:
             cmd = RemoteCommand.model_validate(event.payload)
             action = cmd.get_action()
             payload = cmd.get_payload()
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[ProjectSwitchWS] Failed to parse message: {e}")
             return
 
@@ -75,7 +75,7 @@ class ProjectSwitchWebSocketSubscriber:
                         "Ignoring switch to avoid using a foreign/external path."
                     )
                     return
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.error(f"[ProjectSwitchWS] Failed to resolve project {project_id}: {e}")
                 return
 
@@ -87,7 +87,7 @@ class ProjectSwitchWebSocketSubscriber:
                 resolved_path = await get_project_path(project_id)
                 if resolved_path and os.path.isdir(resolved_path):
                     path = resolved_path
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.debug(f"[ProjectSwitchWS] Local path resolution failed, keeping event path: {e}")
 
         if not path or not os.path.isdir(path):
@@ -122,7 +122,7 @@ class ProjectDomainSubscriber:
         """Handle project creation."""
         try:
             await self._sync_service.handle_project_created(event.path)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[ProjectHandlers] Failed to handle project created: {e}")
 
     @event_subscribe(ProjectEventType.PROJECT_DELETED)
@@ -130,7 +130,7 @@ class ProjectDomainSubscriber:
         """Handle project deletion."""
         try:
             await self._sync_service.handle_project_deleted(event.path)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[ProjectHandlers] Failed to handle project deleted: {e}")
 
     @event_subscribe(ProjectEventType.PROJECT_MOVED)
@@ -138,7 +138,7 @@ class ProjectDomainSubscriber:
         """Handle project moved."""
         try:
             await self._sync_service.handle_project_moved(event.src_path, event.dest_path)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[ProjectHandlers] Failed to handle project moved: {e}")
 
     @event_subscribe(SystemEventType.APP_STARTED)
@@ -151,7 +151,7 @@ class ProjectDomainSubscriber:
                 await self._sync_service.sync_cloud_project()
             else:
                 logger.info("[ProjectHandlers] No token on startup, skipping project sync. Will sync on USER_LOGGED_IN.")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[ProjectHandlers] Failed to sync cloud project on start: {e}")
 
     @event_subscribe(SystemEventType.USER_LOGGED_IN)
@@ -160,7 +160,7 @@ class ProjectDomainSubscriber:
         logger.info("[ProjectHandlers] User logged in, syncing cloud project...")
         try:
             await self._sync_service.sync_cloud_project()
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[ProjectHandlers] Failed to sync cloud project on login: {e}")
 
     @event_subscribe(ProjectEventType.PROJECT_SWITCHED)
@@ -227,7 +227,7 @@ class ProjectLifecycleSubscriber:
             logger.info(f"[Project] Reconciling projects in {root_projects_dir}...")
             await project_sync_service.reconcile_projects(root_projects_dir)
             logger.info("[Project] ✓ Project reconciliation complete")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[Project] Startup reconciliation failed: {e}")
 
     @event_subscribe(SystemEventType.APP_STOPPING)
@@ -242,7 +242,7 @@ class ProjectLifecycleSubscriber:
             from app.core.project.polisher import project_polisher
 
             await project_polisher.handle_context_polishing(event)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[Project] Context polishing failed: {e}")
 
     @event_subscribe(SystemEventType.CONFIG_CHANGED)
@@ -264,7 +264,7 @@ class ProjectLifecycleSubscriber:
                 await project_sync_service.reconcile_projects(new_value)
                 logger.info(f"[Project] ✓ Reconciliation complete for {new_value}")
 
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.error(f"[Project] Failed to handle WORKSPACE_ROOT change: {e}")
 
 
@@ -315,5 +315,5 @@ class ProjectContextHydratorSubscriber:
             # Update legacy thread_context_store for backward compatibility
             thread_context_store.set_working_directory(ctx.thread_id, working_dir)
             thread_context_store.set_active_project(ctx.thread_id, project_id)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning(f"[ProjectHydrator] Failed to resolve project {project_id}: {e}")

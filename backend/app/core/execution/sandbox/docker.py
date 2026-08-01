@@ -61,7 +61,7 @@ class DockerSandbox(Sandbox):
                     # Let's keep it persistent manually.
                 )
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"Failed to initialize Docker Sandbox: {e}")
             raise
 
@@ -114,7 +114,7 @@ class DockerSandbox(Sandbox):
 
             return stdout, stderr, exit_code
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"Docker Exec Failed: {e}")
             return "", str(e), 1
 
@@ -133,5 +133,5 @@ class DockerSandbox(Sandbox):
             try:
                 self.container.stop()
                 self.container.remove()
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.warning(f"Error tearing down sandbox: {e}")

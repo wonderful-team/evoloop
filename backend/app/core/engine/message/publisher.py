@@ -51,7 +51,7 @@ class MessagePublisher:
         else:
             channels = set(channels)
 
-        from app.core.routing.executor import _voice_registry
+        from app.core.voice.executor import _voice_registry
         if self.thread_id in _voice_registry:
             channels.add("voice")
 

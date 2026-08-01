@@ -166,7 +166,7 @@ class ToolRequestManager:
                 await self._cleanup_old_requests()
             except asyncio.CancelledError:
                 break
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.error(f"[Client] Cleanup error: {e}")
 
     async def _cleanup_old_requests(self):

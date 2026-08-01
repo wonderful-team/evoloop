@@ -60,7 +60,7 @@ async def sync_project_to_cloud_task(_self, repo_id: int):
                 else:
                     raise RuntimeError(f"Cloud API Failed: {res.get('message')}")
 
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.error(f"[SyncTask] Sync Failed: {e}")
                 raise e  # Trigger Retry
     finally:
@@ -135,7 +135,7 @@ async def sync_tasks_to_evocloud_task(_self, task_ids: list[str], analysis_id: s
                         failed_count += 1
                         logger.error(f"[ReqSync] Task {task.id} failed: {task.sync_error}")
 
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                except Exception as e:
                     task.sync_status = "failed"
                     task.sync_error = str(e)
                     failed_count += 1
@@ -159,6 +159,6 @@ def _format_task_description(task_data: dict) -> str:
             references=task_data.get("requirement_refs", []),
             checklist=task_data.get("acceptance_criteria", [])
         )
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.error(f"Failed to render task description: {e}")
         return task_data.get("description", "Formatting error.")

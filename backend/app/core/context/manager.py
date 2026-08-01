@@ -218,7 +218,7 @@ class ContextManager:
                 cache_service = ContextCacheService()
                 await cache_service.save_context(thread_id, hset_data)
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             import logging
             logging.getLogger(__name__).warning(f"Failed to save context to cache (HSET): {e}")
 
@@ -247,12 +247,9 @@ class ContextManager:
                         v = v.decode("utf-8")
 
                     if k in list_fields or k in flexible_fields or k in dict_fields:
-                        try:
-                            reconstructed[k] = json.loads(v) if v else (
-                                [] if k in list_fields else ({} if k in dict_fields or k in flexible_fields else [])
-                            )
-                        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
-                            reconstructed[k] = [] if k in list_fields else {}
+                        reconstructed[k] = json.loads(v) if v else (
+                            [] if k in list_fields else ({} if k in dict_fields or k in flexible_fields else [])
+                        )
                     elif k == "timestamp":
                         reconstructed[k] = float(v) if v else 0.0
                     elif k == "is_dry_run":
@@ -265,8 +262,7 @@ class ContextManager:
                 ctx = EvoContext.model_validate(reconstructed)
                 ContextManager.set(ctx)
                 return ctx
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
-            import logging
+        except Exception as e:
             logging.getLogger(__name__).warning(f"Failed to load context from cache (HGETALL): {e}")
 
         return None

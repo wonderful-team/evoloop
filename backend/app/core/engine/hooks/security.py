@@ -239,7 +239,7 @@ async def sensitive_file_placeholder_replacement_gate(context: HookContext) -> H
             if ctx.injected_secrets is None:
                 ctx.injected_secrets = set()
             ctx.injected_secrets.update(injected_secrets)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning(f"Failed to save injected_secrets to EvoContext: {e}")
 
     return HookResult(success=True, modified_context=context)
@@ -261,7 +261,7 @@ async def sensitive_file_censorship_gate(context: HookContext) -> HookResult:
             ctx_secrets = ctx.injected_secrets
             if ctx_secrets:
                 injected_secrets = list(ctx_secrets)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.debug(f"[CENSOR] Failed to read EvoContext injected_secrets: {e}")
 
     logger.info(

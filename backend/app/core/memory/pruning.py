@@ -108,7 +108,7 @@ class MemoryPruningService:
                                 "timestamp": datetime.utcnow().isoformat()
                             })
                             logger.info(f"[Pruning] Silently deleted fulfilled task memory {mem.id}")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning(f"[Pruning] Failed to check fulfilled tasks: {e}")
             
         return logs
@@ -127,7 +127,7 @@ class MemoryPruningService:
 
             project_root = await project_context.get_project_structure(project_id) if project_id is not None else "No project root found"
             readme = await project_context.extract_description_from_readme(project_id) if project_id is not None else ""
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning(f"[Pruning] Failed to gather project context for semantic pruning: {e}")
             return []
         
@@ -173,7 +173,7 @@ class MemoryPruningService:
                             "timestamp": datetime.utcnow().isoformat()
                         })
             return logs
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[Pruning] Semantic pruning failed: {e}")
             return []
 
@@ -247,7 +247,7 @@ class MemoryConsolidator:
                         "timestamp": datetime.utcnow().isoformat()
                     })
             return logs
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning(f"[Consolidation] Failed: {e}")
             return []
 

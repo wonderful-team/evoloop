@@ -52,7 +52,7 @@ async def delete_file(
         if is_file:
             try:
                 original_content, _, _ = safe_read_with_hash(absolute_path)
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+            except Exception:
                 pass # Binary or unreadable files
 
         # Perform deletion via the File Center
@@ -68,21 +68,16 @@ async def delete_file(
             from app.core.context import ContextManager
             ctx = ContextManager.current()
             if ctx.thread_id:
-                try:
-                    persist_file_operation_task.delay(
-                        thread_id=ctx.thread_id,
-                        message_id="",
-                        file_path=str(absolute_path),
-                        operation="DELETE",
-                        diff_content="",
-                        original_content=original_content,
-                        run_id=ctx.run_id,
-                        tool_call_id=ctx.current_tool_call_id,
-                    )
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
-                    import logging
-                    logging.getLogger(__name__).error(f"Failed to persist file operation for delete: {e}")
-
+                persist_file_operation_task.delay(
+                    thread_id=ctx.thread_id,
+                    message_id="",
+                    file_path=str(absolute_path),
+                    operation="DELETE",
+                    diff_content="",
+                    original_content=original_content,
+                    run_id=ctx.run_id,
+                    tool_call_id=ctx.current_tool_call_id,
+                )
         return f"Successfully deleted '{path}'."
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         return f"Error deleting file: {e}"

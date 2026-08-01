@@ -60,7 +60,7 @@ async def schedule_periodic_task(
                 details=f"Task ID: {task_id}",
                 note=f"Trigger: {trigger}"
             )
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.error(f"Error in schedule_periodic_task: {e}")
         return ControllerResponse.error("Failed to delegate intent", details=str(e))
 
@@ -87,10 +87,10 @@ async def inspect_task_health(task_id: int) -> str:
             
             try:
                 return SystemToolsFormatter.task_health(task)
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.error(f"Failed to render task health: {e}")
                 return f"Task {task_id} health: {status}"
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.error(f"Error in inspect_task_health: {e}")
         return f"Error: Failed to inspect task health. {str(e)}"
 
@@ -120,9 +120,9 @@ async def list_scheduled_tasks(project_id: int | None = None) -> str:
             
             try:
                 return SystemToolsFormatter.autonomous_tasks(tasks), {"count": len(tasks)}
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.error(f"Failed to render task list: {e}")
                 return f"Found {len(tasks)} tasks.", {"count": len(tasks)}
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.error(f"Error in list_scheduled_tasks: {e}")
         return f"Error: Failed to list tasks. {str(e)}"

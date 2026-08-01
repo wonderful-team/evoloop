@@ -81,7 +81,7 @@ class ConversationSyncManager:
 
         except asyncio.CancelledError:
             logger.debug("[ConversationSync] Sync loop cancelled")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[ConversationSync] Sync loop error: {e}", exc_info=True)
 
     async def _schedule_full_sync(self):
@@ -109,7 +109,7 @@ class ConversationSyncManager:
                 f"task_id={result.id}"
             )
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[ConversationSync] Failed to schedule full sync: {e}", exc_info=True)
 
     async def _schedule_incremental_sync(self):
@@ -157,7 +157,7 @@ class ConversationSyncManager:
                     f"{(len(thread_ids) + batch_size - 1) // batch_size} batches"
                 )
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[ConversationSync] Failed to schedule incremental sync: {e}", exc_info=True)
 
     # ==================== 公共 API ====================

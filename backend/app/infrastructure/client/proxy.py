@@ -139,7 +139,7 @@ class ClientProxy:
             )
         except ToolExecutionError:
             raise
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[ClientProxy] Tool execution failed: {e}")
             raise ToolExecutionError(str(e))
 

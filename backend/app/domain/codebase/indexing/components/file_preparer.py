@@ -87,7 +87,7 @@ class FilePreparer:
             content = await document_reader_service.read_document(file_path)
             if content is None:
                 return None
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning(f"Could not read {file_path}: {e}")
             return None
 

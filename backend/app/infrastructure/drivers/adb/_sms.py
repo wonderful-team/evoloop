@@ -52,7 +52,7 @@ class SMSMixin:
                     messages.sort(key=lambda x: x["date"], reverse=True)
                     return messages
 
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.warning(f"Failed to read SMS: {e}")
 
             elapsed = time.time() - start_time

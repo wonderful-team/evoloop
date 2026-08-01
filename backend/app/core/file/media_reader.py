@@ -5,6 +5,7 @@ from app.infrastructure.voice import list_stt_providers, transcribe_file
 
 logger = logging.getLogger(__name__)
 
+
 class MediaReaderService:
     """
     Specialized service for extracting text from multimedia files
@@ -21,14 +22,15 @@ class MediaReaderService:
 
             logger.info(f"Transcribing media file: {path}")
             result = await transcribe_file(path)
-            
+
             if not result.text:
                 return f"[Multimedia Asset: {os.path.basename(path)} - Transcription returned empty content]"
-                
+
             return f"### Multimedia Transcription ({os.path.basename(path)})\n\n{result.text}"
-            
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+
+        except Exception as e:
             logger.error(f"Media transcription failed for {path}: {e}")
             return f"[Multimedia Asset: {os.path.basename(path)} - Transcription Error: {str(e)}]"
+
 
 media_reader_service = MediaReaderService()

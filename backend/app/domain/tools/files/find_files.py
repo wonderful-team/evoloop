@@ -74,7 +74,7 @@ async def _search_by_name(
             
             for i in range(start_idx, min(start_idx + MAX_PREVIEW_LINES, len(all_lines))):
                 preview_lines.append(f"     {i+1:3d}: {all_lines[i]}")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             preview_lines.append(f"     [Could not read preview: {e}]")
 
         preview_block = "\n".join(preview_lines) if preview_lines else "     (empty file)"

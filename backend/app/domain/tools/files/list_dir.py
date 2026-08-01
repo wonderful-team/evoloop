@@ -42,7 +42,7 @@ def _get_line_count(file_path: str, max_size: int = 1024 * 1024) -> int | None:
         if not info.exists or info.is_binary or info.size == 0 or info.size > max_size:
             return None
         return info.total_lines
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.debug("Suppressed error: %s", e, exc_info=True)
         return None
 
@@ -116,7 +116,7 @@ async def handle_list(
                 tree_output = await generator.generate()
                 tree_count = len([line for line in tree_output.splitlines() if line.strip()])
                 return tree_output, {"count": tree_count, "recursive": True}
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 return f"Error generating annotated tree: {e}"
         else:
             # Use core.file tree generation (compact format)

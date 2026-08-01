@@ -40,7 +40,7 @@ class DocumentReaderService:
                 if not result.success:
                     raise IOError(result.error_message or "Failed to read file")
                 return result.content
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"Failed to read document {file_path}: {e}")
             raise
 

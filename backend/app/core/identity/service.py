@@ -116,7 +116,7 @@ class IdentityService:
                                 await self.store.save_access_token(token)
                                 await self.store.save_member_id(mid)
                         return mid
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.error(f"Failed to resolve member_id from token: {e}")
             return None
 

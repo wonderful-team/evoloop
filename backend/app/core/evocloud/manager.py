@@ -247,7 +247,7 @@ class EvoCloudManager:
             logger.info(f"[EvoCloud] Fetched {len(projects)} projects from API in {fetch_time:.1f}ms")
             return list(projects)
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"scan_projects failed: {e}")
             # Return stale cache if available, otherwise empty list
             if self._projects_cache is not None:

@@ -30,7 +30,7 @@ class GenericOpenAIEmbedder(BaseEmbedder):
         try:
             response = await self.client.embeddings.create(**kwargs)
             return [data.embedding for data in response.data]
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"Embedding Error (Docs): {e}")
             raise e
 
@@ -47,7 +47,7 @@ class GenericOpenAIEmbedder(BaseEmbedder):
             if not response.data:
                 raise ValueError(f"OpenAI returned empty data. Full Response: {response}")
             return response.data[0].embedding
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             # Log full stack if needed, but for now specific error message
             logger.error(f"Embedding Error (Query): {e}\nParams: {kwargs}")
             raise e

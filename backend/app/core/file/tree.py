@@ -138,7 +138,7 @@ class TreeService:
                     result.append(f"{child_prefix}{entry.name}{stat_str}")
                     _state["count"] += 1
                     
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             result.append(f"{prefix}  [Error: {e}]")
 
         return "\n".join(result)

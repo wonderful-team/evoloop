@@ -60,7 +60,7 @@ class VerificationReporter:
                 round_status_displays=round_status_displays,
                 step_emojis=step_emojis
             )
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"Failed to render Verification template: {e}")
             return f"# Verification Report Error\n\nFailed to render report: {e}"
 
@@ -238,17 +238,10 @@ class VerificationReporter:
         logger.info(self.format_summary())
 
 
-def generate_comparison_report(
-    original_response: VerificationResponse,
-    evolved_response: VerificationResponse
-) -> str:
+def generate_comparison_report(original_response: VerificationResponse, evolved_response: VerificationResponse) -> str:
     """
     Generate a comparison report between original and evolved macros.
 
     Shows improvements made through the evolution process.
     """
-    try:
-        return render_template("common/report/comparison.md.j2", original=original_response, evolved=evolved_response)
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
-        logger.error(f"Failed to render comparison report: {e}")
-        return f"Comparison complete. Improvements: {len(evolved_response.evolution_records)}"
+    return render_template("common/report/comparison.md.j2", original=original_response, evolved=evolved_response)

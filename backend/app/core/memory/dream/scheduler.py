@@ -99,7 +99,7 @@ class DreamScheduler:
                 len(result.insight_ids),
                 promoted,
             )
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             record.finished_at = datetime.now().isoformat()
             record.error = str(e)
             logger.error("[Dream] Cross-project cycle failed: %s", e)
@@ -144,7 +144,7 @@ class DreamScheduler:
             record.insight_ids = result.insight_ids
             if result.error:
                 record.error = result.error
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             record.finished_at = datetime.now().isoformat()
             record.error = str(e)
             logger.error("[Dream] Cycle failed: %s", e)
@@ -160,7 +160,7 @@ class DreamScheduler:
             if log_file.exists():
                 data = json.loads(log_file.read_text())
                 return datetime.fromisoformat(data["finished_at"])
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.debug("Suppressed error: %s", e, exc_info=True)
         return None
 
@@ -179,7 +179,7 @@ class DreamScheduler:
                 "insight_ids": record.insight_ids,
                 "error": record.error,
             }, indent=2))
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning("[Dream] Failed to save record: %s", e)
 
 

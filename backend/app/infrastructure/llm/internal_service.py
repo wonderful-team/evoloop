@@ -118,7 +118,7 @@ class InternalLLMService:
 
             return response
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[InternalLLM] Failed for purpose '{purpose}': {e}")
             raise
 
@@ -171,7 +171,7 @@ class InternalLLMService:
             result = await structured_llm.ainvoke(messages, config=config)
             logger.debug(f"[InternalLLM] Structured completed: {purpose}")
             return result
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning(
                 f"[InternalLLM] Structured call failed for '{purpose}': {e}. "
                 "Attempting fallback to clean text generation and custom parsing."
@@ -186,7 +186,7 @@ class InternalLLMService:
                     if errors and errors[0].get("type") == "json_invalid" and isinstance(errors[0].get("input"), str):
                         raw_content = errors[0]["input"]
                         logger.info(f"[InternalLLM] Extracted raw content directly from ValidationError for '{purpose}'.")
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as extract_err:
+                except Exception as extract_err:
                     logger.warning(f"[InternalLLM] Failed to extract input from ValidationError: {extract_err}")
             
             # 2. 尝试从 OutputParserException.llm_output 提取（若适用）
@@ -200,7 +200,7 @@ class InternalLLMService:
                     logger.info(f"[InternalLLM] Re-invoking LLM as fallback for '{purpose}'...")
                     fallback_response = await llm.ainvoke(messages, config=config)
                     raw_content = fallback_response.content if hasattr(fallback_response, "content") else str(fallback_response)
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as fallback_err:
+                except Exception as fallback_err:
                     logger.error(
                         f"[InternalLLM] Fallback LLM re-invocation also failed for '{purpose}': {fallback_err}"
                     )
@@ -218,7 +218,7 @@ class InternalLLMService:
                 result = output_schema.model_validate(parsed_data)
                 logger.info(f"[InternalLLM] Fallback parsing succeeded for '{purpose}'.")
                 return result
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as parse_err:
+            except Exception as parse_err:
                 logger.error(
                     f"[InternalLLM] Fallback parsing failed to parse/validate JSON for '{purpose}': {parse_err}. "
                     f"Raw content preview: {repr(raw_content[:200]) if raw_content else 'None'}"

@@ -30,7 +30,7 @@ class FileEditorService:
         try:
             # Read file content
             file_content, encoding, stats = safe_read_with_hash(absolute_path)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             return EditPreviewResult(
                 success=False,
                 confidence=MatchConfidence.NONE,
@@ -209,7 +209,7 @@ class FileEditorService:
                 "original_content": file_content
             }
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"Failed to apply edits to {absolute_path}: {e}")
             return {
                 "success": False,

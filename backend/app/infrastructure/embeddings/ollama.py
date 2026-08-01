@@ -48,7 +48,7 @@ class OllamaEmbedder(BaseEmbedder):
             response.raise_for_status()
             data = response.json()
             return data["embedding"]
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             # Fallback for newer /api/embed API?
             # Or handle error
             logger.error(f"Ollama Embedding Error: {e}")

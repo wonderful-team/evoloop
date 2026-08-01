@@ -65,7 +65,7 @@ async def create_project_tasks(
             "message": f"Successfully created {len(tasks)} tasks and triggered cloud sync."
         })
 
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.exception(f"Failed to create project tasks: {e}")
         return json.dumps({
             "success": False,
@@ -102,6 +102,6 @@ async def create_project_task(project_id: int | None = None, task_data: str = ""
             return f"Success: Task created with ID {response.get('data', {}).get('task_id')}"
         else:
             return f"Failed: {response.get('message')}"
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.error(f"Task creation failed: {e}")
         return f"Error: {str(e)}"

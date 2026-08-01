@@ -197,7 +197,7 @@ class FileUtils:
                     )
                     return match.raw.decode(match.encoding)
                 raise ude
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as exc:
+        except Exception as exc:
             log.error(f"Failed to read '{file_path}' with encoding '{encoding}': {exc}")
             raise exc
 
@@ -214,7 +214,7 @@ class FileUtils:
                 raise SolidLSPException("Error downloading file.")
             with open(target_path, "wb") as f:
                 shutil.copyfileobj(response.raw, f)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as exc:
+        except Exception as exc:
             log.error(f"Error downloading file '{url}': {exc}")
             raise SolidLSPException("Error downloading file.") from None
 
@@ -261,7 +261,7 @@ class FileUtils:
             else:
                 log.error(f"Unknown archive type '{archive_type}' for extraction")
                 raise SolidLSPException(f"Unknown archive type '{archive_type}'")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as exc:
+        except Exception as exc:
             log.error(f"Error extracting archive '{tmp_file_name}' obtained from '{url}': {exc}")
             raise SolidLSPException("Error extracting archive.") from exc
         finally:

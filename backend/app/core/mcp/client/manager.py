@@ -618,7 +618,7 @@ class McpClientManager:
         if isinstance(value, str):
             try:
                 return json.loads(value)
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+            except Exception:
                 return default
         return value if value is not None else default
 

@@ -120,7 +120,7 @@ async def search_memory_vector(
             search_type="vector",
         )
 
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.error(f"Vector search failed: {e}")
         raise HTTPException(status_code=500, detail=f"Vector search failed: {str(e)}")
 
@@ -189,11 +189,9 @@ async def search_memory_hybrid(
             text_results_count=len(text_results),
         )
 
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.error(f"Hybrid search failed: {e}")
-        text_results = await manager.search_concepts_data(
-            q, project_id, member_id=current_user.id if current_user else 0
-        )
+        text_results = await manager.search_concepts_data(q, project_id, member_id=current_user.id if current_user else 0)
         return HybridSearchResponse(
             results=[
                 HybridResultItem(type="text", score=1.0, data=r) for r in text_results

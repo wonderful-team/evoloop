@@ -106,7 +106,7 @@ class ActivityMonitor:
             logger.info(f"[ActivityMonitor] ⏸️ Run {run_id} interrupted for human input")
             raise
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[ActivityMonitor] ❌ Run {run_id} failed with error: {e}")
             async with session_scope() as session:
                 result = await self._state_service.end_run(thread_id, "failed", session=session)
@@ -424,7 +424,7 @@ class ActivityMonitor:
                 logger.info(
                     f"[ActivityMonitor] Session goal updated and state refreshed for thread {thread_id}: {new_goal}"
                 )
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.warning(
                     f"[ActivityMonitor] Failed to publish goal update event: {e}"
                 )

@@ -40,5 +40,5 @@ class MonitoringLifecycleSubscriber:
                 final_outcome=data.outcome
             )
             logger.debug(f"[Monitoring] ✓ Observability run finalized for {data.thread_id}")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[Monitoring] Failed to finalize observability run: {e}")

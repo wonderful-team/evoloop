@@ -79,7 +79,7 @@ class ToolState(DynamicBaseModel):
                             lines=line_count, items=line_count),
                     is_file_content
                 )
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.debug("Suppressed error: %s", e, exc_info=True)
 
         # Truncate if output is too long (>500 chars or >20 lines)

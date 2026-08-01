@@ -36,7 +36,7 @@ class ActionsMixin:
             return
         except (ImportError, AttributeError) as e:
             logger.debug(f"Quartz not available or failed: {e}, trying cliclick")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning(f"CGEvent click failed: {e}, trying fallback")
 
         cliclick_paths = ["/opt/homebrew/bin/cliclick", "/usr/local/bin/cliclick"]
@@ -47,7 +47,7 @@ class ActionsMixin:
                     if result.returncode == 0:
                         logger.info(f"Clicked at ({x}, {y}) via cliclick")
                         return
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                except Exception as e:
                     logger.warning(f"cliclick failed: {e}")
 
         raise RuntimeError(
@@ -127,7 +127,7 @@ class ActionsMixin:
 
                 logger.info(f"Typed text via clipboard: {text[:20]}...")
                 return
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.warning(f"Clipboard injection failed: {e}. Falling back to keystroke.")
 
         escaped_text = text.replace("\\", "\\\\").replace('"', '\\"')

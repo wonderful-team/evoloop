@@ -177,7 +177,7 @@ class GraphManager:
         for cache_key, driver in items:
             try:
                 await driver.close()
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.warning(f"Error closing Graph driver for {cache_key}: {e}")
 
     @classmethod

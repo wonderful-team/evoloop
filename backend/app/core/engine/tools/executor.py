@@ -152,7 +152,7 @@ class AgentToolExecutor:
                         if not diff_tracker.has_snapshot(abs_path, thread_id):
                             diff_tracker.capture_snapshot(abs_path, thread_id)
                             logger.info(f"[{self.name}] Captured snapshot for: {abs_path}")
-                    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                    except Exception as e:
                         logger.warning(f"[ToolExecutor] Failed to resolve path for snapshot: {path} | Error: {e}")
 
                 self._current_resolved_paths = resolved_abs_paths
@@ -194,7 +194,7 @@ class AgentToolExecutor:
                 post_result = await hook_system.trigger(HookEvent.POST_TOOL_USE, post_ctx, blocking=True)
                 if post_result and post_result.modified_context and post_result.modified_context.tool_result:
                     content = post_result.modified_context.tool_result.output
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as hook_err:
+            except Exception as hook_err:
                 logger.warning(f"[ToolExecutor] POST_TOOL_USE hook failed: {hook_err}")
 
             tool_message_id = gen_uuid()
@@ -213,7 +213,7 @@ class AgentToolExecutor:
 
         except AgentHumanInterruptException:
             raise
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             content = f"Error executing {tool_name}: {e}"
 
             if tool_callbacks:
@@ -234,7 +234,7 @@ class AgentToolExecutor:
             async def _fire_fail_hook():
                 try:
                     await hook_system.trigger(HookEvent.POST_TOOL_USE_FAILURE, fail_ctx)
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as hook_err:
+                except Exception as hook_err:
                     logger.warning(f"[ToolExecutor] POST_TOOL_USE_FAILURE hook failed: {hook_err}")
 
             asyncio.create_task(_fire_fail_hook())
@@ -304,7 +304,7 @@ class AgentToolExecutor:
                                     "tool_call_id": tool_call_id,
                                 }
                             )
-                    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                    except Exception as e:
                         logger.warning(f"Failed to dispatch FileOperation to Celery: {e}")
             except OSError as e:
                 logger.error(f"Failed to process diff for {path}: {e}")

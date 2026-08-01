@@ -53,7 +53,7 @@ def verify_file_hash(file_path: str, expected_hash: str) -> bool:
     try:
         current_info = get_file_info(file_path)
         return current_info.content_hash == expected_hash
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+    except Exception:
         return False
 
 
@@ -103,14 +103,14 @@ def write_file_with_verification(
                 message=result.error_message or "Unknown write error"
             )
 
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.error(f"Failed to write file {file_path}: {e}")
         # Clean up temp file if exists
         temp_path = file_path + ".tmp"
         if os.path.exists(temp_path):
             try:
                 os.remove(temp_path)
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.debug("Suppressed error: %s", e, exc_info=True)
         return FileWriteResult(
             success=False,
@@ -177,7 +177,7 @@ def apply_edit_with_verification(
 
         return write_result
 
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.error(f"Failed to apply edit to {file_path}: {e}")
         return FileWriteResult(
             success=False,

@@ -130,7 +130,7 @@ async def create_project(req: CreateProjectRequest, _token: TokenDep):
         return new_proj
     except HTTPException:
         raise
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.error("Failed to create project: %s", e)
         raise HTTPException(500, str(e))
 
@@ -195,7 +195,7 @@ async def get_project_status(project_id: int):
                 "agent_state": json.loads(data.get("agent_state", "{}")),
                 "steps": json.loads(data.get("steps", "[]")),
             }
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+        except Exception:
             return {"status": "idle"}
 
     return ProjectStatusResponse(
@@ -213,7 +213,7 @@ async def delete_project(project_id: int, _token: TokenDep):
             raise HTTPException(500, f"Failed to delete project: {res.get('message')}")
     except HTTPException:
         raise
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.error("Failed to delete project from cloud: %s", e)
         raise HTTPException(500, str(e))
 
@@ -240,13 +240,13 @@ async def delete_project(project_id: int, _token: TokenDep):
                     pipe.delete(f"sys:{repo.id}:wiki")
                     pipe.delete(f"indexing:cancel:{repo.id}")
                     await pipe.execute()
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                except Exception as e:
                     logger.warning("[ProjectsAPI] Failed to clear cache for repo %d: %s", repo.id, e)
 
                 try:
                     vector_store = get_vector_store(project_path=local_project_path)
                     await asyncio.to_thread(vector_store.delete_by_repository, str(repo.id))
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                except Exception as e:
                     logger.warning("[ProjectsAPI] Failed to cleanup vector store for repo %d: %s", repo.id, e)
 
             async with session_scope() as session:
@@ -256,7 +256,7 @@ async def delete_project(project_id: int, _token: TokenDep):
                         await session.delete(repo_to_delete)
                         logger.info("[ProjectsAPI] Deleted local repository and all associated data for repo %d", repo.id)
 
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.error("[ProjectsAPI] Failed to cleanup local data for project %d: %s", project_id, e)
 
     evocloud_manager.invalidate_projects_cache()

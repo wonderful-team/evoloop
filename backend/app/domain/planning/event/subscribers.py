@@ -74,7 +74,7 @@ class PlanRewind:
                         await system_bus.publish(
                             PlanUpdatedEvent(thread_id=event.thread_id, plan_id=plan.id, status="deleted")
                         )
-                    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                    except Exception as e:
                         logger.warning(
                             "[PlanRewind] Failed to publish plan updated event for deletion: %s",
                             e,
@@ -123,7 +123,7 @@ class PlanRewind:
                         await system_bus.publish(
                             PlanUpdatedEvent(thread_id=event.thread_id, plan_id=plan.id)
                         )
-                    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                    except Exception as e:
                         logger.warning(
                             "[PlanRewind] Failed to publish plan updated event: %s",
                             e,
@@ -134,7 +134,7 @@ class PlanRewind:
                         plan.id,
                         event.thread_id,
                     )
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error("[PlanRewind] Plan cleanup failed: %s", e)
             event.errors.append(str(e))
             event.success = False

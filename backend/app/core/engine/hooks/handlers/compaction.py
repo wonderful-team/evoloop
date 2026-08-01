@@ -139,7 +139,7 @@ Remaining: {checkpoint['remaining_work'] or 'Unknown'}
             data={"checkpoint": checkpoint, "summary": summary, "checkpoint_id": memory_entry.id},
         )
 
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         total_elapsed = (datetime.utcnow() - start_time).total_seconds()
         logger.error(f"[PreCompact] ❌ Failed to save state after {total_elapsed:.3f}s: {e}", exc_info=True)
         return HookResult(success=False, error=e)

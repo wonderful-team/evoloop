@@ -148,7 +148,7 @@ async def full_sync_task(device_key: str) -> dict:
         msg_count = len(seed_messages) + len(filtered_messages)
         return {"code": 0, "data": {"conversations": conv_count, "messages": msg_count}}
 
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         err_str = str(e).lower()
         if any(kw in err_str for kw in ("connect", "unreachable", "timeout", "socket", "network")):
             logger.warning(f"[SyncTask] Cloud unreachable during full sync (device={device_key}). Skipping noisy retry.")
@@ -315,7 +315,7 @@ async def incremental_sync_task(device_key: str, thread_ids: list[str]) -> dict:
                                 f"{api_result.get('message')}"
                             )
 
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                except Exception as e:
                     results["failed"] += 1
                     logger.error(f"[SyncTask] Error syncing thread {thread_id}: {e}")
 
@@ -325,7 +325,7 @@ async def incremental_sync_task(device_key: str, thread_ids: list[str]) -> dict:
         )
         return {"code": 0, "data": results}
 
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.error(f"[SyncTask] Exception in incremental sync: {e}")
         raise
 
@@ -366,7 +366,7 @@ async def sync_device_info_task(device_key: str, info: dict) -> dict:
         )
         return {"code": 0, "data": info}
 
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         err_str = str(e).lower()
         if any(kw in err_str for kw in ("connect", "unreachable", "timeout", "socket", "network")):
             logger.warning(

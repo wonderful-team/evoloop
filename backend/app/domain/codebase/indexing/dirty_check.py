@@ -69,7 +69,7 @@ async def is_file_changed_since_last_index(
         file_mtime = datetime.fromtimestamp(mtime_ts, timezone.utc)
         if source_file.last_indexed_at and file_mtime < source_file.last_indexed_at:
             return False
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+    except Exception:
         pass  # Fallback to checksum
 
     # Checksum comparison – only read & hash when mtime didn't settle it.
@@ -77,7 +77,7 @@ async def is_file_changed_since_last_index(
         with open(file_path, "rb") as f:
             content = f.read()
         new_checksum = compute_md5(content)
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.warning("[DirtyCheck] Could not read/hash %s: %s", file_path, e)
         return True
 

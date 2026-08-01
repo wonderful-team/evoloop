@@ -54,14 +54,13 @@ class MemoryMaintenanceAgent:
 
             return results
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[Maintenance] Failed: {e}")
             # Still try to cleanup
             try:
                 await self._cleanup_thread()
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.debug("Suppressed error: %s", e, exc_info=True)
-            raise
 
     def _log_time(self, time: datetime):
         """Log maintenance timestamp (one line per run)."""
@@ -85,7 +84,7 @@ class MemoryMaintenanceAgent:
                 deleted = result.rowcount
                 logger.debug(f"[Maintenance] Cleaned {deleted} messages from {self.thread_id}")
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning(f"[Maintenance] Cleanup warning: {e}")
 
     def get_last_time(self) -> datetime | None:
@@ -99,7 +98,7 @@ class MemoryMaintenanceAgent:
                 if lines:
                     last_line = lines[-1]
                     return datetime.strptime(last_line, "%Y-%m-%d %H:%M")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning(f"[Maintenance] Failed to read log: {e}")
 
         return None
@@ -188,7 +187,7 @@ if _MAINTENANCE_ENABLED:
             scheduler = MaintenanceScheduler()
             result = await scheduler.run()
             return {"triggered": result is not None}
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[Maintenance] Scheduled task failed: {e}")
             return {"triggered": False, "error": str(e)}
 else:

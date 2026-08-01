@@ -281,7 +281,7 @@ class ActivityStateService:
                     prev_state = json.loads(activity.agent_state_json)
                     if state.get("active_skills") is None and prev_state.get("active_skills") is not None:
                         state["active_skills"] = prev_state["active_skills"]
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                except Exception as e:
                     logger.debug("Suppressed error: %s", e, exc_info=True)
 
             activity.agent_state_json = json.dumps(state)

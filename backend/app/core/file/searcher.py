@@ -74,6 +74,6 @@ class FileSearcher:
                             "line": int(parts[1]),
                             "content": parts[2].strip()
                         })
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+            except Exception:
                 continue
         return results

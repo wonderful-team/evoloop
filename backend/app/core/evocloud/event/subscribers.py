@@ -45,7 +45,7 @@ class EvoCloudLifecycleSubscriber:
             await asyncio.sleep(1)
             projects = await evocloud_manager.scan_projects()
             logger.info(f"[EvoCloud] ✓ Projects cache warmed: {len(projects)} projects")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning(f"[EvoCloud] Cache warming failed: {e}")
 
     async def _start_services(self):
@@ -77,7 +77,7 @@ class EvoCloudLifecycleSubscriber:
                 await self._start_services()
             else:
                 logger.debug("[EvoCloud] No token found, skipping auto-start. Will start on USER_LOGGED_IN.")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[EvoCloud] Failed to start services: {e}")
 
     @event_subscribe(SystemEventType.USER_LOGGED_IN)
@@ -86,7 +86,7 @@ class EvoCloudLifecycleSubscriber:
         logger.debug("[EvoCloud] User logged in, starting services...")
         try:
             await self._start_services()
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[EvoCloud] Failed to start services on login: {e}")
 
     @event_subscribe(SystemEventType.USER_LOGGED_OUT)
@@ -96,7 +96,7 @@ class EvoCloudLifecycleSubscriber:
         try:
             await self._stop_services()
             logger.debug("[EvoCloud] Services stopped successfully")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[EvoCloud] Error during logout shutdown: {e}")
 
     @event_subscribe(SystemEventType.APP_STOPPING)
@@ -108,7 +108,7 @@ class EvoCloudLifecycleSubscriber:
         try:
             await self._stop_services()
             logger.debug("[EvoCloud] Services stopped successfully")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[EvoCloud] Error during shutdown: {e}")
 
 
@@ -264,5 +264,5 @@ class EvoCloudSyncCleanupSubscriber:
                     logger.info(f"[EvoCloud] Successfully deleted {len(event.message_ids)} messages from cloud via fallback")
                 else:
                     logger.warning(f"[EvoCloud] Failed to delete messages from cloud via fallback: {result.get('message')}")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[EvoCloud] Exception during cloud sync messages cleanup: {e}")

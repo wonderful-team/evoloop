@@ -92,7 +92,7 @@ async def find_element(
                 elements=[e.model_dump() for e in elements],
                 screenshot_hash=result.metadata.get("file_hash", ""),
             ))
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning(f"Failed to publish UI_TREE_OBSERVED: {e}")
 
         if return_all or not target:
@@ -174,6 +174,6 @@ async def find_element(
 
         return result_msg, {"count": 1, "target": target}
 
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.error(f"find_element error: {e}")
         return f"Error: {str(e)}"

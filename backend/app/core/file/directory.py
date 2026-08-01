@@ -18,6 +18,7 @@ from .tree import TreeService
 
 logger = logging.getLogger(__name__)
 
+
 # ============================================================================
 # Directory Listing & Tree (Delegated to TreeService & Traverser)
 # ============================================================================
@@ -72,6 +73,7 @@ def generate_tree(
         with_stats=with_stats
     )
 
+
 # ============================================================================
 # Directory Operations (Atomic)
 # ============================================================================
@@ -86,13 +88,14 @@ def create_directory(path: str, exist_ok: bool = True) -> DirectoryOperationResu
             path=path,
             message=f"Directory ensured: {path}"
         )
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         return DirectoryOperationResult(
             success=False,
             status=DirectoryStatus.ERROR,
             path=path,
             message=f"Failed to create directory: {e}"
         )
+
 
 def delete_directory(path: str, recursive: bool = False) -> DirectoryOperationResult:
     """Delete a directory."""
@@ -104,25 +107,34 @@ def delete_directory(path: str, recursive: bool = False) -> DirectoryOperationRe
         else:
             os.rmdir(path)
         return DirectoryOperationResult(success=True, status=DirectoryStatus.SUCCESS, path=path, message="Deleted")
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         return DirectoryOperationResult(success=False, status=DirectoryStatus.ERROR, path=path, message=str(e))
+
 
 def delete_file(path: str) -> DirectoryOperationResult:
     """Delete a file."""
     try:
         os.remove(path)
         return DirectoryOperationResult(success=True, status=DirectoryStatus.SUCCESS, path=path, message="Deleted")
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         return DirectoryOperationResult(success=False, status=DirectoryStatus.ERROR, path=path, message=str(e))
+
 
 def move_path(source: str, destination: str) -> DirectoryOperationResult:
     """Move a file or directory."""
     try:
         os.makedirs(os.path.dirname(os.path.abspath(destination)), exist_ok=True)
         shutil.move(source, destination)
-        return DirectoryOperationResult(success=True, status=DirectoryStatus.SUCCESS, path=source, destination=destination, message="Moved")
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        return DirectoryOperationResult(
+            success=True,
+            status=DirectoryStatus.SUCCESS,
+            path=source,
+            destination=destination,
+            message="Moved"
+        )
+    except Exception as e:
         return DirectoryOperationResult(success=False, status=DirectoryStatus.ERROR, path=source, message=str(e))
+
 
 # ============================================================================
 # Directory Information
@@ -151,9 +163,10 @@ def get_directory_info(path: str) -> DirectoryInfo:
         exists=True,
         is_empty=is_empty,
         file_count=file_count,
-        subdir_count=0, # Simplified for now
+        subdir_count=0,  # Simplified for now
         total_size=total_size
     )
+
 
 def get_directory_size(path: str) -> int:
     """Calculate total size using unified traversal."""
@@ -165,10 +178,12 @@ def get_directory_size(path: str) -> int:
             pass
     return total
 
+
 def ensure_directory(path: str) -> bool:
     """Ensure directory exists."""
     result = create_directory(path, exist_ok=True)
     return result.success
+
 
 def is_empty_directory(path: str) -> bool:
     """Check if directory is empty using unified traversal."""
@@ -176,5 +191,5 @@ def is_empty_directory(path: str) -> bool:
         for _ in FileTraverser.list_entries(path):
             return False
         return True
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+    except Exception:
         return False

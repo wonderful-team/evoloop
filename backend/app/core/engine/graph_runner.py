@@ -107,7 +107,7 @@ async def _restore_resume_context(thread_id: str, state: AgentState, config: dic
             row = res.scalar_one_or_none()
             if row:
                 last_human_msg = str(row)[:500]
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+    except Exception:
         logger.warning(f"[ResumeGraph] Failed to load last human msg for hydration")
 
     ctx = ContextManager.current()

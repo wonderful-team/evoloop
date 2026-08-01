@@ -12,7 +12,7 @@ class ClipboardMixin:
             import uiautomator2 as u2
             d = u2.connect(device_id) if device_id else u2.connect()
             return d.clipboard
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+        except Exception:
             pass
         try:
             from app.core.context.manager import ContextManager
@@ -24,7 +24,7 @@ class ClipboardMixin:
                     if match:
                         return match.group(1).strip()
             return ""
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning(f"[ADB] Clipboard read failed: {e}")
             return ""
 
@@ -34,7 +34,7 @@ class ClipboardMixin:
             d = u2.connect(device_id) if device_id else u2.connect()
             d.clipboard = text
             return True
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+        except Exception:
             pass
         try:
             escaped_text = text.replace("'", "'\\''")
@@ -43,6 +43,6 @@ class ClipboardMixin:
                 device_id=device_id,
             )
             return True
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning(f"[ADB] Clipboard write failed: {e}")
             return False

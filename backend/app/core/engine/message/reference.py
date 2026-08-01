@@ -160,7 +160,7 @@ class ReferenceService:
                             "type": "image_url",
                             "image_url": {"url": f"data:image/jpeg;base64,{b64}"}
                         })
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                except Exception as e:
                     logger.warning(f"[ReferenceService] Video keyframe extraction failed for {att_id}: {e}")
                 content_blocks.append({
                     "type": "text",
@@ -235,7 +235,7 @@ class ReferenceService:
                 if len(ref_msg.content) > 500:
                     snippet += "..."
                 return snippet, f"Quoted Message: {name}"
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"Error fetching message reference {msg_id_str}: {e}")
 
         return None, f"Quoted Message (Fetch Failed): {name}"
@@ -253,7 +253,7 @@ class ReferenceService:
             if len(content) > 2000:
                 snippet += "\n\n... (Content truncated for length)"
             return snippet, f"Referencing File: {name} (Path: {file_path})"
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning(f"Failed to read quoted file {target_path}: {e}")
             return None, f"Referencing File (Read Failed): {name} (Path: {file_path})"
 
@@ -290,7 +290,7 @@ class ReferenceService:
                         snippet += "\n... (File content truncated)"
                     snippets.append(f"--- File: {rel_to_dir} ---\n{snippet}")
                     file_count += 1
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                except Exception as e:
                     logger.debug(f"Skipping directory-ref file read error for {full_path}: {e}")
 
             sections = [
@@ -302,7 +302,7 @@ class ReferenceService:
             combined_content = "\n\n".join(sections)
             return combined_content, f"Referencing Directory: {name} (Path: {dir_path})"
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"Error resolving directory reference {target_path}: {e}")
             return None, f"Referencing Directory (Read Failed): {name} (Path: {dir_path})"
 
@@ -344,7 +344,7 @@ class ReferenceService:
                 if os.path.commonpath([abs_root, abs_resolved]) != abs_root:
                     logger.warning(f"Path traversal blocked! Root={abs_root}, Path={abs_resolved}")
                     return "/dev/null"
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.error(f"Error validating path isolation: {e}")
                 return "/dev/null"
 

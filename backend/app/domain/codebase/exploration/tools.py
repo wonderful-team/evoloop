@@ -125,6 +125,6 @@ async def ask_codebase(
         lines = [f"- {r.get('name')}: {r.get('description', '')}" for r in results[:10]]
         return f"Relevant concepts for '{question}':\n" + "\n".join(lines), {"count": len(results)}
         
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.error(f"Ask codebase failed: {e}")
         return f"Error searching codebase: {e}"

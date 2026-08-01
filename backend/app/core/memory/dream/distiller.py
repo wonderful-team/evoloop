@@ -81,7 +81,7 @@ class DeepDreamDistiller:
         if hash_file_path.exists():
             try:
                 last_hash = hash_file_path.read_text(encoding="utf-8").strip()
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.warning("[Dream] Failed to read last dream hash file: %s", e)
 
         if episodes_hash == last_hash:
@@ -106,7 +106,7 @@ class DeepDreamDistiller:
         try:
             hash_file_dir.mkdir(parents=True, exist_ok=True)
             hash_file_path.write_text(episodes_hash, encoding="utf-8")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning("[Dream] Failed to write last dream hash file: %s", e)
 
         result.finished_at = datetime.now()
@@ -149,7 +149,7 @@ class DeepDreamDistiller:
 
             return self._parse_insights(response.content)
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error("[Dream] LLM distillation failed: %s", e)
             return []
 
@@ -176,7 +176,7 @@ class DeepDreamDistiller:
                     utility_score=float(item.get("utility_score", 0.8)),
                     related_goals=item.get("related_goals", []),
                 ))
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.debug("[Dream] Skipping malformed insight: %s", e)
 
         return insights
@@ -214,7 +214,7 @@ class DeepDreamDistiller:
             logger.info("[Dream] Stored insight: %s (%s)", entry_id, insight.category)
             return entry_id
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning("[Dream] Failed to store insight: %s", e)
             return None
 
@@ -229,7 +229,7 @@ class DeepDreamDistiller:
                 if two_tier and hasattr(two_tier, "regenerate_memory_md"):
                     await two_tier.regenerate_memory_md()
                     logger.debug("[Dream] Hot memory regenerated")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.debug("[Dream] Hot memory regeneration skipped: %s", e)
 
     async def promote_cross_project_concepts(self) -> int:
@@ -254,7 +254,7 @@ class DeepDreamDistiller:
                 project_id=None,
                 limit=500,
             )
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning("[Dream] Failed to load concepts for promotion: %s", e)
             return 0
 
@@ -312,7 +312,7 @@ class DeepDreamDistiller:
                     title,
                     len(projects),
                 )
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.warning("[Dream] Failed to promote concept '%s': %s", title, e)
 
         if promoted > 0:

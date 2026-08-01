@@ -112,7 +112,7 @@ def _read_page_content(project_path: str, slug: str) -> str | None:
     try:
         content, _, _ = safe_read_with_hash(file_path)
         return content
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.warning(f"[Wiki] Failed to read file {file_path}: {e}")
         return None
 
@@ -227,7 +227,7 @@ async def list_wiki_pages(config: Annotated[RunnableConfig, InjectedToolArg] = N
                                 updated_at=datetime.utcnow(),
                             )
                         )
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                except Exception as e:
                     logger.warning(f"[Wiki] Failed to sync file {file_path}: {e}")
             session.commit()
 

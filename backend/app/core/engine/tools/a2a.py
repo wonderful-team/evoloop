@@ -49,7 +49,7 @@ async def list_agents() -> str:
                     })
             return json.dumps(online_agents, ensure_ascii=False, indent=2)
         return json.dumps(devices, ensure_ascii=False, indent=2)
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.error(f"[A2A] ListAgentsTool failed: {e}")
         return f"Error querying online agents: {e}"
 
@@ -134,7 +134,7 @@ async def send_agent_task(
                 file_size=up_res["file_size"],
                 md5=up_res["md5"]
             ))
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[A2A] Failed to upload attachment {path}: {e}")
             return f"Error uploading attachment {path}: {e}"
 
@@ -166,7 +166,7 @@ async def send_agent_task(
             cmd_data=cmd_data
         )
         logger.info(f"[A2A] Dispatched A2A task {task_id} to device {target_device_key}")
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.error(f"[A2A] Failed to dispatch task to gateway: {e}")
         return f"Error dispatching task: {e}"
 
@@ -261,7 +261,7 @@ async def complete_task(
                 file_size=up_res["file_size"],
                 md5=up_res["md5"]
             ))
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[A2A] Failed to upload callback attachment {path}: {e}")
             return f"Error uploading attachment {path}: {e}"
 
@@ -285,7 +285,7 @@ async def complete_task(
             cmd_data=cmd_data
         )
         logger.info(f"[A2A] Sent A2A callback result for task {thread_id} to device {caller_device_key}")
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.error(f"[A2A] Failed to send callback to caller: {e}")
         return f"Error sending callback: {e}"
 

@@ -149,7 +149,7 @@ class Solargraph(SolidLanguageServer):
                     with open(gemfile_lock_path) as f:
                         content = f.read()
                         solargraph_in_bundle = "solargraph" in content.lower()
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                except Exception as e:
                     log.warning(f"Warning: Could not read Gemfile.lock: {e}")
 
             if solargraph_in_bundle:
@@ -224,7 +224,7 @@ class Solargraph(SolidLanguageServer):
                     content = f.read().lower()
                     if "gem 'rails'" in content or 'gem "rails"' in content:
                         return True
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+            except Exception:
                 pass
 
         return False

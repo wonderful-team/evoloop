@@ -124,7 +124,7 @@ class BatchedEmbedder(BaseEmbedder):
         )
         try:
             embeddings = await self._embedder.embed_documents(all_texts)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as exc:
+        except Exception as exc:
             logger.exception("[BatchedEmbedder] Underlying embedder failed")
             for req in requests:
                 if not req.future.done():

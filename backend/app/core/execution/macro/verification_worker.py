@@ -146,7 +146,7 @@ class VerificationWorker:
             else:
                 raise ValueError(f"Unknown source/platform: {source}/{self._current_platform}")
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[Worker] Step execution failed: {e}")
             return {"error": "execution_failed", "message": str(e), "step": step}
 
@@ -304,7 +304,7 @@ class VerificationWorker:
                             abs_y = int(y * screen[1])
                         else:
                             abs_x, abs_y = int(x * 1080), int(y * 2340)
-                    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                    except Exception as e:
                         logger.warning(f"[Worker] Failed to get screen size: {e}, using defaults")
                         abs_x, abs_y = int(x * 1080), int(y * 2340)
                 else:
@@ -425,7 +425,7 @@ class VerificationWorker:
                         disable_trace_screenshot=True,
                         disable_atlas=True
                     )
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.warning(f"[Worker] Scroll failed: {e}")
             return {"status": "skipped", "reason": "scroll not supported"}
 
@@ -634,7 +634,7 @@ class VerificationWorker:
                 "extracted_data": extracted_data  # Include all extracted data
             }
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[Worker] Extraction failed: {e}", exc_info=True)
             return {
                 "status": "failed",
@@ -712,7 +712,7 @@ class VerificationWorker:
                 if self.agent_config.enable_screenshot_analysis:
                     state["screenshot"] = await self._desktop_controller.screenshot()
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[Worker] Failed to capture state: {e}")
             state["error"] = str(e)
 
@@ -736,7 +736,7 @@ class VerificationWorker:
                 await self._desktop_controller.cleanup()
                 self._desktop_controller = None
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[Worker] Cleanup error: {e}")
 
         self._initialized = False

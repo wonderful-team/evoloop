@@ -87,7 +87,7 @@ class BackgroundTask(DynamicBaseModel):
                     summary_args.update({k.lower(): v for k, v in self.result.items()})
                 
                 display_title = metadata.get_display_name(self.tool_name, summary_args)
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 import logging
                 logging.getLogger(__name__).debug(f"Failed to resolve display title for {self.tool_name}: {e}")
         

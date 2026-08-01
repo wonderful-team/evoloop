@@ -103,7 +103,7 @@ class AgentReasoningEngine:
 
             return result
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[LLM:{context}:{step_number}] Decision failed: {e}")
             return ActionDecision(
                 action="execute",
@@ -166,7 +166,7 @@ class AgentReasoningEngine:
 
             return success, reasoning
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[LLM:VERIFY:{step_number}] Verification failed: {e}")
             return False, f"Verification error: {e}"
 
@@ -214,7 +214,7 @@ class AgentReasoningEngine:
             logger.info(f"[LLM:TERMINAL:{step_number}] Reasoning: {reasoning}")
 
             return is_terminal
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning(f"[LLM:TERMINAL:{step_number}] Analysis failed: {e}. Defaulting to terminal for safety.")
             return True
 
@@ -345,7 +345,7 @@ class AgentReasoningEngine:
             logger.info(f"[LLM:REDUNDANCY:{step_number}] Result: is_redundant={result.is_redundant}, type={result.redundancy_type.value}")
             return result
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning(f"[LLM:REDUNDANCY:{step_number}] Check failed: {e}")
             return RedundancyCheckResult(is_redundant=False)
 
@@ -421,6 +421,6 @@ class AgentReasoningEngine:
             logger.info(f"[LLM:ANALYZE] Found {len(result.issues)} issues, {len(result.recommendations)} recommendations")
 
             return result
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[LLM:ANALYZE] Analysis failed: {e}")
             return AIAnalysisResult(qualitative_assessment=f"Analysis failed: {e}")

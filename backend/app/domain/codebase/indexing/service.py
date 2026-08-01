@@ -84,7 +84,7 @@ class IndexingService:
                         if p.get("path") and os.path.abspath(p.get("path")) == abs_path:
                             resolved_pid = p.get("id")
                             break
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                except Exception as e:
                     logger.warning(f"Failed to resolve project_id for {path}: {e}")
 
             if not resolved_pid:
@@ -236,7 +236,7 @@ class IndexingService:
                 else:
                     logger.debug(f"Skipping vector upsert for {prepared.rel_path}: embeddings disabled or not generated.")
 
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.error(f"Error indexing file {file_path}: {e}")
                 if prepared is not None:
                     try:
@@ -244,7 +244,7 @@ class IndexingService:
                             prepared.source_file, session
                         )
                         await session.commit()
-                    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as mark_err:
+                    except Exception as mark_err:
                         logger.error(f"Failed to mark source_file as failed: {mark_err}")
                         await session.rollback()
                 else:
@@ -290,7 +290,7 @@ class IndexingService:
                     file_summary_doc=file_summary_doc,
                 )
                 return prepared, indexed
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.error(f"Error preparing/extracting {file_path}: {e}")
                 await session.rollback()
                 return None
@@ -372,7 +372,7 @@ class IndexingService:
                     await session.delete(source_file)
                     logger.info(f"Removed {rel_path} from SQL Index")
 
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.error(f"Error removing file {file_path}: {e}")
                 await session.rollback()
 
@@ -499,7 +499,7 @@ class IndexingService:
                 )
                 try:
                     embeddings = await batched_embedder.embed_documents(window_texts)
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                except Exception as e:
                     logger.warning(
                         f"[_embed_window] Window embedding failed: {e}. "
                         "Falling back to persisting files without embeddings."
@@ -572,7 +572,7 @@ class IndexingService:
                     last_repo_path = repo_path
                     all_window_vectors.extend(vector_collector)
 
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.error(f"Window persist failed: {e}")
                 window_ok = False
 
@@ -616,7 +616,7 @@ class IndexingService:
                 logger.info(
                     f"Vector upsert complete: {len(all_chunks)} chunks"
                 )
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.error(f"Final vector upsert failed: {e}")
 
         error_count = extract_error_count + persist_error_count

@@ -104,7 +104,7 @@ def create_python_tool(name: str, description: str, code: str, version: str = "1
         write_result = write_file(filepath, code)
         if not write_result.success:
             return f"Error writing tool file: {write_result.error_message}"
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         return f"Error writing tool file: {e}"
 
     # 3. Dynamic Import
@@ -144,6 +144,6 @@ def create_python_tool(name: str, description: str, code: str, version: str = "1
 
         return f"Success: Tool '{name}' created and registered. You can now use it."
 
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.error(f"Failed to load dynamic tool {name}: {e}")
         return f"Error loading tool: {e}"

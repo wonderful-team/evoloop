@@ -201,7 +201,7 @@ class NixLanguageServer(SolidLanguageServer):
 
         except subprocess.TimeoutExpired:
             log.warning("Nix install timed out after 10 minutes")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             log.error(f"Error installing nixd with nix: {e}")
 
         return None
@@ -240,7 +240,7 @@ class NixLanguageServer(SolidLanguageServer):
             result = subprocess.run([nixd_path, "--version"], capture_output=True, text=True, check=False, timeout=5)
             if result.returncode != 0:
                 raise RuntimeError(f"nixd failed to run: {result.stderr}")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             raise RuntimeError(f"Failed to verify nixd installation: {e}")
 
         return nixd_path

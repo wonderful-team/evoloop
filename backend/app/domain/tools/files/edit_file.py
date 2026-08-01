@@ -71,7 +71,7 @@ async def handle_multi_edit(
             engine = get_exploration_engine()
             repo_path = get_working_directory(config)
             diagnostics = await engine.check_types(target_path, repo_path)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.debug(f"[Type Check] Failed: {e}")
         template_context["diagnostics"] = diagnostics
 
@@ -100,7 +100,7 @@ async def handle_multi_edit(
                 run_id=ctx.run_id,
                 tool_call_id=ctx.current_tool_call_id,
             )
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"Failed to persist file operation: {e}")
 
     return render_template("domain/tools/multi_edit_success.prompt.j2", **template_context), {"count": result["applied_edits"]}
@@ -155,7 +155,7 @@ async def handle_edit(request: EditFileRequest) -> str:
             engine = get_exploration_engine()
             repo_path = get_working_directory(request.config)
             diagnostics = await engine.check_types(target_path, repo_path)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.debug(f"[Type Check] Failed: {e}")
         template_context["diagnostics"] = diagnostics
 
@@ -185,7 +185,7 @@ async def handle_edit(request: EditFileRequest) -> str:
                     run_id=ctx.run_id,
                     tool_call_id=ctx.current_tool_call_id,
                 )
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.error(f"Failed to persist file operation: {e}")
 
     return render_template("domain/tools/edit_result.prompt.j2", **template_context)
@@ -301,7 +301,7 @@ async def edit_file(
                 absolute_path=target_path
             )
             return format_preview_result(result, path, target, replacement)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             return f"Preview error: {e}"
 
     return await handle_edit(

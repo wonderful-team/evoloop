@@ -175,7 +175,7 @@ class VueLanguageServer(SolidLanguageServer):
                 relative_path = str(vue_file.relative_to(repo_path))
                 if "node_modules" not in relative_path and not relative_path.startswith("."):
                     vue_files.append(relative_path)
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 log.debug(f"Error processing Vue file {vue_file}: {e}")
 
         return vue_files
@@ -194,7 +194,7 @@ class VueLanguageServer(SolidLanguageServer):
                 with self._ts_server.open_file(vue_file) as file_buffer:
                     file_buffer.ref_count += 1
                     self._indexed_vue_file_uris.append(file_buffer.uri)
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 log.debug(f"Failed to open {vue_file} on TS server: {e}")
 
         self._vue_files_indexed = True
@@ -309,7 +309,7 @@ class VueLanguageServer(SolidLanguageServer):
             log.debug(f"Found {len(ret)} file references for {relative_file_path}")
             return ret
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             log.warning(f"Error requesting file references for {relative_file_path}: {e}")
             return []
 
@@ -536,7 +536,7 @@ class VueLanguageServer(SolidLanguageServer):
 
             self._ts_server_started = True
             log.info("Companion TypeScript server ready")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             log.error(f"Error starting TypeScript server: {e}")
             self._ts_server = None
             self._ts_server_started = False
@@ -558,7 +558,7 @@ class VueLanguageServer(SolidLanguageServer):
             if isinstance(result, dict) and "body" in result:
                 return result["body"]
             return result
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             log.error(f"Error forwarding tsserver request {method}: {e}")
             return None
 
@@ -577,7 +577,7 @@ class VueLanguageServer(SolidLanguageServer):
                         self._ts_server.server.notify.did_close_text_document({"textDocument": {"uri": uri}})
                         del self._ts_server.open_file_buffers[uri]
                         log.debug(f"Closed indexed Vue file: {uri}")
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 log.debug(f"Error closing indexed Vue file {uri}: {e}")
 
         self._indexed_vue_file_uris.clear()
@@ -587,7 +587,7 @@ class VueLanguageServer(SolidLanguageServer):
             try:
                 log.info("Stopping companion TypeScript server")
                 self._ts_server.stop()
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 log.warning(f"Error stopping TypeScript server: {e}")
             finally:
                 self._ts_server = None
@@ -640,7 +640,7 @@ class VueLanguageServer(SolidLanguageServer):
                         log.debug(f"Forwarded tsserver/response for {method}: {result}")
                 else:
                     log.warning(f"Unexpected tsserver/request params format: {params}")
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 log.error(f"Error handling tsserver/request: {e}")
 
         self.server.on_request("client/registerCapability", register_capability_handler)

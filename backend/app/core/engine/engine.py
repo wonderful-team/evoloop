@@ -60,9 +60,7 @@ class AgentEngine:
     ) -> EngineResult:
         """Executes the standard Agent ReAct loop."""
         if not model:
-            raise ValueError(
-                f"[{name}] No model provided for node execution."
-            )
+            logger.info(f"[{name}] No model provided for node execution; relying on cloud gateway default model routing.")
 
         llm, provider = await self._inference_engine.create_llm(
             model=model,

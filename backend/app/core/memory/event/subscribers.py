@@ -46,7 +46,7 @@ class MemoryLifecycleSubscriber:
             from app.core.memory.lifespan import MemoryLifespanManager
             await MemoryLifespanManager.shutdown()
             logger.info("[Memory] Memory container shutdown")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning(f"[Memory] Failed to shutdown memory container: {e}")
 
     @event_subscribe(SystemEventType.EXTRACTION_REQUESTED)
@@ -182,7 +182,7 @@ class MemoryRewind:
                 # --- NEW: Physical Memory Cleanup ---
                 try:
                     await self._cleanup_physical_memory(event)
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as pe:
+                except Exception as pe:
                     logger.warning(f"[MemoryRewind] Physical cleanup warning: {pe}")
 
                 # Report back to the main event
@@ -191,7 +191,7 @@ class MemoryRewind:
             else:
                 logger.debug(f"[MemoryRewind] No affected messages identified for thread {event.thread_id}")
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             error_msg = f"Memory cleanup failed: {e}"
             logger.error(f"[MemoryRewind] {error_msg}")
             event.errors.append(error_msg)
@@ -276,7 +276,7 @@ class MemoryRewind:
                         if await memory_manager.delete_memory(mem.id):
                             count += 1
 
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                except Exception as e:
                     logger.warning(f"[MemoryRewind] Failed to delete memories for msg {msg_id}: {e}")
 
             # Delete by run_id
@@ -290,10 +290,10 @@ class MemoryRewind:
                     for mem in results:
                         if await memory_manager.delete_memory(mem.id):
                             count += 1
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                except Exception as e:
                     logger.warning(f"[MemoryRewind] Failed to delete memories for run {run_id}: {e}")
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[MemoryRewind] Memory manager initialization failed: {e}")
 
         return count
@@ -338,7 +338,7 @@ class MemoryRewind:
                     try:
                         f.unlink()
                         logger.debug(f"[MemoryRewind] Deleted stale context file: {f.name}")
-                    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as exc:
+                    except Exception as exc:
                         logger.debug(f"[MemoryRewind] Failed to delete {f.name}: {exc}")
 
         # 2. Regenerate MEMORY.md (Tier 1)
@@ -351,7 +351,7 @@ class MemoryRewind:
             # This will pull from the newly cleaned cold memory (Vector DB)
             await container.memory_manager.regenerate_memory_md()
             logger.info("[MemoryRewind] MEMORY.md regenerated successfully")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[MemoryRewind] Failed to regenerate MEMORY.md: {e}")
 
     def get_deleted_count(self) -> int:
@@ -383,7 +383,7 @@ class MemoryConversationCleanup:
                 memory_manager = container.memory_manager
                 if hasattr(memory_manager, '_engine') and memory_manager._engine:
                     await memory_manager._engine._db_delete_by_source_thread_id(thread_id)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning(f"[MemoryCleanup] MemoryIndex cleanup warning: {e}")
 
         logger.info(f"[MemoryCleanup] Memory cleanup done for thread {thread_id}")

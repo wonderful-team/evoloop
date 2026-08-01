@@ -48,7 +48,7 @@ async def analyze_image(
             if ax_tree and "Error" not in ax_tree:
                 final_prompt = render_template("core/vision/vision_context.prompt.j2", tree_label=tree_label, ax_tree=ax_tree)
                 logger.info(f"[Vision] Injected {tree_label} into prompt via template.")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning(f"[Vision] Failed to inject AX Tree: {e}")
 
     result = await vision_engine.process(

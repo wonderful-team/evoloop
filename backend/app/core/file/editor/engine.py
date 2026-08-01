@@ -90,7 +90,7 @@ class EditEngine:
 
                 return True, new_content, f"Applied using strategy: {strategy_name}"
 
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+            except Exception:
                 # Log and continue to next strategy
                 continue
 

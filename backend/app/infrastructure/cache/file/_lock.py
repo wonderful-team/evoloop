@@ -144,5 +144,5 @@ class FileCacheLockAdapter(CacheLock):
                 elif _HAS_MSVCRT:
                     msvcrt.locking(self._fd, msvcrt.LK_UNLCK, 1)
                 os.close(self._fd)
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.debug("Suppressed error: %s", e, exc_info=True)

@@ -49,7 +49,7 @@ class CodeExplorationEngine:
                     "source": "sql",
                     "results": results
                 }
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.debug(f"[Engine] SQL lookup failed: {e}")
 
         try:
@@ -60,7 +60,7 @@ class CodeExplorationEngine:
                     "source": "search_center",
                     "results": results
                 }
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.debug(f"[Engine] Search center lookup failed: {e}")
 
         return None
@@ -132,7 +132,7 @@ class CodeExplorationEngine:
             
             return self._format_diagnostics(diagnostics)
             
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[Engine] Type check failed: {e}")
             return [{"error": str(e)}]
     
@@ -143,7 +143,7 @@ class CodeExplorationEngine:
         try:
             usages = await retriever.find_usages(symbol, project_id)
             return usages or []
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[Engine] Impact analysis failed: {e}")
             return []
     

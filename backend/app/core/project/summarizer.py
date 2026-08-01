@@ -41,7 +41,7 @@ async def _summarize_project_logic(name: str, path: str, module_graph: str = "")
                     break
         if matched:
             project_id = matched.get("id")
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.warning(f"Early project ID resolution failed: {e}")
 
     # Start Activity
@@ -86,7 +86,7 @@ async def _summarize_project_logic(name: str, path: str, module_graph: str = "")
             for entry in FileTraverser.list_entries(path):
                 if entry.is_file():
                     files.append(entry.name)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.debug(f"[ProjectSummarizer] Directory scan failed for {path}: {e}")
 
         readme_content = project_context_manager.extract_description_from_readme(path)
@@ -171,7 +171,7 @@ async def _summarize_project_logic(name: str, path: str, module_graph: str = "")
                     logger.info(f"[ProjectSummarizer] Uploaded summary for {name}")
                     # Invalidate cache to reflect updated description
                     evocloud_manager.invalidate_projects_cache()
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as up_e:
+                except Exception as up_e:
                     logger.error(f"Failed to upload summary: {up_e}")
         else:
             logger.warning(f"[ProjectSummarizer] Could not resolve Project ID for {name}, using default 1")
@@ -193,7 +193,7 @@ async def _summarize_project_logic(name: str, path: str, module_graph: str = "")
         # Done
         await activity_monitor.end_run(sys_tid, "done")
 
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.error(f"[ProjectSummarizer] Failed to summarize {name}: {e}")
         await activity_monitor.end_run(sys_tid, "failed")
         # Re-raise to let Celery know it failed (triggering retries if configured)

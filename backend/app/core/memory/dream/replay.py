@@ -44,7 +44,7 @@ class EpisodeReplay:
                 project_id=project_id,
                 limit=limit,
             )
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning("[Dream:Replay] Failed to load episodes: %s", e)
             return []
 

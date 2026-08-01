@@ -22,7 +22,7 @@ class DumpMixin:
                         state_data = json.load(f)
                         data_to_dump["batch_items"] = state_data.get("items", [])
                         logger.info(f"[{thread_id}] Enriched dump with {len(data_to_dump['batch_items'])} items from state file")
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                except Exception as e:
                     logger.warning(f"[{thread_id}] Failed to load state file for enriched dump: {e}")
 
         if sink_type == "file":
@@ -43,7 +43,7 @@ class DumpMixin:
             with open(sink_path, "w", encoding="utf-8") as f:
                 json.dump(extracted_data, f, ensure_ascii=False, indent=2)
             logger.info(f"[MacroEngine] Data dumped to file: {sink_path}")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning(f"Failed to dump data to file: {e}")
 
     @classmethod
@@ -112,7 +112,7 @@ class DumpMixin:
             result = await target_tool.ainvoke(data_payload)
             logger.info(f"[MacroEngine] Data pushed to MCP '{mcp_server}': {result}")
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[MacroEngine] Failed to push data to MCP: {e}", exc_info=True)
 
     @classmethod
@@ -152,5 +152,5 @@ class DumpMixin:
                 response.raise_for_status()
                 logger.info(f"[MacroEngine] Data pushed to webhook: {response.status_code}")
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[MacroEngine] Failed to push data to webhook: {e}", exc_info=True)

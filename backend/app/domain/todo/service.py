@@ -58,7 +58,7 @@ class TodoService:
         try:
             from app.domain.todo.event.publishers import publish_todo_updated
             await publish_todo_updated(todo_id=todo_id, action=action, project_id=project_id)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning(f"[TodoService] Failed to publish todo updated event: {e}")
 
     # ============== Creation ==============

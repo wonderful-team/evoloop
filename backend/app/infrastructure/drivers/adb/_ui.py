@@ -16,7 +16,7 @@ class UIMixin:
         try:
             from app.infrastructure.vision.storage import screenshot_storage
             filepath = screenshot_storage.get_path(purpose=purpose, platform="android", bundle_id=bundle_id, suffix=suffix)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning(f"[ADB] Failed to use hierarchical storage: {e}, using temp")
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"android_screenshot_{timestamp}.png"
@@ -49,7 +49,7 @@ class UIMixin:
                     devices = ctx_env.get("devices", [])
                     if devices and len(devices) == 1:
                         device_id = devices[0]
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                except Exception as e:
                     logger.debug("Suppressed error: %s", e, exc_info=True)
 
             capabilities = self._device_capabilities.get(device_id, {})
@@ -62,7 +62,7 @@ class UIMixin:
                     if xml_content and "<hierarchy" in xml_content:
                         logger.info(f"Dumped UI hierarchy in {(time.time()-start)*1000:.0f}ms (uiautomator2, cached)")
                         return xml_content
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                except Exception as e:
                     logger.warning(f"[ADB] Cached uiautomator2 failed: {e}, will retry")
 
             elif capabilities.get("native_uiautomator") and not capabilities.get("uiautomator2"):
@@ -79,13 +79,13 @@ class UIMixin:
                         self._device_capabilities[device_id] = {"uiautomator2": True, "native_uiautomator": False}
                     logger.info(f"Dumped UI hierarchy in {(time.time()-start)*1000:.0f}ms (uiautomator2, auto-detected)")
                     return xml_content
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+            except Exception:
                 pass
 
             logger.debug(f"[ADB] uiautomator2 not available, trying native...")
             try:
                 return self._dump_ui_native(device_id, compressed, start)
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as native_err:
+            except Exception as native_err:
                 raise ADBError(f"Failed to capture UI hierarchy. uiautomator2 not available, native: {native_err}")
 
     def _dump_ui_native(self, device_id, compressed, start_time):
@@ -108,7 +108,7 @@ class UIMixin:
                         self._device_capabilities[device_id] = {"native_uiautomator": True, "uiautomator2": False}
                     logger.info(f"Dumped UI hierarchy in {(time.time()-start_time)*1000:.0f}ms (native exec-out)")
                     return stdout[xml_start:]
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+            except Exception:
                 continue
 
         unique_id = gen_uuid_hex()[:8]
@@ -131,5 +131,5 @@ class UIMixin:
                 self._device_capabilities[device_id] = {"native_uiautomator": True, "uiautomator2": False}
             logger.info(f"Dumped UI hierarchy in {(time.time()-start_time)*1000:.0f}ms (native file)")
             return stdout
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             raise ADBError(f"Native uiautomator failed: {e}")

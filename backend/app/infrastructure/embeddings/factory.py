@@ -14,7 +14,7 @@ def _svc(key: str, default: str | None = None) -> str | None:
     """Read a system config value with safe fallback."""
     try:
         return SystemConfigService.get_value(key, default)
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+    except Exception:
         return default
 
 

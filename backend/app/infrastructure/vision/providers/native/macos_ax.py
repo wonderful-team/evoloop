@@ -109,7 +109,7 @@ class MacOSAxProvider(VisionProvider):
             # Clean up potential "missing value" in AppleScript output
             cleaned_output = ax_output.replace("missing value", "None")
             raw_elements = ast.literal_eval(cleaned_output)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"Failed to parse MacOS AX output: {e}\nOutput: {ax_output[:200]}")
             return []
 

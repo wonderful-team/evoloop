@@ -165,12 +165,12 @@ async def create_plan(
             from app.core.events import system_bus
             from app.domain.planning.event import PlanUpdatedEvent
             await system_bus.publish(PlanUpdatedEvent(thread_id=thread_id, plan_id=plan_id))
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning(f"[create_plan] Failed to publish plan updated event: {e}")
 
         return return_text, meta
 
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.error(f"Failed to create plan in DB: {e}")
         return f"Error: {str(e)}", {"status": "error"}
 
@@ -250,11 +250,11 @@ async def update_step_status(
                         status=status,
                     )
                 )
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning(f"[update_step_status] Failed to publish plan updated event: {e}")
 
         return msg, meta
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         return f"Error: {str(e)}", {"status": "error"}
 
 
@@ -312,6 +312,6 @@ async def analyze_feasibility(proposed_plan: str, config: RunnableConfig) -> str
 
         return report
 
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.error(f"Feasibility analysis failed: {e}")
         return f"Analysis Failed: {str(e)}"

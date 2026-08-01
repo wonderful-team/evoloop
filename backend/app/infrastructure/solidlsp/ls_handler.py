@@ -248,7 +248,7 @@ class SolidLanguageServerHandler:
         if pipe:
             try:
                 pipe.close()
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+            except Exception:
                 pass
 
     def _terminate_or_kill_process(self, process: subprocess.Popen[bytes]) -> None:
@@ -285,7 +285,7 @@ class SolidLanguageServerHandler:
             # Fall back to direct process signaling
             try:
                 getattr(process, signal_method)()
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+            except Exception:
                 pass
 
     def shutdown(self) -> None:
@@ -354,7 +354,7 @@ class SolidLanguageServerHandler:
             exception = e
         except (BrokenPipeError, ConnectionResetError) as e:
             exception = LanguageServerTerminatedException("Language server process terminated while reading stdout", self.language, cause=e)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             exception = LanguageServerTerminatedException(
                 "Unexpected error while reading stdout from language server process", self.language, cause=e
             )
@@ -380,7 +380,7 @@ class SolidLanguageServerHandler:
                 line_str = line.decode(ENCODING, errors="replace")
                 level = self._determine_log_level(line_str)
                 log.log(level, line_str)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             log.error("Error while reading stderr from language server process: %s", e, exc_info=e)
         if not self._is_shutting_down:
             log.error("Language server stderr reader thread terminated unexpectedly")
@@ -416,7 +416,7 @@ class SolidLanguageServerHandler:
                 self._response_handler(payload)
             else:
                 self._log(f"Unknown payload type: {payload}")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as err:
+        except Exception as err:
             self._log(f"Error handling server payload: {err}")
 
     def send_notification(self, method: str, params: dict | None = None) -> None:
@@ -550,7 +550,7 @@ class SolidLanguageServerHandler:
             self.send_response(request_id, handler(params))
         except LSPError as ex:
             self.send_error_response(request_id, ex)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as ex:
+        except Exception as ex:
             self.send_error_response(request_id, LSPError(ErrorCodes.InternalError, str(ex)))
 
     def _notification_handler(self, response: StringDict) -> None:
@@ -567,7 +567,7 @@ class SolidLanguageServerHandler:
             handler(params)
         except asyncio.CancelledError:
             return
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as ex:
+        except Exception as ex:
             if (not self._is_shutting_down) and self.logger:
                 self.logger(
                     "client",

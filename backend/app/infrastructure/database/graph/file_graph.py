@@ -88,7 +88,7 @@ class FileGraphDriver:
         except ImportError:
             logger.warning("[FileGraph] networkx not installed, graph features disabled")
             self._graph = None
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[FileGraph] Failed to load graph: {e}")
             self._graph = None
 
@@ -108,7 +108,7 @@ class FileGraphDriver:
             with open(self.graph_file, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
             logger.debug(f"[FileGraph] Saved graph to {self.graph_file}")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[FileGraph] Failed to save graph: {e}")
 
     def session(self):
@@ -377,7 +377,7 @@ class FileGraphDriver:
                         "project_id": properties.get("project_id", DEFAULT_PROJECT_ID),
                         "vector": properties["embedding"],
                     }])
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as ve:
+                except Exception as ve:
                     logger.warning(f"[FileGraph] Failed to sync Concept vector to store: {ve}")
 
             self._save_graph()

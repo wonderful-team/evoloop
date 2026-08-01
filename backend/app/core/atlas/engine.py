@@ -55,7 +55,7 @@ class AtlasEngine:
                     screenshot_hash=screenshot_hash
                 )
                 return
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.debug(f"[AtlasEngine] Dynamic app check failed: {e}")
 
         try:
@@ -82,7 +82,7 @@ class AtlasEngine:
             await self.store.save_app_model(app_model)
             logger.info(f"[AtlasEngine] Background mapped state '{window_title}' for {bundle_id}")
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[AtlasEngine] Failed to index observed UI tree for {bundle_id}: {e}")
 
     async def query_app_atlas(self, bundle_ids: str | list[str] | None = None, state_id: str | None = None, platform: str = "macos") -> str:
@@ -207,101 +207,97 @@ class AtlasEngine:
           - {"strategy": str, "parameters": dict, "source": str}  → interaction recipe
           - None  → not found
         """
+        is_dynamic = await self.is_dynamic_app(bundle_id, platform)
+        if is_dynamic:
+            strategy = await self.get_app_strategy(bundle_id, platform)
+            if strategy:
+                infra_elem = strategy.get_infrastructure_element(element_name)
+                if infra_elem and infra_elem.get("bounds"):
+                    bounds = infra_elem["bounds"]
+                    return {
+                        "x": bounds.get("x", 0),
+                        "y": bounds.get("y", 0),
+                        "source": "atlas_strategy_infra"
+                    }
+                strat = strategy.get_strategy_for(element_name)
+                if strat:
+                    return {
+                        "strategy": strat.strategy_type,
+                        "parameters": strat.parameters,
+                        "source": "atlas_strategy"
+                    }
+        # 3. Historical spatial memory (from mapped states)
         try:
-            is_dynamic = await self.is_dynamic_app(bundle_id, platform)
-            if is_dynamic:
-                strategy = await self.get_app_strategy(bundle_id, platform)
-                if strategy:
-                    infra_elem = strategy.get_infrastructure_element(element_name)
-                    if infra_elem and infra_elem.get("bounds"):
-                        bounds = infra_elem["bounds"]
-                        return {
-                            "x": bounds.get("x", 0),
-                            "y": bounds.get("y", 0),
-                            "source": "atlas_strategy_infra"
-                        }
-                    strat = strategy.get_strategy_for(element_name)
-                    if strat:
-                        return {
-                            "strategy": strat.strategy_type,
-                            "parameters": strat.parameters,
-                            "source": "atlas_strategy"
-                        }
-            # 3. Historical spatial memory (from mapped states)
-            try:
-                summary = await self.store.get_app_summary(bundle_id, platform=platform)
-                if summary and summary.states:
-                    # summary.states entries are {"id": ..., "title": ...} dicts
-                    # (SQLAtlasStore); tolerate plain strings from other stores.
-                    for state_entry in summary.states:
-                        state_id = (
-                            state_entry.get("id")
-                            if isinstance(state_entry, dict)
-                            else state_entry
-                        )
-                        if not state_id:
-                            continue
-                        detail = await self.store.get_state_detail(bundle_id, state_id, platform=platform)
-                        if detail:
-                            for el in detail.elements:
-                                el_name = str(el.get("label") or el.get("text") or el.get("name") or "").lower()
-                                if element_name.lower() in el_name:
-                                    if el.get("x") is not None and el.get("y") is not None:
-                                        return {
-                                            "x": el["x"],
-                                            "y": el["y"],
-                                            "source": "atlas_memory"
-                                        }
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
-                logger.debug(f"[AtlasEngine] Historical memory check failed: {e}")
+            summary = await self.store.get_app_summary(bundle_id, platform=platform)
+            if summary and summary.states:
+                # summary.states entries are {"id": ..., "title": ...} dicts
+                # (SQLAtlasStore); tolerate plain strings from other stores.
+                for state_entry in summary.states:
+                    state_id = (
+                        state_entry.get("id")
+                        if isinstance(state_entry, dict)
+                        else state_entry
+                    )
+                    if not state_id:
+                        continue
+                    detail = await self.store.get_state_detail(bundle_id, state_id, platform=platform)
+                    if detail:
+                        for el in detail.elements:
+                            el_name = str(el.get("label") or el.get("text") or el.get("name") or "").lower()
+                            if element_name.lower() in el_name:
+                                if el.get("x") is not None and el.get("y") is not None:
+                                    return {
+                                        "x": el["x"],
+                                        "y": el["y"],
+                                        "source": "atlas_memory"
+                                    }
+        except Exception as e:
+            logger.debug(f"[AtlasEngine] Historical memory check failed: {e}")
 
-            # 4. Learned Skills Fallback (Task-specific memory)
-            # This covers mappings like "SearchButton" -> (x, y) learned from past traces
-            try:
-                embedder = EmbedderFactory.get_embedder()
-                vector = await embedder.embed_query(element_name)
-                
-                if not vector:
-                    logger.debug(f"[AtlasEngine] Skipping semantic search for {element_name}: empty vector")
-                    return None
-                
-                vector_store = get_vector_store()
-                skills = await asyncio.to_thread(
-                    vector_store.search_skills,
-                    query_vector=vector,
-                    bundle_id=bundle_id,
-                    platform=platform,
-                    top_k=3
-                )
-                logger.info(f"[AtlasEngine] Found {len(skills)} skills for {element_name} in {bundle_id}")
-                
-                if skills:
-                    for skill in skills:
-                        logger.info(f"[AtlasEngine] Checking skill: {skill.get('name')} (Score: {skill.get('score')})")
-                        # Priority 1: Exact or substring name/label match
-                        s_name = str(skill.get("name") or "").lower()
-                        s_label = str(skill.get("label") or "").lower()
-                        if element_name.lower() in s_name or element_name.lower() in s_label:
-                            if skill.get("x") is not None and skill.get("y") is not None and skill["x"] >= 0:
-                                return {
-                                    "x": skill["x"],
-                                    "y": skill["y"],
-                                    "source": "atlas_skill"
-                                }
-                    
-                    # Priority 2: High confidence semantic match (> 0.9)
-                    if len(skills) > 0 and skills[0].get("score", 0) > 0.9:
-                        if skills[0].get("x") is not None and skills[0].get("y") is not None and skills[0]["x"] >= 0:
+        # 4. Learned Skills Fallback (Task-specific memory)
+        # This covers mappings like "SearchButton" -> (x, y) learned from past traces
+        try:
+            embedder = EmbedderFactory.get_embedder()
+            vector = await embedder.embed_query(element_name)
+
+            if not vector:
+                logger.debug(f"[AtlasEngine] Skipping semantic search for {element_name}: empty vector")
+                return None
+
+            vector_store = get_vector_store()
+            skills = await asyncio.to_thread(
+                vector_store.search_skills,
+                query_vector=vector,
+                bundle_id=bundle_id,
+                platform=platform,
+                top_k=3
+            )
+            logger.info(f"[AtlasEngine] Found {len(skills)} skills for {element_name} in {bundle_id}")
+
+            if skills:
+                for skill in skills:
+                    logger.info(f"[AtlasEngine] Checking skill: {skill.get('name')} (Score: {skill.get('score')})")
+                    # Priority 1: Exact or substring name/label match
+                    s_name = str(skill.get("name") or "").lower()
+                    s_label = str(skill.get("label") or "").lower()
+                    if element_name.lower() in s_name or element_name.lower() in s_label:
+                        if skill.get("x") is not None and skill.get("y") is not None and skill["x"] >= 0:
                             return {
-                                "x": skills[0]["x"],
-                                "y": skills[0]["y"],
-                                "source": "atlas_skill_semantic"
+                                "x": skill["x"],
+                                "y": skill["y"],
+                                "source": "atlas_skill"
                             }
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as se:
-                import traceback
-                logger.debug(f"[AtlasEngine] Skill search failed: {se}\n{traceback.format_exc()}")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
-            logger.debug(f"[AtlasEngine] resolve_spatial_element failed: {e}")
+
+                # Priority 2: High confidence semantic match (> 0.9)
+                if len(skills) > 0 and skills[0].get("score", 0) > 0.9:
+                    if skills[0].get("x") is not None and skills[0].get("y") is not None and skills[0]["x"] >= 0:
+                        return {
+                            "x": skills[0]["x"],
+                            "y": skills[0]["y"],
+                            "source": "atlas_skill_semantic"
+                        }
+        except Exception as se:
+            logger.debug(f"[AtlasEngine] Skill search failed: {se}")
         return None
 
     async def clear_atlas(self) -> None:
@@ -387,7 +383,7 @@ class AtlasEngine:
             await AtlasStrategyStore.save_strategy(strategy)
             logger.debug(f"[AtlasEngine] Saved strategy for {bundle_id}")
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[AtlasEngine] Failed to save strategy: {e}")
 
     async def _store_dynamic_app_infrastructure(
@@ -466,7 +462,7 @@ class AtlasEngine:
                 f"for dynamic app '{bundle_id}'"
             )
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[AtlasEngine] Failed to store dynamic app infrastructure: {e}")
 
     def _classify_element_category(self, element: AtlasElement, platform: str) -> str:

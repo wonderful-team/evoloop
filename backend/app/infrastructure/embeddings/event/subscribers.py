@@ -42,5 +42,5 @@ class EmbeddingLifecycleSubscriber:
                 logger.info("[Embeddings] Local embedding model warmed up successfully.")
             else:
                 logger.debug("[Embeddings] Non-local embedder configured, skipping warmup.")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as exc:
+        except Exception as exc:
             logger.warning(f"[Embeddings] Model warmup skipped (non-critical): {exc}")

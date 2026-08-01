@@ -121,6 +121,6 @@ async def read_wiki_index(project_id: int | None, limit: int = 20) -> list[dict]
                 }
                 for row in rows
             ]
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.warning(f"[read_wiki_index] Failed to load wiki index: {e}")
         return []

@@ -28,7 +28,7 @@ class SandboxFactory:
                 from app.core.execution.sandbox.docker import DockerSandbox
 
                 cls._instance = DockerSandbox(image_name=image)
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.error(f"Failed to initialize Docker Sandbox, falling back to Local: {e}")
                 cls._instance = LocalSandbox()
         else:

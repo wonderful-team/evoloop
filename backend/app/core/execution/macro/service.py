@@ -41,7 +41,7 @@ class MacroService:
                 script = MacroScript(steps=script_input)
             else:
                 script = script_input
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[{thread_id}] Macro validation failed: {e}")
             return MacroRunResult(success=False, message=f"Invalid macro format: {e}")
 
@@ -121,7 +121,7 @@ class MacroService:
                 extracted_data=extracted_data
             )
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[{thread_id}] Macro service crash: {e}", exc_info=True)
             await activity_monitor.end_run(thread_id, "failed")
             return MacroRunResult(success=False, message=f"System error during macro execution: {str(e)}")

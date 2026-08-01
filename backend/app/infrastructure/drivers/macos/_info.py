@@ -15,7 +15,7 @@ class InfoMixin:
             output = cls.run_applescript(script)
             parts = [int(p.strip()) for p in output.split(",")]
             return parts[2], parts[3]
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+        except Exception:
             return 1920, 1080
 
     @classmethod
@@ -32,7 +32,7 @@ class InfoMixin:
             cls._cached_scale_factor = scale
             logger.info(f"[MacOSDriver] UI scale factor detected and cached: {scale}x")
             return scale
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.debug(f"[MacOSDriver] Failed to calculate scale factor: {e}")
             return 1.0
 
@@ -66,7 +66,7 @@ class InfoMixin:
                 )
                 ram_bytes = int(result.stdout.strip())
                 ram = f"{ram_bytes // (1024**3)} GB"
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+            except Exception:
                 pass
 
             return {
@@ -75,5 +75,5 @@ class InfoMixin:
                 "memory": ram,
                 "platform": "macos",
             }
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             return {"error": str(e)}

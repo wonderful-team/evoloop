@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 def _get_vision_system_prompt() -> str:
     try:
         return render_template("core/vision/vision_analysis.prompt.j2")
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.warning(f"Failed to load vision prompt template: {e}")
         return "Analyze the provided image(s) accurately."
 

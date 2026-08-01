@@ -213,17 +213,10 @@ class EngineCommandSubscriber:
                 try:
                     command = RemoteCommand.model_validate(cmd_data)
                     await self._handle_command(command)
-                    logger.info(
-                        f"[EngineCommand] Command execution SUCCESS: cmd_id={cmd_id}"
-                    )
-                    await self._send_ack(
-                        cmd_id, "completed", thread_id=command.thread_id
-                    )
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
-                    logger.error(
-                        "[EngineCommand] Command execution FAILED: "
-                        f"cmd_id={cmd_id}, error={e}"
-                    )
+                    logger.info(f"[EngineCommand] Command execution SUCCESS: cmd_id={cmd_id}")
+                    await self._send_ack(cmd_id, "completed", thread_id=command.thread_id)
+                except Exception as e:
+                    logger.error("[EngineCommand] Command execution FAILED: cmd_id={cmd_id}, error={e}")
                     await self._send_ack(
                         cmd_id,
                         "failed",

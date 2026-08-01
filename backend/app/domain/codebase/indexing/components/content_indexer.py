@@ -110,7 +110,7 @@ class ContentIndexer:
 
             try:
                 embeddings = await self.embedder.embed_documents(texts)
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.warning(
                     f"Embedding generation failed for {rel_path}: {e}. "
                     "Continuing indexing without embeddings."

@@ -52,7 +52,7 @@ class ActionMixin:
                 self._run_adb(["shell", "input", "text", processed_text], device_id=device_id)
                 logger.info(f"Input text '{text[:10]}...' in {(time.time()-start)*1000:.0f}ms")
                 return
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.debug(f"ASCII input failed, trying fallback: {e}")
 
         if _try_paste_fallback():

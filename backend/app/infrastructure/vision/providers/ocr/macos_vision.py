@@ -68,7 +68,7 @@ class MacOSVisionOCRProvider(VisionProvider):
             # Support both English and Chinese if supported by OS
             try:
                 request.setRecognitionLanguages_(["zh-Hans", "en-US"])
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.debug("Suppressed error: %s", e, exc_info=True)
 
             # Perform request
@@ -135,7 +135,7 @@ class MacOSVisionOCRProvider(VisionProvider):
 
             return result
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"{self.name} failed: {e}")
             return VisionResult(task=task, success=False, metadata={"error": str(e)})
 
@@ -148,5 +148,5 @@ class MacOSVisionOCRProvider(VisionProvider):
         # macOS ones from ~/.evoloop/artifacts/screenshots
         try:
             return macos_driver.get_ui_scale_factor()
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+        except Exception:
             return 1.0

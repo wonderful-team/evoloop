@@ -60,7 +60,7 @@ class ExtractionMixin:
                         extracted_data[key] = json.loads(res)
                     else:
                         extracted_data[key] = res
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                except Exception as e:
                     logger.exception(f"Macro extraction error: {e}")
                     extracted_data[key] = res
 
@@ -124,7 +124,7 @@ class ExtractionMixin:
                     extracted_data[key] = res
             else:
                 extracted_data[key] = None
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"GUI Extract OCR failed: {e}")
             extracted_data[key] = None
 
@@ -152,6 +152,6 @@ class ExtractionMixin:
                             cropped.save(new_path)
                             os.remove(filepath)
                             return new_path
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning(f"MacroEngine cropping failed: {e}")
         return filepath

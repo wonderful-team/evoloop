@@ -59,7 +59,7 @@ def inspect_document(file_path: str) -> str:
     try:
         # Note: file_path should already be resolved and validated by the caller
         real_path = ensure_local_path(file_path)
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         return dumps({"error": str(e)})
 
     if not os.path.exists(real_path):
@@ -84,7 +84,7 @@ def inspect_document(file_path: str) -> str:
             metadata["info"] = "Standard text file"
 
         return dumps(metadata, indent=2)
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.error(f"Inspection failed: {e}")
         return dumps({"error": str(e)})
 
@@ -150,7 +150,7 @@ async def query_excel_sql(file_path: str, sql_query: str) -> str:
         result = result_df.to_json(orient="records", force_ascii=False)
         return result if result is not None else "[]"
 
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         return f"SQL Execution Error: {str(e)}"
 
 
@@ -186,7 +186,7 @@ async def read_document(file_path: str, start_page: int | None = None, end_page:
 
         return ContentFormatter.file_content(filename, content, lang)
 
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.error(f"Read failed: {e}")
         return ControllerResponse.error(f"Error reading file {file_path}", details=str(e))
 
@@ -203,7 +203,7 @@ def _resolve_and_validate(file_path: str) -> tuple[str | None, str | None]:
     try:
         resolved_path = _resolve_project_path(file_path)
         real_path = ensure_local_path(resolved_path)
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         return None, f"Error resolving path: {str(e)}"
 
     if os.path.exists(real_path):
@@ -237,7 +237,7 @@ def _resolve_and_validate(file_path: str) -> tuple[str | None, str | None]:
                 f"[{list_str}]\n"
                 f"Please check the spelling or choose an existing file from the list."
             )
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.debug("Suppressed error: %s", e, exc_info=True)
 
     return None, f"Error: File not found: {real_path}{suggestion} (Resolved from {file_path}){parent_listing_info}"
@@ -264,7 +264,7 @@ def _list_directory(real_path: str) -> str:
             f"The path you requested is a directory, not a file. I have listed its contents below for your convenience:\n\n"
             f"{listing_str}"
         )
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         return f"Error listing directory: {e}"
 
 
@@ -363,7 +363,7 @@ def _read_pdf(path: str, start: int | None, end: int | None) -> str:
             page_info=f"Pages: {start_idx+1} to {end_idx} (Total {total_pages})",
             content_blocks=content_blocks
         ) + footer_msg
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.error(f"Failed to render Document template for PDF: {e}")
         # Fallback to simple template
         content_blocks = []
@@ -421,7 +421,7 @@ def _read_excel(path: str) -> str:
             filename=os.path.basename(path),
             content_blocks=content_blocks
         )
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.error(f"Failed to render Spreadsheet template: {e}")
         # Fallback to spreadsheet formatter
         sheets = []

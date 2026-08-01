@@ -34,7 +34,7 @@ async def _search_concepts(
             {"name": c.name, "description": c.description, "source": source}
             for c in concepts
         ]
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.warning(f"[query_concepts] Search failed: {e}")
         return []
 

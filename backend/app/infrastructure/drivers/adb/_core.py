@@ -17,7 +17,7 @@ class CoreMixin:
                 devices = ctx_env.get("devices", [])
                 if devices and len(devices) == 1:
                     device_id = devices[0]
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.debug("Suppressed error: %s", e, exc_info=True)
 
         if device_id:
@@ -64,7 +64,7 @@ class CoreMixin:
             d = u2.connect(device_id) if device_id else u2.connect()
             d.info
             return True
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+        except Exception:
             return False
 
     def install_uiautomator2(self, device_id=None):
@@ -72,7 +72,7 @@ class CoreMixin:
             import uiautomator2 as u2
             u2.connect(device_id) if device_id else u2.connect()
             return True
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+        except Exception:
             pass
         try:
             from app.core.context.manager import ContextManager
@@ -83,7 +83,7 @@ class CoreMixin:
             ).communicate(timeout=30)
             output = (stdout + stderr).decode().lower()
             return "success" in output
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning(f"uiautomator2 install failed: {e}")
             return False
 
@@ -106,7 +106,7 @@ class CoreMixin:
                 logger.info(f"[ADB] Device {device_id}: Native uiautomator NOT working (idle state error)")
             else:
                 logger.info(f"[ADB] Device {device_id}: Native uiautomator OK")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             capabilities["native_uiautomator"] = False
             logger.info(f"[ADB] Device {device_id}: Native uiautomator NOT working ({e})")
 

@@ -82,7 +82,7 @@ async def search_codebase(
                     usages = await usages_task
                     if usages:
                         graph_data["incoming"] = [f"{u['source']} (references)" for u in usages]
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"Symbol lookup failed: {e}")
 
     rag_results = []
@@ -90,7 +90,7 @@ async def search_codebase(
         results = await vector_task
         if results:
             rag_results = results
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.error(f"RAG search failed: {e}")
 
     count = len(rag_results)
@@ -104,7 +104,7 @@ async def search_codebase(
             rag_results=rag_results
         )
         return content, {"count": count, "pattern": query}
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.error(f"Failed to render Codebase Retrieval template: {e}")
         return "Search results processing error.", {"count": 0}
 

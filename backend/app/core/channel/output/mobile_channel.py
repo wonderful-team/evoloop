@@ -82,7 +82,7 @@ class MobileChannel(Channel):
         try:
             from app.core.identity import identity_service
             return await identity_service.store.get_device_key() or ""
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+        except Exception:
             return ""
 
     async def send_envelope(

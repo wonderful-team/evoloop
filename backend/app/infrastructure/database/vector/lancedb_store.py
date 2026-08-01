@@ -60,34 +60,34 @@ class LanceVectorStore(BaseVectorStore):
         try:
             self.code_table = self.client.open_table("code_chunks")
             logger.debug("[LanceVectorStore] Opened existing code_chunks table")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):# Handle multiple possible exception types (FileNotFoundError, ValueError)
+        except Exception:# Handle multiple possible exception types (FileNotFoundError, ValueError)
             self.code_table = self._create_code_chunks_table()
             logger.info("[LanceVectorStore] Created code_chunks table")
 
         # Document chunks table
         try:
             self.doc_table = self.client.open_table("doc_chunks")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning(f"Init failed: {e}")
             self.doc_table = self._create_doc_chunks_table()
 
         # Memories table
         try:
             self.memory_table = self.client.open_table("memories")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning(f"Init failed: {e}")
             self.memory_table = self._create_memories_table()
         # Skills table
         try:
             self.skills_table = self.client.open_table("skills")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning(f"Init failed: {e}")
             self.skills_table = self._create_skills_table()
 
         # Concepts table
         try:
             self.concepts_table = self.client.open_table("concepts")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning(f"Init failed: {e}")
             self.concepts_table = self._create_concepts_table()
 
@@ -292,7 +292,7 @@ class LanceVectorStore(BaseVectorStore):
                 self.code_table.delete(f"repository_id = '{repository_id.replace(chr(39), chr(39)+chr(39))}'")
                 logger.info(f"[LanceVectorStore] Deleted chunks for repo {repository_id}")
             return 1
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning(f"[LanceVectorStore] Failed to delete repo {repository_id}: {e}")
             return 0
 
@@ -486,6 +486,6 @@ class LanceVectorStore(BaseVectorStore):
                 try:
                     table = self.client.open_table(table_name)
                     table.delete("true")
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                except Exception as e:
                     logger.warning(f"[LanceVectorStore] Failed to truncate {table_name}: {e}")
         logger.info("[LanceVectorStore] All tables truncated")

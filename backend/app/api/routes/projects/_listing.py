@@ -55,9 +55,9 @@ def _scan_workspace_projects() -> dict[str, str]:
                     for subentry in FileTraverser.list_entries(entry.path):
                         if subentry.is_dir():
                             local_projects[subentry.name] = subentry.path
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                except Exception as e:
                     logger.debug("Suppressed error: %s", e, exc_info=True)
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.warning("[ProjectsAPI] Failed to scan workspace: %s", e)
 
     return local_projects
@@ -214,7 +214,7 @@ async def get_projects(
             for ignored_repo in ignored_result.scalars().all():
                 ignored_project_ids.add(ignored_repo.project_id)
 
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.warning("[ProjectsAPI] Failed to fetch local repository status: %s", e)
         logger.exception(e)
 
@@ -287,7 +287,7 @@ async def get_projects(
     projects_with_wiki = set()
     try:
         projects_with_wiki = wiki_service.get_projects_with_wiki(project_ids)
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.warning("Failed to check wiki existence: %s", e)
 
     pipe = cache.pipeline()

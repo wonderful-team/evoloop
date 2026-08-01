@@ -129,7 +129,7 @@ class WhisperProvider(BaseSTTProvider):
                 confidence=getattr(response, 'confidence', None)
             )
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"Whisper transcription failed: {e}")
             raise RuntimeError(f"Transcription failed: {e}")
 

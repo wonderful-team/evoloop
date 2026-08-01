@@ -113,11 +113,6 @@ class VerificationService:
         if thread_id:
             request.thread_id = thread_id
 
-        logger.info(
-            f"[VerificationService] Starting verification: {len(steps)} steps, "
-            f"{max_rounds} rounds, platform={platform}"
-        )
-
         try:
             # Execute verification
             validator = AgentMacroValidator(request)
@@ -148,7 +143,7 @@ class VerificationService:
 
             return result
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[VerificationService] Verification failed: {e}", exc_info=True)
             return VerificationResponse(
                 success=False,
@@ -265,7 +260,7 @@ class VerificationService:
             try:
                 steps = macro_from_yaml(macro_script)
                 original_count = len(steps)
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+            except Exception:
                 original_count = 0
         else:
             original_count = 0

@@ -285,14 +285,7 @@ async def _handle_dictation_finalize(body: dict[str, Any], conn_id: str) -> None
                     {"changes": []},
                 ),
             )
-    except (
-        ValueError,
-        OSError,
-        RuntimeError,
-        TypeError,
-        KeyError,
-        AttributeError,
-    ) as exc:
+    except Exception as exc:
         logger.warning("[voice] dictation polish failed: %s", exc)
         # Fallback paste raw text
         await manager.push(

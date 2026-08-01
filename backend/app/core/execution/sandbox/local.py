@@ -24,7 +24,7 @@ class LocalSandbox(Sandbox):
         if local_path != remote_path:
             try:
                 shutil.copy2(local_path, remote_path)
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.error(f"Failed to copy local file: {e}")
                 raise
 
@@ -33,7 +33,7 @@ class LocalSandbox(Sandbox):
         if local_path != remote_path:
             try:
                 shutil.copy2(remote_path, local_path)
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.error(f"Failed to copy local file: {e}")
                 raise
 

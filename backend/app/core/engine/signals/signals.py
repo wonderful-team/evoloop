@@ -215,7 +215,7 @@ async def _resolve_skill_tool_allowlist(
                 if skill.tools_used:
                     tools.update(skill.tools_used)
             return sorted(tools)
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.warning(f"[Signals] Failed to resolve skill tools: {e}")
         return []
 
@@ -301,7 +301,7 @@ async def handle_route_to(
             try:
                 from app.core.monitoring.activity import activity_monitor
                 await activity_monitor.update_goal(state.thread_id, session_goal)
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.warning(f"[Signals] Failed to update session goal: {e}")
 
     return StateUpdate(

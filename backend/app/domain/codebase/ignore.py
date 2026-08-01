@@ -20,7 +20,7 @@ class GitignoreMatcher:
         """Parse gitignore content into a PathSpec."""
         try:
             self.spec = pathspec.PathSpec.from_lines("gitwildmatch", content.splitlines())
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+        except Exception:
             # Fallback or log? For now just silent fail or empty spec
             pass
 
@@ -52,7 +52,7 @@ class GitignoreMatcher:
 
         try:
             return self.spec.match_file(check_path)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+        except Exception:
             return False
 
     @classmethod

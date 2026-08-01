@@ -58,7 +58,7 @@ async def replay_memory(project_id: int | None = None) -> MemoryContext:
                     goal=goal_str,
                     result=result_str,
                 ))
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning(f"Failed to retrieve episodes: {e}")
 
     # 2. Retrieve project concepts from Semantic Memory
@@ -70,7 +70,7 @@ async def replay_memory(project_id: int | None = None) -> MemoryContext:
         if project_id is not None and project_id != DEFAULT_PROJECT_ID:
             project_concepts_text = await manager.get_project_concepts(project_id)
             concepts.extend(_parse_concepts(project_concepts_text))
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.warning(f"Failed to retrieve concepts: {e}")
 
     # 3. Read journal highlights (last 10 lines)
@@ -155,6 +155,6 @@ def _read_journal_highlights() -> str:
         recent_lines = [l.strip() for l in lines if l.strip()][-10:]
         return "\n".join(recent_lines)
 
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.warning(f"Failed to read journal: {e}")
         return ""

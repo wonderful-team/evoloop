@@ -490,7 +490,7 @@ class BackgroundTaskManager:
         try:
             from app.core.monitoring.activity import activity_monitor
             await activity_monitor.record_task_update(task)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.debug(f"Failed to log to activity monitor: {e}")
 
     async def _publish_output_event(self, task: BackgroundTask, output: str) -> None:

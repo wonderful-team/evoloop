@@ -87,7 +87,7 @@ class AnnotatedTreeGenerator:
                 return render_template("domain/codebase/codebase_tree.prompt.j2", style="flat", flat_paths=flat_paths)
 
             return render_template("domain/codebase/codebase_tree.prompt.j2", style="tree", root=root_node)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"Failed to render tree: {e}")
             return "Error rendering tree structure."
 

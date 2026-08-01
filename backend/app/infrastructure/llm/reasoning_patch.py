@@ -70,7 +70,7 @@ def _apply_reasoning_patch() -> None:
                         request.headers["Content-Length"] = str(len(new_content))
                         if "Transfer-Encoding" in request.headers:
                             del request.headers["Transfer-Encoding"]
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+            except Exception:
                 pass
 
         return await _original_httpx_send(self, request, **kwargs)

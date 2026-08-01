@@ -322,7 +322,7 @@ class TerminalManager:
                     try:
                         os.write(session.pty._master_fd, f"cd {current_cwd}\n".encode())
                         session.pty.cwd = current_cwd
-                    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                    except Exception as e:
                         logger.debug("Suppressed error: %s", e, exc_info=True)
 
         return cls._sessions[key]
@@ -364,7 +364,7 @@ class TerminalManager:
                 # Sync session level CWD
                 session.cwd = pty_sess.cwd
             return stdout, "", exit_code
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.exception(f"[TerminalManager][{key}] System Error")
             return "", str(e), 1
 

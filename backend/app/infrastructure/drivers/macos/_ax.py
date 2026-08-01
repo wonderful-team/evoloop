@@ -115,7 +115,7 @@ class AXMixin:
             flatten(tree)
             return json.dumps(flattened)
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"Native dump_ax_tree failed: {e}", exc_info=True)
             logger.debug("Falling back to AppleScript.")
 
@@ -195,7 +195,7 @@ class AXMixin:
         """
         try:
             return cls.run_applescript(script)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             return f"Error: {e}"
 
     @classmethod
@@ -222,7 +222,7 @@ class AXMixin:
         '''
         try:
             return cls.run_applescript(script)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             return f"Error: {e}"
 
     @staticmethod
@@ -238,7 +238,7 @@ class AXMixin:
             if AXIsProcessTrusted:
                 return AXIsProcessTrusted()
             return False
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.debug("Suppressed error: %s", e, exc_info=True)
 
         script = 'tell application "System Events" to return UI elements enabled'

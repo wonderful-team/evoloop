@@ -27,7 +27,7 @@ def load_pickle(path: str) -> Any | None:
     try:
         with open(path, "rb") as f:
             return pickle.load(f)
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         log.warning("Failed to load pickle from %s: %s", path, e)
         return None
 
@@ -37,5 +37,5 @@ def save_cache(path: str, version: Any, obj: Any) -> None:
     try:
         with open(path, "wb") as f:
             pickle.dump(data, f)
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         log.warning("Failed to save cache to %s: %s", path, e)

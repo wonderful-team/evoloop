@@ -80,7 +80,7 @@ class GraphAtlasStore(IAtlasStore):
                 )
 
             logger.info(f"Successfully saved Atlas for {atlas_app.bundle_id}")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"Failed to save Atlas for {atlas_app.bundle_id}: {e}")
             raise e
 

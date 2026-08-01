@@ -66,7 +66,7 @@ class VisionEngine:
                     screenshot_hash="",
                 )
                 logger.debug(f"[VisionEngine] Emitted UiTreeObservedEvent for {app_info.get('bundle_id')}")
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.warning(f"[VisionEngine] Failed to emit Atlas event: {e}")
         else:
             # Standard Routing for single-provider tasks
@@ -84,7 +84,7 @@ class VisionEngine:
             # 3. Execution (Standard)
             try:
                 result = await provider.process(task, image_source, prompt, **kwargs)
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.exception(f"VisionEngine: Execution failed in {provider.name}")
                 result = VisionResult(
                     task=task,
@@ -117,7 +117,7 @@ class VisionEngine:
                     )
                 )
                 logger.debug(f"[VisionEngine] Dispatched Atlas background mapping for {image_source}")
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as ex:
+            except Exception as ex:
                 logger.debug(f"[VisionEngine] Failed to dispatch Celery task: {ex}")
 
         # 6. Publish Completion Event

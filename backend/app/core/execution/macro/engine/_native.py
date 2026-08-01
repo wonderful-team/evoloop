@@ -46,20 +46,15 @@ class NativeMixin:
             if process.returncode != 0:
                 err_msg = stderr.decode().strip()
                 logger.error(f"[{thread_id}] Native script failed with code {process.returncode}: {err_msg}")
-            else:
-                logger.info(f"[{thread_id}] Native script completed successfully")
 
             if sync_state and os.path.exists(sync_state):
-                try:
-                    with open(sync_state, encoding='utf-8') as f:
-                        state_data = json.load(f)
+                with open(sync_state, encoding='utf-8') as f:
+                    state_data = json.load(f)
 
-                    items = state_data.get('items', [])
-                    if items:
-                        extracted_data["batch_items"] = items
-                        logger.info(f"[{thread_id}] Synced {len(items)} items from {sync_state} to extracted_data")
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as sync_err:
-                    logger.error(f"[{thread_id}] Failed to sync state from {sync_state}: {sync_err}")
+                items = state_data.get('items', [])
+                if items:
+                    extracted_data["batch_items"] = items
+                    logger.info(f"[{thread_id}] Synced {len(items)} items from {sync_state} to extracted_data")
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[{thread_id}] Failed to execute native script: {e}", exc_info=True)

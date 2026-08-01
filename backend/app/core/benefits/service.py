@@ -82,7 +82,7 @@ class BenefitService:
 
                 logger.warning(f"Failed to fetch benefits for {member_id}: {res.get('message')}")
                 return {}
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.error(f"Benefit Service error for {member_id}: {e}")
                 return {}
 
@@ -136,7 +136,7 @@ class BenefitService:
                 val = benefits.get(code, False)
                 result[code] = val if isinstance(val, bool) else (val > 0 if isinstance(val, int | float) else False)
             return result
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"Batch benefit check failed: {e}")
             return {code: False for code in benefit_codes}
 

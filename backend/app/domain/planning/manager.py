@@ -12,7 +12,7 @@ class PlanManager:
         try:
             data = json.loads(content)
             return PlanDefinition(**data)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.debug("Suppressed error: %s", e, exc_info=True)
             return None
 
@@ -28,7 +28,7 @@ class PlanManager:
 
             steps_text = "\n".join([f"- {s.title} ({s.status})" for s in plan.steps])
             return f"Plan: {plan.title}\n{steps_text}"
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+        except Exception:
             return "Error parsing plan."
 
     @staticmethod

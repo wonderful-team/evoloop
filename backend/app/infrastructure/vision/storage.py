@@ -169,7 +169,7 @@ class ScreenshotStorage:
                 f.write(image_data)
             logger.debug(f"[ScreenshotStorage] Saved {purpose} screenshot: {filepath}")
             return filepath
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[ScreenshotStorage] Failed to save screenshot: {e}")
             raise
 
@@ -204,7 +204,7 @@ class ScreenshotStorage:
             shutil.copy2(source_path, dest_path)
             logger.info(f"[ScreenshotStorage] Copied to {purpose}: {dest_path}")
             return dest_path
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[ScreenshotStorage] Copy failed: {e}")
             return None
 
@@ -242,7 +242,7 @@ class ScreenshotStorage:
                             if not dry_run:
                                 os.remove(filepath)
                                 logger.debug(f"[ScreenshotStorage] Cleaned: {filepath}")
-                    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                    except Exception as e:
                         logger.warning(f"[ScreenshotStorage] Cleanup error for {filepath}: {e}")
 
             # Clean empty directories
@@ -263,7 +263,7 @@ class ScreenshotStorage:
                     if os.path.exists(dir_path) and not os.listdir(dir_path):
                         os.rmdir(dir_path)
                         logger.debug(f"[ScreenshotStorage] Removed empty dir: {dir_path}")
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                except Exception as e:
                     logger.debug(f"Storage error: {e}")
 
     def get_stats(self) -> dict[str, dict]:
@@ -283,7 +283,7 @@ class ScreenshotStorage:
                             try:
                                 total_size += os.path.getsize(filepath)
                                 file_count += 1
-                            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                            except Exception as e:
                                 logger.debug(f"Storage error: {e}")
 
             retention = self.PURPOSE_CONFIG[purpose]["retention_days"]()
@@ -468,7 +468,7 @@ class ScreenRecordingStorage:
                             if not dry_run:
                                 os.remove(filepath)
                                 logger.debug(f"[ScreenRecordingStorage] Cleaned video: {filepath}")
-                    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                    except Exception as e:
                         logger.warning(f"[ScreenRecordingStorage] Cleanup error for {filepath}: {e}")
 
             # Clean empty directories
@@ -491,7 +491,7 @@ class ScreenRecordingStorage:
                         if not dry_run:
                             shutil.rmtree(session_path)
                             logger.debug(f"[ScreenRecordingStorage] Cleaned frames dir: {session_path}")
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                except Exception as e:
                     logger.warning(f"[ScreenRecordingStorage] Cleanup error for {session_path}: {e}")
 
         total = sum(stats.values())
@@ -518,7 +518,7 @@ class ScreenRecordingStorage:
                 if not entries:
                     os.rmdir(dir_path)
                     logger.debug(f"[ScreenRecordingStorage] Removed empty dir: {dir_path}")
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.debug(f"Storage error: {e}")
 
     def get_stats(self) -> dict[str, dict]:
@@ -538,7 +538,7 @@ class ScreenRecordingStorage:
                     try:
                         stats["videos"]["total_size_mb"] += os.path.getsize(filepath) / (1024 * 1024)
                         stats["videos"]["file_count"] += 1
-                    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                    except Exception as e:
                         logger.debug(f"Storage error: {e}")
 
         # Count frames
@@ -548,7 +548,7 @@ class ScreenRecordingStorage:
                     try:
                         stats["frames"]["total_size_mb"] += os.path.getsize(filepath) / (1024 * 1024)
                         stats["frames"]["file_count"] += 1
-                    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                    except Exception as e:
                         logger.debug(f"Storage error: {e}")
 
         # Round sizes

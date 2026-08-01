@@ -93,7 +93,7 @@ class CodeAnalyzer:
         import asyncio
         try:
             result = asyncio.run(self._extractor.extract(file_path, content))
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning(f"TreeSitter extraction failed for {file_path}: {e}")
             result = None
 

@@ -52,7 +52,7 @@ async def _ensure_project_discovery_skill() -> LearnedSkill | None:
             )
             result = await session.execute(stmt)
             return result.scalar_one_or_none()
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.warning("[ProjectProfiles] Failed to import Project Discovery skill: %s", e)
         return None
 
@@ -156,7 +156,7 @@ async def get_profile(
     if os.path.isfile(file_path):
         try:
             content = file_utils.read_file(file_path).content
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning("Failed to read PROJECT.md: %s", e)
 
     # Read project.json for name/url and framework_profile
@@ -176,7 +176,7 @@ async def get_profile(
                 project_id=project_id,
                 content=content,
             )
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning("[ProjectProfiles] Failed to ingest PROJECT.md into memory: %s", e)
 
     return ProfileContentResponse(
@@ -202,7 +202,7 @@ async def update_profile(
     file_path = os.path.join(path, "PROJECT.md")
     try:
         file_utils.write_file(file_path, req.content)
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.error("Failed to write PROJECT.md: %s", e)
         raise HTTPException(500, f"Failed to update profile: {e}")
 
@@ -236,7 +236,7 @@ async def update_profile(
                 project_id=project_id,
                 content=req.content,
             )
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning("[ProjectProfiles] Failed to ingest PROJECT.md into memory: %s", e)
 
     # Read project.json for return

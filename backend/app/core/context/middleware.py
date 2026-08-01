@@ -38,7 +38,7 @@ class ContextMiddleware(BaseHTTPMiddleware):
                 # Store on request.state so route deps can reuse without re-resolving
                 request.state.resolved_member_id = member_id
                 request.state.resolved_token = token
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.debug("Suppressed error: %s", e, exc_info=True)
 
         # 3. Create Context

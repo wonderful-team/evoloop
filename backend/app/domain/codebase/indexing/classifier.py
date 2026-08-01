@@ -57,7 +57,7 @@ class ProjectClassifier:
             logger.info(f"[Classifier] Classified {root_path} as CONTENT")
             return ProjectType.CONTENT
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"Classification failed: {e}")
             return ProjectType.UNKNOWN
 

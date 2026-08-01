@@ -27,7 +27,7 @@ class AndroidVisionOCRProvider(MacOSVisionOCRProvider):
         try:
             devices = adb_driver.list_devices()
             return any(d["status"] == "device" for d in devices)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+        except Exception:
             return False
 
     def _get_ui_scale_factor(self, image_source: str | None = None) -> float:

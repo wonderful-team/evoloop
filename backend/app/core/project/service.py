@@ -89,7 +89,7 @@ class ProjectContextManager:
                 try:
                     from app.core.file import read_file
                     return read_file(full_path).content
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                except Exception as e:
                     logger.warning(f"Failed to read README at {full_path}: {e}")
                     continue
         return ""

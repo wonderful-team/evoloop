@@ -266,7 +266,7 @@ async def push_hitl_notification(
                 metadata=metadata if metadata else None,
             )
         )
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.warning(f"Failed to push HITL request via MessageHandler: {e}")
 
 

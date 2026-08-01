@@ -51,10 +51,10 @@ async def get_app_usage_ranker(
 
         try:
             return SystemToolsFormatter.app_rankings(records, platform)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"Failed to render ranking list: {e}")
             return f"Found {len(records)} apps."
 
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.error(f"[RankingTool] Failed to rank apps: {e}")
         return f"Error: Unable to rank apps. Details: {str(e)}"

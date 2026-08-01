@@ -6,6 +6,7 @@ import time
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+import psutil
 from pydantic import PrivateAttr
 
 from app.core.environment.schemas import (
@@ -78,12 +79,11 @@ class AwakenedState(DynamicBaseModel):
             return self._telemetry_cache
 
         # Compute fresh snapshot
-        import psutil
         try:
             cpu_data = {"usage_percent": psutil.cpu_percent(interval=None), "load_avg": psutil.getloadavg() if hasattr(psutil, "getloadavg") else []}
             mem = psutil.virtual_memory()
             mem_data = {"percent": mem.percent, "available": mem.available}
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+        except Exception:
             cpu_data = {}
             mem_data = {}
 

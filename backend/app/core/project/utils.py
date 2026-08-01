@@ -135,7 +135,7 @@ async def get_project_path(project_id: int) -> str:
 
                 if repo.local_path and os.path.isdir(repo.local_path):
                     return repo.local_path
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.debug(f"DB lookup failed for {project_id}: {e}")
 
     return ""
@@ -200,6 +200,6 @@ async def resolve_project_to_repo(project_id: int) -> Repository | None:
                         return repo
 
             return repos[0]
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.warning(f"[ProjectUtils] Failed to resolve project_id {project_id} to repo: {e}")
         return None

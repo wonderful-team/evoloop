@@ -30,7 +30,7 @@ class DeviceInfoMixin:
                 "battery": battery.split(":")[-1].strip() + "%" if ":" in battery else "unknown",
                 "platform": "android",
             }
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             return {"error": str(e)}
 
     def get_uptime(self, device_id=None):
@@ -78,7 +78,7 @@ class DeviceInfoMixin:
                             if not is_system_package(pkg):
                                 results.append((pkg, act, "top", 3))
                             break
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.debug("Suppressed error: %s", e, exc_info=True)
 
             if not results:
@@ -92,7 +92,7 @@ class DeviceInfoMixin:
                                 if not is_system_package(pkg):
                                     results.append((pkg, act, "resumed", 2))
                                 break
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                except Exception as e:
                     logger.debug("Suppressed error: %s", e, exc_info=True)
 
             if not results:
@@ -106,7 +106,7 @@ class DeviceInfoMixin:
                                 if not is_system_package(pkg):
                                     results.append((pkg, act, "focus", 1))
                                 break
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                except Exception as e:
                     logger.debug("Suppressed error: %s", e, exc_info=True)
 
             final_data = {"package": "unknown", "activity": "unknown", "confidence": 0.0}
@@ -136,7 +136,7 @@ class DeviceInfoMixin:
             self._app_cache[cache_key] = (now, final_data)
             return final_data
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"Failed to get current Android app: {e}")
             return {"package": "error", "activity": "error", "confidence": "none"}
 
@@ -154,7 +154,7 @@ class DeviceInfoMixin:
             if lut_match:
                 info["last_update_time"] = lut_match.group(1).strip()
             return info
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"Failed to get package info for {package}: {e}")
             return {"package": package, "error": str(e)}
 
@@ -177,11 +177,11 @@ class DeviceInfoMixin:
                 stdout, _ = self._run_adb(["shell", "pidof", package], device_id=device_id, timeout=5)
                 if stdout.strip():
                     return "background"
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.debug(f"Failed to check if {package} is running: {e}")
 
             return "unknown"
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+        except Exception:
             return "unknown"
 
     def list_installed_apps(self, device_id=None):
@@ -189,5 +189,5 @@ class DeviceInfoMixin:
             output = self._run_adb(["shell", "pm", "list", "packages", "-3"], device_id=device_id)[0]
             packages = [line.replace("package:", "").strip() for line in output.splitlines() if line.startswith("package:")]
             return sorted(packages)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+        except Exception:
             return []

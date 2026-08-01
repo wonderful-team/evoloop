@@ -232,5 +232,5 @@ class MemoryCommandHandler:
                     member_id=0,
                 )
             logger.info(f"[EngineCommand] memory.sync sent to Gateway: concepts={len(concepts)}")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[EngineCommand] Failed to send memory.sync: {e}")

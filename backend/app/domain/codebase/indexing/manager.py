@@ -39,7 +39,7 @@ async def _set_indexing_status(repo_id: int, status: str, details: dict | None =
             for key, value in details.items():
                 mapping[key] = json.dumps(value) if isinstance(value, dict | list) else str(value)
         await cache.hset(_indexing_status_key(repo_id), mapping=mapping)
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.warning(f"[IndexingManager] Failed to write status cache for repo {repo_id}: {e}")
 
 
@@ -47,7 +47,7 @@ async def _clear_cancel_flag(repo_id: int) -> None:
     """Clear any pending cancellation request for a repo."""
     try:
         await cache.delete(_cancel_key(repo_id))
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.warning(f"[IndexingManager] Failed to clear cancel flag for repo {repo_id}: {e}")
 
 
@@ -55,7 +55,7 @@ async def _request_cancel(repo_id: int) -> None:
     """Request cancellation of a repo indexing job via persistent cache flag."""
     try:
         await cache.set(_cancel_key(repo_id), "1")
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.warning(f"[IndexingManager] Failed to set cancel flag for repo {repo_id}: {e}")
 
 
@@ -63,7 +63,7 @@ async def _is_cancel_requested(repo_id: int) -> bool:
     """Return True if cancellation has been requested for this repo."""
     try:
         return bool(await cache.get(_cancel_key(repo_id)))
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.warning(f"[IndexingManager] Failed to read cancel flag for repo {repo_id}: {e}")
         return False
 
@@ -170,7 +170,7 @@ class IndexingManager:
                 watcher.start()
                 self._watchers[path] = watcher
                 logger.info(f"Started watching {path} (Repo ID: {repo_id})")
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except Exception as e:
                 logger.error(f"Failed to start watcher for {path}: {e}")
 
     async def stop_watching(self, path: str):
@@ -249,7 +249,7 @@ class IndexingManager:
                     from app.core.project.summarizer import project_summarizer
 
                     await project_summarizer.add_project(repo.name, repo_path)
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                except Exception as e:
                     logger.error(f"Project Summarization Trigger Failed: {e}")
 
                 if await self._check_cancelled(repo_id):
@@ -274,7 +274,7 @@ class IndexingManager:
                             f"Project classified as {p_type}. Skipping Semantic Extraction."
                         )
 
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                except Exception as e:
                     logger.error(f"Semantic Extraction Failed: {e}")
 
                 with self._lock:
@@ -295,7 +295,7 @@ class IndexingManager:
             await self._publish_status(project_id, repo_id, "cancelled")
             await self._update_indexing_status(repo_id, "failed")
             raise
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"Full Index Failed for Repo {repo_id}: {e}")
             with self._lock:
                 self._active_jobs[repo_id] = "error"
@@ -322,7 +322,7 @@ class IndexingManager:
                 loop.call_soon_threadsafe(lambda: asyncio.create_task(coro))
 
             logger.info(f"Dispatched full index task for Project {project_id}")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"Failed to dispatch indexing task: {e}")
 
     async def _resolve_and_dispatch_repo_task(self, project_id: int, rebuild: bool) -> None:
@@ -336,7 +336,7 @@ class IndexingManager:
                 return
 
             await self._dispatch_repo_index(repo.id, rebuild)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[IndexingManager] Error dispatching index for project {project_id}: {e}")
 
     async def _dispatch_repo_index(self, repo_id: int, rebuild: bool = False) -> None:
@@ -348,7 +348,7 @@ class IndexingManager:
             async with session_scope() as session:
                 repo = await session.get(Repository, repo_id)
                 project_id = repo.project_id if repo else None
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning(f"[IndexingManager] Could not resolve project_id for repo {repo_id}: {e}")
 
         with self._lock:
@@ -383,7 +383,7 @@ class IndexingManager:
             )
 
             await publish_indexing_status_changed(project_id, status, repo_id=repo_id)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.warning(f"[IndexingManager] Failed to publish indexing status event: {e}")
 
     async def _run_semantic_extraction(self, repo_id: int, repo_path: str, project_id: int | None):
@@ -487,7 +487,7 @@ class IndexingManager:
                 if has_routes or has_models:
                     await session.commit()
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"Semantic Extraction Failed: {e}")
             return
 
@@ -500,7 +500,7 @@ class IndexingManager:
         try:
             result = read_file(file_path)
             return result.content if result.success else None
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.debug(f"Failed to read file for security scan {file_path}: {e}")
             return None
 
@@ -540,7 +540,7 @@ class IndexingManager:
                             )
                         )
                 source_file.security_scan_status = "completed"
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"Security scan failed for {rel_path}: {e}")
             try:
                 async with session_scope() as session:
@@ -552,7 +552,7 @@ class IndexingManager:
                     source_file = result.scalars().first()
                     if source_file is not None:
                         source_file.security_scan_status = "failed"
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as mark_err:
+            except Exception as mark_err:
                 logger.error(f"Failed to mark security_scan_status as failed: {mark_err}")
 
     async def _analyze_with_agent(self, repo_id: int, repo_path: str, project_id: int | None) -> None:
@@ -631,7 +631,7 @@ class IndexingManager:
                         api_method=getattr(ep, "method", None),
                         api_path=getattr(ep, "path", None),
                     )
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"Failed to update API chunk flags: {e}")
 
     async def _update_db_chunk_flags(
@@ -661,7 +661,7 @@ class IndexingManager:
                         is_db_model=True,
                         db_table_name=table_name,
                     )
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"Failed to update DB chunk flags: {e}")
 
     async def _apply_chunk_flag(

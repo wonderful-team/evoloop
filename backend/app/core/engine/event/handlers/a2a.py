@@ -51,7 +51,7 @@ class A2ACommandHandler:
 
         try:
             task = AgentTask.model_validate(payload)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[A2A] Invalid AgentTask payload: {payload}, error={e}")
             return
 
@@ -76,9 +76,7 @@ class A2ACommandHandler:
             async with httpx.AsyncClient() as client:
                 for att in task.attachments:
                     dest_path = os.path.join(download_dir, att.filename)
-                    logger.info(
-                        f"[A2A] Downloading attachment {att.filename} from {att.download_url}..."
-                    )
+                    logger.info(f"[A2A] Downloading attachment {att.filename} from {att.download_url}...")
                     try:
                         async with client.stream("GET", att.download_url) as response:
                             response.raise_for_status()
@@ -86,28 +84,17 @@ class A2ACommandHandler:
                                 async for chunk in response.aiter_bytes():
                                     f.write(chunk)
 
-                        # Verify MD5
-                        from app.core.file import compute_file_hash
-
                         actual_md5 = compute_file_hash(dest_path)
 
                         if actual_md5 != att.md5:
-                            logger.error(
-                                f"[A2A] MD5 mismatch for {att.filename}. Expected: {att.md5}, Got: {actual_md5}"
-                            )
-                            await self._send_a2a_error(
-                                task, f"Attachment MD5 mismatch for {att.filename}"
-                            )
+                            logger.error(f"[A2A] MD5 mismatch for {att.filename}. Expected: {att.md5}, Got: {actual_md5}")
+                            await self._send_a2a_error(task, f"Attachment MD5 mismatch for {att.filename}")
                             return
 
                         local_attachment_paths.append(dest_path)
-                    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as ex:
-                        logger.error(
-                            f"[A2A] Failed to download/verify attachment {att.filename}: {ex}"
-                        )
-                        await self._send_a2a_error(
-                            task, f"Failed to download attachment {att.filename}: {ex}"
-                        )
+                    except Exception as ex:
+                        logger.error(f"[A2A] Failed to download/verify attachment {att.filename}: {ex}")
+                        await self._send_a2a_error(task, f"Failed to download attachment {att.filename}: {ex}")
                         return
 
         executor_device_key = (
@@ -196,16 +183,10 @@ class A2ACommandHandler:
         }
 
         try:
-            await evocloud_manager.api.send_command_to_device(
-                device_key=task.caller_device_key, cmd_data=cmd_data
-            )
-            logger.info(
-                f"[A2A] Error callback sent to caller {task.caller_device_key} for task {task.task_id}"
-            )
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
-            logger.error(
-                f"[A2A] Failed to send error callback to caller {task.caller_device_key}: {e}"
-            )
+            await evocloud_manager.api.send_command_to_device(device_key=task.caller_device_key, cmd_data=cmd_data)
+            logger.info(f"[A2A] Error callback sent to caller {task.caller_device_key} for task {task.task_id}")
+        except Exception as e:
+            logger.error(f"[A2A] Failed to send error callback to caller {task.caller_device_key}: {e}")
 
     async def _handle_a2a_callback(self, command: RemoteCommand) -> None:
         payload = command.get_payload()
@@ -213,7 +194,7 @@ class A2ACommandHandler:
 
         try:
             result = AgentTaskResult.model_validate(payload)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[A2A] Invalid AgentTaskResult: {payload}, error={e}")
             return
 
@@ -269,9 +250,7 @@ class A2ACommandHandler:
 
             await close_hitl_interaction(caller_thread_id, tool_call_id, "completed")
         else:
-            logger.warning(
-                f"[A2A] Could not find matching pending tool call for task_id {task_id}"
-            )
+            logger.warning(f"[A2A] Could not find matching pending tool call for task_id {task_id}")
 
         # Resume Caller Agent
         from app.core.context.manager import ContextManager
@@ -292,15 +271,11 @@ class A2ACommandHandler:
                 if llm_models:
                     model = llm_models[0].model_id
                     logger.info(f"[A2A] Model resolved from platform: {model}")
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
-                logger.warning(
-                    f"[A2A] Failed to fetch platform models for fallback: {e}"
-                )
+            except Exception as e:
+                logger.warning(f"[A2A] Failed to fetch platform models for fallback: {e}")
 
         if not model:
-            logger.error(
-                f"[A2A] Cannot resume Caller thread {caller_thread_id}: no model available"
-            )
+            logger.error(f"[A2A] Cannot resume Caller thread {caller_thread_id}: no model available")
             return
 
         inputs = BackgroundAgentInputs(

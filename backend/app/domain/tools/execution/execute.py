@@ -48,7 +48,7 @@ async def _execute_command(
 
         return stdout, stderr, returncode
 
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.error(f"Command execution error: {e}")
         return "", str(e), -1
 

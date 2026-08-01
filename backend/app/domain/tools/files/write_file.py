@@ -77,7 +77,7 @@ async def handle_write(
                         run_id=ctx.run_id,
                         tool_call_id=ctx.current_tool_call_id,
                     )
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                except Exception as e:
                     import logging
                     logging.getLogger(__name__).error(f"Failed to persist file operation: {e}")
             
@@ -87,7 +87,7 @@ async def handle_write(
         else:
             return i18n.get("domain_tools.files.write_error", error=result.error_message)
 
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         return i18n.get("domain_tools.files.write_error", error=str(e))
 
 

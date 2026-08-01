@@ -137,7 +137,7 @@ class MessageRepository:
 
             return log.id, seq
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[MessageRepository] Failed to persist message: {e}")
             raise
 
@@ -245,7 +245,7 @@ class MessageRepository:
                 logger.info(f"[MessageRepository] Updated message seq={sequence_number}: {fields.keys()}")
                 return msg.id
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[MessageRepository] Failed to update message: {e}")
             raise
 
@@ -324,7 +324,7 @@ class MessageRepository:
 
                 await session.flush()
                 return True
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[MessageRepository] Failed to sync changeset reference: {e}")
             return False
 
@@ -377,7 +377,7 @@ class MessageRepository:
                     if tc.get("id") == tool_call_id:
                         return tc.get("args") or {}
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[MessageRepository] resolve_tool_input failed: {e}")
             raise
         return {}
@@ -399,7 +399,7 @@ class MessageRepository:
                 # but session.execute with update statement is fine.
                 logger.info(f"[MessageRepository] Updated status to {status} for tool_call_id {tool_call_id}")
                 return result.rowcount > 0
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[MessageRepository] Failed to update status by tool_call_id {tool_call_id}: {e}")
             raise
 
@@ -410,7 +410,7 @@ class MessageRepository:
                 async with session_scope() as s:
                     return await self._get_last_message_id(s)
             return await self._get_last_message_id(session)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             logger.error(f"[MessageRepository] Failed to get last message id: {e}")
             return None
 

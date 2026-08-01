@@ -15,12 +15,12 @@ class ToolExecutor:
             return await tool.ainvoke(args, config=config)
         except InterruptedError:
             raise
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except Exception as e:
             try:
                 from app.core.environment.boundaries import boundary_manager
                 await boundary_manager.on_tool_failure(tool_name, e, context={
                     "args": str(args)[:200]
                 })
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as boundary_err:
+            except Exception as boundary_err:
                 logger.debug(f"Boundary learning failed: {boundary_err}")
             return f"Error executing {tool_name}: {str(e)}"

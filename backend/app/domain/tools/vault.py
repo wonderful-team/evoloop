@@ -49,7 +49,7 @@ async def list_vault_credentials(
             if c.get("description"):
                 output.append(f"  *Description*: {c['description']}")
         return "\n".join(output)
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.error(f"Failed to list credentials: {e}")
         return f"Error listing credentials: {str(e)}"
 
@@ -106,7 +106,7 @@ async def request_secure_credential(
         if "pass" in field.lower() or "key" in field.lower() or "secret" in field.lower() or "token" in field.lower():
             try:
                 val = getpass.getpass(prompt)
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+            except Exception:
                 val = input(prompt)
         else:
             val = input(prompt)
@@ -124,6 +124,6 @@ async def request_secure_credential(
             f"✓ Credential '{identifier}' has been successfully saved to the Secure Vault.\n"
             f"You can now use it in tools using the placeholder: `{{{{vault.{identifier}.<field>}}}}`"
         )
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.error(f"Failed to save credential: {e}")
         return f"Error: Failed to save credential: {str(e)}"

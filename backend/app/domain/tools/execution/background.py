@@ -124,7 +124,7 @@ async def run_command_background(
                 pass
             await task_manager.timeout_task(task.task_id)
 
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except Exception as e:
         logger.error(f"Background command error: {e}", exc_info=True)
         await task_manager.fail_task(task.task_id, error=str(e))
 
