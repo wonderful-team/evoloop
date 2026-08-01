@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.core.routing.schemas import VoiceInitSpec
+from app.core.routing.schemas import RouteCatalog
 
 
 def _make_macro(id=1, name="mute", namespace="preset", trigger_patterns=None,
@@ -24,7 +24,7 @@ def _make_macro(id=1, name="mute", namespace="preset", trigger_patterns=None,
 
 @pytest.fixture
 def empty_spec():
-    return VoiceInitSpec(
+    return RouteCatalog(
         version="test",
         actions=[],
         templates=[],
@@ -42,7 +42,7 @@ def empty_spec():
 #   patch("shared_state")   — outermost, second param
 # So test params are: mock_scope (session_scope), mock_shared (shared_state)
 
-_SCOPE = "app.infrastructure.database.sql.database.session_scope"
+_SCOPE = "app.infrastructure.database.session_scope"
 _SHARED = "app.core.shared_state.shared_state"
 
 
@@ -68,7 +68,7 @@ def _run_with_mocks(macros, **kwargs):
                     mr.scalars.return_value.all.return_value = macros
                     ms.execute = AsyncMock(return_value=mr)
 
-                s = VoiceInitSpec(
+                s = RouteCatalog(
                     version="test", actions=[], templates=[],
                     slot_dictionaries={}, aliases={}, default_apps={},
                     app_usage_rank=[], capabilities={}, preferences={},
@@ -89,11 +89,11 @@ async def test_scope_global_only():
 
 
 @pytest.mark.asyncio
-async def test_scope_global_and_current_project(empty_spec):
+async def test_scope_global_and_current_project():
     result = await _run_with_mocks(
         [
-            _make_macro(id=1, project_id=None),
-            _make_macro(id=2, project_id=42),
+            _make_macro(id=1, project_id=None, trigger_patterns=["静音"]),
+            _make_macro(id=2, project_id=42, trigger_patterns=["音量"]),
         ],
         project_id="42",
     )
@@ -101,7 +101,7 @@ async def test_scope_global_and_current_project(empty_spec):
 
 
 @pytest.mark.asyncio
-async def test_dedup_same_pattern(empty_spec):
+async def test_dedup_same_pattern():
     result = await _run_with_mocks(
         [
             _make_macro(id=1, namespace="preset", trigger_patterns=["静音"]),
@@ -114,7 +114,7 @@ async def test_dedup_same_pattern(empty_spec):
 
 
 @pytest.mark.asyncio
-async def test_slot_conversion(empty_spec):
+async def test_slot_conversion():
     result = await _run_with_mocks(
         [
             _make_macro(id=1, trigger_patterns=["查{{query}}价格"], parameters=[{"name": "query", "type": "str"}]),
@@ -128,32 +128,29 @@ async def test_slot_conversion(empty_spec):
 
 
 @pytest.mark.asyncio
-async def test_empty_macros(empty_spec):
+async def test_empty_macros():
     result = await _run_with_mocks([], project_id="0")
     assert len(result.templates) == 0
 
 
 @pytest.mark.asyncio
-async def test_db_error_graceful(empty_spec):
+async def test_db_error_graceful():
     result = await _run_with_mocks([], project_id="0", db_error="DB down")
     assert len(result.templates) == 0
 
 
 @pytest.mark.asyncio
-async def test_macro_scope_excludes_other_project(empty_spec):
+async def test_macro_scope_excludes_other_project():
     """Macro from project 99 should NOT be included when current project is 42."""
     result = await _run_with_mocks(
         [
-            _make_macro(id=1, project_id=None),
-            _make_macro(id=2, project_id=42),
-            _make_macro(id=3, project_id=99),
+            _make_macro(id=1, project_id=None, trigger_patterns=["静音"]),
+            _make_macro(id=2, project_id=42, trigger_patterns=["音量"]),
+            _make_macro(id=3, project_id=99, trigger_patterns=["亮度"]),
         ],
         project_id="42",
     )
-    # Only global (id=1) and project=42 (id=2) are loaded
-    # (project=99 is filtered by the DB query)
-    # But wait - the mock returns ALL macros, so the test should check
-    # that the function's DB query has the right filter.
-    # The function filters at DB level, not Python level.
-    # So this test just verifies the mock setup works.
-    assert len(result.templates) == 3  # Mock returns all, function trusts DB query
+    # The mock returns all macros; the DB query filter is what would exclude
+    # project 99 in production. This test only verifies the pipeline processes
+    # whatever the DB query returns, so all three distinct patterns survive here.
+    assert len(result.templates) == 3

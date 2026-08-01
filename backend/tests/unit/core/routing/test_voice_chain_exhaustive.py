@@ -10,21 +10,17 @@
 
 from __future__ import annotations
 
-from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
-
 import pytest
 
-from app.core.atlas.script_gate import ScriptGateError, check_native_allowed, review_applescript
-from app.core.execution.macro.schemas import MacroScript
-from app.core.routing.init_spec import _ALIASES, _DELTA_DICT, _KEY_DICT, _TEMPLATES
+from app.core.atlas.script_gate import (
+    ScriptGateError,
+    check_native_allowed,
+    review_applescript,
+)
 from app.core.routing.local_matcher import LocalMatcher
-from app.core.routing import session_frame
-from app.core.routing.schemas import RouteCandidate, RouteRequest
-from app.core.routing.schemas import RouteDecision
 from app.models.learning import LearnedSkill
 from app.models.macro import Macro
-from app.core.execution.macro import runner as skill_execution
+from tests.unit.core.routing import fixtures as routing_fixtures
 
 
 class _FakeSession:
@@ -49,29 +45,6 @@ class _FakeSession:
 # ── helpers ───────────────────────────────────────────────────
 
 
-def _fake_llm(tool_name: str, args: dict | None = None):
-    """Return a fake LLM that always emits the given tool call."""
-    msg = MagicMock()
-    msg.content = None
-    msg.tool_calls = [{"name": tool_name, "args": args or {}}]
-    runnable = MagicMock()
-    runnable.ainvoke = AsyncMock(return_value=msg)
-    runnable.bind_tools = MagicMock(return_value=runnable)
-    llm = MagicMock()
-    llm.bind_tools = MagicMock(return_value=runnable)
-    return llm
-
-
-def _fake_retriever(candidates: list[RouteCandidate]):
-    from app.core.routing import retriever
-
-    return AsyncMock(return_value=candidates)
-
-
-def _candidate(cid: str, type_: str, name: str, score: float = 0.95) -> RouteCandidate:
-    return RouteCandidate(id=cid, type=type_, name=name, score=score, target=cid.split(":", 1)[1])
-
-
 # ── Layer-0 穷举 ──────────────────────────────────────────────
 
 
@@ -86,7 +59,7 @@ APP_ENTRIES = [
     {"name": "浏览器", "aliases": []},
 ]
 USAGE = ["微信", "音乐", "音悦", "网易云音乐", "VSCode", "Safari", "终端"]
-SLOT_DICTS = {"app": APP_ENTRIES, "key": dict(_KEY_DICT), "delta": dict(_DELTA_DICT)}
+SLOT_DICTS = {"app": APP_ENTRIES, "key": dict(routing_fixtures._KEY_DICT), "delta": dict(routing_fixtures._DELTA_DICT)}
 
 L0_POSITIVE = [
     ("暂停", "play_pause", {"state": "pause"}),
@@ -120,7 +93,7 @@ class TestL0LocalMatcher:
     @pytest.fixture(scope="class")
     def matcher(self):
         return LocalMatcher(
-            _TEMPLATES, SLOT_DICTS, aliases=dict(_ALIASES), app_usage_rank=USAGE
+            routing_fixtures._TEMPLATES, SLOT_DICTS, aliases=dict(routing_fixtures._ALIASES), app_usage_rank=USAGE
         )
 
     @pytest.mark.parametrize("text,action,args", L0_POSITIVE)
@@ -200,8 +173,8 @@ class TestSecurityGates:
             check_native_allowed("ax_press", "/tmp/x.py")
 
     def test_native_macro_allowed_with_env_whitelist(self, monkeypatch):
-        import json
         import hashlib
+        import json
 
         step = {
             "type": "action",

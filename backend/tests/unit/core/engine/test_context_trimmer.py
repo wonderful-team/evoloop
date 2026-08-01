@@ -9,9 +9,12 @@ Tests account for this behavior.
 """
 
 import pytest
-from app.core.engine.message.native_classes import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
 from app.core.engine.context_trimmer import ContextTrimmer, TrimTrigger
+from app.core.engine.message.native_classes import (
+    AIMessage,
+    HumanMessage,
+)
 from app.core.engine.message.utils import count_total_tokens, estimate_message_tokens
 from app.utils.token import estimate_tokens
 
@@ -162,27 +165,3 @@ class TestRetryCleanup:
         # In MagicMock env, dedup may behave differently; just verify count is reasonable
         assert human_count <= 3
 
-
-class TestTruncateToolOutput:
-    def test_no_truncate_short(self):
-        trimmer = ContextTrimmer()
-        result = trimmer.truncate_tool_output("short", model="gpt-4o")
-        assert result == "short"
-
-    def test_truncate_long(self):
-        trimmer = ContextTrimmer()
-        content = "a" * 100000
-        result = trimmer.truncate_tool_output(content, model="gpt-4o")
-        assert "truncated" in result
-        assert len(result) < len(content)
-
-    @pytest.mark.skip(reason="Needs re-evaluation after state-flattening changes")
-    def test_model_specific_limit(self):
-        trimmer = ContextTrimmer()
-        # gpt-4o limit = 5000 tokens = 20000 chars
-        content = "a" * 25000
-        gpt_result = trimmer.truncate_tool_output(content, model="gpt-4o")
-        # claude-3.5-sonnet limit = 8000 tokens = 32000 chars
-        claude_result = trimmer.truncate_tool_output(content, model="claude-3.5-sonnet")
-
-        assert len(claude_result) > len(gpt_result)

@@ -8,6 +8,7 @@ backend/
 │   ├── api/                # FastAPI 路由与端点
 │   ├── core/               # 核心业务逻辑
 │   │   ├── engine/         # Agent 执行引擎（图构建、节点、状态、消息、回调等）
+│   │   ├── routing/        # 通道无关 L0 路由与动作目录（voice/chat 共用）
 │   │   ├── learning/       # 学习与技能合成
 │   │   ├── memory/         # 记忆系统
 │   │   ├── execution/      # 任务执行与工具链
@@ -87,7 +88,7 @@ pytest tests/unit/core/engine/ -v  # 仅测试引擎模块
 
 ## Agent 开发注意事项
 
-- **引擎架构**：基于 LangGraph 的图执行模型，核心节点包括 `supervisor`、`worker`、`chat`、`finish`
+- **引擎架构**：基于自研的图执行模型，核心节点包括 `supervisor`、`worker`、`chat`、`finish`
 - **状态管理**：通过 `app/core/engine/state/` 管理生命周期与工作区状态
 - **提示词模板**：修改提示词时编辑 `app/config/templates/core/` 下的 `.j2` 文件，不要硬编码在 Python 中
 - **数据库迁移**：模型变更后用 `alembic revision --autogenerate -m "描述"` 生成迁移
@@ -122,3 +123,5 @@ uv run python tests/manual/test_devops_lifecycle.py --scenario all --project-id 
 uv run python tests/manual/test_devops_deploy.py --case all --project-id 57
 uv run python tests/manual/test_devops_negative.py --project-id 57
 ```
+
+不用检查与配置 LLM_MODEL，因为只要用户是登录过后有 token 的请求 EvoCloud Gateway 的话，Gateway 在不传 LLM_MODEL 的情况，会分配默认模型去请求 LLM 的

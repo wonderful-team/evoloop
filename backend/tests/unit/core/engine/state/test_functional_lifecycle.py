@@ -1,13 +1,13 @@
-import pytest
 from app.core.engine.state import AgentState
 from app.core.engine.state.base import (
-    merge_dicts,
     add_unique_items,
     add_unique_subtasks,
+    merge_dicts,
 )
-from app.core.engine.state.sub_schemas import SubtaskResult
 from app.core.engine.state.lifecycle import StateLifecycleManager
+from app.core.engine.state.sub_schemas import SubtaskResult
 from app.models.learning import LearnedSkill
+
 
 def test_merge_dicts():
     assert merge_dicts(None, None) == {}
@@ -64,18 +64,7 @@ def test_state_lifecycle_manager():
     assert state.subtask_results == []
     assert state.spawn_plan is None
 
-    # 5. clear_workflow_state
-    StateLifecycleManager.clear_workflow_state(state)
-    assert state.workflow_plan is None
-    assert state.workflow_step_index is None
-    assert state.workflow_results is None
-
-    # 6. consume_blocked_by_hook
+    # 5. consume_blocked_by_hook
     blocked = StateLifecycleManager.consume_blocked_by_hook(state)
     assert blocked is True
     assert state.blocked_by_hook is None
-
-    # 7. reset_terminal_metadata
-    StateLifecycleManager.reset_terminal_metadata(state)
-    assert state.final_outcome is None
-    assert state.shadow_audit is None

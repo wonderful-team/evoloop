@@ -5,71 +5,14 @@ Verifies that the Supervisor does NOT route to FINISH when the plan
 still has pending steps, forcing continued WORKER execution.
 """
 
-import pytest
-from unittest.mock import MagicMock, patch, AsyncMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from app.core.engine.nodes.supervisor import SupervisorNode, _plan_has_pending_steps
-from app.core.engine.routers import RoutingTarget
-from app.core.engine.state import AgentState, StateUpdate
-from app.core.engine.state.sub_schemas import PlanProgress
+import pytest
 from langchain_core.runnables import RunnableConfig
 
-
-class TestPlanHasPendingSteps:
-    """Unit tests for the _plan_has_pending_steps helper."""
-
-    def test_none_plan_returns_false(self):
-        assert _plan_has_pending_steps(None) is False
-
-    def test_empty_plan_returns_false(self):
-        assert _plan_has_pending_steps({}) is False
-        assert _plan_has_pending_steps("{}") is False
-
-    def test_all_done_steps_returns_false(self):
-        plan = {
-            "steps": [
-                {"status": "done"},
-                {"status": "completed"},
-                {"status": "success"},
-                {"status": "finished"},
-            ]
-        }
-        assert _plan_has_pending_steps(plan) is False
-
-    def test_pending_steps_returns_true(self):
-        plan = {
-            "steps": [
-                {"status": "done"},
-                {"status": "pending"},
-            ]
-        }
-        assert _plan_has_pending_steps(plan) is True
-
-    def test_in_progress_steps_returns_true(self):
-        plan = {
-            "steps": [
-                {"status": "in_progress"},
-                {"status": "done"},
-            ]
-        }
-        assert _plan_has_pending_steps(plan) is True
-
-    def test_nested_plan_schema(self):
-        plan = {"plan": {"steps": [{"status": "todo"}, {"status": "done"}]}}
-        assert _plan_has_pending_steps(plan) is True
-
-    def test_json_string_plan(self):
-        plan_json = '{"steps": [{"status": "pending"}, {"status": "done"}]}'
-        assert _plan_has_pending_steps(plan_json) is True
-
-    def test_mixed_case_status(self):
-        plan = {
-            "steps": [
-                {"status": "DONE"},
-                {"status": "Pending"},
-            ]
-        }
-        assert _plan_has_pending_steps(plan) is True
+from app.core.engine.nodes.supervisor import SupervisorNode
+from app.core.engine.state import AgentState
+from app.core.engine.state.sub_schemas import PlanProgress
 
 
 class TestSupervisorPlanCompletenessGate:

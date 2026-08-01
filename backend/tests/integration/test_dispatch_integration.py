@@ -192,18 +192,18 @@ async def test_dispatch_with_attachments(mock_scope, mock_ref_service):
     """Attachments should be passed to reference_service and reflected in DB."""
     from app.core.engine.dispatch import dispatch_agent_run
 
-    attachments = [
+    references = [
         {"type": "image", "url": "https://example.com/img.png", "name": "screenshot.png"}
     ]
 
     result = await dispatch_agent_run(
         thread_id="t-123",
         message_content="Check this image",
-        attachments=attachments,
+        references=references,
     )
 
     assert result.status == "queued"
-    # Reference service should have been called with attachments
+    # Reference service should have been called with references
     mock_ref_service.content_blocks = "Check this image"
 
 

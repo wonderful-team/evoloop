@@ -526,6 +526,10 @@ async def _real_db(tmp_path):
     settings.EMBEDDED_MODE = True
     settings.SQLITE_PATH = str(tmp_path / "real.db")
     await manager.initialize(seed_data=False)
+    # Expose the real session factory so that the integration-directory autouse
+    # mock_database_session fixture delegates to the real database instead of
+    # yielding a MagicMock. Several integration tests rely on this override.
+    manager._session_factory = manager.session_factory
     try:
         yield
     finally:
@@ -537,5 +541,6 @@ async def _real_db(tmp_path):
         manager.close = saved["close"]
         manager.reset = saved["reset"]
         manager.get_raw_connection = saved["get_raw_connection"]
+        manager._session_factory = None
         for loop_id, factory in saved["factories"].items():
             manager._session_factories[loop_id] = factory

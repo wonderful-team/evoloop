@@ -7,12 +7,12 @@ commands across multiple iterations. No backend required.
 
 import time
 
-from app.core.routing.init_spec import _TEMPLATES, _VOICE_LOCAL_ACTIONS
 from app.core.routing.local_matcher import LocalMatcher
+from tests.unit.core.routing import fixtures as routing_fixtures
 
 # All possible trigger phrases from builtin + preset templates
 _ALL_PATTERNS = []
-for t in _TEMPLATES:
+for t in routing_fixtures._TEMPLATES:
     _ALL_PATTERNS.extend(t.get("patterns", []))
 
 # Distractors: utterances that should NOT match
@@ -31,7 +31,7 @@ _DISTRACTORS = [
 
 
 def _make_matcher():
-    templates = _TEMPLATES.copy()
+    templates = routing_fixtures._TEMPLATES.copy()
     # Add preset macro templates (simulating enrich_spec_with_macro_triggers output)
     macros = [
         {"action": "macro:1", "patterns": ["静音", "别出声", "不要声音", "安静"], "slots": {}},
@@ -52,12 +52,14 @@ def _make_matcher():
 
 
 def test_matching_accuracy():
-    """Verify every trigger pattern produces the expected action."""
+    """Verify every concrete trigger pattern produces the expected action."""
     m = _make_matcher()
     errors = []
-    for tpl in _TEMPLATES:
+    for tpl in routing_fixtures._TEMPLATES:
         expected = tpl["action"]
         for pattern in tpl.get("patterns", []):
+            if "{" in pattern:
+                continue  # slotted patterns need concrete values; tested elsewhere
             result = m.match(pattern)
             if result is None:
                 errors.append(f"'{pattern}' → 未匹配 (期望 {expected})")

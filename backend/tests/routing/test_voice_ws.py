@@ -5,9 +5,9 @@ from fastapi import FastAPI  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
 from app.api.routes import voice_ws  # noqa: E402
-from app.core.routing import executor  # noqa: E402
-from app.core.routing.schemas import RouteDecision  # noqa: E402
-from app.core.schemas.canonical import create_envelope  # noqa: E402
+from app.core.routing import executor as routing_executor  # noqa: E402
+from app.core.routing.dispatch_handler import DispatchOutcome  # noqa: E402
+from app.core.schemas.canonical import MessageType, create_envelope  # noqa: E402
 
 
 class _FakeManager:
@@ -23,18 +23,42 @@ class _FakeManager:
         return True
 
 
-def _patch_route(monkeypatch, decision):
+def _patch_route(monkeypatch, fake_manager):
     async def _nodup(_message_id, _ttl=300):
         return False
 
     monkeypatch.setattr(voice_ws, "is_duplicate", _nodup)
+    monkeypatch.setattr(voice_ws, "manager", fake_manager)
+    monkeypatch.setattr(routing_executor, "manager", fake_manager)
+    monkeypatch.setattr(routing_executor, "envelope_fn", create_envelope)
+    monkeypatch.setattr(routing_executor, "message_type", MessageType)
+
+    async def _fake_dispatch(raw, *, thread_id, **_):
+        text = raw.get("text", "")
+        action_map = {
+            "打开微信": ("open_app", {"app": "WeChat"}),
+            "静音": ("mute", {}),
+            "截图": ("screenshot", {}),
+        }
+        action, args = action_map.get(text, ("noop", {}))
+        body = {
+            "thread_id": thread_id,
+            "status": "routed",
+            "target": {"type": "local", "action": action},
+            "params": args,
+            "candidates": [],
+        }
+        env = create_envelope(MessageType.VOICE_ROUTE_RESULT, body)
+        await routing_executor.manager.push(thread_id, env.model_dump())
+        return DispatchOutcome(handled=True, local_response=body)
+
+    monkeypatch.setattr(voice_ws, "dispatch_user_message", _fake_dispatch)
 
 
 @pytest.mark.asyncio
 async def test_handle_route_local(monkeypatch):
     fake = _FakeManager()
-    monkeypatch.setattr(voice_ws, "manager", fake)
-    _patch_route(monkeypatch, None)
+    _patch_route(monkeypatch, fake)
 
     await voice_ws._handle_route(
         {"text": "打开微信", "thread_id": "t1", "message_id": "m1"}, "c1"
@@ -53,8 +77,7 @@ async def test_handle_route_local(monkeypatch):
 @pytest.mark.asyncio
 async def test_handle_route_l0_mute(monkeypatch):
     fake = _FakeManager()
-    monkeypatch.setattr(voice_ws, "manager", fake)
-    _patch_route(monkeypatch, None)
+    _patch_route(monkeypatch, fake)
 
     await voice_ws._handle_route(
         {"text": "静音", "thread_id": "t3", "message_id": "m3"}, "c3"
@@ -69,8 +92,7 @@ async def test_handle_route_l0_mute(monkeypatch):
 @pytest.mark.asyncio
 async def test_handle_route_l0_screenshot(monkeypatch):
     fake = _FakeManager()
-    monkeypatch.setattr(voice_ws, "manager", fake)
-    _patch_route(monkeypatch, None)
+    _patch_route(monkeypatch, fake)
 
     await voice_ws._handle_route(
         {"text": "截图", "thread_id": "t4", "message_id": "m4"}, "c4"
@@ -85,9 +107,12 @@ async def test_handle_route_l0_screenshot(monkeypatch):
 @pytest.mark.asyncio
 async def test_executor_pushes_done(monkeypatch):
     fake = _FakeManager()
-    monkeypatch.setattr(executor, "manager", fake)
+    monkeypatch.setattr(routing_executor, "manager", fake)
+    monkeypatch.setattr(routing_executor, "envelope_fn", create_envelope)
+    monkeypatch.setattr(routing_executor, "message_type", MessageType)
+    monkeypatch.setattr(routing_executor, "active_volc_clients", {})
 
-    await executor.push_voice_result("t3", "done", "已为你执行技能")
+    await routing_executor.push_voice_result("t3", "done", "已为你执行技能")
 
     assert len(fake.pushes) == 1
     tid, env = fake.pushes[0]

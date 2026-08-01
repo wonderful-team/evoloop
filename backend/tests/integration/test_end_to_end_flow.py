@@ -163,25 +163,31 @@ async def test_retry_flow_preserves_original_message(fake_session):
     session, scope = fake_session
 
     # Build a message with references
-    orig_msg = MagicMock()
-    orig_msg.id = 77
-    orig_msg.thread_id = "t-retry"
-    orig_msg.role = "human"
-    orig_msg.content = "Original question"
-    ref = MagicMock()
-    ref.type = "image"
-    ref.target_id = "img-1"
-    ref.target_name = "screenshot.png"
-    orig_msg.references = [ref]
+    class FakeRef:
+        def __init__(self):
+            self.type = "image"
+            self.target_id = "img-1"
+            self.target_name = "screenshot.png"
+            self.meta_data = None
+
+    class FakeMsg:
+        def __init__(self):
+            self.id = 77
+            self.thread_id = "t-retry"
+            self.role = "human"
+            self.content = "Original question"
+            self.references = [FakeRef()]
+
+    orig_msg = FakeMsg()
 
     exec_result = MagicMock()
     exec_result.scalar_one_or_none.return_value = orig_msg
     session.execute.return_value = exec_result
 
     with patch("app.core.engine.dispatch.dispatch_agent_run", new_callable=AsyncMock) as mock_dispatch, \
-         patch("app.api.routes.agent.run_agent_background") as mock_bg, \
-         patch("app.api.routes.agent.session_scope", scope), \
-         patch("app.core.engine.rewind.RewindOrchestrator.perform_rewind", new_callable=AsyncMock) as mock_rewind:
+         patch("app.api.routes.agent._chat.run_agent_background") as mock_bg, \
+         patch("app.api.routes.agent._chat.session_scope", scope), \
+         patch("app.core.engine.rewind.perform_rewind", new_callable=AsyncMock) as mock_rewind:
 
         mock_rewind.return_value = MagicMock(
             status="success",
@@ -210,14 +216,14 @@ async def test_retry_flow_preserves_original_message(fake_session):
         assert result["status"] == "queued"
         assert result["action"] == "retry"
 
-        # dispatch should receive the original message content + attachments
+        # dispatch should receive the original message content + references
         mock_dispatch.assert_awaited_once()
         kwargs = mock_dispatch.call_args.kwargs
         assert kwargs["message_content"] == "Original question"
         assert kwargs["is_retry"] is True
         assert kwargs["skip_message_persistence"] is True
-        assert len(kwargs["attachments"]) == 1
-        assert kwargs["attachments"][0]["type"] == "image"
+        assert len(kwargs["references"]) == 1
+        assert kwargs["references"][0]["type"] == "image"
 
 
 @pytest.mark.asyncio
@@ -228,12 +234,17 @@ async def test_resume_flow_persists_and_resumes(fake_session):
     """
     from app.api.routes.agent import ResumeRequest, resume_chat
 
-    with patch("app.api.routes.agent.get_graph", return_value=MagicMock()), \
-         patch("app.api.routes.agent.db_resource_manager") as mock_db_res, \
-         patch("app.core.engine.dispatch.persist_user_message", new_callable=AsyncMock) as mock_persist, \
-         patch("app.api.routes.agent.resume_graph_background") as mock_resume_bg:
+    with patch("app.core.engine.dispatch.persist_user_message", new_callable=AsyncMock) as mock_persist, \
+         patch("app.api.routes.agent._chat.resume_graph_background") as mock_resume_bg, \
+         patch("app.core.context.manager.ContextManager.load", new_callable=AsyncMock) as mock_load, \
+         patch("app.core.context.manager.ContextManager.current", return_value=MagicMock()) as mock_current, \
+         patch("app.core.hitl.orchestrator.HITLOrchestrator.get_pending_request", new_callable=AsyncMock, return_value=None):
 
-        mock_db_res.checkpointer = MagicMock()
+        mock_ctx = MagicMock()
+        mock_ctx.active_model = "gpt-4o"
+        mock_ctx.token = None
+        mock_load.return_value = mock_ctx
+        mock_current.return_value = mock_ctx
 
         req = ResumeRequest(
             thread_id="t-resume",
@@ -250,7 +261,7 @@ async def test_resume_flow_persists_and_resumes(fake_session):
             thread_id="t-resume",
             content="Yes continue",
             project_id=None,
-            command_id=99,
+            member_id=0,
         )
 
         bg_tasks.add_task.assert_called_once()

@@ -104,8 +104,8 @@ class TestLayeredContextCache:
         assert layer.active_skills_index == ['skill1', 'skill2']
         mock_loader.assert_called_once()
         
-        # Should be cached
-        assert "sess123:1" in LayeredContextCache._static_cache
+        # Should be cached (key now includes intent, default "none")
+        assert any(k.startswith("sess123:1") for k in LayeredContextCache._static_cache)
     
     @pytest.mark.asyncio
     async def test_static_layer_cache_hit(self):
@@ -129,7 +129,39 @@ class TestLayeredContextCache:
         stats = LayeredContextCache.get_stats()
         assert stats['static_hits'] == 1
         assert stats['static_misses'] == 1
-    
+
+    @pytest.mark.asyncio
+    async def test_static_layer_intent_scoping(self):
+        """Different intents should use distinct cache keys."""
+        mock_loader = AsyncMock(return_value={
+            'project_concepts': 'Test concepts',
+            'active_skills': ['skill1'],
+        })
+
+        await LayeredContextCache.get_static_layer(
+            session_id="sess456",
+            project_id=1,
+            loader_fn=mock_loader,
+            intent="direct_answer",
+        )
+        await LayeredContextCache.get_static_layer(
+            session_id="sess456",
+            project_id=1,
+            loader_fn=mock_loader,
+            intent="worker_task",
+        )
+
+        # Loader should be called twice because intents differ
+        assert mock_loader.call_count == 2
+        assert any(
+            k.startswith("sess456:1:direct_answer")
+            for k in LayeredContextCache._static_cache
+        )
+        assert any(
+            k.startswith("sess456:1:worker_task")
+            for k in LayeredContextCache._static_cache
+        )
+
     @pytest.mark.asyncio
     async def test_static_layer_ttl_expiration(self):
         """Cache should expire after TTL."""

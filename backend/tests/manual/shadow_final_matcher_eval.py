@@ -14,13 +14,8 @@ import time
 
 sys.path.insert(0, "/Users/huangjinhuan/Projects/develop-assistant.cn/evoloop/backend")
 
-from app.core.routing.init_spec import (
-    _ALIASES,
-    _DELTA_DICT,
-    _KEY_DICT,
-    _TEMPLATES,
-    build_init_spec,
-)
+from tests.unit.core.routing import fixtures as routing_fixtures
+from app.core.routing.init_spec import build_init_spec
 from app.core.routing.local_matcher import LocalMatcher, sorted_templates
 
 APP_ENTRIES = [
@@ -36,9 +31,9 @@ APP_ENTRIES = [
 USAGE_RANK = [e["name"] for e in APP_ENTRIES]
 
 matcher = LocalMatcher(
-    sorted_templates(_TEMPLATES),
-    {"app": APP_ENTRIES, "key": dict(_KEY_DICT), "delta": dict(_DELTA_DICT)},
-    aliases=dict(_ALIASES),
+    sorted_templates(routing_fixtures._TEMPLATES),
+    {"app": APP_ENTRIES, "key": dict(routing_fixtures._KEY_DICT), "delta": dict(routing_fixtures._DELTA_DICT)},
+    aliases=dict(routing_fixtures._ALIASES),
     app_usage_rank=USAGE_RANK,
 )
 

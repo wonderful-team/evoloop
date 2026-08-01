@@ -7,12 +7,9 @@ Verifies the conditional routing logic that enables long-horizon tasks:
 3. Supervisor -> Worker loopback when plan is incomplete
 """
 
-import pytest
-from unittest.mock import MagicMock
 
-from app.core.engine.routers import route_finish, route_supervisor, RoutingTarget
+from app.core.engine.routers import RoutingTarget, route_finish, route_supervisor
 from app.core.engine.state import AgentState
-from langgraph.types import Send
 
 
 class TestRouteFinishIncomplete:

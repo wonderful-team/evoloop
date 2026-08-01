@@ -44,11 +44,20 @@ def mock_database_session():
 
     @asynccontextmanager
     async def _scope():
-        # If a real session factory was set by another fixture (e.g. memory_setup),
-        # delegate to it so tests that need a real DB can function.
+        # If a real session factory was set by another fixture (e.g. _real_db),
+        # delegate to it so tests that need a real DB can function. We must
+        # preserve the transactional semantics of the real session_scope (commit
+        # on success, rollback on exception), otherwise writes are lost.
         if db_resource_manager._session_factory is not None:
             async with db_resource_manager.session_factory() as real_session:
-                yield real_session
+                try:
+                    yield real_session
+                    await real_session.commit()
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError):
+                    await real_session.rollback()
+                    raise
+                finally:
+                    await real_session.close()
         else:
             yield session
 

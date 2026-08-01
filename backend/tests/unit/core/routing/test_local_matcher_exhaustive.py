@@ -12,14 +12,9 @@ import itertools
 
 import pytest
 
-from app.core.routing.init_spec import (
-    _ALIASES,
-    _DELTA_DICT,
-    _KEY_DICT,
-    _TEMPLATES,
-    build_init_spec,
-)
+from app.core.routing.init_spec import build_init_spec
 from app.core.routing.local_matcher import _PREFIXES, _SUFFIXES, LocalMatcher
+from tests.unit.core.routing import fixtures as routing_fixtures
 
 APP_ENTRIES = [
     {"name": "微信", "pinyin": "weixin", "aliases": []},
@@ -33,15 +28,15 @@ APP_ENTRIES = [
     {"name": "终端", "pinyin": "zhongduan", "aliases": []},
 ]
 USAGE_RANK = [e["name"] for e in APP_ENTRIES]
-DICTS = {"app": APP_ENTRIES, "key": dict(_KEY_DICT), "delta": dict(_DELTA_DICT)}
+DICTS = {"app": APP_ENTRIES, "key": dict(routing_fixtures._KEY_DICT), "delta": dict(routing_fixtures._DELTA_DICT)}
 
 PREFIXES = [""] + list(_PREFIXES)
 SUFFIXES = [""] + list(_SUFFIXES)
 
 SLOT_FILLINGS = {
     "app": [e["name"] for e in APP_ENTRIES],
-    "delta": list(_DELTA_DICT),
-    "key": list(_KEY_DICT),
+    "delta": list(routing_fixtures._DELTA_DICT),
+    "key": list(routing_fixtures._KEY_DICT),
     "name": ["小智", "旺财"],
 }
 
@@ -55,17 +50,17 @@ def _fillings(slots: list[str]) -> list[dict[str, str]]:
 
 def _expected_slot(slot: str, raw: str) -> str:
     if slot == "app":
-        return _ALIASES.get(raw, raw)
+        return routing_fixtures._ALIASES.get(raw, raw)
     if slot == "delta":
-        return _DELTA_DICT[raw]
+        return routing_fixtures._DELTA_DICT[raw]
     if slot == "key":
-        return _KEY_DICT[raw]
+        return routing_fixtures._KEY_DICT[raw]
     return raw
 
 
 @pytest.fixture
 def matcher() -> LocalMatcher:
-    return LocalMatcher(_TEMPLATES, DICTS, aliases=dict(_ALIASES), app_usage_rank=USAGE_RANK)
+    return LocalMatcher(routing_fixtures._TEMPLATES, DICTS, aliases=dict(routing_fixtures._ALIASES), app_usage_rank=USAGE_RANK)
 
 
 def test_generative_positives_exhaustive(matcher: LocalMatcher) -> None:
@@ -73,7 +68,7 @@ def test_generative_positives_exhaustive(matcher: LocalMatcher) -> None:
     import re
 
     checked = 0
-    for template in _TEMPLATES:
+    for template in routing_fixtures._TEMPLATES:
         action = template["action"]
         fixed = template.get("args") or {}
         for pattern in template["patterns"]:
@@ -138,12 +133,19 @@ def test_pinyin_boundary_quartet(matcher: LocalMatcher) -> None:
 def test_real_spec_audit() -> None:
     """Exhaustive audit over the REAL shipped spec (macOS app probe)."""
     spec = build_init_spec()
+    # App-control actions are now DB preset macros; inject representative
+    # templates here so we can still audit the app-slot dictionary and matcher.
+    audit_templates = list(spec.templates) + [
+        {"action": "open_app", "patterns": ["打开{app}", "启动{app}", "开一下{app}"], "slots": {"app": "str"}},
+        {"action": "focus_app", "patterns": ["切换到{app}", "切到{app}", "回到{app}"], "slots": {"app": "str"}},
+        {"action": "quit_app", "patterns": ["退出{app}", "关闭{app}", "关掉{app}"], "slots": {"app": "str"}},
+    ]
     matcher = LocalMatcher(
-        spec.templates, spec.slot_dictionaries, aliases=spec.aliases, app_usage_rank=spec.app_usage_rank
+        audit_templates, spec.slot_dictionaries, aliases=spec.aliases, app_usage_rank=spec.app_usage_rank
     )
 
     # every literal pattern (affix-stripped forms) resolves to its action
-    for template in spec.templates:
+    for template in audit_templates:
         for pattern in template["patterns"]:
             if "{" in pattern:
                 continue
@@ -162,7 +164,7 @@ def test_real_spec_audit() -> None:
             assert res[1].get("app") == canonical, f"{verb}{name} -> {res}"
 
     # pinyin coverage & collision audit over CJK-named entries
-    from app.core.routing.local_matcher import _pinyin
+    from app.core.routing.pinyin import to_pinyin as _pinyin
 
     groups: dict[str, list[str]] = {}
     for entry in apps:

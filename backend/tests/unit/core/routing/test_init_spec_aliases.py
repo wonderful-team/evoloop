@@ -4,11 +4,11 @@ from unittest.mock import AsyncMock, patch
 
 from app.core.routing import init_spec
 from app.core.routing.init_spec import enrich_spec_with_atlas_aliases
-from app.core.routing.schemas import VoiceInitSpec
+from app.core.routing.schemas import RouteCatalog
 
 
-def _spec() -> VoiceInitSpec:
-    return VoiceInitSpec(
+def _spec() -> RouteCatalog:
+    return RouteCatalog(
         version="t",
         actions=[],
         templates=[],

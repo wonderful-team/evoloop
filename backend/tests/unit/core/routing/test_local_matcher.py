@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from app.core.routing.init_spec import _ALIASES, _DELTA_DICT, _KEY_DICT, _TEMPLATES
 from app.core.routing.local_matcher import LocalMatcher, sorted_templates
+from tests.unit.core.routing import fixtures as routing_fixtures
 
 APP_ENTRIES = [
     {"name": "微信", "pinyin": "weixin", "aliases": []},
@@ -18,12 +18,21 @@ APP_ENTRIES = [
 ]
 USAGE_RANK = ["微信", "音乐", "音悦", "网易云音乐", "VSCode", "Safari", "终端"]
 
-SLOT_DICTIONARIES = {"app": APP_ENTRIES, "key": dict(_KEY_DICT), "delta": dict(_DELTA_DICT)}
+SLOT_DICTIONARIES = {
+    "app": APP_ENTRIES,
+    "key": dict(routing_fixtures._KEY_DICT),
+    "delta": dict(routing_fixtures._DELTA_DICT),
+}
 
 
 @pytest.fixture
 def matcher() -> LocalMatcher:
-    return LocalMatcher(_TEMPLATES, SLOT_DICTIONARIES, aliases=dict(_ALIASES), app_usage_rank=USAGE_RANK)
+    return LocalMatcher(
+        routing_fixtures._TEMPLATES,
+        SLOT_DICTIONARIES,
+        aliases=dict(routing_fixtures._ALIASES),
+        app_usage_rank=USAGE_RANK,
+    )
 
 
 # ── Rule 1+3: positive commands hit ──────────────────────────
@@ -129,7 +138,7 @@ def test_usage_rank_tiebreak(matcher: LocalMatcher) -> None:
 
 
 def test_sorted_templates_longest_first() -> None:
-    ordered = sorted_templates(_TEMPLATES)
+    ordered = sorted_templates(routing_fixtures._TEMPLATES)
 
     def index_of(action: str, args_key: str | None = None) -> int:
         for i, t in enumerate(ordered):

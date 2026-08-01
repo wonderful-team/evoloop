@@ -519,7 +519,7 @@ async def _run_appmap(project_id: int, timeout: int = 3600):
     from app.core.tools.registry import get_tool_bundle
 
     read_only_tools = [
-        t for t in get_tool_bundle("core_file_tools")
+        t for t in get_tool_bundle("file_tools")
         if t not in ("edit_file", "delete_file", "move_file")
     ]
     ticket = ExecutionTicket(
