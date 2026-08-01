@@ -51,6 +51,7 @@ sherpa-onnx = { path = "../../../sherpa-onnx/sherpa-onnx/rust/sherpa-onnx", defa
 cpal = "0.16"
 rubato = "0.16"
 hound = "3.5"
+ringbuf = "0.4"
 arboard = "3.4"
 
 [target.'cfg(target_os = "macos")'.dependencies]

@@ -8,7 +8,4 @@ pub mod voice_session;
 pub mod event;
 pub mod device_monitor;
 
-pub use ws_client::VoiceWsClient;
 pub use voice_session::{VoiceSession, VoiceState};
-pub use aec_engine::AecMicCapture;
-pub use device_monitor::{DeviceEvent, spawn_device_monitor};

@@ -8,6 +8,7 @@ use serde::Serialize;
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// 应用名称，从 Cargo.toml 读取
+#[allow(dead_code)]
 pub const APP_NAME: &str = env!("CARGO_PKG_NAME");
 
 /// 构建号 (每次 CI/CD 构建递增)
@@ -35,6 +36,7 @@ pub const RELEASE_STAGE: &str = match option_env!("RELEASE_STAGE") {
 };
 
 /// 完整版本字符串
+#[allow(dead_code)]
 pub const FULL_VERSION: &str = match option_env!("EVOLOOP_FULL_VERSION") {
     // 默认值：无法从单一 const 拼接，这里用占位符，运行时通过 VersionInfo::full_version 获取
     Some(v) => v,

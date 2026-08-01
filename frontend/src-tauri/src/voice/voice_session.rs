@@ -1,19 +1,32 @@
-use std::collections::{VecDeque, HashMap};
+#![allow(unexpected_cfgs)]
+
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::RwLock;
-use log::{info, warn, error};
+use log::{info, warn};
 use std::path::PathBuf;
+
+#[cfg(not(target_os = "macos"))]
 use std::io::Write;
+#[cfg(not(target_os = "macos"))]
 use std::process::{Command, Stdio, Child, ChildStdin};
+
+#[cfg(target_os = "macos")]
+use ringbuf::{HeapRb, HeapProd};
+#[cfg(target_os = "macos")]
+use ringbuf::traits::{Split, producer::Producer};
 
 use crate::voice::ws_client::{VoiceWsClient, VoiceEnvelope};
 use crate::voice::aec_engine::AecMicCapture;
+#[cfg(target_os = "macos")]
+use crate::voice::aec_engine::TtsAudioSource;
 use crate::voice::event::VoiceEventBus;
 
 #[cfg(target_os = "macos")]
+#[allow(unexpected_cfgs)]
 pub fn dictation_paste(text: &str) {
     use cocoa::base::nil;
     use cocoa::foundation::NSString;
@@ -66,16 +79,20 @@ pub struct VoiceSession {
     running: Arc<AtomicBool>,
     lang: Arc<RwLock<String>>,
     mode: Arc<RwLock<String>>,
-    audio_queue: Arc<Mutex<VecDeque<f32>>>,
     event_bus: Arc<Mutex<Option<Arc<dyn VoiceEventBus>>>>,
     shared_state: Arc<RwLock<HashMap<String, String>>>,
     tts_voice: Arc<RwLock<String>>,
     tts_speed: Arc<RwLock<f32>>,
-    // TTS playback state — ffplay streaming
-    ffplay_stdin: Arc<Mutex<Option<ChildStdin>>>,
-    ffplay_child: Arc<Mutex<Option<Child>>>,
     tts_active: Arc<AtomicBool>,
     last_activity: Arc<AtomicU64>,
+    #[cfg(target_os = "macos")]
+    tts_audio_producer: Arc<Mutex<Option<HeapProd<f32>>>>,
+    #[cfg(target_os = "macos")]
+    tts_clear_flag: Arc<Mutex<Option<Arc<AtomicBool>>>>,
+    #[cfg(not(target_os = "macos"))]
+    ffplay_stdin: Arc<Mutex<Option<ChildStdin>>>,
+    #[cfg(not(target_os = "macos"))]
+    ffplay_child: Arc<Mutex<Option<Child>>>,
 }
 
 impl VoiceSession {
@@ -87,15 +104,20 @@ impl VoiceSession {
             running: Arc::new(AtomicBool::new(false)),
             lang: Arc::new(RwLock::new("zh-CN".to_string())),
             mode: Arc::new(RwLock::new("dialogue".to_string())),
-            audio_queue: Arc::new(Mutex::new(VecDeque::new())),
             event_bus: Arc::new(Mutex::new(None)),
             shared_state: Arc::new(RwLock::new(HashMap::new())),
             tts_voice: Arc::new(RwLock::new(String::new())),
             tts_speed: Arc::new(RwLock::new(1.0)),
-            ffplay_stdin: Arc::new(Mutex::new(None)),
-            ffplay_child: Arc::new(Mutex::new(None)),
             tts_active: Arc::new(AtomicBool::new(false)),
             last_activity: Arc::new(AtomicU64::new(0)),
+            #[cfg(target_os = "macos")]
+            tts_audio_producer: Arc::new(Mutex::new(None)),
+            #[cfg(target_os = "macos")]
+            tts_clear_flag: Arc::new(Mutex::new(None)),
+            #[cfg(not(target_os = "macos"))]
+            ffplay_stdin: Arc::new(Mutex::new(None)),
+            #[cfg(not(target_os = "macos"))]
+            ffplay_child: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -126,26 +148,39 @@ impl VoiceSession {
         self.lang.clone()
     }
 
-    /// Shared TTS cleanup: kill ffplay, close stdin, clear queue.
-    /// Caller is responsible for `tts_active` and other session-level flags.
+    /// Shared TTS cleanup: on macOS drain the VoiceProcessingIO output queue,
+    /// on other platforms kill ffplay.
     fn _stop_tts_playback(
+        #[cfg(target_os = "macos")]
+        tts_clear_flag: &Mutex<Option<Arc<AtomicBool>>>,
+        #[cfg(not(target_os = "macos"))]
         ffplay_stdin: &Mutex<Option<ChildStdin>>,
+        #[cfg(not(target_os = "macos"))]
         ffplay_child: &Mutex<Option<Child>>,
-        audio_queue: &Mutex<VecDeque<f32>>,
     ) {
-        audio_queue.lock().unwrap().clear();
-        let _ = std::process::Command::new("pkill")
-            .arg("-x").arg("ffplay")
-            .output();
-        if let Ok(mut stdin_guard) = ffplay_stdin.lock() {
-            drop(stdin_guard.take());
-        }
-        if let Ok(mut child) = ffplay_child.lock() {
-            if let Some(ref mut c) = *child {
-                let _ = c.kill();
-                let _ = c.wait();
+        #[cfg(target_os = "macos")]
+        {
+            if let Ok(flag_opt) = tts_clear_flag.lock() {
+                if let Some(flag) = flag_opt.as_ref() {
+                    flag.store(true, Ordering::SeqCst);
+                }
             }
-            *child = None;
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            let _ = std::process::Command::new("pkill")
+                .arg("-x").arg("ffplay")
+                .output();
+            if let Ok(mut stdin_guard) = ffplay_stdin.lock() {
+                drop(stdin_guard.take());
+            }
+            if let Ok(mut child) = ffplay_child.lock() {
+                if let Some(ref mut c) = *child {
+                    let _ = c.kill();
+                    let _ = c.wait();
+                }
+                *child = None;
+            }
         }
     }
 
@@ -164,86 +199,120 @@ impl VoiceSession {
             let lock = self.event_bus.lock().unwrap();
             lock.as_ref().cloned().ok_or("Event bus not set")?
         };
-        let session_audio_queue = self.audio_queue.clone();
         let session_shared_state = self.shared_state.clone();
         let session_tts_active = self.tts_active.clone();
+        #[cfg(target_os = "macos")]
+        let session_tts_producer = self.tts_audio_producer.clone();
+        #[cfg(target_os = "macos")]
+        let session_tts_clear_flag = self.tts_clear_flag.clone();
+        #[cfg(not(target_os = "macos"))]
         let ffplay_stdin = self.ffplay_stdin.clone();
+        #[cfg(not(target_os = "macos"))]
         let ffplay_child = self.ffplay_child.clone();
 
         let handler = Arc::new(move |envelope: VoiceEnvelope| {
             let msg_type = envelope.msg_type.clone();
             let body = envelope.body.clone().unwrap_or(serde_json::Value::Null);
-            let session_audio_queue = session_audio_queue.clone();
+            #[cfg(target_os = "macos")]
+            let session_tts_producer = session_tts_producer.clone();
+            #[cfg(target_os = "macos")]
+            let session_tts_clear_flag = session_tts_clear_flag.clone();
+            #[cfg(not(target_os = "macos"))]
+            let ffplay_stdin = ffplay_stdin.clone();
+            #[cfg(not(target_os = "macos"))]
+            let ffplay_child = ffplay_child.clone();
             let session_shared_state = session_shared_state.clone();
             let session_tts_active = session_tts_active.clone();
             let event_bus = event_bus.clone();
-            let ffplay_stdin = ffplay_stdin.clone();
-            let ffplay_child = ffplay_child.clone();
 
             if msg_type == "voice.audio_frame" {
-                tokio::task::spawn_blocking(move || {
-                    use std::io::Write as IoWrite;
-                    if !session_tts_active.load(Ordering::SeqCst) {
-                        return;
-                    }
-                    if let Some(bytes) = envelope.raw_bytes {
-                        let mut stdin_guard = ffplay_stdin.lock().unwrap();
-                        if stdin_guard.is_none() {
-                            // Double-check tts_active before spawning — a prior
-                            // task may have killed ffplay and reset stdin after
-                            // our initial check above.
-                            if !session_tts_active.load(Ordering::SeqCst) {
-                                return;
-                            }
-                            info!("[tts-play] spawning ffplay (first audio frame, {}b)", bytes.len());
-                            let child = Command::new("ffplay")
-                                .args(["-f", "f32le", "-ar", "24000", "-nodisp", "-autoexit", "-"])
-                                .stdin(Stdio::piped())
-                                .stderr(Stdio::null())
-                                .spawn();
-                            match child {
-                                Ok(mut c) => {
-                                    let stdin = c.stdin.take()
-                                        .expect("failed to capture ffplay stdin");
-                                    *stdin_guard = Some(stdin);
-                                    // Reap any previous zombie before replacing (e.g.
-                                    // ffplay that exited on its own from -autoexit)
-                                    if let Ok(mut child_guard) = ffplay_child.lock() {
-                                        if let Some(ref mut old) = *child_guard {
-                                            let _ = old.wait();
-                                        }
-                                        *child_guard = Some(c);
-                                    }
-                                    info!("[tts-play] ffplay spawned OK");
+                #[cfg(target_os = "macos")]
+                {
+                    tokio::task::spawn_blocking(move || {
+                        if !session_tts_active.load(Ordering::SeqCst) {
+                            return;
+                        }
+                        if let Some(bytes) = envelope.raw_bytes {
+                            // Backend sends f32le PCM at 24kHz; VoiceProcessingIO
+                            // output runs at 16kHz, so resample before pushing.
+                            let samples_24k: Vec<f32> = bytes
+                                .chunks_exact(4)
+                                .map(|chunk| f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
+                                .collect();
+                            let samples_16k = crate::voice::audio_utils::resample_rubato(&samples_24k, 24000, 16000);
+
+                            if let Ok(mut prod_opt) = session_tts_producer.lock() {
+                                if let Some(producer) = prod_opt.as_mut() {
+                                    // Push as many resampled samples as fit; drop the
+                                    // rest to keep latency low. The consumer runs at the
+                                    // hardware render rate, so overflow only occurs under
+                                    // heavy back-pressure.
+                                    producer.push_slice(&samples_16k);
                                 }
-                                Err(e) => {
-                                    warn!("[tts-play] ffplay spawn failed: {}", e);
-                                    drop(stdin_guard);
+                            }
+                        }
+                    });
+                }
+                #[cfg(not(target_os = "macos"))]
+                {
+                    tokio::task::spawn_blocking(move || {
+                        use std::io::Write as IoWrite;
+                        if !session_tts_active.load(Ordering::SeqCst) {
+                            return;
+                        }
+                        if let Some(bytes) = envelope.raw_bytes {
+                            let mut stdin_guard = ffplay_stdin.lock().unwrap();
+                            if stdin_guard.is_none() {
+                                if !session_tts_active.load(Ordering::SeqCst) {
+                                    return;
+                                }
+                                info!("[tts-play] spawning ffplay (first audio frame, {}b)", bytes.len());
+                                let child = Command::new("ffplay")
+                                    .args(["-f", "f32le", "-ar", "24000", "-nodisp", "-autoexit", "-"])
+                                    .stdin(Stdio::piped())
+                                    .stderr(Stdio::null())
+                                    .spawn();
+                                match child {
+                                    Ok(mut c) => {
+                                        let stdin = c.stdin.take()
+                                            .expect("failed to capture ffplay stdin");
+                                        *stdin_guard = Some(stdin);
+                                        if let Ok(mut child_guard) = ffplay_child.lock() {
+                                            if let Some(ref mut old) = *child_guard {
+                                                let _ = old.wait();
+                                            }
+                                            *child_guard = Some(c);
+                                        }
+                                        info!("[tts-play] ffplay spawned OK");
+                                    }
+                                    Err(e) => {
+                                        warn!("[tts-play] ffplay spawn failed: {}", e);
+                                        drop(stdin_guard);
+                                        return;
+                                    }
+                                }
+                            }
+                            if let Some(stdin) = stdin_guard.as_mut() {
+                                if let Err(e) = stdin.write_all(&bytes) {
+                                    warn!("[tts-play] ffplay write failed ({}b): {} — resetting", bytes.len(), e);
+                                    if let Ok(mut child) = ffplay_child.lock() {
+                                        if let Some(ref mut c) = *child {
+                                            let _ = c.kill();
+                                            let _ = c.wait();
+                                        }
+                                        *child = None;
+                                    }
+                                    *stdin_guard = None;
                                     return;
                                 }
                             }
-                        }
-                        if let Some(stdin) = stdin_guard.as_mut() {
-                            if let Err(e) = stdin.write_all(&bytes) {
-                                warn!("[tts-play] ffplay write failed ({}b): {} — resetting", bytes.len(), e);
-                                // Reap the old child before dropping it (avoid zombie)
-                                if let Ok(mut child) = ffplay_child.lock() {
-                                    if let Some(ref mut c) = *child {
-                                        let _ = c.kill();
-                                        let _ = c.wait();
-                                    }
-                                    *child = None;
-                                }
-                                *stdin_guard = None;
-                                return;
+                            let dump_path = std::env::temp_dir().join("tts_debug_raw.pcm");
+                            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&dump_path) {
+                                let _ = f.write_all(&bytes);
                             }
                         }
-                        let dump_path = std::env::temp_dir().join("tts_debug_raw.pcm");
-                        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&dump_path) {
-                            let _ = f.write_all(&bytes);
-                        }
-                    }
-                });
+                    });
+                }
                 return;
             }
 
@@ -251,12 +320,16 @@ impl VoiceSession {
                 let mt = msg_type.as_str();
                 match mt {
                     "voice.barge_in" | "voice.cancel" => {
-                        info!("[tts-play] barge_in/cancel — killing ffplay");
-                        Self::_stop_tts_playback(
-                            ffplay_stdin.as_ref(),
-                            ffplay_child.as_ref(),
-                            session_audio_queue.as_ref(),
-                        );
+                        #[cfg(target_os = "macos")]
+                        {
+                            info!("[tts-play] barge_in/cancel — clearing TTS queue");
+                            Self::_stop_tts_playback(session_tts_clear_flag.as_ref());
+                        }
+                        #[cfg(not(target_os = "macos"))]
+                        {
+                            info!("[tts-play] barge_in/cancel — killing ffplay");
+                            Self::_stop_tts_playback(ffplay_stdin.as_ref(), ffplay_child.as_ref());
+                        }
                         event_bus.emit("voice:state", serde_json::json!({"state": "interrupted"}));
                     }
                     "dictation.paste" => {
@@ -305,6 +378,13 @@ impl VoiceSession {
                         let event_name = msg_type.replace(".", ":");
                         event_bus.emit(&event_name, body);
                         if is_listening {
+                            #[cfg(target_os = "macos")]
+                            if let Ok(flag_opt) = session_tts_clear_flag.lock() {
+                                if let Some(flag) = flag_opt.as_ref() {
+                                    flag.store(true, Ordering::SeqCst);
+                                }
+                            }
+                            #[cfg(not(target_os = "macos"))]
                             if let Ok(mut stdin_guard) = ffplay_stdin.lock() {
                                 if stdin_guard.is_some() {
                                     drop(stdin_guard.take());
@@ -324,6 +404,79 @@ impl VoiceSession {
         ws.connect().await?;
         *self.ws_client.write().await = Some(ws);
         Ok(())
+    }
+
+    async fn _start_mic_capture(&self, ws: Arc<VoiceWsClient>) -> Result<(), String> {
+        let running = self.running.clone();
+        let rt_handle = tokio::runtime::Handle::current();
+
+        let send_audio = move |samples: &[f32]| {
+            if !running.load(Ordering::SeqCst) {
+                return;
+            }
+            let sample_count = samples.len();
+            if sample_count == 0 {
+                return;
+            }
+
+            // Convert f32 samples to 16kHz i16 PCM bytes
+            let mut pcm = Vec::with_capacity(sample_count * 2);
+            for s in samples {
+                let clamped = s.clamp(-1.0, 1.0);
+                let sample = (clamped * i16::MAX as f32) as i16;
+                pcm.extend_from_slice(&sample.to_le_bytes());
+            }
+
+            let ws_clone = ws.clone();
+            let running_clone = running.clone();
+            rt_handle.spawn(async move {
+                if let Err(e) = ws_clone.send_binary(pcm).await {
+                    warn!("[voice-session] failed to send audio: {} — stopping session", e);
+                    running_clone.store(false, Ordering::SeqCst);
+                }
+            });
+        };
+
+        let mut mic = self.mic.write().await;
+
+        #[cfg(target_os = "macos")]
+        {
+            // 2 seconds of 16kHz mono buffer for TTS jitter + AEC reference.
+            let rb = HeapRb::<f32>::new(32000);
+            let (producer, consumer) = rb.split();
+            let clear_flag = Arc::new(AtomicBool::new(false));
+            *self.tts_audio_producer.lock().unwrap() = Some(producer);
+            *self.tts_clear_flag.lock().unwrap() = Some(clear_flag.clone());
+
+            mic.start(TtsAudioSource { consumer, clear_flag }, send_audio)
+        }
+
+        #[cfg(not(target_os = "macos"))]
+        {
+            mic.start(send_audio)
+        }
+    }
+
+    /// Restart microphone capture (e.g. after a Bluetooth reconnect) without
+    /// tearing down the voice session or WebSocket.
+    pub async fn restart_mic(&self) -> Result<(), String> {
+        if !self.running.load(Ordering::SeqCst) {
+            return Ok(());
+        }
+        let ws_client = {
+            let read_lock = self.ws_client.read().await;
+            match read_lock.as_ref() {
+                Some(ws) if ws.is_connected().await => ws.clone(),
+                _ => return Err("WebSocket not connected, cannot restart mic".to_string()),
+            }
+        };
+
+        {
+            let mut mic = self.mic.write().await;
+            mic.stop();
+        }
+        info!("[voice-session] restarting microphone after device change");
+        self._start_mic_capture(ws_client).await
     }
 
     pub async fn start(&self, thread_id: String, lang: String, mode: String) -> Result<(), String> {
@@ -356,41 +509,14 @@ impl VoiceSession {
         // voice.start first, that audio is lost. Starting the mic first means
         // a few frames may arrive before the backend is ready, but the Python
         // handler simply drops them with a warning.
-        let audio_queue = self.audio_queue.clone();
-        let running = self.running.clone();
-        let ws = ws_client.clone();
-        let rt_handle = tokio::runtime::Handle::current();
-
-        let mut mic = self.mic.write().await;
-        if let Err(e) = mic.start(audio_queue, move |samples: &[f32]| {
-            if !running.load(Ordering::SeqCst) {
-                return;
-            }
-
-            let sample_count = samples.len();
-            if sample_count == 0 {
-                return;
-            }
-
-            // Convert f32 samples to 16kHz i16 PCM bytes
-            let mut pcm = Vec::with_capacity(sample_count * 2);
-            for s in samples {
-                let clamped = s.clamp(-1.0, 1.0);
-                let sample = (clamped * i16::MAX as f32) as i16;
-                pcm.extend_from_slice(&sample.to_le_bytes());
-            }
-
-            let ws_clone = ws.clone();
-            let running_clone = running.clone();
-            rt_handle.spawn(async move {
-                if let Err(e) = ws_clone.send_binary(pcm).await {
-                    warn!("[voice-session] failed to send audio: {} — stopping session", e);
-                    running_clone.store(false, Ordering::SeqCst);
-                }
-            });
-        }) {
+        if let Err(e) = self._start_mic_capture(ws_client.clone()).await {
             self.running.store(false, Ordering::SeqCst);
             self.tts_active.store(false, Ordering::SeqCst);
+            #[cfg(target_os = "macos")]
+            {
+                *self.tts_audio_producer.lock().unwrap() = None;
+                *self.tts_clear_flag.lock().unwrap() = None;
+            }
             return Err(e);
         }
 
@@ -447,7 +573,10 @@ impl VoiceSession {
         self.tts_active.store(false, Ordering::SeqCst);
         self.mic.write().await.stop();
 
-        Self::_stop_tts_playback(&self.ffplay_stdin, &self.ffplay_child, &self.audio_queue);
+        #[cfg(target_os = "macos")]
+        Self::_stop_tts_playback(self.tts_clear_flag.as_ref());
+        #[cfg(not(target_os = "macos"))]
+        Self::_stop_tts_playback(&self.ffplay_stdin, &self.ffplay_child);
 
         let tid = self.thread_id.read().await.clone();
         if let Some(ws) = self.ws_client.read().await.as_ref() {
@@ -458,7 +587,11 @@ impl VoiceSession {
     }
 
     pub async fn barge_in(&self) {
-        self.audio_queue.lock().unwrap().clear();
+        #[cfg(target_os = "macos")]
+        Self::_stop_tts_playback(self.tts_clear_flag.as_ref());
+        #[cfg(not(target_os = "macos"))]
+        Self::_stop_tts_playback(&self.ffplay_stdin, &self.ffplay_child);
+
         let tid = self.thread_id.read().await.clone();
         if let Some(ws) = self.ws_client.read().await.as_ref() {
             let _ = ws.send_barge_in(&tid).await;
@@ -482,7 +615,10 @@ impl VoiceSession {
         // Stop TTS playback when leaving dialogue mode
         if old_mode == "dialogue" && mode != "dialogue" {
             self.tts_active.store(false, Ordering::SeqCst);
-            Self::_stop_tts_playback(&self.ffplay_stdin, &self.ffplay_child, &self.audio_queue);
+            #[cfg(target_os = "macos")]
+            Self::_stop_tts_playback(self.tts_clear_flag.as_ref());
+            #[cfg(not(target_os = "macos"))]
+            Self::_stop_tts_playback(&self.ffplay_stdin, &self.ffplay_child);
         }
         // Enable TTS when entering dialogue (both fresh start and dictation→dialogue)
         if mode == "dialogue" {
@@ -532,6 +668,7 @@ impl VoiceSession {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VoiceState {
     Idle,

@@ -1,7 +1,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use log::{info, error, warn};
+use log::{info, error};
 use tokio::io::AsyncWriteExt;
 use tokio::sync::mpsc;
 use tauri::Emitter;
@@ -88,7 +88,6 @@ fn pinyin_kws(ch: char) -> Option<&'static str> {
 
 enum WakeWordCmd {
     Start { app_handle: tauri::AppHandle, word: String, voice: String },
-    Stop,
 }
 
 struct KwsPaths {
@@ -165,8 +164,8 @@ impl WakeWordDetector {
             let rt = tokio::runtime::Builder::new_current_thread()
                 .enable_all().build().expect("runtime");
             rt.block_on(async {
-                let mut current_word = String::new();
-                let mut current_voice = String::new();
+                let mut current_word: String;
+                let mut current_voice: String;
                 let mut need_retry = false;
 
                 loop {
@@ -180,7 +179,7 @@ impl WakeWordDetector {
                                         let ok = run_detector(app_handle, &current_word, &current_voice, &paths, &stop).await;
                                         if ok { need_retry = false; }
                                     }
-                                    Some(WakeWordCmd::Stop) | None => break,
+                                    None => break,
                                 }
                             }
                             _ = tokio::time::sleep(Duration::from_secs(2)) => {
@@ -200,7 +199,7 @@ impl WakeWordDetector {
                                         let ok = run_detector(app_handle, &current_word, &current_voice, &paths, &stop).await;
                                         if !ok { need_retry = true; }
                                     }
-                                    Some(WakeWordCmd::Stop) | None => break,
+                                    None => break,
                                 }
                             }
                         }
@@ -274,7 +273,7 @@ fn to_keyword_line(word: &str) -> String {
 async fn run_detector(
     app_handle: tauri::AppHandle,
     word: &str,
-    voice: &str,
+    _voice: &str,
     paths: &KwsPaths,
     stop: &AtomicBool,
 ) -> bool {

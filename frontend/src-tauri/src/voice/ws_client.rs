@@ -30,6 +30,7 @@ pub struct VoiceWsClient {
     ping_failures: Arc<Mutex<u32>>,
 }
 
+#[allow(dead_code)]
 impl VoiceWsClient {
     pub fn new(url: String, handler: EnvelopeHandler) -> Self {
         Self {

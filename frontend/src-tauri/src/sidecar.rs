@@ -171,7 +171,7 @@ impl SidecarClient {
                 .map_err(|e| format!("Failed to spawn Backend: {}", e))
         } else {
             // Production mode
-            let exe_path = std::env::current_exe()
+            let _exe_path = std::env::current_exe()
                 .map_err(|e| format!("Failed to get current exe path: {}", e))?;
                 
             #[cfg(target_os = "macos")]
@@ -183,7 +183,7 @@ impl SidecarClient {
                 .join("evoloop-backend");
 
             #[cfg(not(target_os = "macos"))]
-            let sidecar_path = exe_path
+            let sidecar_path = _exe_path
                 .parent()
                 .ok_or("Failed to get exe parent dir")?
                 .join("evoloop-backend");

@@ -1,4 +1,3 @@
-use std::collections::VecDeque;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
@@ -8,11 +7,25 @@ use super::mic_capture::MicCapture;
 
 const TARGET_SAMPLE_RATE: u32 = 16000;
 
+#[cfg(target_os = "macos")]
+use ringbuf::HeapCons;
+#[cfg(target_os = "macos")]
+use ringbuf::traits::consumer::Consumer;
+
+/// Source of TTS audio for the VoiceProcessingIO output bus.
+/// On macOS the output callback consumes samples from this queue so that the
+/// VoiceProcessingIO AudioUnit can use them as the AEC reference signal.
+#[cfg(target_os = "macos")]
+pub struct TtsAudioSource {
+    pub consumer: HeapCons<f32>,
+    pub clear_flag: Arc<AtomicBool>,
+}
+
 /// Acoustic echo cancellation (AEC) microphone capture.
 ///
 /// On macOS this tries to use the system VoiceProcessingIO AudioUnit which performs
 /// echo cancellation using the audio played on its own output bus as the reference
-/// signal. To make AEC effective, the TTS audio must be fed to `audio_queue` so that
+/// signal. To make AEC effective, the TTS audio must be fed to `TtsAudioSource` so that
 /// the VoiceProcessingIO output callback can play it.
 /// On failure or on non-macOS platforms it falls back to the regular cpal-based
 /// `MicCapture`.
@@ -37,10 +50,10 @@ impl AecMicCapture {
     }
 
     /// Start capturing audio. The callback receives f32 samples at 16kHz mono.
-    /// `audio_queue` is the source of TTS audio for the VoiceProcessingIO output bus.
+    #[cfg(target_os = "macos")]
     pub fn start<F>(
         &mut self,
-        audio_queue: Arc<Mutex<VecDeque<f32>>>,
+        tts_source: TtsAudioSource,
         callback: F,
     ) -> Result<(), String>
     where
@@ -50,36 +63,52 @@ impl AecMicCapture {
 
         let callback = Arc::new(Mutex::new(callback));
 
-        #[cfg(target_os = "macos")]
-        {
-            // Try VoiceProcessingIO. If it fails, log but don't disable permanently,
+        // Try VoiceProcessingIO. If it fails, log but don't disable permanently,
         // so subsequent starts can retry. Fall back to MicCapture regardless.
-            if self.mac.is_none() {
-                match MacAecCapture::new() {
-                    Ok(m) => self.mac = Some(m),
-                    Err(e) => warn!("[aec] MacAecCapture::new() failed: {}", e),
-                }
+        if self.mac.is_none() {
+            match MacAecCapture::new() {
+                Ok(m) => self.mac = Some(m),
+                Err(e) => warn!("[aec] MacAecCapture::new() failed: {}", e),
             }
-            if let Some(mac) = self.mac.as_mut() {
-                match mac.start(audio_queue.clone(), callback.clone()) {
-                    Ok(()) => {
-                        info!("[aec] VoiceProcessingIO capture started with AEC");
-                        // Success with AEC - skip fallback
-                        self.fallback.stop();
-                        return Ok(());
-                    }
-                    Err(e) => {
-                        warn!("[aec] VoiceProcessingIO failed to start ({}), falling back to MicCapture", e);
-                        mac.stop();
-                        // Discard the broken AudioUnit so next start() creates a fresh one.
-                        // After Bluetooth reconnect the old instance is in a bad state.
-                        self.mac = None;
-                    }
+        }
+        if let Some(mac) = self.mac.as_mut() {
+            match mac.start(tts_source, callback.clone()) {
+                Ok(()) => {
+                    info!("[aec] VoiceProcessingIO capture started with AEC");
+                    // Success with AEC - skip fallback
+                    self.fallback.stop();
+                    return Ok(());
+                }
+                Err(e) => {
+                    warn!("[aec] VoiceProcessingIO failed to start ({}), falling back to MicCapture", e);
+                    mac.stop();
+                    // Discard the broken AudioUnit so next start() creates a fresh one.
+                    // After Bluetooth reconnect the old instance is in a bad state.
+                    self.mac = None;
                 }
             }
         }
 
         info!("[aec] using fallback MicCapture (no AEC)");
+        self.fallback.start(move |samples: &[f32]| {
+            if let Ok(mut cb) = callback.lock() {
+                cb(samples);
+            }
+        })
+    }
+
+    /// Start capturing audio. The callback receives f32 samples at 16kHz mono.
+    #[cfg(not(target_os = "macos"))]
+    pub fn start<F>(
+        &mut self,
+        callback: F,
+    ) -> Result<(), String>
+    where
+        F: FnMut(&[f32]) + Send + 'static,
+    {
+        self.running.store(true, Ordering::SeqCst);
+        info!("[aec] using fallback MicCapture (no AEC)");
+        let callback = Arc::new(Mutex::new(callback));
         self.fallback.start(move |samples: &[f32]| {
             if let Ok(mut cb) = callback.lock() {
                 cb(samples);
@@ -102,10 +131,6 @@ impl AecMicCapture {
         // Dropping MicCapture drops the Stream, which tells CoreAudio to release the mic.
         let old = std::mem::replace(&mut self.fallback, MicCapture::new());
         drop(old); // drops MicCapture → drops Stream → CoreAudio releases mic
-    }
-
-    pub fn is_running(&self) -> bool {
-        self.running.load(Ordering::SeqCst)
     }
 }
 
@@ -172,7 +197,7 @@ mod macos {
 
         pub fn start<F>(
             &mut self,
-            audio_queue: Arc<Mutex<VecDeque<f32>>>,
+            tts_source: TtsAudioSource,
             callback: Arc<Mutex<F>>,
         ) -> Result<(), String>
         where
@@ -180,23 +205,27 @@ mod macos {
         {
             self.running.store(true, Ordering::SeqCst);
 
+            let mut consumer = tts_source.consumer;
+            let clear_flag = tts_source.clear_flag;
+
             // Output render callback: play TTS audio from the queue, or silence.
+            // This is a real-time audio thread: no locks, no allocation.
             let running = self.running.clone();
             self.audio_unit.set_render_callback(
                 move |mut args: render_callback::Args<data::NonInterleaved<f32>>| {
                     if !running.load(Ordering::SeqCst) {
                         return Ok(());
                     }
+                    // Drain the queue when a clear (barge-in/stop) was requested.
+                    if clear_flag.load(Ordering::SeqCst) {
+                        let _ = consumer.clear();
+                        clear_flag.store(false, Ordering::SeqCst);
+                    }
                     for channel in args.data.channels_mut() {
-                        let mut samples = Vec::with_capacity(channel.len());
-                        if let Ok(mut q) = audio_queue.lock() {
-                            for _ in 0..channel.len() {
-                                samples.push(q.pop_front().unwrap_or(0.0));
-                            }
-                        } else {
-                            samples.resize(channel.len(), 0.0);
+                        let filled = consumer.pop_slice(channel);
+                        for sample in &mut channel[filled..] {
+                            *sample = 0.0;
                         }
-                        channel.copy_from_slice(&samples);
                     }
                     Ok(())
                 }

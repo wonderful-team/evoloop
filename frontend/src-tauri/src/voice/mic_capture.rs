@@ -1,6 +1,6 @@
 use crate::voice::audio_utils::resample_rubato;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::{Device, Stream, StreamConfig};
+use cpal::{Device, Stream};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use log::{error, info, warn};
@@ -41,7 +41,6 @@ impl MicCapture {
 
     fn find_config(device: &Device) -> Result<(cpal::StreamConfig, u32), String> {
         // First try default_input_config (fast path).
-        let mut last_err = String::new();
         for attempt in 1..=2 {
             match device.default_input_config() {
                 Ok(default_config) => {
@@ -56,8 +55,7 @@ impl MicCapture {
                     return Ok((config, sample_rate));
                 }
                 Err(e) => {
-                    last_err = format!("{}", e);
-                    warn!("[mic] default_input_config failed (attempt {}): {}", attempt, last_err);
+                    warn!("[mic] default_input_config failed (attempt {}): {}", attempt, e);
                     std::thread::sleep(std::time::Duration::from_millis(100));
                 }
             }
@@ -179,10 +177,6 @@ impl MicCapture {
         #[cfg(target_os = "macos")]
         drop_device_audio_unit();
         info!("[mic] capture stopped");
-    }
-
-    pub fn is_running(&self) -> bool {
-        self.running.load(Ordering::SeqCst)
     }
 
     pub fn is_live(&self) -> bool {

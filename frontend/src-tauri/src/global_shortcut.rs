@@ -15,6 +15,7 @@ pub struct GlobalShortcutManager {
     app_handle: Arc<Mutex<Option<tauri::AppHandle>>>,
 }
 
+#[allow(dead_code)]
 impl GlobalShortcutManager {
     pub fn new() -> Self {
         Self {
@@ -92,7 +93,6 @@ impl GlobalShortcutManager {
                                 let _ = app.emit("tray-voice-dialogue-toggle", ());
                             }
                         }
-                        _ => {}
                     }
                 }) {
                     log::error!("[shortcut] failed to register voice handler: {:?}", e);

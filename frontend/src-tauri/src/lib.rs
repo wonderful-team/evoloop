@@ -1,3 +1,5 @@
+#![allow(unexpected_cfgs)]
+
 use tauri::Emitter;
 use tauri::Manager;
 use tauri::menu::MenuItem;
@@ -19,8 +21,6 @@ use crate::voice::event::VoiceEventBus;
 use crate::voice::wake_word::WakeWordDetector;
 
 // Marker overlay window management
-#[cfg(desktop)]
-use tauri::WebviewWindowBuilder;
 #[cfg(desktop)]
 static MARKER_OVERLAY_OPEN: AtomicBool = AtomicBool::new(false);
 #[cfg(desktop)]
@@ -83,6 +83,7 @@ pub struct AppServiceState {
 
 /// Find the voice models directory by searching common paths.
 #[cfg(desktop)]
+#[allow(dead_code)]
 fn find_models_dir() -> Option<std::path::PathBuf> {
     let home = dirs::home_dir()?;
     let candidates = [
@@ -170,7 +171,7 @@ pub struct VoiceManagerHandle {
 }
 
 impl VoiceManagerHandle {
-    pub async fn send(&self, cmd: VoiceCommand) -> Result<(), String> {
+    pub(crate) async fn send(&self, cmd: VoiceCommand) -> Result<(), String> {
         self.tx.send(cmd).await.map_err(|e| e.to_string())
     }
 
@@ -217,6 +218,7 @@ impl VoiceManagerHandle {
     }
 }
 
+#[allow(dead_code)]
 enum VoiceCommand {
     InitEngines {
         asr_model_dir: String,
@@ -341,7 +343,13 @@ fn spawn_voice_manager(app_handle: tauri::AppHandle, model_search_paths: Vec<std
                                 let bus = Arc::new(TauriEventBus { handle: app_handle }) as Arc<dyn VoiceEventBus>;
                                 session.set_event_bus(bus);
                                 let res = session.start(thread_id, lang, mode).await;
+                                let failed = res.is_err();
                                 let _ = respond.send(res);
+                                if failed {
+                                    log::warn!("[voice-manager] session start failed, resetting active flag");
+                                    session_active = false;
+                                    if let Ok(mut detector) = WAK_WORD_DETECTOR.lock() { detector.resume(); }
+                                }
                             }
                             Some(VoiceCommand::SwitchMode { mode, respond }) => {
                                 let res = session.switch_mode(mode.clone()).await;
@@ -402,7 +410,11 @@ fn spawn_voice_manager(app_handle: tauri::AppHandle, model_search_paths: Vec<std
                         match dev_event {
                             Some(DeviceEvent::Available(names)) | Some(DeviceEvent::Changed(names)) => {
                                 log::info!("[voice-manager] devices available: {:?}", names);
-                                if !session_active {
+                                if session_active {
+                                    if let Err(e) = session.restart_mic().await {
+                                        log::warn!("[voice-manager] failed to restart mic after device change: {}", e);
+                                    }
+                                } else {
                                     tokio::task::spawn_blocking(move || {
                                         if let Ok(mut detector) = WAK_WORD_DETECTOR.lock() {
                                             // Kill any retrying/failed detector and restart fresh
