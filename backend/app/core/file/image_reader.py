@@ -27,7 +27,7 @@ class ImageReaderService:
                 return f"[Image Asset: {os.path.basename(path)} - No text found via OCR]"
                 
             return f"### OCR Results ({os.path.basename(path)})\n\n" + "\n".join(texts)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+        except Exception as e:
             logger.error(f"OCR failed for {path}: {e}")
             return f"[OCR Error: {str(e)}]"
 

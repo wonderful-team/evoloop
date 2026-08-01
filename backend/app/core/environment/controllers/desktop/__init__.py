@@ -196,7 +196,7 @@ class DesktopController(
                             )
                         else:
                             result_msg += "\n\n" + ControllerResponse.error("OCR requested but no text detected.")
-                    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+                    except Exception as e:
                         result_msg += "\n\n" + ControllerResponse.error("OCR Error.", details=str(e))
                 return result_msg
 
@@ -259,11 +259,11 @@ class DesktopController(
                             elements=[{**el, "bounds": el.get("bounds", [])} for el in filtered_elements[:100]],
                             total_count=len(filtered_elements)
                         )
-                    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+                    except Exception as e:
                         logger.error(f"Failed to render OCR results template: {e}")
                         return PerceptionsFormatter.ui_elements(filtered_elements, max_items=50)
 
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+                except Exception as e:
                     return ControllerResponse.error("dump_ui failed.", details=str(e))
 
             elif action == "gui_extract":
@@ -304,6 +304,6 @@ class DesktopController(
                 details=str(e),
                 note="Please grant Accessibility access to the terminal/application running this backend."
             )
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+        except Exception as e:
             logger.error(f"Desktop control error: {e}")
             return ControllerResponse.error("Desktop action failed.", details=str(e))

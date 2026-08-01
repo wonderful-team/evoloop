@@ -58,7 +58,7 @@ async def _ensure_wiki_generation_skill():
             )
             result = await session.execute(stmt)
             return result.scalar_one_or_none()
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+    except Exception as e:
         logger.warning(f"[Wiki] Failed to import Wiki Generation skill: {e}")
         return None
 

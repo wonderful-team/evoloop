@@ -35,7 +35,7 @@ class McpToolsFeature(McpFeature):
             self._tools = result.tools
             self._native_tools = self._convert_to_native_tools()
             logger.info(f"Loaded {len(self._native_tools)} tools from {server_name}")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+        except Exception as e:
             logger.error(f"Failed to list tools for {server_name}: {e}")
             self._tools = []
             self._native_tools = []

@@ -26,7 +26,7 @@ async def read_skill_sop(skill_id: int) -> str:
         if skill_obj.tools_used:
             try:
                 tools_req = json.loads(skill_obj.tools_used)
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+            except Exception as e:
                 logger.error(f"[read_skill_sop] Malformed tools_used JSON: {e}")
                 tools_req = []
 

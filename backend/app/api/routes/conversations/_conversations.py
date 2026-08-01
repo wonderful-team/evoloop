@@ -135,6 +135,6 @@ async def delete_conversation(
         return ConversationDeleteResponse(status="deleted", thread_id=thread_id)
     except HTTPException:
         raise
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+    except Exception as e:
         logger.error(f"Failed to delete conversation: {e}")
         raise HTTPException(500, str(e))

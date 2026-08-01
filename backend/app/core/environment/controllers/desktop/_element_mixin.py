@@ -67,7 +67,7 @@ class DesktopElementMixin:
         except asyncio.TimeoutError:
             logger.debug(f"[Desktop] AX Tree timeout for '{name}'")
             return None
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+        except Exception as e:
             logger.debug(f"[Desktop] AX Tree failed for '{name}': {e}")
             return None
 
@@ -90,7 +90,7 @@ class DesktopElementMixin:
                         source=result.get("source", "atlas_strategy")
                     )
             return None
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+        except Exception as e:
             logger.debug(f"[Desktop] Atlas resolution dividend failed: {e}")
             return None
 
@@ -149,7 +149,7 @@ class DesktopElementMixin:
         except asyncio.TimeoutError:
             logger.debug(f"[Desktop] OCR timeout for '{name}'")
             return None
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+        except Exception as e:
             logger.debug(f"[Desktop] OCR failed for '{name}': {e}")
             return None
         finally:
@@ -190,7 +190,7 @@ class DesktopElementMixin:
                         for p in pending:
                             p.cancel()
                         break
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+                except Exception as e:
                     logger.debug(f"[Desktop] Engine task failed: {e}")
 
             if result:

@@ -49,7 +49,7 @@ async def stream_chat(thread_id: str):
             try:
                 activity = await activity_monitor.get_activity(thread_id)
                 logger.debug(f"[SSE] Fetched initial activity for {thread_id}")
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+            except Exception as e:
                 logger.warning(f"[SSE] Initial activity fetch failed for {thread_id} ({type(e).__name__}): {e}. Retrying in 1s...")
                 await asyncio.sleep(1.0)
                 activity = await activity_monitor.get_activity(thread_id)
@@ -95,7 +95,7 @@ async def stream_chat(thread_id: str):
                     await asyncio.sleep(backoff)
                     await pubsub.subscribe(channel)
                     continue
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+                except Exception as e:
                     if "Buffer is closed" in str(e):
                         reconnect_attempts += 1
                         if reconnect_attempts > MAX_RECONNECT_ATTEMPTS:
@@ -119,14 +119,14 @@ async def stream_chat(thread_id: str):
                         # 直接透传，WebChannel 保证了输出格式一致性，不进行二次归一化
                         yield f"event: {event_type}\ndata: {raw_data}\n\n"
 
-                    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+                    except Exception as e:
                         yield f"event: error\ndata: {json.dumps({'error': 'Failed to process server event', 'details': str(e)})}\n\n"
 
                 await asyncio.sleep(0.01)
 
         except asyncio.CancelledError:
             logger.info(f"Stream cancelled: {thread_id}")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+        except Exception as e:
             logger.error(f"Stream error: {e}", exc_info=True)
             yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
         finally:
@@ -199,7 +199,7 @@ async def stream_system():
                     await asyncio.sleep(backoff)
                     await pubsub.subscribe(channel)
                     continue
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+                except Exception as e:
                     if "Buffer is closed" in str(e):
                         reconnect_attempts += 1
                         if reconnect_attempts > MAX_RECONNECT_ATTEMPTS:
@@ -219,14 +219,14 @@ async def stream_system():
                     try:
                         event_data = json.loads(raw_data)
                         yield f"data: {raw_data}\n\n"
-                    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+                    except Exception as e:
                         yield f"event: error\ndata: {json.dumps({'error': 'Failed to process system event', 'details': str(e)})}\n\n"
 
                 await asyncio.sleep(0.01)
 
         except asyncio.CancelledError:
             logger.info("System stream cancelled")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+        except Exception as e:
             logger.error(f"System stream error: {e}", exc_info=True)
             yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
         finally:

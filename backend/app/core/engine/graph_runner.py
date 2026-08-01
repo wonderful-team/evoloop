@@ -71,7 +71,7 @@ async def resume_graph_background(
     except AgentHumanInterruptException:
         logger.info(f"Resume interrupted for human input: {thread_id}")
         await activity_monitor.end_run(thread_id, "human_interrupt")
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+    except Exception as e:
         logger.error(f"Resume error for {thread_id}: {e}")
         await activity_monitor.end_run(thread_id, "failed")
 

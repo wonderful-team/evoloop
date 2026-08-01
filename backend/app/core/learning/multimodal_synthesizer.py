@@ -177,7 +177,7 @@ class MultimodalSkillSynthesizer:
                 event_context=event_context,
                 voice_transcript=voice_transcript,
             )
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+        except Exception as e:
             logger.error(f"Vision LLM call failed: {e}")
             raise RuntimeError(f"LLM analysis failed: {e}")
 
@@ -204,7 +204,7 @@ class MultimodalSkillSynthesizer:
             if cleaned_macro.startswith("[") or cleaned_macro.startswith("{"):
                 try:
                     target_macro = json.loads(cleaned_macro)
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+                except Exception as e:
                     logger.warning(f"Failed to parse LLM macro string as JSON: {e}")
                     target_macro = compiled_macro
             else:
@@ -381,7 +381,7 @@ class MultimodalSkillSynthesizer:
             )
 
             return VideoInfo(duration=duration, width=width, height=height, fps=fps)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+        except Exception as e:
             logger.error(f"Failed to get video info for {video_path}: {e}")
             return VideoInfo(
                 duration=30.0, width=1920, height=1080, fps=self.DEFAULT_VIDEO_FPS
@@ -486,7 +486,7 @@ class MultimodalSkillSynthesizer:
                 )
 
                 frames.append(compressed)
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+            except Exception as e:
                 logger.warning(
                     f"[KeyframeExtraction] Failed to process frame {i} at {keyframe.timestamp}s: {e} | "
                     f"Context: {keyframe.context}, Description: {keyframe.description}"
@@ -635,7 +635,7 @@ class MultimodalSkillSynthesizer:
                     and not pkg.startswith(system_prefixes)
                 ):
                     all_apps.append(pkg)
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+            except Exception as e:
                 logger.debug(f"Failed to get current app from ADB: {e}")
 
         if not all_apps:
@@ -708,7 +708,7 @@ class MultimodalSkillSynthesizer:
                 "core/vision/multimodal_frames.prompt.j2", frames=frame_vars
             )
             content.append({"type": "text", "text": frames_narrative})
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+        except Exception as e:
             logger.error(f"Failed to render Multimodal Frames template: {e}")
             content.append(
                 {
@@ -745,7 +745,7 @@ class MultimodalSkillSynthesizer:
 
         try:
             metadata = yaml.safe_load(yaml_content) if yaml_content else {}
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+        except Exception as e:
             logger.error(f"Failed to parse LLM YAML metadata: {e}")
             metadata = {}
 

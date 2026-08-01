@@ -41,7 +41,7 @@ def get_working_directory(config: dict | None = None) -> str:
             managed_cwd = thread_context_store.get_working_directory(ctx.thread_id)
             if managed_cwd:
                 return managed_cwd
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+        except Exception as e:
             logger.warning(f"Failed to fetch working directory from thread_context_store: {e}")
 
     try:
@@ -173,7 +173,7 @@ def evoloop_tool(
                                 meta={"status": "error", "error": "permission_denied"},
                                 display_name=display_name
                             )
-                    except (ValueError, OSError, RuntimeError, TypeError, KeyError):
+                    except Exception:
                         if not settings.EMBEDDED_MODE:
                             raise
                 elif not settings.EMBEDDED_MODE:
@@ -206,7 +206,7 @@ def evoloop_tool(
                         for key in ["count", "id", "status", "path", "target"]:
                             if key in data:
                                 result_meta[key] = data[key]
-                    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+                    except Exception as e:
                         logger.debug("Suppressed error: %s", e, exc_info=True)
 
             if not isinstance(result, str):
@@ -232,7 +232,7 @@ def evoloop_tool(
                 try:
                     result = await func(*args_f, **kwargs_f)
                     return _process_result(result, func.__name__, input_data)
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+                except Exception as e:
                     display_name = config.get_display_name(func.__name__, args=input_data)
                     return ToolResult(f"Error: {str(e)}", meta={"status": "error", "error": str(e)}, display_name=display_name)
         else:
@@ -242,7 +242,7 @@ def evoloop_tool(
                 try:
                     result = func(*args_f, **kwargs_f)
                     return _process_result(result, func.__name__, input_data)
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+                except Exception as e:
                     display_name = config.get_display_name(func.__name__, args=input_data)
                     return ToolResult(f"Error: {str(e)}", meta={"status": "error", "error": str(e)}, display_name=display_name)
 

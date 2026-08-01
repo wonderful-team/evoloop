@@ -83,7 +83,7 @@ async def verify_macro_script(
             extracted_count=len(extracted_data),
             error=result.get("error")
         )
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+    except Exception as e:
         logger.error(f"[{thread_id}] Macro verification crashed: {e}")
         return MacroVerificationResult(
             status="error",

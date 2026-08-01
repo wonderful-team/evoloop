@@ -74,7 +74,7 @@ class DesktopAppMixin:
                         md_output = markdownify.markdownify(output, heading_style="ATX")
                         if md_output.strip():
                             output = f"[Converted from HTML to Markdown]\n{md_output}"
-                    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+                    except Exception as e:
                         logger.warning(f"Markdown conversion failed: {e}")
                 output = truncate_output(output, MAX_OUTPUT_LENGTH)
             if output:

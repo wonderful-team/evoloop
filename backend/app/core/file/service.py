@@ -61,7 +61,7 @@ def resolve_path(file_path: str, base_path: str | None = None) -> str | None:
     if file_path.startswith(("http://", "https://")):
         try:
             return ensure_local_path(file_path)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+        except Exception as e:
             logger.error(f"Failed to resolve URL {file_path}: {e}")
             return None
 
@@ -124,7 +124,7 @@ def ensure_local_path(file_path: str) -> str:
 
         logger.info(f"Downloaded {file_path} to {temp_path}")
         return temp_path
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+    except Exception as e:
         raise ValueError(f"Failed to download remote file: {e}")
 
 

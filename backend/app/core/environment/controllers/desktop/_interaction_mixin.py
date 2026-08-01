@@ -43,7 +43,7 @@ class DesktopInteractionMixin:
                         await asyncio.to_thread(macos_driver.key_press, shortcut)
                         await recording_func("key_press", {"key": shortcut, "converted_from_click": element_name})
                         return f"Pressed shortcut '{shortcut}' (converted from click on '{element_name}') - Faster!"
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+                except Exception as e:
                     logger.debug(f"[Desktop] Shortcut conversion failed: {e}, falling back to click")
 
             target_x, target_y = x, y

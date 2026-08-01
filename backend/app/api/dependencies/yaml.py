@@ -30,5 +30,5 @@ async def parse_macro_body(request: Request) -> list[dict]:
             return data.get("steps", data) if isinstance(data, dict) else data
     except (YAMLError, json.JSONDecodeError) as e:
         raise HTTPException(status_code=400, detail=f"Parse error: {str(e)}")
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+    except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid format: {str(e)}")

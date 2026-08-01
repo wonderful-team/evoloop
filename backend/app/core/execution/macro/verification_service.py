@@ -73,7 +73,7 @@ class VerificationService:
             # Parse YAML string
             try:
                 steps = [MacroStep.model_validate(s) for s in macro_from_yaml(macro_script)]
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+            except Exception as e:
                 logger.error(f"Failed to parse macro YAML: {e}")
                 return VerificationResponse(
                     success=False,

@@ -78,7 +78,7 @@ class BrowserAdvancedMixin:
             try:
                 body: Any = await resp.json()
                 body_preview = str(body)[:500]
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError):
+            except Exception:
                 body_preview = (await resp.text())[:500]
 
             data = {
@@ -106,7 +106,7 @@ class BrowserAdvancedMixin:
                         return render_template("common/report/response.prompt.j2", success=True, message="Page stable (DOM hash matched).")
                     last_hash = curr_hash
                     await asyncio.sleep(check_interval)
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError):
+                except Exception:
                     break
             return ControllerResponse.success(
                 "Stability check finished.",
@@ -140,7 +140,7 @@ class BrowserAdvancedMixin:
             for i in range(max_scrolls):
                 try:
                     count = await page.locator(item_selector).count()
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError):
+                except Exception:
                     count = 0
 
                 if count > last_count and last_count > 0:

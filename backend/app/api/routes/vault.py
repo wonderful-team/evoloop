@@ -44,7 +44,7 @@ def add_credential(data: CredentialCreate) -> dict[str, Any]:
             description=data.description
         )
         return {"success": True, "identifier": credential.identifier}
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/credentials/{identifier}", dependencies=[Depends(get_current_user)])
@@ -59,5 +59,5 @@ def delete_credential(identifier: str, project_id: int | None = Query(None)) -> 
         return {"success": True}
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

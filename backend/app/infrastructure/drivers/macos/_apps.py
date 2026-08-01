@@ -103,7 +103,7 @@ class AppMixin:
 
             return {"name": app_name, "pid": pid, "bounds": bounds}
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+        except Exception as e:
             logger.debug(f"Native get_current_app failed: {e}")
 
         try:

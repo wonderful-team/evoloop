@@ -129,7 +129,7 @@ async def synthesize_skill(
             skill_yaml=skill.to_yaml(),
         )
 
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+    except Exception as e:
         logger.exception(f"Skill synthesis failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Synthesis failed: {str(e)}")
     finally:
@@ -146,7 +146,7 @@ async def import_skills(body: ImportSkillsRequest):
     try:
         results = await SkillImporter.import_from_directory(body.directory)
         return ImportSkillsResponse(success=True, results=results.model_dump())
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+    except Exception as e:
         logger.exception(f"Skill import failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Import failed: {str(e)}")
     finally:
@@ -163,7 +163,7 @@ async def list_skills(
     """List all learned skills with pagination."""
     try:
         await skill_discovery.ensure_system_skills_synced()
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+    except Exception as e:
         logger.warning(f"Background skill sync failed during list: {e}")
 
     async with session_scope() as db:
@@ -291,7 +291,7 @@ async def delete_skill(skill_id: int, current_user: CurrentUserOptional = None):
                     if path.exists() and path.is_dir():
                         shutil.rmtree(path)
                         logger.info(f"Deleted skill resources at: {path}")
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+                except Exception as e:
                     logger.error(
                         f"Failed to delete skill resources at {skill.resource_path}: {e}"
                     )
@@ -625,7 +625,7 @@ async def create_skill_from_yaml(
         )
     except YAMLError as e:
         raise HTTPException(status_code=400, detail=f"YAML error: {str(e)}")
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+    except Exception as e:
         logger.exception(f"Failed to create skill from YAML: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to create skill: {str(e)}")
 
@@ -645,7 +645,7 @@ async def validate_skill_yaml(
         return ValidateYamlResponse(
             valid=is_valid, errors=errors, step_count=step_count
         )
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+    except Exception as e:
         return ValidateYamlResponse(valid=False, errors=[str(e)], step_count=0)
 
 
@@ -725,7 +725,7 @@ async def update_skill_yaml(
         )
     except YAMLError as e:
         raise HTTPException(status_code=400, detail=f"YAML parse error: {str(e)}")
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+    except Exception as e:
         logger.exception(f"Failed to update skill from YAML: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to update: {str(e)}")
     finally:

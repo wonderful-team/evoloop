@@ -227,7 +227,7 @@ class TraceParser:
                 user_feedback=event.user_feedback,
             )
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+        except Exception as e:
             logger.error(f"Failed to parse event {event.id}: {e}")
             return None
 
@@ -253,6 +253,6 @@ class TraceParser:
                 steps=sequence.steps,
                 has_human_intervention=sequence.has_human_intervention
             )
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+        except Exception as e:
             logger.error(f"Failed to render Trace narrative: {e}")
             return f"Trace Narrative for {sequence.thread_id} (Error rendering template)"

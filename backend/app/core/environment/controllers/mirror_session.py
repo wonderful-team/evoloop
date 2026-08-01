@@ -105,7 +105,7 @@ class MirrorSession:
                     batch_buffer = []
 
                 self._event_queue.task_done()
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+            except Exception as e:
                 logger.error(f"[MirrorSession] Failed to persist event: {e}")
                 await asyncio.sleep(1)
 
@@ -148,7 +148,7 @@ class MirrorSession:
                     )
                     db.add(trace_event)
             logger.debug(f"[MirrorSession] Persisted {len(events)} events to DB")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+        except Exception as e:
             logger.error(f"[MirrorSession] Failed to persist batch: {e}")
             raise
 
@@ -238,7 +238,7 @@ class MirrorSession:
 
             return True
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+        except Exception as e:
             self.error = str(e)
             logger.error(f"Failed to start scrcpy: {e}")
             return False
@@ -273,7 +273,7 @@ class MirrorSession:
             logger.info(f"[MirrorSession] Started Android event recording for session {self.session_id}")
             return True
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+        except Exception as e:
             logger.error(f"[MirrorSession] Failed to start recording: {e}")
             return False
 

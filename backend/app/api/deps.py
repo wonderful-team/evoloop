@@ -138,7 +138,7 @@ async def check_benefit(benefit_code: str, token: TokenDep) -> bool:
             return False
 
         return await benefit_service.has_benefit(member_id, benefit_code)
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+    except Exception as e:
         logger.error(f"Benefit check failed [{benefit_code}]: {e}")
         return False
 
@@ -167,7 +167,7 @@ async def check_multiple_benefits(benefit_codes: list[str], token: TokenDep) -> 
             val = benefits.get(code, False)
             result[code] = val if isinstance(val, bool) else (val > 0 if isinstance(val, int | float) else False)
         return result
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+    except Exception as e:
         logger.error(f"Batch benefit check failed: {e}")
         return {code: False for code in benefit_codes}
 
@@ -205,7 +205,7 @@ def require_benefit(benefit_code: str):
                 member_id = await identity_service.get_member_id(token)
                 benefits_data = await benefit_service.get_member_entitlements(member_id, token)
                 current_level = benefits_data.get("level_name")
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+            except Exception as e:
                 logger.debug("Suppressed error: %s", e, exc_info=True)
             
             raise_benefit_required(benefit_code, current_level)
@@ -239,7 +239,7 @@ async def verify_guest_access(
             member_id = await identity_service.resolve_member_id_from_token(token)
             if member_id is not None:
                 return
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+        except Exception as e:
             logger.debug(f"Query token validation failed: {e}")
             pass
 
@@ -277,7 +277,7 @@ async def verify_guest_access(
 
     except HTTPException as he:
         raise he
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+    except Exception as e:
         logger.error(f"Cache error during guest check: {e}")
         # Fail-Close: If cache is down, we cannot verify quota, so we must deny to prevent abuse.
         raise HTTPException(status_code=503, detail="Guest validation service temporary unavailable.")

@@ -74,7 +74,7 @@ class OAuthAuthorizationCodeHandler(AuthHandler):
                 return await self.refresh(token)
 
             return token
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+        except Exception as e:
             logger.error(f"Failed to load stored token: {e}")
             return None
 
@@ -93,7 +93,7 @@ class OAuthAuthorizationCodeHandler(AuthHandler):
             # Also store refresh token separately for safety
             if token.refresh_token:
                 await cache.set(self._get_refresh_key(), token.refresh_token)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+        except Exception as e:
             logger.error(f"Failed to store token: {e}")
 
     async def authenticate(self) -> AuthToken:

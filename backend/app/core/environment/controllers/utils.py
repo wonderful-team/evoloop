@@ -71,7 +71,7 @@ class RecordingContext:
         if should_capture:
             try:
                 shot = await screenshot_fn() if asyncio.iscoroutinefunction(screenshot_fn) else screenshot_fn()
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError):
+            except Exception:
                 pass  # Screenshot is optional
 
         # Build context
@@ -146,7 +146,7 @@ class BatchExecutor:
                     result=result,
                     latency_ms=latency
                 ))
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+            except Exception as e:
                 latency = int((time.time() - step_start) * 1000)
                 self.results.append(BatchStepResult(
                     step=i,

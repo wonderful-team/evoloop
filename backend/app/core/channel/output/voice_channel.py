@@ -344,7 +344,7 @@ class VoiceChannel(Channel):
             )
             try:
                 await voice_executor.push_voice_result(thread_id, "failed", summary)
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as exc:
+            except Exception as exc:
                 logger.warning(
                     "[VoiceChannel] failed push failed for %s: %s", thread_id, exc
                 )

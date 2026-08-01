@@ -87,7 +87,7 @@ async def run_terminal_command(thread_id: str, req: TerminalCommandRequest):
             return exit_code
         try:
             exit_code = await loop.run_in_executor(None, _blocking_run)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as exc:
+        except Exception as exc:
             logger.exception(f"[Terminal][{thread_id}] Command execution error")
             await task_manager.fail_task(task.task_id, error=str(exc))
             return

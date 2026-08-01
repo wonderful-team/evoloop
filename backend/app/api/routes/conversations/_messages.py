@@ -157,7 +157,7 @@ async def rewind_conversation(
             thread_id=thread_id,
             removed_count=0
         )
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+    except Exception as e:
         logger.error(f"Rewind failed: {e}")
         raise HTTPException(500, str(e))
 

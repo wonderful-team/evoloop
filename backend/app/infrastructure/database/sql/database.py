@@ -71,7 +71,7 @@ async def get_db():
     async with db_resource_manager.session_factory() as session:
         try:
             yield session
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+        except Exception as e:
             logger.error(f"Database session error: {e}")
             await session.rollback()
             raise

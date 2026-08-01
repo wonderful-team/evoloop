@@ -93,5 +93,5 @@ def cleanup_file(filepath: str | None) -> None:
     if filepath and os.path.exists(filepath):
         try:
             os.remove(filepath)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+        except Exception as e:
             logger.debug("Suppressed error: %s", e, exc_info=True)

@@ -73,7 +73,7 @@ class DesktopVerificationMixin:
                     if expected_text and not found_text:
                         return ControllerResponse.error(f"Verification FAILED: Text '{expected_text}' not found.")
                 await asyncio.sleep(0.5)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+        except Exception as e:
             return ControllerResponse.error("Verification Error.", details=str(e))
 
     @classmethod
@@ -93,7 +93,7 @@ class DesktopVerificationMixin:
                     continue
                 try:
                     elements = await _async_literal_eval(raw_tree.replace("missing value", "None"))
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError):
+                except Exception:
                     await asyncio.sleep(0.5)
                     continue
                 if check_type == "is_loaded":
@@ -127,7 +127,7 @@ class DesktopVerificationMixin:
                                 details=f"Elapsed: {time.time() - start_time:.2f}s"
                             )
                 await asyncio.sleep(0.5)
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+            except Exception as e:
                 logger.debug(f"[QuickCheck] Error: {e}")
                 await asyncio.sleep(0.5)
         elapsed = time.time() - start_time

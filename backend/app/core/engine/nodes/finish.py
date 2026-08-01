@@ -103,7 +103,7 @@ class FinishNode(BaseNode):
 
         try:
             return await MacroCreatorService.is_eligible(thread_id)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+        except Exception as e:
             logger.warning("[Finish] Failed to check replayable steps for %s: %s", thread_id, e)
             return False
 
@@ -124,7 +124,7 @@ class FinishNode(BaseNode):
                 activity.summary = summary
                 activity.final_outcome = final_outcome
                 activity.macro_creation_eligible = macro_creation_eligible
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+        except Exception as e:
             logger.warning(f"[Finish] Failed to update AgentActivity for {thread_id}: {e}")
 
     async def _run(self, state: "AgentState", config: dict) -> "StateUpdate":

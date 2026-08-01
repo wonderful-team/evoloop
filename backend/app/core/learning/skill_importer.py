@@ -71,7 +71,7 @@ class SkillImporter:
                     results["imported"] += 1
                 else:
                     results["skipped"] += 1
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+            except Exception as e:
                 logger.error(f"Failed to import skill from {folder}: {e}")
                 results["errors"].append(f"{folder.name}: {str(e)}")
 

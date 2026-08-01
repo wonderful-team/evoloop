@@ -81,7 +81,7 @@ async def synthesize_skill(reason: str, thread_id: str | None = None) -> str:
             f"the background and saved as pending review — confirm it in the "
             f"Skill Library before it becomes usable."
         )
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+    except Exception as e:
         logger.error(f"Failed to trigger synthesis tool: {e}")
         return f"Error: Failed to dispatch synthesis task: {str(e)}"
 
@@ -160,6 +160,6 @@ async def create_macro(
             f"It is saved as 'pending_review' — please confirm it in the "
             f"Skill Library before it becomes active."
         )
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+    except Exception as e:
         logger.error(f"Failed to create macro macro: {e}")
         return f"Error: Failed to create_macro macro: {str(e)}"

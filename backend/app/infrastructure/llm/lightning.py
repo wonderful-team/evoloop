@@ -42,7 +42,7 @@ class LightningMode(str, Enum):
 def _cfg(key: str, default: str | None = None) -> str | None:
     try:
         return SystemConfigService.get_value(key, default)
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError):
+    except Exception:
         return default
 
 

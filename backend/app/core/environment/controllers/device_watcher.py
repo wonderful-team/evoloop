@@ -101,7 +101,7 @@ class DeviceWatcher:
 
             except asyncio.CancelledError:
                 break
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+            except Exception as e:
                 logger.error(f"DeviceWatcher error: {e}")
                 await asyncio.sleep(5)
 
@@ -123,7 +123,7 @@ class DeviceWatcher:
                     serial
                 )
                 logger.info(f"✅ Device {serial} capabilities: {capabilities}")
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+            except Exception as e:
                 logger.warning(f"⚠️ Failed to detect capabilities for {serial}: {e}")
 
             await mirror_manager.on_device_connected(serial)

@@ -77,7 +77,7 @@ async def _run_macro_row(macro_id, macro_name, params, thread_id, macro_service)
             macro = await lifecycle.load_macro(int(macro_id))
         elif macro_name:
             macro = await lifecycle.find_macro_by_name(macro_name)
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+    except Exception as e:
         return ControllerResponse.error(
             f"Failed to look up macro '{macro_name or macro_id}'",
             details=str(e),
@@ -97,7 +97,7 @@ async def _run_macro_row(macro_id, macro_name, params, thread_id, macro_service)
 
     try:
         steps = macro_from_yaml(macro.macro_script)
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+    except Exception as e:
         return ControllerResponse.error(
             f"Failed to parse macro YAML for '{macro.name}'",
             details=str(e),
@@ -180,7 +180,7 @@ async def _run_legacy_skill(
                 skill = result.scalar_one_or_none()
             if skill is not None and skill.macro_id:
                 macro = await db.get(Macro, skill.macro_id)
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+    except Exception as e:
         return ControllerResponse.error(
             f"Failed to look up skill '{skill_name or skill_id}'",
             details=str(e),
@@ -214,7 +214,7 @@ async def _run_legacy_skill(
 
     try:
         macro_script = macro_from_yaml(macro.macro_script)
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+    except Exception as e:
         return ControllerResponse.error(
             f"Failed to parse macro YAML for skill '{skill.name}'",
             details=str(e),

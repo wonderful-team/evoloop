@@ -79,7 +79,7 @@ class MacroCreatorService:
                     if MacroCreatorService._is_replayable(event, existing_message_ids):
                         return True
                 return False
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+        except Exception as e:
             logger.warning(
                 "[MacroCreator] Failed to check eligibility for %s: %s",
                 thread_id,
@@ -153,7 +153,7 @@ class MacroCreatorService:
                     return None
                 if not activity.macro_creation_eligible:
                     return None
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+        except Exception as e:
             logger.warning(
                 "[MacroCreator] Failed to read AgentActivity for %s: %s",
                 thread_id,
@@ -212,7 +212,7 @@ class MacroCreatorService:
                     project_id=None,
                     member_id=member_id,
                 )
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+        except Exception as e:
             logger.error(
                 "[MacroCreator] Failed to create macro for %s: %s",
                 thread_id,
@@ -224,7 +224,7 @@ class MacroCreatorService:
             from app.core.events.publishers import publish_macro_mutated
 
             await publish_macro_mutated(macro.id, action="create")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+        except Exception as e:
             logger.warning(
                 "[MacroCreator] Failed to publish macro mutated for %s: %s",
                 thread_id,

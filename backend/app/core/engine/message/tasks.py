@@ -47,6 +47,6 @@ async def mobile_sync_http_task(mobile_data: dict) -> None:
                 code,
                 str(resp)[:200],
             )
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+    except Exception as e:
         logger.warning("[MobileSyncTask] HTTP fallback error: %s", e)
         raise  # 触发 Huey 重试

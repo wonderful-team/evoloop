@@ -29,7 +29,7 @@ async def route_init(version: str = Query(""), platform: str = Query("macos")):
     raw = None
     try:
         raw = await cache.get(SPEC_CACHE_KEY)
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as exc:
+    except Exception as exc:
         logger.warning("[route] cache read failed: %s", exc)
 
     if not raw:

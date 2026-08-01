@@ -151,7 +151,7 @@ parameters: {json.dumps(normalize_parameters(skill_data.get("parameters", [])))}
 
     except HTTPException:
         raise
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+    except Exception as e:
         logger.exception(f"Multimodal synthesis failed: {e}")
         processing_time = time.time() - start_time
         return SynthesizeFromRecordingResponse(
@@ -212,7 +212,7 @@ async def preview_recording_data(
                 ],
             ),
         )
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+    except Exception as e:
         logger.exception(f"Preview failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -290,7 +290,7 @@ async def cleanup_recording_session(
                 os.remove(video_path)
                 deleted_counts["video_file"] = True
                 logger.info(f"[Cleanup] Deleted video file: {video_path}")
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+            except Exception as e:
                 logger.error(f"[Cleanup] Failed to delete video file {video_path}: {e}")
 
         logger.info(f"[Cleanup] Session {session_id} cleaned up: {deleted_counts}")
@@ -300,6 +300,6 @@ async def cleanup_recording_session(
             message=f"Recording session {session_id} cleaned up",
             deleted=deleted_counts,
         )
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+    except Exception as e:
         logger.exception(f"[Cleanup] Failed to cleanup session {session_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Cleanup failed: {str(e)}")

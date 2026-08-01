@@ -58,6 +58,6 @@ async def get_plan(thread_id: str):
                 generated_at=db_plan.created_at.isoformat() if db_plan.created_at else None,
             )
 
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+    except Exception as e:
         logger.error(f"Failed to get plan for {thread_id}: {e}")
         return PlanResponse(status="error", error=str(e))

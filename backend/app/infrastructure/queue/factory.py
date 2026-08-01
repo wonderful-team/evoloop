@@ -135,7 +135,7 @@ def shared_task(
                     try:
                         from app.utils.async_utils import flush_loop_bound_resources
                         loop.run_until_complete(flush_loop_bound_resources())
-                    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+                    except Exception as e:
                         logger.warning(f"[Celery] Failed to flush resources in task {f.__name__}: {e}")
                         
             target_f = _celery_async_wrapper

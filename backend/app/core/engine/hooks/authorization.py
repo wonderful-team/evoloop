@@ -136,7 +136,7 @@ async def authorization_gate(context: HookContext) -> HookResult:
             working_directory = thread_context_store.get_working_directory(
                 context.thread_id
             )
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError):
+        except Exception:
             working_directory = None
 
         if not _is_path_safe(resource_path, project_path, working_directory):

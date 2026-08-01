@@ -115,7 +115,7 @@ async def native_atlas_maintenance(apps: list[tuple[str, str]] | None = None) ->
     for bundle_id, app_name in apps or configured_apps():
         try:
             results.append(await resurvey_and_regen(bundle_id, app_name))
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+        except Exception as e:
             logger.error(f"[atlas-maintenance] {bundle_id} failed: {e}")
             results.append({"bundle_id": bundle_id, "action": "error", "error": str(e)})
 

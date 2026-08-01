@@ -46,7 +46,7 @@ class TreeService:
                     )
                 
                 nodes.append(node)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+        except Exception as e:
             logger.debug("Suppressed error: %s", e, exc_info=True)
         return nodes
 
@@ -82,7 +82,7 @@ class TreeService:
                     if b"\x00" in f.read(4096): return None
                 with open(file_path, "rb") as f:
                     return sum(1 for _ in f)
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+            except Exception as e:
                 logger.debug("Suppressed error: %s", e, exc_info=True)
                 return None
 
@@ -133,7 +133,7 @@ class TreeService:
                                 if lc is not None:
                                     lines_str = f" ({lc} lines)"
                             stat_str = f"{size_str}{lines_str}"
-                        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+                        except Exception as e:
                             logger.debug("Suppressed error: %s", e, exc_info=True)
                     result.append(f"{child_prefix}{entry.name}{stat_str}")
                     _state["count"] += 1

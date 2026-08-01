@@ -95,7 +95,7 @@ def export_skill_to_filesystem(skill_data: Any) -> str | None:
         logger.info(f"Exported physical skill {export.name} to {skill_md_path}")
         return skill_md_path
 
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+    except Exception as e:
         logger.error(f"Failed to export physical skill file: {e}")
         return None
 

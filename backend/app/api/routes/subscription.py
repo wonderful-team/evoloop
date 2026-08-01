@@ -116,7 +116,7 @@ async def handle_benefits_update_webhook(payload: BenefitsUpdateWebhook):
                 member_id=payload.member_id,
                 event=payload.event,
             )
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+        except Exception as e:
             logger.warning(f"[Webhook] Failed to publish subscription changed event: {e}")
 
     return SubscriptionWebhookResponse(

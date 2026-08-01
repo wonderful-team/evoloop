@@ -142,7 +142,7 @@ async def handle_task_exception(thread_id: str, project_id: int, e: Exception, h
                 channels={"sse"},
                 message_id=gen_uuid()
             )
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as sse_err:
+        except Exception as sse_err:
             logger.warning(f"[ErrorHandler] SSE push failed: {sse_err}")
 
     return False

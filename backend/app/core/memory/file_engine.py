@@ -96,7 +96,7 @@ class _FileEngine:
                     id_idx[entry.id] = (path, MemoryCategory(dir_path.name))
                     if entry.content_hash:
                         hash_idx[entry.content_hash] = entry.id
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError) as exc:
+                except Exception as exc:
                     logger.debug(f"[FileEngine] Skipping corrupted file {path.name}: {exc}")
                     continue
 
@@ -123,7 +123,7 @@ class _FileEngine:
                 text = path.read_text(encoding="utf-8")
                 entry = MemoryEntry.from_frontmatter(text, str(path))
                 await self._db_upsert(entry, str(path))
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as exc:
+            except Exception as exc:
                 logger.warning(f"[FileEngine] Failed to index {path}: {exc}")
 
     def _determine_category(self, entry: MemoryEntry) -> MemoryCategory:
@@ -328,7 +328,7 @@ class _FileEngine:
                 ctx = ContextManager.current()
                 if ctx and ctx.member_id is not None:
                     sql_filters["member_id"] = ctx.member_id
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+            except Exception as e:
                 logger.debug("Suppressed error: %s", e, exc_info=True)
 
         if query:
@@ -444,7 +444,7 @@ class _FileEngine:
                 backend="_FileEngine (Hybrid)",
                 entry_count=db_count,
             )
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as exc:
+        except Exception as exc:
             return StorageHealthCheck(
                 status="unhealthy",
                 backend="_FileEngine (Hybrid)",

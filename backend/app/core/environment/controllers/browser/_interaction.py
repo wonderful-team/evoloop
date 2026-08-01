@@ -39,7 +39,7 @@ class BrowserInteractionMixin:
                     else:
                         await page.locator(loc).first.wait_for(state="visible", timeout=3000)
                         target = page.locator(loc).filter(visible=True).first
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError) as ve:
+                except Exception as ve:
                     logger.debug(f"[Browser] Visibility wait failed: {ve}")
                     target = page.locator(loc).first
 
@@ -86,7 +86,7 @@ class BrowserInteractionMixin:
                 else:
                     await page.locator(loc).first.wait_for(state="visible", timeout=3000)
                     target = page.locator(loc).filter(visible=True).first
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as ve:
+            except Exception as ve:
                 logger.debug(f"[Browser] Visibility wait failed for type_text: {ve}")
 
             try:
@@ -97,7 +97,7 @@ class BrowserInteractionMixin:
                     if await child_input.count() > 0:
                         target = child_input
                         logger.debug(f"[Browser] Found child input: {target}")
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as ee:
+            except Exception as ee:
                 logger.debug(f"[Browser] Failed to check/find child input: {ee}")
 
             logger.debug(f"[Browser] Typing into locator: {loc} (target={target})")
@@ -123,7 +123,7 @@ class BrowserInteractionMixin:
                 return ControllerResponse.missing_param("value")
             try:
                 await page.locator(loc).first.select_option(value=value, timeout=timeout_ms)
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError):
+            except Exception:
                 await page.locator(loc).first.select_option(label=value, timeout=timeout_ms)
             return ControllerResponse.success(f"Selected option '{value}' in {loc}.")
 

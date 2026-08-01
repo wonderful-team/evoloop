@@ -50,5 +50,5 @@ class UniversalBridgeSubscriber:
             for ch in selected:
                 await ch.send(event, ctx)
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+        except Exception as e:
             logger.warning(f"[UniversalBridge] Failed to bridge event {event_type}: {e}")

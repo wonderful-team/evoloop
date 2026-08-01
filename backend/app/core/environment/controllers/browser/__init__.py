@@ -120,7 +120,7 @@ class BrowserController(
             pre_url = page.url
             try:
                 pre_title = await page.title()
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError):
+            except Exception:
                 pre_title = ""
 
             # ── Build shared context dict for mixin handlers ──────────────
@@ -217,14 +217,14 @@ class BrowserController(
                 try:
                     await page.locator(loc).first.set_input_files(file_path)
                     return ControllerResponse.success(f"Uploaded file '{os.path.basename(file_path)}' to {loc}")
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+                except Exception as e:
                     logger.error(f"[Browser] Upload failed: {e}")
                     return ControllerResponse.error("Upload failed.", details=str(e))
 
             else:
                 return ControllerResponse.error(f"Unknown action '{action}'.")
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+        except Exception as e:
             error_msg = f"[Browser] action='{action}' failed: {e}"
             if continue_on_error:
                 logger.warning(f"Optional {error_msg}. Continuing.")

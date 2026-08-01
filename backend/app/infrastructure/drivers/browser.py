@@ -67,7 +67,7 @@ class BrowserManager:
             tid = ContextManager.get_var("thread_id")
             if tid:
                 return str(tid)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError):
+        except Exception:
             pass
         return None
 
@@ -112,7 +112,7 @@ class BrowserManager:
                 state.pages.append(page)
                 state.active_idx = 0
                 return page
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+            except Exception as e:
                 # Catch cases where context exists but is closed (e.g. TargetClosed)
                 if "closed" in str(e).lower():
                     logger.warning(f"[Browser] Context is closed ({e}). Re-starting.")
@@ -168,7 +168,7 @@ class BrowserManager:
                 try:
                     # Check if the hardware supports arm64
                     is_apple_silicon = subprocess.check_output(["sysctl", "-n", "hw.optional.arm64"]).decode().strip() == "1"
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError):
+                except Exception:
                     # Fallback to platform check
                     is_apple_silicon = platform.machine() == "arm64"
 
@@ -203,7 +203,7 @@ class BrowserManager:
                     self._context = await self._browser.new_context()
                 self._is_cdp = True
                 logger.info("✅ [Browser] Mode 2: auto-launched Chrome + CDP connected.")
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+            except Exception as e:
                 logger.error(f"[Browser] Mode 2 (auto-launch CDP) failed: {e}")
                 raise RuntimeError(
                     f"Browser startup failed. Could not connect to CDP at {settings.CHROME_CDP_URL}. "
@@ -268,7 +268,7 @@ class BrowserManager:
         try:
             if state.pages and state.active_idx < len(state.pages):
                 active_url = state.pages[state.active_idx].url
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+        except Exception as e:
             logger.debug("Suppressed error: %s", e, exc_info=True)
 
         return {
@@ -289,18 +289,18 @@ class BrowserManager:
         if self._is_cdp and self._browser:
             try:
                 await self._browser.close()
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+            except Exception as e:
                 logger.debug("Suppressed error: %s", e, exc_info=True)
         elif self._context:
             try:
                 await self._context.close()
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+            except Exception as e:
                 logger.debug("Suppressed error: %s", e, exc_info=True)
 
         if self._playwright:
             try:
                 await self._playwright.stop()
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+            except Exception as e:
                 logger.debug("Suppressed error: %s", e, exc_info=True)
 
         # 2. Terminate auto-launched subprocess if any
@@ -315,7 +315,7 @@ class BrowserManager:
                     await asyncio.sleep(0.1)
                 if self._chrome_proc.poll() is None:
                     self._chrome_proc.kill()
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+            except Exception as e:
                 logger.warning(f"[Browser] Failed to terminate Chrome subprocess: {e}")
             self._chrome_proc = None
 

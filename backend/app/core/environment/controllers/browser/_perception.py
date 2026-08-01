@@ -33,7 +33,7 @@ class BrowserPerceptionMixin:
                     await elem.screenshot(path=filepath, animations="disabled", timeout=timeout_ms)
                 else:
                     await page.screenshot(path=filepath, full_page=full_page, animations="disabled", timeout=timeout_ms)
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+            except Exception as e:
                 logger.error(f"[Browser] Screenshot action failed: {e}")
                 return ControllerResponse.error(
                     f"Screenshot failed (timeout={timeout_ms}ms).",
@@ -74,7 +74,7 @@ class BrowserPerceptionMixin:
                 visible = await elem.is_visible()
                 enabled = await elem.is_enabled()
                 checked = await elem.is_checked() if await elem.get_attribute("type") in ("checkbox", "radio") else None
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+            except Exception as e:
                 return ControllerResponse.error(f"check_element error: {e}")
             parts = [f"visible={visible}", f"enabled={enabled}"]
             if checked is not None:

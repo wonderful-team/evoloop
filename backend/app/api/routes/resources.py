@@ -34,7 +34,7 @@ async def list_resources(project_id: int, current_user: CurrentUserOptional = No
                 )
                 for r in resources
             ]
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+    except Exception as e:
         logger.error(f"Failed to list resources: {e}")
         return []
 
@@ -81,7 +81,7 @@ async def create_resource(project_id: int, req: ResourceCreate, current_user: Cu
                 content=resource.content,
                 created_at=resource.created_at.isoformat(),
             )
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+    except Exception as e:
         logger.error(f"Failed to create resource: {e}")
         raise HTTPException(500, str(e))
 
@@ -102,6 +102,6 @@ async def delete_resource(project_id: int, resource_id: int, current_user: Curre
             return OperationResponse(status="success", id=resource_id)
     except HTTPException:
         raise
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+    except Exception as e:
         logger.error(f"Failed to delete resource: {e}")
         raise HTTPException(500, str(e))
