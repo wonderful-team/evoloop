@@ -10,6 +10,7 @@ from typing import Any
 
 from app.core.engine.worker_registry import worker_registry
 from app.core.routing.routing_data import get_store
+from app.core.routing.schemas import RouteDecision
 from app.core.voice.state_machine import VoiceSessionState, voice_state_machine
 
 logger = logging.getLogger(__name__)
@@ -148,21 +149,38 @@ async def _set_idle_if_needed(thread_id: str) -> None:
 
 async def push_macro_result(thread_id: str, status: str, summary: str) -> None:
     """推 voice.route_result，复用 Rust 现有的 done/failed/cancelled 处理分支。"""
+    if manager is None:
+        logger.warning("[voice-exec] manager not set, cannot push macro result")
+        return
     body = {"thread_id": thread_id, "status": status, "summary": summary}
-    await manager.push(thread_id, envelope_fn(message_type.VOICE_ROUTE_RESULT, body))
+    if envelope_fn and message_type:
+        env = envelope_fn(message_type.VOICE_ROUTE_RESULT, body)
+        await manager.push(
+            thread_id, env.model_dump() if hasattr(env, "model_dump") else env
+        )
+    else:
+        await manager.push(thread_id, body)
     await _set_idle_if_needed(thread_id)
 
 
 async def handle_navigate(route: str, thread_id: str) -> None:
     """Send a frontend navigation command via WS."""
+    if manager is None:
+        logger.warning("[voice-exec] manager not set, cannot push navigate")
+        return
     feedback = _routing_store.nav_feedback.get(
         route, _routing_store.builtin_responses["generic"]["ok"]
     )
     body = {"route": route, "thread_id": thread_id, "feedback": feedback}
-    await manager.push(
-        thread_id,
-        envelope_fn("voice.navigate", body),
-    )
+    if envelope_fn and message_type:
+        await manager.push(
+            thread_id,
+            envelope_fn("voice.navigate", body).model_dump()
+            if hasattr(envelope_fn("voice.navigate", body), "model_dump")
+            else envelope_fn("voice.navigate", body),
+        )
+    else:
+        await manager.push(thread_id, body)
     await maybe_push_tts(thread_id, feedback)
     await _set_idle_if_needed(thread_id)
 
