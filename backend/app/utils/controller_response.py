@@ -68,16 +68,12 @@ class ControllerResponse:
     @staticmethod
     def success(message: str, details: str | None = None, note: str | None = None) -> str:
         """Render a success response."""
-        return ControllerResponse.render(
-            success=True, message=message, details=details, note=note
-        )
+        return ControllerResponse.render(success=True, message=message, details=details, note=note)
 
     @staticmethod
     def error(message: str, details: str | None = None, note: str | None = None) -> str:
         """Render an error response."""
-        return ControllerResponse.render(
-            success=False, message=message, details=details, note=note
-        )
+        return ControllerResponse.render(success=False, message=message, details=details, note=note)
 
     @staticmethod
     def not_found(item_name: str, item_type: str = "element") -> str:
@@ -120,9 +116,7 @@ class ControllerResponse:
         else:
             message = f"Action: {action}"
 
-        return ControllerResponse.render(
-            success=success, message=message, details=details, note=note
-        )
+        return ControllerResponse.render(success=success, message=message, details=details, note=note)
 
     @staticmethod
     def navigation_result(
@@ -138,9 +132,7 @@ class ControllerResponse:
         else:
             note = None
 
-        return ControllerResponse.render(
-            success=success, message=message, details=details, note=note
-        )
+        return ControllerResponse.render(success=success, message=message, details=details, note=note)
 
     @staticmethod
     def input_result(
@@ -150,14 +142,13 @@ class ControllerResponse:
         details: str | None = None
     ) -> str:
         """Render an input action result response."""
+        field = field_name or "<unnamed>"
         if value:
-            message = f"Input '{value}' into '{field_name}'"
+            message = f"Input '{value}' into '{field}'"
         else:
-            message = f"Cleared input in '{field_name}'"
+            message = f"Cleared input in '{field}'"
 
-        return ControllerResponse.render(
-            success=success, message=message, details=details
-        )
+        return ControllerResponse.render(success=success, message=message, details=details)
 
     @staticmethod
     def swipe_result(
@@ -173,9 +164,7 @@ class ControllerResponse:
         else:
             details = None
 
-        return ControllerResponse.render(
-            success=success, message=message, details=details
-        )
+        return ControllerResponse.render(success=success, message=message, details=details)
 
     @staticmethod
     def tap_result(
@@ -191,9 +180,7 @@ class ControllerResponse:
         else:
             message = f"Tapped at ({x}, {y})"
 
-        return ControllerResponse.render(
-            success=success, message=message, details=details
-        )
+        return ControllerResponse.render(success=success, message=message, details=details)
 
     @staticmethod
     def screenshot_result(

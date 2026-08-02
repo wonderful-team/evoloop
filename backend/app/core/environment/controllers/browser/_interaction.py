@@ -110,10 +110,7 @@ class BrowserInteractionMixin:
                 await target.press_sequentially(value, timeout=timeout_ms)
             await recording_func("type_text", {"selector": loc, "value": value, "clear_first": clear_first})
             preview = value[:60] + ("\u2026" if len(value) > 60 else "")
-            return ControllerResponse.input_result(
-                field_name=loc,
-                value=preview
-            )
+            return ControllerResponse.input_result(field_name=loc, value=preview)
 
         elif action == "select_option":
             loc = _resolve_selector(selector, text)
