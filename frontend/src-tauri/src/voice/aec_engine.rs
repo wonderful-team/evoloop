@@ -154,6 +154,11 @@ impl AecMicCapture {
             self.fallback.is_live()
         }
     }
+
+    #[cfg(target_os = "macos")]
+    pub fn is_aec_active(&self) -> bool {
+        self.mac_running.load(Ordering::SeqCst)
+    }
 }
 
 #[cfg(target_os = "macos")]

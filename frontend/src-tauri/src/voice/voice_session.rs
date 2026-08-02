@@ -9,9 +9,7 @@ use tokio::sync::RwLock;
 use log::{info, warn};
 use std::path::PathBuf;
 
-#[cfg(not(target_os = "macos"))]
 use std::io::Write;
-#[cfg(not(target_os = "macos"))]
 use std::process::{Command, Stdio, Child, ChildStdin};
 
 #[cfg(target_os = "macos")]
@@ -92,9 +90,7 @@ pub struct VoiceSession {
     tts_audio_producer: Arc<Mutex<Option<HeapProd<f32>>>>,
     #[cfg(target_os = "macos")]
     tts_clear_flag: Arc<Mutex<Option<Arc<AtomicBool>>>>,
-    #[cfg(not(target_os = "macos"))]
     ffplay_stdin: Arc<Mutex<Option<ChildStdin>>>,
-    #[cfg(not(target_os = "macos"))]
     ffplay_child: Arc<Mutex<Option<Child>>>,
 }
 
@@ -119,9 +115,7 @@ impl VoiceSession {
             tts_audio_producer: Arc::new(Mutex::new(None)),
             #[cfg(target_os = "macos")]
             tts_clear_flag: Arc::new(Mutex::new(None)),
-            #[cfg(not(target_os = "macos"))]
             ffplay_stdin: Arc::new(Mutex::new(None)),
-            #[cfg(not(target_os = "macos"))]
             ffplay_child: Arc::new(Mutex::new(None)),
         }
     }
@@ -170,9 +164,7 @@ impl VoiceSession {
     fn _stop_tts_playback(
         #[cfg(target_os = "macos")]
         tts_clear_flag: &Mutex<Option<Arc<AtomicBool>>>,
-        #[cfg(not(target_os = "macos"))]
         ffplay_stdin: &Mutex<Option<ChildStdin>>,
-        #[cfg(not(target_os = "macos"))]
         ffplay_child: &Mutex<Option<Child>>,
     ) {
         #[cfg(target_os = "macos")]
@@ -183,21 +175,75 @@ impl VoiceSession {
                 }
             }
         }
-        #[cfg(not(target_os = "macos"))]
-        {
-            let _ = std::process::Command::new("pkill")
-                .arg("-x").arg("ffplay")
-                .output();
-            if let Ok(mut stdin_guard) = ffplay_stdin.lock() {
-                drop(stdin_guard.take());
+        let _ = std::process::Command::new("pkill")
+            .arg("-x").arg("ffplay")
+            .output();
+        if let Ok(mut stdin_guard) = ffplay_stdin.lock() {
+            drop(stdin_guard.take());
+        }
+        if let Ok(mut child) = ffplay_child.lock() {
+            if let Some(ref mut c) = *child {
+                let _ = c.kill();
+                let _ = c.wait();
             }
-            if let Ok(mut child) = ffplay_child.lock() {
-                if let Some(ref mut c) = *child {
-                    let _ = c.kill();
-                    let _ = c.wait();
+            *child = None;
+        }
+    }
+
+    fn _play_via_ffplay(
+        bytes: Vec<u8>,
+        ffplay_stdin: &Mutex<Option<ChildStdin>>,
+        ffplay_child: &Mutex<Option<Child>>,
+        session_tts_active: &AtomicBool,
+    ) {
+        let mut stdin_guard = ffplay_stdin.lock().unwrap();
+        if stdin_guard.is_none() {
+            if !session_tts_active.load(Ordering::SeqCst) {
+                return;
+            }
+            info!("[tts-play] spawning ffplay (first audio frame, {}b)", bytes.len());
+            let child = Command::new("ffplay")
+                .args(["-f", "f32le", "-ar", "24000", "-nodisp", "-autoexit", "-"])
+                .stdin(Stdio::piped())
+                .stderr(Stdio::null())
+                .spawn();
+            match child {
+                Ok(mut c) => {
+                    let stdin = c.stdin.take()
+                        .expect("failed to capture ffplay stdin");
+                    *stdin_guard = Some(stdin);
+                    if let Ok(mut child_guard) = ffplay_child.lock() {
+                        if let Some(ref mut old) = *child_guard {
+                            let _ = old.wait();
+                        }
+                        *child_guard = Some(c);
+                    }
+                    info!("[tts-play] ffplay spawned OK");
                 }
-                *child = None;
+                Err(e) => {
+                    warn!("[tts-play] ffplay spawn failed: {}", e);
+                    drop(stdin_guard);
+                    return;
+                }
             }
+        }
+        if let Some(stdin) = stdin_guard.as_mut() {
+            if let Err(e) = stdin.write_all(&bytes) {
+                warn!("[tts-play] ffplay write failed ({}b): {} — resetting", bytes.len(), e);
+                if let Ok(mut child_guard) = ffplay_child.lock() {
+                    if let Some(ref mut c) = *child_guard {
+                        let _ = c.kill();
+                        let _ = c.wait();
+                    }
+                    *child_guard = None;
+                }
+                *stdin_guard = None;
+                return;
+            }
+        }
+        let dump_path = std::env::temp_dir().join("tts_debug_raw.pcm");
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&dump_path) {
+            let _ = f.write_all(&bytes);
         }
     }
 
@@ -224,10 +270,9 @@ impl VoiceSession {
         let session_tts_producer = self.tts_audio_producer.clone();
         #[cfg(target_os = "macos")]
         let session_tts_clear_flag = self.tts_clear_flag.clone();
-        #[cfg(not(target_os = "macos"))]
         let ffplay_stdin = self.ffplay_stdin.clone();
-        #[cfg(not(target_os = "macos"))]
         let ffplay_child = self.ffplay_child.clone();
+        let session_mic = self.mic.clone();
 
         let handler = Arc::new(move |envelope: VoiceEnvelope| {
             let msg_type = envelope.msg_type.clone();
@@ -236,10 +281,9 @@ impl VoiceSession {
             let session_tts_producer = session_tts_producer.clone();
             #[cfg(target_os = "macos")]
             let session_tts_clear_flag = session_tts_clear_flag.clone();
-            #[cfg(not(target_os = "macos"))]
             let ffplay_stdin = ffplay_stdin.clone();
-            #[cfg(not(target_os = "macos"))]
             let ffplay_child = ffplay_child.clone();
+            let session_mic = session_mic.clone();
             let session_shared_state = session_shared_state.clone();
             let session_tts_active = session_tts_active.clone();
             let session_state = session_state.clone();
@@ -249,88 +293,60 @@ impl VoiceSession {
             if msg_type == "voice.audio_frame" {
                 #[cfg(target_os = "macos")]
                 {
+                    let session_mic = session_mic.clone();
+                    let session_tts_producer = session_tts_producer.clone();
+                    let ffplay_stdin = ffplay_stdin.clone();
+                    let ffplay_child = ffplay_child.clone();
+                    let session_tts_active = session_tts_active.clone();
+
                     tokio::task::spawn_blocking(move || {
                         if !session_tts_active.load(Ordering::SeqCst) {
                             return;
                         }
                         if let Some(bytes) = envelope.raw_bytes {
-                            // Backend sends f32le PCM at 24kHz; VoiceProcessingIO
-                            // output runs at 16kHz, so resample before pushing.
-                            let samples_24k: Vec<f32> = bytes
-                                .chunks_exact(4)
-                                .map(|chunk| f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
-                                .collect();
-                            let samples_16k = crate::voice::audio_utils::resample_rubato(&samples_24k, 24000, 16000);
+                            let is_aec_active = if let Ok(guard) = session_mic.try_read() {
+                                guard.is_aec_active()
+                            } else {
+                                false
+                            };
 
-                            if let Ok(mut prod_opt) = session_tts_producer.lock() {
-                                if let Some(producer) = prod_opt.as_mut() {
-                                    // Push as many resampled samples as fit; drop the
-                                    // rest to keep latency low. The consumer runs at the
-                                    // hardware render rate, so overflow only occurs under
-                                    // heavy back-pressure.
-                                    producer.push_slice(&samples_16k);
+                            if is_aec_active {
+                                // Backend sends f32le PCM at 24kHz; VoiceProcessingIO
+                                // output runs at 16kHz, so resample before pushing.
+                                let samples_24k: Vec<f32> = bytes
+                                    .chunks_exact(4)
+                                    .map(|chunk| f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
+                                    .collect();
+                                let samples_16k = crate::voice::audio_utils::resample_rubato(&samples_24k, 24000, 16000);
+
+                                if let Ok(mut prod_opt) = session_tts_producer.lock() {
+                                    if let Some(producer) = prod_opt.as_mut() {
+                                        // Push as many resampled samples as fit; drop the
+                                        // rest to keep latency low. The consumer runs at the
+                                        // hardware render rate, so overflow only occurs under
+                                        // heavy back-pressure.
+                                        producer.push_slice(&samples_16k);
+                                    }
                                 }
+                            } else {
+                                // Fallback to ffplay playback
+                                Self::_play_via_ffplay(bytes, &ffplay_stdin, &ffplay_child, &session_tts_active);
                             }
                         }
                     });
                 }
                 #[cfg(not(target_os = "macos"))]
                 {
+                    let ffplay_stdin = ffplay_stdin.clone();
+                    let ffplay_child = ffplay_child.clone();
+                    let session_tts_active = session_tts_active.clone();
+
                     tokio::task::spawn_blocking(move || {
-                        use std::io::Write as IoWrite;
                         if !session_tts_active.load(Ordering::SeqCst) {
                             return;
                         }
                         if let Some(bytes) = envelope.raw_bytes {
-                            let mut stdin_guard = ffplay_stdin.lock().unwrap();
-                            if stdin_guard.is_none() {
-                                if !session_tts_active.load(Ordering::SeqCst) {
-                                    return;
-                                }
-                                info!("[tts-play] spawning ffplay (first audio frame, {}b)", bytes.len());
-                                let child = Command::new("ffplay")
-                                    .args(["-f", "f32le", "-ar", "24000", "-nodisp", "-autoexit", "-"])
-                                    .stdin(Stdio::piped())
-                                    .stderr(Stdio::null())
-                                    .spawn();
-                                match child {
-                                    Ok(mut c) => {
-                                        let stdin = c.stdin.take()
-                                            .expect("failed to capture ffplay stdin");
-                                        *stdin_guard = Some(stdin);
-                                        if let Ok(mut child_guard) = ffplay_child.lock() {
-                                            if let Some(ref mut old) = *child_guard {
-                                                let _ = old.wait();
-                                            }
-                                            *child_guard = Some(c);
-                                        }
-                                        info!("[tts-play] ffplay spawned OK");
-                                    }
-                                    Err(e) => {
-                                        warn!("[tts-play] ffplay spawn failed: {}", e);
-                                        drop(stdin_guard);
-                                        return;
-                                    }
-                                }
-                            }
-                            if let Some(stdin) = stdin_guard.as_mut() {
-                                if let Err(e) = stdin.write_all(&bytes) {
-                                    warn!("[tts-play] ffplay write failed ({}b): {} — resetting", bytes.len(), e);
-                                    if let Ok(mut child) = ffplay_child.lock() {
-                                        if let Some(ref mut c) = *child {
-                                            let _ = c.kill();
-                                            let _ = c.wait();
-                                        }
-                                        *child = None;
-                                    }
-                                    *stdin_guard = None;
-                                    return;
-                                }
-                            }
-                            let dump_path = std::env::temp_dir().join("tts_debug_raw.pcm");
-                            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&dump_path) {
-                                let _ = f.write_all(&bytes);
-                            }
+                            Self::_play_via_ffplay(bytes, &ffplay_stdin, &ffplay_child, &session_tts_active);
                         }
                     });
                 }
@@ -344,7 +360,7 @@ impl VoiceSession {
                         #[cfg(target_os = "macos")]
                         {
                             info!("[tts-play] barge_in/cancel — clearing TTS queue");
-                            Self::_stop_tts_playback(session_tts_clear_flag.as_ref());
+                            Self::_stop_tts_playback(session_tts_clear_flag.as_ref(), ffplay_stdin.as_ref(), ffplay_child.as_ref());
                         }
                         #[cfg(not(target_os = "macos"))]
                         {
@@ -415,7 +431,6 @@ impl VoiceSession {
                                     flag.store(true, Ordering::SeqCst);
                                 }
                             }
-                            #[cfg(not(target_os = "macos"))]
                             if let Ok(mut stdin_guard) = ffplay_stdin.lock() {
                                 if stdin_guard.is_some() {
                                     drop(stdin_guard.take());
@@ -748,7 +763,7 @@ impl VoiceSession {
         self.mic.write().await.stop();
 
         #[cfg(target_os = "macos")]
-        Self::_stop_tts_playback(self.tts_clear_flag.as_ref());
+        Self::_stop_tts_playback(self.tts_clear_flag.as_ref(), &self.ffplay_stdin, &self.ffplay_child);
         #[cfg(not(target_os = "macos"))]
         Self::_stop_tts_playback(&self.ffplay_stdin, &self.ffplay_child);
 
@@ -762,7 +777,7 @@ impl VoiceSession {
 
     pub async fn barge_in(&self) {
         #[cfg(target_os = "macos")]
-        Self::_stop_tts_playback(self.tts_clear_flag.as_ref());
+        Self::_stop_tts_playback(self.tts_clear_flag.as_ref(), &self.ffplay_stdin, &self.ffplay_child);
         #[cfg(not(target_os = "macos"))]
         Self::_stop_tts_playback(&self.ffplay_stdin, &self.ffplay_child);
 
@@ -792,7 +807,7 @@ impl VoiceSession {
         if old_mode == "dialogue" && mode != "dialogue" {
             self.tts_active.store(false, Ordering::SeqCst);
             #[cfg(target_os = "macos")]
-            Self::_stop_tts_playback(self.tts_clear_flag.as_ref());
+            Self::_stop_tts_playback(self.tts_clear_flag.as_ref(), &self.ffplay_stdin, &self.ffplay_child);
             #[cfg(not(target_os = "macos"))]
             Self::_stop_tts_playback(&self.ffplay_stdin, &self.ffplay_child);
         }
