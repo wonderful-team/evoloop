@@ -90,19 +90,9 @@ class SupervisorNode(BaseAgentNode):
 
         from app.core.engine.state.lifecycle import StateLifecycleManager
         StateLifecycleManager.consume_next_node(state)
-        StateLifecycleManager.consume_spawn_plan(state)
         StateLifecycleManager.consume_blocked_by_hook(state)
 
         await self._emit_status(config, i18n.get("supervisor.status_analyzing"))
-
-        subtask_results = state.subtask_results
-        pending_agg = state.pending_aggregation
-
-        if pending_agg and pending_agg.expected_count:
-            expected = pending_agg.expected_count
-            if len(subtask_results) >= expected:
-                logger.info(f"[Supervisor] All {expected} subtasks done. Routing to Aggregator.")
-                return StateUpdate(next_node=RoutingTarget.AGGREGATOR)
 
         worker_outcome = StateLifecycleManager.consume_worker_outcome(state)
         if worker_outcome:
@@ -197,8 +187,11 @@ class SupervisorNode(BaseAgentNode):
 
             ctx = ContextManager.current()
             source = config.get("metadata", {}).get("source", "")
+            thread_id = original_state.thread_id or config.get("configurable", {}).get("thread_id")
+            if not thread_id:
+                raise ValueError("Cannot self-publish SessionCompletedEvent without thread_id")
             event_data = SessionCompletedData(
-                thread_id=original_state.thread_id or config.get("configurable", {}).get("thread_id") or "unknown",
+                thread_id=thread_id,
                 summary=ai_content,
                 tts_summary=ai_content if source == "voice" else "",
                 outcome="completed",

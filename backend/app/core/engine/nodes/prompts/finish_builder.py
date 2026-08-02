@@ -24,7 +24,6 @@ class FinishPromptBuilder(BasePromptBuilder):
         project_id: int | None = None,
         telemetry: dict | None = None,
         metadata: dict | None = None,
-        subtask_results: list | None = None,
         session_goal: str | None = None,
     ):
         self.current_plan = current_plan
@@ -35,7 +34,6 @@ class FinishPromptBuilder(BasePromptBuilder):
         self.project_id = project_id
         self.telemetry = telemetry or {}
         self.metadata = metadata or {}
-        self.subtask_results = subtask_results or []
         self.session_goal = session_goal
 
     def build(self) -> str:
@@ -81,11 +79,6 @@ class FinishPromptBuilder(BasePromptBuilder):
             return True
         if self.action_context and "run_skill" in self.action_context:
             return True
-        for result in (self.subtask_results or []):
-            if isinstance(result, dict) and result.get("skill_id"):
-                return True
-            if isinstance(result, str) and "skill" in result.lower():
-                return True
         return False
 
     def build_audit_ticket(self) -> str:
@@ -105,7 +98,6 @@ class FinishPromptBuilder(BasePromptBuilder):
             "ticket": self.execution_ticket,
             "verification": self.verification_status,
             "metadata": self.metadata,
-            "subtask_results": self.subtask_results,
             "audit_context": self.action_context,
             "telemetry": self.telemetry,
         }

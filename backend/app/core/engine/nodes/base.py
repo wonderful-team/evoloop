@@ -4,7 +4,6 @@ from typing import Any
 
 from app.core.engine import get_default_engine
 from app.core.engine.message.native_classes import HumanMessage
-from app.core.engine.nodes.utils import resolve_is_subtask
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.schemas import EngineResult
 from app.core.engine.signals import signal_manager
@@ -85,7 +84,6 @@ class BaseAgentNode(BaseNode, ABC):
 
             # 3. Engine Execution
             engine = get_default_engine()
-            is_subtask = resolve_is_subtask(state)
 
             # Two-tier LLM: Supervisor uses lightning (local), Worker/Finish use default (cloud)
             cfg = config.get("configurable", {})
@@ -102,11 +100,10 @@ class BaseAgentNode(BaseNode, ABC):
                 config=config,
                 system_prompt=static_system_prompt,
                 tools=tools,
-                max_steps=1 if is_subtask else self.max_steps,
+                max_steps=self.max_steps,
                 name=self.node_name,
                 temperature=self.temperature,
                 node_source=self.node_name.lower(),
-                is_subtask=is_subtask,
                 model=model,
             )
 

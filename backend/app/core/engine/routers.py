@@ -8,7 +8,6 @@ from enum import Enum
 
 from app.core.config import settings
 from app.core.engine.state import AgentState
-from app.core.engine.subtask_spawner import build_subtask_sends
 
 logger = logging.getLogger(__name__)
 
@@ -22,8 +21,6 @@ class RoutingTarget(str, Enum):
     WORKER = "worker"
     FLASH_BRAIN = "flash_brain"
     SUPERVISOR = "supervisor"
-    AGGREGATOR = "aggregator"
-    SPAWN_SUBTASKS = "spawn_subtasks"
     SEQUENTIAL_WORKFLOW = "sequential_workflow"
     END = "END"
 
@@ -54,19 +51,12 @@ def route_supervisor(state: AgentState) -> str:
         logger.warning(f"[Router] Hard limit reached ({iteration_count}/{max_steps}). Forcing termination.")
         return RoutingTarget.FINISH
 
-    # --- Dynamic Subtask Spawning (State Driven) ---
-    spawn_plan = state.spawn_plan
-    if spawn_plan and spawn_plan.subtasks:
-        return build_subtask_sends(state)
-
     # --- Routing Topology Whitelist ---
     # These nodes can be reached directly from Supervisor without an execution ticket wrapper
     if next_node:
         terminal_targets = {
             RoutingTarget.FINISH,
             RoutingTarget.SUPERVISOR,
-            RoutingTarget.AGGREGATOR,
-            RoutingTarget.SPAWN_SUBTASKS,
             RoutingTarget.SEQUENTIAL_WORKFLOW,
             RoutingTarget.END,
         }

@@ -12,7 +12,6 @@ from app.core.engine.message.native_classes import AIMessage, HumanMessage
 from app.core.engine.message.utils import get_message_text
 from app.core.engine.nodes.base import BaseAgentNode
 from app.core.engine.nodes.prompts import WorkerPromptBuilder
-from app.core.engine.nodes.utils import resolve_is_subtask
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.state import AgentState, StateUpdate
 from app.core.engine.state.sub_schemas import WorkflowStepResult
@@ -92,7 +91,6 @@ class SequentialWorkflowNode(BaseAgentNode):
         engine = get_default_engine()
 
         try:
-            is_subtask = resolve_is_subtask(state)
             model = config.get("configurable", {}).get("model")
             engine_result = await engine.run_node(
                 state=worker_state,
@@ -100,8 +98,7 @@ class SequentialWorkflowNode(BaseAgentNode):
                 system_prompt=system_prompt,
                 tools=await self.get_tools(state),
                 name=f"Worker-{role_name}-Step{step_index + 1}",
-                max_steps=1 if is_subtask else settings.WORKER_AGENT_MAX_STEPS,
-                is_subtask=is_subtask,
+                max_steps=settings.WORKER_AGENT_MAX_STEPS,
                 node_source="sequential_workflow",
                 model=model,
             )

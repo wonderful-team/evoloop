@@ -11,11 +11,8 @@ from app.core.engine.state.sub_schemas import (
     AuditAnomaly,
     AuditInputData,
     AuditMeta,
-    PendingAggregation,
     PendingApproval,
     PlanProgress,
-    SpawnPlan,
-    SubtaskResult,
     VerificationStatus,
     WorkflowStepResult,
 )
@@ -41,7 +38,6 @@ class AgentStateBase(DynamicBaseModel):
     worker_outcome: str | None = None
     summary: str | None = None
     remaining_work: str | None = None
-    is_subtask: bool | None = None
     blocked_by_hook: bool | None = None
 
     # --- 3. Planning ---
@@ -54,14 +50,9 @@ class AgentStateBase(DynamicBaseModel):
     relevant_sops: list[LearnedSkill] = Field(default_factory=list)
 
     # --- 4. Orchestration ---
-    spawn_plan: SpawnPlan | None = None
-    pending_aggregation: PendingAggregation | None = None
-    subtask_results: list[SubtaskResult] = Field(default_factory=list)
     workflow_results: list[WorkflowStepResult] | None = None
     workflow_plan: list[LearnedSkill] | None = None
     workflow_step_index: int | None = None
-    active_subagents: list[dict[str, Any]] | None = None
-    completed_subagents: list[dict[str, Any]] | None = None
     pending_signals: list[dict[str, Any]] = Field(default_factory=list)
     pending_approvals: list[PendingApproval] = Field(default_factory=list)
     shared_context: dict[str, str] = Field(default_factory=dict)
@@ -77,7 +68,6 @@ class AgentStateBase(DynamicBaseModel):
     final_outcome: str | None = None
     shadow_audit: bool | None = None
     termination_outcome: str | None = None
-    last_aggregation_result: str | None = None
     force_comprehensive_audit: bool | None = None
     test_failures: Any | None = None
     lint_errors: Any | None = None
@@ -120,7 +110,6 @@ class AgentStateBase(DynamicBaseModel):
             "final_outcome": self.final_outcome,
             "shadow_audit": self.shadow_audit,
             "termination_outcome": self.termination_outcome,
-            "last_aggregation_result": self.last_aggregation_result,
             "audit_tier": self.audit_tier,
             "audit_meta": self.audit_meta.model_dump() if hasattr(self.audit_meta, "model_dump") and self.audit_meta else self.audit_meta,
             "blocked_by_hook": self.blocked_by_hook,
@@ -152,19 +141,6 @@ def add_unique_items(a: list | None, b: list | None) -> list:
     for item in combined:
         if item not in seen:
             seen.add(item)
-            result.append(item)
-    return result
-
-
-def add_unique_subtasks(a: list[SubtaskResult] | None, b: list[SubtaskResult] | None) -> list[SubtaskResult]:
-    """Merge two optional SubtaskResult lists, deduplicating by subtask_id."""
-    combined = (a or []) + (b or [])
-    seen: set[str] = set()
-    result = []
-    for item in combined:
-        key = item.subtask_id
-        if key not in seen:
-            seen.add(key)
             result.append(item)
     return result
 

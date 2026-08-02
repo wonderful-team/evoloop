@@ -24,13 +24,6 @@
 - **Status**: {{ verification.status or 'unverified' }}
 {%- endif %}
 
-{%- if subtask_results %}
-### Subtask Results
-{% for r in subtask_results -%}
-- **{{ r.subtask_id or 'Subtask' }}**: {{ r.result or 'No result provided' }}
-{% endfor %}
-{%- endif %}
-
 {%- if plan %}
 ### Strategic Plan
 {%- set plan_obj = plan %}

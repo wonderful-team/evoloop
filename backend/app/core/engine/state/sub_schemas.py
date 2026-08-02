@@ -4,7 +4,6 @@ from typing import Any
 
 from pydantic import Field
 
-from app.core.engine.state.workspace import SubtaskContext
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
@@ -13,49 +12,6 @@ logger = logging.getLogger(__name__)
 class VerificationStatus(DynamicBaseModel):
     status: str
     signals: list[str] = Field(default_factory=list)
-
-
-class SpawnPlanSubtask(DynamicBaseModel):
-    id: str
-    intent: str
-    description: str | None = None
-    title: str | None = None
-    context: SubtaskContext | None = None
-    dependencies: list[str] | None = None
-    tools: list[str] | None = None
-    skill_hint: str | None = None
-
-    @model_validator(mode="before")
-    @classmethod
-    def _normalize_subtask_id(cls, data: Any) -> Any:
-        if isinstance(data, dict) and "subtask_id" in data and "id" not in data:
-            data = dict(data)
-            data["id"] = data.pop("subtask_id")
-        return data
-
-
-class SpawnPlan(DynamicBaseModel):
-    subtasks: list[SpawnPlanSubtask] = Field(default_factory=list)
-    requires_aggregation: bool = True
-    parent_task: str = ""
-    aggregation_strategy: str = "merge"
-    routing_signal: str | None = None
-    suggested_skill: str | None = None
-
-
-class PendingAggregation(DynamicBaseModel):
-    strategy: str
-    expected_count: int
-    actual_count: int | None = None
-    parent_task: str = ""
-
-
-class SubtaskResult(DynamicBaseModel):
-    subtask_id: str
-    status: str
-    result: Any
-    tools_used: list[str] | None = None
-    timestamp: float | None = None
 
 
 class AuditMeta(DynamicBaseModel):

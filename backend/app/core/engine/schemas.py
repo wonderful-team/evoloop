@@ -7,14 +7,6 @@ from pydantic import BaseModel, Field
 from app.core.engine.message.native_classes import BaseMessage
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
-# ---------------------------------------------------------------------------
-# Graph Configuration (from schema.py)
-# ---------------------------------------------------------------------------
-
-class AggregateResult(DynamicBaseModel):
-    status: str
-    aggregated: Any
-
 
 class NodeOutcome(DynamicBaseModel):
     """Structured outcome of a node execution."""
@@ -58,7 +50,7 @@ class ErrorClassification(BaseModel):
 class ToolCallInfo(DynamicBaseModel):
     """Information about a recent tool call."""
     tool_call_id: str
-    name: str
+    name: str | None = None
     timestamp: float
     token_count: int
 

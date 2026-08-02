@@ -66,7 +66,6 @@ async def run_node_loop(
             state.next_node = route_supervisor(state)
             NEW_COMMAND_NODES = {
                 RoutingTarget.WORKER,
-                RoutingTarget.SPAWN_SUBTASKS,
                 RoutingTarget.SEQUENTIAL_WORKFLOW,
             }
             if state.next_node in NEW_COMMAND_NODES:

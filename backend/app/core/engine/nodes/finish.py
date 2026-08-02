@@ -47,12 +47,6 @@ class FinishNode(BaseNode):
         effective_completed = plan_progress.completed_steps if plan_progress else 0
         effective_total = plan_progress.total_steps if plan_progress else 0
 
-        subtask_results = state.subtask_results
-        pending_agg = state.pending_aggregation
-        if effective_total == 0 and pending_agg and pending_agg.expected_count:
-            effective_total = pending_agg.expected_count
-            effective_completed = len(subtask_results)
-
         tool_history = state.tool_history or []
         created_count = sum(1 for t in tool_history if "write_" in t or "edit_" in t or "create_" in t)
 
@@ -255,7 +249,6 @@ class FinishNode(BaseNode):
 
         blackboard_dict = {
             "ticket": state.ticket.model_dump() if hasattr(state.ticket, "model_dump") and state.ticket else state.ticket,
-            "subtask_results": state.subtask_results,
             "visited_nodes": state.visited_nodes,
             "verification": state.verification.model_dump() if hasattr(state.verification, "model_dump") and state.verification else state.verification,
             "metadata": metadata_clean,
@@ -316,15 +309,11 @@ class FinishNode(BaseNode):
             logger.info(f"[Finish] Publishing SessionCompletedEvent for thread {effective_thread_id}...")
             await publish_session_completed(data=event_data)
 
-        state.subtask_results = []
-        state.spawn_plan = None
         logger.debug(f"[Finish] Blackboard pruned for thread {effective_thread_id}")
 
         return StateUpdate(
             messages=messages_to_return,
             next_node=RoutingTarget.END,
-            subtask_results=[],
-            spawn_plan=None,
             final_outcome=final_outcome,
             audit_tier="unified",
             summary=summary,

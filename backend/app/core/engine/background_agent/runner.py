@@ -11,7 +11,11 @@ from app.core.engine.background_agent.errors import handle_task_exception
 from app.core.engine.background_agent.models import BackgroundAgentInputs
 from app.core.engine.callbacks.database_logger import DatabaseCallbackHandler
 from app.core.engine.callbacks.transparent import TransparentCallbackHandler
-from app.core.exceptions import AgentCancelledException, AgentHumanInterruptException, InferenceError
+from app.core.exceptions import (
+    AgentCancelledException,
+    AgentHumanInterruptException,
+    InferenceError,
+)
 from app.core.monitoring.activity import activity_monitor
 
 logger = logging.getLogger(__name__)
@@ -115,10 +119,11 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
 
                 # Load historical messages from DB for multi-turn context
                 try:
+                    from sqlalchemy import select
+
+                    from app.core.engine.message.converter import EvoMessageConverter
                     from app.infrastructure.database import session_scope
                     from app.models import Message as MessageModel
-                    from sqlalchemy import select
-                    from app.core.engine.message.converter import EvoMessageConverter
                     async with session_scope() as db:
                         stmt = (
                             select(MessageModel)
@@ -173,7 +178,6 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
                     config=lc_config,
                     last_human_msg=last_human_msg,
                     is_retry=inputs.is_retry,
-                    is_subtask=False,
                     iteration_count=inputs.iteration_count,
                 )
 

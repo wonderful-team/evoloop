@@ -5,7 +5,6 @@ from app.core.engine.signals.signals import (
     RouteToSignal,
     RoutingContext,
     SignalManager,
-    SpawnSubtasksSignal,
     signal_manager,
 )
 
@@ -13,7 +12,6 @@ __all__ = [
     "AgentSignal",
     "RouteToSignal",
     "RoutingContext",
-    "SpawnSubtasksSignal",
     "SignalManager",
     "signal_manager",
 ]

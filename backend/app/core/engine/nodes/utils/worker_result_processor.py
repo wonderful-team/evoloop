@@ -16,7 +16,7 @@ from app.core.engine.message.utils import get_message_text
 from app.core.engine.schemas import EngineResult
 from app.core.engine.state import AgentState, StateUpdate
 from app.core.engine.state.config import ExecutionTicket
-from app.core.engine.state.sub_schemas import SubtaskResult, VerificationStatus
+from app.core.engine.state.sub_schemas import VerificationStatus
 from app.core.engine.state.workspace import WorkspaceContext
 from app.core.tools.registry import get_tool_metadata
 
@@ -74,42 +74,7 @@ async def process_worker_result(
     else:
         worker_content = f"{role_name} completed."
 
-    agent_config = execution_ticket.agent_config if execution_ticket else None
-
-    out_outcome = None
-    if not (agent_config and agent_config.is_subtask):
-        out_outcome = worker_outcome
-
-    out_subtask_results = []
-    if agent_config and agent_config.is_subtask:
-        subtask_id = execution_ticket.subtask_id or "unknown"
-
-        subtask_result = SubtaskResult(
-            subtask_id=subtask_id,
-            status="completed",
-            result=content,
-            tools_used=tool_history,
-            timestamp=asyncio.get_running_loop().time(),
-        )
-
-        out_subtask_results = [subtask_result]
-
-        pending_agg = state.pending_aggregation
-        if pending_agg:
-            expected_count = pending_agg.expected_count or 0
-            current_count = len(state.subtask_results) + 1
-            logger.debug(f"[Worker] 📊 Subtask completion progress: {current_count}/{expected_count}")
-
-            if config:
-                from app.core.monitoring.activity import activity_monitor
-                main_thread_id = execution_ticket.parent_task_id or "unknown"
-                if main_thread_id != "unknown":
-                    await activity_monitor.update_agent_state(
-                        thread_id=main_thread_id,
-                        mode="EXECUTING",
-                        task_name=f"Parallel Execution ({current_count}/{expected_count})",
-                        task_status=f"Subtask '{subtask_id}' completed."
-                    )
+    out_outcome = worker_outcome
 
     has_changes = False
     for t_sig in tool_history:
@@ -204,7 +169,6 @@ async def process_worker_result(
         next_node=None,
         workspace_context=workspace_context,
         worker_outcome=out_outcome,
-        subtask_results=out_subtask_results,
         ticket=updated_execution_ticket,
         verification=verification_summary,
         tool_history=tool_history,

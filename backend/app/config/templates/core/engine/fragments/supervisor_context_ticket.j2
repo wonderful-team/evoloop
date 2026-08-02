@@ -62,13 +62,6 @@
   {%- endif %}
 {%- endif %}
 
-{%- if subtask_results %}
-## Subtask Results
-  {% for res in subtask_results -%}
-  - {{ res.subtask_id }}: {{ (res.result[:200] + '…') if res.result|length > 200 else res.result }}
-  {% endfor %}
-{%- endif %}
-
 {%- if verification %}
 ## Verification: {{ verification.status|upper }}
 {%- endif %}

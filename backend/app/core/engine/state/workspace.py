@@ -12,11 +12,6 @@ class ClipboardMetadata(DynamicBaseModel):
     line_range: tuple[int, int] | None = None
 
 
-class SubtaskContext(DynamicBaseModel):
-    description: str | None = None
-    dependencies: list[str] | None = None
-
-
 class ClipboardItem(DynamicBaseModel):
     content: Any
     mime_type: str

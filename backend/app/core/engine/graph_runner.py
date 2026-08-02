@@ -22,8 +22,8 @@ async def resume_graph_background(
 ):
     """Unified background execution resumption loop."""
     from app.core.context import ContextManager
-    from app.core.engine.state import AgentState
     from app.core.engine.message.converter import EvoMessageConverter
+    from app.core.engine.state import AgentState
 
     await ContextManager.load(thread_id)
 
@@ -89,6 +89,7 @@ async def _restore_resume_context(thread_id: str, state: AgentState, config: dic
     last_human_msg = ""
     try:
         from sqlalchemy import select
+
         from app.infrastructure.database import session_scope
         from app.models import Message as DBMessage
 
@@ -108,7 +109,7 @@ async def _restore_resume_context(thread_id: str, state: AgentState, config: dic
             if row:
                 last_human_msg = str(row)[:500]
     except Exception:
-        logger.warning(f"[ResumeGraph] Failed to load last human msg for hydration")
+        logger.warning("[ResumeGraph] Failed to load last human msg for hydration")
 
     ctx = ContextManager.current()
     await AgentContextHydrator.hydrate(
@@ -117,6 +118,5 @@ async def _restore_resume_context(thread_id: str, state: AgentState, config: dic
         config=config,
         last_human_msg=last_human_msg,
         is_retry=False,
-        is_subtask=False,
         iteration_count=0,
     )

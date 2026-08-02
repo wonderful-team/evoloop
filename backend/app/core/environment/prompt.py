@@ -54,7 +54,6 @@ class AppEnvironmentPrompt:
                 "browser_status": _get_browser_status(),
                 "has_android": ctx.metadata.get("has_android", False),
                 "has_macos": ctx.metadata.get("has_macos", False),
-                "is_subtask": ctx.metadata.get("is_subtask", False),
                 "tips": tips,
                 "ctx": ctx,  # Pass full context for working_directory access
             }

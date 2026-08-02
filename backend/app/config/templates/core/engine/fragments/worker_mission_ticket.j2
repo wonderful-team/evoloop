@@ -1,25 +1,3 @@
-{% if is_subtask -%}
-### TASK: {{ topic }}
-{% if acceptance_criteria %}
-**Success Criteria**:
-  {% for c in acceptance_criteria -%}
-  - {{ c }}
-  {% endfor %}
-{%- endif %}
-{%- if parameters %}
-**Context**:
-  {% for k, v in parameters.items() -%}
-  - {{ k }}: {{ v }}
-  {% endfor %}
-{%- endif %}
-{%- if workflow_context %}
-**Workflow Step**: {{ workflow_context.step_number }} of {{ workflow_context.total_steps }}
-{%- if not workflow_context.is_first_step %}
-Previous Output: {{ workflow_context.previous_results[-1].output[:200] }}...
-{%- endif %}
-{%- endif %}
-Execute using available tools. One turn only.
-{%- else -%}
 ### MISSION TICKET
 **Goal**: {{ topic }}
 
@@ -46,7 +24,6 @@ Execute using available tools. One turn only.
 {%- endif %}
 {%- if workflow_context.is_last_step %}
 - **This is the FINAL step** — ensure the task is fully completed.
-{%- endif %}
 {%- endif %}
 {%- endif %}
 
@@ -139,7 +116,7 @@ The Supervisor has provided background information from previous conversation:
   {% endfor %}
 {%- endif %}
 
-{%- if subtask_results is defined or metadata is defined or (shared_context and shared_context|length > 0) %}
+{%- if metadata is defined or (shared_context and shared_context|length > 0) %}
 ## Session State
 {%- if shared_context and shared_context|length > 0 %}
 ### 📝 Inter-Worker Handover Notes (Shared Context)
@@ -147,9 +124,6 @@ The following critical notes were left by previous workers/subtasks for you to c
 {% for key, notes in shared_context.items() -%}
 - **{{ key }}**: {{ notes }}
 {% endfor %}
-{%- endif %}
-{%- if subtask_results %}
-- **Subtasks Done**: {{ subtask_results|length }}
 {%- endif %}
 {%- if metadata %}
 - **Custom Bits**: {{ metadata|tojson }}

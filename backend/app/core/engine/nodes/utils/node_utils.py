@@ -2,7 +2,7 @@
 Shared utilities for EvoLoop engine nodes.
 
 Extracts cross-cutting concerns (logging, state resolution, signal dispatch)
-to eliminate duplication across BaseAgentNode, FinishNode, AggregatorNode, etc.
+to eliminate duplication across BaseAgentNode, FinishNode, SupervisorNode, etc.
 """
 
 import logging
@@ -15,13 +15,6 @@ from app.core.config import settings
 from app.infrastructure.config.service import SystemConfigService
 
 logger = logging.getLogger(__name__)
-
-
-def resolve_is_subtask(state: Any) -> bool:
-    """
-    Resolve `is_subtask` from state.
-    """
-    return state.is_subtask
 
 
 def to_template_context(obj: Any) -> Any:

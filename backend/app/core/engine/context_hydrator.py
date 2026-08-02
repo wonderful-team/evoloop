@@ -57,7 +57,6 @@ class AgentContextHydrator:
         config: RunnableConfig,
         last_human_msg: str = "",
         is_retry: bool = False,
-        is_subtask: bool = False,
         iteration_count: int = 0,
     ) -> None:
         """
@@ -170,7 +169,6 @@ class AgentContextHydrator:
         # When intent is None (no L0 hint available), keep legacy full-load behavior.
         if (
             last_human_msg
-            and not is_subtask
             and (
                 intent is None
                 or intent in _INTENTS_NEEDING_MEMORY
@@ -327,7 +325,7 @@ class AgentContextHydrator:
 
         # 8. Retry Hardening (Metadata Reset)
         is_config_retry = config.get("metadata", {}).get("is_retry", False)
-        if (is_retry or is_config_retry) and iteration_count == 0 and not is_subtask:
+        if (is_retry or is_config_retry) and iteration_count == 0:
             logger.info(
                 "[AgentContextHydrator] 🔄 Retry detected: Performing state metadata reset."
             )

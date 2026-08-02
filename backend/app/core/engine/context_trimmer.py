@@ -82,7 +82,7 @@ class ContextTrimmer:
         messages: list[Any],
         *,
         model: str | None = None,
-        node_source: Literal["supervisor", "worker", "finish", "aggregator", "default"] = "default",
+        node_source: Literal["supervisor", "worker", "finish", "default"] = "default",
         tool_memory: ToolOutputMemory | None = None,
         is_retry: bool = False,
         stages: set[Literal["forget", "window", "repair"]] | None = None,

@@ -107,7 +107,6 @@ class WorkerPromptBuilder(BasePromptBuilder):
             "role_name": self.agent_config.role_name if self.agent_config else "Specialist",
             "instructions": self.agent_config.system_instructions if self.agent_config else "Execute the assigned task accurately.",
             "has_android": ctx.metadata.get("has_android", False),
-            "is_subtask": self.agent_config.is_subtask if self.agent_config else False,
             "has_desktop_tool": has_desktop_tool,
             "has_mobile_tool": has_mobile_tool,
             "has_browser_tool": has_browser_tool,
@@ -143,11 +142,9 @@ class WorkerPromptBuilder(BasePromptBuilder):
         # Safely extract flat state properties
         if isinstance(self.blackboard, dict):
             shared_context = self.blackboard.get("shared_context", {})
-            subtask_results = self.blackboard.get("subtask_results", [])
             metadata = self.blackboard.get("metadata", {})
         else:
             shared_context = self.blackboard.shared_context or {}
-            subtask_results = self.blackboard.subtask_results or []
             metadata = self.blackboard.metadata or {}
 
         template_vars = {
@@ -156,7 +153,6 @@ class WorkerPromptBuilder(BasePromptBuilder):
             "operation_map": ctx.metadata.get("operation_map", "") or "",
             "acceptance_criteria": self.ticket.acceptance_criteria if self.ticket else [],
             "parameters": self.ticket.parameters if self.ticket else {},
-            "is_subtask": self.agent_config.is_subtask if self.agent_config else False,
             "focus_paths": self.focus_paths,
             "knowledge_blocks": self._prepare_knowledge_blocks(),
             "workflow_context": self.ticket.workflow_context if self.ticket else None,
@@ -168,7 +164,6 @@ class WorkerPromptBuilder(BasePromptBuilder):
                 "core_raw": ctx.metadata.get("core_memory_raw", ""),
             },
             "shared_context": shared_context,
-            "subtask_results": subtask_results,
             "metadata": metadata,
             "clipboard": self.clipboard,
             "plan": plan or self.plan,
@@ -197,7 +192,6 @@ class WorkerPromptBuilder(BasePromptBuilder):
             rendered = render_template(
                 "core/engine/fragments/knowledge_blocks.j2",
                 skills=self.skills,
-                is_subtask=self.agent_config.is_subtask if self.agent_config else False,
             )
             blocks = [b.strip() for b in rendered.split("\n\n\n") if b.strip()]
             return blocks or [rendered.strip()]
@@ -209,7 +203,6 @@ class WorkerPromptBuilder(BasePromptBuilder):
                     "core/engine/fragments/skill_block.j2",
                     skill=skill,
                     is_primary=(i == 0),
-                    is_subtask=self.agent_config.is_subtask if self.agent_config else False,
                 )
                 blocks.append(block)
             return blocks

@@ -5,7 +5,6 @@ from typing import Any
 
 from pydantic import Field, field_validator, model_validator
 
-from app.core.engine.state.workspace import SubtaskContext
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
@@ -63,8 +62,6 @@ class AgentRuntimeConfig(DynamicBaseModel):
     tools: list[str] = []
     model_override: str | None = None
     namespace_context: str | None = None
-    is_subtask: bool = False
-    subtask_context: SubtaskContext | None = None
     skill_hint: str | None = None
 
     @field_validator("tools", mode="before")
@@ -88,9 +85,6 @@ class ExecutionTicket(DynamicBaseModel):
     constraints: list[str] | None = None
     expected_outcomes: list[str] | None = None
     namespace_context: str | None = None
-    # Subtask / routing extensions
-    parent_task_id: str | None = None
-    subtask_id: str | None = None
     historical_context: Any | None = None
     referenced_tech: Any | None = None
     # Skill routing
@@ -106,7 +100,7 @@ class ExecutionTicket(DynamicBaseModel):
     @classmethod
     def _topic_must_be_non_empty(cls, v):
         if not isinstance(v, str) or not v.strip():
-            raise ValueError("ExecutionTicket.topic cannot be empty or missing. Check upstream caller (route_to, decompose_task, etc.) to ensure a non-empty topic/intent/reason is provided.")
+            raise ValueError("ExecutionTicket.topic cannot be empty or missing. Check upstream caller (route_to, etc.) to ensure a non-empty topic/intent/reason is provided.")
         return v.strip()
 
     @model_validator(mode="after")

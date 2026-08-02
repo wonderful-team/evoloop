@@ -54,7 +54,6 @@ nodes:
     tools:
       # Triage & orchestration
       - "route_to"
-      - "decompose_task"
       - "update_blackboard"
       # Skill & macro discovery (for routing, not execution)
       - "list_skills"
@@ -178,9 +177,6 @@ nodes:
       - "synthesize_skill"
       - "verify_ui_state"
 
-  - id: "aggregator"
-    path: "app.core.engine.nodes.aggregator.AggregatorNode"
-
   - id: "sequential_workflow"
     path: "app.core.engine.nodes.sequential_workflow.SequentialWorkflowNode"
 
@@ -193,12 +189,7 @@ edges:
       supervisor: "supervisor"
       finish: "finish"
       worker: "worker"
-      aggregator: "aggregator"
       sequential_workflow: "sequential_workflow"
-      spawn_subtasks: "supervisor" # Loopback to supervisor if sends fails
-      # NOTE: route_supervisor may also return list[Send] for dynamic subtask
-      # spawning.  This is handled directly by LangGraph (not via this map).
-      # See app.core.engine.routers._build_subtask_sends for details.
 
   # 2. Worker -> Supervisor/Finish (outcome-based)
   - from: "worker"
@@ -224,10 +215,3 @@ edges:
     map:
       supervisor: "supervisor"
       END: "END"
-
-  # 5. Aggregator -> Supervisor (Aggregator reports merged results back)
-  - from: "aggregator"
-    to: "supervisor"
-    type: "simple"
-
-

@@ -129,7 +129,6 @@ class SupervisorPromptBuilder(BasePromptBuilder):
                 "core_raw": ctx.metadata.get("core_memory_raw", ""),
             },
             "ticket": state.ticket,
-            "subtask_results": state.subtask_results,
             "verification": state.verification,
             "plan": active_plan_data,
             "plan_approved": state.plan_approved,

@@ -55,7 +55,6 @@ class AgentEngine:
         max_steps: int = 5,
         temperature: float = 0.7,
         name: str = "Agent",
-        is_subtask: bool = False,
         node_source: str = None,
         parallel_tools: bool = False,
         model: str | None = None,
@@ -98,18 +97,7 @@ class AgentEngine:
         _ctx = ContextManager.current()
         current_session_source.set(getattr(_ctx.metadata, "source", None))
 
-        if is_subtask:
-            inference_result = await self._inference_engine.run_single_shot(
-                llm_with_tools=llm_with_tools,
-                messages=repaired_messages,
-                system_prompt=system_prompt,
-                provider=provider,
-                config=config,
-                name=name,
-                tool_executor=tool_executor,
-            )
-        else:
-            inference_result = await self._inference_engine.run_react_loop(
+        inference_result = await self._inference_engine.run_react_loop(
                 llm_with_tools=llm_with_tools,
                 messages=repaired_messages,
                 system_prompt=system_prompt,

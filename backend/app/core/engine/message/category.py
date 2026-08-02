@@ -60,7 +60,7 @@ class MessageCategory(str, Enum):
 
     # ========== 错误消息（入库，供Agent学习） ==========
     ERROR_BUSINESS = "error_business"
-    """业务逻辑错误（Worker失败/Aggregation失败等），入库供Agent总结经验"""
+    """业务逻辑错误（Worker失败/审计失败等），入库供Agent总结经验"""
 
     # ========== 交互消息 ==========
     HITL_REQUEST = "hitl_request"

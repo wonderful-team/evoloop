@@ -160,7 +160,6 @@ class AuditService:
             project_id=project_id,
             telemetry=telemetry,
             metadata=state.metadata,
-            subtask_results=state.subtask_results,
             session_goal=state.session_goal,
         )
         system_prompt = builder.build()

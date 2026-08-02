@@ -157,7 +157,6 @@
       "list_forgotten_outputs": "List forgotten outputs",
       "synthesize_skill": "Synthesize skill: {reason}",
       "route_to": "Route to '{target}'",
-      "decompose_task": "Decompose task: {task_description}",
       "analyze_image": "Analyze image '{image_source}'",
       "search_web": "Search web '{query}'",
       "list_wiki_pages": "List wiki pages",

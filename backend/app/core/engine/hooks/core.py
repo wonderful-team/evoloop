@@ -351,8 +351,6 @@ def setup_default_hooks():
         post_tool_use_failure_logging,
         post_tool_use_logging,
         pre_compact_save_state,
-        subagent_start_handler,
-        subagent_stop_handler,
         user_prompt_submit_handler,
     )
 
@@ -366,10 +364,6 @@ def setup_default_hooks():
 
     # Context management
     hook_system.register(HookEvent.PRE_COMPACT, pre_compact_save_state, priority=10)
-
-    # Agent/Subagent lifecycle
-    hook_system.register(HookEvent.SUBAGENT_START, subagent_start_handler, priority=50)
-    hook_system.register(HookEvent.SUBAGENT_STOP, subagent_stop_handler, priority=50)
 
     # Error handling
     hook_system.register(HookEvent.ERROR, error_handler, priority=10)

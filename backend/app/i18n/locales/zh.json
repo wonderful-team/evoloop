@@ -159,7 +159,6 @@
       "list_forgotten_outputs": "查看已遗忘输出",
       "synthesize_skill": "合成技能: {reason}",
       "route_to": "路由至 '{target}'",
-      "decompose_task": "分解任务: {task_description}",
       "analyze_image": "分析图像 '{image_source}'[[ (模式: {mode}) ]]",
       "search_web": "搜索网页 '{query}'[[ (页码: {page}) ]]",
       "list_wiki_pages": "列出 Wiki 页面",

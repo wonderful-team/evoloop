@@ -18,12 +18,7 @@ from sqlalchemy import select
 
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.state import AgentState, StateUpdate
-from app.core.engine.state.config import (
-    AgentRuntimeConfig,
-    ExecutionTicket,
-    TicketParameters,
-)
-from app.core.engine.state.sub_schemas import SpawnPlan
+from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket, TicketParameters
 from app.infrastructure.database import session_scope
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models.learning import LearnedSkill
@@ -74,11 +69,6 @@ class RouteToSignal(AgentSignal):
         if self.skill_ids and not self.context.skill_ids:
             self.context.skill_ids = self.skill_ids
         return self
-
-
-class SpawnSubtasksSignal(AgentSignal):
-    """Signal to spawn parallel sub-agents."""
-    plan: SpawnPlan = Field(default_factory=SpawnPlan)
 
 
 # ───────────────────────── Interceptors ─────────────────────────
@@ -151,51 +141,7 @@ async def intercept_route_to(tool_call: dict, config: dict) -> RouteToSignal | N
     return signal
 
 
-async def intercept_decompose_task(tool_call: dict, config: dict) -> SpawnSubtasksSignal | None:
-    """Intercept decompose_task → execute tool → SpawnSubtasksSignal."""
-    tc_id = tool_call["id"]
-    args = tool_call.get("args", {})
-
-    await _emit_tool_event("start", "decompose_task", args, tc_id, config)
-
-    from app.core.tools.executor import ToolExecutor
-    from app.core.tools.registry import get_tool_map
-
-    tool = get_tool_map().get("decompose_task")
-    if not tool:
-        logger.warning("[Signals] decompose_task tool not found")
-        await _emit_tool_event("end", "decompose_task", "Tool not found", tc_id, config)
-        return None
-
-    executor = ToolExecutor()
-    result = await executor.execute(tool, args, config=config)
-
-    from app.core.engine.tools.orchestration.schemas import DecomposeTaskResult
-
-    spawn_plan = None
-    if isinstance(result, DecomposeTaskResult):
-        spawn_plan = result.spawn_plan
-    elif isinstance(result, dict):
-        spawn_plan_val = result.get("spawn_plan") or result.get("_spawn_plan")
-        if spawn_plan_val:
-            spawn_plan = SpawnPlan.model_validate(spawn_plan_val)
-
-    if spawn_plan:
-        logger.info(f"[Signals] Intent: Spawn {len(spawn_plan.subtasks or [])} subtasks")
-        await _emit_tool_event(
-            "end", "decompose_task",
-            f"Task decomposed into {len(spawn_plan.subtasks or [])} subtasks.",
-            tc_id, config,
-        )
-        return SpawnSubtasksSignal(plan=spawn_plan)
-
-    await _emit_tool_event("end", "decompose_task", str(result), tc_id, config)
-    return None
-
-
-async def _resolve_skill_tool_allowlist(
-    skill_ids: list[int | str],
-) -> list[str]:
+async def _resolve_skill_tool_allowlist(skill_ids: list[int | str]) -> list[str]:
     """Union tools_required from the given LearnedSkill IDs.
 
     Returns an empty list when no skills match or the field is empty, so the
@@ -309,29 +255,6 @@ async def handle_route_to(state: AgentState, signal: RouteToSignal, _config: dic
     )
 
 
-async def handle_spawn_subtasks(
-    _state: AgentState, signal: SpawnSubtasksSignal, _config: dict
-) -> StateUpdate:
-    """Handle SpawnSubtasksSignal: set spawn_plan and route to spawn node."""
-    spawn_plan = signal.plan
-    logger.info(f"[Signals] 🚀 Spawning {len(spawn_plan.subtasks or [])} subtasks")
-
-    pending_aggregation = None
-    if spawn_plan.requires_aggregation:
-        from app.core.engine.state.sub_schemas import PendingAggregation
-        pending_aggregation = PendingAggregation(
-            strategy=spawn_plan.aggregation_strategy or "merge",
-            expected_count=len(spawn_plan.subtasks or []),
-            parent_task=spawn_plan.parent_task or "",
-        )
-
-    return StateUpdate(
-        next_node=RoutingTarget.SPAWN_SUBTASKS,
-        spawn_plan=spawn_plan,
-        pending_aggregation=pending_aggregation,
-    )
-
-
 # ───────────────────────── Signal Manager ─────────────────────────
 
 
@@ -378,8 +301,6 @@ signal_manager = SignalManager()
 
 # Register interceptors
 signal_manager.register_interceptor("route_to", intercept_route_to)
-signal_manager.register_interceptor("decompose_task", intercept_decompose_task)
 
 # Register handlers
 signal_manager.register_handler(RouteToSignal, handle_route_to)
-signal_manager.register_handler(SpawnSubtasksSignal, handle_spawn_subtasks)
