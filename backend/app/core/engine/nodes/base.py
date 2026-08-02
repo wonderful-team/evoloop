@@ -68,23 +68,6 @@ class BaseAgentNode(BaseNode, ABC):
 
             # 2. Build Prompts
             static_system_prompt, dynamic_ticket_text = await self.build_prompt_pair(state, config)
-            logger.debug(
-                "[%s] STATIC SYSTEM PROMPT (%d chars):\n%s",
-                self.node_name.upper(),
-                len(static_system_prompt),
-                static_system_prompt,
-            )
-            logger.debug(
-                "[%s] DYNAMIC TICKET TEXT (%d chars):\n%s",
-                self.node_name.upper(),
-                len(dynamic_ticket_text),
-                dynamic_ticket_text,
-            )
-            if dynamic_ticket_text:
-                logger.info(
-                    f"[{self.node_name}] Dynamic ticket injected ({len(dynamic_ticket_text)} chars) | "
-                    f"preview: {dynamic_ticket_text[:200].replace(chr(10), ' ')}..."
-                )
             tools = await self.get_tools(state)
 
             # Insert Context Ticket just before the LAST human message (role="user")
@@ -114,11 +97,6 @@ class BaseAgentNode(BaseNode, ABC):
             elif cfg.get("worker_model") and node_name in ("worker", "finish"):
                 model = cfg["worker_model"]
 
-            logger.info(
-                f"[{self.node_name}] 🚀 Engine.run_node | model={model} | is_subtask={is_subtask} | "
-                f"max_steps={1 if is_subtask else self.max_steps}"
-            )
-
             engine_result = await engine.run_node(
                 state=state,
                 config=config,
@@ -130,11 +108,6 @@ class BaseAgentNode(BaseNode, ABC):
                 node_source=self.node_name.lower(),
                 is_subtask=is_subtask,
                 model=model,
-            )
-
-            logger.info(
-                f"[{self.node_name}] 📥 EngineResult received | messages={len(engine_result.messages or [])} | "
-                f"signal={type(engine_result.signal).__name__ if engine_result.signal else 'None'}"
             )
 
             # 4. Handle Outcome & Signal Dispatching
@@ -202,7 +175,4 @@ class BaseAgentNode(BaseNode, ABC):
             m for m in (engine_result.messages or [])
             if m.name != "context_ticket"
         ]
-        return StateUpdate(
-            messages=new_messages,
-            next_node=RoutingTarget.FINISH,
-        )
+        return StateUpdate(messages=new_messages, next_node=RoutingTarget.FINISH)
