@@ -177,16 +177,7 @@ astream() 逐 chunk
 
 **文件：** `frontend/src-tauri/src/voice/tts_engine.rs`
 
-```
-queue_sentence() → 入队
-speak_next() → 出队 → speak()
-  ├── speak_system()  → macOS say
-  ├── speak_edge()    → msedge-tts crate
-  ├── speak_qwen()    → DashScope API
-  ├── speak_cosyvoice() → HTTP POST → Python CosyVoiceProvider
-  └── speak_kokoro()  → HTTP POST → Python KokoroProvider
-→ afplay → 播完 → speak_next() 播下一句
-```
+TTS 统一由火山引擎实时对话 API 合成，通过 WS binary 帧回 Rust 端 ffplay 播放。
 
 ---
 

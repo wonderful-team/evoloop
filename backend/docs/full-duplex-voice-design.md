@@ -8,9 +8,9 @@
 
 本设计参考 `evoloop-voice-buddy/` 的 VLA（车机式分层语音助理）架构：
 
-- **Layer 0**：客户端本地确定性动作（播放/暂停、音量、打开 App、粘贴等），不进 LLM，延迟 < 50ms；
-- **Layer 1**：后端路由（向量检索 + LLM 路由），命中 Skill 或 Macro 后同步/异步执行；
-- **Layer 2**：后端 Agent 兜底，处理复杂多步任务；
+- **Layer 0**：**确定性匹配**——L0 模板 + 确定性 Macro，不进 LLM，不查向量，< 50ms；
+- **Layer 1**：**快速执行**——确定性 Macro 直执行，非确定性由 LLM 路由后走 Agent 图；
+- **Layer 2**：**Agent 兜底**——处理复杂多步任务；
 - **听写模式**：客户端本地 LLM 对 ASR 文本做润色、纠错，再粘贴到当前输入焦点；
 - **对话模式**：连续语音对话，支持打断、委派、异步结果回推。
 
@@ -65,8 +65,8 @@
   - 用户可以在 TTS 播放过程中直接插话；
   - Tauri VAD 检测到用户说话 → 停止 TTS → 发 `voice.barge_in` → Python 取消 LLM 生成和执行；
   - 打断后立即切换到新一轮 ASR → 路由 → 执行。
-- **本地 Layer 0 优先**：客户端先用 `Layer0Matcher` 匹配本地确定性动作（播放/暂停、音量、打开 App 等），命中即本地执行，不占用后端资源；未命中才走后端 WebSocket。
-- **异步回推**：Skill / Macro / Agent 执行结果通过 `voice.token` 流式 + `voice.route_result` 终态回推到客户端，客户端边收边 TTS 播报。
+- **本地 Layer 0 优先**：后端 `LocalMatcher` 先匹配 L0 模板和确定性 Macro，命中即本地执行，不走 Agent 图；未命中才进入 Agent。
+- **异步回推**：Macro / Agent 执行结果通过 `voice.token` 流式 + `voice.route_result` 终态回推到客户端，客户端边收边 TTS 播报。
 
 ### 3.2 听写模式（Dictation Mode）
 
@@ -146,7 +146,7 @@
 │  │                                                   ▼                   │  │
 │  │  ┌─────────────────────────────────────────────────────────────┐     │  │
 │  │  │            TtsEngine (Rust) + afplay                          │     │  │
-│  │  │  Edge-TTS / Qwen-TTS / System / Kokoro / CosyVoice           │     │  │
+│  │  │  Edge-TTS / Qwen-TTS                                           │     │  │
 │  │  └─────────────────────────────────────────────────────────────┘     │  │
 │  │                                                   │                   │  │
 │  │                                                   ▼                   │  │
@@ -185,7 +185,7 @@
 │                                                     │                 │
 │                                                     ▼                 │
 │                                          ┌──────────────────────────┐      │
-│                                          │ Skill / Macro / Agent    │      │
+│                                          │ Macro / Agent           │      │
 │                                          │ 执行（异步，结果流式回推）  │      │
 │                                          └──────────────────────────┘      │
 │                                                                             │
@@ -265,21 +265,7 @@ voice.route → L0 检查
 
 ### 6.3 TTS（Tauri Rust 原生层 + Python 后端）
 
-> ⚠️ **设计变更**：原设计仅 3 个 Rust 侧引擎，现扩展为 5 引擎，Kokoro 和 CosyVoice 走 Python 后端。
-
-| 方案 | 位置 | 首段延迟 | 网络 | 中文音色 |
-|------|------|---------|------|---------|
-| **Edge-TTS** | Rust 侧 `msedge-tts` crate | ~0.5s | 在线 | 几十种 |
-| **Qwen-TTS-Flash** | Rust 侧 HTTP → DashScope API | ~1s | 在线 | 6种 |
-| **System (say)** | Rust 侧 macOS `say` 命令 | < 100ms | 离线 | Ting-Ting/Samantha |
-| **Kokoro-82M** | Python 后端 HTTP → PyTorch | ~0.7s | 离线 | 4女声 |
-| **CosyVoice-300M** | Python 后端 HTTP → PyTorch | ~5s | 离线 | 7种含男声 |
-
-**架构分裂问题**（详见 `docs/voice-tts-architecture.md`）：
-- Edge-TTS/Qwen-TTS/System 由 Rust 直接调用（`speak_edge_tts`、`speak_qwen_tts`、`say`）
-- Kokoro/CosyVoice 走 `Rust → HTTP POST → Python → PyTorch → WAV → afplay`
-- 配置两套，需 `system.config_changed` 事件同步
-- **待决策**：是否全部统一到 Python 后端（当前状态：**未统一，混合架构**）
+TTS 统一由火山引擎实时对话 API 合成，无引擎分裂问题。
 
 ### 6.4 VAD（Tauri Rust 原生层，快速端点检测）
 
@@ -305,7 +291,7 @@ Tauri Rust 原生层（src-tauri/）：
   ASR     → Qwen3-ASR via sherpa-onnx（离线整段识别，VAD 断句触发）
   VAD     → Silero VAD via sherpa-onnx（silence 800ms，max_speech 30s）
   AEC     → macOS VoiceProcessingIO AudioUnit（系统级回声消除）
-  TTS     → Edge-TTS / Qwen-TTS / System（Rust 侧）+ Kokoro / CosyVoice（Python 侧 HTTP）
+  TTS     → 火山引擎实时对话 API（Python 侧）
   WS 客户端 → Rust WebSocket 连接 Python 后端
 
 Tauri React UI 层（packages/desktop/）：
@@ -315,7 +301,7 @@ Tauri React UI 层（packages/desktop/）：
 
 Python 后端（本地子进程）：
   路由LLM → deepseek-chat（EvoLoop Gateway，stream=true，`https://evoloop.cn/gateway/v1`）
-  TTS 提供者 → Kokoro（本地 PyTorch）/ CosyVoice（本地 PyTorch）
+  TTS 提供者 → 火山引擎实时对话 API
   Lightning → 本地 LM Studio Qwen3-4B（旧路由快速分类，由 LIGHTNING_MODE 控制）
   Embedding → bge-base-zh-v1.5
   检索    → LanceDB route_index
@@ -330,7 +316,6 @@ Python 后端（本地子进程）：
 
 ```rust
 pub enum TtsEngineKind {
-    System,    // 系统 say 命令（macOS AVSpeechSynthesizer）
     EdgeTts,   // 微软 Edge TTS（msedge-tts crate）
     QwenTts,   // 通义千问 TTS-Flash
 }
@@ -638,7 +623,7 @@ processing ──dictation.polished──► idle
                     │
                     ▼
           ┌──────────────────┐
-          │  L0 本地匹配      │  50+ 模板，确定性匹配
+          │  L0 本地匹配      │  L0 模板 + 确定性 Macro，< 50ms
           │  (LocalMatcher)   │  < 50ms
           └────┬──────┬──────┘
                │      │
@@ -669,7 +654,7 @@ processing ──dictation.polished──► idle
          └──────────┘
 ```
 
-**L0 命中**：走 `LocalMatcher` 匹配 50+ 确定性模板（音量、截图、打开 App 等），本地执行后 TTS 确认，延迟 < 50ms。
+**L0 命中**：走 `LocalMatcher` 匹配 L0 硬编码模板 + 确定性 Macro，本地执行后 TTS 确认，延迟 < 50ms。
 
 **L0 未命中**：直接进入 Agent 图。Supervisor 作为单层 ReAct 节点：
 - **能直接回答的**（问候、知识问答、简单任务）：回复后自发布 `SessionCompletedEvent`，不走 Worker/Finish，1 次 LLM 调用
@@ -935,9 +920,9 @@ ASR 文本 → Rust voice.route {text, thread_id, message_id}
 - `delta` 字典：大一点→+10、小一点→-10、最大→100、一半→50、最小→0...
 - 子串匹配时检查剩余字符是否仅为填充词（防止"把音量大一点再静音"误匹配）
 
-##### VoiceInitSpec 生命周期
+##### RouteCatalog 生命周期
 
-L0 模板和字典数据通过 `VoiceInitSpec` 下发：
+L0 模板和字典数据通过 `RouteCatalog` 下发：
 
 ```
 build_init_spec()                    ← init_spec.py:282
@@ -990,7 +975,7 @@ build_init_spec()                    ← init_spec.py:282
 - 如需让语音 Agent 走本地 LM Studio，需改造 `dispatch_agent_run` 在 `source="voice"` 时传 `model="qwen3-4b-instruct-2507"` + `base_url="http://127.0.0.1:1234/v1"`
 - **VoiceChannel 逐 token 流式接收**，检测到句子边界（。！？）后立即推 TTS
 - **推 TTS 前 strip 掉 markdown 符号**（`**`、`` ` ``、`#`、`>` 等），防止被 TTS 念出来
-- **TTS 引擎三选一**：System(macOS say) / Edge-TTS / Qwen-TTS，前端设置可切换
+- **TTS**：火山引擎实时对话 API
 - **VoiceChannel 去重**：已通过 token 流播过的内容，`SessionCompletedEvent` 不再重复播
 
 #### 10.10.5 文字链路
@@ -1656,90 +1641,6 @@ Worker 执行：3-10s（首句 TTS 后流式）
 
 ---
 
-## 15. TTS 引擎设计（已过时） — ❌ 已过时
-
-> ⚠️ **此章节已过时**。当前 TTS 引擎已扩展为 5 个（新增 Kokoro、CosyVoice），架构从纯 Rust 改为 Rust + Python 混合。详见 §6.3。
-
-### 15.1 原架构（2025年设计）
-
-```text
-┌─────────────────────────────────────────────────────────┐
-│                   前端设置界面 (TTSSettings.tsx)            │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐               │
-│  │ TTS引擎    │  │ 音色选择   │  │ 语速滑条  │               │
-│  │ dropdown  │→│ dropdown  │→│ slider   │               │
-│  └─────┬────┘  └────┬─────┘  └────┬────┘               │
-│        │            │             │                      │
-│        ▼            ▼             ▼                      │
-│  safeInvoke("set_tts_engine", ...)                       │
-│  safeInvoke("set_tts_voice", ...)                         │
-│  safeInvoke("set_tts_speed", ...)                         │
-└────────────────────┬────────────────────────────────────┘
-                     │ Tauri IPC
-                     ▼
-┌─────────────────────────────────────────────────────────┐
-│                  Rust TTS 命令层 (lib.rs)                  │
-│  speak_text(text, voice, rate) → 按引擎分发               │
-│  set_tts_engine / set_tts_voice / set_tts_speed           │
-└────────────────────┬────────────────────────────────────┘
-                     │ VoiceCommand channel
-                     ▼
-┌─────────────────────────────────────────────────────────┐
-│               TtsEngine (tts_engine.rs)                   │
-│                                                          │
-│  ┌──────────────────────────────────────────────────┐    │
-│  │              TtsEngineKind 枚举                    │    │
-│  │  System  │  EdgeTts  │  QwenTts                  │    │
-│  └──────────┴──────────┴────────────────────────────┘    │
-│         │          │               │                      │
-│         ▼          ▼               ▼                      │
-│  ┌─────────┐ ┌───────────┐ ┌──────────────┐              │
-│  │ say 命令 │ │ msedge-tts│ │ Qwen-TTS     │              │
-│  │         │ │ crate     │ │ HTTP API     │              │
-│  │ macOS   │ │ 微软 Edge  │ │ 阿里云       │              │
-│  │ 原生     │ │ TTS 服务  │ │ DashScope    │              │
-│  └─────────┘ └───────────┘ └──────────────┘              │
-└─────────────────────────────────────────────────────────┘
-```
-
-### 15.2 三引擎对比
-
-| 特性 | System (say) | Edge TTS | Qwen TTS |
-|------|-------------|----------|----------|
-| 实现 | `Command::new("say")` | `msedge-tts` Rust crate | HTTP → DashScope API |
-| 音质 | 一般（macOS 系统级） | 自然（微软神经网络） | 好（通义千问） |
-| 延迟 | < 100ms | 200-400ms | 300-600ms |
-| 网络 | 离线 | 需联网 | 需联网 |
-| 配置 | 无 | 无 | `EVOLOOP_QWEN_TTS_KEY` |
-| 音色数 | 2（Ting-Ting / Samantha） | 6+ | 10 |
-
-### 15.3 引擎与音色联动
-
-| 引擎 | 可用音色 ID | 来源 |
-|------|------------|------|
-| System | `Ting-Ting`, `Samantha` | `useTTS.ts` hardcoded |
-| Edge TTS | `zh-CN-XiaoxiaoNeural`, `YunxiNeural` 等 6 个 | `useTTS.ts` hardcoded |
-| Qwen TTS | `standard_voice`, `zhitian_emo` 等 10 个 | `useTTS.ts` hardcoded |
-
-切换引擎时：
-1. `onValueChange` → `setTempTtsEngine(v)` + `fetchVoices(v)`
-2. `fetchVoices(engine)` 根据引擎从 `engineVoices` 字典取对应音色列表
-3. 如果当前音色在新引擎中不存在，自动切换到该引擎第一个音色
-
-### 15.4 音色 ID 映射（System 引擎）
-
-System 引擎使用 `say` 命令，`say` 的 `-v` 参数接受 macOS 系统音色名（如 `Ting-Ting`）。前端音色下拉中使用的是 Edge TTS 风格的音色 ID（如 `zh-CN-XiaoxiaoNeural`），在调用 `say` 前做映射：
-
-| 前端音色 ID | macOS 音色名 |
-|-------------|-------------|
-| 以 `zh` 开头 | `Ting-Ting` |
-| 以 `en` 开头 | `Samantha` |
-| 其他 / 空 | `Ting-Ting`（默认） |
-
-#### 15.4.1 实现状态
-
-TTS 引擎已全部实现并通过预览验证。三引擎可通过前端设置界面自由切换。Qwen TTS 需要配置 `EVOLOOP_QWEN_TTS_KEY` 环境变量。
-
 ## 16. 语音输出分层设计 — ✅ 已验证
 
 > 代码已实现，尚未集成测试验证。§18-19 已被移至独立文档。
@@ -1869,16 +1770,14 @@ tts_summary=ai_content if source == "voice" else ""
 |------|------|------|---------|---------|
 | Silero VAD | 629KB | VAD 断句 | Tauri 打包 | 自动可用 |
 | Qwen3-ASR | 954MB | ASR 识别 | 首次设置下载 | 未下载锁住整个语音入口 |
-| Kokoro-82M | 82MB | TTS 引擎 | 设置页下载 | 未下载锁住 TTS 选项 |
-| CosyVoice-300M | 2.1GB | TTS 引擎 | 设置页下载 | 未下载锁住 TTS 选项 |
+
 
 ### 17.3 锁住的位置
 
 | 模型 | 未下载时锁住 | 组件 |
 |------|-------------|------|
 | Qwen3-ASR | 对话/听写按钮不可用，TTS 设置中 STT 选项禁用 | `VoiceControlSettings`、`tray.rs` 菜单 |
-| Kokoro | TTS 引擎下拉中 Kokoro 选项灰显 | `TTSSettings` |
-| CosyVoice | TTS 引擎下拉中 CosyVoice 选项灰显 | `TTSSettings` |
+
 
 ### 17.4 后端接口
 
@@ -1895,9 +1794,7 @@ GET  /api/v1/models/download/progress → SSE 下载进度流
 ```json
 {
   "models": [
-    {"id": "qwen3_asr", "name": "Qwen3-ASR", "size": 954, "unit": "MB", "downloaded": false, "available": false},
-    {"id": "kokoro", "name": "Kokoro-82M", "size": 82, "unit": "MB", "downloaded": true, "available": true},
-    {"id": "cosyvoice", "name": "CosyVoice-300M", "size": 2.1, "unit": "GB", "downloaded": false, "available": false}
+    {"id": "qwen3_asr", "name": "Qwen3-ASR", "size": 954, "unit": "MB", "downloaded": false, "available": false}
   ]
 }
 ```
@@ -1945,7 +1842,7 @@ data: {"model_id": "qwen3_asr", "progress": 1.0, "status": "completed"}
 > **技术演进总览**：
 > - ASR：流式 Paraformer → **Qwen3-ASR 离线整段**
 > - VAD：Sherpa-ONNX VAD → **Silero VAD**（800ms 静音，30s 最大语音）
-> - TTS：3 引擎（Rust 侧）→ **5 引擎**（Rust + Python 混合，含 Kokoro/CosyVoice）
+> - TTS：统一为火山引擎实时对话 API
 > - voice.partial：已移除（离线 ASR 无增量中间结果）
 > - 听写润色：LM Studio → **Qwen3-ASR + Python LLM polish**（可选）
 
@@ -2010,7 +1907,7 @@ data: {"model_id": "qwen3_asr", "progress": 1.0, "status": "completed"}
 
 1. ✅ Qwen3-ASR 替换流式 Paraformer，对话和听写模式统一。
 2. ✅ 移除 voice.partial、在线流式 ASR 相关死代码。
-3. ✅ TTS 扩展为 5 引擎：新增 Kokoro（本地快速）、CosyVoice（本地多音色）。
+3. ✅ TTS 统一为火山引擎实时对话 API。
 4. ✅ `BaseTTSProvider` 抽象 + `TTSFactory` + 统一 `POST /voice/tts` 端点。
 5. ✅ Rust 侧 TTS 统一管理（`speak_text` → `speak_direct`，全部走 `TtsEngine`）。
 6. ✅ 配置同步双写（localStorage + 后端 DB） + WS 广播。
@@ -2262,3 +2159,1530 @@ class InputChannel(ABC):
 - **进程重启丢失状态**：Tauri 或 Python 重启后，所有连接映射和音频流状态丢失。由于这是单桌面应用，这是可接受的；如需持久化，另行设计。
 - **Layer 0 覆盖率**：全双工体验依赖快速响应，Layer 0 模板命中率直接影响延迟。需要持续迭代模板。
 
+## 23. L0 应用执行层设计
+
+### 23.1 目标
+
+| 目标 | 说明 |
+|------|------|
+| **Agent 前拦截** | L0 优先处理，不命中才走到 Agent |
+| **确定性动作走 Macro** | 所有确定性动作统一由 Macro 引擎承载，不在 L0 直接调系统命令 |
+| **内置命令面向 Evoloop 自身** | L0 内置命令是 Evoloop 的系统命令（end/clarify/rename/ack/cancel），不是 macOS 系统命令 |
+| **先跑通，后加固** | 第一阶段不设安全限制，先跑通全套链路 |
+
+### 23.2 现状问题
+
+当前 L0 匹配命中后只走 `_push_local_result()` → WS `voice.route_result` → Rust TTS 播确认语，**没有执行任何系统操作**。同时：
+
+| 能力 | 有？ | 在哪 |
+|------|------|------|
+| L0 模板匹配 | ✅ `LocalMatcher` | `routing/local_matcher.py` |
+| L0 模板内容 | ❌ 混杂了 Evoloop 命令 + macOS 系统操作 | `routing/init_spec.py` |
+| Macro 触发词 | ✅ `trigger_patterns` 字段 | `models/macro.py:32` |
+| Macro → L0 注入 | ❌ 当前只进了 L1 嵌入索引，没进 L0 模板 | `routing/sync.py` |
+| Macro 执行（Voice） | ⚠️ 入口就绪但 `VOICE_POLICY` 阻塞 applescript | `execution/macro/runner.py` |
+| L0 → Macro 执行通路 | ❌ 不存在 | — |
+| 环境控制（DesktopController） | ✅ 已支持 applescript/key_press/open_app/screenshot | `environment/controllers/desktop/` |
+| ActionRegistry applescript mapping | ✅ 已注册 `applescript` → `"applescript"` (desktop) | `environment/capabilities/registry.py:267` |
+
+### 23.3 架构
+
+```
+voice.route → L0 Matcher
+  │
+  ├── 命中内置命令（Evoloop 自身）→ _handle_builtin()
+  │     ├── end      → 通知 Rust 关闭语音会话
+  │     ├── clarify  → 请求 Rust 重播 TTS
+  │     ├── rename   → 更新配置
+  │     ├── ack      → 确认信号（后续实现）
+  │     └── cancel   → 取消信号（后续实现）
+  │     → _push_local_result()  → WS voice.route_result {status:"routed", target:{type:"local"}}
+  │       → Rust 播通用确认语（现有路径，不改）
+  │
+  ├── 命中 Macro 触发词 → _dispatch_macro()
+  │     → MacroRunner.run_deterministic(VOICE_POLICY)  （await，同步等结果）
+  │       → MacroEngine.execute() → _execute_desktop_step()
+  │         → DesktopController.execute(action="applescript"/"open_app"/...)
+  │     → 成功 → _push_macro_result()  → WS voice.route_result {status:"done", summary:"已静音"}
+  │               → Rust 播 summary（复用现有 done 路径，不改 Rust）
+  │     → 失败 → _push_macro_result()  → WS voice.route_result {status:"failed", summary:"静音失败"}
+  │               → Rust 播错误提示（复用现有 failed 路径，不改 Rust）
+  │
+  └── 未命中 → dispatch_agent_run()
+```
+
+**TTS 路径决策**：Macro 执行结果走 WS `voice.route_result` 的 `status:"done"`/`"failed"` + `summary` 字段，复用 Rust 现有的 done/failed 处理分支（`voice_session.rs:693-710`）。**Rust 侧不需要改**。内置命令继续走 `status:"routed"` + `target.type:"local"` 现有路径。
+
+L0 Matcher 的模板来源：
+
+```
+                    ┌─ 硬编码模板（5 条）：end, clarify, rename, ack, cancel
+L0 templates = ────┤
+                    └─ DB 动态加载：Macro.trigger_patterns（预置 + 用户 + 合成）
+                         → enrich_spec_with_macro_triggers() 在 build_init_spec 后追加
+                         → {{slot}} 转为 {slot}，slot 名从 Macro.parameters 提取
+```
+
+### 23.4 逐文件 加 / 改 / 删 清单
+
+#### 23.4.1 `routing/init_spec.py`
+
+**删：**
+
+| 对象 | 内容 | 原因 |
+|------|------|------|
+| `_TEMPLATES` 中 13 条系统模板 | play_pause×2, next_track, prev_track, set_volume, mute, unmute, open_app, focus_app, quit_app, press_key, screenshot, lock_screen | 改由预置 Macro 承载 |
+| `_VOICE_LOCAL_ACTIONS` 中 12 条系统条目 | play_pause, next_track, prev_track, set_volume, mute, unmute, focus_app, quit_app, press_key, screenshot, lock_screen | 不再作为 L1 local entry，改由 Macro entry 覆盖 |
+| `_KEY_DICT` | 整个字典 | 仅被已删的 press_key/set_volume 模板使用 |
+| `_DELTA_DICT` | 整个字典 | 仅被已删的 set_volume 模板使用 |
+| `build_init_spec()` 中 `slot_dictionaries` 的 `"key"` 和 `"delta"` 项 | 两个 dict 项 | 无对应模板 |
+| `_registry_actions()` 中 `open_app` 过滤 | `if a.id in ("open_app",)` 分支 | open_app 改由预置 Macro 覆盖 |
+
+**加：**
+
+| 对象 | 内容 |
+|------|------|
+| `_TEMPLATES` 新增 2 条 | `ack`：对对对/没错/就这个/可以/对的/是的；`cancel`：算了/不用了/不要/取消 |
+| `_VOICE_LOCAL_ACTIONS` 新增 2 条 | `{"id": "ack", "params": {}}`，`{"id": "cancel", "params": {}}` |
+| `enrich_spec_with_macro_triggers(spec)` | async 函数：从 DB 查 `is_routable()` 的 Macro，将 `trigger_patterns` 转为 L0 templates（`{{slot}}` → `{slot}`，slot 名从 `parameters` 提取），追加到 `spec.templates` |
+
+`enrich_spec_with_macro_triggers` 签名：
+
+```python
+async def enrich_spec_with_macro_triggers(spec: RouteCatalog) -> RouteCatalog:
+    """从 DB 加载 routable Macro 的 trigger_patterns，注入为 L0 templates。
+    
+    作用域：全局（project_id IS NULL）+ 当前项目（shared_state.project_id）。
+    冲突去重：preset 优先于用户，同 pattern 只保留第一条。
+    """
+    from app.core.shared_state import shared_state
+    from app.infrastructure.database import session_scope
+    from app.models.macro import Macro
+    from sqlmodel import select, case
+
+    current_project_id = int(await shared_state.get("project_id", "0"))
+
+    async with session_scope() as session:
+        stmt = select(Macro).where(
+            Macro.is_active.is_(True),
+            Macro.status == "verified",
+            # 全局 + 当前项目
+            (Macro.project_id.is_(None)) | (Macro.project_id == current_project_id),
+        ).order_by(
+            # preset 优先（namespace="preset" 排在最前）
+            case((Macro.namespace == "preset", 0), else_=1),
+            Macro.created_at.asc(),
+        )
+        macros = (await session.execute(stmt)).scalars().all()
+
+    seen_patterns: set[str] = set()
+    for macro in macros:
+        triggers = macro.trigger_patterns or []
+        deduped = []
+        for trigger in triggers:
+            pattern = trigger.replace("{{", "{").replace("}}", "}")
+            if pattern in seen_patterns:
+                logger.warning(
+                    "[init_spec] trigger pattern '%s' skipped (macro %d, already bound)",
+                    pattern, macro.id,
+                )
+                continue
+            seen_patterns.add(pattern)
+            deduped.append(pattern)
+        if not deduped:
+            continue
+        # 从 parameters 提取 slot 名
+        slot_names = [p.get("name") for p in (macro.parameters or []) if p.get("name")]
+        slots = {name: "str" for name in slot_names}
+        spec.templates.append({
+            "action": f"macro:{macro.id}",
+            "patterns": deduped,
+            "slots": slots,
+            "args": {},
+        })
+    return spec
+```
+
+**不改：** `_ALIASES`、`_probe_apps()`、`slot_dictionaries["app"]`、`enrich_spec_with_atlas_aliases()` — 保留，仍用于 client spec 和 Atlas enrichment。
+
+#### 23.4.2 `routing/router.py`
+
+**改：**
+
+`_get_local_matcher()` 在 `build_init_spec()` 后追加 enrichment 调用：
+
+```python
+spec = await asyncio.to_thread(init_spec.build_init_spec)
+spec = await init_spec.enrich_spec_with_macro_triggers(spec)  # 新增
+_LOCAL_MATCHER = LocalMatcher(
+    templates=spec.templates,
+    slot_dictionaries=spec.slot_dictionaries,
+    aliases=spec.aliases,
+    app_usage_rank=spec.app_usage_rank,
+)
+```
+
+**加：**
+
+```python
+async def rebuild_local_matcher() -> None:
+    """置空并立即重建 LocalMatcher（Macro 变更 / 项目切换后调用）。"""
+    global _LOCAL_MATCHER
+    async with _LOCAL_MATCHER_LOCK:
+        spec = await asyncio.to_thread(init_spec.build_init_spec)
+        spec = await init_spec.enrich_spec_with_macro_triggers(spec)
+        _LOCAL_MATCHER = LocalMatcher(
+            templates=spec.templates,
+            slot_dictionaries=spec.slot_dictionaries,
+            aliases=spec.aliases,
+            app_usage_rank=spec.app_usage_rank,
+        )
+        logger.debug("[router] local matcher rebuilt")
+```
+
+**项目切换触发重建**：监听 `StateChangedEvent` 的 `project_id` key → 调 `rebuild_local_matcher()`。`shared_state.set("project_id", ...)` 已在项目切换时触发 `StateChangedEvent`（见 `project/event/subscribers.py`），只需新增一个 subscriber。
+
+#### 23.4.3 `routing/sync.py`
+
+**删：** `_LOCAL_DESC` 中 12 条系统 action 描述（play_pause, next_track, prev_track, set_volume, mute, unmute, focus_app, quit_app, press_key, screenshot, lock_screen, open_app）。
+
+**加：** `_LOCAL_DESC` 新增 `"ack": "确认"`, `"cancel": "取消"`。
+
+#### 23.4.4 `channel/input/voice_input.py`
+
+**改：**
+
+`receive()` 中 L0 命中后分流：
+
+```python
+if l0_match is not None:
+    action, args = l0_match
+    if action.startswith("macro:"):
+        macro_id = int(action.split(":", 1)[1])
+        await self._dispatch_macro(thread_id, macro_id, args, project_id)
+    else:
+        await self._handle_builtin(thread_id, action, args)
+    return None
+```
+
+**加：**
+
+`_dispatch_macro(thread_id, macro_id, args, project_id)`：
+
+```python
+async def _dispatch_macro(self, thread_id, macro_id, args, project_id):
+    """加载 Macro → preflight → run_deterministic → 推 done/failed/cancelled。
+    
+    超时保护：5 秒上限，防止 osascript 阻塞（如系统对话框等待）。
+    Barge-in：包装为 task 注册到 worker_registry，用户说"停"时可 cancel。
+    """
+    from app.core.execution.macro.runner import (
+        VOICE_POLICY, MacroGateError, load_macro, preflight, run_deterministic,
+    )
+
+    # 设为 SPEAKING 状态，阻止后续 voice.route 进入
+    if self._state_machine is not None:
+        await self._state_machine.set(thread_id, self._state_enum.SPEAKING)
+
+    macro = await load_macro(macro_id)
+    if macro is None:
+        await self._push_macro_result(thread_id, "failed", "未找到该宏")
+        return
+    try:
+        script = preflight(macro, args)
+    except MacroGateError as e:
+        await self._push_macro_result(thread_id, "failed", e.message)
+        return
+
+    # 包装为 task 并注册到 worker_registry，使 barge-in 能 cancel
+    async def _run():
+        return await run_deterministic(
+            macro, thread_id=thread_id, params=args, project_id=project_id,
+            script=script, policy=VOICE_POLICY,
+        )
+
+    task = asyncio.create_task(_run())
+    if self._worker_registry is not None:
+        await self._worker_registry.register_worker(
+            thread_id, task, description=f"macro:{macro_id}",
+        )
+
+    try:
+        outcome = await asyncio.wait_for(task, timeout=5.0)
+    except asyncio.TimeoutError:
+        await self._push_macro_result(thread_id, "failed", "执行超时")
+        return
+    except asyncio.CancelledError:
+        # barge-in: 用户打断，推 cancelled
+        await self._push_macro_result(thread_id, "cancelled", "已取消")
+        raise
+
+    status = "done" if outcome.ok else "failed"
+    summary = outcome.message or ("完成" if outcome.ok else "执行失败")
+    await self._push_macro_result(thread_id, status, summary)
+```
+
+`_push_macro_result(thread_id, status, summary)`：
+
+```python
+async def _push_macro_result(self, thread_id, status, summary):
+    """推 voice.route_result {status:"done"/"failed"/"cancelled", summary:...}。
+    复用 Rust 现有的 done/failed/cancelled 处理分支。"""
+    body = {"thread_id": thread_id, "status": status, "summary": summary}
+    await self._manager.push(
+        thread_id, self._envelope(self._message_type.VOICE_ROUTE_RESULT, body)
+    )
+    await self._state_machine.set(thread_id, self._state_enum.IDLE)
+```
+
+`_handle_builtin(thread_id, action, args)`：
+
+```python
+async def _handle_builtin(self, thread_id, action, args):
+    """处理 Evoloop 内置命令，走现有 routed/local 路径。"""
+    # end/clarify/rename/ack/cancel 的具体逻辑后续实现
+    # 当前先走通 TTS 确认
+    await self._push_local_result(thread_id, action, args)
+```
+
+#### 23.4.5 `execution/macro/runner.py`
+
+**改：**
+
+```python
+VOICE_POLICY = ExecutionPolicy(
+    allow_self_heal=False,
+    allowed_sources=frozenset({"desktop", "dom"}),
+    # allowed_families 和 max_risk_tier 设为 None — 先跑通，后续迭代加安全
+)
+```
+
+#### 23.4.6 `execution/macro/event/`
+
+**加：**
+
+- `MacroVerifiedEvent`：Macro 状态变为 verified 时发布
+- `MacroDeactivatedEvent`：Macro 被停用时发布
+- Subscriber：监听上述事件 → 调 `router.rebuild_local_matcher()`
+- Subscriber：监听 `StateChangedEvent` key="project_id" → 调 `router.rebuild_local_matcher()`（项目切换时重建，加载新项目的 Macro）
+
+触发时机覆盖：Macro 创建、更新 trigger_patterns、验证通过、停用、删除、项目切换。
+
+#### 23.4.7 数据迁移（Alembic）
+
+**加：** 23 条预置 Macro 种子数据。
+
+### 23.5 预置 Macro 种子数据
+
+所有预置 Macro：`project_id=NULL`（全局），`status="verified"`，`is_active=True`，`parameters=[]`（无 slot），`namespace="preset"`。
+
+`macro_script` 字段存储 YAML 字符串，格式如下：
+
+```yaml
+# applescript 示例
+- type: action
+  event_type: applescript
+  source: desktop
+  payload:
+    script: "set volume with output muted"
+
+# open_app 示例
+- type: action
+  event_type: open_app
+  source: desktop
+  payload:
+    app_name: "WeChat"
+
+# key_press 示例
+- type: action
+  event_type: key_press
+  source: desktop
+  payload:
+    key: "Return"
+
+# screenshot 示例
+- type: action
+  event_type: screenshot
+  source: desktop
+```
+
+| # | name | trigger_patterns | macro_script event_type | payload |
+|---|------|-----------------|----------------------|---------|
+| 1 | mute | 静音, 别出声, 不要声音, 安静 | applescript | `set volume with output muted` |
+| 2 | unmute | 取消静音, 恢复声音, 打开声音, 不静音了 | applescript | `set volume without output muted` |
+| 3 | volume_up | 音量大一点, 调高音量, 大声一点, 声音大一点, 调大音量 | applescript | `set volume output volume ((output volume of (get volume settings)) + 10)` |
+| 4 | volume_down | 音量小一点, 调低音量, 小声一点, 声音小一点, 调小音量 | applescript | `set volume output volume ((output volume of (get volume settings)) - 10)` |
+| 5 | volume_max | 音量最大, 最大声, 声音调到最大, 最大音量 | applescript | `set volume output volume 100` |
+| 6 | volume_mid | 音量一半, 音量中等, 声音一半 | applescript | `set volume output volume 50` |
+| 7 | volume_min | 音量最小, 最小声 | applescript | `set volume output volume 0` |
+| 8 | play_pause | 暂停, 继续播放, 开始播放, 继续, 接着放, 停一下, 别放了, 先停 | applescript | `tell application "System Events" to key code 16` |
+| 9 | next_track | 下一首, 下一曲, 切歌, 换一首, 下首歌 | applescript | `tell application "System Events" to key code 17` |
+| 10 | prev_track | 上一首, 上一曲, 回上一首, 上一首歌 | applescript | `tell application "System Events" to key code 15` |
+| 11 | screenshot | 截图, 截屏, 屏幕截图, 截个图, 截一下屏 | screenshot | — |
+| 12 | lock_screen | 锁屏, 锁定屏幕, 锁电脑, 锁一下 | applescript | `tell application "System Events" to keystroke "q" using command down` |
+| 13 | open_wechat | 打开微信, 启动微信, 开一下微信 | open_app | `app_name: "WeChat"` |
+| 14 | open_chrome | 打开Chrome, 启动Chrome, 开一下Chrome | open_app | `app_name: "Chrome"` |
+| 15 | open_safari | 打开Safari, 启动Safari, 开一下Safari | open_app | `app_name: "Safari"` |
+| 16 | open_terminal | 打开终端, 启动终端, 开一下终端 | open_app | `app_name: "Terminal"` |
+| 17 | open_finder | 打开Finder, 打开访达, 开一下访达 | open_app | `app_name: "Finder"` |
+| 18 | open_vscode | 打开VS Code, 打开VSCode, 启动VS Code | open_app | `app_name: "Visual Studio Code"` |
+| 19 | quit_wechat | 退出微信, 关闭微信, 关掉微信 | applescript | `tell application "WeChat" to quit` |
+| 20 | quit_chrome | 退出Chrome, 关闭Chrome, 关掉Chrome | applescript | `tell application "Chrome" to quit` |
+| 21 | quit_safari | 退出Safari, 关闭Safari, 关掉Safari | applescript | `tell application "Safari" to quit` |
+| 22 | press_enter | 按回车, 按一下回车, 按下回车 | key_press | `key: "Return"` |
+| 23 | press_space | 按空格, 按一下空格, 按下空格 | key_press | `key: "Space"` |
+
+> **quit_app 说明**：`macos_driver` 没有 `quit_app` 方法，`DesktopController` 没有 `close_app` 分支，`_execute_desktop_step()` 也没有 `close_app` 分支。因此退出应用必须通过 `applescript`（`tell application "X" to quit`），不能用 `close_app` event_type。
+
+> **open_app 说明**：`open_app` 动作会启动应用或切到已运行的前台。"切到微信"由 `open_wechat` 覆盖，不需要独立的 focus Macro。
+
+> **source: desktop**：是语音触发的硬性要求。Desktop 来源的 MacroStep 走 `_execute_desktop_step()`，DOM 来源走 `_execute_browser_step()`，必须明确指定。
+
+### 23.6 匹配 → 执行完整流
+
+```
+用户说"静音"
+  │
+  ├── LocalMatcher.match("静音")
+  │     → 命中 template {action: "macro:42", patterns: ["静音","别出声",...]}
+  │     → return ("macro:42", {})
+  │
+  ├── voice_input.receive()
+  │     → action.startswith("macro:") → True
+  │     → _dispatch_macro(thread_id, macro_id=42, args={}, project_id)
+  │
+  ├── _dispatch_macro()
+  │     → load_macro(42) → Macro(status=verified, is_active=True)
+  │     → preflight(macro, {}) → MacroScript(steps=[...])
+  │     → run_deterministic(macro, VOICE_POLICY)
+  │       → _scan_steps_risk() → pass（VOICE_POLICY 不限制）
+  │       → MacroEngine.execute(script)
+  │         → _execute_desktop_step("applescript", payload.script)
+  │           → DesktopController.execute(action="applescript", script="set volume with output muted")
+  │             → macos_driver.run_applescript("set volume with output muted")
+  │       → return (True, "AppleScript executed successfully.", None)
+  │     → outcome = ExecutionOutcome(ok=True, message="...")
+  │
+  ├── _push_macro_result(thread_id, "done", "已静音")
+  │     → WS voice.route_result {status:"done", summary:"已静音"}
+  │     → Rust handle_route_result: status=="done" → TTS 播 "已静音"
+  │     → Rust: session_state.force_set(Listening) → 准备下一轮
+  │     → Python: state_machine.set(IDLE)
+  │
+  └── 返回 None（不走 Agent）
+```
+
+**内置命令流（end 为例）**：
+
+```
+用户说"再见"
+  → LocalMatcher.match("再见") → ("end", {})
+  → _handle_builtin(thread_id, "end", {})
+  → _push_local_result(thread_id, "end", {})
+  → WS voice.route_result {status:"routed", target:{type:"local", action:"end"}}
+  → Rust: target.type=="local" → TTS 播通用确认语
+  → Python: state_machine.set(IDLE)
+```
+
+### 23.7 TTS 确认语音频缓存
+
+#### 问题
+
+当前每次 TTS 播放都走完整合成链路：
+
+| 引擎 | 链路 | 延迟 |
+|------|------|------|
+| 火山引擎 TTS | 实时对话 API → WS binary → ffplay | 200-500ms |
+
+L0 确认语是固定文本集（"好的"/"搞定了"/"已静音"/"执行失败"），每次合成相同音频是纯浪费。缓存后 `afplay` 直接播本地文件，延迟 < 50ms。
+
+#### 缓存设计
+
+**插入点**：`voice_session.rs` 的 WS audio_frame 处理，在将 PCM 写入 ffplay stdin **之前**。
+
+```
+speak(text, lang)
+  │
+  ├── 构造 cache_key = hash(text + engine + voice + speed)
+  ├── cache_dir = app_data_dir/tts_cache/
+  ├── cache_path = cache_dir/{cache_key}.mp3
+  │
+  ├── 命中（文件存在且 size > 0）
+  │     → play_audio(cache_path, afplay_child)
+  │     → speaking = false → speak_next(lang)
+  │     → return（跳过 TTS 引擎）
+  │
+  └── 未命中
+        → 走原有 TTS 引擎合成
+        → 合成成功后，将音频字节写入 cache_path
+        → play_audio(cache_path, afplay_child)
+        → return
+```
+
+**缓存 key**：
+
+```rust
+fn cache_key(text: &str, engine: TtsEngineKind, voice: &str, speed: f32) -> String {
+    // SHA-256 of "edge-tts|zh-CN-XiaoxiaoNeural|1.0|已静音"
+    let material = format!("{}|{}|{}|{}", engine.as_str(), voice, speed, text);
+    sha256(material)
+}
+```
+
+engine/voice/speed 参与 hash，确保切换引擎或音色时不会播错缓存。
+
+**缓存目录**：`~/.evoloop/tts_cache/`（与 LanceDB 的 `~/.evoloop/vectors/` 同级）。
+
+**缓存清理**：不做主动清理。23 条预置 Macro 的确认语 + 10 条内置确认语 + 通用错误语，合计约 35 条 × 2 语言 = 70 个文件，每个 < 50KB，总量 < 4MB。用户 Macro 的 summary 是动态文本，长尾有限。
+
+**不影响 barge-in**：缓存命中的播放路径和未命中一样走 `play_audio()` + `afplay_child`，`stop()` 能正常 kill。
+
+#### 受影响的缓存文本
+
+| 来源 | 文本 | 数量 | 特点 |
+|------|------|------|------|
+| `resolve_confirmation()` | 好的/搞定了/嗯哼/没问题/好嘞/收到/可以了/行/OK/没问题了 | 10 条 × 2 语言 | 完全固定 |
+| Macro done summary | 已静音/已取消静音/音量已调高/音量已调低/音量已最大/音量已一半/音量已最小/已暂停/已播放下一首/已播放上一首/截图已保存/已锁屏/已打开微信/已打开Chrome/已打开Safari/已打开终端/已打开Finder/已打开VS Code/已退出微信/已退出Chrome/已退出Safari/已按回车/已按空格 | 23 条 | 预置 Macro 固定 |
+| Macro failed summary | 执行失败 | 1 条 | 固定 |
+| Rust 内置错误 | 抱歉，处理出错了 | 1 条 × 2 语言 | 固定 |
+
+首次播放后自动缓存，后续命中直接播放。
+
+#### 改动
+
+| 文件 | 改动 |
+|------|------|
+| `frontend/src-tauri/src/voice/tts_engine.rs` | `speak()` 方法增加缓存查表逻辑；各 `speak_*` 方法合成成功后写缓存文件 |
+
+§23.8 中 `voice_session.rs` 仍不改——缓存逻辑在 `tts_engine.rs` 内部，`voice_session.rs` 的 `handle_route_result` 调用 `queue_sentence()` + `speak_next()` 的方式不变。
+
+### 23.8 Macro 执行路径性能优化
+
+#### 23.8.1 问题分析
+
+完整执行路径逐环节延迟拆解（以"静音"为例）：
+
+| 环节 | 耗时 | 说明 |
+|------|------|------|
+| WS + L0 match | ~2ms | 正则匹配 |
+| `load_macro(42)` | ~3-5ms | DB 查询 by PK |
+| `preflight()` YAML parse | ~1ms | 1-step YAML 解析 |
+| **`activity_monitor.log_event()`** | **~5-15ms** | **每次 cache 往返 + event bus publish** |
+| `DesktopController` setup | ~1ms | recorder 查找 |
+| `review_applescript()` | ~0.5ms | 正则安全扫描 |
+| `osascript` subprocess | ~50-100ms | 系统调用（不可减） |
+| `_push_macro_result` WS | ~1ms | |
+| Rust TTS (cached) | ~50ms | §23.7 缓存后 |
+| **合计** | **~115-175ms** | |
+
+以"打开微信"（open_app）为例：
+
+| 环节 | 耗时 | 说明 |
+|------|------|------|
+| log_event | ~5-15ms | cache 往返 + event bus |
+| get_bundle_id + is_dynamic_app | ~6-10ms | 2 次 DB 查询 |
+| open subprocess | ~50-100ms | 系统调用 |
+| **screenshot + get_current_app** | **~150-300ms** | **recording_func 触发截图子进程 + osascript** |
+| **合计** | **~270-480ms** | **边界值** |
+
+#### 23.8.2 嵌入式模式下的 cache 底层
+
+系统在 `EMBEDDED_MODE=true` 时使用 `FileCache`（文件系统），不是 Redis：
+
+```python
+# infrastructure/cache/__init__.py:54
+if settings.EMBEDDED_MODE:
+    _cache_instance = FileCache()
+else:
+    _cache_instance = RedisCache()
+```
+
+`FileCache.lpush()` + `ltrim()` 的实现（`cache/file/_core.py:219-241`）：
+
+```python
+async def lpush(self, name, *values):
+    data = self._read("lists", name)   # 文件读 JSON
+    data.insert(0, value)
+    self._write("lists", name, data)   # 文件写 JSON
+
+async def ltrim(self, name, start, end):
+    data = self._read("lists", name)   # 文件读 JSON
+    trimmed = data[start:end]
+    self._write("lists", name, trimmed)  # 文件写 JSON
+```
+
+**每次 `log_event` = 2 次文件读 + 2 次文件写**（lpush 读+写一次，ltrim 读+写一次），比 Redis 内存操作慢一个数量级。嵌入式模式下 `log_event` 的实际延迟为 **~10-30ms**，而非 Redis 的 ~5-15ms。
+
+#### 23.8.3 三个性能硬伤
+
+**硬伤 1：`activity_monitor.log_event()` — 每个 step 做 cache 往返 + event bus publish**
+
+`engine/__init__.py:132`：
+```python
+await activity_monitor.log_event("macro_thought", {"text": desc}, thread_id)
+```
+
+`activity.py:352-370`：
+```python
+pipe = cache.pipeline()
+pipe.lpush(f"system:logs:{event_type}", payload.model_dump_json())
+pipe.ltrim(f"system:logs:{event_type}", 0, 99)
+await pipe.execute()            # cache 往返（Redis ~5-15ms / FileCache ~10-30ms）
+await system_bus.publish(...)   # event bus publish
+```
+
+语音用户不需要在活动流里看到 "Execute Macro Step 1: applescript"。对 1-step 预置 Macro 影响 5-30ms，对 N-step 用户 Macro 影响 N × 5-30ms。
+
+**硬伤 2：`open_app` / `key_press` 的 recording_func 截图**
+
+`desktop/__init__.py:96`：
+```python
+recording_ctx = RecordingContext(
+    screenshot_actions=("click", "double_click", "type_text", "key_press", "open_app", "drag_drop")
+)
+```
+
+`open_app` 和 `key_press` 在 `screenshot_actions` 中，执行完动作后调 `recording_func()`，触发：
+- `macos_driver.screenshot()` — `screencapture -x` 子进程，~100-200ms
+- `_get_cached_app_info()` → `macos_driver.get_current_app()` — osascript 子进程，~50-100ms
+
+语音预置 Macro 不需要录制截图。这 150-300ms 是纯浪费。
+
+`applescript` 和 `screenshot` 不在 `screenshot_actions` 中，不受影响。
+
+**硬伤 3：无 MacroScript 解析缓存**
+
+每次 `preflight()` 都调 `MacroScript.from_yaml(macro.macro_script)` 重新解析 YAML。对 1-step 预置 Macro ~1ms，对 20-step 用户 Macro ~5-10ms。`load_macro()` 也无缓存，每次 L0 命中都做 DB 查询。
+
+#### 23.8.4 优化方案
+
+**优化 1：跳过 activity log（voice 路径）**
+
+`MacroEngine.execute()` / `execute_steps()` / `_execute_steps_inner()` 新增 `skip_activity_log: bool = False` 参数。`run_deterministic()` 在 `policy` 为 `VOICE_POLICY` 时传 `True`。
+
+```python
+# engine/__init__.py _execute_steps_inner
+if not skip_activity_log:
+    await activity_monitor.log_event("macro_thought", {"text": desc}, thread_id)
+logger.info(f"[{thread_id}] {desc}")  # 日志保留，只是不写 cache + 不发 event
+```
+
+`logger.info` 保留——本地日志几乎零成本，去掉只影响调试。
+
+**优化 2：跳过 recording 截图（voice 路径）**
+
+`DesktopController.execute()` 新增 `skip_recording: bool = False` 参数。
+
+```python
+# desktop/__init__.py execute()
+recorder = None
+if not skip_recording:
+    session_id = ContextManager.get_var("thread_id")
+    if session_id:
+        recorder = get_recorder(session_id)
+
+recording_ctx = RecordingContext(
+    platform="macos",
+    recorder=recorder,  # None 时 record() 为 no-op
+    screenshot_actions=(...) if not skip_recording else (),
+)
+```
+
+`_execute_desktop_step()` 新增 `skip_recording` 参数并透传。`MacroEngine` 在 `skip_activity_log=True` 时同时传 `skip_recording=True`。
+
+**优化 3：MacroScript 内存缓存**
+
+`runner.py` 新增模块级缓存：
+
+```python
+_SCRIPT_CACHE: dict[int, tuple[str, MacroScript]] = {}  # {macro_id: (updated_at, script)}
+
+def _get_cached_script(macro: Macro) -> MacroScript:
+    cached = _SCRIPT_CACHE.get(macro.id)
+    if cached and cached[0] == macro.updated_at.isoformat():
+        return cached[1]
+    script = MacroScript.from_yaml(macro.macro_script)
+    _SCRIPT_CACHE[macro.id] = (macro.updated_at.isoformat(), script)
+    return script
+```
+
+`preflight()` 改用 `_get_cached_script(macro)` 而非每次 `MacroScript.from_yaml()`。`updated_at` 变化时自动失效。
+
+`load_macro()` 加进程内缓存同理，用 `(macro_id, updated_at)` 做 key，命中跳过 DB 查询。Macro 更新时通过生命周期事件清缓存。
+
+#### 23.8.5 优化后延迟估算
+
+"静音"（applescript）：
+
+| 环节 | 优化前 | 优化后 |
+|------|--------|--------|
+| log_event | ~5-30ms | **0ms** |
+| MacroScript parse | ~1ms | **0ms**（缓存） |
+| load_macro DB | ~3-5ms | **0ms**（缓存） |
+| osascript | ~50-100ms | ~50-100ms |
+| TTS (cached) | ~50ms | ~50ms |
+| **合计** | ~115-175ms | **~105-160ms** |
+
+"打开微信"（open_app）：
+
+| 环节 | 优化前 | 优化后 |
+|------|--------|--------|
+| log_event | ~5-30ms | **0ms** |
+| screenshot + get_current_app | ~150-300ms | **0ms** |
+| get_bundle_id + is_dynamic_app | ~6-10ms | ~6-10ms |
+| open subprocess | ~50-100ms | ~50-100ms |
+| TTS (cached) | ~50ms | ~50ms |
+| **合计** | ~270-480ms | **~110-170ms** |
+
+"按回车"（key_press）：
+
+| 环节 | 优化前 | 优化后 |
+|------|--------|--------|
+| log_event | ~5-30ms | **0ms** |
+| screenshot | ~100-200ms | **0ms** |
+| key_press subprocess | ~50-100ms | ~50-100ms |
+| TTS (cached) | ~50ms | ~50ms |
+| **合计** | ~200-350ms | **~105-160ms** |
+
+所有预置 Macro 的端到端延迟降至 **~105-170ms**，用户无等待感。
+
+#### 23.8.6 改动清单
+
+| 文件 | 改动 | 原方案标记 |
+|------|------|----------|
+| `execution/macro/engine/__init__.py` | `execute()`/`execute_steps()`/`_execute_steps_inner()` 新增 `skip_activity_log` 参数 | 原标"不改"→**需改** |
+| `execution/macro/runner.py` | `run_deterministic()` 传 `skip_activity_log=True`；新增 `_get_cached_script()` + `load_macro` 缓存 | 原已需改 |
+| `execution/macro/engine/_executors.py` | `_execute_desktop_step()` 新增 `skip_recording` 参数并透传 | 原标"不改"→**需改** |
+| `environment/controllers/desktop/__init__.py` | `execute()` 新增 `skip_recording` 参数，为 True 时 recorder=None + screenshot_actions=() | 原标"不改"→**需改** |
+
+所有新增参数默认 `False`，不影响现有 web 路径。
+
+### 23.9 健壮性保障
+
+#### 23.9.1 Macro 作用域：全局 + 当前项目
+
+Macro 加载范围通过 `SharedState.project_id` 动态过滤：
+
+```sql
+SELECT * FROM macros
+WHERE is_active = True AND status = 'verified'
+  AND (project_id IS NULL OR project_id = :current_project_id)
+```
+
+- 预置 Macro（`project_id=NULL`）：始终加载
+- 当前项目用户 Macro：加载
+- 其他项目 Macro：不加载
+
+项目切换时 `shared_state.set("project_id", ...)` 触发 `StateChangedEvent`，subscriber 调 `rebuild_local_matcher()` 重建 L0 matcher，加载新项目的 Macro。
+
+#### 23.9.2 Trigger 冲突去重
+
+DB 查询排序 `preset 优先 → created_at ASC`：
+
+```python
+stmt = select(Macro).where(...).order_by(
+    # preset 优先（namespace="preset" 排在最前）
+    case((Macro.namespace == "preset", 0), else_=1),
+    Macro.created_at.asc(),
+)
+```
+
+加载时维护 `seen_patterns: set[str]`：
+
+```python
+if pattern in seen_patterns:
+    logger.warning("trigger '%s' skipped (macro %d, already bound)", pattern, macro.id)
+    continue
+seen_patterns.add(pattern)
+```
+
+同 pattern 只保留第一条（预置优先），冲突项跳过并 warn。
+
+#### 23.9.3 执行超时保护
+
+`_dispatch_macro` 用 `asyncio.wait_for(task, timeout=5.0)` 包裹 `run_deterministic()`：
+
+- 正常 1-step applescript ~100ms，5 秒绰绰有余
+- 多步 Macro 也能在 5 秒内完成
+- 超时推 `failed "执行超时"`
+- 防止 osascript 弹系统对话框（如 `tell application "WeChat" to quit` 触发确认弹窗）导致语音路径卡死
+
+#### 23.9.4 Barge-in 支持
+
+`_dispatch_macro` 将 `run_deterministic()` 包装为 `asyncio.create_task` 并注册到 `worker_registry`：
+
+```python
+task = asyncio.create_task(_run())
+await self._worker_registry.register_worker(thread_id, task, description=f"macro:{macro_id}")
+```
+
+用户在 Macro 执行期间说话 → Rust 检测 → 发 `voice.barge_in` → Python `executor.cancel_voice_task(thread_id)` → `worker_registry.cancel_worker(thread_id)` → `task.cancel()` → `_dispatch_macro` 捕获 `CancelledError` → 推 `cancelled "已取消"`。
+
+#### 23.9.5 已知限制
+
+| 限制 | 影响 | 后续方案 |
+|------|------|---------|
+| barge-in 后子进程泄漏 | `osascript` 被 cancel 但子进程仍在后台运行，直到自身 timeout（30s）退出 | 改 `macos_driver.run_applescript` 用 `subprocess.Popen` + 手动 wait，cancel 时 kill |
+| voice_ws.py 锁阻塞 barge-in | `_dispatch_macro` 持有 voice_ws.py 的锁，`voice.barge_in` 消息被阻塞到 Macro 执行完才处理。1-step 预置 Macro ~100ms 不受影响，多步用户 Macro 实际依赖 5 秒超时兜底 | `_dispatch_macro` 改为无锁异步执行，或 barge-in 消息走独立锁 |
+| 5 秒超时对复杂多步 Macro 不够 | 超过 5 秒的 Macro 被截断 | 后续按 step 数动态调整 timeout |
+| 预置 Macro `quit_app` 弹系统确认框 | `tell application "WeChat" to quit` 可能触发 macOS 确认对话框 | 用 `kill` 命令替代（但绕过安全审查） |
+
+### 23.10 安全后置（后续迭代）
+
+| 安全措施 | 优先级 | 方案 |
+|---------|--------|------|
+| applescript 安全审查 | P1 | 复用 `ScriptGate.review_applescript()` |
+| VOICE_POLICY family 限制 | P2 | 限定 `applescript` 在白名单内 |
+| 用户 Macro 审查 | P3 | 验证后才允许语音触发 |
+
+### 23.11 实现完整度
+
+#### 已完成（可跑通）
+
+| # | 文件 | 改动内容 | 状态 |
+|---|------|---------|------|
+| 1 | `execution/macro/runner.py` | `VOICE_POLICY` 放开 family/risk；`_get_cached_script()` MacroScript 缓存；`load_macro` 进程内缓存（带 `updated_at` 失效）；`invalidate_macro_cache()` 缓存失效函数；`run_deterministic` 透传 `skip_activity_log` + `skip_recording` | ✅ |
+| 2 | `environment/controllers/desktop/__init__.py` | `execute()` 新增 `skip_recording: bool = False`，为 True 时 recorder=None + screenshot_actions=() | ✅ |
+| 3 | `execution/macro/engine/_executors.py` | `_execute_desktop_step()` 新增 `skip_recording` 参数，透传到所有 8 个 `DesktopController.execute()` 调用 | ✅ |
+| 4 | `execution/macro/engine/__init__.py` | `execute()`/`execute_steps()`/`_execute_steps_inner()` 新增 `skip_activity_log` + `skip_recording` 参数；`log_event` 在 `skip_activity_log=True` 时跳过，`logger.info` 保留 | ✅ |
+| 5 | `routing/sync.py` | `_LOCAL_DESC` 删除 13 条系统 action 描述，新增 `ack`/`cancel` | ✅ |
+| 6 | `routing/init_spec.py` | `_TEMPLATES` 保留 5 条 Evoloop 内置命令（clarify/rename/end/ack/cancel）；`_VOICE_LOCAL_ACTIONS` 保留 7 条；删除 `_KEY_DICT`/`_DELTA_DICT`；删除 `ActionRegistry` 导入；`_registry_actions()` 返回空；`slot_dictionaries` 只保留 `app`；新增 `enrich_spec_with_macro_triggers()`（SharedState 作用域过滤 + `case()` preset 优先排序 + `seen_patterns` 去重 + `{{slot}}` → `{slot}` 转换 + 准确的 `added` 计数日志） | ✅ |
+| 7 | `routing/router.py` | `_get_local_matcher()` 追加 `enrich_spec_with_macro_triggers()` 调用；新增 `rebuild_local_matcher()` | ✅ |
+| 8 | `channel/input/voice_input.py` | `receive()` L0 命中分流（`macro:` vs builtin）；`_dispatch_macro()`（load_macro → preflight → task → worker_registry → `wait_for(timeout=5s)` → push done/failed/cancelled + `skip_activity_log=True` + `skip_recording=True`）；`_push_macro_result()`；`_handle_builtin()`（`ack` no-op、`cancel` 取消 worker + TTS、`rename` 写 shared_state、`end`/`clarify` 走 TTS 确认）；`_push_local_result()` 保留 | ✅ |
+| 9 | `project/event/subscribers.py` | `on_project_switched()` 新增 `rebuild_local_matcher()` 调用 | ✅ |
+| 10 | `execution/macro/event/subscribers.py` | 新增 `MacroL0MatcherSubscriber`，监听 `MACRO_CREATED`/`MACRO_UPDATED`/`MACRO_DELETED`/`MACRO_OBSOLETED` → `invalidate_macro_cache(macro_id)` + `rebuild_local_matcher()` | ✅ |
+| 11 | `routing/executor.py` | **新建**：`push_voice_result()`/`push_voice_token()`/`push_voice_tts_boundary()`（使用 `VOICE_TTS_BOUNDARY` 消息类型）；`get_thread_lock()` per-thread 锁；`cancel_voice_task()` via worker_registry；`mark_voice()`/`consume_voice()` 状态跟踪；全局变量 `manager`/`envelope_fn`/`message_type` 由 `voice_ws.py` 注入 | ✅ |
+| 12 | `api/routes/voice_ws.py` | `_ensure_voice_input()` 中注入 `executor.manager`/`envelope_fn`/`message_type` | ✅ |
+| 13 | `scripts/seed_preset_macros.py` | **新建**：23 条预置 Macro 种子数据脚本（幂等，重复运行跳过已存在的）；初始化 `db_resource_manager` | ✅ **已入库** |
+| 14 | `frontend/src-tauri/src/voice/voice_session.rs` | WS audio_frame 写缓存（`~/.evoloop/tts_cache/`，key=hash(text)） | ✅ |
+| 15 | `tests/routing/test_l0_macro_matching.py` | **新建**：30 条 L0 匹配测试（builtin 5 条 + Macro 15 条 + prefix/suffix 4 条 + no-match 4 条 + edge case 2 条） | ✅ 30/30 通过 |
+
+#### 未实现（后续迭代）
+
+| # | 内容 | 状态 | 说明 |
+|---|------|------|------|
+| 1 | §23.10 安全后置 | **有意推迟** | applescript 审查、VOICE_POLICY family 限制、用户 Macro 审查 |
+
+| 3 | `end` 关闭语音会话 | **部分实现** | 当前只推 TTS 确认（"再见"），不主动关闭 WS。前端 React 监听 `voice:route_result` 中 `action:"end"` 可自行关闭 |
+| 4 | `clarify` 重播 TTS | **部分实现** | 当前只推 TTS 确认，不重播上一次内容。需 Rust 侧新增 `voice.clarify` 消息处理 |
+
+#### 已知限制
+
+| 限制 | 影响 | 后续方案 |
+|------|------|---------|
+| barge-in 后子进程泄漏 | `osascript` 被 cancel 但子进程仍在后台运行，直到自身 timeout（30s）退出 | 改 `macos_driver.run_applescript` 用 `subprocess.Popen` + 手动 wait，cancel 时 kill |
+| voice_ws.py 锁阻塞 barge-in | `_dispatch_macro` 持有 voice_ws.py 的锁，`voice.barge_in` 消息被阻塞到 Macro 执行完才处理。1-step 预置 Macro ~100ms 不受影响，多步用户 Macro 实际依赖 5 秒超时兜底 | `_dispatch_macro` 改为无锁异步执行，或 barge-in 消息走独立锁 |
+| 5 秒超时对复杂多步 Macro 不够 | 超过 5 秒的 Macro 被截断 | 后续按 step 数动态调整 timeout |
+| 预置 Macro `quit_app` 弹系统确认框 | `tell application "WeChat" to quit` 可能触发 macOS 确认对话框 | 用 `kill` 命令替代（但绕过安全审查） |
+| `end` 不主动关闭 WS | 用户说"再见"后 WS 仍保持连接 | 前端 React 监听 `action:"end"` 关闭会话，或 Python 推 `voice.session_end` 消息 |
+
+#### 不受影响的模块
+
+| 模块 | 说明 |
+|------|------|
+| `routing/local_matcher.py` | 匹配引擎不变 |
+| `routing/index.py` / `retriever.py` | L1 嵌入索引不变 |
+| `routing/schemas.py` | 数据类型不变 |
+| `frontend/src-tauri/src/voice/voice_session.rs` | **不改**。Macro 结果走 `status:"done"/"failed"/"cancelled"` + `summary`，复用 Rust 现有分支；内置命令走 `target.type:"local"`，复用现有 local 分支。TTS 缓存在 `tts_engine.rs` 内部，对 `voice_session.rs` 透明 |
+| `environment/capabilities/registry.py` | 不改。`applescript` 已注册为 desktop action |
+| `execution/macro/schemas.py` | 不改。直接用现有 `applescript` action type |
+| `execution/macro/service.py` | 不改。`MacroService.run()` 仍由 web 路径调用 |
+| `core/shared_state.py` | 不改。读取 `project_id`；`rename` 写入 `agent_name`（新 key，不覆盖已有） |
+| Agent 图 / 路由 / 编排 | 不改。L0 不命中才走 Agent |
+| Macro 录制 / 合成流程 | 不改 |
+
+#### 跑通步骤
+
+```bash
+# 1. 插入预置 Macro 种子数据（首次运行，幂等）
+cd evoloop/backend && uv run python scripts/seed_preset_macros.py
+
+# 2. 运行测试验证匹配
+uv run pytest tests/routing/test_l0_macro_matching.py -v
+
+# 3. 启动后端（L0 matcher 自动预热）
+bin/evo dev
+
+# 4. 启动 Tauri 前端（TTS 缓存自动生效）
+cd frontend && pnpm tauri dev
+
+# 5. 语音测试：说"静音" → L0 命中 mute Macro → osascript 静音 → TTS 播"已静音"
+```
+
+### 23.12 实际实现的完整语音链路
+
+#### 链路总览
+
+```
+用户说话
+  │
+  ▼
+┌─────────────────────── Rust (Tauri) ───────────────────────┐
+│ 麦克风 → VAD → ASR → 文本                                    │
+│   ↓                                                          │
+│ WS voice.route {thread_id, text, message_id}                 │
+│   ↓                                                          │
+│ State: Listening → Processing                                │
+└──────────────────────────┬──────────────────────────────────┘
+                           ▼
+┌─────────────────────── Python WS 入口 ──────────────────────┐
+│ voice_ws.py /ws handler                                      │
+│   ├── system.init 握手（首次连接，推送 configs + state）       │
+│   ├── voice.route → asyncio.create_task(_handle_route)       │
+│   ├── voice.barge_in → _handle_barge_in                      │
+│   ├── voice.partial → _handle_partial (L1 preheat)           │
+│   ├── voice.start / voice.stop (状态控制)                     │
+│   ├── voice.dictation.finalize → LLM 润色                    │
+│   └── voice.cancel → executor.cancel_voice_task              │
+└──────────────────────────┬──────────────────────────────────┘
+                           ▼
+┌─────────────────────── _handle_route ───────────────────────┐
+│ 1. executor.get_thread_lock(thread_id) — 串行化              │
+│ 2. _ensure_voice_input() — 首次绑定 voice_input + executor   │
+│ 3. shared_state.get("project_id") — 读当前项目                │
+│ 4. EvoContext.set(thread_id, project_id) — 上下文绑定         │
+│ 5. manager.bind_thread(thread_id, conn_id) — WS 绑定          │
+│ 6. voice_state_machine.set(PROCESSING)                        │
+│ 7. is_duplicate(message_id) — 幂等检查                        │
+│ 8. voice_input.receive(body) → IncomingMessage | None        │
+│    ├── None (L0 命中) → return                                │
+│    └── IncomingMessage (L0 未命中) → 继续                      │
+│ 9. voice_input.dispatch(msg) → dispatch_agent_run             │
+│ 10. voice_input.post_dispatch(msg, result) → 注册 worker      │
+│ 11. 锁释放                                                    │
+│ 12. voice_input.await_and_finalize(thread_id, task)           │
+└──────────────────────────┬──────────────────────────────────┘
+                           ▼
+┌─────────────── voice_input.receive() ───────────────────────┐
+│                                                              │
+│  matcher = await _get_local_matcher()                        │
+│  l0_match = matcher.match(text)                              │
+│                                                              │
+│  ├── l0_match is not None:                                   │
+│  │   ├── action.startswith("macro:")                         │
+│  │   │   → _dispatch_macro(thread_id, macro_id, args)        │
+│  │   │     ├── state → SPEAKING                               │
+│  │   │     ├── load_macro(id) — 缓存命中 / DB 查询             │
+│  │   │     ├── preflight(macro, args) — 缓存命中 / YAML parse │
+│  │   │     ├── asyncio.create_task(run_deterministic)         │
+│  │   │     ├── worker_registry.register_worker                │
+│  │   │     ├── asyncio.wait_for(task, timeout=3.0)            │
+│  │   │     │   ├── run_deterministic:                         │
+│  │   │     │   │   ├── _collect_sources → 检查来源             │
+│  │   │     │   │   ├── _scan_steps_risk → 检查风险（当前不限）  │
+│  │   │     │   │   ├── 快路径: MacroEngine.execute(             │
+│  │   │     │   │   │     skip_activity_log=True,               │
+│  │   │     │   │   │     skip_recording=True)                  │
+│  │   │     │   │   │   ├── _execute_steps_inner:               │
+│  │   │     │   │   │   │   └── _execute_desktop_step(          │
+│  │   │     │   │   │   │       skip_recording=True)            │
+│  │   │     │   │   │   │       → DesktopController.execute(    │
+│  │   │     │   │   │   │           skip_recording=True)        │
+│  │   │     │   │   │   │         → macos_driver.run_applescript│
+│  │   │     │   │   │   │         / open_app / key_press / ...  │
+│  │   │     │   │   ├── 成功 → ExecutionOutcome(True, msg)       │
+│  │   │     │   │   └── 失败 → _run_with_self_heal (Agent 自愈) │
+│  │   │     │   ├── TimeoutError → push "failed" "执行超时"      │
+│  │   │     │   ├── CancelledError → push "cancelled" "已取消"   │
+│  │   │     │   └── 成功 → push "done" summary                  │
+│  │   │     └── _push_macro_result → WS voice.route_result     │
+│  │   │       {status:"done"/"failed"/"cancelled", summary}    │
+│  │   │       → state → IDLE                                   │
+│  │   │                                                        │
+│  │   └── builtin (end/clarify/rename/ack/cancel)              │
+│  │       ├── ack → no-op + _push_local_result                 │
+│  │       ├── cancel → worker_registry.cancel_worker            │
+│  │       │   ├── 有 worker → push "cancelled" "已取消"          │
+│  │       │   └── 无 worker → push "done" "没有正在执行的任务"    │
+│  │       ├── rename → shared_state.set("agent_name", name)    │
+│  │       └── end/clarify → _push_local_result                 │
+│  │         → WS voice.route_result                            │
+│  │           {status:"routed", target:{type:"local",action}}  │
+│  │         → state → IDLE                                     │
+│  │                                                            │
+│  └── l0_match is None (L0 未命中):                             │
+│      → 构建 IncomingMessage(source="voice", ...)              │
+│      → 检查 running_worker → 附带 metadata                     │
+│      → return IncomingMessage                                 │
+└──────────────────────────┬──────────────────────────────────┘
+                           ▼
+┌─────────────── Agent 路径 (L0 未命中) ──────────────────────┐
+│                                                              │
+│ voice_input.dispatch(msg):                                   │
+│   ├── state → SPEAKING                                       │
+│   ├── executor._mark_voice(thread_id, "agent")               │
+│   └── super().dispatch(msg) → dispatch_agent_run(            │
+│         thread_id, message_content, project_id, ...)          │
+│       → Agent 引擎启动 (Supervisor → Worker → Tool)           │
+│       → 返回 DispatchResult                                   │
+│                                                              │
+│ voice_input.post_dispatch(msg, result):                      │
+│   ├── result.status == "failed"                              │
+│   │   → executor.consume_voice                               │
+│   │   → executor.push_voice_result("failed", error)          │
+│   │   → return None                                           │
+│   └── result.status == "ok"                                  │
+│       → asyncio.create_task(run_agent_background(inputs))    │
+│       → worker_registry.register_worker(thread_id, task)     │
+│       → return {task, old_worker_task}                        │
+│                                                              │
+│ (锁释放后)                                                    │
+│ voice_input.await_and_finalize(thread_id, task):             │
+│   ├── await task (Agent 在后台运行)                           │
+│   │   ├── Agent 流式输出 token → VoiceChannel                 │
+│   │   │   → executor.push_voice_token → WS voice.token       │
+│   │   ├── Agent 句子边界 → VoiceChannel                       │
+│   │   │   → executor.push_voice_tts_boundary                  │
+│   │   │   → WS voice.tts_boundary                            │
+│   │   ├── Agent ack (Supervisor "好的，我来处理")              │
+│   │   │   → VoiceChannel → executor.push_voice_result         │
+│   │   │   → WS voice.route_result {routed, summary}           │
+│   │   ├── Agent 完成 → SessionCompletedEvent                  │
+│   │   │   → VoiceChannel → executor.push_voice_result         │
+│   │   │   → WS voice.route_result {done, summary}            │
+│   │   └── Agent 失败 → AgentRunCompletedEvent                 │
+│   │       → VoiceChannel → executor.push_voice_result         │
+│   │       → WS voice.route_result {failed, summary}          │
+│   │                                                          │
+│   ├── CancelledError (barge-in)                              │
+│   │   → handle_cancelled → push "cancelled"                  │
+│   └── 正常完成 → 重新注册 old_worker（如存活）                  │
+└──────────────────────────┬──────────────────────────────────┘
+                           ▼
+┌─────────────────────── Rust 接收 ───────────────────────────┐
+│                                                              │
+│ WS receive loop → VoiceEnvelope → handler:                   │
+│                                                              │
+│ voice.route_result:                                          │
+│   ├── status="routed" + target.type="local"                  │
+│   │   → resolve_confirmation(action) → TTS 播确认语           │
+│   │     "好的"/"搞定了"/"收到" 等（TTS 缓存命中 < 50ms）      │
+│   ├── status="routed" + 无 target                             │
+│   │   → TTS 播 summary（Agent ack 文本）                      │
+│   ├── status="done"                                          │
+│   │   → TTS 播 summary（"已静音"/"完成" 等）                   │
+│   │   → state → Listening（准备下一轮）                        │
+│   ├── status="failed"                                        │
+│   │   → TTS 播 "抱歉，处理出错了"                              │
+│   │   → state → Listening                                    │
+│   └── status="cancelled"                                     │
+│       → state → Listening                                    │
+│                                                              │
+│ voice.token:                                                 │
+│   → event_bus.emit("voice:token") — 前端显示流式文本           │
+│                                                              │
+│ voice.tts_boundary:                                          │
+│   → state → Speaking                                         │
+│   → TTS queue_sentence + speak_next（流式播放，TTS 缓存）      │
+│   → event_bus.emit("voice:tts_boundary")                     │
+│                                                              │
+│ system.config_changed:                                       │
+│   → 广播到所有连接                                             │
+│                                                              │
+│ system.state_changed:                                        │
+│   → 广播到所有连接                                             │
+└──────────────────────────────────────────────────────────────┘
+```
+
+#### 状态机流转
+
+```
+IDLE → voice.start → LISTENING
+LISTENING → voice.route → PROCESSING
+PROCESSING → L0 命中 → IDLE (内置) / SPEAKING (Macro 执行中)
+PROCESSING → L0 未命中 → SPEAKING (Agent 开始)
+SPEAKING → done/failed/cancelled → LISTENING
+SPEAKING → barge-in → INTERRUPTED
+INTERRUPTED → 下一轮 voice.route → PROCESSING
+LISTENING → voice.stop → IDLE
+```
+
+#### Barge-in 链路
+
+```
+用户说话（TTS 播放中）
+  │
+  ▼
+Rust VAD 检测到语音活动
+  ├── tts.stop() — 杀死 afplay 子进程
+  ├── state → INTERRUPTED
+  └── ws.send_barge_in(thread_id)
+      │
+      ▼
+Python voice_ws.py
+  └── voice.barge_in → _handle_barge_in(thread_id)
+      ├── executor.get_thread_lock(thread_id) — 获取锁
+      │   ⚠️ 如果 _handle_route 持有锁（Macro 执行中），此处阻塞
+      ├── executor.cancel_voice_task(thread_id)
+      │   └── worker_registry.cancel_worker(thread_id)
+      │       └── task.cancel() → CancelledError 传播
+      │           ├── _dispatch_macro 捕获 → push "cancelled"
+      │           └── await_and_finalize 捕获 → handle_cancelled
+      └── state → INTERRUPTED
+```
+
+#### E2E 性能实测
+
+| 指标 | 数值 | 说明 |
+|------|------|------|
+| 内置命令 | 1-2ms | regex 匹配 + WS push |
+| Macro 匹配 | < 1ms | regex 锚定匹配 |
+| Macro 执行端到端 | **85ms 平均** | 含 osascript 子进程 |
+| 首次请求（预热后） | 169ms | 含首次 MacroScript parse |
+| 后续请求 | 88-300ms | osascript 执行时间波动 |
+| 超时回收 | 3s | `_MACRO_TIMEOUT` |
+| TTS 缓存命中 | < 50ms | `afplay` 本地文件 |
+| 48 条 E2E 测试 | 40 通过 / 8 预期失败 | open_app 类无对应应用 |
+
+### 23.13 非目标（更新）
+
+| 原始非目标 | 状态 | 说明 |
+|-----------|------|------|
+| 不引入端到端语音大模型 | ❌ **已过时** | Seeduplex 已上线 API，§24 设计接入方案 |
+| 不替代现有文本路由逻辑 | ✅ 仍有效 | Seeduplex 替代 ASR+TTS，不替代 L0/Agent |
+| 语音仍是 Agent 的一个通道 | ✅ 仍有效 | Seeduplex 的 ASRResponse 进入现有 L0/Agent 链路 |
+
+---
+
+## 24. 端到端语音大模型（Seeduplex）集成设计
+
+### 24.1 动机
+
+豆包端到端实时语音模型 3.0（Seeduplex）是火山引擎提供的原生全双工语音大模型。与传统 ASR+LLM+TTS 拼接路径相比：
+
+| 维度 | 当前拼接路径 | Seeduplex 端到端 |
+|------|------------|-----------------|
+| 端到端延迟 | ASR ~500ms + LLM ~2s + TTS ~500ms = **~3s** | 首字 **~500ms** |
+| 全双工 | Rust VAD 模拟打断 | 原生 ASRInfo 事件，模型理解语音状态 |
+| 自然度 | 文本 LLM 回复偏书面 | 原生语音模型，语气/节奏更自然 |
+| 语种 | 中文为主 | 中英双语原生支持 |
+
+**Seeduplex 不废弃现有路径**——当前链路作为备用（fallback），Seeduplex 可用时走端到端，不可用时降级到 ASR+LLM+TTS。
+
+### 24.2 架构：三层语音路径
+
+```
+用户说话
+  │
+  ├── L0 匹配（无模型，即时响应） ← 始终优先
+  │     → 静音/截图/媒体控制等 85ms
+  │     → 不经任何模型，纯 regex + Macro
+  │
+  ├── Seeduplex 端到端路径 ← 可用时为主路径
+  │     → PCM 音频 → Seeduplex
+  │     │
+  │     ├── ASRResponse {text, is_interim=false}
+  │     │     → voice.route → L0 匹配
+  │     │       ├── 命中 → 执行 → ChatTTSText("已静音") → TTSResponse
+  │     │       └── 未命中 → Agent → reply text → ChatTTSText → TTSResponse
+  │     │
+  │     ├── ASRInfo → 打断标记（当前 TTS 打断信号）
+  │     └── TTSResponse {audio (PCM 24kHz)} → resample 44.1kHz → afplay
+  │
+  └── ASR+LLM+TTS 拼接路径 ← 备选降级
+        → 当前完整链路，Seeduplex 不可用时
+```
+
+L0 始终优先，不经任何模型。
+
+### 24.3 Seeduplex 协议要点
+
+基于火山引擎 API 文档（`/docs/6561/1594356`）：
+
+| 项目 | 值 |
+|------|----|
+| 连接 | `wss://openspeech.bytedance.com/api/v3/realtime/dialogue` |
+| 鉴权 | `X-Api-App-ID` + `X-Api-Access-Key` + `X-Api-Resource-Id` |
+| 音频输入 | PCM 16kHz 16bit mono |
+| 音频输出 | OGG Opus（可配置 PCM 24kHz） |
+| 模式 | server_vad |
+| 全双工 | 支持边发边收 |
+
+**关键事件**：
+
+| 事件 | 方向 | 用途 |
+|------|------|------|
+| `StartSession` | → 模型 | 初始化对话（人设、系统角色、说话风格） |
+| `StartSession.tts.audio_config` | → 模型 | 配置音频格式为 `pcm 24kHz`（避免 OGG 解码开销） |
+| `TaskRequest` | → 模型 | 音频流 |
+| `ASRResponse` | 模型 → | ASR 文本（`is_interim=true` 中间态 / `false` 终态） |
+| `ASRInfo` | 模型 → | 检测到语音，可用于打断当前 TTS |
+| `ASREnded` | 模型 → | 用户说话结束 |
+| `ChatResponse` | 模型 → | 模型聊天文本 |
+| `TTSResponse` | 模型 → | 音频流输出（PCM 24kHz Float32）→ 经 `resample_rubato` 降采样到 44.1kHz → `afplay` |
+| `ChatTTSText` | → 模型 | **注入自定义文本合成音频**（关键接口） |
+| `TTSEnded` | 模型 → | 音频合成结束 |
+
+`ChatTTSText` 是集成核心：L0 执行结果、Agent 回复文本都通过它注入模型，模型合成自然语音返回。
+
+### 24.4 Rust 侧新模块：SeeduplexClient
+
+新增 `frontend/src-tauri/src/voice/seeduplex_client.rs`：
+
+```rust
+pub struct SeeduplexClient {
+    ws: WebSocket,
+    session_id: String,
+    app_id: String,
+    access_key: String,
+    afplay_child: Arc<Mutex<Option<std::process::Child>>>,
+}
+
+impl SeeduplexClient {
+    /// 连接火山引擎并 StartSession
+    pub async fn connect(app_id: &str, access_key: &str) -> Result<Self>;
+
+    /// 发送 PCM 音频帧（麦克风实时数据 16kHz 16bit mono）
+    /// VAD 回调调用，持续流式发送
+    pub async fn send_audio(&self, pcm: &[u8]);
+
+    /// 注入文本让模型合成音频（L0/Agent 结果）
+    pub async fn inject_tts(&self, text: &str);
+
+    /// 接收事件循环（独立 tokio task），处理服务端响应：
+    ///   ASRResponse → event_bus.emit("voice:asr_result", text)
+    ///   TTSResponse → afplay（配置 PCM 格式，降采样到 44.1kHz）
+    ///   ASRInfo     → barge-in
+    pub async fn receive_loop(&self, event_bus: &dyn VoiceEventBus);
+}
+```
+
+**并发模型**：`send_audio` 和 `receive_loop` 是两条独立的 tokio task：
+
+```
+VAD 回调 task（持续发送）:
+  mic_pcm → send_audio() → Seeduplex WS（发送方向）
+
+receive_loop task（常驻接收）:
+  Seeduplex WS（接收方向）→ ASRResponse / TTSResponse / ASRInfo
+                               → 事件分发 + afplay
+```
+
+`send_audio` 由 VoiceSession 的 VAD 回调调用（每次有音频帧就发）。`receive_loop` 在 `tokio::spawn` 中独立运行，不阻塞发送。
+
+**音频格式**：`StartSession` 时配置 `tts.audio_config.format = "pcm"`（文档 §1 产品约束第 3 条），Seeduplex 返回 PCM 24kHz Float32（直接可用）；`afplay` 需要 44.1kHz，用已有 `resample_rubato` 降采样后播放。
+
+**事件分发**：
+
+| Seeduplex 事件 | Rust → Python | 处理 |
+|---------------|---------------|------|
+| `ASRResponse{text, is_interim=false}` | `voice.route{text}` | L0 匹配 / Agent |
+| `ASRResponse{text, is_interim=true}` | `voice.partial{text}` | L1 preheat |
+| `ASRInfo` | `voice.barge_in{thread_id}` | 打断当前 TTS |
+| `TTSResponse{audio}` | — | `afplay` 直接播放 |
+| `ChatResponse{content}` | `voice.route{content}` | 纯对话场景走 L0/Agent |
+| 收到 `voice.tts_play` | **Python → Rust** | 调 `inject_tts(text)` |
+
+### 24.5 Python 侧新增：VOICE_TTS_PLAY MessageType + voice.tts_play 信令
+
+先加 `MessageType` 枚举值（`canonical.py`）：
+
+```python
+class MessageType(str, Enum):
+    ...
+    VOICE_TTS_PLAY = "voice.tts_play"  # Python → Rust：推文本给 Seeduplex ChatTTSText 合成
+```
+
+新增 WS 信令 `voice.tts_play`。Python 将 L0 执行结果 / Agent 回复文本推给 Rust 侧，Rust 通过 `ChatTTSText` 注入 Seeduplex 合成语音。
+
+```json
+{
+  "type": "voice.tts_play",
+  "body": { "thread_id": "...", "text": "已静音" }
+}
+```
+
+`executor.py` 新增：
+
+```python
+async def push_tts_text(thread_id: str, text: str) -> None:
+    """推文本给 Rust，通过 Seeduplex ChatTTSText 合成 TTS。"""
+    if manager is None:
+        return
+    body = {"thread_id": thread_id, "text": text}
+    env = envelope_fn("voice.tts_play", body)
+    await manager.push(thread_id, env)
+```
+
+`voice_input.py` 中当 Seeduplex 模式启用时，`_push_macro_result` / `_handle_builtin` 除了推 `voice.route_result`，额外推 `voice.tts_play`。
+
+### 24.6 两种交互模式
+
+所有 ASRResponse 终态文本都送 Python L0 匹配一次（L0 1ms，延迟可忽略）。不设"纯对话不经 Python"路径——Rust 侧不需要做指令 vs 闲聊分类。
+
+#### 模式 A：L0 快路径（默认）
+
+```
+用户 → PCM → Seeduplex → ASRResponse{text, full}
+  │
+  └── voice.route{text} → Python L0 匹配
+        ├── 命中 → Macro 执行 → push_tts_text("已静音")
+        │         → Rust inject_tts → TTSResponse → 播放
+        └── 未命中 → 模式 B
+```
+
+所有 ASRResponse 先过 L0（1ms）。命中即执行，未命中走 Agent。
+
+#### 模式 B：Agent 路由（L0 未命中 → 工具调用 / 知识查询）
+
+```
+用户 → PCM → Seeduplex → ASRResponse{text, full}
+  → voice.route{text} → L0 未命中
+  → dispatch_agent_run → Agent 工具调用 + LLM 生成
+  → reply text → push_tts_text(reply)
+  → Rust inject_tts(reply) → TTSResponse → 播放
+```
+
+**本地 VAD 行为变更**：Seeduplex 模式下关闭 Silero VAD 的断句功能（server_vad 由 Seeduplex 管理）。本地 VAD 仅用于音频静音裁剪（减少传输量），不用于断句。交互节奏由 Seeduplex 的 `ASRInfo→ASRResponse→ASREnded` 事件序列控制。
+
+### 24.7 备用路径降级
+
+当 Seeduplex 连接失败 / 超时时，自动降级：
+
+```python
+# voice_ws.py _handle_route
+if not seeduplex_enabled:
+    # 当前路径：Rust 本地 ASR 已完成，发 voice.route
+    msg = await voice_input.receive(body)
+```
+
+Seeduplex 可用性在 `system.init` 握手时携带：
+
+```json
+{
+  "type": "system.init",
+  "body": {
+    "client_id": "...",
+    "configs": {...},
+    "state": {...},
+    "seeduplex_connected": true,
+    "seeduplex_model": "doubao-seeduplex-3.0"
+  }
+}
+```
+
+### 24.8 实现计划
+
+| 阶段 | 内容 | 涉及文件 |
+|------|------|---------|
+| P1 | Rust SeeduplexClient 核心：连接 + StartSession + 音频收发 | `seeduplex_client.rs` |
+| P2 | Rust receive_loop 事件分发：ASRResponse→voice.route / TTSResponse→afplay | `seeduplex_client.rs`, `voice_session.rs` |
+| P3 | Python `voice.tts_play` 信令 + executor.push_tts_text | `voice_ws.py`, `executor.py` |
+| P4 | voice_input 适配：Seeduplex 模式下 push_macro_result 额外推 tts_play | `voice_input.py` |
+| P5 | 降级逻辑：system.init seeduplex_connected → 自动选路径 | `voice_ws.py`, `voice_session.rs` |
+| P6 | 配置管理：Seeduplex AppID/AccessKey 持久化 | `shared_state.py`, 前端 UI |
+
+### 24.9 手机端集成（React Native）
+
+#### 24.9.1 差异对比
+
+手机端没有 Tauri Rust 层和本地 ASR/TTS 引擎，Seeduplex 是**唯一主路径**，不需要降级。
+
+| | 桌面（Tauri Rust） | 手机（React Native） |
+|---|---|---|
+| Seeduplex 接入 | 自研 `SeeduplexClient` (Rust, WebSocket 裸协议) | 火山引擎官方 Android/iOS SDK |
+| 音频采集 | macOS CoreAudio → 16kHz PCM | 系统麦克风 API → SDK 自动处理 |
+| 音频播放 | `afplay` 子进程 | 系统 AudioTrack / AVAudioPlayer |
+| ASR/TTS 主路径 | Seeduplex | Seeduplex（唯一路径） |
+| 备用路径 | Seeduplex 断连 → Qwen3+Edge-TTS | **无**（断连时提示用户重试） |
+| 后端 WS | 本地 IPC `127.0.0.1` | 远程 WebSocket |
+| WS 信令格式 | 与手机完全相同 | 复用桌面 `voice.*` 信令 |
+
+#### 24.9.2 手机端架构
+
+手机端不直连 Python 后端。语音消息走三层路由：
+
+```
+手机麦克风
+  │
+  ▼
+Seeduplex Android/iOS SDK（火山引擎官方）
+  │
+  ├── ASRResponse{text, full}
+  │     │
+  │     ▼
+  │   HTTP POST /api/v1/message/send     ← 手机 → Gateway
+  │   {target_device_key, envelope: {type:"voice.route", body:{text,thread_id}}}
+  │     │
+  │     ▼
+  │   Gateway mobile/handler.go           ← 消息路由
+  │     └── env.Type 不在 switch 列（line 152-174）
+  │          → default: routeEnvelope()
+  │          → deviceMgr.RouteCommandEnvelope(deviceKey, env)
+  │          → WS 推送到桌面端
+  │     │
+  │     ▼
+  │   桌面端 EvoCloud WS link 收到
+  │     → 本地 WS → Python voice_ws.py → L0/Agent
+  │       ├── L0 命中 → push_tts_play("已静音")
+  │       └── L0 未命中 → Agent → reply text → push_tts_play(reply)
+  │     │
+  │     ▼
+  │   桌面端收到 voice.tts_play
+  │     → 不播放（手机端需要听）
+  │     → 转发到 EvoCloud WS → Gateway
+  │     → Gateway → HTTP 响应 → 手机
+  │     → Seeduplex.injectTTS(text) → TTSResponse → 扬声器
+  │
+  └── TTSResponse{audio} → 扬声器（纯对话）
+```
+
+**关键路径**：`voice.route` 和 `voice.tts_play` 在 Gateway 中通过 `default→routeEnvelope` 自动转发，**不需改 Gateway 代码**。
+
+**三条独立连接**：
+
+```
+手机 ── HTTP ──→ Gateway ── WS ──→ 桌面端 ── local WS ──→ Python
+手机 ── WebSocket ──→ 火山引擎 Seeduplex（ASR/TTS 音频流）
+桌面 ── WS ──→ Gateway（EvoCloud link，双向）
+```
+
+#### 24.9.3 与桌面共享的组件
+
+信令格式和 Python 层完全共享，传输路径不同：
+
+| 组件 | 桌面 | 手机 |
+|------|------|------|
+| `voice.route` 信令格式 | 相同 JSON | 相同 JSON，**封装在 Gateway envelope 中** |
+| `voice.tts_play` 信令格式 | 相同 JSON | 相同 JSON，**由桌面端代转发** |
+| `MessageType.VOICE_TTS_PLAY` | `canonical.py` | 同 |
+| Python L0 匹配 | 同一 `LocalMatcher` | 同（桌面端 Python 执行） |
+| Python Macro 执行 | 同一 `_dispatch_macro` | 同（桌面端执行） |
+| Python Agent 路由 | 同一 `dispatch_agent_run` | 同 |
+| `executor.push_tts_text` | 同一函数 | 同（桌面端调用） |
+| Seeduplex AppID/AccessKey | 桌面配置 | 手机独立配置 |
+
+#### 24.9.4 手机端 Voice 消息在 Gateway 的转发
+
+Gateway `mobile/handler.go:152-174` 的 switch：
+
+```go
+switch env.Type {
+case "command.relay":
+    h.handleCommandRelay(...)    // 现有文本消息
+case "command.stop":
+    h.handleSimpleCommand(...)
+    // ... 其他已知类型
+default:
+    h.routeEnvelope(...)         // ← voice.route / voice.tts_play 走这里
+}
+```
+
+`routeEnvelope` 调用 `deviceMgr.RouteCommandEnvelope(deviceKey, env)`，将信封通过 WS 推送到桌面端。桌面端的 EvoCloud WebSocket link 收到后，通过 `channel_registry` 分发给 `voice_channel`（文本通道）或直接发出事件。**不需要改 Gateway 代码**。
+
+#### 24.9.5 手机端与桌面端之间 voice.tts_play 的回传路径
+
+Python `push_tts_text("已静音")` 走到桌面端本地 Python WS 后：
+
+```
+Python executor.push_tts_text("已静音")
+  → manager.push() → local WS → 桌面端 Rust
+    → Rust 判断：这不是给我听的（手机来的消息）
+      → 转发到 EvoCloud WS → Gateway
+        → Gateway 找到手机设备 → WS → HTTP 响应
+          → 手机 App 收到
+            → SeeduplexModule.injectTTS("已静音")
+              → Seeduplex ChatTTSText → TTSResponse → 扬声器
+```
+
+桌面端 Rust `voice_session.rs` 中 `voice.tts_play` 的处理逻辑：
+
+```rust
+"voice.tts_play" => {
+    if let Some(text) = body.get("text").and_then(|v| v.as_str()) {
+        if seeduplex_client.is_connected() {
+            // 桌面端自己使用 Seeduplex → 直接 inject
+            seeduplex_client.inject_tts(text).await;
+        } else if let Some(device_key) = body.get("target_device_key").and_then(|v| v.as_str()) {
+            // 手机端的声音 → 转发到 Gateway → 手机
+            evocloud_link.send_envelope(device_key, envelope).await;
+        }
+    }
+}
+```
+
+`target_device_key` 字段在 Python 侧 `push_tts_text` 时由 `voice.route` 手机请求中携带的 `device_key` 回传。Python 侧在收到手机 ASRResponse 时存储 `device_key`，回复时带上。
+
+#### 24.9.6 手机端原生模块封装
+
+React Native 需要包装火山引擎 SDK，新增 `mobile/src/native-modules/SeeduplexModule/`：
+
+```typescript
+// mobile/src/native-modules/SeeduplexModule/index.ts
+export interface SeeduplexModule {
+  /** 初始化 SDK，建立 WebSocket 连接 */
+  connect(appId: string, accessKey: string): Promise<void>;
+
+  /** 开始录音 → 自动流式上传到 Seeduplex */
+  startRecording(): Promise<void>;
+
+  /** 停止录音 → 发送结束标记 */
+  stopRecording(): Promise<void>;
+
+  /** 注入文本合成音频（L0/Agent 结果） */
+  injectTTS(text: string): Promise<void>;
+
+  /** 断开连接 */
+  disconnect(): Promise<void>;
+
+  /** ASR 终态文本回调 */
+  onASRResult(callback: (text: string) => void): void;
+
+  /** 音频播放状态回调 */
+  onTTSState(callback: (state: 'playing' | 'idle') => void): void;
+
+  /** 连接状态回调 */
+  onConnectionState(callback: (state: 'connected' | 'disconnected') => void): void;
+}
+```
+
+Android 端：火山引擎 SDK 封装为 Native Module（Java/Kotlin）。
+iOS 端：火山引擎 SDK 封装为 Native Module（Swift/Objective-C）。
+
+React Native 业务层调用：
+
+```typescript
+// mobile/src/services/voiceService.ts
+import { NativeModules } from 'react-native';
+const { SeeduplexModule } = NativeModules;
+
+class VoiceService {
+  private deviceKey: string = '';  // 从登录信息获取
+
+  async startSession() {
+    await SeeduplexModule.connect(APP_ID, ACCESS_KEY);
+    SeeduplexModule.onASRResult(async (text) => {
+      // ASR 终态文本 → HTTP → Gateway → 桌面端 → Python L0/Agent
+      const response = await fetch(`${GATEWAY_URL}/api/v1/message/send`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${TOKEN}` },
+        body: JSON.stringify({
+          target_device_key: this.deviceKey,
+          envelope: {
+            version: '2.0',
+            type: 'voice.route',
+            body: { thread_id: THREAD_ID, text },
+          },
+        }),
+      });
+      const { data: { command_id } } = await response.json();
+      // 轮询或等待 push 通知获取 voice.tts_play 结果
+    });
+  }
+
+  // 收到 Gateway 推送的 voice.tts_play → 注入 TTS
+  // Gateway 通过 push 通知或命令状态回查返回结果
+  private onTTSPlay(text: string) {
+    SeeduplexModule.injectTTS(text);
+  }
+}
+```
+#### 24.9.6 手机端实现计划
+
+| 阶段 | 内容 | 涉及 |
+|------|------|------|
+| M1 | Android Native Module：Seeduplex SDK 封装（连接 + 音频 + injectTTS） | `SeeduplexModule.java` |
+| M2 | iOS Native Module：Seeduplex SDK 封装 | `SeeduplexModule.swift` |
+| M3 | React Native 业务层：voiceService.ts（ASR→HTTP→Gateway / injectTTS←push） | `voiceService.ts` |
+| M4 | 桌面端 Rust voice.tts_play handler 区分本地/手机来源 + 转发 | `voice_session.rs` |
+| M5 | Python executor.push_tts_text 携带 target_device_key | `executor.py`, `voice_input.py` |

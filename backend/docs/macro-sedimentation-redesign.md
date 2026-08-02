@@ -31,7 +31,7 @@
 - **Phase 2：沉淀订阅机制**
   - 删除 `learn_from_trace` 工具。
   - 新增 `TraceEvent.message_id` 绑定与 `TraceRewindSubscriber`。
-  - 新增 `MacroSedimentationSubscriber` 与 `MacroSedimentationService`。
+  - 新增 `MacroSedimentationSubscriber` 与 `MacroCreatorService`。
   - 完成 `FinishNode` 沉淀资格判定与 `AgentActivity` 字段扩展。
   - 运行测试验证沉淀流程。
 
@@ -69,7 +69,7 @@
     ┌──────────────────────┐
     │ AgentActivity 写入     │
     │ final_outcome          │
-    │ sedimentation_eligible │
+    │ macro_creation_eligible │
     │ summary                │
     └──────────────────────┘
                  │
@@ -88,8 +88,8 @@
                  │
                  ▼
     ┌──────────────────────┐
-    │ MacroSedimentation   │
-    │ Service.sediment()     │
+     │ MacroCreator          │
+     │ Service.create_macro_from_trace() │
     │ 1. 读取 AgentActivity  │
     │ 2. 校验 final_outcome  │
     │ 3. 读取当前有效 trace  │
@@ -222,7 +222,7 @@ class TraceRewindSubscriber:
 1. 获取 `AuditResult`，提取 `final_outcome`。
 2. 仅当 `final_outcome.upper() == "COMPLETED"` 时，调用 `TraceSedimentationService.is_eligible(thread_id)`。
 3. `is_eligible` 从 `trace_events` 读取当前有效事件，过滤探索性/失败事件，若存在至少一个可重放动作则返回 `True`。
-4. 若 eligible，写入 `AgentActivity.sedimentation_eligible = True`。
+4. 若 eligible，写入 `AgentActivity.macro_creation_eligible = True`。
 
 ### 5.6 `AgentActivity` 字段变更
 
@@ -231,7 +231,7 @@ class TraceRewindSubscriber:
 ```python
 final_outcome: Mapped[str] = mapped_column(Text, default="")
 summary: Mapped[str] = mapped_column(Text, default="")
-sedimentation_eligible: Mapped[bool] = mapped_column(Boolean, default=False)
+macro_creation_eligible: Mapped[bool] = mapped_column(Boolean, default=False)
 ```
 
 `main_goal` 已存在，继续使用。
@@ -245,31 +245,31 @@ sedimentation_eligible: Mapped[bool] = mapped_column(Boolean, default=False)
 class MacroSedimentationSubscriber:
     @event_subscribe(SystemEventType.SESSION_COMPLETED)
     async def on_session_completed(self, event: SessionCompletedEvent) -> None:
-        if not getattr(event.data, "sedimentation_eligible", False):
+        if not getattr(event.data, "macro_creation_eligible", False):
             return
 
         thread_id = event.data.thread_id
-        await MacroSedimentationService.sediment(thread_id)
+        await MacroCreatorService.create_macro_from_trace(thread_id)
 ```
 
-### 5.8 `MacroSedimentationService`
+### 5.8 `MacroCreatorService`
 
-新增 `app/core/execution/macro/sedimentation_service.py`，核心方法：
+新增 `app/core/execution/macro/macro_creator_service.py`，核心方法：
 
 ```python
-class MacroSedimentationService:
+class MacroCreatorService:
     @staticmethod
     async def is_eligible(thread_id: str) -> bool:
         """判断是否存在可沉淀的确定性步骤。"""
 
     @staticmethod
-    async def sediment(thread_id: str) -> Macro | None:
+    async def create_macro_from_trace(thread_id: str) -> Macro | None:
         """从 trace 创建 pending_review macro。"""
 ```
 
-`sediment()` 内部流程：
+`create_macro_from_trace()` 内部流程：
 
-1. 读取 `AgentActivity`，校验 `final_outcome == "COMPLETED"` 且 `sedimentation_eligible` 为 `True`。
+1. 读取 `AgentActivity`，校验 `final_outcome == "COMPLETED"` 且 `macro_creation_eligible` 为 `True`。
 2. 读取当前 thread 的有效 trace（过滤已删除消息、探索性/失败事件）。
 3. 使用 `WorkflowSynthesizer` 生成 `SynthesizedSkill` 元数据（name / description / namespace / trigger_patterns / parameters）。
 4. 使用 `MacroScriptCompiler().compile(sequence)` 编译 `macro_script`。
@@ -326,7 +326,7 @@ message_id: Mapped[str | None] = mapped_column(String(36), index=True, nullable=
 
 ```python
 summary: Mapped[str] = mapped_column(Text, default="")
-sedimentation_eligible: Mapped[bool] = mapped_column(Boolean, default=False)
+macro_creation_eligible: Mapped[bool] = mapped_column(Boolean, default=False)
 ```
 
 不新增 `verified_trace_json`。
@@ -337,10 +337,10 @@ sedimentation_eligible: Mapped[bool] = mapped_column(Boolean, default=False)
 FinishNode 完成审计
   ├── AuditResult.final_outcome = "COMPLETED"
   ├── TraceSedimentationService.is_eligible(thread_id) -> True
-  ├── AgentActivity 写入 final_outcome / summary / sedimentation_eligible
+  ├── AgentActivity 写入 final_outcome / summary / macro_creation_eligible
   └── publish_session_completed
          └── MacroSedimentationSubscriber.on_session_completed
-              └── MacroSedimentationService.sediment(thread_id)
+              └── MacroCreatorService.create_macro_from_trace(thread_id)
                      └── publish_macro_mutated
 
 Rewind 操作
@@ -410,17 +410,17 @@ Rewind 操作
 新增或复用配置：
 
 ```python
-AUTO_MACRO_SEDIMENTATION_ENABLED: bool = True  # 总开关
+AUTO_MACRO_CREATION_ENABLED: bool = True  # 总开关
 ```
 
-`MacroSedimentationSubscriber` 或 `MacroSedimentationService` 首先检查此开关，为 `False` 时直接跳过。
+`MacroSedimentationSubscriber` 或 `MacroCreatorService` 首先检查此开关，为 `False` 时直接跳过。
 
 ## 11. 测试策略
 
 ### 11.1 单元测试
 
 - `tests/unit/core/learning/test_trace_rewind_subscriber.py`：验证 rewind 时正确清理 trace_events。
-- `tests/unit/core/execution/macro/test_macro_sedimentation_service.py`：
+- `tests/unit/core/execution/macro/test_macro_creator_service.py`：
   - 仅 `COMPLETED` + eligible 才创建 macro。
   - `INCOMPLETE` / `FAILED` 不创建。
   - 无有效步骤时不创建。
@@ -432,7 +432,7 @@ AUTO_MACRO_SEDIMENTATION_ENABLED: bool = True  # 总开关
 ### 11.2 集成测试
 
 - 跑完整 agent 流程，触发 `FinishNode`，验证 `AgentActivity` 写入正确。
-- 执行 rewind，验证 trace_events 被正确清理，且 `MacroSedimentationService` 不会从已清理 trace 中沉淀。
+- 执行 rewind，验证 trace_events 被正确清理，且 `MacroCreatorService` 不会从已清理 trace 中沉淀。
 
 ### 11.3 旧测试更新
 
@@ -445,7 +445,7 @@ AUTO_MACRO_SEDIMENTATION_ENABLED: bool = True  # 总开关
 1. `trace_events` 表增加 `message_id VARCHAR(36) NULL` 及索引。
 2. `agent_activities` 表增加：
    - `summary TEXT DEFAULT ''`
-   - `sedimentation_eligible BOOLEAN DEFAULT FALSE`
+    - `macro_creation_eligible BOOLEAN DEFAULT FALSE`
 
 ## 13. 待确认问题
 
