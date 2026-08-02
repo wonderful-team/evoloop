@@ -102,24 +102,20 @@ async def push_tts_text(thread_id: str, text: str) -> None:
     """推文本给 Volcengine 对话 session 合成 TTS 音频。"""
     client = active_volc_clients.get(thread_id)
     if not client:
-        logger.warning(
-            "[voice-exec] push_tts_text: no active volc client for thread %s", thread_id
-        )
         return
     if client.ws is None:
-        logger.warning("[voice-exec] push_tts_text: ws closed, reconnecting...")
         try:
             await client.reconnect()
         except Exception as e:
             logger.error("[voice-exec] push_tts_text reconnect failed: %s", e)
             return
     try:
-        logger.info(
-            "[voice-exec] push_tts_text start=True,end=False content=[%d chars] head=%r tail=%r",
-            len(text),
-            text[:100],
-            text[-100:] if len(text) > 100 else "",
-        )
+        from app.api.routes.voice_ws import unblock_voice_tts
+        unblock_voice_tts(thread_id)
+    except ImportError:
+        pass
+
+    try:
         await client.send_chat_tts_text(start=True, end=False, content=text)
         await client.send_chat_tts_text(start=False, end=True, content="")
         logger.info(

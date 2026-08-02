@@ -83,16 +83,7 @@ async def dispatch_agent_run(
     # ------------------------------------------------------------------
     # 0. Resolve model (before creating context)
     # ------------------------------------------------------------------
-    active_model = model
-    if not active_model:
-        from app.infrastructure.config.service import SystemConfigService
-
-        active_model = SystemConfigService.get_value("LLM_MODEL")
-        if active_model:
-            logger.info(f"[Dispatch] No model specified, using default model: {active_model}")
-        else:
-            logger.info("[Dispatch] No model specified locally; relying on cloud gateway default model routing.")
-            active_model = ""
+    active_model = model or ""
 
     # ------------------------------------------------------------------
     # 1. Prepare minimal Context (working_dir will be hydrated later via events)

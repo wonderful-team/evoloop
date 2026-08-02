@@ -6,13 +6,13 @@ from sqlalchemy import select
 
 from app.core.evocloud import evocloud_manager
 from app.core.file import is_ignored_path
+from app.core.hitl.policies import DEFAULT_SENSITIVE_PATTERNS
 from app.core.project import cache as project_cache
 from app.core.project.utils import read_project_json, write_project_json
 from app.domain.codebase.indexing.service import IndexingService
 from app.infrastructure.database import session_scope
 from app.models.codebase import Repository
 from app.utils.time import utcnow
-from app.core.hitl.policies import DEFAULT_SENSITIVE_PATTERNS
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +26,7 @@ class ProjectSyncService:
     def __init__(self):
         self._indexing_service = IndexingService()
 
-    async def sync_cloud_project(self) -> None:
+    async def sync_cloud_project(self, start_watchers: bool = True) -> None:
         """
         Sync the active project to local workspace on app start.
 
@@ -37,6 +37,10 @@ class ProjectSyncService:
         4. If the hinted project does not exist locally, do not auto-switch;
            log a clear message and wait for user action.
         5. Never use the cloud's external_path directly as the local path.
+
+        Args:
+            start_watchers: When False (worker context), skip starting the
+                in-process file watcher, which must live in the API process.
         """
         try:
             from app.core.context import thread_context_store
@@ -60,15 +64,20 @@ class ProjectSyncService:
             # Sync local projects' external_source to cloud with the active device key
             try:
                 from app.core.identity import identity_service
+
                 device_key = await identity_service.store.get_device_key()
                 if device_key:
                     logger.info(f"[ProjectSync] Aligning local projects with device key: {device_key}")
-                    for pid in local_index.keys():
-                        try:
-                            await evocloud_manager.api.update_project(project_id=pid, source=device_key)
+                    pids = list(local_index.keys())
+                    results = await asyncio.gather(
+                        *(self._align_project_source(pid, device_key) for pid in pids),
+                        return_exceptions=True,
+                    )
+                    for pid, result in zip(pids, results, strict=False):
+                        if isinstance(result, Exception):
+                            logger.warning(f"[ProjectSync] Failed to update project {pid} source to {device_key}: {result}")
+                        else:
                             logger.info(f"[ProjectSync] Aligned project {pid} source to {device_key} in cloud")
-                        except Exception as ex:
-                            logger.warning(f"[ProjectSync] Failed to update project {pid} source to {device_key}: {ex}")
             except Exception as e:
                 logger.warning(f"[ProjectSync] Failed to run local project source alignment: {e}")
 
@@ -150,10 +159,18 @@ class ProjectSyncService:
             )
             if repo.project_id:
                 write_project_json(local_path, {"project_id": repo.project_id, "repo_id": repo.id})
-            await indexing_manager.start_watching(local_path, repo.id)
+            if start_watchers:
+                await indexing_manager.start_watching(local_path, repo.id)
 
         except Exception as e:
             logger.warning(f"[ProjectSync] Error syncing cloud project: {e}", exc_info=True)
+
+    @staticmethod
+    async def _align_project_source(project_id: int, device_key: str) -> None:
+        """Point a cloud project's external source at the active device."""
+        await evocloud_manager.api.update_project(
+            project_id=project_id, source=device_key
+        )
 
     async def handle_project_created(self, path: str):
         """
@@ -238,20 +255,20 @@ class ProjectSyncService:
         Import an existing local directory under workspace_root as a project.
         """
         from app.core.project.path_validator import validate_project_path
-        
+
         abs_path = os.path.realpath(path)
         if not os.path.isdir(abs_path):
             raise ValueError(f"Directory does not exist: {abs_path}")
-            
+
         await validate_project_path(abs_path, workspace_root)
-        
+
         repo_name = name or os.path.basename(abs_path)
-        
+
         async with session_scope() as session:
             stmt = select(Repository).where(Repository.local_path == abs_path)
             result = await session.execute(stmt)
             repo = result.scalars().first()
-            
+
             if repo:
                 if repo.sync_status in ["SYNCED", "PENDING_CREATION"]:
                     raise ValueError(f"Project is already registered at this path: '{repo.name}'")
@@ -283,7 +300,7 @@ class ProjectSyncService:
         # Create/update project.json metadata
         meta_dir = os.path.join(abs_path, ".evoloop")
         os.makedirs(meta_dir, exist_ok=True)
-        
+
         project_json = read_project_json(abs_path) or {}
         if not project_json:
             project_json = {
@@ -293,9 +310,9 @@ class ProjectSyncService:
                 "sensitive_patterns": DEFAULT_SENSITIVE_PATTERNS,
                 "authorized_paths": [],
             }
-            
+
         cloud_project_id = project_json.get("project_id")
-        
+
         # Sync to Cloud
         try:
             res = await evocloud_manager.api.create_project(
@@ -311,7 +328,7 @@ class ProjectSyncService:
                         db_repo.project_id = cloud_project_id
                         db_repo.sync_status = "SYNCED"
                         session.add(db_repo)
-                        
+
                 evocloud_manager.invalidate_projects_cache()
                 logger.info(f"[ProjectSync] Imported project synced to cloud (ID: {cloud_project_id})")
             else:
@@ -328,17 +345,19 @@ class ProjectSyncService:
         # Publish event
         try:
             from app.core.project.event.publishers import publish_project_created
+
             await publish_project_created(
                 path=abs_path,
                 repo_id=repo.id,
                 project_id=cloud_project_id or project_json.get("project_id"),
-                project_name=repo_name
+                project_name=repo_name,
             )
         except Exception as e:
             logger.error(f"[ProjectSync] Failed to publish ProjectCreatedEvent: {e}")
 
         # Start watching
         from app.domain.codebase.indexing.manager import indexing_manager
+
         await indexing_manager.start_watching(abs_path, repo.id)
 
         return repo
@@ -347,6 +366,7 @@ class ProjectSyncService:
         """Update cloud external_path after a directory move."""
         try:
             from app.core.identity import identity_service
+
             device_key = await identity_service.store.get_device_key()
             if device_key:
                 await evocloud_manager.api.update_project(
@@ -391,12 +411,13 @@ class ProjectSyncService:
                 path=path,
                 repo_id=repo.id,
                 project_id=repo.project_id,
-                project_name=repo.name
+                project_name=repo.name,
             )
             logger.info(f"[ProjectSync] Auto-triggered indexing for '{repo.name}' (Repo ID: {repo.id})")
 
             # Start watching
             from app.domain.codebase.indexing.manager import indexing_manager
+
             await indexing_manager.start_watching(path, repo.id)
 
         except Exception as e:
@@ -438,6 +459,7 @@ class ProjectSyncService:
 
         try:
             from app.core.project.event.publishers import publish_project_deleted
+
             await publish_project_deleted(
                 path=path,
                 repo_id=repo_id or 0,
@@ -460,6 +482,7 @@ class ProjectSyncService:
 
         # Stop Old Watch (for imported projects)
         from app.domain.codebase.indexing.manager import indexing_manager
+
         await indexing_manager.stop_watching(src_path)
 
         # Update Cloud
@@ -507,7 +530,9 @@ class ProjectSyncService:
         Restart watchers for imported projects.
         """
         if not root_path or not os.path.exists(root_path):
-            logger.warning(f"[ProjectSync] Root path {root_path} invalid. Skipping reconciliation.")
+            logger.warning(
+                f"[ProjectSync] Root path {root_path} invalid. Skipping reconciliation."
+            )
             return
 
         logger.info(f"[ProjectSync] Starting Reconciliation on {root_path}...")
@@ -551,6 +576,7 @@ class ProjectSyncService:
                 logger.info(f"[ProjectSync] Retrying cloud sync for: {p}")
                 try:
                     from app.core.project.sync_tasks import sync_project_to_cloud_task
+
                     sync_project_to_cloud_task.delay(repo.id)
                 except Exception as e:
                     logger.error(f"[ProjectSync] Failed to queue retry: {e}")
@@ -563,6 +589,7 @@ class ProjectSyncService:
                 logger.info(f"[ProjectSync] Restarting watcher for imported project: {p}")
                 try:
                     from app.domain.codebase.indexing.manager import indexing_manager
+
                     if p not in indexing_manager._watchers:
                         await indexing_manager.start_watching(p, repo.id)
 

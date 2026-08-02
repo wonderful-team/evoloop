@@ -30,18 +30,32 @@ class WorkerRegistry:
 
     def __init__(self):
         self._records: dict[str, WorkerRecord] = {}
+        self._previous_tasks: dict[str, asyncio.Task[Any]] = {}
         self._lock = asyncio.Lock()
 
     async def register_worker(
         self, thread_id: str, task: asyncio.Task[Any], description: str = ""
     ) -> None:
         async with self._lock:
+            old_record = self._records.get(thread_id)
+            if (
+                old_record
+                and old_record.status == "running"
+                and old_record.task is not None
+                and not old_record.task.done()
+                and old_record.task != task
+            ):
+                self._previous_tasks[thread_id] = old_record.task
             self._records[thread_id] = WorkerRecord(
                 task=task,
                 status="running",
                 description=description,
                 started_at=__import__("time").time(),
             )
+
+    async def pop_previous_task(self, thread_id: str) -> asyncio.Task[Any] | None:
+        async with self._lock:
+            return self._previous_tasks.pop(thread_id, None)
 
     async def complete_worker(
         self, thread_id: str, result: str | None = None
@@ -63,6 +77,7 @@ class WorkerRegistry:
 
     async def cancel_worker(self, thread_id: str) -> bool:
         async with self._lock:
+            self._previous_tasks.pop(thread_id, None)
             record = self._records.pop(thread_id, None)
         if record is not None and record.task is not None and not record.task.done():
             record.task.cancel()

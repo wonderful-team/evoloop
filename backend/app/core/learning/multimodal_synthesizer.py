@@ -22,6 +22,7 @@ import json
 import logging
 import os
 import subprocess
+import tempfile
 import time
 from pathlib import Path
 
@@ -30,6 +31,7 @@ from sqlalchemy import or_, select
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
+from app.core.engine.message.native_classes import HumanMessage, SystemMessage
 from app.core.execution.macro.compiler import MacroScriptCompiler
 from app.core.execution.macro.schemas import MacroVerificationResult
 from app.core.execution.macro.utils import cleanup_macro_steps, verify_macro_script
@@ -57,6 +59,7 @@ from app.infrastructure.video.schemas import (
     VideoInfo,
 )
 from app.models import TraceEvent
+from app.utils.template import render_template
 
 logger = logging.getLogger(__name__)
 
@@ -76,11 +79,8 @@ class MultimodalSkillSynthesizer:
         # 从配置读取最大关键帧数
         self.keyframe_selector = KeyframeSelector(max_keyframes=settings.MAX_KEYFRAMES)
         self.prompt_builder = LearningPromptBuilder()
-        # 使用系统配置的 Vision LLM
-        self.vision_llm = VisionLLMFactory.create_vision_llm(temperature=0.3)
-        self.model_name = SystemConfigService.get_value(
-            "VISION_MODEL"
-        ) or SystemConfigService.get_value("LLM_MODEL")
+        # 仅记录用于日志/元数据的视觉模型名称；实际 LLM 在 synthesize 中异步创建
+        self.model_name = SystemConfigService.get_value("VISION_MODEL") or ""
 
     async def synthesize(self, recording: RecordingSession) -> dict:
         """
@@ -114,9 +114,9 @@ class MultimodalSkillSynthesizer:
                     voice_transcript = stt_result.text.strip()
                     logger.info(f"Audio transcription success: {voice_transcript}")
                 try:
-                    os.unlink(audio_path)
+                    await asyncio.to_thread(os.unlink, audio_path)
                 except Exception:
-                    pass
+                    logger.debug("Failed to remove temporary audio file", exc_info=True)
         except Exception as e:
             logger.warning(f"Audio transcription failed or skipped: {e}")
 
@@ -168,7 +168,8 @@ class MultimodalSkillSynthesizer:
         logger.info(f"Target package detected: {bundle_id}")
 
         # Step 7: 调用多模态 LLM
-        logger.info(f"Calling Vision LLM ({self.model_name})...")
+        logger.info(f"Creating Vision LLM ({self.model_name})...")
+        self.vision_llm = await VisionLLMFactory.create_vision_llm_async(temperature=0.3)
         try:
             llm_response = await self._call_vision_llm(
                 task_description=recording.task_description,
@@ -228,7 +229,8 @@ class MultimodalSkillSynthesizer:
         # from the skill metadata to keep the two models decoupled.
         macro_script = None
         if final_steps:
-            macro_script = yaml.dump(
+            macro_script = await asyncio.to_thread(
+                yaml.dump,
                 final_steps,
                 default_flow_style=False,
                 allow_unicode=True,
@@ -249,7 +251,7 @@ class MultimodalSkillSynthesizer:
                 "frames_analyzed": len(compressed_frames),
                 "events_processed": len(events),
                 "video_duration": video_info.duration,
-                "model": self.model_name or "unknown",
+                "model": self.model_name,
             },
         }
 
@@ -278,8 +280,6 @@ class MultimodalSkillSynthesizer:
         # Defensive: older implementations returned a YAML string
         if isinstance(macro_script, str):
             try:
-                import yaml
-
                 data = yaml.safe_load(macro_script)
                 if isinstance(data, dict) and "steps" in data:
                     return data["steps"]
@@ -301,10 +301,6 @@ class MultimodalSkillSynthesizer:
 
     async def _extract_audio(self, video_path: str) -> str | None:
         """FFmpeg 提取视频中的音频轨并存为临时 WAV 文件"""
-        import os
-        import subprocess
-        import tempfile
-
         output_path = os.path.join(
             tempfile.gettempdir(), f"evoloop_audio_{os.path.basename(video_path)}.wav"
         )
@@ -325,22 +321,23 @@ class MultimodalSkillSynthesizer:
             output_path,
         ]
         try:
-            loop = asyncio.get_running_loop()
-            result = await loop.run_in_executor(
-                None, lambda: subprocess.run(cmd, capture_output=True, timeout=30)
+            result = await asyncio.to_thread(
+                subprocess.run, cmd, capture_output=True, timeout=30
             )
             if result.returncode == 0:
-                if os.path.exists(output_path) and os.path.getsize(output_path) > 1000:
+                if (
+                    await asyncio.to_thread(os.path.exists, output_path)
+                    and await asyncio.to_thread(os.path.getsize, output_path) > 1000
+                ):
                     logger.info(
                         f"Successfully extracted audio from video to: {output_path}"
                     )
                     return output_path
             else:
-                logger.warning(
-                    f"Audio extraction warning (ffmpeg): {result.stderr.decode()}"
-                )
-        except Exception as e:
-            logger.error(f"Failed to extract audio track: {e}")
+                stderr = result.stderr.decode() if result.stderr else ""
+                logger.warning(f"Audio extraction warning (ffmpeg): {stderr}")
+        except Exception:
+            logger.exception("Failed to extract audio track")
 
         return None
 
@@ -361,7 +358,9 @@ class MultimodalSkillSynthesizer:
                 "json",
                 video_path,
             ]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            result = await asyncio.to_thread(
+                subprocess.run, cmd, capture_output=True, text=True, timeout=10
+            )
             data = json.loads(result.stdout)
 
             stream = data["streams"][0]
@@ -381,8 +380,8 @@ class MultimodalSkillSynthesizer:
             )
 
             return VideoInfo(duration=duration, width=width, height=height, fps=fps)
-        except Exception as e:
-            logger.error(f"Failed to get video info for {video_path}: {e}")
+        except Exception:
+            logger.exception(f"Failed to get video info for {video_path}")
             return VideoInfo(
                 duration=30.0, width=1920, height=1080, fps=self.DEFAULT_VIDEO_FPS
             )
@@ -486,9 +485,9 @@ class MultimodalSkillSynthesizer:
                 )
 
                 frames.append(compressed)
-            except Exception as e:
-                logger.warning(
-                    f"[KeyframeExtraction] Failed to process frame {i} at {keyframe.timestamp}s: {e} | "
+            except Exception:
+                logger.exception(
+                    f"[KeyframeExtraction] Failed to process frame {i} at {keyframe.timestamp}s | "
                     f"Context: {keyframe.context}, Description: {keyframe.description}"
                 )
                 continue
@@ -501,8 +500,6 @@ class MultimodalSkillSynthesizer:
 
     async def _extract_single_frame(self, video_path: str, timestamp: float) -> str:
         """FFmpeg 提取单帧 (兼容 Mac 格式)"""
-        import tempfile
-
         output_path = Path(tempfile.gettempdir()) / f"evoloop_frame_{timestamp:.3f}.jpg"
 
         cmd = [
@@ -520,17 +517,22 @@ class MultimodalSkillSynthesizer:
             "yuvj420p",  # Mac JPEG 兼容性
             str(output_path),
         ]
-        result = subprocess.run(cmd, capture_output=True, timeout=10)
-        if result.returncode != 0:
-            raise RuntimeError(f"FFmpeg extraction failed: {result.stderr.decode()}")
-        return str(output_path)
+        try:
+            result = await asyncio.to_thread(
+                subprocess.run, cmd, capture_output=True, timeout=10
+            )
+            if result.returncode != 0:
+                stderr = result.stderr.decode() if result.stderr else ""
+                raise RuntimeError(f"FFmpeg extraction failed: {stderr}")
+            return str(output_path)
+        except Exception:
+            logger.exception(f"Failed to extract frame at {timestamp}s from {video_path}")
+            raise
 
     def _build_event_context(
         self, events: list[TraceEvent], original_resolution: tuple[int, int]
     ) -> str:
         """构建详细的事件内容上下文 (用于 Prompt) - 使用模板渲染"""
-        from app.utils.template import render_template
-
         normalizer = CoordinateNormalizer(
             original_resolution[0], original_resolution[1]
         )
@@ -652,8 +654,6 @@ class MultimodalSkillSynthesizer:
         voice_transcript: str | None = None,
     ) -> str:
         """构建多模态消息并调用 LLM"""
-        from app.core.engine.message.native_classes import HumanMessage, SystemMessage
-
         # 加载新的系统模板
         system_prompt = self.prompt_builder.build_multimodal_synthesis_prompt({})
 
@@ -702,14 +702,10 @@ class MultimodalSkillSynthesizer:
             frame_vars.append(f_data)
 
         try:
-            from app.utils.template import render_template
-
-            frames_narrative = render_template(
-                "core/vision/multimodal_frames.prompt.j2", frames=frame_vars
-            )
+            frames_narrative = render_template("core/vision/multimodal_frames.prompt.j2", frames=frame_vars)
             content.append({"type": "text", "text": frames_narrative})
-        except Exception as e:
-            logger.error(f"Failed to render Multimodal Frames template: {e}")
+        except Exception:
+            logger.exception("Failed to render Multimodal Frames template")
             content.append(
                 {
                     "type": "text",

@@ -141,13 +141,10 @@ class FinishNode(BaseNode):
             ctx.thread_id
             or state.thread_id
             or config.get("configurable", {}).get("thread_id")
-            or "unknown"
         )
 
         if messages:
             model = config.get("configurable", {}).get("model")
-            if not model:
-                raise ValueError("[FinishNode] No model provided in config.")
             trim_result = _trimmer.trim(
                 messages=messages,
                 model=model,

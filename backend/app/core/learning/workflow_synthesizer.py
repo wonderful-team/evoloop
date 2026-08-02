@@ -136,7 +136,10 @@ class WorkflowSynthesizer:
 
         # Step 3: Call LLM to synthesize the appropriate artifact
         yaml_output = await self._generate_yaml(
-            narrative, sequence.summarize().model_dump(), sequence.initial_intent or "", self.macro_script or ""
+            narrative,
+            sequence.summarize().model_dump(),
+            sequence.initial_intent or "",
+            self.macro_script or ""
         )
 
         # Step 4: Parse YAML into the appropriate artifact
@@ -185,10 +188,8 @@ class WorkflowSynthesizer:
         )
 
         # Use InternalLLMService to prevent internal synthesis from being logged to chat
-        from app.infrastructure.config.service import SystemConfigService
         from app.infrastructure.llm import InternalLLMService
 
-        model_name = SystemConfigService.get_value("LLM_MODEL", "gpt-4o")
         response = await InternalLLMService.invoke(
             messages=[
                 {"role": "system", "content": prompt},
@@ -198,14 +199,11 @@ class WorkflowSynthesizer:
                 },
             ],
             purpose="skill_synthesis",
-            model_name=model_name,
             max_tokens=4000,
         )
         content = response.content
 
-        logger.info(
-            f"--- [{self.mode.value.title()} Synthesis Response Start] ---\n{content}\n--- [{self.mode.value.title()} Synthesis Response End] ---"
-        )
+        logger.info(f"--- [{self.mode.value.title()} Synthesis Response Start] ---\n{content}\n--- [{self.mode.value.title()} Synthesis Response End] ---")
 
         # Strip markdown fences
         if "```yaml" in content:
@@ -277,9 +275,7 @@ class WorkflowSynthesizer:
             tools_used=list(set(sequence.tools_used)),
         )
 
-    def _parse_yaml(
-        self, yaml_str: str, sequence: TraceSequence | None
-    ) -> SynthesizedSkill | SynthesizedMacro:
+    def _parse_yaml(self, yaml_str: str, sequence: TraceSequence | None) -> SynthesizedSkill | SynthesizedMacro:
         """Backward-compatible dispatcher; kept for existing unit tests."""
         if self.mode == SynthesisMode.MACRO:
             return self._parse_yaml_macro(yaml_str)

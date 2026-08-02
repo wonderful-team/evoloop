@@ -64,6 +64,17 @@ async def run_node_loop(
             update = await supervisor_node(state, config)
             merge_state_update(state, update)
             state.next_node = route_supervisor(state)
+            NEW_COMMAND_NODES = {
+                RoutingTarget.WORKER,
+                RoutingTarget.SPAWN_SUBTASKS,
+                RoutingTarget.SEQUENTIAL_WORKFLOW,
+            }
+            if state.next_node in NEW_COMMAND_NODES:
+                from app.core.engine.worker_registry import worker_registry
+                old_task = await worker_registry.pop_previous_task(thread_id)
+                if old_task and not old_task.done():
+                    logger.info(f"[{log_prefix}] NEW_COMMAND target '{state.next_node}' detected. Cancelling old worker task.")
+                    old_task.cancel()
         elif current_node == RoutingTarget.WORKER:
             update = await worker_node(state, config)
             merge_state_update(state, update)

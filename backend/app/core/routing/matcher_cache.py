@@ -13,9 +13,57 @@ import logging
 
 from app.core.routing.init_spec import build_and_enrich_spec
 from app.core.routing.local_matcher import LocalMatcher
+from app.core.routing.schemas import RouteCatalog
+from app.infrastructure.cache import cache
 from app.infrastructure.config.service import SystemConfigService
 
 logger = logging.getLogger(__name__)
+
+SPEC_CACHE_KEY = "l0:init_spec:current"
+
+
+def _matcher_from_spec(spec: RouteCatalog) -> LocalMatcher:
+    """Build a LocalMatcher from an enriched RouteCatalog."""
+    return LocalMatcher(
+        templates=spec.templates,
+        slot_dictionaries=spec.slot_dictionaries,
+        aliases=spec.aliases,
+        app_usage_rank=spec.app_usage_rank,
+    )
+
+
+async def _load_spec_from_cache() -> RouteCatalog | None:
+    """Read the enriched RouteCatalog built by the Huey worker.
+
+    Returns ``None`` when the cache is empty, unreadable, or holds an invalid
+    payload. Callers should fall back to ``build_and_enrich_spec()``.
+    """
+    try:
+        raw = await cache.get(SPEC_CACHE_KEY)
+    except Exception:
+        logger.warning("[matcher_cache] cache read failed", exc_info=True)
+        return None
+
+    if raw is None:
+        return None
+
+    try:
+        if isinstance(raw, str):
+            return RouteCatalog.model_validate_json(raw)
+        return RouteCatalog.model_validate(raw)
+    except Exception:
+        logger.warning("[matcher_cache] failed to parse cached spec", exc_info=True)
+        return None
+
+
+async def _build_and_cache_spec() -> RouteCatalog:
+    """Build the spec from backend sources and mirror it into the cache."""
+    spec = await build_and_enrich_spec()
+    try:
+        await cache.set(SPEC_CACHE_KEY, spec.model_dump_json())
+    except Exception:
+        logger.warning("[matcher_cache] cache write failed", exc_info=True)
+    return spec
 
 
 class LocalMatcherCache:
@@ -31,34 +79,47 @@ class LocalMatcherCache:
         Reads are lock-free once a matcher has been built.  Rebuild replaces the
         reference atomically, so concurrent callers always see either the old or
         the new matcher, never a half-built one.
+
+        The matcher is built from the shared RouteCatalog cache when available
+        (populated by the Huey worker). If the cache is empty or unreadable we
+        fall back to building from backend sources and writing the result back
+        to the cache.
         """
         matcher = self._matcher
         if matcher is not None:
             return matcher
 
         async with self._lock:
-            if self._matcher is None:
-                spec = await build_and_enrich_spec()
-                self._matcher = LocalMatcher(
-                    templates=spec.templates,
-                    slot_dictionaries=spec.slot_dictionaries,
-                    aliases=spec.aliases,
-                    app_usage_rank=spec.app_usage_rank,
-                )
-                logger.debug("[matcher_cache] local matcher initialized")
+            if self._matcher is not None:
+                return self._matcher
+
+            spec = await _load_spec_from_cache()
+            source = "cache"
+            if spec is None:
+                spec = await _build_and_cache_spec()
+                source = "db"
+
+            self._matcher = _matcher_from_spec(spec)
+            logger.debug("[matcher_cache] local matcher initialized from %s", source)
             return self._matcher
 
     async def rebuild(self) -> None:
-        """Rebuild the matcher (call after macro / language changes)."""
+        """Rebuild the matcher from sources and refresh the shared cache."""
         async with self._lock:
-            spec = await build_and_enrich_spec()
-            self._matcher = LocalMatcher(
-                templates=spec.templates,
-                slot_dictionaries=spec.slot_dictionaries,
-                aliases=spec.aliases,
-                app_usage_rank=spec.app_usage_rank,
-            )
+            spec = await _build_and_cache_spec()
+            self._matcher = _matcher_from_spec(spec)
         logger.debug("[matcher_cache] local matcher rebuilt")
+
+    def invalidate(self) -> None:
+        """Mark the cached matcher as stale so the next ``get()`` rebuilds it.
+
+        This is cheap and safe to call from event handlers: it does not perform
+        I/O or build a new matcher synchronously. The actual rebuild is deferred
+        to the next request and can also be kicked off immediately by dispatching
+        ``build_l0_init_spec`` from the caller.
+        """
+        self._matcher = None
+        logger.debug("[matcher_cache] local matcher invalidated")
 
 
 # Module singleton.
@@ -66,7 +127,7 @@ matcher_cache = LocalMatcherCache()
 
 
 async def _on_language_changed(_old_value: str, new_value: str) -> None:
-    """LANGUAGE changes invalidate both the language store and the matcher cache."""
+    """LANGUAGE changes invalidate the local matcher and refresh the shared cache."""
     if not new_value:
         return
 
@@ -74,8 +135,16 @@ async def _on_language_changed(_old_value: str, new_value: str) -> None:
     from app.core.routing.routing_data import get_store
 
     await get_store().reload(new_value)
-    await matcher_cache.rebuild()
-    logger.info("[matcher_cache] language changed to %s, matcher rebuilt", new_value)
+    matcher_cache.invalidate()
+
+    try:
+        from app.core.routing import tasks as routing_tasks
+
+        routing_tasks.build_l0_init_spec.delay()
+    except Exception:
+        logger.warning("[matcher_cache] failed to dispatch routing init spec rebuild", exc_info=True)
+
+    logger.info("[matcher_cache] language changed to %s, matcher invalidated", new_value)
 
 
 try:

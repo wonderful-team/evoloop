@@ -94,9 +94,7 @@ class AggregatorNode(BaseNode):
             )
 
         from app.infrastructure.llm import InternalLLMService
-        from app.infrastructure.config.service import SystemConfigService
         from app.utils.template import render_template
-        model_name = SystemConfigService.get_value("LLM_MODEL")
         prompt = render_template(
             "core/engine/tools/orchestration_aggregate.prompt.j2",
             original_task=original_task,
@@ -108,7 +106,6 @@ class AggregatorNode(BaseNode):
             messages=[{"role": "user", "content": prompt}],
             purpose="result_aggregation",
             temperature=0.3,
-            model_name=model_name,
         )
         content = response.content
         return AggregateResult(status="success", aggregated=content)

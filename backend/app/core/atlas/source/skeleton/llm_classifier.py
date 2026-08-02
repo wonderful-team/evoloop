@@ -14,7 +14,6 @@ from __future__ import annotations
 import json
 import logging
 
-from app.infrastructure.config.service import SystemConfigService
 from app.infrastructure.llm import InternalLLMService
 
 logger = logging.getLogger(__name__)
@@ -78,13 +77,6 @@ class LLMFileClassifier:
         summaries: dict[str, str],
         module_name: str,
     ) -> dict[str, str]:
-        model_name = SystemConfigService.get_value("LLM_MODEL")
-        if not model_name:
-            logger.warning(
-                "[LLMFileClassifier] No LLM_MODEL configured; skipping classification"
-            )
-            return {}
-
         prompt_lines = [
             "You are a language-agnostic software architect. Classify each file below "
             "into one of these architecture roles based on its path, name, and optional summary.",
@@ -139,7 +131,6 @@ class LLMFileClassifier:
                 purpose="appmap_file_classification",
                 temperature=0.1,
                 max_tokens=2000,
-                model_name=model_name,
             )
             content = response.content if hasattr(response, "content") else str(response)
             return self._parse_json_response(content, file_paths)

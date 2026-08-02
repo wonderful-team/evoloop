@@ -411,14 +411,12 @@ async def git_harvest_task(cwd: str, project_id: int, model: str | None = None):
 
         from app.infrastructure.llm import InternalLLMService
 
-        model_name = SystemConfigService.get_value("LLM_MODEL")
         result = await InternalLLMService.invoke_structured(
             messages=[{"role": "system", "content": prompt_text}],
             purpose="memory_extraction",
             output_schema=GitConceptExtractionResult,
             temperature=0.0,
             max_tokens=4000,
-            model_name=model_name,
         )
 
         if result.concepts:
@@ -690,7 +688,6 @@ async def run_engine_audit_structured_extraction(
         m.model_dump() for m in EvoMessageConverter.repair(messages_dicts)
     ]
 
-    model_name = SystemConfigService.get_value("LLM_MODEL")
     schema_json = json.dumps(
         DynamicVerdict.model_json_schema(), ensure_ascii=False, indent=2
     )
@@ -709,7 +706,6 @@ async def run_engine_audit_structured_extraction(
                 purpose="audit_extraction",
                 temperature=0.1,
                 max_tokens=4000,
-                model_name=model_name,
                 structured_output_method="function_calling",
                 extra_body={"enable_thinking": False},
             ),

@@ -22,21 +22,10 @@ async def triage_app_batch(app_ids: list[str]) -> dict[str, dict]:
         logger.debug("[Task] Skipping LLM triage: user not authenticated")
         return {}
 
-    from app.infrastructure.config.service import SystemConfigService
-
-    model_name = SystemConfigService.get_value("LLM_MODEL")
-    if not model_name:
-        logger.debug("[Task] Skipping LLM triage: no LLM model configured")
-        return {}
-
     from app.utils.template import render_template
 
-    prompt = render_template(
-        "domain/planning/dynamic_app_triage.prompt.j2", app_ids=app_ids
-    )
-    role_name = render_template(
-        "domain/planning/expert_roles.prompt.j2", role="ui_dynamics"
-    ).strip()
+    prompt = render_template("domain/planning/dynamic_app_triage.prompt.j2", app_ids=app_ids)
+    role_name = render_template("domain/planning/expert_roles.prompt.j2", role="ui_dynamics").strip()
 
     from app.infrastructure.llm import InternalLLMService
 
@@ -48,7 +37,6 @@ async def triage_app_batch(app_ids: list[str]) -> dict[str, dict]:
         purpose="environment_exploration",
         temperature=0,
         max_tokens=4000,
-        model_name=model_name,
     )
 
     content = response.content.strip()

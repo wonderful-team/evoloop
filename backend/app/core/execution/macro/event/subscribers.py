@@ -29,6 +29,7 @@ class MacroCreatorSubscriber:
         thread_id = event.data.thread_id
         member_id = getattr(event.data, "member_id", None) or 0
         from app.core.execution.macro.macro_creator_service import MacroCreatorService
+
         await MacroCreatorService.create_macro_from_trace(thread_id, member_id=member_id)
 
 
@@ -110,10 +111,7 @@ class MacroSelfHealingAdvisor:
         # Success Case: Suggest recovery with contextual information
         logger.info(f"[Self-Healing] Suggesting perceptual recovery for macro '{event.skill_name}'")
         event.suggestions.append(
-            SelfHealingPolicy.get_enabled_message(
-                skill_name=event.skill_name,
-                error_message=event.error_message
-            )
+            SelfHealingPolicy.get_enabled_message(skill_name=event.skill_name, error_message=event.error_message)
         )
 
 
@@ -121,17 +119,48 @@ class MacroSelfHealingAdvisor:
 class MacroL0MatcherSubscriber:
     """Rebuild L0 local matcher when macros are created/updated/deleted/obsoleted."""
 
+    @staticmethod
+    def _macro_id_from_event(event) -> int | None:
+        """Extract macro_id from the event payload, tolerating both model and dict forms."""
+        macro_id = getattr(event, "macro_id", None)
+        if macro_id is not None:
+            return macro_id
+
+        data = getattr(event, "data", None)
+        if data is None:
+            return None
+
+        if isinstance(data, dict):
+            return data.get("macro_id")
+        return getattr(data, "macro_id", None)
+
     @event_subscribe(SystemEventType.MACRO_CREATED)
     @event_subscribe(SystemEventType.MACRO_UPDATED)
     @event_subscribe(SystemEventType.MACRO_DELETED)
     @event_subscribe(SystemEventType.MACRO_OBSOLETED)
     async def on_macro_lifecycle(self, event) -> None:
-        """Rebuild the L0 local matcher so trigger patterns take effect immediately."""
+        """Invalidate the L0 matcher and ask the worker to refresh the shared cache.
+
+        The actual rebuild is performed by the Huey ``build_l0_init_spec`` task
+        so that API requests do not block on regex compilation. The next
+        ``voice.route`` will either load from the refreshed cache or fall back to
+        a local rebuild.
+        """
         from app.core.execution.macro.runner import invalidate_macro_cache
+        from app.core.routing import tasks as routing_tasks
         from app.core.routing.matcher_cache import matcher_cache
 
-        macro_id = getattr(getattr(event, "data", None), "macro_id", None)
+        macro_id = self._macro_id_from_event(event)
         invalidate_macro_cache(macro_id)
-        await matcher_cache.rebuild()
-        logger.info("[L0Matcher] rebuilt after macro lifecycle event: %s (macro_id=%s)",
-                    getattr(event, "event_type", "unknown"), macro_id)
+        matcher_cache.invalidate()
+
+        try:
+            routing_tasks.build_l0_init_spec.delay()
+        except Exception:
+            logger.warning("[L0Matcher] failed to dispatch routing init spec rebuild", exc_info=True)
+
+        logger.info(
+            "[L0Matcher] invalidated after macro lifecycle event: %s (macro_id=%s)",
+            getattr(event, "event_type", "unknown"),
+            macro_id,
+        )

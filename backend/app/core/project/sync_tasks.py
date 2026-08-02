@@ -27,6 +27,7 @@ async def sync_project_to_cloud_task(_self, repo_id: int):
     logger.info(f"[SyncTask] Starting Cloud Sync for Repo ID: {repo_id}")
 
     from app.infrastructure.database.resource_manager import db_resource_manager
+
     await db_resource_manager.initialize(create_tables=False, seed_data=False)
 
     try:
@@ -80,8 +81,8 @@ async def sync_tasks_to_evocloud_task(_self, task_ids: list[str], analysis_id: s
     Background task to sync requirement tasks to EvoCloud.
     Called automatically after requirement analysis is confirmed.
     """
-    from app.infrastructure.database.resource_manager import db_resource_manager
     from app.infrastructure.database import session_scope
+    from app.infrastructure.database.resource_manager import db_resource_manager
     from app.models.project import ProjectTask
 
     await db_resource_manager.initialize(create_tables=False, seed_data=False)
@@ -93,9 +94,7 @@ async def sync_tasks_to_evocloud_task(_self, task_ids: list[str], analysis_id: s
             from sqlalchemy import select
 
             # Get all tasks to sync
-            stmt = select(ProjectTask).where(
-                ProjectTask.id.in_(task_ids)
-            )
+            stmt = select(ProjectTask).where(ProjectTask.id.in_(task_ids))
             result = await session.execute(stmt)
             tasks = result.scalars().all()
 
@@ -157,8 +156,34 @@ def _format_task_description(task_data: dict) -> str:
             "domain/project/project_management.prompt.j2",
             description=task_data.get("description", ""),
             references=task_data.get("requirement_refs", []),
-            checklist=task_data.get("acceptance_criteria", [])
+            checklist=task_data.get("acceptance_criteria", []),
         )
     except Exception as e:
         logger.error(f"Failed to render task description: {e}")
         return task_data.get("description", "Formatting error.")
+
+
+@shared_task(
+    name="sync_cloud_projects",
+    retries=1,
+    retry_delay=30,
+)
+async def sync_cloud_projects_task() -> None:
+    """Align local projects with EvoCloud in the background.
+
+    Moved off the API startup critical path: the local workspace scan and the
+    sequential cloud HTTP calls (project source alignment + current-project
+    hint) previously blocked APP_STARTED for ~1.4s. Watchers and
+    working-directory state stay in the API process (handled by
+    ``reconcile_projects`` / ``ProjectSwitchedEvent``), so they are skipped here.
+    """
+    from app.infrastructure.database.resource_manager import db_resource_manager
+
+    await db_resource_manager.initialize(create_tables=False, seed_data=False)
+
+    try:
+        from app.core.project.sync_service import project_sync_service
+
+        await project_sync_service.sync_cloud_project(start_watchers=False)
+    finally:
+        await flush_loop_bound_resources()

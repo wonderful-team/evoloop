@@ -86,3 +86,34 @@ class LearningLifecycleSubscriber:
             namespace=data.get("namespace"),
             name=data.get("name"),
         )
+
+
+@event_register()
+class InitSpecRefreshSubscriber:
+    """Refresh the shared L0 RouteCatalog cache when skills mutate.
+
+    Skills that become builtin macros affect the voice/chat routing catalog, so
+    we invalidate the in-process matcher and ask the Huey worker to rebuild the
+    shared cache. The next request loads the refreshed catalog.
+    """
+
+    @event_subscribe(SystemEventType.SKILL_CREATED)
+    @event_subscribe(SystemEventType.SKILL_UPDATED)
+    @event_subscribe(SystemEventType.SKILL_DELETED)
+    async def on_skill_mutated(self, event: SkillMutatedEvent) -> None:
+        from app.core.routing import tasks as routing_tasks
+        from app.core.routing.matcher_cache import matcher_cache
+
+        matcher_cache.invalidate()
+
+        try:
+            routing_tasks.build_l0_init_spec.delay()
+        except Exception:
+            logger.warning(
+                "[InitSpecRefresh] failed to dispatch voice init spec rebuild", exc_info=True)
+
+        logger.debug(
+            "[InitSpecRefresh] invalidated matcher after skill event: %s (skill_id=%s)",
+            event.event_type,
+            event.data.get("skill_id") if event.data else None,
+        )

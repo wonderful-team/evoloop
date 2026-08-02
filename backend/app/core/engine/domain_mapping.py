@@ -67,4 +67,11 @@ def resolve_domain(domain: str | None) -> tuple[str, list[str]]:
     return DOMAIN_TO_INTENT_MODULES.get(domain, DEFAULT_INTENT_MODULES)
 
 
-__all__ = ["DOMAIN_TO_INTENT_MODULES", "DEFAULT_INTENT_MODULES", "resolve_domain"]
+__all__ = ["DOMAIN_TO_INTENT_MODULES", "DEFAULT_INTENT_MODULES", "resolve_domain", "ACK_TEMPLATES"]
+
+ACK_TEMPLATES: list[str] = [
+    "好的，我去处理",
+    "好的，请稍等",
+    "收到，我去操作",
+    "收到，请稍后",
+]

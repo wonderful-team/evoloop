@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import random
 import time
 from typing import Any
 
@@ -50,23 +51,18 @@ def _envelope(mtype: MessageType | str, body: dict[str, Any]) -> dict[str, Any]:
 
 
 async def _handle_barge_in(thread_id: str) -> None:
-    """Handle barge-in: cancel current task, stop TTS, update state machine.
+    """Handle barge-in: stop TTS, update state machine.
 
-    Does NOT acquire the route lock — barge-in is an interrupt signal, not a
-    new route. ``cancel_voice_task`` → ``task.cancel()`` propagates
-    ``CancelledError`` into ``dispatch_macro`` / ``await_and_finalize``,
-    which push ``cancelled`` to the WS. The state machine's ``force_set``
-    overrides whatever the in-flight route set (PROCESSING/SPEAKING →
-    INTERRUPTED), which is the correct semantics.
+    Does NOT cancel the background worker task. Only cancels the current
+    streaming TTS segment.
     """
     from app.core.channel.output.voice_channel import VoiceChannel
 
-    cancelled = await voice_executor.cancel_voice_task(thread_id)
     VoiceChannel.cancel_thread(thread_id)
     _is_sending_chat_tts_text[thread_id] = True
     await voice_state_machine.force_set(thread_id, VoiceSessionState.INTERRUPTED)
     await manager.push(thread_id, _envelope("voice.barge_in", {"thread_id": thread_id}))
-    logger.info("[voice] barge_in for thread %s, cancelled=%s", thread_id, cancelled)
+    logger.info("[voice] barge_in mute-only for thread %s", thread_id)
 
 
 async def _present_voice_outcome(thread_id: str, outcome: ActionOutcome) -> None:
@@ -260,7 +256,7 @@ async def _handle_dictation_finalize(body: dict[str, Any], conn_id: str) -> None
         )
         return
 
-    model_name = SystemConfigService.get_value("LLM_MODEL") or ""
+    config = LLMConfig(model_name="", temperature=0.3, max_tokens=512)
 
     system_prompt = render_template("core/voice/dictation.md")
     messages = [
@@ -269,7 +265,6 @@ async def _handle_dictation_finalize(body: dict[str, Any], conn_id: str) -> None
     ]
 
     try:
-        config = LLMConfig(model_name=model_name, temperature=0.3, max_tokens=512)
         llm = await LLMFactory.create_llm(config)
         result = await llm.ainvoke(messages)
         content = ""
@@ -440,6 +435,11 @@ _is_sending_chat_tts_text: dict[str, bool] = {}
 _volc_gen: dict[str, int] = {}  # generation counter for voice_receive_loop staleness
 
 
+def unblock_voice_tts(thread_id: str) -> None:
+    """Expose helper to unblock streaming TTS audio bytes immediately when text synthesis starts."""
+    _is_sending_chat_tts_text[thread_id] = False
+
+
 async def voice_receive_loop(
     websocket: WebSocket,
     volc_client: VolcDialogClient,
@@ -467,15 +467,22 @@ async def voice_receive_loop(
             if mtype == "SERVER_ACK":
                 if mode == "dictation":
                     pass
-                elif isinstance(payload, bytes):
+                else:
                     flag = _is_sending_chat_tts_text.get(thread_id, False)
-                    if flag:
-                        continue
+                    logger.debug(
+                        "[voice-ws] SERVER_ACK payload_type=%s len=%s flag=%s",
+                        type(payload),
+                        len(payload) if isinstance(payload, (bytes, bytearray)) else 0,
+                        flag,
+                    )
+                    if isinstance(payload, bytes):
+                        if flag:
+                            continue
 
-                    try:
-                        await websocket.send_bytes(payload)
-                    except Exception as e:
-                        logger.warning(f"[voice-ws] Failed to send audio bytes to Rust: {e}")
+                        try:
+                            await websocket.send_bytes(payload)
+                        except Exception as e:
+                            logger.warning(f"[voice-ws] Failed to send audio bytes to Rust: {e}")
             elif mtype == "SERVER_FULL_RESPONSE":
                 # --- Shared: event 451 ASR partial ---
                 if event == 451 and isinstance(payload, dict):
@@ -674,6 +681,14 @@ async def _run_agent_pipeline(websocket: WebSocket, thread_id: str, text: str) -
 
             if outcome.msg is None:
                 return
+
+            # --- EARLY ACK ---
+            if outcome and not outcome.handled and outcome.msg:
+                from app.core.engine.domain_mapping import ACK_TEMPLATES
+                ack_text = random.choice(ACK_TEMPLATES)
+                if ack_text:
+                    await VoiceChannel.push_tts_chunk(thread_id, ack_text, end=True, force_start=True)
+                    VoiceChannel.reset_tts_started(thread_id)
 
             logger.info("[voice-perf] %s L0 miss → agent dispatch", thread_id)
             post = await voice_input.post_dispatch(outcome.msg, outcome.inputs)

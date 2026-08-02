@@ -140,11 +140,9 @@ class DeepDreamDistiller:
                 {"role": "user", "content": prompt_text},
             ]
 
-            model_name = SystemConfigService.get_value("LLM_MODEL")
             response = await InternalLLMService.invoke(
                 messages=messages,
                 purpose="memory_consolidation",
-                model_name=model_name,
             )
 
             return self._parse_insights(response.content)

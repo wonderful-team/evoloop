@@ -36,13 +36,10 @@ async def decompose_task(
     )
 
     from app.infrastructure.llm import InternalLLMService
-    from app.infrastructure.config.service import SystemConfigService
-    model_name = SystemConfigService.get_value("LLM_MODEL")
     response = await InternalLLMService.invoke(
         messages=[{"role": "user", "content": prompt}],
         purpose="task_decomposition",
         temperature=0.3,
-        model_name=model_name,
     )
     content = response.content
     json_content = extract_json_from_markdown(content)

@@ -92,7 +92,6 @@ async def name_clusters_with_llm(
     except Exception:
         pass
 
-    model_name = SystemConfigService.get_value("LLM_MODEL")
     result: dict[str, list[str]] = {}
 
     for cid, entities in communities.items():
@@ -125,7 +124,6 @@ async def name_clusters_with_llm(
                 purpose="module_naming",
                 temperature=0.1,
                 max_tokens=50,
-                model_name=model_name,
             )
             name = response.content.strip()
             if not name or len(name) > 60:

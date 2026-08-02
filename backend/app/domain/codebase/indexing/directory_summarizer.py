@@ -91,13 +91,11 @@ class DirectorySummarizer:
             directory_path=dir_path,
             child_summaries=child_summaries,
         )
-        from app.infrastructure.config.service import SystemConfigService
         from app.infrastructure.llm import InternalLLMService
-        model_name = SystemConfigService.get_value("LLM_MODEL")
         response = await InternalLLMService.invoke(
             messages=[{"role": "user", "content": prompt_text}],
             purpose="skill_synthesis",
-            model_name=model or model_name,
+            model_name=model,
         )
         return response.content
 

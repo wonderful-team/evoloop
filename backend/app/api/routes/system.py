@@ -178,13 +178,13 @@ async def discover_models() -> ModelDiscoveryResponse:
         platform_models = await get_available_llm_models(config_type="platform")
         for pm in platform_models:
             models.append(DiscoveredModelResponse(
-                id=pm.get("id", ""),
-                name=pm.get("name", ""),
+                id=pm.id,
+                name=pm.name,
                 source="evocloud",
-                model_name=pm.get("model", ""),
+                model_name=pm.model,
                 status="available",
-                capabilities=["chat", "embedding"] if pm.get("supports_tool_calls") else ["embedding"],
-                context_window=pm.get("context_window"),
+                capabilities=["chat", "embedding"] if pm.supports_functions else ["embedding"],
+                context_window=pm.context_window,
             ))
     except Exception as e:
         logger.debug("[Discovery] Platform models unavailable: %s", e)
@@ -400,7 +400,7 @@ async def get_llm_models(config_type: str = None) -> ModelsListResponse:
     返回:
         符合条件的模型列表
     """
-    models = await get_available_llm_models(config_type=config_type)
+    models = [m.model_dump() for m in await get_available_llm_models(config_type=config_type)]
     return ModelsListResponse(models=models, last_updated=time.strftime("%Y-%m-%d"))
 
 
@@ -409,6 +409,6 @@ async def get_embedding_models() -> ModelsListResponse:
     """
     获取可用的 Embedding 模型列表（包含平台模型和自定义模型）
     """
-    models = await get_available_embedding_models()
+    models = [m.model_dump() for m in await get_available_embedding_models()]
     return ModelsListResponse(models=models, last_updated=time.strftime("%Y-%m-%d"))
 

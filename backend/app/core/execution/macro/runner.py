@@ -100,8 +100,8 @@ class ExecutionPolicy:
 
 WEB_POLICY = ExecutionPolicy(allow_self_heal=True)
 VOICE_POLICY = ExecutionPolicy(
-    allow_self_heal=True,
-    allowed_sources=frozenset({"desktop", "dom", "mobile"}),
+    allow_self_heal=False,
+    allowed_sources=frozenset({"desktop"}),
     # allowed_families 和 max_risk_tier 不限制 — 先跑通，后续迭代加安全
 )
 

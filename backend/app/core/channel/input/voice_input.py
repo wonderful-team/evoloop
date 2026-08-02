@@ -151,9 +151,9 @@ class VoiceInputChannel(InputChannel):
             await self.handle_cancelled(thread_id)
         else:
             if old_worker_task is not None and not old_worker_task.done():
-                await self._worker_registry.register_worker(
-                    thread_id, old_worker_task, description=worker_desc
-                )
+                is_query = await self._worker_registry.pop_previous_task(thread_id) is not None
+                if is_query:
+                    await self._worker_registry.register_worker(thread_id, old_worker_task, description=worker_desc)
 
     async def handle_cancelled(self, thread_id: str) -> None:
         """Clean up when the agent task is cancelled."""

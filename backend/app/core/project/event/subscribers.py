@@ -148,7 +148,14 @@ class ProjectDomainSubscriber:
             from app.core.identity import identity_service
 
             if await identity_service.get_access_token():
-                await self._sync_service.sync_cloud_project()
+                # Defer to the Huey worker: the local workspace scan and the
+                # sequential cloud HTTP calls block APP_STARTED for ~1.4s when
+                # awaited inline. Watchers stay in the API process
+                # (ProjectLifecycleSubscriber.reconcile_projects).
+                from app.core.project.sync_tasks import sync_cloud_projects_task
+
+                sync_cloud_projects_task.delay()
+                logger.info("[ProjectHandlers] Cloud project sync dispatched to worker")
             else:
                 logger.info("[ProjectHandlers] No token on startup, skipping project sync. Will sync on USER_LOGGED_IN.")
         except Exception as e:
@@ -179,11 +186,18 @@ class ProjectDomainSubscriber:
 
         # Update SharedState so voice.route picks up the new project_id
         from app.core.shared_state import shared_state
+
         await shared_state.set("project_id", str(project_id))
 
         # Rebuild L0 local matcher so preset + current project macros are available
+        from app.core.routing import tasks as routing_tasks
         from app.core.routing.matcher_cache import matcher_cache
-        await matcher_cache.rebuild()
+
+        matcher_cache.invalidate()
+        try:
+            routing_tasks.build_l0_init_spec.delay()
+        except Exception:
+            logger.warning("[ProjectHandlers] failed to dispatch voice init spec rebuild", exc_info=True)
 
         if path:
             if not os.path.isdir(path):

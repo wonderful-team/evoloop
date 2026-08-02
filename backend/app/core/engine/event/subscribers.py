@@ -313,8 +313,6 @@ class EngineCommandSubscriber:
 
         loaded_ctx = await ContextManager.load(thread_id)
         model = loaded_ctx.active_model if loaded_ctx else None
-        if not model:
-            model = SystemConfigService.get_value("LLM_MODEL")
 
         inputs = BackgroundAgentInputs(
             hitl_resume_response=response,
@@ -332,9 +330,7 @@ class EngineCommandSubscriber:
             logger.warning("[EngineCommand] HITL cancel missing thread_id, skipping")
             return
 
-        logger.info(
-            f"[EngineCommand] Processing HITL Cancellation for thread {thread_id}"
-        )
+        logger.info(f"[EngineCommand] Processing HITL Cancellation for thread {thread_id}")
 
         # [HITL Closure]: Clear human request from activity monitor
         from app.core.monitoring.activity import activity_monitor
@@ -347,8 +343,6 @@ class EngineCommandSubscriber:
 
         loaded_ctx = await ContextManager.load(thread_id)
         model = loaded_ctx.active_model if loaded_ctx else None
-        if not model:
-            model = SystemConfigService.get_value("LLM_MODEL")
 
         inputs = BackgroundAgentInputs(
             hitl_resume_response="CANCELLED",
@@ -414,9 +408,7 @@ class EngineCommandSubscriber:
         """Shared logic for retry and rewind commands."""
         thread_id = command.get("thread_id")
         if not thread_id:
-            logger.warning(
-                "[EngineCommand] Retry/Rewind command missing thread_id, skipping"
-            )
+            logger.warning("[EngineCommand] Retry/Rewind command missing thread_id, skipping")
             return
 
         payload = command.get_payload()
@@ -424,9 +416,7 @@ class EngineCommandSubscriber:
         revert_files = payload.get("revert_files", True)
         action = "retry" if should_redispatch else "rewind"
 
-        logger.info(
-            f"[EngineCommand] Processing {action} for thread {thread_id}, target={message_id}"
-        )
+        logger.info(f"[EngineCommand] Processing {action} for thread {thread_id}, target={message_id}")
 
         from app.core.context.manager import ContextManager
         from app.core.engine.rewind import perform_rewind
@@ -451,9 +441,7 @@ class EngineCommandSubscriber:
             target_msg = result.scalar_one_or_none()
 
             if not target_msg:
-                logger.error(
-                    f"[EngineCommand] No human message found for {action} thread {thread_id}"
-                )
+                logger.error(f"[EngineCommand] No human message found for {action} thread {thread_id}")
                 # Fallback: if message is missing locally, at least attempt to delete the target message from the cloud
                 if message_id and payload.get("include_target", not should_redispatch):
                     from app.core.engine.rewind import publish_messages_cleanup
@@ -497,15 +485,10 @@ class EngineCommandSubscriber:
         )
 
         if rewind_result.status != "success":
-            logger.error(
-                f"[EngineCommand] {action} rewind failed: {rewind_result.errors}"
-            )
+            logger.error(f"[EngineCommand] {action} rewind failed: {rewind_result.errors}")
             return
 
-        logger.info(
-            f"[EngineCommand] {action} rewind completed: "
-            f"{rewind_result.removed_message_count} messages removed"
-        )
+        logger.info(f"[EngineCommand] {action} rewind completed: {rewind_result.removed_message_count} messages removed")
 
         if not should_redispatch:
             logger.info("[EngineCommand] Rewind done, no re-dispatch required")
@@ -550,17 +533,9 @@ class EngineConversationCleanup:
 
         # 1. Delete engine-owned DB records
         async with session_scope() as session:
-            await session.execute(
-                delete(AgentActivity).where(AgentActivity.thread_id == thread_id)
-            )
-            await session.execute(
-                delete(ThreadSequence).where(ThreadSequence.thread_id == thread_id)
-            )
-            await session.execute(
-                delete(HumanRequest).where(HumanRequest.thread_id == thread_id)
-            )
-            await session.execute(
-                delete(FileOperation).where(FileOperation.thread_id == thread_id)
-            )
+            await session.execute(delete(AgentActivity).where(AgentActivity.thread_id == thread_id))
+            await session.execute(delete(ThreadSequence).where(ThreadSequence.thread_id == thread_id))
+            await session.execute(delete(HumanRequest).where(HumanRequest.thread_id == thread_id))
+            await session.execute(delete(FileOperation).where(FileOperation.thread_id == thread_id))
 
         logger.info(f"[EngineCleanup] Engine cleanup done for thread {thread_id}")

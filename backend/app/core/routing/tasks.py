@@ -14,7 +14,7 @@ from app.infrastructure.queue.factory import periodic_task, shared_task
 
 logger = logging.getLogger(__name__)
 
-SPEC_CACHE_KEY = "voice:init_spec:current"
+SPEC_CACHE_KEY = "l0:init_spec:current"
 
 
 async def _rebuild() -> str:
@@ -35,18 +35,18 @@ async def _rebuild() -> str:
     return spec.version
 
 
-@shared_task(name="build_voice_init_spec")
-async def build_voice_init_spec() -> str:
+@shared_task(name="build_l0_init_spec")
+async def build_l0_init_spec() -> str:
     """Rebuild the Init Spec (clients pull it via GET /route/init)."""
     return await _rebuild()
 
 
-@periodic_task(cron="0 */6 * * *", name="build_voice_init_spec_periodic")
-def build_voice_init_spec_periodic() -> None:
+@periodic_task(cron="0 */6 * * *", name="build_l0_init_spec_periodic")
+def build_l0_init_spec_periodic() -> None:
     """Long-period fallback rebuild every 6h (design §19.6).
 
     Skill create/update/delete trigger an immediate debounced rebuild via
     ``InitSpecRefreshSubscriber``; this periodic task only covers sources that
     have no change events (installed apps, app_usage_rank, ActionRegistry).
     """
-    build_voice_init_spec.delay()
+    build_l0_init_spec.delay()

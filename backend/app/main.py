@@ -45,6 +45,7 @@ async def lifespan(app: FastAPI):
     # Channel Registry - register built-in transports (SSE + Mobile)
     try:
         from app.core.channel import register_default_channels
+
         register_default_channels()
         logger.info("Channel registry initialized (SSE + Mobile).")
     except Exception as e:
@@ -53,6 +54,7 @@ async def lifespan(app: FastAPI):
     # Memory System Init
     try:
         from app.core.memory.lifespan import MemoryLifespanManager
+
         memory_container = await MemoryLifespanManager.ainitialize()
         _app.state.memory_container = memory_container
         logger.info("Memory Service initialized via MemoryLifespanManager.")
@@ -62,6 +64,7 @@ async def lifespan(app: FastAPI):
     # Agent Awakening - Discovery & Lifecycle Handlers
     try:
         from app.core.events.discovery import auto_discover_handlers
+
         auto_discover_handlers()
         logger.info("Discovery and registration of all domain lifecycle handlers complete.")
     except Exception as e:
@@ -69,34 +72,31 @@ async def lifespan(app: FastAPI):
 
     # Publish Application Started Event
     from app.core.events.publishers import publish_app_started
+
     await publish_app_started(startup_time)
     logger.info("[Startup] APP_STARTED event published")
 
-    # Voice assistant: dispatch Init Spec build (clients pull via GET /route/init).
+    # L0 Matcher: dispatch Init Spec build (clients pull via GET /route/init).
+    # The Huey worker writes the enriched RouteCatalog to the shared cache;
+    # the API-side L0 matcher is lazily loaded from the same cache on the first
+    # route request, so we do not rebuild it synchronously here.
     try:
-        from app.core.routing import tasks as _voice_tasks
-        _voice_tasks.build_voice_init_spec.delay()
-        logger.info("[Startup] Voice Init Spec build dispatched")
-    except Exception as e:
-        logger.warning(f"[Startup] Voice Init Spec dispatch failed (non-critical): {e}")
+        from app.core.routing import tasks as routing_tasks
 
-    # Preheat L0 local matcher: build + enrich + compile regex so the first
-    # voice.route does not pay the cold-start penalty (~1s).
-    try:
-        from app.core.routing.matcher_cache import matcher_cache
-        await matcher_cache.rebuild()
-        logger.info("[Startup] L0 local matcher preheated")
+        routing_tasks.build_l0_init_spec.delay()
+        logger.info("[Startup] L0 Init Spec build dispatched")
     except Exception as e:
-        logger.warning(f"[Startup] L0 local matcher preheat failed (non-critical): {e}")
+        logger.warning(f"[Startup] L0 Init Spec dispatch failed (non-critical): {e}")
 
     # Wire voice executor globals at startup so VoiceChannel (Agent TTS
     # streaming) can push to WS regardless of which code path triggered the
     # Agent — not just the first voice.route.
     try:
         from app.api.routes.voice_ws import _envelope as _ws_envelope
+        from app.core.schemas.canonical import MessageType as _MsgType
         from app.core.voice import executor as voice_executor
         from app.core.voice.connection import manager as _ws_manager
-        from app.core.schemas.canonical import MessageType as _MsgType
+
         voice_executor.manager = _ws_manager
         voice_executor.envelope_fn = _ws_envelope
         voice_executor.message_type = _MsgType
@@ -109,6 +109,7 @@ async def lifespan(app: FastAPI):
     # are logged but do not prevent the server from starting.
     try:
         from app.core.execution.macro.migration import migrate_deterministic_skills
+
         stats = await migrate_deterministic_skills()
         logger.info(
             "[Startup] Macro migration complete: migrated=%d skipped=%d failed=%d",
@@ -128,6 +129,7 @@ async def lifespan(app: FastAPI):
     # This triggers all decentalized LifecycleHandlers (EvoCloud, Memory, Indexing, MCP, etc.)
     try:
         from app.core.events.publishers import publish_app_stopping
+
         await publish_app_stopping()
         logger.info("[Shutdown] APP_STOPPING event published")
     except Exception as e:
@@ -135,6 +137,7 @@ async def lifespan(app: FastAPI):
 
     # 2. Cleanup Core Infrastructure (Infrastructure MUST be last)
     from app.infrastructure.llm.factory import shutdown_http_pool
+
     await shutdown_http_pool()
     await db_resource_manager.shutdown()
 

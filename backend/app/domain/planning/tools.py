@@ -275,7 +275,8 @@ async def analyze_feasibility(proposed_plan: str, config: RunnableConfig) -> str
     try:
         from app.domain.codebase.retrieval.service import RetrievalService
         from app.infrastructure.config.service import SystemConfigService
-        from app.infrastructure.llm.factory import get_default_llm
+        from app.infrastructure.llm.factory import LLMFactory
+        from app.infrastructure.schemas import LLMConfig
 
         # Retrieval
         retrieval_service = RetrievalService()
@@ -292,11 +293,7 @@ async def analyze_feasibility(proposed_plan: str, config: RunnableConfig) -> str
         tree = await generator.generate()
 
         # LLM Analysis
-        from app.infrastructure.config.service import SystemConfigService
-        model_name = SystemConfigService.get_value("LLM_MODEL")
-        if not model_name:
-            raise ValueError("LLM_MODEL not configured in SystemConfigService")
-        llm = await get_default_llm(model_name=model_name)
+        llm = await LLMFactory.create_llm(LLMConfig(model_name=""))
         user_lang = SystemConfigService.get_language_preference()
 
         prompt_text = _render_analysis_prompt(

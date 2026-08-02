@@ -259,25 +259,6 @@ class A2ACommandHandler:
 
         loaded_ctx = await ContextManager.load(caller_thread_id)
         model = loaded_ctx.active_model if loaded_ctx else None
-        if not model:
-            model = SystemConfigService.get_value("LLM_MODEL")
-        if not model:
-            # Fallback: 从 Gateway 拉取第一个可用的平台 LLM 模型
-            # 适用于进程重启后 ContextManager 丢失、且本地 DB 未配置 LLM_MODEL 的情况
-            try:
-                from app.infrastructure.llm.platform_service import llm_platform_service
-
-                platform_models = await llm_platform_service.fetch_platform_models()
-                llm_models = [m for m in platform_models if m.model_type == "llm"]
-                if llm_models:
-                    model = llm_models[0].model_id
-                    logger.info(f"[A2A] Model resolved from platform: {model}")
-            except Exception as e:
-                logger.warning(f"[A2A] Failed to fetch platform models for fallback: {e}")
-
-        if not model:
-            logger.error(f"[A2A] Cannot resume Caller thread {caller_thread_id}: no model available")
-            return
 
         inputs = BackgroundAgentInputs(
             hitl_resume_response=result_content,
