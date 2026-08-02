@@ -1,11 +1,16 @@
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import MagicMock, patch, AsyncMock
-from app.core.learning.multimodal_synthesizer import MultimodalSkillSynthesizer, RecordingSession
+
+from app.core.learning.multimodal_synthesizer import (
+    MultimodalSkillSynthesizer,
+    RecordingSession,
+)
 from app.infrastructure.voice.stt.base import STTResult, VoiceLocale
 
 
 @pytest.mark.asyncio
-@patch("app.core.learning.multimodal_synthesizer.VisionLLMFactory.create_vision_llm")
+@patch("app.core.learning.multimodal_synthesizer.VisionLLMFactory.create_vision_llm_async", new_callable=AsyncMock)
 @patch("app.core.learning.multimodal_synthesizer.SystemConfigService.get_value")
 @patch("app.core.learning.multimodal_synthesizer.subprocess.run")
 @patch("app.core.learning.multimodal_synthesizer.os.path.exists")
@@ -39,7 +44,7 @@ async def test_multimodal_synthesis_audio_flow(
     # 模拟外部文件系统和进程
     mock_exists.return_value = True
     mock_getsize.return_value = 5000  # 文件大小足够
-    
+
     # 模拟 subprocess.run 返回成功
     mock_sub_run.return_value = MagicMock(returncode=0)
 
@@ -49,14 +54,14 @@ async def test_multimodal_synthesis_audio_flow(
         MagicMock(action_type="touch_down", mouse_x=500, mouse_y=500, timestamp=1.0, source="user")
     ]
     mock_extract_frames.return_value = []
-    
+
     # 模拟语音识别结果
     mock_transcribe.return_value = STTResult(
         text="我们现在开始打开抖音然后点击搜索",
         language=VoiceLocale.ZH_CN,
         duration_ms=5000
     )
-    
+
     # 模拟 LLM 和宏处理
     mock_call_vision.return_value = "llm_output_data"
     mock_parse_llm.return_value = MagicMock(macro_script="compiled_macro")
@@ -70,11 +75,11 @@ async def test_multimodal_synthesis_audio_flow(
     )
 
     synthesizer = MultimodalSkillSynthesizer()
-    
+
     # 执行合成
     with patch("app.core.learning.multimodal_synthesizer.os.unlink") as mock_unlink:
         await synthesizer.synthesize(recording)
-        
+
         # 验证临时音频文件的清理
         mock_unlink.assert_called_once()
 

@@ -10,9 +10,6 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from app.core.execution.macro.schemas import MacroScript
-from app.infrastructure.database import session_scope
-from app.models.macro import Macro
 from app.core.execution.macro.runner import (
     VOICE_POLICY,
     WEB_POLICY,
@@ -20,6 +17,9 @@ from app.core.execution.macro.runner import (
     preflight,
     run_deterministic,
 )
+from app.core.execution.macro.schemas import MacroScript
+from app.infrastructure.database import session_scope
+from app.models.macro import Macro
 
 _DUMP_YAML = """steps:
   - step_number: 1
@@ -190,9 +190,10 @@ async def test_voice_policy_never_self_heals(_real_db, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_web_policy_success(_real_db, monkeypatch):
+    service_run = AsyncMock(return_value={"success": True, "message": "done"})
     monkeypatch.setattr(
         "app.core.execution.macro.service.MacroService.run",
-        AsyncMock(return_value={"success": True, "message": "done"}),
+        service_run,
     )
 
     outcome = await run_deterministic(
@@ -205,11 +206,16 @@ async def test_web_policy_success(_real_db, monkeypatch):
     )
 
     assert outcome.ok is True
-    assert outcome.message == "done"
+    assert outcome.message == ""
+    service_run.assert_not_called()
 
 
 @pytest.mark.asyncio
 async def test_web_policy_self_heal_dispatches_agent(_real_db, monkeypatch):
+    monkeypatch.setattr(
+        "app.core.execution.macro.engine.MacroEngine.execute",
+        AsyncMock(return_value=(False, "fast path failed", None)),
+    )
     monkeypatch.setattr(
         "app.core.execution.macro.service.MacroService.run",
         AsyncMock(
@@ -245,6 +251,10 @@ async def test_web_policy_self_heal_dispatches_agent(_real_db, monkeypatch):
 @pytest.mark.asyncio
 async def test_web_policy_healing_disabled_by_policy(_real_db, monkeypatch):
     monkeypatch.setattr(
+        "app.core.execution.macro.engine.MacroEngine.execute",
+        AsyncMock(return_value=(False, "fast path failed", None)),
+    )
+    monkeypatch.setattr(
         "app.core.execution.macro.service.MacroService.run",
         AsyncMock(
             return_value={
@@ -274,6 +284,10 @@ async def test_web_policy_healing_disabled_by_policy(_real_db, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_web_policy_dispatch_failure_surfaces(_real_db, monkeypatch):
+    monkeypatch.setattr(
+        "app.core.execution.macro.engine.MacroEngine.execute",
+        AsyncMock(return_value=(False, "fast path failed", None)),
+    )
     monkeypatch.setattr(
         "app.core.execution.macro.service.MacroService.run",
         AsyncMock(

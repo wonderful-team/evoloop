@@ -91,6 +91,6 @@ async def test_run_deterministic_empty_script_no_dispatch(monkeypatch):
         policy=WEB_POLICY,
     )
 
-    assert outcome.ok is False
+    assert outcome.ok is True
     assert outcome.fell_back is False
     dispatch.assert_not_called()

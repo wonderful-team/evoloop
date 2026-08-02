@@ -6,16 +6,15 @@ from unittest.mock import MagicMock
 import pytest
 
 from app.core.execution.macro.runner import (
+    _MACRO_CACHE,
+    _SCRIPT_CACHE,
     VOICE_POLICY,
     MacroGateError,
-    _get_cached_script,
-    _SCRIPT_CACHE,
-    _MACRO_CACHE,
     _collect_sources,
+    _get_cached_script,
     _scan_steps_risk,
     invalidate_macro_cache,
     preflight,
-    load_macro,
 )
 
 
@@ -133,13 +132,13 @@ class TestVOICEPOLICY:
         reason = _scan_steps_risk(steps, VOICE_POLICY)
         assert reason is None
 
-    def test_voice_policy_self_heal_enabled(self):
-        assert VOICE_POLICY.allow_self_heal is True
+    def test_voice_policy_self_heal_disabled(self):
+        assert VOICE_POLICY.allow_self_heal is False
 
     def test_voice_policy_allowed_sources(self):
         assert "desktop" in VOICE_POLICY.allowed_sources
-        assert "dom" in VOICE_POLICY.allowed_sources
-        assert "mobile" in VOICE_POLICY.allowed_sources
+        assert "dom" not in VOICE_POLICY.allowed_sources
+        assert "mobile" not in VOICE_POLICY.allowed_sources
 
     def test_voice_policy_rejects_global_source(self):
         assert "global" not in VOICE_POLICY.allowed_sources

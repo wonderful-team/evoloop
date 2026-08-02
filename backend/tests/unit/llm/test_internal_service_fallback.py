@@ -1,8 +1,10 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 from pydantic import BaseModel, Field, ValidationError
 
 from app.infrastructure.llm import InternalLLMService
+
 
 class MockResponseSchema(BaseModel):
     summary: str
@@ -33,7 +35,7 @@ async def test_invoke_structured_fallback_validation_error():
     llm_mock.ainvoke.return_value = MagicMock(content="should not be called")
     llm_mock.with_structured_output = MagicMock(return_value=structured_llm_mock)
 
-    # 3. Patch get_default_llm to return our mocked LLM
+    # 3. Patch LLMFactory.create_llm to return our mocked LLM
     with patch("app.infrastructure.llm.factory.get_default_llm", AsyncMock(return_value=llm_mock)):
         result = await InternalLLMService.invoke_structured(
             messages=[{"role": "user", "content": "hello"}],
@@ -111,7 +113,7 @@ async def test_invoke_structured_coercion():
     llm_mock.ainvoke = AsyncMock()
     llm_mock.with_structured_output = MagicMock(return_value=structured_llm_mock)
 
-    # 3. Patch get_default_llm to return our mocked LLM
+    # 3. Patch LLMFactory.create_llm to return our mocked LLM
     with patch("app.infrastructure.llm.factory.get_default_llm", AsyncMock(return_value=llm_mock)):
         result = await InternalLLMService.invoke_structured(
             messages=[{"role": "user", "content": "hello"}],

@@ -92,9 +92,9 @@ async def init_backend():
     models = await get_available_llm_models("platform")
     logger.info(f"[Test] Available platform models: {models}")
     if models:
-        selected_model = models[0]["id"]
+        selected_model = models[0].id
         for m in models:
-            mid = m["id"]
+            mid = m.id
             if "kimi" in mid.lower() or "gpt-4o" in mid.lower() or "deepseek" in mid.lower():
                 selected_model = mid
                 break

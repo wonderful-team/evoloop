@@ -251,7 +251,7 @@ async def test_voice_channel_cancel_thread_clears_state_and_blocks_chunks(monkey
 
 @pytest.mark.asyncio
 async def test_handle_barge_in_cancels_worker_and_tts_stream(monkeypatch):
-    """_handle_barge_in must cancel worker and abort VoiceChannel streaming TTS."""
+    """_handle_barge_in must abort VoiceChannel streaming TTS and NOT cancel the background worker."""
     tid = "t-barge"
     fake = _FakeManager()
     monkeypatch.setattr(voice_ws, "manager", fake)
@@ -272,7 +272,7 @@ async def test_handle_barge_in_cancels_worker_and_tts_stream(monkeypatch):
 
     await voice_ws._handle_barge_in(tid)
 
-    assert tid in cancelled
+    assert tid not in cancelled  # Verify worker was NOT cancelled (mute-only)
     assert voice_ws._is_sending_chat_tts_text.get(tid) is True
     assert tid in VoiceChannel._cancelled_threads
     assert tid not in VoiceChannel._tts_started
@@ -284,6 +284,165 @@ async def test_handle_barge_in_cancels_worker_and_tts_stream(monkeypatch):
 
     VoiceChannel.reset_thread(tid)
     voice_ws._is_sending_chat_tts_text.pop(tid, None)
+
+
+@pytest.mark.asyncio
+async def test_barge_in_and_query_worker_survives(monkeypatch):
+    """If user queries progress after barge-in, the worker task remains active."""
+    from app.core.engine.worker_registry import worker_registry
+    from app.core.channel.input.voice_input import voice_input
+
+    tid = "t-query-survive"
+
+    async def mock_worker():
+        try:
+            await asyncio.sleep(10)
+        except asyncio.CancelledError:
+            pass
+
+    old_task = asyncio.create_task(mock_worker())
+    await worker_registry.register_worker(tid, old_task, "old worker")
+
+    # 1. Barge-in (mute-only)
+    await voice_ws._handle_barge_in(tid)
+    assert not old_task.done()
+
+    # 2. Simulate dispatching query
+    async def mock_query():
+        pass
+    new_task = asyncio.create_task(mock_query())
+
+    # Register the new query task, which puts old_task into previous_tasks
+    await worker_registry.register_worker(tid, new_task, "new query task")
+    assert tid in worker_registry._previous_tasks
+
+    # 3. Simulate await_and_finalize completing
+    # In QUERY path, loop.py did NOT pop or cancel the old task.
+    # Therefore, await_and_finalize should restore old task registration.
+    await voice_input.await_and_finalize(tid, new_task, old_task, "old worker")
+
+    record = await worker_registry.get_worker(tid)
+    assert record.task == old_task
+    assert not old_task.done()
+
+    # Clean up
+    old_task.cancel()
+    await asyncio.gather(old_task, return_exceptions=True)
+
+
+@pytest.mark.asyncio
+async def test_barge_in_and_new_command_cancels_worker(monkeypatch):
+    """If user issues a new command after barge-in, the old worker task gets cancelled."""
+    from app.core.engine.worker_registry import worker_registry
+    from app.core.channel.input.voice_input import voice_input
+    from app.core.engine.loop import run_node_loop
+    from app.core.engine.routers import RoutingTarget
+    from unittest.mock import AsyncMock, patch
+
+    tid = "t-command-cancel"
+
+    async def mock_worker():
+        try:
+            await asyncio.sleep(10)
+        except asyncio.CancelledError:
+            pass
+
+    old_task = asyncio.create_task(mock_worker())
+    await worker_registry.register_worker(tid, old_task, "old worker")
+
+    # 1. Barge-in (mute-only)
+    await voice_ws._handle_barge_in(tid)
+    assert not old_task.done()
+
+    # 2. Start new command execution task
+    async def mock_new_command():
+        pass
+    new_task = asyncio.create_task(mock_new_command())
+    await worker_registry.register_worker(tid, new_task, "new command task")
+
+    # Mock state and patch transition to WORKER
+    class MockState:
+        next_node = RoutingTarget.SUPERVISOR
+        iteration_count = 0
+        messages = []
+        structured_plan = None
+        current_plan = None
+        session_goal = "command"
+        worker_outcome = None
+        pending_aggregation = None
+
+    class MockSupervisorNode:
+        async def __call__(self, state, config):
+            from app.core.engine.nodes.supervisor import StateUpdate
+            return StateUpdate(messages=[])
+
+    state = MockState()
+
+    with patch("app.core.engine.nodes.supervisor.SupervisorNode", return_value=MockSupervisorNode()), \
+         patch("app.core.engine.routers.route_supervisor", return_value=RoutingTarget.WORKER), \
+         patch("app.core.monitoring.activity.activity_monitor.check_cancellation", AsyncMock()):
+        await run_node_loop(state, {}, tid, max_loop_steps=1)
+
+    await asyncio.sleep(0.01)
+    assert old_task.done()  # Old task must be cancelled by the loop gate!
+
+    # await_and_finalize should not restore since it was popped/cancelled
+    await voice_input.await_and_finalize(tid, new_task, old_task, "old worker")
+    record = await worker_registry.get_worker(tid)
+    assert record.task == new_task
+
+
+@pytest.mark.asyncio
+async def test_early_ack_tts_delivery(monkeypatch):
+    """Verify that an L1 Agent route triggers an early-ack TTS push with end=True."""
+    from unittest.mock import AsyncMock, MagicMock
+    from app.core.channel.input.voice_input import voice_input
+
+    tid = "t-early-ack"
+    mock_ws = AsyncMock()
+
+    from app.core.routing.dispatch_handler import DispatchOutcome
+    from app.core.channel.base import IncomingMessage
+
+    fake_msg = IncomingMessage(
+        thread_id=tid,
+        source="voice",
+        text="hello",
+        metadata={"intent_hint": {"domain": "chitchat"}}
+    )
+    fake_outcome = DispatchOutcome(handled=False, msg=fake_msg, inputs=MagicMock())
+
+    async def mock_dispatch(*args, **kwargs):
+        return fake_outcome
+
+    monkeypatch.setattr(voice_ws, "dispatch_user_message", mock_dispatch)
+
+    monkeypatch.setattr(voice_input, "post_dispatch", AsyncMock(return_value={"task": AsyncMock(), "old_worker_task": None}))
+    monkeypatch.setattr(voice_input, "await_and_finalize", AsyncMock())
+
+    pushed_chunks = []
+    async def mock_push_tts_chunk(thread_id, text, end, *, force_start=False):
+        pushed_chunks.append((thread_id, text, end, force_start))
+
+    monkeypatch.setattr(VoiceChannel, "push_tts_chunk", mock_push_tts_chunk)
+
+    reset_called = []
+    def mock_reset_tts_started(thread_id):
+        reset_called.append(thread_id)
+
+    monkeypatch.setattr(VoiceChannel, "reset_tts_started", mock_reset_tts_started)
+
+    await voice_ws._run_agent_pipeline(mock_ws, tid, "hello")
+
+    assert len(pushed_chunks) == 1
+    assert pushed_chunks[0][0] == tid
+    assert pushed_chunks[0][2] is True  # end=True
+    assert pushed_chunks[0][3] is True  # force_start=True
+
+    from app.core.engine.domain_mapping import ACK_TEMPLATES
+    assert pushed_chunks[0][1] in ACK_TEMPLATES
+
+    assert tid in reset_called
 
 
 def test_voice_ws_reconnect_keeps_new_volc_client(monkeypatch):
