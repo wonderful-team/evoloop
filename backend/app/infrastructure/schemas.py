@@ -140,6 +140,41 @@ class PlatformModel(DynamicBaseModel):
         return self.truncate_limit_tokens * 4
 
 
+class AvailableLLMModel(DynamicBaseModel):
+    """API/内部调用中可用的 LLM 模型条目（platform + custom）。"""
+
+    id: str
+    name: str
+    type: str  # platform | custom
+    provider: str
+    provider_type: str
+    model: str
+    vision_model: str | None = None
+    description: str = ""
+    icon: str = "default"
+    available: bool = True
+    quota_required: bool = True
+    supports_streaming: bool = True
+    supports_vision: bool = False
+    supports_functions: bool = True
+    context_window: int = 128000
+
+
+class AvailableEmbeddingModel(DynamicBaseModel):
+    """API/内部调用中可用的 Embedding 模型条目（platform + custom）。"""
+
+    id: str
+    name: str
+    type: str  # platform | custom
+    provider: str
+    model: str
+    dimensions: int = 1536
+    description: str = ""
+    icon: str = "default"
+    available: bool = True
+    quota_required: bool = True
+
+
 class LLMConfig(DynamicBaseModel):
     """LLM 实例化配置"""
     model_name: str
