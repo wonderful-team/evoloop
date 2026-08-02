@@ -79,6 +79,8 @@ class UserMessageMixin:
             tool_name=tool_name,
             tool_call_id=tool_call_id or request_id,
             metadata=final_metadata if final_metadata else None,
+            # SSE-only: HITL request UI lives only in the web chat; mobile and
+            # voice do not yet support interactive human-in-the-loop prompts.
             channels={"sse"},
             parent_id=effective_parent_id,
         )

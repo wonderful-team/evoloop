@@ -102,7 +102,7 @@ async def lifespan(app: FastAPI):
         voice_executor.message_type = _MsgType
         logger.info("[Startup] Voice executor globals wired")
     except (ValueError, OSError, RuntimeError, TypeError, KeyError, ImportError) as e:
-        logger.warning(f"[Startup] Voice executor wiring failed (non-critical): {e}")
+        logger.warning(f"[Startup] VoiceChannel wiring failed (non-critical): {e}")
 
     # Migrate legacy deterministic LearnedSkill rows -> macros table (idempotent).
     # Runs after DB init so the macros table exists. Non-fatal: migration errors

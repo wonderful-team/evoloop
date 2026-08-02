@@ -295,24 +295,19 @@ def html_to_markdown(html: str, base_url: str = "") -> str:
 # ============================================================================
 
 
-def truncate_text(
-    text: str,
-    max_len: int,
-    suffix: str = "...",
-    indicator: bool = True
-) -> str:
+def truncate_text(text: str, max_len: int, suffix: str = "...", indicator: bool = True) -> str:
     """
     Truncate text if it exceeds max_len, with optional indicator.
-    
+
     Args:
         text: The text to truncate
         max_len: Maximum character length
         suffix: Suffix to append when truncated
         indicator: Whether to include truncation metadata
-    
+
     Returns:
         Truncated text with suffix and optional indicator
-    
+
     Examples:
         >>> truncate_text("hello world", 8)
         'hello...'
@@ -321,27 +316,27 @@ def truncate_text(
     """
     if not text or len(text) <= max_len:
         return text
-    
+
     chars = len(text)
     lines = text.count("\n") + 1
     truncated = text[:max_len]
-    
+
     if indicator:
         footer = f"\n...\n[Output truncated: {lines} lines / {chars} chars total.]"
         return truncated + footer
-    
+
     return truncated + suffix
 
 
 def truncate_output(text: str, max_len: int = 6000, suffix: str = "...") -> str:
     """
     Truncate long output strings with simple indicator.
-    
+
     Args:
         text: The text to truncate
         max_len: Maximum length (default 6000)
         suffix: Suffix string
-    
+
     Returns:
         Truncated text
     """
@@ -378,6 +373,7 @@ def should_flush_text(
         return True
     if min_tokens is not None:
         from app.utils.token import estimate_tokens
+
         if estimate_tokens(text) >= min_tokens:
             return True
     if has_boundary and "\n" in text:
@@ -388,17 +384,17 @@ def should_flush_text(
 def normalize_text(text: str | None) -> str:
     """
     Normalize text for comparison: NFC unicode, lowercase, no spaces.
-    
+
     Used for element name matching across different platforms.
-    
+
     Args:
         text: Text to normalize
-    
+
     Returns:
         Normalized text
     """
     import unicodedata
-    
+
     if not text:
         return ""
     

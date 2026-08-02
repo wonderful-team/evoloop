@@ -46,6 +46,8 @@ async def _notify_file_operation(
     )
 
     publisher = MessagePublisher(thread_id=thread_id)
+    # SSE-only: Celery-side file operation progress is not a persisted chat
+    # message and should never be pushed to mobile/voice channels.
     await publisher.publish(block, channels={"sse"})
     logger.debug(f"[Celery] Published file operation event for {file_path}")
 
@@ -146,6 +148,8 @@ async def persist_file_operation_task(
         if db_msg:
             block = BlockMapper.from_db(db_msg)
             publisher = MessagePublisher(thread_id=thread_id)
+            # SSE-only: this is an incremental "update" refresh for the web
+            # message that the user already sees; skip mobile/voice broadcast.
             # action="update" 会触发前端对应消息的局部刷新
             await publisher.publish(block, action="update", channels={"sse"})
 

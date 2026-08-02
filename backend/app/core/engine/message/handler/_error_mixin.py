@@ -82,6 +82,8 @@ class ErrorMessageMixin:
                 "hint": classification.hint,
                 "is_terminal": classification.is_terminal,
             },
+            # SSE-only: error messages are web-chat notifications. The mobile
+            # error path is handled by MobileErrorNotifier separately.
             channels={"sse"},
         )
 

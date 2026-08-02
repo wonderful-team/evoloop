@@ -139,6 +139,9 @@ async def handle_task_exception(thread_id: str, project_id: int, e: Exception, h
                 status="failed",
                 sequence_number=handler._stream_seq + 1,
                 metadata={"is_error": True, "error_type": action_type},
+                # SSE-only: this error block is a transient chat notification.
+                # Mobile receives the same error via MobileErrorNotifier above, so we
+                # avoid duplicating it through the normal policy path.
                 channels={"sse"},
                 message_id=gen_uuid()
             )

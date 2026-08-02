@@ -59,9 +59,7 @@ class AiMessageMixin:
         if persist_data.should_persist:
             from app.core.engine.message.extractor import attachment_extractor
 
-            extracted_refs = attachment_extractor.extract_from_ai_response(
-                content=persist_data.content
-            )
+            extracted_refs = attachment_extractor.extract_from_ai_response(content=persist_data.content)
 
             dev_key, dev_name = self._get_device_attribution()
             msg_id, seq = await self._repository.persist(

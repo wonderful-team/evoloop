@@ -5,8 +5,11 @@ The L0/L1 routing decision logic has moved to the shared dispatcher in
 for:
 
 1. Normalizing inbound voice.route payloads into ``IncomingMessage``.
-2. Marking the thread as a voice agent dispatch.
-3. Handing post-dispatch worker registration and task finalization.
+2. Handing post-dispatch worker registration and task finalization.
+
+Voice output (route results, failures, cancellations) is delegated to
+``app.core.voice.executor`` helpers, which forward to ``VoiceChannel`` so the
+WS transport stays unified under the Channel abstraction.
 """
 
 from __future__ import annotations
@@ -55,9 +58,7 @@ class VoiceInputChannel(InputChannel):
         self._envelope = envelope_fn
         self._message_type = message_type
 
-    async def receive(
-        self, raw: dict[str, Any], **kwargs: Any
-    ) -> IncomingMessage | None:
+    async def receive(self, raw: dict[str, Any], **kwargs: Any) -> IncomingMessage | None:
         """Normalize an inbound voice.route message into ``IncomingMessage``.
 
         Returns ``None`` when the payload is not a valid chat message (e.g. a
@@ -129,21 +130,15 @@ class VoiceInputChannel(InputChannel):
 
         task = asyncio.create_task(run_agent_background(thread_id, result.inputs))
         if self._worker_registry is not None:
-            await self._worker_registry.register_worker(
-                thread_id, task, description=desc
-            )
+            await self._worker_registry.register_worker(thread_id, task, description=desc)
 
         # Store the previous worker for post-dispatch re-registration
         return {
             "task": task,
-            "old_worker_task": running_worker.task
-            if running_worker and running_worker.status == "running"
-            else None,
+            "old_worker_task": running_worker.task if running_worker and running_worker.status == "running" else None,
         }
 
-    async def await_and_finalize(
-        self, thread_id: str, task: Any, old_worker_task: Any, worker_desc: str = ""
-    ) -> None:
+    async def await_and_finalize(self, thread_id: str, task: Any, old_worker_task: Any, worker_desc: str = "") -> None:
         """Await the agent task, then re-register old worker if it survived (SUPERVISOR_CHOOSE_QUERY)."""
         try:
             await task

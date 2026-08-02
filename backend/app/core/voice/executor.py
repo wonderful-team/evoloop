@@ -1,8 +1,12 @@
-"""Voice executor — pushes TTS tokens and results to the voice WebSocket.
+"""Voice executor — task cancellation, active Volcengine client registry, and
+legacy voice WS push helpers.
 
-Used by VoiceChannel (agent TTS streaming) to push tokens and boundaries
-back through the voice WS for real-time playback. Also provides voice task
-cancellation and registry helpers for voice route handling.
+The actual WebSocket transport now lives in ``VoiceChannel``
+(``app.core.channel.output.voice_channel``).  The helpers below are thin
+backward-compatible wrappers that delegate to ``VoiceChannel`` so existing
+callers (voice presenters, macro chains, input channel error paths) do not
+need to change, while the voice output path stays unified under the Channel
+abstraction.
 """
 
 import logging

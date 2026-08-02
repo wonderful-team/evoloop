@@ -42,6 +42,14 @@ class MessagePublisher:
 
         Payloads (MessageBlock, BaseStreamEvent) are dispatched through
         ChannelRegistry to registered output channels (WebChannel SSE, Mobile Push, etc).
+
+        Channel routing:
+        - If ``channels`` is explicitly provided (non-None), it is used as-is.
+          This is an escape hatch for transient/error/HITL messages that must
+          never reach mobile or voice (each caller must document why it bypasses
+          policy).
+        - Otherwise, ``OutputChannelPolicy.resolve()`` decides the channels based
+          on session_source and node_source ContextVars — the single authoritative decision point.
         """
         if channels is None:
             if isinstance(payload, BaseStreamEvent):

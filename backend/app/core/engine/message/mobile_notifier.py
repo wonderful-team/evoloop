@@ -42,6 +42,8 @@ class MobileErrorNotifier:
                 category=classification.error_type,
                 status="failed",
                 sequence_number=seq,
+                # Mobile-only: this is the device-push copy of the error; the
+                # web/SSE copy is dispatched separately by the error handler.
                 channels={"mobile"},
             )
         except Exception as e:

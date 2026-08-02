@@ -18,6 +18,9 @@ class UniversalBridgeSubscriber:
     Instead of hardcoded mapping tables, this subscriber inspects every internal
     event for the 'is_public' metadata flag. If enabled, it automatically
     forwards the event to the ChannelRegistry for outbound streaming.
+
+    Channel selection is delegated to OutputChannelPolicy — the single authority
+    for deciding which channels receive a given payload.
     """
 
     def __init__(self):

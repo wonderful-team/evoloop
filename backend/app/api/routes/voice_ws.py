@@ -122,9 +122,9 @@ async def _ensure_voice_input() -> None:
         envelope_fn=_envelope,
         message_type=MessageType,
     )
-    # executor globals (manager/envelope_fn/message_type) are wired at app
-    # startup in main.py, not here — so VoiceChannel works even if the Agent
-    # is triggered by a non-route code path.
+    # VoiceChannel's WS transport (manager/envelope_fn/message_type) is wired
+    # at app startup in main.py via VoiceChannel.bind(...), so VoiceChannel
+    # works even if the Agent is triggered by a non-route code path.
     _voice_input_bound = True
 
 

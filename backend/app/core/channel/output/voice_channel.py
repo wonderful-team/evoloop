@@ -1,11 +1,11 @@
 """
 VoiceChannel — pushes agent results to the voice WebSocket for TTS playback.
 
-Handles three message types from the UniversalBridgeSubscriber:
+Handles message types from the ChannelRegistry (selected upstream by OutputChannelPolicy):
 
-1. ``MessageBlock(role=ai, content=..., tool_calls=[...])`` — the Supervisor's
-   安抚话术 when it routes to a Worker (e.g. "好的，我来处理").
-   Pushed as ``voice.route_result {routed, text}`` for immediate TTS.
+1. ``MessageBlock(role=ai, content=...)`` — the Supervisor's 安抚话术 when it
+   routes to a Worker (e.g. "好的，我来处理").  Pushed as
+   ``voice.route_result {routed, text}`` for immediate TTS.
 
 2. ``SessionCompletedEvent(source=voice)`` — terminal success. Pushed as
    ``voice.route_result {done, summary}``.
@@ -13,8 +13,9 @@ Handles three message types from the UniversalBridgeSubscriber:
 3. ``AgentRunCompletedEvent(source=voice, status=failed)`` — terminal failure.
    Pushed as ``voice.route_result {failed, error}``.
 
-Only the FIRST ai+tool_calls block per thread/turn is pushed (安抚话术已发送
-tracking). Subsequent blocks (Worker messages) are ignored.
+4. ``TokenEvent`` — streaming LLM tokens from the Supervisor node.  Accumulated
+   and pushed to Volcengine ChatTTSText progressively.  Worker tokens are routed
+   here only if OutputChannelPolicy decides so (by design they should not).
 
 Streaming TTS via TokenEvent:
 - As LLM tokens arrive (TokenEvent), text accumulates in `_tts_accumulator`.
@@ -23,6 +24,11 @@ Streaming TTS via TokenEvent:
   subsequent `start=False,end=False`.
 - On SessionCompletedEvent, any remainder is flushed with `end=True`.
 - This gives true streaming send + streaming playback.
+
+Note: OutputChannelPolicy is the authoritative source of voice channel selection.
+The source checks below are defense-in-depth in case a caller bypasses policy.
+This class is also the single owner of the voice WebSocket transport; legacy
+helpers in ``app.core.voice.executor`` delegate here rather than pushing directly.
 """
 
 import asyncio

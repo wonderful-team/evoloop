@@ -145,10 +145,7 @@ async def _on_language_changed(_old_value: str, new_value: str) -> None:
 try:
     SystemConfigService.register_change_handler("LANGUAGE", _on_language_changed)
 except Exception:
-    logger.debug(
-        "[matcher_cache] failed to register LANGUAGE change handler",
-        exc_info=True,
-    )
+    logger.debug("[matcher_cache] failed to register LANGUAGE change handler", exc_info=True)
 
 
 __all__ = [
