@@ -14,11 +14,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.core.channel.input.voice_input import VoiceInputChannel
-from app.core.voice import executor as routing_executor
 from app.core.routing.actions import run_builtin, run_macro
-from app.core.voice.executor import push_macro_result
 from app.core.routing.local_matcher import LocalMatcher
 from app.core.routing.schemas import RouteDecision
+from app.core.voice.executor import push_macro_result
+from tests.unit.core.routing import fixtures as routing_fixtures
+
 
 async def execute_route_for_voice(
     text: str,
@@ -27,10 +28,10 @@ async def execute_route_for_voice(
     project_id: int,
     worker_registry = None,
 ) -> bool:
-    from app.core.routing.dispatch_handler import dispatch_user_message
+    from app.api.routes.voice_ws import _present_voice_outcome
     from app.core.channel.input.voice_input import voice_input
     from app.core.context.manager import EvoContext
-    from app.api.routes.voice_ws import _present_voice_outcome
+    from app.core.routing.dispatch_handler import dispatch_user_message
 
     ctx = EvoContext(thread_id=thread_id, project_id=project_id)
     raw = {"thread_id": thread_id, "text": text}
@@ -47,8 +48,6 @@ async def execute_route_for_voice(
     if outcome.handled and outcome.local_response:
         await _present_voice_outcome(thread_id, outcome.local_response)
     return outcome.handled
-
-from tests.unit.core.routing import fixtures as routing_fixtures
 
 
 class FakeManager:
@@ -87,23 +86,37 @@ class FakeWorkerRegistry:
 
 
 @pytest.fixture(autouse=True)
+def _stub_message_broker(monkeypatch):
+    """Ensure WebChannel broker.publish is awaitable under full-suite isolation."""
+    from app.core.channel.output import web_channel
+
+    broker = MagicMock()
+    broker.publish = AsyncMock()
+    monkeypatch.setattr(web_channel, "get_message_broker", lambda: broker)
+    yield
+
+
+@pytest.fixture(autouse=True)
 def _voice_routing_globals():
-    """Bind a fake manager/envelope so pushes can be inspected."""
-    old_manager = routing_executor.manager
-    old_envelope = routing_executor.envelope_fn
-    old_message_type = routing_executor.message_type
+    """Bind VoiceChannel to a fake manager/envelope so pushes can be inspected."""
+    from app.core.channel.output.voice_channel import VoiceChannel
+
+    old_manager = VoiceChannel._manager
+    old_envelope = VoiceChannel._envelope_fn
+    old_message_type = VoiceChannel._message_type
 
     manager = FakeManager()
-    routing_executor.manager = manager
-    routing_executor.envelope_fn = lambda mt, body: {"type": mt, "body": body}
-    routing_executor.message_type = MagicMock(VOICE_ROUTE_RESULT="voice.route_result")
+    VoiceChannel.bind(
+        manager=manager,
+        envelope_fn=lambda mt, body: {"type": mt, "body": body},
+        message_type=MagicMock(VOICE_ROUTE_RESULT="voice.route_result"),
+    )
 
     yield manager
 
-    routing_executor.manager = old_manager
-    routing_executor.envelope_fn = old_envelope
-    routing_executor.message_type = old_message_type
-    routing_executor._voice_registry.clear()
+    VoiceChannel._manager = old_manager
+    VoiceChannel._envelope_fn = old_envelope
+    VoiceChannel._message_type = old_message_type
 
 
 @pytest.fixture
@@ -111,13 +124,10 @@ def chan():
     """Return a VoiceInputChannel with fakes, but use the patched routing globals."""
     c = VoiceInputChannel()
     c.bind(
-        manager=FakeManager(),
         executor=AsyncMock(),
         state_machine=AsyncMock(),
         state_enum=MagicMock(),
         worker_registry=FakeWorkerRegistry(),
-        envelope_fn=lambda mt, body: {"type": mt, "body": body},
-        message_type=MagicMock(VOICE_ROUTE_RESULT="voice.route_result"),
     )
     return c
 

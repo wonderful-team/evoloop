@@ -15,27 +15,30 @@ HITL (Human-in-the-Loop) 机制全面测试
 import asyncio
 import logging
 import os
-import pytest
 import sys
 from datetime import datetime
-from typing import Optional
+
+import pytest
+
 # Force in-memory database for testing
 os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
 
 # 在所有其他导入之前 mock pgvector
 # 需要提供一个可用的 Vector 类供 SQLAlchemy 使用
 from unittest.mock import MagicMock
-from sqlalchemy import TypeDecorator, Float
+
+from sqlalchemy import Float, TypeDecorator
+
 
 class MockVector(TypeDecorator):
     """Mock pgvector Vector type for SQLAlchemy"""
     impl = Float
     cache_ok = True
-    
+
     def __init__(self, dimensions=None):
         super().__init__()
         self.dimensions = dimensions
-    
+
     def get_col_spec(self, **kw):
         return f"VECTOR({self.dimensions})" if self.dimensions else "VECTOR"
 
@@ -67,9 +70,10 @@ async def init_env():
     from app.infrastructure.database.resource_manager import db_resource_manager
     await db_resource_manager.initialize(create_tables=True, seed_data=False)
 
-    from app.infrastructure.database.sql.database import Base, engine
     from sqlmodel import SQLModel
+
     from app.core.config import settings
+    from app.infrastructure.database.sql.database import Base, engine
 
     if settings.EMBEDDED_MODE:
         from app import models  # noqa: F401
@@ -85,7 +89,7 @@ async def init_env():
 
     # Initialize Memory using MemoryContainer
     try:
-        from app.core.memory import MemoryContainer, MemoryConfig
+        from app.core.memory import MemoryConfig, MemoryContainer
         container = MemoryContainer(MemoryConfig.from_settings())
         await container.initialize()
         # Store container for cleanup
@@ -111,24 +115,31 @@ async def test_tool_layer():
     logger.info("🔧 测试工具层: ask_human / ask_confirm")
     logger.info("="*60)
 
+    from app.core.context.manager import ContextManager, EvoContext
+    from app.core.context.schemas import ContextMetadata
     from app.core.exceptions import AgentHumanInterruptException
     from app.core.hitl import (
-        create_request, complete_request, cancel_request,
-        get_pending_requests_for_thread
+        cancel_request,
+        complete_request,
+        create_request,
+        get_pending_requests_for_thread,
     )
-    from app.domain.tools.human_input import ask_human, ask_confirm
+    from app.domain.tools.human_input import ask_confirm, ask_human
 
     results = []
+
+    hitl_ctx = EvoContext(thread_id="hitl-test", metadata=ContextMetadata(source="test"))
 
     # Test 1: ask_human 抛出异常并创建 DB 记录
     logger.info("\n📌 Test 1: ask_human 应抛出 AgentHumanInterruptException")
     try:
-        await ask_human.coroutine(prompt="请输入你的名字", input_type="text", default_value="默认名")
+        with ContextManager.use(hitl_ctx):
+            await ask_human.coroutine(prompt="请输入你的名字", input_type="text", default_value="默认名")
         results.append(("ask_human_exception", False, "没有抛出异常"))
     except AgentHumanInterruptException as e:
         logger.info(f"   ✅ 抛出异常, request_id={e.request_id}")
         # 验证 DB 记录
-        pending = await get_pending_requests_for_thread("unknown")
+        pending = await get_pending_requests_for_thread("hitl-test")
         matched = [r for r in pending if r.id == e.request_id]
         if matched and matched[0].status == "pending":
             results.append(("ask_human_exception", True, None))
@@ -140,11 +151,12 @@ async def test_tool_layer():
     # Test 2: ask_confirm 创建 approval 请求
     logger.info("\n📌 Test 2: ask_confirm 应创建 approval 请求")
     try:
-        await ask_confirm.coroutine(action_description="删除文件", risk_level="high")
+        with ContextManager.use(hitl_ctx):
+            await ask_confirm.coroutine(action_description="删除文件", risk_level="high")
         results.append(("ask_confirm_exception", False, "没有抛出异常"))
     except AgentHumanInterruptException as e:
         logger.info(f"   ✅ 抛出异常, request_id={e.request_id}")
-        pending = await get_pending_requests_for_thread("unknown")
+        pending = await get_pending_requests_for_thread("hitl-test")
         matched = [r for r in pending if r.id == e.request_id]
         if matched and matched[0].request_type == "approval":
             results.append(("ask_confirm_exception", True, None))
@@ -166,7 +178,7 @@ async def test_tool_layer():
 
         success = await complete_request(req.id, "用户回复")
         if success:
-            logger.info(f"   ✅ 完成请求")
+            logger.info("   ✅ 完成请求")
             results.append(("request_lifecycle", True, None))
         else:
             results.append(("request_lifecycle", False, "complete_request 返回 False"))
@@ -203,11 +215,11 @@ async def test_engine_layer():
     logger.info("="*60)
 
     from unittest.mock import AsyncMock, MagicMock, patch
-    from langchain_core.messages import AIMessage, ToolMessage
-    from langgraph.types import Command
+
+    from langchain_core.messages import AIMessage
+
     from app.core.engine.background_agent import run_agent_background
     from app.core.exceptions import AgentHumanInterruptException
-    from app.core.monitoring.activity import activity_monitor
 
     results = []
     thread_id = f"hitl-engine-{datetime.now().strftime('%H%M%S')}"
@@ -224,11 +236,12 @@ async def test_engine_layer():
             def __init__(self):
                 self.values = {"messages": [mock_ai_msg]}
 
-        from app.core.engine.state import StateUpdate
-        from app.core.engine.routers import RoutingTarget
-        from app.models import Message
         from sqlalchemy import select
+
+        from app.core.engine.routers import RoutingTarget
+        from app.core.engine.state import StateUpdate
         from app.infrastructure.database import session_scope
+        from app.models import Message
 
         with patch("app.core.engine.nodes.supervisor.SupervisorNode") as mock_node_cls, \
              patch("app.core.engine.background_agent.runner.ContextManager") as mock_ctx, \
@@ -248,7 +261,7 @@ async def test_engine_layer():
             mock_ctx.current = MagicMock(return_value=MagicMock(
                 thread_id=thread_id, project_id=1, command_id=None, working_directory="/tmp", member_id=1
             ))
-            
+
             # Mock the container and its memory_manager
             mock_container = MagicMock()
             mock_container.memory_manager.preferences.get_merged_preferences = AsyncMock(return_value="")
@@ -294,7 +307,7 @@ async def test_engine_layer():
             mock_ctx.current = MagicMock(return_value=MagicMock(
                 thread_id=thread_id2, project_id=1, command_id=None, working_directory="/tmp", member_id=1
             ))
-            
+
             # Mock the container and its memory_manager
             mock_container = MagicMock()
             mock_container.memory_manager.preferences.get_merged_preferences = AsyncMock(return_value="")
@@ -327,10 +340,12 @@ async def _test_api_layer():
     logger.info("="*60)
 
     from unittest.mock import AsyncMock, MagicMock, patch
+
     from fastapi import BackgroundTasks
-    from app.api.routes.agent import resume_chat, cancel_hitl_request
-    from app.models import Conversation, Message
+
+    from app.api.routes.agent import cancel_hitl_request, resume_chat
     from app.infrastructure.database import session_scope
+    from app.models import Conversation, Message
 
     results = []
     thread_id = f"hitl-api-{datetime.now().strftime('%H%M%S')}"
@@ -349,7 +364,6 @@ async def _test_api_layer():
     # Test 7: resume_chat 端点
     logger.info("\n📌 Test 7: /chat/resume 端点")
     try:
-        from app.api.routes.agent import ChatRequest
         from langchain_core.messages import AIMessage
 
         mock_ai_msg = AIMessage(
@@ -425,11 +439,12 @@ async def test_rewind_cleanup():
     logger.info("↩️  测试 Rewind 机制: 清理 HITL 和 Activity 状态")
     logger.info("="*60)
 
-    from app.core.events.base import system_bus
-    from app.core.engine.rewind.event.schemas import RewindRequestedEvent
     from app.core.engine.rewind.event.subscribers import HitlRewind
-    from app.core.monitoring.activity import activity_monitor
+
+    from app.core.engine.rewind.event.schemas import RewindRequestedEvent
+    from app.core.events.base import system_bus
     from app.core.hitl import create_request, get_pending_requests_for_thread
+    from app.core.monitoring.activity import activity_monitor
     from app.infrastructure.database import session_scope
     from app.models import AgentActivity
 
@@ -546,7 +561,7 @@ async def main():
     all_results.extend(await test_rewind_cleanup())
 
     success = await print_summary(all_results)
-    
+
     # Cleanup memory container
     global _memory_container
     if '_memory_container' in globals():
@@ -554,7 +569,7 @@ async def main():
             await _memory_container.shutdown()
         except:
             pass
-    
+
     return 0 if success else 1
 
 

@@ -1,8 +1,9 @@
 import pytest
 from pydantic import ValidationError
-from app.core.engine.state.sub_schemas import BlackboardState, SpawnPlan, SubtaskResult
-from app.core.engine.message.schemas import MessageBlock, ToolBlock
-from app.models import ProjectResource
+
+from app.core.engine.message.schemas import MessageBlock, ToolCall
+from app.core.engine.state import AgentState
+
 
 class TestStandardizationRegression:
     """
@@ -10,21 +11,13 @@ class TestStandardizationRegression:
     do not allow dynamic attribute access without proper definition.
     """
 
-    def test_blackboard_allows_extra_fields(self):
-        """BlackboardState inherits DynamicBaseModel which allows extra fields."""
-        # Valid instantiation
-        state = BlackboardState(
-            spawn_plan=SpawnPlan(subtasks=[]),
-            subtask_results=[]
-        )
-        assert state.spawn_plan.subtasks == []
-        
-        # Extra fields are allowed (DynamicBaseModel uses ConfigDict(extra="allow"))
-        state = BlackboardState(
-            spawn_plan=SpawnPlan(subtasks=[]),
-            subtask_results=[],
+    def test_state_allows_extra_fields(self):
+        """AgentState inherits DynamicBaseModel which allows extra fields."""
+        state = AgentState(
+            worker_outcome="SUCCESS",
             unexpected_field="allowed"
         )
+        assert state.worker_outcome == "SUCCESS"
         assert state.unexpected_field == "allowed"
 
     def test_message_block_mapping(self):
@@ -36,25 +29,23 @@ class TestStandardizationRegression:
             content="Hello"
         )
         assert block.role == "ai"
-        assert block.status == "completed"  # default
-        assert block.content_type == "text" # default
-        
+        assert block.content_type == "text"  # default
+
         # Ensure role validation
         with pytest.raises(ValidationError):
             MessageBlock(
                 id="msg-1-2",
                 thread_id="t1",
-                role="invalid_role", # type: ignore
+                role="invalid_role",  # type: ignore
                 content="Err"
             )
 
-    def test_tool_block_validation(self):
-        """Test ToolBlock structure."""
-        tool = ToolBlock(
+    def test_tool_call_validation(self):
+        """Test ToolCall structure."""
+        tool = ToolCall(
             id="tool-1",
-            tool_call_id="call-1",
-            tool="read_file",
-            input={"path": "test.py"}
+            name="read_file",
+            args={"path": "test.py"}
         )
-        assert tool.status == "pending"
-        assert tool.input["path"] == "test.py"
+        assert tool.type == "tool_call"  # default
+        assert tool.args["path"] == "test.py"

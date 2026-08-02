@@ -1,20 +1,16 @@
-"""Tests for routing/executor.py: thread locks, cancel, push functions."""
+"""Tests for routing/executor.py: thread locks, cancel, and push delegations."""
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from app.core.voice import executor
 from app.core.routing import thread_locks
+from app.core.voice import executor
 
 
 def setup_function():
-    executor.manager = None
-    executor.envelope_fn = None
-    executor.message_type = None
     thread_locks._thread_locks.clear()
-    executor._voice_registry.clear()
 
 
 class TestThreadLock:
@@ -46,61 +42,60 @@ class TestCancelVoiceTask:
         mock_registry.cancel_worker.assert_awaited_once_with("t1")
 
 
-@pytest.mark.asyncio
-class TestMarkConsumeVoice:
-    async def test_mark_voice(self):
-        await executor._mark_voice("t1", "agent")
-        assert executor._voice_registry.get("t1") == "agent"
-
-    async def test_consume_voice(self):
-        await executor._mark_voice("t1", "agent")
-        await executor.consume_voice("t1")
-        assert "t1" not in executor._voice_registry
-
-    async def test_consume_voice_nonexistent(self):
-        await executor.consume_voice("nonexistent")
+# TestMarkConsumeVoice removed: _voice_registry and _mark_voice/consume_voice
+# were deleted as part of the OutputChannelPolicy refactor.
+# Voice session tracking now uses EvoContext.metadata.source + current_session_source ContextVar.
 
 
 @pytest.mark.asyncio
-class TestPushResult:
-    async def test_noop_when_manager_none(self):
-        executor.manager = None
-        await executor.push_voice_result("t1", "done", "ok")
+class TestPushDelegatesToVoiceChannel:
+    """Legacy executor push helpers are now thin wrappers around VoiceChannel."""
 
-    async def test_push_with_manager(self):
-        executor.manager = AsyncMock()
-        executor.envelope_fn = None
-        executor.message_type = None
-        await executor.push_voice_result("t1", "done", "测试完成")
-        executor.manager.push.assert_awaited_once()
-        args = executor.manager.push.call_args[0]
-        assert args[0] == "t1"
+    async def test_push_voice_result_delegates(self):
+        with patch(
+            "app.core.channel.output.voice_channel.VoiceChannel.push_voice_result"
+        ) as mock_push:
+            await executor.push_voice_result("t1", "done", "ok", skip_tts=True)
+            mock_push.assert_awaited_once_with("t1", "done", "ok", skip_tts=True)
 
-    async def test_push_with_envelope(self):
-        class FakeMsgType:
-            VOICE_ROUTE_RESULT = "voice.route_result"
+    async def test_push_voice_token_delegates(self):
+        with patch(
+            "app.core.channel.output.voice_channel.VoiceChannel.push_voice_token"
+        ) as mock_push:
+            await executor.push_voice_token("t1", "hello", 0)
+            mock_push.assert_awaited_once_with("t1", "hello", 0)
 
-        executor.manager = AsyncMock()
-        executor.envelope_fn = MagicMock(return_value={"enveloped": True})
-        executor.message_type = FakeMsgType()
-        await executor.push_voice_result("t1", "done", "ok")
-        executor.envelope_fn.assert_called_once_with(
-            "voice.route_result",
-            {
-                "thread_id": "t1",
-                "status": "done",
-                "summary": "ok",
-            },
-        )
+    async def test_push_voice_tts_boundary_delegates(self):
+        with patch(
+            "app.core.channel.output.voice_channel.VoiceChannel.push_voice_tts_boundary"
+        ) as mock_push:
+            await executor.push_voice_tts_boundary("t1", "hello", 0)
+            mock_push.assert_awaited_once_with("t1", "hello", 0)
 
-    async def test_push_token_noop_when_manager_none(self):
-        executor.manager = None
-        executor.envelope_fn = None
-        executor.message_type = None
-        await executor.push_voice_token("t1", "hello", 0)
+    async def test_push_tts_text_delegates(self):
+        with patch(
+            "app.core.channel.output.voice_channel.VoiceChannel.push_tts_text"
+        ) as mock_push:
+            await executor.push_tts_text("t1", "确认")
+            mock_push.assert_awaited_once_with("t1", "确认")
 
-    async def test_push_boundary_noop_when_manager_none(self):
-        executor.manager = None
-        executor.envelope_fn = None
-        executor.message_type = None
-        await executor.push_voice_tts_boundary("t1", "hello", 0)
+    async def test_push_macro_result_delegates(self):
+        with patch(
+            "app.core.channel.output.voice_channel.VoiceChannel.push_macro_result"
+        ) as mock_push:
+            await executor.push_macro_result("t1", "done", "ok")
+            mock_push.assert_awaited_once_with("t1", "done", "ok")
+
+    async def test_handle_navigate_delegates(self):
+        with patch(
+            "app.core.channel.output.voice_channel.VoiceChannel.handle_navigate"
+        ) as mock_push:
+            await executor.handle_navigate("/home", "t1", feedback="完成")
+            mock_push.assert_awaited_once_with("/home", "t1", feedback="完成")
+
+    async def test_push_local_result_delegates(self):
+        with patch(
+            "app.core.channel.output.voice_channel.VoiceChannel.push_local_result"
+        ) as mock_push:
+            await executor.push_local_result("t1", "screenshot", {})
+            mock_push.assert_awaited_once_with("t1", "screenshot", {})

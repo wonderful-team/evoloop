@@ -1,18 +1,20 @@
-import os
-import pytest
 import asyncio
-from unittest.mock import patch, MagicMock
+import os
+from unittest.mock import patch
+
+import pytest
 
 # Force embedded mode for testing
 os.environ["EMBEDDED_MODE"] = "true"
 
-from app.infrastructure.embeddings.factory import EmbedderFactory
-from app.infrastructure.embeddings.local import LocalEmbedder
+from app.infrastructure.database.resource_manager import db_resource_manager
 from app.infrastructure.database.vector import get_vector_store
 from app.infrastructure.database.vector.lancedb_store import LanceVectorStore
+from app.infrastructure.embeddings.factory import EmbedderFactory
+from app.infrastructure.embeddings.local import LocalEmbedder
 from app.infrastructure.queue.factory import get_scheduler
 from app.infrastructure.queue.huey_queue import HueyTaskScheduler
-from app.infrastructure.database.resource_manager import db_resource_manager
+
 
 @pytest.mark.asyncio
 async def test_embedder_factory_fallback():

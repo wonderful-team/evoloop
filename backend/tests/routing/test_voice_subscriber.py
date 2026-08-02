@@ -1,14 +1,14 @@
-"""VoiceChannel (replaces VoiceResultSubscriber): pushback via Channel.send().
+"""VoiceChannel routing tests: verify Channel.send() pushes voice results.
 
-Mocks only ``executor.push_voice_result`` at the fixture boundary and asserts
-that the right ``voice.route_result`` is pushed for voice-sourced events and
-nothing for non-voice events.
+Mocks ``VoiceChannel`` transport class methods and asserts that the right
+``voice.route_result`` is pushed for voice-sourced events and nothing for
+non-voice events.
 """
 
 from __future__ import annotations
 
 import asyncio
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -20,8 +20,20 @@ from app.core.events.schemas.lifecycle import (
     SessionCompletedData,
     SessionCompletedEvent,
 )
-from app.core.voice import executor
 from app.models.schemas.events import TokenEvent
+
+
+@pytest.fixture(autouse=True)
+def _stub_message_broker(monkeypatch):
+    """Ensure the WebChannel broker.publish is awaitable regardless of what
+    earlier tests may have left patched.
+    """
+    from app.core.channel.output import web_channel
+
+    broker = MagicMock()
+    broker.publish = AsyncMock()
+    monkeypatch.setattr(web_channel, "get_message_broker", lambda: broker)
+    yield
 
 
 def _session_completed(tid, summary, source="voice"):
@@ -49,7 +61,7 @@ def _ctx(tid):
 async def test_session_completed_voice_pushes_done(monkeypatch):
     pushed = []
     monkeypatch.setattr(
-        executor,
+        VoiceChannel,
         "push_voice_result",
         AsyncMock(
             side_effect=lambda tid, status, summary, **kwargs: pushed.append(
@@ -68,7 +80,7 @@ async def test_session_completed_voice_pushes_done(monkeypatch):
 async def test_session_completed_non_voice_noop(monkeypatch):
     pushed = []
     monkeypatch.setattr(
-        executor,
+        VoiceChannel,
         "push_voice_result",
         AsyncMock(
             side_effect=lambda tid, status, summary, **kwargs: pushed.append(
@@ -87,7 +99,7 @@ async def test_session_completed_non_voice_noop(monkeypatch):
 async def test_run_completed_failed_voice_pushes_failed(monkeypatch):
     pushed = []
     monkeypatch.setattr(
-        executor,
+        VoiceChannel,
         "push_voice_result",
         AsyncMock(
             side_effect=lambda tid, status, summary, **kwargs: pushed.append(
@@ -106,7 +118,7 @@ async def test_run_completed_failed_voice_pushes_failed(monkeypatch):
 async def test_run_completed_done_ignored(monkeypatch):
     pushed = []
     monkeypatch.setattr(
-        executor,
+        VoiceChannel,
         "push_voice_result",
         AsyncMock(
             side_effect=lambda tid, status, summary, **kwargs: pushed.append(
@@ -125,7 +137,7 @@ async def test_run_completed_done_ignored(monkeypatch):
 async def test_run_completed_failed_non_voice_noop(monkeypatch):
     pushed = []
     monkeypatch.setattr(
-        executor,
+        VoiceChannel,
         "push_voice_result",
         AsyncMock(
             side_effect=lambda tid, status, summary, **kwargs: pushed.append(
@@ -155,7 +167,7 @@ async def test_token_streaming_and_sentence_split(monkeypatch):
         AsyncMock(side_effect=_record_tts_chunk),
     )
     monkeypatch.setattr(
-        executor,
+        VoiceChannel,
         "push_voice_tts_boundary",
         AsyncMock(
             side_effect=lambda tid, sentence, idx: boundaries_pushed.append(
@@ -164,7 +176,7 @@ async def test_token_streaming_and_sentence_split(monkeypatch):
         ),
     )
     monkeypatch.setattr(
-        executor,
+        VoiceChannel,
         "push_voice_result",
         AsyncMock(
             side_effect=lambda tid, status, summary, **kwargs: results_pushed.append(
@@ -173,7 +185,9 @@ async def test_token_streaming_and_sentence_split(monkeypatch):
         ),
     )
 
-    executor._voice_registry["v_stream"] = "default"
+    # Simulate voice session via ContextVar (replaces _voice_registry injection)
+    from app.core.channel.policy import current_session_source
+    token = current_session_source.set("voice")
     try:
         ch = VoiceChannel()
 
@@ -203,7 +217,7 @@ async def test_token_streaming_and_sentence_split(monkeypatch):
             ("v_stream", "done", "你好，世界。"),
         ]
     finally:
-        executor._voice_registry.pop("v_stream", None)
+        current_session_source.reset(token)
 
 
 @pytest.mark.asyncio
@@ -221,7 +235,7 @@ async def test_token_streaming_and_non_duplicate_done(monkeypatch):
         AsyncMock(side_effect=_record_tts_chunk),
     )
     monkeypatch.setattr(
-        executor,
+        VoiceChannel,
         "push_voice_tts_boundary",
         AsyncMock(
             side_effect=lambda tid, sentence, idx: boundaries_pushed.append(
@@ -230,7 +244,7 @@ async def test_token_streaming_and_non_duplicate_done(monkeypatch):
         ),
     )
     monkeypatch.setattr(
-        executor,
+        VoiceChannel,
         "push_voice_result",
         AsyncMock(
             side_effect=lambda tid, status, summary, **kwargs: results_pushed.append(
@@ -239,7 +253,9 @@ async def test_token_streaming_and_non_duplicate_done(monkeypatch):
         ),
     )
 
-    executor._voice_registry["v_stream2"] = "default"
+    # Simulate voice session via ContextVar (replaces _voice_registry injection)
+    from app.core.channel.policy import current_session_source
+    token = current_session_source.set("voice")
     try:
         ch = VoiceChannel()
 
@@ -267,33 +283,22 @@ async def test_token_streaming_and_non_duplicate_done(monkeypatch):
             ("v_stream2", "done", "我已经执行完毕。"),
         ]
     finally:
-        executor._voice_registry.pop("v_stream2", None)
+        current_session_source.reset(token)
 
 
 @pytest.mark.asyncio
 async def test_token_streaming_through_publisher_voice_channel(monkeypatch):
-    """TokenEvent → MessagePublisher → SSE only (no VoiceChannel)."""
-    tokens_pushed = []
-    boundaries_pushed = []
+    """TokenEvent via Publisher for non-supervisor node → SSE only (no VoiceChannel TTS)."""
+    from app.core.channel.output.voice_channel import VoiceChannel
 
-    monkeypatch.setattr(
-        executor,
-        "push_voice_token",
-        AsyncMock(
-            side_effect=lambda tid, token, idx: tokens_pushed.append((tid, token))
-        ),
-    )
-    monkeypatch.setattr(
-        executor,
-        "push_voice_tts_boundary",
-        AsyncMock(
-            side_effect=lambda tid, sentence, idx: boundaries_pushed.append(
-                (tid, sentence)
-            )
-        ),
-    )
+    push_tts_chunk_mock = AsyncMock()
+    monkeypatch.setattr(VoiceChannel, "push_tts_chunk", push_tts_chunk_mock)
 
-    executor._voice_registry["v_pub"] = "agent"
+    # Simulate voice session + worker node: TokenEvent should NOT reach VoiceChannel
+    from app.core.channel.policy import current_session_source
+    from app.core.engine.callbacks.database_logger import current_node_source
+    s_token = current_session_source.set("voice")
+    n_token = current_node_source.set("worker")
     try:
         from app.core.engine.message.publisher import MessagePublisher
 
@@ -301,31 +306,24 @@ async def test_token_streaming_through_publisher_voice_channel(monkeypatch):
         await pub.publish(TokenEvent(thread_id="v_pub", content="今天天气"))
         await pub.publish(TokenEvent(thread_id="v_pub", content="真不错。"))
 
-        # TokenEvent is BaseStreamEvent → SSE only, no VoiceChannel
-        assert boundaries_pushed == [], "TokenEvent should NOT reach VoiceChannel"
-        assert tokens_pushed == [], "TokenEvent should NOT push voice tokens"
+        # worker node_source → voice channel excluded by OutputChannelPolicy
+        push_tts_chunk_mock.assert_not_awaited()
     finally:
-        executor._voice_registry.pop("v_pub", None)
+        current_session_source.reset(s_token)
+        current_node_source.reset(n_token)
 
 
 @pytest.mark.asyncio
 async def test_token_streaming_non_voice_ignored_by_publisher(monkeypatch):
     """Non-voice thread should NOT route TokenEvent to VoiceChannel."""
-    boundaries_pushed = []
+    from app.core.channel.output.voice_channel import VoiceChannel
 
-    monkeypatch.setattr(
-        executor,
-        "push_voice_tts_boundary",
-        AsyncMock(
-            side_effect=lambda tid, sentence, idx: boundaries_pushed.append(
-                (tid, sentence)
-            )
-        ),
-    )
+    push_tts_chunk_mock = AsyncMock()
+    monkeypatch.setattr(VoiceChannel, "push_tts_chunk", push_tts_chunk_mock)
 
     from app.core.engine.message.publisher import MessagePublisher
 
     pub = MessagePublisher(thread_id="non-voice-thread")
     await pub.publish(TokenEvent(thread_id="non-voice-thread", content="你好。"))
 
-    assert boundaries_pushed == []
+    push_tts_chunk_mock.assert_not_awaited()

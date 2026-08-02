@@ -1,11 +1,12 @@
 import asyncio
-import pytest
-from unittest.mock import MagicMock, AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
-from app.core.engine.worker_registry import WorkerRegistry, WorkerRecord
-from app.core.engine.routers import RoutingTarget
-from app.core.engine.loop import run_node_loop
+import pytest
+
 from app.core.channel.output.voice_channel import VoiceChannel
+from app.core.engine.loop import run_node_loop
+from app.core.engine.routers import RoutingTarget
+from app.core.engine.worker_registry import WorkerRegistry
 
 
 @pytest.mark.asyncio
@@ -71,7 +72,7 @@ async def test_reset_thread_and_barge_in_mute_rules():
     """Verify reset_thread clears the cancellation state so push_tts_chunk can run."""
     # Ensure VoiceChannel has static dictionaries set up
     VoiceChannel.reset_thread("test-thread-barge")
-    
+
     # 1. Trigger Barge-in cancel
     VoiceChannel.cancel_thread("test-thread-barge")
     assert "test-thread-barge" in VoiceChannel._cancelled_threads
@@ -80,7 +81,7 @@ async def test_reset_thread_and_barge_in_mute_rules():
     # We mock volc client to verify send is not called
     mock_client = MagicMock()
     mock_client.send_chat_tts_text = AsyncMock()
-    
+
     from app.core.voice.executor import active_volc_clients
     active_volc_clients["test-thread-barge"] = mock_client
 
@@ -135,7 +136,6 @@ async def test_cancellation_gate_transitions():
         current_plan = None
         session_goal = "query"
         worker_outcome = None
-        pending_aggregation = None
 
     class MockSupervisorNode:
         async def __call__(self, state, config):
@@ -143,7 +143,7 @@ async def test_cancellation_gate_transitions():
             return StateUpdate(messages=[])
 
     state = MockState()
-    
+
     # We patch SupervisorNode and route_supervisor where they are defined, since
     # loop.py imports them locally.
     from unittest.mock import patch
@@ -178,13 +178,10 @@ async def test_await_and_finalize_no_ghost_re_registration():
 
     # Bind dependencies to voice_input so self._worker_registry is not None
     voice_input.bind(
-        manager=MagicMock(),
         executor=MagicMock(),
         state_machine=MagicMock(),
         state_enum=MagicMock(),
         worker_registry=worker_registry,
-        envelope_fn=MagicMock(),
-        message_type=MagicMock(),
     )
 
     async def dummy():
@@ -195,7 +192,7 @@ async def test_await_and_finalize_no_ghost_re_registration():
             await asyncio.sleep(10)
         except asyncio.CancelledError:
             pass
-    
+
     thread_id = "test-ghost-worker"
     old_task = asyncio.create_task(long_running())
     new_task = asyncio.create_task(dummy())
@@ -216,7 +213,7 @@ async def test_await_and_finalize_no_ghost_re_registration():
     new_task2 = asyncio.create_task(dummy())
     await worker_registry.register_worker(thread_id, old_task2, "old task 2")
     await worker_registry.register_worker(thread_id, new_task2, "new task 2")
-    
+
     # Simulate loop.py pop
     await worker_registry.pop_previous_task(thread_id)
     assert thread_id not in worker_registry._previous_tasks

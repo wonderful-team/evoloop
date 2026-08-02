@@ -5,9 +5,8 @@
 1. Supervisor -> Worker -> Finish
 2. Supervisor -> Worker -> Finish(失败) -> Supervisor -> Worker -> Finish
 3. Supervisor -> Worker(Subtask) -> Finish
-4. Supervisor -> Aggregator -> Supervisor
-5. Supervisor -> SequentialWorkflow -> Finish/Supervisor
-6. Supervisor -> Finish (直接结束)
+4. Supervisor -> SequentialWorkflow -> Finish/Supervisor
+5. Supervisor -> Finish (直接结束)
 """
 
 import pytest
@@ -151,20 +150,6 @@ async def test_signal_dispatcher_route_to_finish():
 
 
 @pytest.mark.asyncio
-async def test_signal_dispatcher_spawn_subtasks():
-    """SpawnSubtasksSignal 正常工作"""
-    from app.core.engine.signals.dispatcher import SignalDispatcher
-    from app.core.engine.signals.schemas import SpawnSubtasksSignal
-    from app.core.engine.state import AgentState
-    from langchain_core.runnables import RunnableConfig
-
-    state = AgentState(messages=[])
-    signal = SpawnSubtasksSignal()
-    result = await SignalDispatcher.dispatch(state, signal, RunnableConfig())
-    assert result is not None
-
-
-@pytest.mark.asyncio
 async def test_signal_dispatcher_terminate():
     """TerminateSignal 正常工作"""
     from app.core.engine.signals.dispatcher import SignalDispatcher
@@ -215,20 +200,6 @@ async def test_supervisor_node_fallback():
 
     outcome = await node._build_fallback_outcome(state, engine_result, RunnableConfig())
     assert outcome.next_node == "finish"
-
-
-@pytest.mark.asyncio
-async def test_aggregator_node_returns_supervisor():
-    """Aggregator 节点返回 SUPERVISOR"""
-    from app.core.engine.nodes.aggregator import AggregatorNode
-    from app.core.engine.state import AgentState
-    from langchain_core.runnables import RunnableConfig
-
-    node = AggregatorNode()
-    state = AgentState(messages=[])
-
-    result = await node(state, RunnableConfig())
-    assert result.next_node == "supervisor"
 
 
 @pytest.mark.asyncio

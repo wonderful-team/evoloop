@@ -12,10 +12,27 @@ from app.api.routes import voice_ws  # noqa: E402
 from app.core.channel.base import ChannelContext  # noqa: E402
 from app.core.channel.output.voice_channel import VoiceChannel  # noqa: E402
 from app.core.routing.actions import ActionOutcome  # noqa: E402
-from app.core.voice import executor as routing_executor  # noqa: E402
 from app.core.routing.dispatch_handler import DispatchOutcome  # noqa: E402
 from app.core.schemas.canonical import MessageType, create_envelope  # noqa: E402
+from app.core.voice import executor as routing_executor  # noqa: E402
 from app.models.schemas.events import TokenEvent  # noqa: E402
+
+
+def _envelope_dict(mtype, body):
+    """Return a serialized dict as required by VoiceChannel.bind()."""
+    return create_envelope(mtype, body).model_dump()
+
+
+@pytest.fixture(autouse=True)
+def _reset_voice_input_binding(monkeypatch):
+    """Force _ensure_voice_input to rebind on the next _handle_route call.
+
+    Without this, an earlier integration test that monkeypatches
+    worker_registry can leave voice_input bound to a fake registry and break
+    worker-survival assertions here.
+    """
+    monkeypatch.setattr(voice_ws, "_voice_input_bound", False)
+    yield
 
 
 class _FakeManager:
@@ -32,16 +49,20 @@ class _FakeManager:
 
 
 def _patch_route(monkeypatch, fake_manager):
+    from app.core.channel.output.voice_channel import VoiceChannel
+
     async def _nodup(_message_id, _ttl=300):
         return False
 
     monkeypatch.setattr(voice_ws, "is_duplicate", _nodup)
     monkeypatch.setattr(voice_ws, "manager", fake_manager)
-    monkeypatch.setattr(routing_executor, "manager", fake_manager)
-    monkeypatch.setattr(routing_executor, "envelope_fn", create_envelope)
-    monkeypatch.setattr(routing_executor, "message_type", MessageType)
+    VoiceChannel.bind(
+        manager=fake_manager,
+        envelope_fn=_envelope_dict,
+        message_type=MessageType,
+    )
 
-    async def _fake_dispatch(raw, *, thread_id, **_):
+    async def _fake_dispatch(raw, *, thread_id, **_):  # noqa: ARG001
         text = raw.get("text", "")
         action_map = {
             "打开微信": ActionOutcome(ok=True, message="", action_type="local", data={"action": "open_app", "args": {"app": "WeChat"}}),
@@ -108,9 +129,11 @@ async def test_handle_route_l0_screenshot(monkeypatch):
 @pytest.mark.asyncio
 async def test_executor_pushes_done(monkeypatch):
     fake = _FakeManager()
-    monkeypatch.setattr(routing_executor, "manager", fake)
-    monkeypatch.setattr(routing_executor, "envelope_fn", create_envelope)
-    monkeypatch.setattr(routing_executor, "message_type", MessageType)
+    from app.core.channel.output.voice_channel import VoiceChannel
+
+    monkeypatch.setattr(VoiceChannel, "_manager", fake)
+    monkeypatch.setattr(VoiceChannel, "_envelope_fn", _envelope_dict)
+    monkeypatch.setattr(VoiceChannel, "_message_type", MessageType)
     monkeypatch.setattr(routing_executor, "active_volc_clients", {})
 
     await routing_executor.push_voice_result("t3", "done", "已为你执行技能")
@@ -225,7 +248,6 @@ async def test_voice_channel_cancel_thread_clears_state_and_blocks_chunks(monkey
             sent.append({"start": start, "end": end, "content": content})
 
     monkeypatch.setattr(routing_executor, "active_volc_clients", {tid: _FakeVolcClient()})
-    monkeypatch.setattr(routing_executor, "_voice_registry", {tid: "voice"})
 
     vc = VoiceChannel()
     await vc.send(TokenEvent(content="hello "), ChannelContext(thread_id=tid))
@@ -252,12 +274,16 @@ async def test_voice_channel_cancel_thread_clears_state_and_blocks_chunks(monkey
 @pytest.mark.asyncio
 async def test_handle_barge_in_cancels_worker_and_tts_stream(monkeypatch):
     """_handle_barge_in must abort VoiceChannel streaming TTS and NOT cancel the background worker."""
+    from app.core.channel.output.voice_channel import VoiceChannel
+
     tid = "t-barge"
     fake = _FakeManager()
     monkeypatch.setattr(voice_ws, "manager", fake)
-    monkeypatch.setattr(routing_executor, "manager", fake)
-    monkeypatch.setattr(routing_executor, "envelope_fn", create_envelope)
-    monkeypatch.setattr(routing_executor, "message_type", MessageType)
+    VoiceChannel.bind(
+        manager=fake,
+        envelope_fn=_envelope_dict,
+        message_type=MessageType,
+    )
 
     cancelled = []
 
@@ -287,10 +313,10 @@ async def test_handle_barge_in_cancels_worker_and_tts_stream(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_barge_in_and_query_worker_survives(monkeypatch):
+async def test_barge_in_and_query_worker_survives(monkeypatch):  # noqa: ARG001
     """If user queries progress after barge-in, the worker task remains active."""
-    from app.core.engine.worker_registry import worker_registry
     from app.core.channel.input.voice_input import voice_input
+    from app.core.engine.worker_registry import worker_registry
 
     tid = "t-query-survive"
 
@@ -331,13 +357,14 @@ async def test_barge_in_and_query_worker_survives(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_barge_in_and_new_command_cancels_worker(monkeypatch):
+async def test_barge_in_and_new_command_cancels_worker(monkeypatch):  # noqa: ARG001
     """If user issues a new command after barge-in, the old worker task gets cancelled."""
-    from app.core.engine.worker_registry import worker_registry
+    from unittest.mock import AsyncMock, patch
+
     from app.core.channel.input.voice_input import voice_input
     from app.core.engine.loop import run_node_loop
     from app.core.engine.routers import RoutingTarget
-    from unittest.mock import AsyncMock, patch
+    from app.core.engine.worker_registry import worker_registry
 
     tid = "t-command-cancel"
 
@@ -369,7 +396,6 @@ async def test_barge_in_and_new_command_cancels_worker(monkeypatch):
         current_plan = None
         session_goal = "command"
         worker_outcome = None
-        pending_aggregation = None
 
     class MockSupervisorNode:
         async def __call__(self, state, config):
@@ -396,13 +422,14 @@ async def test_barge_in_and_new_command_cancels_worker(monkeypatch):
 async def test_early_ack_tts_delivery(monkeypatch):
     """Verify that an L1 Agent route triggers an early-ack TTS push with end=True."""
     from unittest.mock import AsyncMock, MagicMock
+
     from app.core.channel.input.voice_input import voice_input
 
     tid = "t-early-ack"
     mock_ws = AsyncMock()
 
-    from app.core.routing.dispatch_handler import DispatchOutcome
     from app.core.channel.base import IncomingMessage
+    from app.core.routing.dispatch_handler import DispatchOutcome
 
     fake_msg = IncomingMessage(
         thread_id=tid,
@@ -412,7 +439,7 @@ async def test_early_ack_tts_delivery(monkeypatch):
     )
     fake_outcome = DispatchOutcome(handled=False, msg=fake_msg, inputs=MagicMock())
 
-    async def mock_dispatch(*args, **kwargs):
+    async def mock_dispatch(*_args, **_kwargs):
         return fake_outcome
 
     monkeypatch.setattr(voice_ws, "dispatch_user_message", mock_dispatch)

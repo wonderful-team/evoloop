@@ -7,7 +7,6 @@ pytest tests/regression/test_edit_api_compat.py -v
 
 import inspect
 import os
-import tempfile
 
 import pytest
 
@@ -57,8 +56,9 @@ class TestEditAPICompat:
 
     @pytest.mark.asyncio
     async def test_dry_run_still_works(self):
-        from app.core.tools import get_working_directory
         import uuid
+
+        from app.core.tools import get_working_directory
 
         root = get_working_directory(None)
         path = os.path.join(root, f"compat_test_{uuid.uuid4().hex}.py")
@@ -78,9 +78,10 @@ class TestEditAPICompat:
 
     @pytest.mark.asyncio
     async def test_expected_hash_still_works(self):
+        import uuid
+
         from app.core.file import safe_read_with_hash
         from app.core.tools import get_working_directory
-        import uuid
 
         root = get_working_directory(None)
         path = os.path.join(root, f"compat_test_{uuid.uuid4().hex}.py")

@@ -308,6 +308,7 @@ class _FakeWorkerRegistry:
 def fake_voice_deps(monkeypatch):
     """Bind the voice route handler to lightweight fakes."""
     from app.api.routes import voice_ws as voice_module
+    from app.core.channel.output.voice_channel import VoiceChannel
 
     manager = _FakeManager()
     state_machine = _FakeStateMachine()
@@ -335,26 +336,16 @@ def fake_voice_deps(monkeypatch):
         _fake_dispatch_agent_run,
     )
 
-    # Patch the executor functions used by VoiceInputChannel and the voice presenters.
-    monkeypatch.setattr("app.core.voice.executor._mark_voice", AsyncMock())
-    monkeypatch.setattr("app.core.voice.executor.consume_voice", AsyncMock())
-    monkeypatch.setattr("app.core.voice.executor.push_voice_result", AsyncMock())
-    monkeypatch.setattr("app.core.voice.executor.push_voice_token", AsyncMock())
-    monkeypatch.setattr(
-        "app.core.voice.executor.push_voice_tts_boundary", AsyncMock()
+    # Voice WS output now lives in VoiceChannel. Bind it to the fake manager so
+    # the voice presenters can push without a real WebSocket server.
+    VoiceChannel.bind(
+        manager=manager,
+        envelope_fn=lambda mt, body: {"type": mt, "body": body},
+        message_type=MagicMock(VOICE_ROUTE_RESULT="voice.route_result"),
     )
+
+    # Cancel task still delegates to the worker registry, not to WS output.
     monkeypatch.setattr("app.core.voice.executor.cancel_voice_task", AsyncMock())
-    # The presenters still use the real executor.push_macro_result/handle_navigate,
-    # so keep manager/envelope_fn/message_type wired.
-    monkeypatch.setattr("app.core.voice.executor.manager", manager)
-    monkeypatch.setattr(
-        "app.core.voice.executor.envelope_fn",
-        lambda mt, body: {"type": mt, "body": body},
-    )
-    monkeypatch.setattr(
-        "app.core.voice.executor.message_type",
-        MagicMock(VOICE_ROUTE_RESULT="voice.route_result"),
-    )
     yield
 
 
@@ -396,13 +387,6 @@ async def test_voice_route_to_supervisor_routes_to_worker(monkeypatch, fake_voic
 
     update = captured.supervisor_results[0]
     assert update.next_node == "worker"
-
-    # Voice-specific side effects should still run.
-    from app.core.channel.input.voice_input import voice_input
-
-    voice_input._executor._mark_voice.assert_awaited_once_with(
-        "t-voice-worker", "agent"
-    )
 
 
 @pytest.mark.asyncio
@@ -453,11 +437,11 @@ async def test_voice_l0_hit_does_not_invoke_supervisor(monkeypatch, fake_voice_d
     )
 
     assert len(captured.inputs) == 0
-    from app.core.channel.input.voice_input import voice_input
+    from app.api.routes import voice_ws as voice_module
 
-    # Builtin L0 results are pushed via manager.push (enveloped), not push_voice_result.
-    voice_input._executor.manager.push.assert_awaited()
-    calls = voice_input._executor.manager.push.call_args_list
+    # Builtin L0 results are pushed via VoiceChannel (bound to the fake manager).
+    voice_module.manager.push.assert_awaited()
+    calls = voice_module.manager.push.call_args_list
     assert any(
         call.args[0] == "t-voice-l0"
         and call.args[1].get("body", {}).get("status") == "done"

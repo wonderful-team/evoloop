@@ -7,9 +7,9 @@ MacroScript.from_yaml -> MacroEngine.execute -> voice.route_result pushback.
 import pytest
 
 from app.core.execution.macro.runner import invalidate_macro_cache
-from app.core.voice import executor
 from app.core.routing.schemas import RouteDecision
 from app.core.schemas.canonical import MessageType, create_envelope
+from app.core.voice import executor
 from app.infrastructure.database import session_scope
 from app.models.learning import LearnedSkill
 from app.models.macro import Macro
@@ -33,11 +33,11 @@ async def execute(thread_id: str, decision: RouteDecision) -> None:
 
     Replicates: skill lookup → param gate → run_macro → push_macro_result.
     """
+    import json
+
     from app.core.routing.actions import run_macro
     from app.infrastructure.database import session_scope
     from app.models.learning import LearnedSkill
-    from app.core.execution.macro.runner import preflight, load_macro, MacroGateError
-    import json
 
     skill_id = decision.target.get("id")
     params = decision.params or {}
@@ -89,11 +89,18 @@ async def execute(thread_id: str, decision: RouteDecision) -> None:
     await executor.push_macro_result(thread_id, status, outcome.message)
 
 
+def _envelope_dict(mtype, body):
+    """Return a serialized dict as required by VoiceChannel.bind()."""
+    return create_envelope(mtype, body).model_dump()
+
+
 def _patch_manager(monkeypatch) -> _FakeManager:
     fake = _FakeManager()
-    monkeypatch.setattr(executor, "manager", fake)
-    monkeypatch.setattr(executor, "envelope_fn", create_envelope)
-    monkeypatch.setattr(executor, "message_type", MessageType)
+    from app.core.channel.output.voice_channel import VoiceChannel
+
+    monkeypatch.setattr(VoiceChannel, "_manager", fake)
+    monkeypatch.setattr(VoiceChannel, "_envelope_fn", _envelope_dict)
+    monkeypatch.setattr(VoiceChannel, "_message_type", MessageType)
     monkeypatch.setattr(executor, "active_volc_clients", {})
     return fake
 

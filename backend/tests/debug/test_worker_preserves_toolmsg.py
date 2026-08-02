@@ -17,7 +17,6 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from app.core.engine.schemas import EngineResult
 from app.core.engine.nodes.utils.worker_result_processor import process_worker_result
 from app.core.engine.state import AgentState, StateUpdate
-from app.core.engine.state.sub_schemas import BlackboardState
 from app.core.engine.state.config import ExecutionTicket
 
 
@@ -72,9 +71,7 @@ def test_process_worker_result_empty_messages():
     state = AgentState(messages=[])
     ticket = ExecutionTicket(ticket_type="task", topic="test")
 
-    result = process_worker_result(
-        "Worker", state, engine_result, ticket, "Explorer"
-    )
+    result = process_worker_result("Worker", state, engine_result, ticket, "Explorer")
 
     assert len(result.messages) == 1
     assert isinstance(result.messages[0], AIMessage)
@@ -91,9 +88,7 @@ def test_process_worker_result_no_trailing_ai():
     state = AgentState(messages=[])
     ticket = ExecutionTicket(ticket_type="task", topic="test")
 
-    result = process_worker_result(
-        "Worker", state, engine_result, ticket, "Explorer"
-    )
+    result = process_worker_result("Worker", state, engine_result, ticket, "Explorer")
 
     types = [type(m).__name__ for m in result.messages]
     assert types == ["AIMessage", "ToolMessage", "AIMessage"]
@@ -113,10 +108,8 @@ async def test_worker_node_fallback_preserves_tool_messages():
 
     node = WorkerNode()
 
-    # Minimal state with a blackboard ticket so resolve_is_subtask works
-    blackboard = BlackboardState()
-    blackboard.ticket = ExecutionTicket(ticket_type="task", topic="test")
-    state = AgentState(messages=[], blackboard=blackboard)
+    # Minimal state so resolve_is_subtask works
+    state = AgentState(messages=[])
 
     engine_result = EngineResult(
         messages=[

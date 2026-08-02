@@ -123,9 +123,8 @@ async def test_supervisor_prompt():
     assert "Recommended Strategy**: PARALLEL" in dynamic_ticket
     assert "Assessment Reason**: Test reasoning" in dynamic_ticket
     
-    print("\n--- STATIC PROMPT PREVIEW (DECOMPOSE) ---")
-    assert "decompose_task" in static_prompt
-    assert "**LARGE**: YOU MUST use `decompose_task`" in static_prompt
+    print("\n--- STATIC PROMPT PREVIEW ---")
+    assert "route_to" in static_prompt
     
     print("✅ Supervisor prompt test passed.")
 

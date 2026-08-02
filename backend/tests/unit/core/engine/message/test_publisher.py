@@ -8,10 +8,14 @@ from app.core.channel import (
     Channel,
     ChannelContext,
     ChannelRegistry,
-    WebChannel,
     MobileChannel,
+    WebChannel,
 )
+from app.core.context.manager import ContextManager, EvoContext
+from app.core.context.schemas import ContextMetadata
+from app.core.engine.message.handler._dispatch_mixin import DispatchMixin
 from app.core.engine.message.publisher import MessagePublisher
+from app.core.engine.message.schemas import MessageBlock
 
 
 class _TestChannel(Channel):
@@ -396,3 +400,91 @@ class TestMobileChannelHueyFallback:
                 mock_mgr.link.send_message.assert_not_called()
                 mock_mapper.to_mobile.assert_not_called()
                 mock_task.delay.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_publish_falls_back_to_evocontext_source_for_policy(monkeypatch):
+    """If current_session_source ContextVar is unset, publish() resolves policy
+    from EvoContext.metadata.source (e.g. suppresses mobile echo for mobile-source
+    human messages).
+    """
+    from app.core.channel.policy import current_session_source
+    from app.core.engine.callbacks.database_logger import current_node_source
+
+    current_session_source.set(None)
+    current_node_source.set(None)
+
+    ctx = EvoContext(
+        thread_id="t-mobile",
+        metadata=ContextMetadata(source="mobile"),
+    )
+
+    class _FakeRegistry:
+        def __init__(self):
+            self.selected = []
+
+        def select(self, names, payload_is_block):
+            self.selected.append(names)
+            return []
+
+    fake_registry = _FakeRegistry()
+    monkeypatch.setattr(
+        "app.core.engine.message.publisher.channel_registry", fake_registry
+    )
+
+    with ContextManager.use(ctx):
+        pub = MessagePublisher(thread_id="t-mobile")
+        block = MessageBlock(
+            id="m1",
+            thread_id="t-mobile",
+            role="human",
+            content="hi",
+            status="completed",
+        )
+        await pub.publish(block)
+
+    assert fake_registry.selected == [{"sse"}]
+
+
+@pytest.mark.asyncio
+async def test_dispatch_block_blanks_tool_streaming_content():
+    """Raw tool output must not leak into streaming/running MessageBlock content;
+    completed tool content should remain visible.
+    """
+
+    class _DummyHandler(DispatchMixin):
+        thread_id = "t1"
+        project_id = 0
+        run_id = "r1"
+        _stream_seq = 0
+        _publisher = None
+        _repository = None
+
+        def _get_device_attribution(self):
+            return None, None
+
+    handler = _DummyHandler()
+    mock_publisher = AsyncMock()
+    handler._publisher = mock_publisher
+
+    await handler._dispatch_block(
+        role="tool",
+        content="raw command output",
+        category="tool_output",
+        status="streaming",
+        tool_name="execute_command",
+        metadata={},
+    )
+    published_block = mock_publisher.publish.await_args.args[0]
+    assert published_block.content == ""
+
+    await handler._dispatch_block(
+        role="tool",
+        content="summary",
+        category="tool_output",
+        status="completed",
+        tool_name="execute_command",
+        metadata={},
+    )
+    completed_block = mock_publisher.publish.await_args.args[0]
+    assert completed_block.content == "summary"

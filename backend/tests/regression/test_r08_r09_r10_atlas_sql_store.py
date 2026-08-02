@@ -46,7 +46,12 @@ class TestSQLAtlasStoreSave:
     """R08: 验证 save_app_model 创建和更新。"""
 
     def _make_app(self, bundle_id="com.test.app", app_name="TestApp"):
-        from app.core.atlas.models import AtlasApp, AtlasElement, AtlasState, AtlasTransition
+        from app.core.atlas.models import (
+            AtlasApp,
+            AtlasElement,
+            AtlasState,
+            AtlasTransition,
+        )
         state = AtlasState(state_id="main", window_title="Main Window", elements=[
             AtlasElement(role="BUTTON", label="OK", ax_path="/ok"),
         ])
