@@ -54,11 +54,6 @@ class SupervisorPromptBuilder(BasePromptBuilder):
         # 2. Protocol & Sys Info Prep (STATIC parts only)
         project_profile = self.read_project_profile(ctx.working_directory, "[SupervisorPrompt]")
 
-        # Read wiki index for prompt injection (project mode only)
-        from app.core.engine.nodes.utils.node_utils import read_wiki_index
-
-        wiki_index = await read_wiki_index(ctx.project_id)
-
         # 3. Prepare Template Variables (STATIC only — no blackboard/memory/telemetry)
         is_voice = ctx.metadata.get("source") == "voice"
         has_running_worker = ctx.metadata.get("has_running_worker") == "true"
