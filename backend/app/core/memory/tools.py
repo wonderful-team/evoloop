@@ -101,7 +101,7 @@ async def remember(content: str, context: str = "", is_user_preference: bool = F
         project_id = int(ctx.project_id) if ctx and ctx.project_id is not None else None
 
         run_id = ctx.run_id if ctx else None
-        
+
         entry = MemoryEntry(
             id=entry_id,
             type=mem_type,
@@ -207,14 +207,14 @@ async def forget_memory(memory_id: str) -> str:
             await MemoryLifespanManager.ainitialize()
         container = MemoryLifespanManager.get_container()
         manager = container.memory_manager
-        
+
         success = await manager.delete(memory_id)
         if success:
             logger.info(f"[MemoryTool] Forgotten memory: {memory_id}")
             return f"Memory '{memory_id}' has been permanently forgotten."
         else:
             return f"Could not find memory with ID '{memory_id}' to delete."
-            
+
     except Exception as e:
         logger.error(f"[MemoryTool] Failed to forget memory: {e}")
         return f"Error deleting memory: {str(e)}"
@@ -325,7 +325,7 @@ async def forget_tool_outputs(
                 continue
 
             msg = msg_info["msg"]
-            tool_name = msg.tool_name or "unknown"
+            tool_name = msg.tool_name
             content = msg.content or ""
             summary = custom_summaries.get(tc_id) if custom_summaries else _generate_summary(tool_name, content)
 

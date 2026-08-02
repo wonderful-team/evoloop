@@ -5,7 +5,6 @@ Handles result summary, cache invalidation, verification capture,
 MCP interception, and subtask result collection.
 """
 
-import asyncio
 import json
 import logging
 
@@ -25,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 async def process_worker_result(
-    _node_name: str,
+    node_name: str,
     state: AgentState,
     engine_result: EngineResult,
     execution_ticket: ExecutionTicket,

@@ -151,7 +151,7 @@ class MobileInteractionMixin:
                 "input_text",
                 {"text": text, "element_name": element_name},
                 ControllerResponse.input_result(
-                    field_name=element_name or "unknown",
+                    field_name=element_name,
                     value=text[:50] if len(text) > 50 else text
                 )
             )

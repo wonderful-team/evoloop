@@ -62,7 +62,7 @@ def generate_unified_diff(
 
 
 def calculate_confidence(
-    strategy_name: str,
+    strategy_name: str | None,
     is_exact_match: bool,
     match_count: int,
     similarity_score: float = 1.0

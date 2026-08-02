@@ -60,16 +60,11 @@ class WorkerPromptBuilder(BasePromptBuilder):
         # Read PROJECT.md if exists (static for the session)
         project_profile = self.read_project_profile(ctx.working_directory, "[WorkerPrompt]")
 
-        # Read wiki index for prompt injection (project mode only)
-        from app.core.engine.nodes.utils.node_utils import read_wiki_index
-
-        wiki_index = await read_wiki_index(ctx.project_id)
-
         # Static Sys Info (Project identity only)
         sys_info = {
             "project_concepts": ctx.metadata.get("project_concepts", ""),
             "project_profile": project_profile,
-            "wiki_index": wiki_index,
+            "wiki_index": ctx.wiki_index,
             "cwd": self.get_mapped_cwd(
                 ctx.working_directory or ctx.metadata.get("cwd", "")
             ),

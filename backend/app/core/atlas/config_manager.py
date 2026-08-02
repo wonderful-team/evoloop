@@ -6,13 +6,13 @@ Manages dynamic configurations for Atlas system:
 - Dynamic app classifications
 - Default interaction strategies
 
-All configurations are stored in cache (for fast lookup) with database persistence.
+All configurations are stored in cache (for fast lookup).
+App name -> bundle ID mappings can be re-detected from the system at any time,
+so no database persistence is needed.
 """
 
 import logging
 from typing import Any
-
-from sqlmodel import Session
 
 from app.infrastructure.cache import cache
 from app.infrastructure.database.resource_manager import db_resource_manager
@@ -67,10 +67,9 @@ class AtlasConfigManager:
         return None
 
     @staticmethod
-    async def set_app_name_mapping(app_name: str, bundle_id: str, persist: bool = True):
-        """Add or update app name to bundle ID mapping."""
+    async def set_app_name_mapping(app_name: str, bundle_id: str):
+        """Add or update app name to bundle ID mapping (cache only)."""
         try:
-
             await cache.hset(REDIS_KEY_APP_NAME_MAP, app_name, bundle_id)
 
             if persist:
@@ -94,9 +93,8 @@ class AtlasConfigManager:
 
     @staticmethod
     async def remove_app_name_mapping(app_name: str):
-        """Remove app name mapping."""
+        """Remove app name mapping (cache only)."""
         try:
-
             await cache.hdel(REDIS_KEY_APP_NAME_MAP, app_name)
 
             # Remove from database (using sync Session)

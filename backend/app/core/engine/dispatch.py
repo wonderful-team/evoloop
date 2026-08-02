@@ -135,7 +135,7 @@ async def dispatch_agent_run(
     # hydrator can load context telescopically.  We copy the result into both
     # the EvoContext and the graph inputs metadata.
     context.metadata.prompt = message_content
-    context.metadata.source = source or "unknown"
+    context.metadata.source = source
     if metadata.get("intent_hint"):
         context.metadata.intent_hint = metadata["intent_hint"]
 
@@ -146,7 +146,7 @@ async def dispatch_agent_run(
         member_id=member_id,
         metadata=HookMetadata(
             prompt=message_content,
-            source=source or "unknown",
+            source=source,
             intent_hint=context.metadata.get("intent_hint"),
         ),
     )

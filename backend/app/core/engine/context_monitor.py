@@ -59,7 +59,7 @@ class ContextMonitor:
                 # Track recent tools (last 5)
                 recent_tools.append(ToolCallInfo(
                     tool_call_id=msg.tool_call_id,
-                    name=msg.name or "unknown",
+                    name=msg.name,
                     timestamp=float(i),  # Use index as timestamp proxy
                     token_count=msg_tokens,
                 ))

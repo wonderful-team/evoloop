@@ -144,7 +144,7 @@ class ControllerResponse:
 
     @staticmethod
     def input_result(
-        field_name: str,
+        field_name: str | None,
         value: str | None = None,
         success: bool = True,
         details: str | None = None

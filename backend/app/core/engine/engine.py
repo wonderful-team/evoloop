@@ -96,7 +96,7 @@ class AgentEngine:
 
         # Propagate session source ("voice"/"web"/"mobile") for OutputChannelPolicy.
         _ctx = ContextManager.current()
-        current_session_source.set(getattr(_ctx.metadata, "source", None) or "unknown")
+        current_session_source.set(getattr(_ctx.metadata, "source", None))
 
         if is_subtask:
             inference_result = await self._inference_engine.run_single_shot(

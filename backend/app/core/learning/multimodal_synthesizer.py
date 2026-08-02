@@ -128,7 +128,7 @@ class MultimodalSkillSynthesizer:
         # [v3 Unified] Log event source distribution
         source_counts = {}
         for e in events:
-            src = e.source or "unknown"
+            src = e.source
             source_counts[src] = source_counts.get(src, 0) + 1
         source_summary = ", ".join([f"{k}={v}" for k, v in source_counts.items()])
         logger.info(f"[Unified] Fetched {len(events)} events ({source_summary})")
@@ -262,7 +262,7 @@ class MultimodalSkillSynthesizer:
         if not events:
             return []
 
-        thread_id = events[0].thread_id or "unknown"
+        thread_id = events[0].thread_id
         session_id = events[0].recording_session_id
 
         parser = TraceParser(thread_id=thread_id, session_id=session_id)

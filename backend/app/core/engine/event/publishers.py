@@ -64,7 +64,7 @@ async def publish_ws_message_received(
     """Publish a generic WebSocket message received event."""
     await system_bus.publish(
         WebSocketMessageReceivedEvent(
-            msg_type=msg_type or "unknown",
+            msg_type=msg_type,
             payload=payload,
             raw=raw,
         )

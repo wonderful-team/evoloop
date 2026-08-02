@@ -6,12 +6,15 @@ This module only provides query utilities for the WikiPage table.
 """
 import logging
 
-from sqlmodel import Session, select
+from sqlalchemy import select
+from sqlalchemy.exc import DBAPIError
+from sqlmodel import Session
 
-from app.infrastructure.database.resource_manager import db_resource_manager as rm
-from app.models.wiki import WikiPage
+from app.constants import DEFAULT_PROJECT_ID
 from app.core.events.decorators import event_register, event_subscribe
 from app.core.events.registry import SystemEventType
+from app.infrastructure.database.resource_manager import db_resource_manager as rm
+from app.models.wiki import WikiPage
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +50,44 @@ class WikiService:
             ).distinct()
             results = session.exec(statement).all()
             return set(results)
+
+    def get_wiki_index(self, project_id: int | None, limit: int = 20) -> list[dict]:
+        """
+        Read project wiki page index (title + summary) for prompt injection.
+
+        Returns a list of {"title": ..., "summary": ...} dicts, sorted by
+        updated_at desc. Returns empty list in global mode (project_id=0 or None).
+
+        Wiki index is advisory prompt context: a database-level failure degrades
+        to an empty list (logged with traceback) instead of crashing prompt
+        construction, while genuine code bugs (TypeError etc.) still fail fast.
+        """
+        if not project_id or project_id == DEFAULT_PROJECT_ID:
+            return []
+
+        try:
+            with Session(rm.sync_engine) as session:
+                statement = (
+                    select(WikiPage.id, WikiPage.title, WikiPage.content, WikiPage.updated_at)
+                    .where(WikiPage.project_id == project_id)
+                    .order_by(WikiPage.updated_at.desc())
+                    .limit(limit)
+                )
+                rows = session.exec(statement).all()
+                return [
+                    {
+                        "title": row.title,
+                        "summary": (
+                            row.content[:100] + "..."
+                            if row.content and len(row.content) > 100
+                            else (row.content or "")
+                        ),
+                    }
+                    for row in rows
+                ]
+        except DBAPIError:
+            logger.exception("[WikiService] Failed to load wiki index for project %s", project_id)
+            return []
 
     def ensure_toc_page(self, project_id: int, user_lang: str = "English") -> WikiPage | None:
         """

@@ -84,9 +84,7 @@ class SpawnSubtasksSignal(AgentSignal):
 # ───────────────────────── Interceptors ─────────────────────────
 
 
-async def _emit_tool_event(
-    event: str, tool_name: str, input_or_output: Any, run_id: str, config: dict
-) -> None:
+async def _emit_tool_event(event: str, tool_name: str, input_or_output: Any, run_id: str, config: dict) -> None:
     """Emit on_tool_start/on_tool_end to callbacks in config."""
     callbacks = config.get("callbacks", []) if config else []
     for cb in callbacks:
@@ -223,9 +221,7 @@ async def _resolve_skill_tool_allowlist(
 # ───────────────────────── Handlers ─────────────────────────
 
 
-async def handle_route_to(
-    state: AgentState, signal: RouteToSignal, _config: dict
-) -> StateUpdate:
+async def handle_route_to(state: AgentState, signal: RouteToSignal, _config: dict) -> StateUpdate:
     """Handle RouteToSignal: construct ExecutionTicket and route."""
     target = signal.target
     reason = signal.reason

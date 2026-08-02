@@ -53,19 +53,14 @@ async def ask_human(
 
     Returns the user's response as a string.
     """
-    try:
-        ctx = ContextManager.current()
-        thread_id = ctx.thread_id or "unknown"
-        project_id = ctx.project_id
-        command_id = ctx.command_id
-        current_tool_call_id = ctx.current_tool_call_id
-        last_ai_message_id = ctx.last_ai_message_id
-    except Exception:
-        thread_id = "unknown"
-        project_id = None
-        command_id = None
-        current_tool_call_id = None
-        last_ai_message_id = None
+    ctx = ContextManager.current()
+    if not ctx.thread_id:
+        raise ValueError("ask_human requires a thread_id in the current EvoContext")
+    thread_id = ctx.thread_id
+    project_id = ctx.project_id
+    command_id = ctx.command_id
+    current_tool_call_id = ctx.current_tool_call_id
+    last_ai_message_id = ctx.last_ai_message_id
 
     # Map internal type to standardized HumanRequestType
     type_map = {
@@ -179,19 +174,14 @@ async def ask_confirm(
 
     Returns "APPROVED" or "REJECTED" based on user decision.
     """
-    try:
-        ctx = ContextManager.current()
-        thread_id = ctx.thread_id or "unknown"
-        project_id = ctx.project_id
-        command_id = ctx.command_id
-        current_tool_call_id = ctx.current_tool_call_id
-        last_ai_message_id = ctx.last_ai_message_id
-    except Exception:
-        thread_id = "unknown"
-        project_id = None
-        command_id = None
-        current_tool_call_id = None
-        last_ai_message_id = None
+    ctx = ContextManager.current()
+    if not ctx.thread_id:
+        raise ValueError("ask_confirm requires a thread_id in the current EvoContext")
+    thread_id = ctx.thread_id
+    project_id = ctx.project_id
+    command_id = ctx.command_id
+    current_tool_call_id = ctx.current_tool_call_id
+    last_ai_message_id = ctx.last_ai_message_id
 
     # Build approval context
     risk_emoji = {

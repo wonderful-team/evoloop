@@ -2,13 +2,12 @@
 
 from typing import Any
 
+from app.core.engine.signals.schemas import TerminateSignal
 from app.core.engine.signals.signals import (
     AgentSignal,
     StateUpdate,
     signal_manager,
 )
-
-from app.core.engine.signals.schemas import TerminateSignal
 
 
 class SignalDispatcher:

@@ -233,8 +233,7 @@ def get_tools_by_names(tool_names: list[str], source_role: str | None = None) ->
 
     # Strict mode: report missing tools
     if missing_tools:
-        role_label = source_role or "unknown"
-        _report_missing_tools(role_label, missing_tools)
+        _report_missing_tools(source_role, missing_tools)
 
     return hydrated_tools
 
@@ -256,7 +255,7 @@ def _load_yaml_config(config_path: str | None = None) -> dict:
         return {}
 
 
-def _report_missing_tools(node_role: str, missing_tools: list[str]):
+def _report_missing_tools(node_role: str | None, missing_tools: list[str]):
     """Report missing tools via logger and activity monitor."""
     logger.error(
         f"[ToolRBAC] Missing tools for role '{node_role}': {missing_tools}. "

@@ -8,10 +8,10 @@ from typing import Any
 from pydantic import Field
 
 from app.constants import DEFAULT_PROJECT_ID
+from app.core.context._cache_service import ContextCacheService
 from app.core.context.schemas import ContextMetadata
 from app.core.exceptions import GlobalModeError
 from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.core.context._cache_service import ContextCacheService
 from app.utils.id import gen_uuid
 
 # ==========================================

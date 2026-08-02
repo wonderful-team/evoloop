@@ -73,7 +73,7 @@ class SupervisorPromptBuilder(BasePromptBuilder):
             "sys_info": {
                 "cwd": actual_cwd,
                 "project_profile": project_profile,
-                "wiki_index": wiki_index,
+                "wiki_index": ctx.wiki_index,
             },
             "project_concepts": ctx.metadata.get("project_concepts", ""),
             "is_supervisor": True,

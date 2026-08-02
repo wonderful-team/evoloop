@@ -1,5 +1,4 @@
 import logging
-from typing import List
 
 from app.core.file.verification import (
     safe_read_with_hash,
@@ -79,7 +78,7 @@ class FileEditorService:
 
         # Calculate confidence
         confidence = calculate_confidence(
-            strategy_name=strategy_used or "unknown",
+            strategy_name=strategy_used,
             is_exact_match=is_exact,
             match_count=match_count
         )
@@ -105,7 +104,7 @@ class FileEditorService:
     @staticmethod
     async def apply_edits(
         absolute_path: str,
-        edits: List[FileEditOperation],
+        edits: list[FileEditOperation],
         expected_hash: str | None = None,
         display_path: str | None = None
     ) -> dict:
@@ -213,6 +212,6 @@ class FileEditorService:
             logger.error(f"Failed to apply edits to {absolute_path}: {e}")
             return {
                 "success": False,
-                "message": f"An unexpected error occurred while editing file.",
+                "message": "An unexpected error occurred while editing file.",
                 "details": str(e)
             }

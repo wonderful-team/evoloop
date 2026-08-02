@@ -2,7 +2,7 @@
 import logging
 from typing import Any
 
-from pydantic import Field, model_validator
+from pydantic import Field
 
 from app.core.engine.state.workspace import SubtaskContext
 from app.infrastructure.pydantic_base import DynamicBaseModel
