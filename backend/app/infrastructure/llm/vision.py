@@ -33,10 +33,10 @@ class VisionLLMFactory:
     ) -> Any:
         """
         Create a Vision-capable LLM instance using the core LLMFactory.
-        
+
         Supports independent connection configuration for Vision (e.g., local VLM)
         while LLM uses a different remote endpoint.
-        
+
         This is a synchronous wrapper that works in both sync and async contexts.
         """
         import concurrent.futures

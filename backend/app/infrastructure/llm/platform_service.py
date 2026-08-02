@@ -128,11 +128,11 @@ class LLMPlatformService:
     def get_cached_models(self) -> List[PlatformModel]:
         """获取缓存的模型列表"""
         return list(self._models_cache.values())
-    
+
     def get_model_by_id(self, model_id: str) -> PlatformModel | None:
         """根据 ID 获取模型配置"""
         return self._models_cache.get(model_id)
-    
+
     def clear_cache(self):
         """清除缓存"""
         self._models_cache.clear()
@@ -224,7 +224,7 @@ async def get_available_llm_models(config_type: str = None) -> List[Dict[str, An
 async def get_available_embedding_models() -> List[Dict[str, Any]]:
     """
     获取可用的 Embedding 模型列表 (platform + custom 组合)
-    
+
     - platform: 从 EvoLoop Gateway 获取的模型（需要配额）
     - custom: 用户自己配置的模型（使用自己的 API Key）
     """
@@ -256,7 +256,7 @@ async def get_available_embedding_models() -> List[Dict[str, Any]]:
     # 优先从 CUSTOM_EMBEDDING_MODEL 获取，如果没有则回退回 EMBEDDING_MODEL (兼容旧版本)
     embedding_model = SystemConfigService.get_value("CUSTOM_EMBEDDING_MODEL") or SystemConfigService.get_value("EMBEDDING_MODEL")
     embedding_api_key = SystemConfigService.get_value("EMBEDDING_API_KEY")
-    
+
     if embedding_provider and embedding_model and embedding_api_key and not embedding_model.startswith("embedding-"):
         # 根据 provider 推断 dimensions
         dimensions_map = {
@@ -266,7 +266,7 @@ async def get_available_embedding_models() -> List[Dict[str, Any]]:
             "huggingface": 768,
         }
         dimensions = dimensions_map.get(embedding_provider, 1536)
-        
+
         custom_id = f"custom-embedding-{embedding_provider}-{embedding_model}"
         
         result.append({

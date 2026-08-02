@@ -176,7 +176,7 @@ class InternalLLMService:
                 f"[InternalLLM] Structured call failed for '{purpose}': {e}. "
                 "Attempting fallback to clean text generation and custom parsing."
             )
-            
+
             # 1. 尝试直接从 ValidationError 中提取原始 LLM 返回的文本（零延迟，避免重新请求网络）
             raw_content = None
             if isinstance(e, ValidationError):
@@ -188,12 +188,12 @@ class InternalLLMService:
                         logger.info(f"[InternalLLM] Extracted raw content directly from ValidationError for '{purpose}'.")
                 except Exception as extract_err:
                     logger.warning(f"[InternalLLM] Failed to extract input from ValidationError: {extract_err}")
-            
+
             # 2. 尝试从 OutputParserException.llm_output 提取（若适用）
             if not raw_content and hasattr(e, "llm_output") and isinstance(e.llm_output, str):
                 raw_content = e.llm_output
                 logger.info(f"[InternalLLM] Extracted raw content from OutputParserException.llm_output for '{purpose}'.")
-            
+
             # 3. 只有实在拿不到原始响应时，才作为终极手段重新调用一次 llm.ainvoke
             if not raw_content:
                 try:
@@ -201,11 +201,9 @@ class InternalLLMService:
                     fallback_response = await llm.ainvoke(messages, config=config)
                     raw_content = fallback_response.content if hasattr(fallback_response, "content") else str(fallback_response)
                 except Exception as fallback_err:
-                    logger.error(
-                        f"[InternalLLM] Fallback LLM re-invocation also failed for '{purpose}': {fallback_err}"
-                    )
+                    logger.error(f"[InternalLLM] Fallback LLM re-invocation also failed for '{purpose}': {fallback_err}")
                     raise e
-            
+
             # 4. 复用系统已有的 utils/extract 进行解析与验证；model_validate 前先做通用兼容修复
             try:
                 from app.utils.extract import extract_json_block

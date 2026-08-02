@@ -43,7 +43,6 @@ def _apply_reasoning_patch() -> None:
                         if role == "assistant":
                             if is_kimi or is_deepseek:
                                 val = msg.get("reasoning_content")
-
                                 if not val:
                                     val = " " if is_kimi else "...."
 
