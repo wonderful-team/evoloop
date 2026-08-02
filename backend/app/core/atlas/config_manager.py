@@ -15,8 +15,6 @@ import logging
 from typing import Any
 
 from app.infrastructure.cache import cache
-from app.infrastructure.database.resource_manager import db_resource_manager
-from app.models.system import SystemConfig
 
 logger = logging.getLogger(__name__)
 
@@ -71,22 +69,6 @@ class AtlasConfigManager:
         """Add or update app name to bundle ID mapping (cache only)."""
         try:
             await cache.hset(REDIS_KEY_APP_NAME_MAP, app_name, bundle_id)
-
-            if persist:
-                # Also persist to database (using sync Session)
-                config_key = f"atlas:app_name:{app_name}"
-                with Session(db_resource_manager.sync_engine) as session:
-                    existing = session.get(SystemConfig, config_key)
-                    if existing:
-                        existing.value = bundle_id
-                    else:
-                        session.add(SystemConfig(
-                            key=config_key,
-                            value=bundle_id,
-                            description=f"Atlas: App name '{app_name}' -> Bundle ID"
-                        ))
-                    session.commit()
-
             logger.info(f"[AtlasConfig] Mapped '{app_name}' -> '{bundle_id}'")
         except Exception as e:
             logger.error(f"[AtlasConfig] Failed to set mapping: {e}")
@@ -96,15 +78,6 @@ class AtlasConfigManager:
         """Remove app name mapping (cache only)."""
         try:
             await cache.hdel(REDIS_KEY_APP_NAME_MAP, app_name)
-
-            # Remove from database (using sync Session)
-            config_key = f"atlas:app_name:{app_name}"
-            with Session(db_resource_manager.sync_engine) as session:
-                existing = session.get(SystemConfig, config_key)
-                if existing:
-                    session.delete(existing)
-                    session.commit()
-
             logger.info(f"[AtlasConfig] Removed mapping for '{app_name}'")
         except Exception as e:
             logger.error(f"[AtlasConfig] Failed to remove mapping: {e}")

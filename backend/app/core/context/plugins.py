@@ -46,6 +46,7 @@ class ContextPluginRegistry:
         "active_boundaries",
         "memory_replay",
         "spatial_awareness",
+        "wiki_index",
     })
     _META_FIELDS = frozenset({
         "has_android",
@@ -73,6 +74,7 @@ class ContextPluginRegistry:
         ctx.active_boundaries = []
         ctx.memory_replay = {}
         ctx.spatial_awareness = {}
+        ctx.wiki_index = []
         for field in self._META_FIELDS:
             if field in ("has_android", "has_macos"):
                 setattr(ctx.metadata, field, False)

@@ -52,6 +52,7 @@ class EvoContext(DynamicBaseModel):
     memory_replay: list[str] | dict[str, Any] = Field(default_factory=list)
     identity_rules: list[str] = Field(default_factory=list)
     environment_block: str | None = None
+    wiki_index: list[dict[str, Any]] = Field(default_factory=list)
     terminal_error: str | None = None  # Side-channel marker for irrecoverable errors
     active_model: str | None = None  # Current model name (propagated from frontend)
     current_tool_call_id: str | None = None # Track the current tool execution ID
@@ -190,7 +191,7 @@ class ContextManager:
     async def save(thread_id: str) -> None:
         """
         Persist the current context to cache using the thread_id.
-        Uses HSET for individual fields to allow for partial updates and prevent 
+        Uses HSET for individual fields to allow for partial updates and prevent
         serialization bottlenecks.
         """
         ctx = ContextManager.current()
