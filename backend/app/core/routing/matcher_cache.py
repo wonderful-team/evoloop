@@ -111,15 +111,18 @@ class LocalMatcherCache:
         logger.debug("[matcher_cache] local matcher rebuilt")
 
     def invalidate(self) -> None:
-        """Mark the cached matcher as stale so the next ``get()`` rebuilds it.
-
-        This is cheap and safe to call from event handlers: it does not perform
-        I/O or build a new matcher synchronously. The actual rebuild is deferred
-        to the next request and can also be kicked off immediately by dispatching
-        ``build_l0_init_spec`` from the caller.
-        """
+        """Mark the cached matcher as stale so the next ``get()`` rebuilds it."""
         self._matcher = None
         logger.debug("[matcher_cache] local matcher invalidated")
+
+    def invalidate_and_schedule_rebuild(self) -> None:
+        """Invalidate the local matcher and dispatch a background Huey task to rebuild the shared RouteCatalog."""
+        self.invalidate()
+        try:
+            from app.core.routing.tasks import build_l0_init_spec
+            build_l0_init_spec.delay()
+        except Exception:
+            logger.warning("[matcher_cache] failed to dispatch L0 init spec rebuild", exc_info=True)
 
 
 # Module singleton.
@@ -135,15 +138,7 @@ async def _on_language_changed(_old_value: str, new_value: str) -> None:
     from app.core.routing.routing_data import get_store
 
     await get_store().reload(new_value)
-    matcher_cache.invalidate()
-
-    try:
-        from app.core.routing import tasks as routing_tasks
-
-        routing_tasks.build_l0_init_spec.delay()
-    except Exception:
-        logger.warning("[matcher_cache] failed to dispatch routing init spec rebuild", exc_info=True)
-
+    matcher_cache.invalidate_and_schedule_rebuild()
     logger.info("[matcher_cache] language changed to %s, matcher invalidated", new_value)
 
 

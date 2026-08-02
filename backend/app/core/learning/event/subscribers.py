@@ -101,17 +101,9 @@ class InitSpecRefreshSubscriber:
     @event_subscribe(SystemEventType.SKILL_UPDATED)
     @event_subscribe(SystemEventType.SKILL_DELETED)
     async def on_skill_mutated(self, event: SkillMutatedEvent) -> None:
-        from app.core.routing import tasks as routing_tasks
         from app.core.routing.matcher_cache import matcher_cache
 
-        matcher_cache.invalidate()
-
-        try:
-            routing_tasks.build_l0_init_spec.delay()
-        except Exception:
-            logger.warning(
-                "[InitSpecRefresh] failed to dispatch voice init spec rebuild", exc_info=True)
-
+        matcher_cache.invalidate_and_schedule_rebuild()
         logger.debug(
             "[InitSpecRefresh] invalidated matcher after skill event: %s (skill_id=%s)",
             event.event_type,

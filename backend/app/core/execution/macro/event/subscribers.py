@@ -142,22 +142,14 @@ class MacroL0MatcherSubscriber:
         """Invalidate the L0 matcher and ask the worker to refresh the shared cache.
 
         The actual rebuild is performed by the Huey ``build_l0_init_spec`` task
-        so that API requests do not block on regex compilation. The next
-        ``voice.route`` will either load from the refreshed cache or fall back to
-        a local rebuild.
+        so that API requests do not block on regex compilation.
         """
         from app.core.execution.macro.runner import invalidate_macro_cache
-        from app.core.routing import tasks as routing_tasks
         from app.core.routing.matcher_cache import matcher_cache
 
         macro_id = self._macro_id_from_event(event)
         invalidate_macro_cache(macro_id)
-        matcher_cache.invalidate()
-
-        try:
-            routing_tasks.build_l0_init_spec.delay()
-        except Exception:
-            logger.warning("[L0Matcher] failed to dispatch routing init spec rebuild", exc_info=True)
+        matcher_cache.invalidate_and_schedule_rebuild()
 
         logger.info(
             "[L0Matcher] invalidated after macro lifecycle event: %s (macro_id=%s)",

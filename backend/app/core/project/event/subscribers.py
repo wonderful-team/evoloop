@@ -190,14 +190,9 @@ class ProjectDomainSubscriber:
         await shared_state.set("project_id", str(project_id))
 
         # Rebuild L0 local matcher so preset + current project macros are available
-        from app.core.routing import tasks as routing_tasks
         from app.core.routing.matcher_cache import matcher_cache
 
-        matcher_cache.invalidate()
-        try:
-            routing_tasks.build_l0_init_spec.delay()
-        except Exception:
-            logger.warning("[ProjectHandlers] failed to dispatch voice init spec rebuild", exc_info=True)
+        matcher_cache.invalidate_and_schedule_rebuild()
 
         if path:
             if not os.path.isdir(path):
