@@ -88,19 +88,21 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"[Startup] L0 Init Spec dispatch failed (non-critical): {e}")
 
-    # Wire voice executor globals at startup so VoiceChannel (Agent TTS
-    # streaming) can push to WS regardless of which code path triggered the
-    # Agent — not just the first voice.route.
+    # Wire voice WebSocket transport at startup so VoiceChannel (Agent TTS
+    # streaming and macro presenters) can push to WS regardless of which code
+    # path triggered the Agent — not just the first voice.route.
     try:
         from app.api.routes.voice_ws import _envelope as _ws_envelope
+        from app.core.channel.output.voice_channel import VoiceChannel
         from app.core.schemas.canonical import MessageType as _MsgType
-        from app.core.voice import executor as voice_executor
         from app.core.voice.connection import manager as _ws_manager
 
-        voice_executor.manager = _ws_manager
-        voice_executor.envelope_fn = _ws_envelope
-        voice_executor.message_type = _MsgType
-        logger.info("[Startup] Voice executor globals wired")
+        VoiceChannel.bind(
+            manager=_ws_manager,
+            envelope_fn=_ws_envelope,
+            message_type=_MsgType,
+        )
+        logger.info("[Startup] VoiceChannel WS transport wired")
     except (ValueError, OSError, RuntimeError, TypeError, KeyError, ImportError) as e:
         logger.warning(f"[Startup] VoiceChannel wiring failed (non-critical): {e}")
 

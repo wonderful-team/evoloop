@@ -74,7 +74,6 @@ class ToolMessageMixin:
                 tool_name=tool_name,
                 tool_call_id=tool_call_id,
                 metadata={"tool_meta": tool_meta, "input": input_data},
-                channels={"sse"},
                 parent_id=effective_parent_id,
                 message_id=message_id,
             )
@@ -170,7 +169,6 @@ class ToolMessageMixin:
                         tool_name=persist_data.tool_name,
                         tool_call_id=persist_data.tool_call_id,
                         metadata=metadata,
-                        channels={"mobile"},
                         message_id=message_id,
                     )
         elif persist_data.should_persist:
@@ -199,7 +197,6 @@ class ToolMessageMixin:
                     tool_name=persist_data.tool_name,
                     tool_call_id=persist_data.tool_call_id,
                     metadata=metadata,
-                    channels={"mobile"},
                     message_id=message_id,
                 )
 
@@ -211,9 +208,8 @@ class ToolMessageMixin:
                 tool_name=tool_name,
                 tool_call_id=tool_call_id,
                 sequence_number=seq if persist_data.should_persist else 0,
-                status="completed",
+                status="streaming",
                 metadata=metadata,
-                channels={"sse"},
                 message_id=message_id,
                 action="update",
             )

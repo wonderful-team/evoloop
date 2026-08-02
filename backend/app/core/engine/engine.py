@@ -5,6 +5,8 @@ AgentEngine - Instance-based execution engine for EvoLoop Agents.
 import logging
 from typing import Any
 
+from app.core.channel.policy import current_session_source
+from app.core.context.manager import ContextManager
 from app.core.engine.callbacks.database_logger import current_node_source
 from app.core.engine.context_trimmer import ContextTrimmer
 from app.core.engine.inference_engine import InferenceEngine
@@ -91,6 +93,10 @@ class AgentEngine:
         interceptors = self._signal_registry.build_interceptors()
 
         current_node_source.set(node_source or name.lower())
+
+        # Propagate session source ("voice"/"web"/"mobile") for OutputChannelPolicy.
+        _ctx = ContextManager.current()
+        current_session_source.set(getattr(_ctx.metadata, "source", None) or "unknown")
 
         if is_subtask:
             inference_result = await self._inference_engine.run_single_shot(

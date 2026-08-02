@@ -11,7 +11,6 @@ from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
 from app.core.context.manager import ContextManager, EvoContext
 from app.core.learning.trace_recorder import sync_thread_to_graph
-from app.infrastructure.config import SystemConfigService
 from app.infrastructure.database import session_scope
 from app.infrastructure.queue.factory import shared_task
 from app.models import FileOperation, Message

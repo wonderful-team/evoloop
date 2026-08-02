@@ -45,7 +45,9 @@ class DispatchMixin:
             sequence_number = self._stream_seq
 
         dispatch_content = content or ""
-        if role == "tool" and channels and "sse" in channels:
+        # Blank raw tool output for streaming/running status updates; the UI only
+        # needs metadata (tool name, display name) to show "running" indicators.
+        if role == "tool" and status in ("streaming", "running"):
             dispatch_content = ""
 
         dev_key = None

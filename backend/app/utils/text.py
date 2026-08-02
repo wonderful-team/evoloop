@@ -81,8 +81,8 @@ def extract_code_blocks(text: str) -> list[tuple[str, str]]:
 def extract_json_from_markdown(content: str) -> str:
     """Extract JSON from markdown code blocks or return raw content."""
     patterns = [
-        r'```json\s*(.*?)\s*```',
-        r'```\s*(.*?)\s*```',
+        r"```json\s*(.*?)\s*```",
+        r"```\s*(.*?)\s*```",
     ]
     for pattern in patterns:
         match = re.search(pattern, content, re.DOTALL)
@@ -193,6 +193,7 @@ def html_to_markdown(html: str, base_url: str = "") -> str:
         # Resolve relative URLs
         if base_url and href and not href.startswith(("http://", "https://", "#", "mailto:")):
             from urllib.parse import urljoin
+
             href = urljoin(base_url, href)
 
         return f"[{text}]({href})"
@@ -204,7 +205,7 @@ def html_to_markdown(html: str, base_url: str = "") -> str:
         title = element.get("title", "")
 
         if title:
-            return f"![{alt}]({src} \"{title}\")"
+            return f'![{alt}]({src} "{title}")'
         return f"![{alt}]({src})"
 
     def _handle_unordered_list(element) -> str:
@@ -264,7 +265,7 @@ def html_to_markdown(html: str, base_url: str = "") -> str:
         tbody = element.find("tbody") or element
         for tr in tbody.find_all("tr"):
             cells = [td.get_text(strip=True) for td in tr.find_all(["td", "th"])]
-            if cells and not (len(cells) == len(headers) and all(c == h for c, h in zip(cells, headers))):
+            if cells and not (len(cells) == len(headers) and all(c == h for c, h in zip(cells, headers, strict=True))):
                 rows.append("| " + " | ".join(cells) + " |")
 
         return "\n" + "\n".join(rows) + "\n" if rows else ""
@@ -397,5 +398,48 @@ def normalize_text(text: str | None) -> str:
 
     if not text:
         return ""
-    
-    return unicodedata.normalize('NFC', str(text)).lower().strip().replace(" ", "").replace("\u3000", "")
+
+    return (
+        unicodedata.normalize("NFC", str(text))
+        .lower()
+        .strip()
+        .replace(" ", "")
+        .replace("\u3000", "")
+    )
+
+
+# ============================================================================
+# Markdown cleanup for TTS
+# ============================================================================
+
+
+def strip_markdown_for_tts(text: str) -> str:
+    """Strip markdown formatting that would be spoken verbatim in TTS."""
+    if not text:
+        return text
+
+    # 1. Images: keep alt text if present, otherwise remove.
+    text = re.sub(r"!\[([^\]]*)\]\([^)]*\)", r"\1", text)
+    # 2. Links: keep link text only.
+    text = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", text)
+    # 3. Structural markers first so list bullets are removed before inline
+    #    emphasis markers strip the leading * / - characters.
+    # 3a. Heading markers (line start only).
+    text = re.sub(r"^\s*#{1,6}\s*", "", text, flags=re.MULTILINE)
+    # 3b. Blockquote markers (line start only).
+    text = re.sub(r"^\s*>\s*", "", text, flags=re.MULTILINE)
+    # 3c. Numbered list markers (line start only).
+    text = re.sub(r"^\s*\d+\.\s+", "", text, flags=re.MULTILINE)
+    # 3d. Bullet list markers (line start only).
+    text = re.sub(r"^\s*[-*+]\s+", "", text, flags=re.MULTILINE)
+    # 4. Inline formatting markers.
+    text = re.sub(r"\*\*|\*|__|_|~~|`", "", text)
+    # 5. Table pipes.
+    text = re.sub(r"\|", "", text)
+    # 6. Horizontal rules (line only).
+    text = re.sub(r"^\s*[-*_]{2,}\s*$", "", text, flags=re.MULTILINE)
+    # 7. Normalize excessive whitespace.
+    text = re.sub(r"\n{2,}", "\n", text)
+    text = re.sub(r"[ \t]{2,}", " ", text)
+
+    return text.strip()

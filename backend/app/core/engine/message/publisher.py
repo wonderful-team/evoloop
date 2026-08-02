@@ -52,16 +52,21 @@ class MessagePublisher:
           on session_source and node_source ContextVars — the single authoritative decision point.
         """
         if channels is None:
-            if isinstance(payload, BaseStreamEvent):
-                channels = {"sse"}
-            else:
-                channels = {"sse", "mobile"}
+            from app.core.channel.policy import OutputChannelPolicy, current_session_source
+            from app.core.context.manager import ContextManager
+            from app.core.engine.callbacks.database_logger import current_node_source
+
+            node_src = current_node_source.get()
+            session_src = current_session_source.get()
+            # Fallback to EvoContext.metadata.source for callers running outside
+            # an active AgentEngine node (e.g. dispatch_agent_run publishing the
+            # persisted human message before the background agent starts).
+            if session_src is None:
+                ctx = ContextManager.current()
+                session_src = getattr(ctx.metadata, "source", None)
+            channels = OutputChannelPolicy.resolve(payload, session_src, node_src)
         else:
             channels = set(channels)
-
-        from app.core.voice.executor import _voice_registry
-        if self.thread_id in _voice_registry:
-            channels.add("voice")
 
         ctx = ChannelContext(
             thread_id=self.thread_id,

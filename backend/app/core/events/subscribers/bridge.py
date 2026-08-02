@@ -1,6 +1,7 @@
 import logging
 
 from app.core.channel import ChannelContext, channel_registry
+from app.core.channel.policy import OutputChannelPolicy, current_session_source
 from app.core.events.base import BaseEvent
 from app.core.events.decorators import (
     event_register,
@@ -48,8 +49,11 @@ class UniversalBridgeSubscriber:
         )
 
         try:
-            # Forward the public system event to Web UI via ChannelRegistry (sse) and voice
-            selected = channel_registry.select({"sse", "voice"}, payload_is_block=False)
+            # Resolve channels via OutputChannelPolicy — no more hardcoded {"sse", "voice"}.
+            # node_source is not meaningful for system events (they aren't node outputs).
+            session_src = current_session_source.get()
+            channels = OutputChannelPolicy.resolve(event, session_src, node_source=None)
+            selected = channel_registry.select(channels, payload_is_block=False)
             for ch in selected:
                 await ch.send(event, ctx)
 

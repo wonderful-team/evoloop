@@ -302,12 +302,9 @@ async def dispatch_agent_run(
                     source=source,
                 )
                 publisher = MessagePublisher(thread_id=thread_id, project_id=project_id)
-                # Mobile 来源的 human 消息已由 Gateway 直接同步到 MC，
-                # Desktop Agent 侧不再通过 message.sync 回写，避免重复。
-                if source == "mobile":
-                    await publisher.publish(block, channels={"sse"})
-                else:
-                    await publisher.publish(block)
+                # OutputChannelPolicy uses EvoContext.metadata.source to exclude mobile
+                # for mobile-source human messages (Gateway already syncs them).
+                await publisher.publish(block)
 
     # ------------------------------------------------------------------
     # 5. Build BackgroundAgentInputs

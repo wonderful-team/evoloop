@@ -38,45 +38,14 @@ import time
 from typing import Any
 
 from app.core.engine.message.schemas import MessageBlock
+from app.core.routing.routing_data import get_store
 from app.core.voice import executor as voice_executor
 from app.core.voice.state_machine import VoiceSessionState, voice_state_machine
+from app.utils.text import strip_markdown_for_tts
 
 from ..base import Channel, ChannelContext
 
 logger = logging.getLogger(__name__)
-
-# Markdown cleanup for TTS — remove formatting that would be read verbatim.
-# This is NOT truncation; it only strips markdown syntax and normalizes whitespace.
-
-
-def _md_clean(text: str) -> str:
-    """Strip markdown formatting that would be spoken verbatim in TTS."""
-    if not text:
-        return text
-
-    # 1. Images: keep alt text if present, otherwise remove.
-    text = re.sub(r"!\[([^\]]*)\]\([^)]*\)", r"\1", text)
-    # 2. Links: keep link text only.
-    text = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", text)
-    # 3. Bold, italic, strikethrough, inline code markers.
-    text = re.sub(r"\*\*|\*|__|_|~~|`", "", text)
-    # 4. Heading markers.
-    text = re.sub(r"#{1,6}\s*", "", text)
-    # 5. Blockquote markers.
-    text = re.sub(r">\s*", "", text)
-    # 6. Numbered list markers.
-    text = re.sub(r"\d+\.\s+", "", text)
-    # 7. Bullet list markers.
-    text = re.sub(r"[-*+]\s+", "", text)
-    # 8. Table pipes.
-    text = re.sub(r"\|", "", text)
-    # 9. Horizontal rules.
-    text = re.sub(r"^\s*[-*_]{2,}\s*$", "", text, flags=re.MULTILINE)
-    # 10. Normalize excessive whitespace.
-    text = re.sub(r"\n{2,}", "\n", text)
-    text = re.sub(r"[ \t]{2,}", " ", text)
-
-    return text.strip()
 
 
 class VoiceChannel(Channel):
@@ -85,6 +54,11 @@ class VoiceChannel(Channel):
     name = "voice"
     accepts_blocks = True
     accepts_stream_events = True
+
+    # Runtime WebSocket transport dependencies, wired once at startup by main.py.
+    _manager: Any = None
+    _envelope_fn: Any = None
+    _message_type: Any = None
 
     # Per-thread dedup for 安抚话术 (Supervisor first response)
     _filler_texts: dict[str, set[str]] = {}
@@ -96,6 +70,182 @@ class VoiceChannel(Channel):
     _tts_accumulator: dict[str, str] = {}
     _tts_started: dict[str, bool] = {}
     _cancelled_threads: set[str] = set()
+
+    # ── WebSocket transport binding & low-level push helpers ─────────────────
+    # These used to live in app.core.voice.executor; they were moved here so
+    # VoiceChannel is the single owner of voice WS output. Legacy callers in
+    # executor/voice_input delegate to these methods instead of pushing directly.
+
+    @classmethod
+    def bind(cls, manager: Any, envelope_fn: Any, message_type: Any) -> None:
+        """Wire WS transport dependencies at application startup.
+
+        ``envelope_fn`` must return a JSON-serializable dict (not a Pydantic
+        model). The caller is responsible for calling ``model_dump()`` if needed.
+        """
+        cls._manager = manager
+        cls._envelope_fn = envelope_fn
+        cls._message_type = message_type
+
+    @classmethod
+    async def push_voice_result(
+        cls,
+        thread_id: str,
+        status: str,
+        summary: str,
+        *,
+        skip_tts: bool = False,
+    ) -> None:
+        """Push a voice route result (done/failed/routed/cancelled) to the WS.
+
+        ``_envelope_fn`` must return a JSON-serializable dict (not a Pydantic
+        model) so the transport layer never has to guess the serialization path.
+        """
+        if cls._manager is None:
+            logger.warning("[VoiceChannel] manager not set, cannot push result")
+            return
+        body = {"thread_id": thread_id, "status": status, "summary": summary}
+        if cls._envelope_fn and cls._message_type:
+            env = cls._envelope_fn(cls._message_type.VOICE_ROUTE_RESULT, body)
+            await cls._manager.push(thread_id, env)
+        else:
+            await cls._manager.push(thread_id, body)
+
+        if summary and status == "done" and not skip_tts:
+            await cls.push_tts_text(thread_id, summary)
+
+    @classmethod
+    async def push_voice_token(cls, thread_id: str, token: str, _index: int) -> None:
+        """Push a streaming TTS token for real-time playback."""
+        if cls._manager is None:
+            return
+        body = {"thread_id": thread_id, "token": token}
+        if cls._envelope_fn and cls._message_type:
+            env = cls._envelope_fn(cls._message_type.VOICE_TOKEN, body)
+            await cls._manager.push(thread_id, env)
+        else:
+            await cls._manager.push(thread_id, body)
+
+    @classmethod
+    async def push_voice_tts_boundary(
+        cls, thread_id: str, sentence: str, index: int
+    ) -> None:
+        """Push a TTS sentence boundary for real-time playback."""
+        if cls._manager is None:
+            return
+        body = {"thread_id": thread_id, "sentence": sentence, "index": index}
+        if cls._envelope_fn and cls._message_type:
+            env = cls._envelope_fn(cls._message_type.VOICE_TTS_BOUNDARY, body)
+            await cls._manager.push(thread_id, env)
+        else:
+            await cls._manager.push(thread_id, body)
+
+    @classmethod
+    async def push_tts_text(cls, thread_id: str, text: str) -> None:
+        """Send confirmation/result text to Volcengine Dialogue TTS."""
+        client = voice_executor.active_volc_clients.get(thread_id)
+        if not client:
+            return
+        if client.ws is None:
+            try:
+                await client.reconnect()
+            except Exception as e:
+                logger.error("[VoiceChannel] push_tts_text reconnect failed: %s", e)
+                return
+        try:
+            from app.api.routes.voice_ws import unblock_voice_tts
+
+            unblock_voice_tts(thread_id)
+        except ImportError:
+            pass
+        try:
+            await client.send_chat_tts_text(start=True, end=False, content=text)
+            await client.send_chat_tts_text(start=False, end=True, content="")
+            logger.info(
+                "[VoiceChannel] push_tts_text sent %d chars to thread %s",
+                len(text),
+                thread_id,
+            )
+        except Exception as exc:
+            logger.error("[VoiceChannel] push_tts_text failed: %s", exc)
+
+    @classmethod
+    async def push_macro_result(
+        cls, thread_id: str, status: str, summary: str
+    ) -> None:
+        """Push a macro result back to the voice WS (reuses voice.route_result)."""
+        if cls._manager is None:
+            logger.warning("[VoiceChannel] manager not set, cannot push macro result")
+            return
+        body = {"thread_id": thread_id, "status": status, "summary": summary}
+        if cls._envelope_fn and cls._message_type:
+            env = cls._envelope_fn(cls._message_type.VOICE_ROUTE_RESULT, body)
+            await cls._manager.push(
+                thread_id, env
+            )
+        else:
+            await cls._manager.push(thread_id, body)
+        await cls._set_idle_if_needed(thread_id)
+
+    @classmethod
+    async def push_local_result(
+        cls, thread_id: str, action: str, args: Any
+    ) -> None:
+        """Push an L0 local action result back to the voice WS."""
+        if cls._manager is None:
+            logger.warning("[VoiceChannel] manager not set, cannot push local result")
+            return
+        body = {
+            "thread_id": thread_id,
+            "status": "routed",
+            "target": {"type": "local", "action": action},
+            "params": args or {},
+            "candidates": [],
+        }
+        if cls._envelope_fn and cls._message_type:
+            env = cls._envelope_fn(cls._message_type.VOICE_ROUTE_RESULT, body)
+            await cls._manager.push(
+                thread_id, env
+            )
+        else:
+            await cls._manager.push(thread_id, body)
+        await cls._set_idle_if_needed(thread_id)
+
+    @classmethod
+    async def handle_navigate(
+        cls, route: str, thread_id: str, feedback: str | None = None
+    ) -> None:
+        """Send a frontend navigation command via voice WS, with optional TTS."""
+        logger.info(
+            "[VoiceChannel] handle_navigate route=%s thread=%s feedback=%s",
+            route,
+            thread_id,
+            feedback,
+        )
+        if cls._manager is None:
+            logger.warning("[VoiceChannel] manager not set, cannot push navigate")
+            return
+        if feedback is None:
+            _routing_store = get_store()
+            feedback = _routing_store.builtin_responses.get("generic", {}).get("ok", "")
+        body = {"route": route, "thread_id": thread_id, "feedback": feedback}
+        if cls._envelope_fn and cls._message_type:
+            env = cls._envelope_fn("voice.navigate", body)
+            await cls._manager.push(
+                thread_id,
+                env,
+            )
+        else:
+            await cls._manager.push(thread_id, body)
+        await cls.push_tts_text(thread_id, feedback)
+        await cls._set_idle_if_needed(thread_id)
+
+    @classmethod
+    async def _set_idle_if_needed(cls, thread_id: str) -> None:
+        """Transition the voice state machine back to IDLE if not already."""
+        current = await voice_state_machine.get(thread_id)
+        if current != VoiceSessionState.IDLE:
+            await voice_state_machine.set(thread_id, VoiceSessionState.IDLE)
 
     @classmethod
     def reset_tts_started(cls, thread_id: str) -> None:
@@ -185,10 +335,6 @@ class VoiceChannel(Channel):
 
         if isinstance(payload, TokenEvent):
             tid = ctx.thread_id
-            from app.core.voice.executor import _voice_registry
-
-            if tid not in _voice_registry:
-                return
             token = payload.content or ""
             if not token:
                 return
@@ -205,7 +351,7 @@ class VoiceChannel(Channel):
                 # parts[:-1] are complete sentences, parts[-1] is remainder
                 complete = "".join(parts[:-1])
                 remaining = parts[-1]
-                clean = _md_clean(complete).strip()
+                clean = strip_markdown_for_tts(complete).strip()
                 if clean:
                     await self.__class__.push_tts_chunk(tid, clean, end=False)
                 buf = remaining
@@ -220,13 +366,9 @@ class VoiceChannel(Channel):
                 return
             if payload.role == "ai" and payload.content:
                 tid = ctx.thread_id
-                from app.core.voice.executor import _voice_registry
-
-                if tid not in _voice_registry:
-                    return
 
                 streamed = self._streamed_texts.get(tid, "").strip()
-                summary = "" if streamed else _md_clean(payload.content)
+                summary = "" if streamed else strip_markdown_for_tts(payload.content)
 
                 tid_set = self._filler_texts.setdefault(tid, set())
                 clean_summary = summary.replace(" ", "").replace("\n", "")
@@ -239,7 +381,7 @@ class VoiceChannel(Channel):
                 # Fire-and-forget: don't block callback chain if WS send is congested
                 async def _push_routed():
                     try:
-                        await voice_executor.push_voice_result(tid, "routed", summary)
+                        await VoiceChannel.push_voice_result(tid, "routed", summary)
                     except Exception as exc:
                         logger.warning("[VoiceChannel] 安抚话术 push failed for %s: %s", tid, exc)
 
@@ -253,6 +395,7 @@ class VoiceChannel(Channel):
             self.__class__._cancelled_threads.discard(thread_id)
             self._filler_texts.pop(thread_id, None)
             data = payload.data
+            # Defense-in-depth: policy should already filter non-voice sessions.
             if not data or data.source != "voice":
                 return
 
@@ -268,7 +411,7 @@ class VoiceChannel(Channel):
             # Flush remaining TTS accumulator with end=True
             rem = self._tts_accumulator.pop(thread_id, "").strip()
             if rem:
-                clean = _md_clean(rem)
+                clean = strip_markdown_for_tts(rem)
                 if clean:
                     await self.__class__.push_tts_chunk(thread_id, clean, end=True)
             else:
@@ -287,16 +430,16 @@ class VoiceChannel(Channel):
             self._tts_started.pop(thread_id, None)
 
             # Flush remaining tokens in buffer
-            remaining_buf = _md_clean(self._token_buffers.pop(thread_id, "").strip())
+            remaining_buf = strip_markdown_for_tts(self._token_buffers.pop(thread_id, "").strip())
             if remaining_buf:
                 try:
-                    await voice_executor.push_voice_tts_boundary(thread_id, remaining_buf, 0)
+                    await VoiceChannel.push_voice_tts_boundary(thread_id, remaining_buf, 0)
                 except Exception as exc:
                     logger.debug("[VoiceChannel] flush tts_boundary failed: %s", exc)
 
             push_text = (data.tts_summary or data.summary or "").strip()
             streamed_text = self._streamed_texts.pop(thread_id, "").strip()
-            final_text = _md_clean(push_text)
+            final_text = strip_markdown_for_tts(push_text)
 
             logger.info(
                 "[VoiceChannel] done: push_text=%r, streamed_text=%r (len_push=%d, len_streamed=%d)",
@@ -309,7 +452,7 @@ class VoiceChannel(Channel):
             # Send status=done WS message via the shared helper, but skip the
             # confirmation TTS path because streaming TTS is already handled.
             t0 = time.time()
-            await voice_executor.push_voice_result(thread_id, "done", final_text, skip_tts=True)
+            await VoiceChannel.push_voice_result(thread_id, "done", final_text, skip_tts=True)
             elapsed = (time.time() - t0) * 1000
             logger.info(
                 "[voice-perf] %s agent_done push=%.0fms agent_duration=%.0fms",
@@ -323,6 +466,7 @@ class VoiceChannel(Channel):
         if isinstance(payload, AgentRunCompletedEvent):
             if payload.status == "done":
                 return
+            # Defense-in-depth: policy should already filter non-voice sessions.
             if payload.source != "voice":
                 return
             thread_id = payload.thread_id
@@ -334,7 +478,7 @@ class VoiceChannel(Channel):
             self._tts_started.pop(thread_id, None)
             summary = payload.payload.get("summary") or payload.payload.get("outcome") or ""
             try:
-                await voice_executor.push_voice_result(thread_id, "failed", summary)
+                await VoiceChannel.push_voice_result(thread_id, "failed", summary)
             except Exception as exc:
                 logger.warning("[VoiceChannel] failed push failed for %s: %s", thread_id, exc)
             return

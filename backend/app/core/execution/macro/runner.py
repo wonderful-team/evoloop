@@ -121,8 +121,13 @@ def is_navigation_macro(macro: Macro) -> str | None:
 
 def get_navigation_info(macro: Macro) -> tuple[str, str] | None:
     """Check if macro is a frontend navigation. Returns (route, feedback) or None."""
+    # Guard against non-string scripts (drafts, mocks, or corrupted rows) to avoid
+    # handing garbage/ MagicMock to yaml.safe_load, which can hang or recurse.
+    script = macro.macro_script
+    if not isinstance(script, str):
+        return None
     try:
-        steps = macro_from_yaml(macro.macro_script)
+        steps = macro_from_yaml(script)
     except (YAMLError, ValueError, TypeError, AttributeError):
         return None
     if not isinstance(steps, list):

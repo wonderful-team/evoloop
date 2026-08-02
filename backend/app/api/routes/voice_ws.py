@@ -24,20 +24,24 @@ from pydantic import BaseModel
 
 from app.core.channel.output.voice_channel import VoiceChannel
 from app.core.context import EvoContext
+from app.core.events import system_bus
+from app.core.events.registry import SystemEventType
+from app.core.events.schemas.lifecycle import ConfigChangedEvent
 from app.core.routing.actions import ActionOutcome
 from app.core.routing.deps import enforce_loopback_ws
 from app.core.routing.dispatch_handler import dispatch_user_message
 from app.core.routing.idempotency import is_duplicate
 from app.core.routing.thread_locks import route_lock_scope
-from app.core.schemas.canonical import MessageType, create_envelope, is_canonical_envelope
+from app.core.schemas.canonical import (
+    MessageType,
+    create_envelope,
+    is_canonical_envelope,
+)
+from app.core.voice import executor as voice_executor
 from app.core.voice.connection import manager
 from app.core.voice.state_machine import VoiceSessionState, voice_state_machine
-from app.core.voice import executor as voice_executor
-from app.core.events import system_bus
-from app.core.events.registry import SystemEventType
-from app.core.events.schemas.lifecycle import ConfigChangedEvent
-from app.infrastructure.voice.volc_dialog import VolcDialogClient
 from app.infrastructure.config.service import SystemConfigService
+from app.infrastructure.voice.volc_dialog import VolcDialogClient
 from app.utils.id import gen_uuid
 
 logger = logging.getLogger(__name__)
@@ -110,17 +114,13 @@ async def _ensure_voice_input() -> None:
         return
     from app.core.channel.input.voice_input import voice_input
     from app.core.engine.worker_registry import worker_registry
-    from app.core.schemas.canonical import MessageType
     from app.core.voice.state_machine import VoiceSessionState, voice_state_machine
 
     voice_input.bind(
-        manager=manager,
         executor=voice_executor,
         state_machine=voice_state_machine,
         state_enum=VoiceSessionState,
         worker_registry=worker_registry,
-        envelope_fn=_envelope,
-        message_type=MessageType,
     )
     # VoiceChannel's WS transport (manager/envelope_fn/message_type) is wired
     # at app startup in main.py via VoiceChannel.bind(...), so VoiceChannel
