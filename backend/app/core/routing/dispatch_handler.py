@@ -171,7 +171,7 @@ async def dispatch_user_message(
             inputs = await input_channel.dispatch(msg)
             return DispatchOutcome(handled=False, msg=msg, inputs=inputs)
         
-        macro_timeout = 3.0 if source == "voice" else None
+        macro_timeout = 10.0 if source == "voice" else None
         outcome = await run_macro(
             macro_id,
             decision.params,
@@ -184,12 +184,7 @@ async def dispatch_user_message(
         handled = True
         if source == "voice" and outcome.action_type != "navigate" and not outcome.ok:
             handled = False
-        logger.info(
-            "[dispatch] %s L0 macro handled=%s for thread %s",
-            source,
-            handled,
-            thread_id,
-        )
+
         if handled:
             return DispatchOutcome(handled=True, local_response=outcome)
         else:
