@@ -193,7 +193,6 @@ async def test_chat_node_no_tools():
         # 验证调用参数
         call_kwargs = mock.run_node.call_args.kwargs
         assert call_kwargs["tools"] == []  # 关键断言
-        assert call_kwargs["is_subtask"] is True
 ```
 
 **测试思路**：Mock 依赖，验证行为符合预期

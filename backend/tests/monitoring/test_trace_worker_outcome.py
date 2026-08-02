@@ -47,11 +47,7 @@ def patch_worker():
         else:
             worker_outcome = "success"
         
-        agent_config = execution_ticket.get("agent_config", {})
-        is_subtask = agent_config.get("is_subtask", False)
-        
         logger.info(f"[WorkerPatch] 计算 worker_outcome: '{worker_outcome}'")
-        logger.info(f"[WorkerPatch] is_subtask: {is_subtask}")
         logger.info(f"[WorkerPatch] 将设置 blackboard['worker_outcome'] = '{worker_outcome}'")
         
         # 调用原始方法

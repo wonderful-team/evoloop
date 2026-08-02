@@ -23,7 +23,6 @@ class TestLLMToolSelectionBaseline:
         return AgentRuntimeConfig(
             role_name="coding_worker",
             system_instructions="You are a coding specialist.",
-            is_subtask=False,
         )
 
     @pytest.fixture

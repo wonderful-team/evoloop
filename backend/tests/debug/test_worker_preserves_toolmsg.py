@@ -107,8 +107,6 @@ async def test_worker_node_fallback_preserves_tool_messages():
     from app.core.engine.nodes.worker import WorkerNode
 
     node = WorkerNode()
-
-    # Minimal state so resolve_is_subtask works
     state = AgentState(messages=[])
 
     engine_result = EngineResult(

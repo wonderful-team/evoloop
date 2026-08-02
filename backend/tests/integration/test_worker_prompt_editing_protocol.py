@@ -18,7 +18,6 @@ class TestWorkerPromptEditingProtocol:
         return AgentRuntimeConfig(
             role_name="coding_worker",
             system_instructions="You are a coding specialist.",
-            is_subtask=False,
         )
 
     @pytest.fixture
@@ -26,7 +25,6 @@ class TestWorkerPromptEditingProtocol:
         return AgentRuntimeConfig(
             role_name="android_worker",
             system_instructions="You are an Android debugging specialist.",
-            is_subtask=False,
         )
 
     @pytest.fixture

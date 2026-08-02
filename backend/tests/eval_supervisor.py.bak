@@ -400,8 +400,6 @@ def classify_tool_calls(tool_calls: list[dict]) -> str:
         return "run_macro"
     if any(n == "list_macros" for n in names):
         return "list_macros"
-    if any(n == "decompose_task" for n in names):
-        return "decompose_task"
     if any(n in {"search_history", "recall", "query_concepts"} for n in names):
         return "memory_tool"
     if any(n in {"ask_human", "request_human_input"} for n in names):

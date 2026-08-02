@@ -45,7 +45,7 @@ class MockAgentEngine(AgentEngine):
         super().__init__()
         self.counters = {"supervisor": 0, "worker": 0, "chat": 0, "finish": 0}
 
-    async def run_node(self, state, config, system_prompt, tools, max_steps=5, temperature=0.7, name="Agent", is_subtask=False, node_source=None, parallel_tools=False, model=None) -> EngineResult:
+    async def run_node(self, state, config, system_prompt, tools, max_steps=5, temperature=0.7, name="Agent", node_source=None, parallel_tools=False, model=None) -> EngineResult:
         key = name.lower()
         self.counters[key] = self.counters.get(key, 0) + 1
         c = self.counters[key]

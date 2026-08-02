@@ -33,7 +33,6 @@ class MockAgentEngine(AgentEngine):
         max_steps=5,
         temperature=0.7,
         name="Agent",
-        is_subtask=False,
         node_source=None,
         parallel_tools=False,
         model=None,
