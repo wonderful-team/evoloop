@@ -27,17 +27,15 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import inspect
 import json
 import logging
-import os
-import sys
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-logger = logging.getLogger("batch_writer")
 
 from app.core.atlas.source.persistence import save_app_map
 from app.core.execution.macro.tasks import synthesize_macros_task as _wrapped_task
-import inspect
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+logger = logging.getLogger("batch_writer")
 
 # Unwrap @shared_task decorator once at module level
 _raw = getattr(_wrapped_task, "func", _wrapped_task)
@@ -104,7 +102,12 @@ async def batch_write(
         "Batch complete: %d written, %d skipped (unchanged), %d failed, %d macros generated",
         written, skipped, failed, macros_generated,
     )
-    return {"written": written, "skipped": skipped, "failed": failed, "macros_generated": macros_generated}
+    return {
+        "written": written,
+        "skipped": skipped,
+        "failed": failed,
+        "macros_generated": macros_generated,
+    }
 
 
 async def main() -> None:
@@ -123,6 +126,7 @@ async def main() -> None:
         return
 
     from app.infrastructure.database.resource_manager import db_resource_manager
+
     await db_resource_manager.initialize(create_tables=False, seed_data=False)
 
     from app.core.evocloud import evocloud_manager

@@ -1,6 +1,7 @@
 """
 reasoning.py — 推理内容提取工具函数
 """
+
 from __future__ import annotations
 
 from typing import Any

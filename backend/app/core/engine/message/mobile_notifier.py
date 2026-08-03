@@ -4,6 +4,7 @@ MobileErrorNotifier — 统一错误消息推送到 Mobile 的封装。
 将原来分散在 handler.py / errors.py / background_agent/__init__.py 中的
 Mobile 推送逻辑集中到此，避免重复实现和遗漏。
 """
+
 import logging
 
 logger = logging.getLogger(__name__)
@@ -58,6 +59,7 @@ class MobileErrorNotifier:
         """
         try:
             from app.core.engine.message.sequence import SequenceService
+
             return await SequenceService.next_sequence(self._handler.thread_id)
         except Exception as e:
             logger.warning(f"[MobileErrorNotifier] Failed to get sequence number, using fallback: {e}")

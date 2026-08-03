@@ -36,7 +36,11 @@ class MobileInputChannel(InputChannel):
         from app.constants import DEFAULT_PROJECT_ID
         from app.core.context.thread_store import thread_context_store
 
-        pid = int(raw.get("project_id", 0)) or thread_context_store.get_active_project("remote-default") or DEFAULT_PROJECT_ID
+        pid = (
+            int(raw.get("project_id", 0))
+            or thread_context_store.get_active_project("remote-default")
+            or DEFAULT_PROJECT_ID
+        )
         member_id = kwargs.get("member_id", 0)
         command_id = kwargs.get("command_id")
         message_id = kwargs.get("message_id")

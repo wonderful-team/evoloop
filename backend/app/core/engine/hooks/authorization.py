@@ -169,7 +169,7 @@ async def authorization_gate(context: HookContext) -> HookResult:
                     patterns=[resource_path],
                     requires_approval=True,
                     risk_level="high",
-                    description=f"Sensitive file access outside allowed workspace boundaries: {resource_path}"
+                    description=f"Sensitive file access outside allowed workspace boundaries: {resource_path}",
                 )
                 decision = AuthorizationDecision(
                     approved=False,

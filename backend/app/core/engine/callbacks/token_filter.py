@@ -63,7 +63,7 @@ class TokenFilter:
                 if idx != -1:
                     self._in_hidden_tag = False
                     # Preserve anything AFTER the end tag for subsequent start-tag detection
-                    self._tag_buffer = self._tag_buffer[idx + len(tag):]
+                    self._tag_buffer = self._tag_buffer[idx + len(tag) :]
                     break
             return None, None
 
@@ -81,6 +81,7 @@ class TokenFilter:
     def should_flush(self, char_limit: int = 150) -> bool:
         """Check if the publish buffer should be flushed (char limit)."""
         from app.utils.text import should_flush_text
+
         return should_flush_text(
             self._publish_buffer,
             min_chars=char_limit,

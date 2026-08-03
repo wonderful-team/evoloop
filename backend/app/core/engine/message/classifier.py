@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class MessageClassifier:
     """
     消息分类器
-    
+
     负责在消息创建时确定其分类，基于：
     - 消息角色（user/ai/tool/system）
     - 消息内容
@@ -46,15 +46,15 @@ class MessageClassifier:
     ) -> MessageCategory:
         """
         分类 AI 助手的消息
-        
+
         Args:
             content: 消息内容
             tool_calls: 工具调用列表
             metadata: 消息元数据（可能包含 source 标记）
-            
+
         Returns:
             MessageCategory 分类
-            
+
         分类逻辑（按优先级）：
         1. 如果 metadata 中标记为 internal → INTERNAL_LLM_JSON
         2. 识别需存入 thinking 字段的内容（原生推理或内部审计标签） → INTERNAL_REASONING
@@ -107,8 +107,10 @@ class MessageClassifier:
                 return MessageCategory.INTERNAL_LLM_JSON
 
         # 2. 识别需存入 thinking 字段的内容（原生推理内容或内部审计标签）
-        has_reasoning = (metadata and metadata.get("reasoning_content")) or (content and cls._has_hidden_audit_tags(content))
-        
+        has_reasoning = (metadata and metadata.get("reasoning_content")) or (
+            content and cls._has_hidden_audit_tags(content)
+        )
+
         # 只有在没有实际回复正文且没有工具调用时，才分类为 INTERNAL_REASONING (纯推理消息)
         # 如果包含正文或工具调用，则由后续逻辑分类为 ASSISTANT_RESPONSE 或 ASSISTANT_TOOL_CALL，
         # 并由 PersistencePolicy 负责将 reasoning 存入 thinking 字段
@@ -146,11 +148,11 @@ class MessageClassifier:
     ) -> MessageCategory:
         """
         分类工具输出消息
-        
+
         Args:
             tool_name: 工具名称
             output: 工具输出内容
-            
+
         Returns:
             MessageCategory.TOOL_OUTPUT 或 MessageCategory.INTERNAL_TOOL_CALL
         """
@@ -173,7 +175,7 @@ class MessageClassifier:
     ) -> MessageCategory:
         """
         分类用户消息
-        
+
         目前用户消息只有一种分类，但保留扩展性
         """
         return MessageCategory.USER
@@ -199,7 +201,7 @@ class MessageClassifier:
     def _analyze_tool_visibility(tool_calls: list) -> tuple[bool, bool]:
         """
         分析工具调用的可见性
-        
+
         Returns:
             (has_visible, has_hidden): 是否包含可见/隐藏工具
         """

@@ -27,7 +27,4 @@ async def error_handler(context: HookContext) -> HookResult:
     # Could attempt recovery
     # Could notify user
 
-    return HookResult(
-        success=True,
-        data={"logged": True, "error": error_message}
-    )
+    return HookResult(success=True, data={"logged": True, "error": error_message})

@@ -90,6 +90,7 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
                 # Two-tier LLM: when lightning mode is active, Supervisor uses the
                 # local fast model, Worker/Finish keep the default model.
                 from app.infrastructure.config.service import SystemConfigService
+
                 lightning_mode = SystemConfigService.get_value("LIGHTNING_MODE", "none")
                 lightning_base = SystemConfigService.get_value("LIGHTNING_BASE_URL", "")
                 if lightning_mode not in ("none", ""):
@@ -124,6 +125,7 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
                     from app.core.engine.message.converter import EvoMessageConverter
                     from app.infrastructure.database import session_scope
                     from app.models import Message as MessageModel
+
                     async with session_scope() as db:
                         stmt = (
                             select(MessageModel)
@@ -183,6 +185,7 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
 
                 if inputs.hitl_resume_response:
                     from app.core.hitl.orchestrator import HITLOrchestrator
+
                     pending_tool = await HITLOrchestrator.get_pending_request(thread_id, inputs.model)
                     if pending_tool:
                         logger.info(f"[Resume] Auto-completing tool call {pending_tool['name']} on resume")
@@ -226,12 +229,13 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
                 return
             except AgentHumanInterruptException:
                 raise
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, InferenceError) as e:
+            except Exception as e:
                 handler = db_callback._handler if db_callback else None
                 await handle_task_exception(thread_id, project_id, e, handler=handler)
                 # Always publish AgentRunCompletedEvent regardless of terminal flag,
                 # so VoiceChannel can push voice.route_result {failed} to the HUD.
                 from app.core.engine.event.publishers import publish_agent_run_completed
+
                 await publish_agent_run_completed(
                     thread_id=thread_id,
                     project_id=project_id,

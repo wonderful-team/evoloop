@@ -103,8 +103,8 @@ async def handle_task_exception(thread_id: str, project_id: int, e: Exception, h
     # Standard classification of "retryable" keywords
     is_retryable = error_type in ("rate_limit", "service_unavailable", "network_error")
 
-    icon_warning = i18n.get('icons.warning') or '⚠️'
-    icon_failed = i18n.get('icons.failed') or '❌'
+    icon_warning = i18n.get("icons.warning") or "⚠️"
+    icon_failed = i18n.get("icons.failed") or "❌"
 
     raw_error_snippet = (classification.raw_error or "")[:200]
     if is_retryable:
@@ -126,7 +126,13 @@ async def handle_task_exception(thread_id: str, project_id: int, e: Exception, h
         action_type = "system"
 
     # Persist the failure message to DB for visibility and future learning (if applicable)
-    await persist_system_error(thread_id, project_id, user_message, action_type=action_type, run_id=handler.run_id if handler else None)
+    await persist_system_error(
+        thread_id,
+        project_id,
+        user_message,
+        action_type=action_type,
+        run_id=handler.run_id if handler else None,
+    )
 
     # 4. Push error to Mobile and SSE
     if handler:
@@ -143,7 +149,7 @@ async def handle_task_exception(thread_id: str, project_id: int, e: Exception, h
                 # Mobile receives the same error via MobileErrorNotifier above, so we
                 # avoid duplicating it through the normal policy path.
                 channels={"sse"},
-                message_id=gen_uuid()
+                message_id=gen_uuid(),
             )
         except Exception as sse_err:
             logger.warning(f"[ErrorHandler] SSE push failed: {sse_err}")
@@ -172,7 +178,6 @@ async def persist_system_error(
 
     # Skip persistence for system-level errors
     if category in (MessageCategory.ERROR_SYSTEM, MessageCategory.AUTH_EXPIRED):
-        logger.debug(f"[_persist_system_error] Skipping persistence for {category} error")
         return
 
     try:

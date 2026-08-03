@@ -7,7 +7,7 @@ Pydantic data classes for agent-related events.
 
 from typing import Any
 
-from pydantic import Field, model_validator, BaseModel
+from pydantic import BaseModel, Field, model_validator
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.events.base import BaseEvent, EventData
@@ -115,6 +115,7 @@ class ExtractionRequest(BaseModel):
 
 class ExtractionRequestedEvent(BaseEvent):
     """Event published to gather schemas from domains before running extraction LLM."""
+
     event_type: str = SystemEventType.EXTRACTION_REQUESTED
     requests: list[ExtractionRequest] = Field(default_factory=list)
     thread_id: str
@@ -123,6 +124,7 @@ class ExtractionRequestedEvent(BaseEvent):
 
 class ExtractionCompletedEvent(BaseEvent):
     """Event published by background worker after LLM structured extraction finishes."""
+
     event_type: str = SystemEventType.EXTRACTION_COMPLETED
     thread_id: str
     run_id: str | None = None

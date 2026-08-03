@@ -3,7 +3,6 @@ Mock/Stub base classes providing native callback base classes.
 """
 
 
-
 class AsyncCallbackHandler:
     """Mock/Stub base class providing a native AsyncCallbackHandler."""
 

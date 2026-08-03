@@ -9,10 +9,10 @@ from .schemas import (
     AgentEvent,
     AgentRunCompletedEvent,
     ConversationDeletedEvent,
-    WebSocketMessageReceivedEvent,
+    ExtractionCompletedEvent,
     ExtractionRequest,
     ExtractionRequestedEvent,
-    ExtractionCompletedEvent,
+    WebSocketMessageReceivedEvent,
 )
 from .types import AgentEventType, ConversationEventType
 

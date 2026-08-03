@@ -132,6 +132,24 @@ class VoiceInputChannel(InputChannel):
 
     async def handle_cancelled(self, thread_id: str) -> None:
         """Clean up when the agent task is cancelled."""
+        # If a new worker is already running for this thread, the cancellation is
+        # from a NEW_COMMAND replacement; do not push a stale cancelled result.
+        if self._worker_registry is not None:
+            try:
+                if await self._worker_registry.has_running_worker(thread_id):
+                    logger.info(
+                        "[VoiceInputChannel] Task cancelled for %s but a new worker "
+                        "is already running; suppressing stale cancelled result.",
+                        thread_id,
+                    )
+                    return
+            except Exception:
+                logger.warning(
+                    "[VoiceInputChannel] Failed to check worker state for %s; "
+                    "proceeding with cancelled push",
+                    thread_id,
+                    exc_info=True,
+                )
         await self._executor.push_voice_result(thread_id, "cancelled", "")
         if self._state_machine is not None:
             await self._state_machine.set(thread_id, self._state_enum.LISTENING)

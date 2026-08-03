@@ -47,7 +47,7 @@ class ContextMiddleware(BaseHTTPMiddleware):
             trace_id=trace_id,
             timestamp=start_time,
             member_id=member_id,
-            thread_id=request.headers.get("X-Thread-ID")  # Optional: thread hint
+            thread_id=request.headers.get("X-Thread-ID"),  # Optional: thread hint
         )
 
         # 4. Set Context FIRST so plugins relying on ContextManager.current() work correctly

@@ -12,6 +12,7 @@ from app.core.engine.message.native_classes import (
     SystemMessage,
     ToolMessage,
 )
+
 logger = logging.getLogger(__name__)
 
 _ROLE_MAP = {
@@ -29,7 +30,12 @@ def _dict_to_message(d: dict) -> BaseMessage:
     role = d.get("role")
     type_ = d.get("type")
     if not role and type_:
-        role = {"human": "user", "ai": "assistant", "system": "system", "tool": "tool"}.get(type_)
+        role = {
+            "human": "user",
+            "ai": "assistant",
+            "system": "system",
+            "tool": "tool",
+        }.get(type_)
     if not role:
         role = "user"
     native_type = _ROLE_MAP.get(role, "human")
@@ -55,7 +61,6 @@ def _normalize_to_native(messages: list[Any]) -> list[BaseMessage]:
 
 
 class EvoMessageConverter:
-
     @staticmethod
     def from_message_dicts(messages: list[dict]) -> list[dict]:
         """Convert messages directly to standard dicts."""
@@ -106,14 +111,16 @@ class EvoMessageConverter:
                         if tool_call_id in ids:
                             is_orphaned = False
                 if is_orphaned:
-                    stage1.append(AIMessage(
-                        content=_t("orphaned_tool"),
-                        tool_calls=[{
-                            "id": str(tool_call_id or "unknown_id"),
-                            "name": str(msg.name or "unknown_tool"),
-                            "args": {},
-                        }],
-                    ))
+                    stage1.append(
+                        AIMessage(
+                            content=_t("orphaned_tool"),
+                            tool_calls=[{
+                                "id": str(tool_call_id or "unknown_id"),
+                                "name": str(msg.name or "unknown_tool"),
+                                "args": {},
+                            }],
+                        )
+                    )
                 stage1.append(msg)
                 continue
 
@@ -139,11 +146,13 @@ class EvoMessageConverter:
             role = msg.role
             if role in ("user", "assistant") and open_tool_calls:
                 for tcid, tname in list(open_tool_calls.items()):
-                    final_repaired.append(ToolMessage(
-                        content=_t("interrupted_tool_response"),
-                        tool_call_id=tcid,
-                        name=tname,
-                    ))
+                    final_repaired.append(
+                        ToolMessage(
+                            content=_t("interrupted_tool_response"),
+                            tool_call_id=tcid,
+                            name=tname,
+                        )
+                    )
                 open_tool_calls = {}
 
             if role == "assistant" and msg.tool_calls:
@@ -161,22 +170,20 @@ class EvoMessageConverter:
 
         if open_tool_calls and final_repaired:
             for tcid, tname in list(open_tool_calls.items()):
-                final_repaired.append(ToolMessage(
-                    content=_t("interrupted_tool_response"),
-                    tool_call_id=tcid,
-                    name=tname,
-                ))
+                final_repaired.append(
+                    ToolMessage(
+                        content=_t("interrupted_tool_response"),
+                        tool_call_id=tcid,
+                        name=tname,
+                    )
+                )
 
         # 3. Ensure starting message
-        non_system = [
-            i for i, m in enumerate(final_repaired) if m.role != "system"
-        ]
+        non_system = [i for i, m in enumerate(final_repaired) if m.role != "system"]
         if non_system:
             first = non_system[0]
             if final_repaired[first].role == "assistant":
-                final_repaired.insert(
-                    first, HumanMessage(content=_t("conversation_continuation"))
-                )
+                final_repaired.insert(first, HumanMessage(content=_t("conversation_continuation")))
         elif not final_repaired:
             final_repaired.append(HumanMessage(content=_t("conversation_continuation")))
 

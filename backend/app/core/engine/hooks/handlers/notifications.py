@@ -31,7 +31,4 @@ async def notification_handler(context: HookContext) -> HookResult:
     #     f'display notification "{message}" with title "EvoLoop"'
     # ])
 
-    return HookResult(
-        success=True,
-        data={"notified": True, "type": notification_type}
-    )
+    return HookResult(success=True, data={"notified": True, "type": notification_type})

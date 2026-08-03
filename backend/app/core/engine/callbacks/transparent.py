@@ -265,9 +265,9 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
 
         # 兼容不同的序列化结构
         tool_name = (
-            serialized.get("name") or
-            serialized.get("kwargs", {}).get("name") or
-            "Unknown Tool"
+            serialized.get("name")
+            or serialized.get("kwargs", {}).get("name")
+            or "Unknown Tool"
         )
         self._tool_names[run_id] = tool_name
 
@@ -303,7 +303,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
                 run_id=run_id,
                 name=tool_name,
                 arguments=input_str,
-                path=current_tool_path
+                path=current_tool_path,
             )
 
         logger.info(f"[Tool Start] {tool_name} {'(hidden)' if is_hidden else ''}")
@@ -313,7 +313,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
             await MessageHandler.stream_progress(
                 self.thread_id,
                 message=i18n.get("evoloop.tool_summary.running_tool", tool=tool_name, input=input_str[:100]),
-                metadata={"tool_name": tool_name}
+                metadata={"tool_name": tool_name},
             )
 
         # Handle special tool types (only applies to visible tools)
@@ -370,7 +370,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
             await MessageHandler.stream_progress(
                 self.thread_id,
                 message=i18n.get("evoloop.tool_summary.file_op_result"),
-                status="success"
+                status="success",
             )
 
     async def on_tool_error(self, error: BaseException, **kwargs: Any) -> None:
@@ -391,5 +391,5 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
             await MessageHandler.stream_progress(
                 self.thread_id,
                 message=i18n.get("common.tool_execution_error", name=tool_name, error=str(error)),
-                status="failed"
+                status="failed",
             )

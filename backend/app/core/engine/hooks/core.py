@@ -47,6 +47,7 @@ logger = logging.getLogger(__name__)
 
 class HookEvent(Enum):
     """Lifecycle events for hook system - matching Claude Code's architecture."""
+
     # Session lifecycle
     SESSION_START = auto()       # Session begins
     SESSION_END = auto()         # Session terminates
@@ -151,6 +152,7 @@ class HookSystem:
             priority: Lower number = higher priority (default 100)
             matcher: Regex pattern to filter by tool_name (optional)
         """
+
         def decorator(func: HookHandler) -> HookHandler:
             # Store metadata in function attributes
             func._hook_priority = priority
@@ -341,6 +343,7 @@ hook_system = HookSystem()
 # =============================================================================
 # Setup Default Hooks
 # =============================================================================
+
 
 def setup_default_hooks():
     """Register default hook handlers."""

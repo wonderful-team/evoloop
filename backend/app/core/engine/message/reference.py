@@ -27,7 +27,7 @@ class ReferenceService:
         references_input: list[dict[str, Any]],
         session: AsyncSession,
         root_path: str | None = None,
-        project_id: int = DEFAULT_PROJECT_ID
+        project_id: int = DEFAULT_PROJECT_ID,
     ) -> ReferenceContext:
         """
         Process a list of references and inject them into the communication context.
@@ -50,7 +50,11 @@ class ReferenceService:
             if att_type == "message":
                 snippet, note = await self._handle_message_reference(att_id, att_name, session)
                 if snippet:
-                    quotes_data.append({"type": "Message", "name": att_name, "content": snippet})
+                    quotes_data.append({
+                        "type": "Message",
+                        "name": att_name,
+                        "content": snippet
+                    })
                 if note:
                     reference_notes.append(note)
 
@@ -67,7 +71,11 @@ class ReferenceService:
             elif att_type == "file":
                 content, note = await self._handle_file_reference(att_id, att_name, root_path)
                 if content:
-                    quotes_data.append({"type": "File", "name": att_name, "content": content})
+                    quotes_data.append({
+                        "type": "File",
+                        "name": att_name,
+                        "content": content
+                    })
                 if note:
                     reference_notes.append(note)
 
@@ -152,9 +160,11 @@ class ReferenceService:
                 # Extract keyframes as image_url blocks for LLM vision support
                 try:
                     from app.infrastructure.video.service import VideoService
+
                     frames = await VideoService.extract_keyframes(att_id, count=3)
                     for frame in frames:
                         import base64
+
                         b64 = base64.b64encode(frame.data).decode("utf-8")
                         content_blocks.append({
                             "type": "image_url",
@@ -224,7 +234,7 @@ class ReferenceService:
             content_blocks=content_blocks,
             reference_notes=reference_notes,
             injected_message=updated_message,
-            references=references
+            references=references,
         )
 
     async def _handle_message_reference(self, msg_id_str: str, name: str, session: AsyncSession) -> tuple[str | None, str | None]:
@@ -240,7 +250,12 @@ class ReferenceService:
 
         return None, f"Quoted Message (Fetch Failed): {name}"
 
-    async def _handle_file_reference(self, file_path: str, name: str, root_path: str | None = None) -> tuple[str | None, str | None]:
+    async def _handle_file_reference(
+        self,
+        file_path: str,
+        name: str,
+        root_path: str | None = None
+    ) -> tuple[str | None, str | None]:
         target_path = self._resolve_local_path(file_path, root_path)
 
         if any(target_path.lower().endswith(ext) for ext in BINARY_EXTENSIONS):
@@ -257,7 +272,12 @@ class ReferenceService:
             logger.warning(f"Failed to read quoted file {target_path}: {e}")
             return None, f"Referencing File (Read Failed): {name} (Path: {file_path})"
 
-    async def _handle_directory_reference(self, dir_path: str, name: str, root_path: str | None = None) -> tuple[str | None, str | None]:
+    async def _handle_directory_reference(
+        self,
+        dir_path: str,
+        name: str,
+        root_path: str | None = None
+    ) -> tuple[str | None, str | None]:
         target_path = self._resolve_local_path(dir_path, root_path)
 
         if not os.path.isdir(target_path):
@@ -270,18 +290,18 @@ class ReferenceService:
 
             from app.core.file.traverser import FileTraverser, TraverseOptions
             options = TraverseOptions(max_depth=2, include_dirs=False)
-            
+
             snippets = []
             file_count = 0
-            
+
             for full_path in FileTraverser.walk(target_path, options=options):
                 if file_count >= 5:
                     snippets.append("\n... (Remaining files skipped for brevity)")
                     break
-                
+
                 if any(full_path.lower().endswith(ext) for ext in BINARY_EXTENSIONS):
                     continue
-                
+
                 try:
                     rel_to_dir = os.path.relpath(full_path, target_path)
                     content = await document_reader_service.read_document(full_path)
@@ -321,7 +341,7 @@ class ReferenceService:
 
         # 2. file:// URL: strip scheme
         elif file_path.startswith("file://"):
-            resolved_path = file_path[len("file://"):]
+            resolved_path = file_path[len("file://") :]
 
         # 3. http/https URL
         elif file_path.lower().startswith(("http://", "https://")):
@@ -354,7 +374,7 @@ class ReferenceService:
     def _resolve_upload_path(path: str, root_path: str | None) -> str:
         rel_path = path
         if rel_path.startswith("uploads/"):
-            rel_path = rel_path[len("uploads/"):]
+            rel_path = rel_path[len("uploads/") :]
         if root_path:
             return os.path.join(root_path, rel_path.lstrip("/"))
         return rel_path

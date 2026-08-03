@@ -5,7 +5,6 @@ Wraps the MessageBroker publish logic. The SSE consumer in
 app/api/routes/stream.py subscribes to the same pub/sub channel.
 """
 
-import json
 import logging
 from typing import Any
 
@@ -29,12 +28,11 @@ def format_event_for_frontend(event: Any) -> dict:
     from app.core.events.schemas import (
         SessionCompletedEvent,
     )
-    from app.domain.planning.event.schemas import PlanUpdatedEvent
     from app.core.file.event.schemas import ChangesetUpdatedEvent
     from app.core.monitoring.event import (
+        ActivityStateRefreshedEvent,
         SystemLogEvent,
         SystemStatusEvent,
-        ActivityStateRefreshedEvent,
     )
     from app.core.tools.event.schemas import (
         BackgroundTaskEvent,

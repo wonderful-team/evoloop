@@ -47,8 +47,16 @@ class WebInputChannel(InputChannel):
                             "type": "skill",
                             "target_id": str(skill.id),
                             "target_name": skill.name,
-                            "metadata": {"skill_id": skill.id, "skill_name": skill.name, "description": skill.description},
-                            "meta_data": {"skill_id": skill.id, "skill_name": skill.name, "description": skill.description},
+                            "metadata": {
+                                "skill_id": skill.id,
+                                "skill_name": skill.name,
+                                "description": skill.description,
+                            },
+                            "meta_data": {
+                                "skill_id": skill.id,
+                                "skill_name": skill.name,
+                                "description": skill.description,
+                            },
                         })
             except Exception as e:
                 logger.warning("Failed to fetch skills %s: %s", skill_ids, e)

@@ -10,8 +10,8 @@ from typing import Any
 
 from redis.exceptions import RedisError
 
-from app.utils.pubsub import in_memory_bus
 from app.infrastructure.cache.abstract import PubSubBackend
+from app.utils.pubsub import in_memory_bus
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +46,7 @@ class LocalMessageBroker(MessageBroker):
 
     def pubsub(self) -> PubSubBackend:
         from app.infrastructure.cache.file._pubsub import InMemoryPubSubAdapter
+
         return InMemoryPubSubAdapter()
 
 
@@ -58,6 +59,7 @@ class DistributedMessageBroker(MessageBroker):
     async def publish(self, channel: str, message: Any) -> int:
         try:
             from app.infrastructure.cache import cache
+
             return await cache.publish(channel, message)
         except (RedisError, OSError, TypeError, ValueError) as e:
             logger.error(f"[DistributedMessageBroker] Publish failed to channel {channel}: {e}")
@@ -65,6 +67,7 @@ class DistributedMessageBroker(MessageBroker):
 
     def pubsub(self) -> PubSubBackend:
         from app.infrastructure.cache import cache
+
         return cache.pubsub()
 
 
@@ -75,7 +78,7 @@ _message_broker: MessageBroker | None = None
 def get_message_broker() -> MessageBroker:
     """
     Get the global message broker instance.
-    
+
     Selects implementation based on settings.EMBEDDED_MODE.
     """
     global _message_broker
@@ -90,4 +93,3 @@ def get_message_broker() -> MessageBroker:
             _message_broker = DistributedMessageBroker()
 
     return _message_broker
-

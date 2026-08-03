@@ -4,6 +4,7 @@ MessageNormalizer - 消息规范化工具类
 统一处理消息由扁平结构（DB/Dict）向规范化结构（MessageBlock）的转换逻辑。
 遵循“即读即显”原则，移除冗余的对象转换层。
 """
+
 import logging
 from typing import Any
 

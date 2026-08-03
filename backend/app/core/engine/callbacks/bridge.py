@@ -12,9 +12,18 @@ from uuid import uuid4
 # Intentionally wide except — callbacks are third-party pluggable handlers
 # that must never break the main LLM flow. Narrower types would risk leaking
 # callback bugs into production.
-_CALLBACK_EXCEPTIONS = (ValueError, OSError, RuntimeError, TypeError,
-                       KeyError, AttributeError, ImportError, NotImplementedError,
-                       LookupError, IndexError)
+_CALLBACK_EXCEPTIONS = (
+    ValueError,
+    OSError,
+    RuntimeError,
+    TypeError,
+    KeyError,
+    AttributeError,
+    ImportError,
+    NotImplementedError,
+    LookupError,
+    IndexError,
+)
 
 logger = logging.getLogger(__name__)
 

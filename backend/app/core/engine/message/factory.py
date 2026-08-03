@@ -4,6 +4,7 @@ MessageBlockFactory - 统一视图层出厂转换器
 负责将底层的 ORM 模型或运行时的碎片化内存事件统一转换为前端严格依赖的 `MessageBlock` 契约结构。
 解决历史记录和流式事件结构分裂的问题。
 """
+
 import json
 import logging
 from datetime import datetime, timezone
@@ -60,6 +61,7 @@ class MessageBlockFactory:
 
         # 3. Handle References (if present in ORM)
         from app.core.engine.message.schemas import MessageReference
+
         references = []
         if hasattr(msg, "references") and msg.references:
             for ref in msg.references:
@@ -112,8 +114,12 @@ class MessageBlockFactory:
 
             # ... (Existing tool_meta logic) ...
             metadata_registry = get_tool_metadata(tool_name) if tool_name else None
-            summary_args = {**input_args} # Simple fallback for now
-            display_name = metadata_registry.get_display_name(tool_name, summary_args) if metadata_registry and tool_name else (tool_name or "Unknown").replace("_", " ").title()
+            summary_args = {**input_args}  # Simple fallback for now
+            display_name = (
+                metadata_registry.get_display_name(tool_name, summary_args)
+                if metadata_registry and tool_name
+                else (tool_name or "Unknown").replace("_", " ").title()
+            )
 
             tool_meta = {
                 "display_name": display_name,
@@ -231,6 +237,7 @@ class MessageBlockFactory:
 
         # Resolve References
         from app.core.engine.message.schemas import MessageReference
+
         ref_blocks = []
         if references:
             for ref in references:

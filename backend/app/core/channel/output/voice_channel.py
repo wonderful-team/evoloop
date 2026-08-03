@@ -170,9 +170,7 @@ class VoiceChannel(Channel):
             logger.error("[VoiceChannel] push_tts_text failed: %s", exc)
 
     @classmethod
-    async def push_macro_result(
-        cls, thread_id: str, status: str, summary: str
-    ) -> None:
+    async def push_macro_result(cls, thread_id: str, status: str, summary: str) -> None:
         """Push a macro result back to the voice WS (reuses voice.route_result)."""
         if cls._manager is None:
             logger.warning("[VoiceChannel] manager not set, cannot push macro result")
@@ -180,17 +178,13 @@ class VoiceChannel(Channel):
         body = {"thread_id": thread_id, "status": status, "summary": summary}
         if cls._envelope_fn and cls._message_type:
             env = cls._envelope_fn(cls._message_type.VOICE_ROUTE_RESULT, body)
-            await cls._manager.push(
-                thread_id, env
-            )
+            await cls._manager.push(thread_id, env)
         else:
             await cls._manager.push(thread_id, body)
         await cls._set_idle_if_needed(thread_id)
 
     @classmethod
-    async def push_local_result(
-        cls, thread_id: str, action: str, args: Any
-    ) -> None:
+    async def push_local_result(cls, thread_id: str, action: str, args: Any) -> None:
         """Push an L0 local action result back to the voice WS."""
         if cls._manager is None:
             logger.warning("[VoiceChannel] manager not set, cannot push local result")
@@ -204,9 +198,7 @@ class VoiceChannel(Channel):
         }
         if cls._envelope_fn and cls._message_type:
             env = cls._envelope_fn(cls._message_type.VOICE_ROUTE_RESULT, body)
-            await cls._manager.push(
-                thread_id, env
-            )
+            await cls._manager.push(thread_id, env)
         else:
             await cls._manager.push(thread_id, body)
         await cls._set_idle_if_needed(thread_id)
@@ -319,6 +311,7 @@ class VoiceChannel(Channel):
         )
         try:
             from app.api.routes.voice_ws import unblock_voice_tts
+
             unblock_voice_tts(thread_id)
         except ImportError:
             pass

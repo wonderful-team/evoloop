@@ -9,7 +9,6 @@ logger = logging.getLogger(__name__)
 
 
 class UserMessageMixin:
-
     async def handle_hitl_request(
         self,
         request_type: str,

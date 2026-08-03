@@ -13,8 +13,8 @@ from .base import (
     IncomingMessage,
     InputChannel,
 )
-from .input.voice_input import voice_input
 from .input.mobile_input import mobile_input
+from .input.voice_input import voice_input
 from .input.web_input import web_input
 from .output.mobile_channel import MobileChannel
 from .output.voice_channel import VoiceChannel

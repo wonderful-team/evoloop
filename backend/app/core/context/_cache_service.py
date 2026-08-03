@@ -23,10 +23,7 @@ class ContextCacheService:
 
     async def save_context(self, thread_id: str, context_data: dict) -> bool:
         """Save context data."""
-        return await self._cache.hset(
-            self._key(thread_id),
-            mapping=context_data
-        ) > 0
+        return await self._cache.hset(self._key(thread_id), mapping=context_data) > 0
 
     async def load_context(self, thread_id: str) -> dict | None:
         """Load context data."""

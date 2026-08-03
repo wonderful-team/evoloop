@@ -10,12 +10,12 @@ from enum import Enum
 class MessageCategory(str, Enum):
     """
     消息分类枚举
-    
+
     每个消息必须有且只有一个明确的分类，用于决定：
     1. 是否持久化到数据库
     2. 是否推送到前端
     3. 如何显示给用户
-    
+
     分类命名规则：
     - USER_*: 用户产生的消息
     - ASSISTANT_*: AI 助手产生的消息
@@ -72,7 +72,7 @@ class MessageCategory(str, Enum):
     @property
     def is_visible_to_user(self) -> bool:
         """是否对用户可见
-        
+
         注意：INTERNAL_REASONING 虽然是内部消息，但会显示给用户（作为思考过程）
         ERROR 类别不入消息列表，通过 error 事件通知用户
         """
@@ -82,14 +82,14 @@ class MessageCategory(str, Enum):
             MessageCategory.ASSISTANT_TOOL_CALL,
             MessageCategory.TOOL_OUTPUT,
             MessageCategory.INTERNAL_REASONING,  # 思考过程对用户可见
-            MessageCategory.HITL_REQUEST,        # 交互请求必须可见
+            MessageCategory.HITL_REQUEST,  # 交互请求必须可见
             # ERROR_SYSTEM, ERROR_BUSINESS, TRANSIENT_MESSAGE 不入消息列表
         }
 
     @property
     def should_persist_to_db(self) -> bool:
         """是否应该持久化到数据库
-        
+
         原则：除了纯瞬态系统事件外，所有结构化对话和内部操作记录均需入库，以供后续推理使用。
         """
         return self not in {
@@ -138,7 +138,7 @@ class MessageCategory(str, Enum):
     def storage_field(self) -> str | None:
         """
         存储字段映射
-        
+
         Returns:
             "content": 存入 content 字段
             "thinking": 存入 thinking 字段

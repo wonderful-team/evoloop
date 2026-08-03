@@ -18,9 +18,9 @@ logger = logging.getLogger(__name__)
 class MessagePersistencePolicy:
     """
     消息持久化策略
-    
+
     集中管理所有消息的持久化规则，避免分散在各处的过滤逻辑。
-    
+
     注：持久化规则已下沉到 MessageCategory 枚举本身，此类仅作为统一入口
     和结果封装，避免调用方直接访问枚举内部细节。
     """
@@ -52,7 +52,7 @@ class MessagePersistencePolicy:
     ) -> PersistencePolicyResult:
         """
         应用持久化策略，返回处理后的数据
-        
+
         Args:
             category: 消息分类
             content: 原始内容
@@ -60,7 +60,7 @@ class MessagePersistencePolicy:
             thinking: 思考内容
             tool_call_id: 工具调用 ID
             tool_name: 工具名称
-            
+
         Returns:
             PersistencePolicyResult: 处理后的数据
         """
@@ -105,7 +105,4 @@ class MessagePersistencePolicy:
     @classmethod
     def get_persisted_categories(cls) -> list[MessageCategory]:
         """获取会持久化的分类列表"""
-        return [
-            cat for cat in MessageCategory
-            if cat.should_persist_to_db
-        ]
+        return [cat for cat in MessageCategory if cat.should_persist_to_db]

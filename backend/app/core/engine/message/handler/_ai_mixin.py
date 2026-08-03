@@ -78,11 +78,7 @@ class AiMessageMixin:
                 executor_device_name=dev_name,
             )
 
-            if (
-                msg_id
-                and is_visible
-                and category != MessageCategory.INTERNAL_REASONING
-            ):
+            if msg_id and is_visible and category != MessageCategory.INTERNAL_REASONING:
                 await self._dispatch_block(
                     role="ai",
                     content=persist_data.content,

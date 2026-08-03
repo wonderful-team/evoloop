@@ -83,7 +83,9 @@ class ContextPluginRegistry:
 
     def _snapshot_hydrated_fields(self, ctx: EvoContext) -> dict[str, Any]:
         """Capture the state of all plugin-populated fields."""
-        meta = {field: getattr(ctx.metadata, field, None) for field in self._META_FIELDS}
+        meta = {
+            field: getattr(ctx.metadata, field, None) for field in self._META_FIELDS
+        }
         return {
             **{field: getattr(ctx, field, None) for field in self._CTX_FIELDS},
             "metadata": meta,
@@ -197,6 +199,7 @@ class WorkspaceProvider(Protocol):
     Protocol for providing workspace-level context, such as project file structure.
     Normally implemented by the domain layer (e.g., app.core.project).
     """
+
     async def get_project_structure(self, path: str) -> str:
         """Returns a string representation of the project structure at the given path."""
         ...

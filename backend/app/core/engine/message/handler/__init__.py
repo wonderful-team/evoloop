@@ -35,7 +35,11 @@ class MessageHandler(
     StreamMixin,
 ):
     def __init__(
-        self, thread_id: str, project_id: int | None = None, run_id: str | None = None, member_id: int = 0
+        self,
+        thread_id: str,
+        project_id: int | None = None,
+        run_id: str | None = None,
+        member_id: int = 0,
     ):
         self.thread_id = thread_id
         self.project_id = project_id

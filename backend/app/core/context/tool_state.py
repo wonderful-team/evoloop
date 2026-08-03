@@ -35,10 +35,11 @@ logger = __import__("logging").getLogger(__name__)
 class ToolState(DynamicBaseModel):
     """
     Immutable state for a single tool execution.
-    
+
     This model holds all information needed to track a tool's
     lifecycle and generate summaries for various outputs.
     """
+
     name: str
     arguments: str
     start_time: float
@@ -48,13 +49,13 @@ class ToolState(DynamicBaseModel):
     def get_summary(self, output: str) -> tuple[str, bool]:
         """
         Generate summary for tool output.
-        
+
         Centralizes the summary logic that was previously duplicated
         across TransparentCallbackHandler and EvoCloudCallbackHandler.
-        
+
         Args:
             output: Raw tool output
-            
+
         Returns:
             tuple: (processed_output, is_file_content)
             - processed_output: Summary or truncated output
@@ -75,9 +76,14 @@ class ToolState(DynamicBaseModel):
                 line_count = len(output_str.splitlines())
                 file_info = self.path or "file"
                 return (
-                    i18n.get(summary_template, path=file_info, count=line_count,
-                            lines=line_count, items=line_count),
-                    is_file_content
+                    i18n.get(
+                        summary_template,
+                        path=file_info,
+                        count=line_count,
+                        lines=line_count,
+                        items=line_count,
+                    ),
+                    is_file_content,
                 )
             except Exception as e:
                 logger.debug("Suppressed error: %s", e, exc_info=True)
@@ -88,7 +94,7 @@ class ToolState(DynamicBaseModel):
             if len(lines) > 20:
                 return (
                     f"{output_str[:300]}\n...\n[Truncated {len(lines)} lines / {len(output_str)} chars]",
-                    is_file_content
+                    is_file_content,
                 )
 
         return output_str, is_file_content
@@ -97,7 +103,7 @@ class ToolState(DynamicBaseModel):
 class ToolStateStore:
     """
     Thread-safe store for managing tool execution states.
-    
+
     This is a singleton that maintains tool state per thread_id,
     similar to ThreadContextStore. It allows multiple callback
     handlers to share tool information without duplication.
@@ -122,18 +128,24 @@ class ToolStateStore:
         self._tools: dict[str, dict[str, ToolState]] = {}
         self._store_lock = Lock()
 
-    def start_tool(self, thread_id: str, run_id: str, name: str,
-                   arguments: str, path: str | None = None) -> ToolState:
+    def start_tool(
+        self,
+        thread_id: str,
+        run_id: str,
+        name: str,
+        arguments: str,
+        path: str | None = None,
+    ) -> ToolState:
         """
         Record the start of a tool execution.
-        
+
         Args:
             thread_id: The thread/session ID
             run_id: The run_id for this tool execution
             name: Tool name
             arguments: JSON string of tool arguments
             path: Optional affected file path
-            
+
         Returns:
             ToolState: The created state object
         """
@@ -143,7 +155,7 @@ class ToolStateStore:
             arguments=arguments,
             start_time=time.time(),
             path=path,
-            metadata=metadata
+            metadata=metadata,
         )
 
         with self._store_lock:
@@ -156,11 +168,11 @@ class ToolStateStore:
     def end_tool(self, thread_id: str, run_id: str) -> ToolState | None:
         """
         Record the end of a tool execution and return its state.
-        
+
         Args:
             thread_id: The thread/session ID
             run_id: The run_id for this tool execution
-            
+
         Returns:
             ToolState if found, None otherwise
         """
@@ -173,11 +185,11 @@ class ToolStateStore:
     def get_tool(self, thread_id: str, run_id: str) -> ToolState | None:
         """
         Get current state for a tool execution.
-        
+
         Args:
             thread_id: The thread/session ID
             run_id: The run_id for this tool execution
-            
+
         Returns:
             ToolState if found, None otherwise
         """
@@ -190,11 +202,11 @@ class ToolStateStore:
     def get_duration(self, thread_id: str, run_id: str) -> float | None:
         """
         Get elapsed time for a running tool.
-        
+
         Args:
             thread_id: The thread/session ID
             run_id: The run_id for this tool execution
-            
+
         Returns:
             Duration in seconds if tool is running, None otherwise
         """
@@ -207,7 +219,7 @@ class ToolStateStore:
         """
         Clear all tool states for a thread.
         Should be called when thread completes or to clean up.
-        
+
         Args:
             thread_id: The thread/session ID to clear
         """

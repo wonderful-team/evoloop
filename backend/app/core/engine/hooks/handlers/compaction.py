@@ -36,6 +36,7 @@ async def pre_compact_save_state(context: HookContext) -> HookResult:
     if mm is None:
         # Fallback to singleton container if not provided in context
         from app.core.memory.lifespan import MemoryLifespanManager
+
         if not MemoryLifespanManager.is_initialized():
             logger.debug("[PreCompact] Initializing MemoryLifespanManager...")
             await MemoryLifespanManager.ainitialize()
@@ -81,7 +82,11 @@ async def pre_compact_save_state(context: HookContext) -> HookResult:
             logger.info(f"[PreCompact] ⏭️ Skipping duplicate checkpoint for thread={context.thread_id}")
             return HookResult(
                 success=True,
-                data={"checkpoint": None, "skipped": True, "reason": "duplicate_within_5min"},
+                data={
+                    "checkpoint": None,
+                    "skipped": True,
+                    "reason": "duplicate_within_5min",
+                },
             )
 
         # Create checkpoint data
@@ -129,14 +134,18 @@ async def pre_compact_save_state(context: HookContext) -> HookResult:
         # Create summary for context injection
         summary = f"""
 [Context Compaction Checkpoint]
-Task: {checkpoint['task_progress'][:100]}
-Decisions: {len(checkpoint['key_decisions'])} key decisions made
-Remaining: {checkpoint['remaining_work'] or 'Unknown'}
+Task: {checkpoint["task_progress"][:100]}
+Decisions: {len(checkpoint["key_decisions"])} key decisions made
+Remaining: {checkpoint["remaining_work"] or "Unknown"}
 """
 
         return HookResult(
             success=True,
-            data={"checkpoint": checkpoint, "summary": summary, "checkpoint_id": memory_entry.id},
+            data={
+                "checkpoint": checkpoint,
+                "summary": summary,
+                "checkpoint_id": memory_entry.id,
+            },
         )
 
     except Exception as e:
@@ -152,7 +161,7 @@ def _extract_task_progress(messages: list[BaseMessage]) -> str:
 
     # Look for the most recent human message
     for msg in reversed(messages):
-        if msg.type == 'human':
+        if msg.type == "human":
             return str(msg.content)[:200]
 
     return "Unknown task"
@@ -163,10 +172,10 @@ def _extract_decisions(messages: list[BaseMessage]) -> list[str]:
     decisions = []
 
     for msg in messages:
-        if msg.type == 'ai':
+        if msg.type == "ai":
             content = str(msg.content).lower()
             # Look for decision indicators
-            if any(keyword in content for keyword in ['decided', 'decision', 'choose', 'selected', 'we will']):
+            if any(keyword in content for keyword in ["decided", "decision", "choose", "selected", "we will"]):
                 decisions.append(str(msg.content)[:150])
 
     return decisions[-5:]  # Last 5 decisions

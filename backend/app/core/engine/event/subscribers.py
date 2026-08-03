@@ -17,23 +17,22 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import selectinload
 
 from app.constants import DEFAULT_PROJECT_ID
-from app.core.engine.background_agent import run_agent_background
 from app.core.channel.input.mobile_input import mobile_input
+from app.core.engine.background_agent import run_agent_background
 from app.core.engine.dispatch import dispatch_agent_run
+from app.core.engine.event import ConversationEventType
 from app.core.engine.event.handlers import A2ACommandHandler, MemoryCommandHandler
 from app.core.engine.event.schemas import (
     ConversationDeletedEvent,
     WebSocketMessageReceivedEvent,
 )
-from app.core.engine.event import ConversationEventType
 from app.core.events import SystemEventType
 from app.core.events.decorators import event_register, event_subscribe
 from app.core.evocloud.bridge.conversation_sync import get_conversation_sync_manager
 from app.core.evocloud.manager import evocloud_manager
 from app.core.evocloud.schemas import RemoteCommand
 from app.core.identity import identity_service
-from app.core.schemas.canonical import MessageType, create_envelope
-from app.infrastructure.config import SystemConfigService
+from app.core.schemas.canonical import MessageType
 from app.infrastructure.database import session_scope
 from app.models import (
     AgentActivity,

@@ -75,7 +75,11 @@ class LayeredContextCache:
 
     @classmethod
     async def get_static_layer(
-        cls, session_id: str, project_id: int | None, loader_fn: callable, intent: str | None = None,
+        cls,
+        session_id: str,
+        project_id: int | None,
+        loader_fn: callable,
+        intent: str | None = None,
     ) -> StaticContextLayer:
         """
         Get static context layer with caching.
@@ -159,4 +163,3 @@ class LayeredContextCache:
             "cache_entries": len(cls._static_cache),
             "estimated_time_saved_ms": cls._stats["static_hits"] * 200,  # Approx 200ms per hit
         }
-

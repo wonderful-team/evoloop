@@ -75,12 +75,14 @@ class MobileChannel(Channel):
         else:
             logger.warning("[MobileChannel] HTTP send failed, enqueuing Huey task")
             from app.core.engine.message.tasks import mobile_sync_http_task
+
             mobile_sync_http_task.delay(mobile_data)
 
     async def _get_device_key(self) -> str:
         """Get the device key from identity service."""
         try:
             from app.core.identity import identity_service
+
             return await identity_service.store.get_device_key() or ""
         except Exception:
             return ""
@@ -116,7 +118,11 @@ class MobileChannel(Channel):
         """Push a hitl.request to Mobile via Gateway HTTP API."""
         if not settings.MOBILE_SYNC_ENABLED:
             return
-        hitl_body: dict[str, Any] = {"request_id": request_id, "request_type": request_type, "prompt": prompt}
+        hitl_body: dict[str, Any] = {
+            "request_id": request_id,
+            "request_type": request_type,
+            "prompt": prompt,
+        }
         if options is not None:
             hitl_body["options"] = options
         if context is not None:

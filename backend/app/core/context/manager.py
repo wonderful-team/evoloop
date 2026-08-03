@@ -24,6 +24,7 @@ class EvoContext(DynamicBaseModel):
     Unified Execution Context for EvoLoop.
     Holds request-scoped or task-scoped information.
     """
+
     request_id: str = Field(default_factory=gen_uuid)
     timestamp: float = Field(default_factory=time.time)
 
@@ -126,7 +127,11 @@ class ContextManager:
         return ctx.metadata.get(key, default)
 
     @staticmethod
-    def resolve_project_id(explicit_id: int | None = None, allow_global: bool = False, request_temp: bool = False) -> int:
+    def resolve_project_id(
+        explicit_id: int | None = None,
+        allow_global: bool = False,
+        request_temp: bool = False,
+    ) -> int:
         """
         Resolve project ID from explicit parameter or current context.
 
@@ -221,7 +226,6 @@ class ContextManager:
                 await cache_service.save_context(thread_id, hset_data)
 
         except Exception as e:
-            import logging
             logging.getLogger(__name__).warning(f"Failed to save context to cache (HSET): {e}")
 
     @staticmethod
@@ -238,10 +242,17 @@ class ContextManager:
                 reconstructed = {}
                 # Field types expected by from_dict/dataclass
                 list_fields = {
-                    "short_term_memory", "active_boundaries", "identity_rules"
+                    "short_term_memory",
+                    "active_boundaries",
+                    "identity_rules",
+                    "wiki_index",
                 }
                 # Support both dict and list for flexible context fields
-                flexible_fields = {"spatial_awareness", "environment_summaries", "memory_replay"}
+                flexible_fields = {
+                    "spatial_awareness",
+                    "environment_summaries",
+                    "memory_replay",
+                }
                 dict_fields = {"metadata"}
 
                 for k, v in data.items():

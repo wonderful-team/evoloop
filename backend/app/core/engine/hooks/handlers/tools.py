@@ -36,5 +36,5 @@ async def post_tool_use_failure_logging(context: HookContext) -> HookResult:
             "tool_name": context.tool_name,
             "error": error_str,
             "tool_input": context.tool_input,
-        }
+        },
     )

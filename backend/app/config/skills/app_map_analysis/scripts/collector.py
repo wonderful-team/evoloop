@@ -55,9 +55,7 @@ ENTITY_RE = re.compile(r"^(.*?)(?:Controller)?(?:\..*)?$", re.IGNORECASE)
 ROUTE_TEMPLATE = "/{entity}/{action}"
 
 # Regex patterns for action methods in controller files
-ACTION_METHOD_RE = re.compile(
-    r"^\s*(?:public\s+)?function\s+(\w+)\s*[\(]"
-)
+ACTION_METHOD_RE = re.compile(r"^\s*(?:public\s+)?function\s+(\w+)\s*[\(]")
 
 # Regex patterns for HTML element selectors
 HTML_ELEMENT_RE = re.compile(
@@ -80,10 +78,30 @@ SELECTOR_TYPES = {
 }
 
 # Business terms for risk_tier heuristics
-MONEY_KEYWORDS = ["price", "stock", "balance", "refund", "amount", "money",
-                  "salary", "payment", "withdraw", "recharge"]
-DATA_KEYWORDS = ["save", "update", "delete", "remove", "create", "add", "edit",
-                 "set", "change", "status"]
+MONEY_KEYWORDS = [
+    "price",
+    "stock",
+    "balance",
+    "refund",
+    "amount",
+    "money",
+    "salary",
+    "payment",
+    "withdraw",
+    "recharge",
+]
+DATA_KEYWORDS = [
+    "save",
+    "update",
+    "delete",
+    "remove",
+    "create",
+    "add",
+    "edit",
+    "set",
+    "change",
+    "status",
+]
 
 # Menu config files for Chinese business name extraction.
 # For each file, the collector looks for patterns like:
@@ -118,7 +136,7 @@ def find_files(root: str, patterns: list[str]) -> list[str]:
                     if not os.path.isdir(child):
                         continue
                     if re.match(f"^{part.replace('*', '.*')}$", e, re.I):
-                        suffix = "/".join(parts[i + 1:])
+                        suffix = "/".join(parts[i + 1 :])
                         if suffix:
                             results.extend(find_files(child, [suffix]))
                         else:
@@ -195,13 +213,13 @@ def extract_elements(filepath: str) -> list[dict]:
         # Determine selector_type from the matched attribute
         attr = match.group(0)
         selector_type = "id"
-        if 'name=' in attr:
+        if "name=" in attr:
             selector_type = "name"
-        elif 'lay-filter=' in attr:
+        elif "lay-filter=" in attr:
             selector_type = "lay-filter"
 
         # Count line number (approximate by counting newlines before match)
-        line = content[:match.start()].count("\n") + 1
+        line = content[: match.start()].count("\n") + 1
 
         elements.append({
             "name": name,
@@ -239,7 +257,7 @@ def parse_schema(sql_path: str) -> dict[str, dict]:
             elif content[pos] == ")":
                 depth -= 1
             pos += 1
-        block = content[block_start: pos - 1]
+        block = content[block_start : pos - 1]
 
         cols = []
         pk = ""
@@ -310,13 +328,13 @@ def parse_menu_titles(project_root: str) -> dict[str, str]:
                 # Look for the nearest title before or after this URL
                 title = None
                 # Search backward for title
-                before = content[max(0, m_url.start() - 200):m_url.start()]
+                before = content[max(0, m_url.start() - 200) : m_url.start()]
                 tm = list(title_re.finditer(before))
                 if tm:
                     title = tm[-1].group(1)
                 # Search forward for title
                 if not title:
-                    after = content[m_url.end():m_url.end() + 200]
+                    after = content[m_url.end() : m_url.end() + 200]
                     tm = title_re.search(after)
                     if tm:
                         title = tm.group(1)
@@ -341,7 +359,11 @@ def guess_entity(filepath: str) -> str | None:
     return None
 
 
-async def collect(project_root: str, sql_path: str | None = None, output_path: str = "/tmp/appmap_extracted.json") -> dict:
+async def collect(
+    project_root: str,
+    sql_path: str | None = None,
+    output_path: str = "/tmp/appmap_extracted.json",
+) -> dict:
     """Run the full collection and return the entities dict.
 
     Framework-agnostic: configure FRAMEWORK CONFIG at the top of this file
@@ -471,8 +493,11 @@ async def collect(project_root: str, sql_path: str | None = None, output_path: s
                     a["pk"] = pk
 
     # Remove empty entities
-    empty = [e for e, d in entities.items()
-             if not d.get("actions") and not d.get("routes") and not d.get("db_tables")]
+    empty = [
+        e
+        for e, d in entities.items()
+        if not d.get("actions") and not d.get("routes") and not d.get("db_tables")
+    ]
     for e in empty:
         del entities[e]
 

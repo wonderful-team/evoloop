@@ -14,6 +14,7 @@ class AgentEventType(str, Enum):
 
     Events related to agent runs and interactions.
     """
+
     RUN_STARTED = "agent.run_started"
     RUN_COMPLETED = "agent.run_completed"
     RUN_CANCELLED = "agent.run_cancelled"
@@ -28,4 +29,5 @@ class ConversationEventType(str, Enum):
 
     Each module subscribes and cleans up its own data.
     """
+
     CONVERSATION_DELETED = "conversation.deleted"

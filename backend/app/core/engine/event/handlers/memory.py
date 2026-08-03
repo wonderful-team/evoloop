@@ -224,6 +224,7 @@ class MemoryCommandHandler:
                 "concepts": concepts,
             }
             from app.core.channel import channel_registry
+
             ch = channel_registry.get("mobile")
             if ch:
                 await ch.send_envelope(

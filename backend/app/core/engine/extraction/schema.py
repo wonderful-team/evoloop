@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, List, Type, Union
+from typing import Any, Union
 
 from pydantic import BaseModel, Field, create_model
 
@@ -8,7 +8,7 @@ from app.core.engine.event import ExtractionRequest
 logger = logging.getLogger(__name__)
 
 
-def _dict_schema_to_model(name: str, schema: dict) -> Type[BaseModel]:
+def _dict_schema_to_model(name: str, schema: dict) -> type[BaseModel]:
     """Convert a simple JSON schema dict to a Pydantic model class."""
     properties = schema.get("properties", {})
     required = schema.get("required", [])
@@ -42,26 +42,35 @@ def _dict_schema_to_model(name: str, schema: dict) -> Type[BaseModel]:
     return create_model(name.capitalize() + "Item", **fields)  # type: ignore[no-any-return]
 
 
-def build_dynamic_schema(requests: List[ExtractionRequest], include_base_fields: bool = True) -> Type[BaseModel] | None:
+def build_dynamic_schema(requests: list[ExtractionRequest], include_base_fields: bool = True) -> type[BaseModel] | None:
     if not requests and not include_base_fields:
         return None
 
-    fields: Dict[str, Any] = {}
+    fields: dict[str, Any] = {}
     if include_base_fields:
         fields["is_completed"] = (
             bool,
-            Field(default=False, description="Whether the main user task/goal was completed successfully."),
+            Field(
+                default=False,
+                description="Whether the main user task/goal was completed successfully.",
+            ),
         )
         fields["summary"] = (
             str,
-            Field(default="Task completed.", description="Concise summary of what was accomplished in this session (2-3 sentences)."),
+            Field(
+                default="Task completed.",
+                description="Concise summary of what was accomplished in this session (2-3 sentences).",
+            ),
         )
 
     for req in requests:
         schema = req.schema_dict
         if isinstance(schema, dict):
             item_model = _dict_schema_to_model(req.name, schema)
-            fields[req.name] = (list[item_model], Field(default_factory=list, description=req.description))
+            fields[req.name] = (
+                list[item_model],
+                Field(default_factory=list, description=req.description),
+            )
         else:
             logger.warning("[build_dynamic_schema] Plugin '%s' schema is not a dict.", req.name)
 

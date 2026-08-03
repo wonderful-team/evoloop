@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ChannelContext:
     """Per-publish context passed to every Channel.send() call."""
+
     thread_id: str
     project_id: int | None = None
     action: str = "create"
@@ -152,4 +153,3 @@ class InputChannel(ABC):
             is_retry=msg.is_retry,
             skip_message_persistence=msg.skip_message_persistence,
         )
-
