@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from pathlib import Path
 from typing import Any
 
@@ -80,7 +81,7 @@ class I18nService:
         # 3. Handle dictionaries (no formatting)
         if isinstance(value, dict):
             return value
-        
+
         # 4. Handle lists (no formatting for now)
         if isinstance(value, list):
             return value
@@ -93,30 +94,29 @@ class I18nService:
                 def replace_optional(match):
                     content = match.group(1)
                     # Find all placeholders in this block
-                    placeholders = re.findall(r'\{(\w+)\}', content)
+                    placeholders = re.findall(r"\{(\w+)\}", content)
                     if not placeholders:
                         return content
-                    
+
                     # If all placeholders in this block are present, render it
                     if all(kwargs.get(p) is not None for p in placeholders):
                         return content.format(**kwargs)
                     return ""
 
-                import re
-                value = re.sub(r'\[\[(.*?)\]\]', replace_optional, value)
-                
+                value = re.sub(r"\[\[(.*?)\]\]", replace_optional, value)
+
                 # Standard format for the remaining string
                 # We use a custom formatter that ignores missing keys instead of erroring
                 class SafeFormatter(dict):
                     def __missing__(self, key):
                         return "{" + key + "}"
-                
+
                 return value.format_map(SafeFormatter(**kwargs))
-                
+
             except Exception as e:
                 logger.error(f"Error formatting i18n string '{key}': {e}")
                 return value
-        
+
         return value
 
     def _get_template(self, lang: str, key: str) -> Any:

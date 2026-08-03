@@ -54,7 +54,13 @@ class FileCache(Cache):
     async def hget(self, name: str, key: str) -> Any | None:
         return await self._cache.hget(name, key)
 
-    async def hset(self, name: str, key: str | None = None, value: Any = None, mapping: dict | None = None) -> int:
+    async def hset(
+        self,
+        name: str,
+        key: str | None = None,
+        value: Any = None,
+        mapping: dict | None = None,
+    ) -> int:
         return await self._cache.hset(name, key=key, value=value, mapping=mapping)
 
     async def hgetall(self, name: str) -> dict:
@@ -105,7 +111,13 @@ class FileCache(Cache):
 
     # ========== Lock ==========
 
-    def lock(self, name: str, timeout: float | None = None, blocking: bool = True, blocking_timeout: float | None = None) -> CacheLock:
+    def lock(
+        self,
+        name: str,
+        timeout: float | None = None,
+        blocking: bool = True,
+        blocking_timeout: float | None = None,
+    ) -> CacheLock:
         return FileCacheLockAdapter(name)
 
     # ========== Pipeline ==========

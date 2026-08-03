@@ -38,6 +38,7 @@ def get_vector_store(project_path: str | None = None) -> BaseVectorStore:
         # 解析 db_path
         if project_path:
             from app.core.project.utils import get_vectors_path
+
             db_path = str(get_vectors_path(project_path))
         else:
             # 全局 vector store（skills 等）
@@ -68,6 +69,7 @@ def get_vector_store(project_path: str | None = None) -> BaseVectorStore:
             return cached
 
         from app.infrastructure.database.vector.pgvector_store import PgVectorStore
+
         store = PgVectorStore()
 
         with _vector_store_lock:
@@ -94,4 +96,9 @@ def reset_vector_store() -> None:
     logger.debug("[VectorStore] All vector stores reset")
 
 
-__all__ = ["BaseVectorStore", "get_vector_store", "get_skills_store", "reset_vector_store"]
+__all__ = [
+    "BaseVectorStore",
+    "get_vector_store",
+    "get_skills_store",
+    "reset_vector_store",
+]
