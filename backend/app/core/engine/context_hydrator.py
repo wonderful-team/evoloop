@@ -167,13 +167,10 @@ class AgentContextHydrator:
         # An intents's suggested_modules containing "Memory" (anaphora path)
         # soft-opens this gate so cross-turn entity recall stays available.
         # When intent is None (no L0 hint available), keep legacy full-load behavior.
-        if (
-            last_human_msg
-            and (
-                intent is None
-                or intent in _INTENTS_NEEDING_MEMORY
-                or "Memory" in suggested_modules
-            )
+        if last_human_msg and (
+            intent is None
+            or intent in _INTENTS_NEEDING_MEMORY
+            or "Memory" in suggested_modules
         ):
             from app.constants import DEFAULT_PROJECT_ID
 

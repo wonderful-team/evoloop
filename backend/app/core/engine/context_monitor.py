@@ -57,12 +57,14 @@ class ContextMonitor:
                 tool_tokens += msg_tokens
 
                 # Track recent tools (last 5)
-                recent_tools.append(ToolCallInfo(
-                    tool_call_id=msg.tool_call_id,
-                    name=msg.name,
-                    timestamp=float(i),  # Use index as timestamp proxy
-                    token_count=msg_tokens,
-                ))
+                recent_tools.append(
+                    ToolCallInfo(
+                        tool_call_id=msg.tool_call_id,
+                        name=msg.name,
+                        timestamp=float(i),  # Use index as timestamp proxy
+                        token_count=msg_tokens,
+                    )
+                )
 
         # Keep only last 5 tools
         recent_tools_summary = recent_tools[-5:]

@@ -1,4 +1,5 @@
 """Workspace and clipboard state models."""
+
 import time
 from typing import Any
 

@@ -106,7 +106,10 @@ class ContextTrimmer:
             else:
                 break
         if pruned_errors:
-            stage_log.append({"stage": "prune_trailing_errors", "removed": pruned_errors})
+            stage_log.append({
+                "stage": "prune_trailing_errors",
+                "removed": pruned_errors
+            })
 
         # --- Stage 1: Quick exit ---
         effective_budget, hard_limit = _compute_budget(model or "", node_source)
@@ -123,7 +126,13 @@ class ContextTrimmer:
                 before_count=before_count,
                 after_count=after_count,
                 removed_count=before_count - after_count,
-                stage_log=[{"stage": "pre_check", "action": "short_circuit", "reason": "under_threshold"}],
+                stage_log=[
+                    {
+                        "stage": "pre_check",
+                        "action": "short_circuit",
+                        "reason": "under_threshold",
+                    }
+                ],
             )
 
         # --- Stage 1: Retry cleanup ---
@@ -377,12 +386,14 @@ class ContextTrimmer:
             pruned: list[BaseMessage] = []
             for m in result:
                 if m.role == "tool" and not (m.additional_kwargs or {}).get("forgotten"):
-                    pruned.append(ToolMessage(
-                        content="[TRIMMED: Tool output removed due to context limit.]",
-                        tool_call_id=m.tool_call_id or "unknown_id",
-                        name=m.name or "unknown_tool",
-                        additional_kwargs={"is_summarized": True},
-                    ))
+                    pruned.append(
+                        ToolMessage(
+                            content="[TRIMMED: Tool output removed due to context limit.]",
+                            tool_call_id=m.tool_call_id or "unknown_id",
+                            name=m.name or "unknown_tool",
+                            additional_kwargs={"is_summarized": True},
+                        )
+                    )
                 else:
                     pruned.append(m)
             if count_total_tokens(pruned) <= hard_limit:

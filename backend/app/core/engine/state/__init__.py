@@ -27,6 +27,7 @@ def ensure_state(state: Any) -> AgentState:
     if isinstance(state, dict):
         if "messages" in state and state["messages"]:
             from app.core.engine.message.converter import EvoMessageConverter
+
             state = {**state, "messages": EvoMessageConverter.repair(state["messages"])}
         return AgentState.model_validate(state)
 
@@ -34,6 +35,7 @@ def ensure_state(state: Any) -> AgentState:
         data = state.model_dump()
         if "messages" in data and data["messages"]:
             from app.core.engine.message.converter import EvoMessageConverter
+
             data["messages"] = EvoMessageConverter.repair(data["messages"])
         return AgentState.model_validate(data)
 

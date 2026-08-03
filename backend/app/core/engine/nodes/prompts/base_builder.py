@@ -22,7 +22,7 @@ class BasePromptBuilder(ABC):
     def build(self, *args, **kwargs) -> str:
         """
         Builds the static, cacheable system prompt.
-        
+
         All builders must implement this method to return their static prompt string.
         """
         pass
@@ -30,6 +30,7 @@ class BasePromptBuilder(ABC):
     def get_user_lang(self) -> str:
         """Helper to get user's language preference."""
         from app.infrastructure.config.service import SystemConfigService
+
         return SystemConfigService.get_language_preference()
 
     def get_sandbox_mode(self) -> str:

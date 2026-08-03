@@ -25,19 +25,11 @@ def format_event_for_frontend(event: Any) -> dict:
         AgentSessionStartedEvent,
     )
     from app.core.events.base import BaseEvent
-    from app.core.events.schemas import (
-        SessionCompletedEvent,
-    )
+    from app.core.events.schemas import SessionCompletedEvent
     from app.core.file.event.schemas import ChangesetUpdatedEvent
-    from app.core.monitoring.event import (
-        ActivityStateRefreshedEvent,
-        SystemLogEvent,
-        SystemStatusEvent,
-    )
-    from app.core.tools.event.schemas import (
-        BackgroundTaskEvent,
-        BackgroundTaskOutputEvent,
-    )
+    from app.core.monitoring.event import ActivityStateRefreshedEvent, SystemLogEvent, SystemStatusEvent
+    from app.core.tools.event.schemas import BackgroundTaskEvent, BackgroundTaskOutputEvent
+    from app.domain.planning.event.schemas import PlanUpdatedEvent
 
     # Specific overrides matching historical to_frontend_payload outputs
     if isinstance(event, SessionCompletedEvent):
@@ -59,7 +51,7 @@ def format_event_for_frontend(event: Any) -> dict:
             "event": event.log_type,
             "data": event.log_data,
             "thread_id": event.thread_id,
-            "timestamp": event.timestamp.isoformat()
+            "timestamp": event.timestamp.isoformat(),
         }
     elif isinstance(event, PlanUpdatedEvent):
         return {
@@ -72,7 +64,7 @@ def format_event_for_frontend(event: Any) -> dict:
                 "plan_id": event.plan_id,
                 "step_id": event.step_id,
                 "status": event.status,
-            }
+            },
         }
     elif isinstance(event, ChangesetUpdatedEvent):
         return {
@@ -85,7 +77,7 @@ def format_event_for_frontend(event: Any) -> dict:
                 "message_id": event.message_id,
                 "file_path": event.file_path,
                 "operation": event.operation,
-            }
+            },
         }
     elif isinstance(event, ActivityStateRefreshedEvent):
         return {
@@ -111,14 +103,14 @@ def format_event_for_frontend(event: Any) -> dict:
         return {
             "type": f"task_{event.action}",
             "task": event.task_data,
-            "timestamp": event.timestamp.isoformat()
+            "timestamp": event.timestamp.isoformat(),
         }
     elif isinstance(event, BackgroundTaskOutputEvent):
         return {
             "type": "task_output",
             "task_id": event.task_id,
             "output": event.output,
-            "timestamp": event.timestamp.isoformat()
+            "timestamp": event.timestamp.isoformat(),
         }
     elif isinstance(event, BaseEvent):
         event_str = event.event_type.value if hasattr(event.event_type, "value") else str(event.event_type)
@@ -167,6 +159,7 @@ class WebChannel(Channel):
         elif isinstance(payload, BaseEvent):
             formatted = format_event_for_frontend(payload)
             from app.utils.json import dumps as utils_dumps
+
             data_json = utils_dumps(formatted, ensure_ascii=False)
         elif hasattr(payload, "model_dump_json"):
             data_json = payload.model_dump_json(exclude_none=True)
@@ -175,4 +168,3 @@ class WebChannel(Channel):
 
         broker = get_message_broker()
         await broker.publish(channel, data_json)
-

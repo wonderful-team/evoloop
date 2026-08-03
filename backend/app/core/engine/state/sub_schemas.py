@@ -1,4 +1,5 @@
 """State sub-schemas for agent state tracking."""
+
 import logging
 from typing import Any
 
@@ -22,6 +23,7 @@ class AuditMeta(DynamicBaseModel):
 
 class PlanProgress(DynamicBaseModel):
     """Tracks completion progress of a structured plan."""
+
     total_steps: int = 0
     completed_steps: int = 0
     plan_id: str | None = None
@@ -32,17 +34,19 @@ class PlanProgress(DynamicBaseModel):
 
 class TaskDeliverable(DynamicBaseModel):
     """Structured record of a single deliverable produced during task execution."""
-    deliverable_type: str = ""          # e.g. "wiki_page", "file_edit", "test_case"
+
+    deliverable_type: str = ""  # e.g. "wiki_page", "file_edit", "test_case"
     title: str = ""
     slug: str | None = None
-    summary: str = ""                   # Brief summary for audit consumption
+    summary: str = ""  # Brief summary for audit consumption
     word_count: int = 0
-    created_at: str = ""                # ISO timestamp
+    created_at: str = ""  # ISO timestamp
     metadata: dict = Field(default_factory=dict)
 
 
 class ProgressMetrics(DynamicBaseModel):
     """Progress metrics readable by Audit / Supervisor without parsing messages."""
+
     total_steps: int = 0
     completed_steps: int = 0
     total_deliverables: int = 0
@@ -55,25 +59,28 @@ class ProgressMetrics(DynamicBaseModel):
 
 class AuditAnomaly(DynamicBaseModel):
     """Anomaly flag raised by intermediate layers for audit attention."""
-    anomaly_type: str = ""              # e.g. "context_overload", "single_turn_saturation"
-    severity: str = "info"              # "info" | "warn" | "critical"
+
+    anomaly_type: str = ""  # e.g. "context_overload", "single_turn_saturation"
+    severity: str = "info"  # "info" | "warn" | "critical"
     description: str = ""
     suggested_action: str | None = None
 
 
 class AuditInputData(DynamicBaseModel):
     """Structured audit input — replaces full message history for comprehensive audit."""
+
     original_goal: str = ""
     plan_summary: dict = Field(default_factory=dict)   # {total: N, completed: N, remaining: N}
     progress: ProgressMetrics = Field(default_factory=ProgressMetrics)
     deliverables: list[TaskDeliverable] = Field(default_factory=list)
     tool_stats: dict[str, int] = Field(default_factory=dict)
     anomalies: list[AuditAnomaly] = Field(default_factory=list)
-    key_messages_digest: str = ""       # Optional: recent 10 messages digest
+    key_messages_digest: str = ""  # Optional: recent 10 messages digest
 
 
 class PendingApproval(DynamicBaseModel):
     """A HITL authorization request that is waiting for user response."""
+
     tool_name: str = ""
     tool_call_id: str = ""
     resource_path: str = ""

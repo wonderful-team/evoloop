@@ -98,18 +98,18 @@ class AgentEngine:
         current_session_source.set(getattr(_ctx.metadata, "source", None))
 
         inference_result = await self._inference_engine.run_react_loop(
-                llm_with_tools=llm_with_tools,
-                messages=repaired_messages,
-                system_prompt=system_prompt,
-                provider=provider,
-                config=config,
-                name=name,
-                max_steps=max_steps,
-                tool_executor=tool_executor,
-                interceptors=interceptors,
-                model=model,
-                iteration_count=state.iteration_count,
-            )
+            llm_with_tools=llm_with_tools,
+            messages=repaired_messages,
+            system_prompt=system_prompt,
+            provider=provider,
+            config=config,
+            name=name,
+            max_steps=max_steps,
+            tool_executor=tool_executor,
+            interceptors=interceptors,
+            model=model,
+            iteration_count=state.iteration_count,
+        )
 
         outcome_status = "success"
         if inference_result.get("is_truncated"):
@@ -164,7 +164,11 @@ class _ToolExecutorAdapter:
         )
         self._parallel = parallel
 
-    async def execute_batch(self, tool_calls: list[dict], local_tool_history: list[str]) -> tuple[list[Any], Any | None]:
+    async def execute_batch(
+        self,
+        tool_calls: list[dict],
+        local_tool_history: list[str]
+    ) -> tuple[list[Any], Any | None]:
         return await self._executor.execute_batch(tool_calls, local_tool_history, parallel=self._parallel)
 
 

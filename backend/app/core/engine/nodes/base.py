@@ -128,11 +128,17 @@ class BaseAgentNode(BaseNode, ABC):
     async def get_tools(self, state: AgentState) -> list[Any]:
         return []
 
-    async def handle_outcome(self, original_state: AgentState, engine_result: EngineResult, config: dict) -> StateUpdate:
+    async def handle_outcome(
+        self,
+        original_state: AgentState,
+        engine_result: EngineResult,
+        config: dict
+    ) -> StateUpdate:
         if engine_result.signal:
             dispatch_result = await signal_manager.dispatch(original_state, engine_result.signal, config)
             if dispatch_result is not None:
                 if engine_result.queued_signals:
+
                     def _serialize_signal(s):
                         if hasattr(s, "model_dump"):
                             d = s.model_dump()
@@ -141,13 +147,17 @@ class BaseAgentNode(BaseNode, ABC):
                         return s
 
                     serialized_signals = [
-                        _serialize_signal(s)
-                        for s in engine_result.queued_signals
+                        _serialize_signal(s) for s in engine_result.queued_signals
                     ]
                     dispatch_result.pending_signals = serialized_signals
                     dispatch_result.signal_queue_total = len(serialized_signals)
 
-                customized = await self._customize_dispatch_result(dispatch_result, original_state, engine_result, config)
+                customized = await self._customize_dispatch_result(
+                    dispatch_result,
+                    original_state,
+                    engine_result,
+                    config
+                )
                 return customized
 
         fallback = await self._build_fallback_outcome(original_state, engine_result, config)
@@ -169,7 +179,6 @@ class BaseAgentNode(BaseNode, ABC):
         config: dict,
     ) -> StateUpdate:
         new_messages = [
-            m for m in (engine_result.messages or [])
-            if m.name != "context_ticket"
+            m for m in (engine_result.messages or []) if m.name != "context_ticket"
         ]
         return StateUpdate(messages=new_messages, next_node=RoutingTarget.FINISH)

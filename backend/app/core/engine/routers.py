@@ -3,6 +3,7 @@ Routers - Functional Architecture (v3.0)
 
 Simplified routing logic that supports the flattened graph topology.
 """
+
 import logging
 from enum import Enum
 
@@ -14,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 class RoutingTarget(str, Enum):
     """Supported routing targets for the agent system."""
+
     OPERATOR = "operator"
     DEEP_RESEARCHER = "deep_researcher"
     DOCUMENTER = "documenter"
@@ -42,7 +44,7 @@ def route_supervisor(state: AgentState) -> str:
     next_node = state.next_node
 
     # --- Resource Constraints Enforcement ---
-    iteration_count = (state.iteration_count or 0)
+    iteration_count = state.iteration_count or 0
     max_steps = settings.SUPERVISOR_AGENT_MAX_STEPS
     if state.max_supervisor_steps:
         max_steps = state.max_supervisor_steps

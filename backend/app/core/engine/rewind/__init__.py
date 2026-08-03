@@ -3,7 +3,6 @@ Conversation rewind — perform_rewind() + event bus for cross-domain cleanup.
 """
 
 from app.api.schemas.conversations import RewindRequest
-from app.core.engine.schemas import RewindResult
 from app.core.engine.rewind.rewind import (
     MESSAGES_CLEANUP,
     REWIND_REQUESTED,
@@ -15,6 +14,7 @@ from app.core.engine.rewind.rewind import (
     perform_rewind,
     publish_messages_cleanup,
 )
+from app.core.engine.schemas import RewindResult
 
 __all__ = [
     "REWIND_REQUESTED",

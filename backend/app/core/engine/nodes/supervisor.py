@@ -82,13 +82,14 @@ class SupervisorNode(BaseAgentNode):
                     dispatch_result.pending_signals = remaining
                     await self._sync_db_plan_step_on_signal_consume(state, config)
                     return dispatch_result
-            except (ValidationError, AttributeError, KeyError, ValueError, RuntimeError) as e:
+            except Exception as e:
                 logger.warning(f"[Supervisor] Failed to consume queued signal: {e}. Clearing entry.")
                 return StateUpdate(pending_signals=remaining)
 
         state.messages = self._filter_messages_for_supervisor(state.messages)
 
         from app.core.engine.state.lifecycle import StateLifecycleManager
+
         StateLifecycleManager.consume_next_node(state)
         StateLifecycleManager.consume_blocked_by_hook(state)
 
@@ -107,6 +108,7 @@ class SupervisorNode(BaseAgentNode):
                     "DO NOT return an empty response. You must take explicit action."
                 )
                 from app.core.engine.message.native_classes import SystemMessage
+
                 state.messages.append(SystemMessage(content=warning_msg))
 
         return None
@@ -150,8 +152,7 @@ class SupervisorNode(BaseAgentNode):
         _direct_start = time.time()
         new_iter_count = (original_state.iteration_count or 0) + 1
         new_messages = [
-            m for m in (engine_result.messages or [])
-            if m.name != "context_ticket"
+            m for m in (engine_result.messages or []) if m.name != "context_ticket"
         ]
         has_error_msg = any(
             msg.additional_kwargs.get("is_error") for msg in new_messages
@@ -254,12 +255,12 @@ class SupervisorNode(BaseAgentNode):
 
             from app.core.events import system_bus
             from app.domain.planning.event import PlanUpdatedEvent
-            await system_bus.publish(
-                PlanUpdatedEvent(thread_id=thread_id)
-            )
+
+            await system_bus.publish(PlanUpdatedEvent(thread_id=thread_id))
 
     async def _emit_status(self, config: dict, status: str):
         from app.core.monitoring.activity import activity_monitor
+
         thread_id = config.get("configurable", {}).get("thread_id", "unknown")
         await activity_monitor.update_agent_state(
             thread_id=thread_id,

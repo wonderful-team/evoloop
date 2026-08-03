@@ -29,7 +29,13 @@ def _path_contains_evoloop(tool_input: ToolInput | None) -> bool:
     if tool_input.path:
         paths.append(tool_input.path)
     if tool_input.args:
-        for key in ("AbsolutePath", "TargetFile", "SearchPath", "TargetDirectory", "DirectoryPath"):
+        for key in (
+            "AbsolutePath",
+            "TargetFile",
+            "SearchPath",
+            "TargetDirectory",
+            "DirectoryPath",
+        ):
             val = tool_input.args.get(key)
             if val and isinstance(val, str):
                 paths.append(val)
@@ -44,7 +50,14 @@ def _extract_path_from_input(tool_name: str, tool_input: ToolInput | None) -> tu
         action = "write" if "write" in tool_name or "replace" in tool_name else "read"
         return str(path), action
     if tool_input.args:
-        for key in ("TargetFile", "AbsolutePath", "SearchPath", "DirectoryPath", "TargetDirectory", "path"):
+        for key in (
+            "TargetFile",
+            "AbsolutePath",
+            "SearchPath",
+            "DirectoryPath",
+            "TargetDirectory",
+            "path",
+        ):
             val = tool_input.args.get(key)
             if val and isinstance(val, str):
                 action = "write" if "write" in tool_name or "replace" in tool_name else "read"

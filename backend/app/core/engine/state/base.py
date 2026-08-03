@@ -1,4 +1,5 @@
 """Top-level AgentState and StateUpdate models: SDK-free, no external framework dependencies."""
+
 from __future__ import annotations
 
 from typing import Any

@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class PromptSegment:
     """A single segment of the assembled system prompt."""
+
     key: str
     content: str
     enabled: bool = True
@@ -131,5 +132,7 @@ class PromptAssemblyBuilder:
             "total_segments": len(self._segments),
             "active_segments": [s.key for s in self._segments if s.enabled],
             "disabled_segments": [s.key for s in self._segments if not s.enabled],
-            "segment_sizes": {s.key: len(s.content) for s in self._segments if s.enabled},
+            "segment_sizes": {
+                s.key: len(s.content) for s in self._segments if s.enabled
+            },
         }

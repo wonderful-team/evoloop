@@ -49,7 +49,7 @@ class SkillHydrator:
         state: AgentState,
         topic: str,
         namespace_context: str | None = None,
-        mode: str = "eager"  # "eager" or "lazy"
+        mode: str = "eager",  # "eager" or "lazy"
     ) -> list[Any]:
         """
         Fetch relevant skills based on the topic and mode.

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -57,18 +57,14 @@ class WorkerRegistry:
         async with self._lock:
             return self._previous_tasks.pop(thread_id, None)
 
-    async def complete_worker(
-        self, thread_id: str, result: str | None = None
-    ) -> None:
+    async def complete_worker(self, thread_id: str, result: str | None = None) -> None:
         async with self._lock:
             record = self._records.get(thread_id)
             if record is not None:
                 record.status = "completed"
                 record.result = result
 
-    async def fail_worker(
-        self, thread_id: str, error: str | None = None
-    ) -> None:
+    async def fail_worker(self, thread_id: str, error: str | None = None) -> None:
         async with self._lock:
             record = self._records.get(thread_id)
             if record is not None:

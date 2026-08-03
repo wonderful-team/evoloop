@@ -1,11 +1,13 @@
 from app.core.engine.rewind.rewind import (
-    RewindError,
     MessageNotFoundError,
     NoHumanMessageError,
+    RewindError,
 )
+
 
 class PartialRewindError(RewindError):
     """Error raised during partial rewind failures."""
+
     def __init__(
         self,
         message: str,
@@ -20,6 +22,9 @@ class PartialRewindError(RewindError):
         self.failed_steps = failed_steps or []
 
 
-
-__all__ = ["RewindError", "MessageNotFoundError", "NoHumanMessageError", "PartialRewindError"]
-
+__all__ = [
+    "RewindError",
+    "MessageNotFoundError",
+    "NoHumanMessageError",
+    "PartialRewindError",
+]

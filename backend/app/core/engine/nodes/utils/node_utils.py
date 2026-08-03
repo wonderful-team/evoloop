@@ -54,7 +54,7 @@ def get_mapped_cwd(ctx_cwd: str) -> str:
             workspace_root = os.path.normpath(workspace_root)
             actual_cwd = os.path.normpath(actual_cwd)
             if actual_cwd.startswith(workspace_root):
-                rel_part = actual_cwd[len(workspace_root):].lstrip("/")
+                rel_part = actual_cwd[len(workspace_root) :].lstrip("/")
                 actual_cwd = os.path.join("/workspace", rel_part) if rel_part else "/workspace"
 
     return actual_cwd
@@ -79,4 +79,5 @@ def read_project_profile(working_directory: str | None, log_prefix: str = "") ->
         return ""
 
     from app.core import file as file_utils
+
     return file_utils.read_file(profile_path).content or ""

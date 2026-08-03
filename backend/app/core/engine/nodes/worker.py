@@ -97,7 +97,7 @@ class WorkerNode(BaseAgentNode):
             skills=relevant_sops,
             ticket=execution_ticket,
             focus_paths=focus_paths,
-            plan=full_plan
+            plan=full_plan,
         )
 
         static_system_prompt = await prompt_builder.build(config)
@@ -106,6 +106,7 @@ class WorkerNode(BaseAgentNode):
         actual_cwd = get_mapped_cwd(ctx.working_directory or ctx.metadata.get("cwd", ""))
 
         from app.core.environment import get_awakened_state
+
         telemetry: dict[str, Any] = {}
         awakened_state = get_awakened_state()
         if awakened_state:
@@ -147,14 +148,30 @@ class WorkerNode(BaseAgentNode):
                     result.append(msg)
         return result
 
-    async def _build_fallback_outcome(self, original_state: AgentState, engine_result: EngineResult, config: dict) -> StateUpdate:
+    async def _build_fallback_outcome(
+        self,
+        original_state: AgentState,
+        engine_result: EngineResult,
+        config: dict
+    ) -> StateUpdate:
         execution_ticket = original_state.ticket
-        role_name = execution_ticket.agent_config.role_name if execution_ticket and execution_ticket.agent_config else "Worker"
-        result = await process_worker_result(self.node_name, original_state, engine_result, execution_ticket, role_name, config)
+        role_name = (
+            execution_ticket.agent_config.role_name
+            if execution_ticket and execution_ticket.agent_config else "Worker"
+        )
+        result = await process_worker_result(
+            self.node_name,
+            original_state,
+            engine_result,
+            execution_ticket,
+            role_name,
+            config,
+        )
         return result
 
     async def __call__(self, state: AgentState, config: dict) -> StateUpdate:
         from app.core.engine.state import ensure_state
+
         state = ensure_state(state)
 
         execution_ticket = state.ticket
@@ -180,12 +197,16 @@ class WorkerNode(BaseAgentNode):
         state.relevant_sops = relevant_sops
 
         thread_id = config.get("configurable", {}).get("thread_id", "unknown")
-        role_name = execution_ticket.agent_config.role_name if execution_ticket and execution_ticket.agent_config else "Worker"
+        role_name = (
+            execution_ticket.agent_config.role_name
+            if execution_ticket and execution_ticket.agent_config else "Worker"
+        )
         task_label = role_name
         if execution_ticket and execution_ticket.topic:
             task_label = f"{role_name}: {execution_ticket.topic}"
 
         from app.core.monitoring.activity import activity_monitor
+
         await activity_monitor.update_agent_state(
             thread_id=thread_id,
             mode="EXECUTING",
@@ -205,8 +226,11 @@ class WorkerNode(BaseAgentNode):
         if is_multi_skill_workflow:
             logger.info("[Worker] 🔄 Delegating to sequential workflow...")
             from app.core.engine.message.native_classes import AIMessage
+
             return StateUpdate(
-                messages=[AIMessage(content=f"Starting sequential workflow with {len(skill_ids)} skills.")],
+                messages=[
+                    AIMessage(content=f"Starting sequential workflow with {len(skill_ids)} skills.")
+                ],
                 next_node=RoutingTarget.SEQUENTIAL_WORKFLOW,
                 workflow_plan=relevant_sops,
                 workflow_step_index=0,

@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 
 class AgentSignal(BaseModel):
     """Base class for agent control signals."""
+
     reason: str = ""
 
     def type_name(self) -> str:
@@ -39,6 +40,7 @@ class AgentSignal(BaseModel):
 
 class RoutingContext(DynamicBaseModel):
     """Structured context for RouteToSignal."""
+
     ticket_type: str = "task"
     priority: str = "normal"
     focus_paths: list[str] = Field(default_factory=list)
@@ -59,6 +61,7 @@ class RoutingContext(DynamicBaseModel):
 
 class RouteToSignal(AgentSignal):
     """Signal to transition to another node."""
+
     target: str = "finish"
     context: RoutingContext = Field(default_factory=RoutingContext)
     skill_ids: list[int] | None = None
@@ -238,10 +241,12 @@ async def handle_route_to(state: AgentState, signal: RouteToSignal, _config: dic
     session_goal = signal.session_goal
     if session_goal:
         from app.core.engine.message.goal_distiller import GoalDistiller
+
         session_goal = GoalDistiller.from_explicit(session_goal) or ""
         if session_goal and state.thread_id:
             try:
                 from app.core.monitoring.activity import activity_monitor
+
                 await activity_monitor.update_goal(state.thread_id, session_goal)
             except Exception as e:
                 logger.warning(f"[Signals] Failed to update session goal: {e}")

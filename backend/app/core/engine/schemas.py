@@ -10,6 +10,7 @@ from app.infrastructure.pydantic_base import DynamicBaseModel
 
 class NodeOutcome(DynamicBaseModel):
     """Structured outcome of a node execution."""
+
     status: str = "success"
     reason: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
@@ -17,6 +18,7 @@ class NodeOutcome(DynamicBaseModel):
 
 class EngineResult(DynamicBaseModel):
     """Structured result from AgentEngine.run_node() and internal execution methods."""
+
     messages: list[BaseMessage] = Field(default_factory=list)
     tool_history: list[str] = Field(default_factory=list)
     is_truncated: bool = False
@@ -32,8 +34,10 @@ class EngineResult(DynamicBaseModel):
 # Error Handling (from error_handler.py)
 # ---------------------------------------------------------------------------
 
+
 class ErrorClassification(BaseModel):
     """Structured error classification result."""
+
     error_type: str
     status_code: int | None = None
     title: str
@@ -47,8 +51,10 @@ class ErrorClassification(BaseModel):
 # Context Monitoring (from context_monitor.py)
 # ---------------------------------------------------------------------------
 
+
 class ToolCallInfo(DynamicBaseModel):
     """Information about a recent tool call."""
+
     tool_call_id: str
     name: str | None = None
     timestamp: float
@@ -57,6 +63,7 @@ class ToolCallInfo(DynamicBaseModel):
 
 class ContextStats(DynamicBaseModel):
     """Context usage statistics for Agent awareness (token-based)."""
+
     total_tokens: int
     max_tokens: int
     message_count: int
@@ -79,7 +86,9 @@ class ContextStats(DynamicBaseModel):
             f"Messages: {self.message_count} total, {self.tool_message_count} tool outputs ({self.tool_tokens:,} tokens)",
         ]
         if self.recent_tools:
-            recent_names = [f"{t.name}({t.token_count//1000}k)" for t in self.recent_tools[-5:]]
+            recent_names = [
+                f"{t.name}({t.token_count // 1000}k)" for t in self.recent_tools[-5:]
+            ]
             lines.append(f"Recent tools: {', '.join(recent_names)}")
         if self.usage_ratio >= 0.80:
             lines.append("Tip: Use forget_tool_outputs to fold old exploration steps")
@@ -96,8 +105,10 @@ class ContextStats(DynamicBaseModel):
 # Rewind Operations (from rewind/models.py)
 # ---------------------------------------------------------------------------
 
+
 class RewindOperation(DynamicBaseModel):
     """Request parameters for a rewind operation."""
+
     thread_id: str
     target_message_id: str | None = None
     include_target: bool = False
@@ -108,6 +119,7 @@ class RewindOperation(DynamicBaseModel):
 
 class RewindResult(DynamicBaseModel):
     """Result of a rewind operation."""
+
     status: str
     thread_id: str
     removed_message_count: int = 0
@@ -136,8 +148,10 @@ class RewindResult(DynamicBaseModel):
 # Prompt Building (from prompts/supervisor_builder.py)
 # ---------------------------------------------------------------------------
 
+
 class SupervisorContext(DynamicBaseModel):
     """Formalized context structure for Supervisor decision making."""
+
     tools: list[Any]
     iteration_count: int
     last_human_msg: str | None

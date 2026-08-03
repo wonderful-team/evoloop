@@ -88,11 +88,20 @@ def to_base_message(msg: Any) -> BaseMessage | None:
     try:
         message = None
         if role == "human" or role == "user":
-            message = HumanMessage(content=content, id=msg_id, additional_kwargs=additional_kwargs)
+            message = HumanMessage(
+                content=content,
+                id=msg_id,
+                additional_kwargs=additional_kwargs
+            )
         elif role == "ai" or role == "assistant":
             tc_source = _msg_field(msg, "tool_calls", [])
             tool_calls = normalize_tool_calls(tc_source)
-            message = AIMessage(content=content, id=msg_id, tool_calls=tool_calls, additional_kwargs=additional_kwargs)
+            message = AIMessage(
+                content=content,
+                id=msg_id,
+                tool_calls=tool_calls,
+                additional_kwargs=additional_kwargs,
+            )
         elif role == "tool":
             message = ToolMessage(
                 content=content,
@@ -102,7 +111,11 @@ def to_base_message(msg: Any) -> BaseMessage | None:
                 additional_kwargs=additional_kwargs,
             )
         elif role == "system":
-            message = SystemMessage(content=content, id=msg_id, additional_kwargs=additional_kwargs)
+            message = SystemMessage(
+                content=content,
+                id=msg_id,
+                additional_kwargs=additional_kwargs
+            )
 
         if message:
             message.metadata = additional_kwargs

@@ -14,6 +14,7 @@ class FinishPromptBuilder(BasePromptBuilder):
     """
     Constructs the system prompt for the Session Reviewer agent via Jinja2.
     """
+
     def __init__(
         self,
         current_plan: str,

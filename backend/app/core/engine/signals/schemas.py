@@ -9,6 +9,7 @@ from app.core.engine.signals.signals import (
 
 class TerminateSignal(AgentSignal):
     """Signal to terminate execution and route to finish."""
+
     summary: str = ""
 
     def type_name(self) -> str:

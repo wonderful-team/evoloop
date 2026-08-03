@@ -317,9 +317,7 @@ async def record_episode_task(
                             name=db_skill.name,
                             description=db_skill.description,
                             trigger_patterns=db_skill.trigger_patterns,
-                            parameters=normalize_parameters(
-                                result.skill.parameters
-                            ),
+                            parameters=normalize_parameters(result.skill.parameters),
                             macro_script=macro_script,
                             fallback_skill_id=db_skill.id,
                             source_thread_id=result.skill.source_thread_id,
@@ -687,9 +685,7 @@ async def run_engine_audit_structured_extraction(
         return
 
     # Authoritatively repair the message history to ensure structural validity for strict LLM APIs
-    messages = [
-        m.model_dump() for m in EvoMessageConverter.repair(messages_dicts)
-    ]
+    messages = [m.model_dump() for m in EvoMessageConverter.repair(messages_dicts)]
 
     schema_json = json.dumps(
         DynamicVerdict.model_json_schema(), ensure_ascii=False, indent=2

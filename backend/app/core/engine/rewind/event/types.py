@@ -3,6 +3,7 @@ from enum import Enum
 
 class RewindEventType(str, Enum):
     """Event types emitted during conversation rewind operations."""
+
     REWIND_REQUESTED = "rewind.requested"
     REWIND_COMPLETED = "rewind.completed"
     REWIND_FAILED = "rewind.failed"

@@ -10,6 +10,7 @@ from app.infrastructure.pydantic_base import DynamicBaseModel
 
 class RunnableConfigMetadata(DynamicBaseModel):
     """Metadata extracted from the engine run context."""
+
     thread_id: str = "unknown"
     member_id: int | None = None
     project_id: int | None = None
@@ -57,6 +58,7 @@ class WorkflowContext(DynamicBaseModel):
 
 class AgentRuntimeConfig(DynamicBaseModel):
     """Blueprint for a Dynamic Sub-Agent."""
+
     role_name: str = ""
     system_instructions: str = ""
     tools: list[str] = []
@@ -74,6 +76,7 @@ class AgentRuntimeConfig(DynamicBaseModel):
 
 class ExecutionTicket(DynamicBaseModel):
     """Structured mission ticket for any Specialist Node."""
+
     ticket_type: str
     priority: str = "normal"
     acceptance_criteria: list[str] | None = Field(default_factory=list)

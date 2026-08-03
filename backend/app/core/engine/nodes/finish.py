@@ -35,6 +35,7 @@ class FinishNode(BaseNode):
 
     async def __call__(self, state: "AgentState", config: dict) -> "StateUpdate":
         from app.core.engine.state import ensure_state
+
         state = ensure_state(state)
         try:
             return await self._run(state, config)
@@ -61,12 +62,14 @@ class FinishNode(BaseNode):
 
         anomalies = []
         if effective_total > 0 and effective_completed < effective_total:
-            anomalies.append(AuditAnomaly(
-                anomaly_type="incomplete_plan",
-                severity="warn",
-                description=f"Plan incomplete: {effective_completed}/{effective_total}",
-                suggested_action="Route back to Supervisor",
-            ))
+            anomalies.append(
+                AuditAnomaly(
+                    anomaly_type="incomplete_plan",
+                    severity="warn",
+                    description=f"Plan incomplete: {effective_completed}/{effective_total}",
+                    suggested_action="Route back to Supervisor",
+                )
+            )
 
         audit_input = AuditInputData(
             original_goal=state.session_goal or "",
@@ -82,6 +85,7 @@ class FinishNode(BaseNode):
 
     async def handle_error(self, state: "AgentState", error: Exception, config: dict = None) -> "StateUpdate":
         from app.core.engine.message.native_classes import AIMessage
+
         error_msg = AIMessage(
             content=f"Session finalization failed: {error}",
             additional_kwargs={"is_error": True, "error_type": "finish_failure"},
@@ -147,6 +151,7 @@ class FinishNode(BaseNode):
             )
             if trim_result.trigger != TrimTrigger.NONE:
                 from app.core.engine.hooks import HookContext, HookEvent, hook_system
+
                 await hook_system.trigger(
                     HookEvent.PRE_COMPACT,
                     HookContext(
@@ -156,13 +161,13 @@ class FinishNode(BaseNode):
                         project_id=config.get("configurable", {}).get("project_id"),
                         member_id=config.get("configurable", {}).get("member_id"),
                         compact_trigger=trim_result.trigger.name.lower(),
-                    )
+                    ),
                 )
 
                 logger.info(f"[Finish] Soft trim before audit: {trim_result.before_count} -> {trim_result.after_count} msgs")
             messages = trim_result.messages
 
-        iteration_count = (state.iteration_count or 0)
+        iteration_count = state.iteration_count or 0
         max_steps = settings.SUPERVISOR_AGENT_MAX_STEPS
         if state.max_supervisor_steps:
             max_steps = state.max_supervisor_steps
@@ -227,6 +232,7 @@ class FinishNode(BaseNode):
             if stop_result.block:
                 logger.warning(f"[Finish] STOP hook blocked completion: {stop_result.message}")
                 from app.core.engine.message.native_classes import AIMessage
+
                 block_msg = AIMessage(
                     content=f"\n\n[Quality Gate Blocked] {stop_result.message}\nPlease address the issues before completing.",
                 )
@@ -305,6 +311,7 @@ class FinishNode(BaseNode):
         )
 
         from app.core.events.publishers import publish_session_completed
+
         if not metadata.get("skip_persistence"):
             logger.info(f"[Finish] Publishing SessionCompletedEvent for thread {effective_thread_id}...")
             await publish_session_completed(data=event_data)

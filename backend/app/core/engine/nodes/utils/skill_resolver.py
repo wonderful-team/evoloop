@@ -30,6 +30,7 @@ class SkillResolver:
         if original_skill_id:
             try:
                 from app.models.learning import LearnedSkill
+
                 async with session_scope() as session:
                     stmt = select(LearnedSkill).where(LearnedSkill.id == original_skill_id)
                     result = await session.execute(stmt)

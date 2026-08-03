@@ -33,6 +33,7 @@ class RewindRequestedEvent(BaseEvent):
     Subscribers read event.results to report counts.
     Pre-computed affected_message_ids prevents race conditions between handlers.
     """
+
     source: str = "rewind_service"
     thread_id: str = ""
     event_type: str = REWIND_REQUESTED
@@ -66,6 +67,7 @@ class RewindRequestedEvent(BaseEvent):
 
 class MessagesCleanupEvent(BaseEvent):
     """Published to trigger message deletion (used by EvoCloud sync + fallback entry)."""
+
     source: str = "rewind_service"
     thread_id: str = ""
     event_type: str = MESSAGES_CLEANUP
@@ -160,6 +162,7 @@ async def perform_rewind(
         deleted_count = await _delete_messages(affected_ids) if affected_ids else 0
         if deleted_count:
             from app.core.engine.message.sequence import SequenceService
+
             async with session_scope() as session:
                 stmt = select(func.max(Message.sequence_number)).where(Message.thread_id == thread_id)
                 res = await session.execute(stmt)
@@ -276,12 +279,14 @@ async def _clear_hitl(thread_id: str) -> None:
     """Clear activity status and cancel pending HITL requests."""
     try:
         from app.core.monitoring.activity import activity_monitor
+
         await activity_monitor.clear_human_request(thread_id)
     except Exception as e:
         logger.error(f"[Rewind] Failed to clear activity: {e}")
 
     try:
         from app.core.hitl.core import cancel_request, get_pending_requests_for_thread
+
         pending = await get_pending_requests_for_thread(thread_id)
         for req in pending:
             await cancel_request(req.id)

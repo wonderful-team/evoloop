@@ -13,18 +13,18 @@ logger = logging.getLogger(__name__)
 class SynthesizeSkillInput(DynamicBaseModel):
     reason: str = Field(
         ...,
-        description="Reason for triggering skill synthesis. Explain why this session is valuable (e.g., 'Successfully solved a complex bug', 'Implemented a new reusable component')."
+        description="Reason for triggering skill synthesis. Explain why this session is valuable (e.g., 'Successfully solved a complex bug', 'Implemented a new reusable component').",
     )
     thread_id: str | None = Field(
         None,
-        description="The thread ID to synthesize. Defaults to current thread if not provided."
+        description="The thread ID to synthesize. Defaults to current thread if not provided.",
     )
 
 
 class CreateMacroInput(DynamicBaseModel):
     name: str = Field(
         ...,
-        description="A concise, descriptive name for the macro (e.g. '打开腾讯会议并复制链接')."
+        description="A concise, descriptive name for the macro (e.g. '打开腾讯会议并复制链接').",
     )
     description: str = Field(
         ...,
@@ -32,23 +32,23 @@ class CreateMacroInput(DynamicBaseModel):
     )
     trigger_patterns: list[str] = Field(
         default_factory=list,
-        description="Optional voice/text trigger patterns (e.g. ['快速会议', '创建会议']). If empty, patterns will be auto-generated."
+        description="Optional voice/text trigger patterns (e.g. ['快速会议', '创建会议']). If empty, patterns will be auto-generated.",
     )
     thread_id: str | None = Field(
         None,
-        description="The thread ID to create macro. Defaults to current thread if not provided."
+        description="The thread ID to create macro. Defaults to current thread if not provided.",
     )
 
 
 @evoloop_tool(
     args_schema=SynthesizeSkillInput,
     is_state_mutating=False,
-    summary_template="evoloop.tool_summary.synthesize_skill"
+    summary_template="evoloop.tool_summary.synthesize_skill",
 )
 async def synthesize_skill(reason: str, thread_id: str | None = None) -> str:
     """
     Manually trigger skill synthesis for the current or a specific thread.
-    Use this when you have successfully completed a non-trivial task that 
+    Use this when you have successfully completed a non-trivial task that
     could be useful for future reference or tool creation.
     """
     ctx = ContextManager.current()
@@ -72,7 +72,7 @@ async def synthesize_skill(reason: str, thread_id: str | None = None) -> str:
             kwargs={
                 "thread_id": target_thread,
                 "project_id": project_id,
-                "auto_synthesize": True
+                "auto_synthesize": True,
             },
         )
         return (
@@ -119,13 +119,7 @@ async def create_macro(
     )
 
     try:
-        from app.core.execution.macro.macro_creator_service import (
-            MacroCreatorService,
-            SynthesisResult,
-        )
-        from app.core.execution.macro.lifecycle import (
-            create_macro_from_synthesis,
-        )
+        from app.core.execution.macro.macro_creator_service import MacroCreatorService
 
         is_eligible = await MacroCreatorService.is_eligible(target_thread)
         if not is_eligible:

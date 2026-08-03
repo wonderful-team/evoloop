@@ -50,7 +50,12 @@ class SequentialWorkflowNode(BaseAgentNode):
         if not execution_ticket:
             logger.error("[SequentialWorkflow] Missing execution ticket")
             return StateUpdate(
-                messages=[AIMessage(content="Sequential workflow failed: missing ticket.", additional_kwargs={"is_error": True})],
+                messages=[
+                    AIMessage(
+                        content="Sequential workflow failed: missing ticket.",
+                        additional_kwargs={"is_error": True},
+                    )
+                ],
                 next_node=RoutingTarget.SUPERVISOR,
             )
 
@@ -79,12 +84,13 @@ class SequentialWorkflowNode(BaseAgentNode):
         messages = [HumanMessage(content=mission_msg)]
 
         from app.core.monitoring.activity import activity_monitor
+
         thread_id = config.get("configurable", {}).get("thread_id", "unknown")
         await activity_monitor.update_agent_state(
             thread_id=thread_id,
             mode="EXECUTING",
             task_name=f"Workflow Step {step_index + 1}/{len(plan)}",
-            task_status=f"Executing skill: {skill_name}"
+            task_status=f"Executing skill: {skill_name}",
         )
 
         worker_state = state.model_copy(update={"messages": messages})
@@ -105,7 +111,15 @@ class SequentialWorkflowNode(BaseAgentNode):
         except (ValueError, RuntimeError, OSError) as e:
             logger.error(f"[SequentialWorkflow] Step {step_index + 1} failed: {e}")
             return StateUpdate(
-                messages=[AIMessage(content=f"Workflow failed at step {step_index + 1}: {e}", additional_kwargs={"is_error": True, "error_type": "workflow_step_exception"})],
+                messages=[
+                    AIMessage(
+                        content=f"Workflow failed at step {step_index + 1}: {e}",
+                        additional_kwargs={
+                            "is_error": True,
+                            "error_type": "workflow_step_exception",
+                        },
+                    )
+                ],
                 next_node=RoutingTarget.SUPERVISOR,
                 workflow_results=results + [
                     WorkflowStepResult(
@@ -119,30 +133,44 @@ class SequentialWorkflowNode(BaseAgentNode):
 
         if engine_result.messages:
             last_msg = engine_result.messages[-1]
-            step_output = get_message_text(last_msg) if last_msg.role == "assistant" else ""
+            step_output = (
+                get_message_text(last_msg) if last_msg.role == "assistant" else ""
+            )
         else:
             step_output = ""
 
         if "[ERROR:" in step_output or step_output.strip().startswith("Error:"):
             logger.error(f"[SequentialWorkflow] Step {step_index + 1} returned error")
-            results.append(WorkflowStepResult(
-                skill_id=skill.id,
-                skill_name=skill_name,
-                output=step_output,
-                status="failed",
-            ))
+            results.append(
+                WorkflowStepResult(
+                    skill_id=skill.id,
+                    skill_name=skill_name,
+                    output=step_output,
+                    status="failed",
+                )
+            )
             return StateUpdate(
-                messages=[AIMessage(content=f"Workflow failed at step {step_index + 1}/{len(plan)}: {skill_name}\n\n{step_output}", additional_kwargs={"is_error": True, "error_type": "workflow_step_failed"})],
+                messages=[
+                    AIMessage(
+                        content=f"Workflow failed at step {step_index + 1}/{len(plan)}: {skill_name}\n\n{step_output}",
+                        additional_kwargs={
+                            "is_error": True,
+                            "error_type": "workflow_step_failed",
+                        },
+                    )
+                ],
                 next_node=RoutingTarget.SUPERVISOR,
                 workflow_results=results,
             )
 
-        results.append(WorkflowStepResult(
-            skill_id=skill.id,
-            skill_name=skill_name,
-            output=step_output,
-            status="success",
-        ))
+        results.append(
+            WorkflowStepResult(
+                skill_id=skill.id,
+                skill_name=skill_name,
+                output=step_output,
+                status="success",
+            )
+        )
 
         if is_last:
             logger.info("[SequentialWorkflow] Final step complete. Routing to FINISH.")

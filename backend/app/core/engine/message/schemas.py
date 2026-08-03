@@ -10,7 +10,6 @@ Message System Core Schema —— 全链路标准化消息结构。
 - BlockEvent：SSE 流式事件的包装器
 """
 
-from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import Field
