@@ -21,12 +21,12 @@ class RegisterUsernameRequest(DynamicBaseModel):
     captcha_id: str | None = None
     captcha_code: str | None = None
 
-    @model_validator(mode='after')
-    def check_username(self) -> 'RegisterUsernameRequest':
+    @model_validator(mode="after")
+    def check_username(self) -> "RegisterUsernameRequest":
         if not self.username and self.email:
             self.username = self.email
         if not self.username:
-            raise ValueError('username or email is required')
+            raise ValueError("username or email is required")
         return self
 
 

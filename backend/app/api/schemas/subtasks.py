@@ -11,6 +11,7 @@ from app.models.schemas.base import TimestampedEntity
 
 class SubtaskCreate(DynamicBaseModel):
     """Subtask creation request."""
+
     title: str = Field(..., min_length=1, max_length=255)
     description: str = ""
     priority: str = "medium"  # high/medium/low
@@ -19,6 +20,7 @@ class SubtaskCreate(DynamicBaseModel):
 
 class TaskWithSubtasksCreate(DynamicBaseModel):
     """Create parent task with subtasks."""
+
     title: str = Field(..., min_length=1, max_length=255)
     description: str = ""
     priority: str = "medium"
@@ -29,6 +31,7 @@ class TaskWithSubtasksCreate(DynamicBaseModel):
 
 class TaskProgressUpdate(DynamicBaseModel):
     """Task progress update."""
+
     status: str | None = None  # pending/in_progress/completed/failed
     progress: int | None = Field(None, ge=0, le=100)
     result: str | None = None  # Execution result summary
@@ -36,6 +39,7 @@ class TaskProgressUpdate(DynamicBaseModel):
 
 class TaskTreeResponse(DynamicBaseModel, TimestampedEntity):
     """Task tree response."""
+
     id: str
     title: str
     description: str
@@ -49,6 +53,7 @@ class TaskTreeResponse(DynamicBaseModel, TimestampedEntity):
 
 class ExecutableTaskResponse(DynamicBaseModel):
     """Next executable task response."""
+
     id: str
     title: str
     description: str
@@ -58,27 +63,32 @@ class ExecutableTaskResponse(DynamicBaseModel):
 
 class TaskCreateResponse(BaseAPIResponse):
     """Response after creating a task with subtasks."""
+
     task: dict[str, Any]
 
 
 class TaskTreeWrapperResponse(BaseAPIResponse):
     """Response wrapping a task tree."""
+
     task: dict[str, Any]
 
 
 class NextTaskResponse(BaseAPIResponse):
     """Response for next executable task."""
+
     task: dict[str, Any] | None
 
 
 class TaskFlatResponse(BaseAPIResponse):
     """Response for flattened task tree."""
+
     count: int
     tasks: list[dict[str, Any]]
 
 
 class TaskListItem(DynamicBaseModel):
     """Item in root task list."""
+
     id: str
     title: str
     status: str
@@ -90,5 +100,6 @@ class TaskListItem(DynamicBaseModel):
 
 class TaskListResponse(BaseAPIResponse):
     """Response for listing root tasks."""
+
     count: int
     tasks: list[TaskListItem]

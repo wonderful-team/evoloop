@@ -48,18 +48,21 @@ class WebhookPayload(DynamicBaseModel):
 
 class StopChatResponse(BaseAPIResponse):
     """Response for stopping a chat."""
+
     status: str
     thread_id: str
 
 
 class ResumeChatResponse(BaseAPIResponse):
     """Response for resuming a chat."""
+
     status: str
     thread_id: str
 
 
 class CancelHITLResponse(BaseAPIResponse):
     """Response for cancelling a HITL request."""
+
     status: str
     thread_id: str
     request_id: str | None
@@ -67,5 +70,6 @@ class CancelHITLResponse(BaseAPIResponse):
 
 class WebhookResponse(BaseAPIResponse):
     """Response for webhook endpoint."""
+
     status: str
     thread_id: str

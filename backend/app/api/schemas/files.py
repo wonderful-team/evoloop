@@ -22,11 +22,13 @@ class OpenFileRequest(DynamicBaseModel):
 
 class OpenFileResponse(BaseAPIResponse):
     """Response for opening a file."""
+
     status: str
 
 
 class FileUploadResponse(BaseAPIResponse):
     """Response for uploading a file."""
+
     url: str
     filename: str
     path: str
@@ -34,6 +36,7 @@ class FileUploadResponse(BaseAPIResponse):
 
 class FileSearchResult(DynamicBaseModel):
     """Single file content search result."""
+
     file: str
     line: int
     content: str
@@ -41,6 +44,7 @@ class FileSearchResult(DynamicBaseModel):
 
 class FileNameSearchResult(DynamicBaseModel):
     """Single file name search result."""
+
     name: str
     path: str
     type: str

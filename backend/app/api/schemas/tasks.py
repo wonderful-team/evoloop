@@ -19,6 +19,7 @@ class TaskCreateRequest(ScopedRequest):
     implementation_complexity: str | None = None
     deliverables: Any | None = None
 
+
 class TaskUpdateRequest(DynamicBaseModel):
     task_title: str | None = None
     task_desc: str | None = None
@@ -33,9 +34,11 @@ class TaskUpdateRequest(DynamicBaseModel):
     implementation_complexity: str | None = None
     deliverables: Any | None = None
 
+
 class TaskStatusUpdate(DynamicBaseModel):
     status: int
     progress: int | None = 0
+
 
 class TaskExecutionResponse(BaseAPIResponse):
     status: str

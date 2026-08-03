@@ -64,6 +64,7 @@ class ConversationListItem(DynamicBaseModel):
 
 class ReferenceItemMetadata(DynamicBaseModel):
     """Metadata for a message reference. Extra fields allowed per reference type."""
+
     duration: float | None = None
     transcript: str | None = None
     waveform: list[float] | None = None
@@ -76,11 +77,12 @@ class ReferenceItem(DynamicBaseModel):
     type: str
     target_id: str
     target_name: str
-    metadata: ReferenceItemMetadata | None = None  # Additional metadata (duration, transcript, waveform, etc.)
+    metadata: ReferenceItemMetadata | None = None
 
 
 class ChangesetNode(DynamicBaseModel):
     """Hierarchical node for file operation tree."""
+
     name: str
     path: str
     is_dir: bool
@@ -114,6 +116,7 @@ class RewindRequest(DynamicBaseModel):
 
 class MessageListResponse(ListResponse[MessageItem]):
     """Response model for paginated message list."""
+
     has_more: bool
     first_id: str | None = None
     last_id: str | None = None
@@ -129,4 +132,5 @@ class ConversationUpdateResponse(BaseAPIResponse):
 
 class ConversationListResponse(ListResponse[ConversationListItem]):
     """Response model for paginated conversation list."""
+
     pass

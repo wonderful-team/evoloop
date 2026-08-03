@@ -78,6 +78,7 @@ class LLMConfigRequest(DynamicBaseModel):
 
 # --- Lightning Channel Schemas (LLM only) ---
 
+
 class LightningConfigRequest(DynamicBaseModel):
     mode: str = Field(default="none", description="Lightning mode: none, llama.cpp, lm-studio, ollama")
     llm_model: str | None = Field(None, description="LLM model name or GGUF path")
@@ -106,6 +107,7 @@ class LightningApplyResponse(BaseAPIResponse):
 
 
 # --- Embedding Channel Schemas (independent tier chain) ---
+
 
 class EmbeddingTierConfigRequest(DynamicBaseModel):
     tiers: str = Field(default="gguf,local,remote", description="Comma-separated tier priority")

@@ -5,6 +5,7 @@ from app.api.schemas.responses import BaseAPIResponse
 
 class SymbolResponse(BaseAPIResponse):
     """Code symbol search result."""
+
     id: int
     name: str
     full_name: str
@@ -13,12 +14,16 @@ class SymbolResponse(BaseAPIResponse):
     start_line: int
     end_line: int
 
+
 class SymbolWikiResponse(BaseAPIResponse):
     """Response for symbol wiki generation."""
+
     content: str
+
 
 class SymbolRelationResponse(BaseAPIResponse):
     """Dependency relationship between code entities/files."""
+
     id: int
     source_id: int
     target_id: int | None = None
