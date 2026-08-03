@@ -148,6 +148,7 @@ def _resolve_file(project_path: str, rel_file: str) -> str | None:
         return direct
     basename = os.path.basename(rel_file)
     from app.core.file import FileTraverser
+
     for full_path in FileTraverser.walk(project_path):
         if os.path.basename(full_path) == basename:
             return full_path
@@ -175,9 +176,7 @@ async def _validate_graph_reachability(
                 )
                 if not target_ids:
                     continue
-                reachable = await _is_reachable_in_graph(
-                    session, start_ids, target_ids
-                )
+                reachable = await _is_reachable_in_graph(session, start_ids, target_ids)
                 if not reachable:
                     problems.append(
                         f"Action '{action.name}' → table '{table}': "

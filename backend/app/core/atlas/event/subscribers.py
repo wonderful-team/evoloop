@@ -2,6 +2,7 @@
 Atlas Module Lifecycle Handlers
 Handles global configuration synchronization on application start.
 """
+
 import logging
 
 from app.core.events import SystemEventType
@@ -30,4 +31,5 @@ async def init_atlas_config() -> None:
     """Initialize Atlas configuration (Cache-based, no hardcoding)."""
     logger.info("Initializing Atlas configuration...")
     from app.core.atlas.config_manager import AtlasConfigManager
+
     await AtlasConfigManager.initialize_defaults()

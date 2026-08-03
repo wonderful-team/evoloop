@@ -49,9 +49,11 @@ class GraphAtlasStore(IAtlasStore):
                 
                 # Link App -> State
                 await driver.link_nodes(
-                    "App", {"bundle_id": atlas_app.bundle_id},
-                    "State", {"state_id": state_id},
-                    "HAS_STATE"
+                    "App",
+                    {"bundle_id": atlas_app.bundle_id},
+                    "State",
+                    {"state_id": state_id},
+                    "HAS_STATE",
                 )
 
                 # Link State -> UIElement
@@ -59,24 +61,28 @@ class GraphAtlasStore(IAtlasStore):
                     el_id = element.os_identifier or f"{state_id}_{element.label}_{element.role}"
                     props = element.model_dump()
                     props["element_id"] = el_id
-                    
+
                     await driver.upsert_node("UIElement", "element_id", props)
                     await driver.link_nodes(
-                        "State", {"state_id": state_id},
-                        "UIElement", {"element_id": el_id},
-                        "CONTAINS"
+                        "State",
+                        {"state_id": state_id},
+                        "UIElement",
+                        {"element_id": el_id},
+                        "CONTAINS",
                     )
 
             # 3. Upsert Transitions
             for trans in atlas_app.transitions:
                 await driver.link_nodes(
-                    "State", {"state_id": trans.from_state},
-                    "State", {"state_id": trans.to_state},
+                    "State",
+                    {"state_id": trans.from_state},
+                    "State",
+                    {"state_id": trans.to_state},
                     "TRANSITION",
                     rel_props={
                         "action_label": trans.action.label,
-                        "action_type": trans.action_type
-                    }
+                        "action_type": trans.action_type,
+                    },
                 )
 
             logger.info(f"Successfully saved Atlas for {atlas_app.bundle_id}")
@@ -90,14 +96,15 @@ class GraphAtlasStore(IAtlasStore):
         apps = await driver.find_nodes("App", {"bundle_id": bundle_id, "platform": platform}, limit=1)
         if not apps:
             return None
-        
+
         app = apps[0]
         states_nodes = await driver.traverse(
-            "App", {"bundle_id": bundle_id},
+            "App",
+            {"bundle_id": bundle_id},
             rel_type="HAS_STATE",
             target_label="State"
         )
-        
+
         return AtlasAppSummary(
             app_name=app.get("app_name", "Unknown"),
             bundle_id=bundle_id,
@@ -114,24 +121,25 @@ class GraphAtlasStore(IAtlasStore):
         nodes = await driver.find_nodes("State", {"state_id": state_id, "bundle_id": bundle_id}, limit=1)
         if not nodes:
             return None
-        
+
         record = nodes[0]
         elements_nodes = await driver.traverse(
-            "State", {"state_id": state_id},
+            "State",
+            {"state_id": state_id},
             rel_type="CONTAINS",
-            target_label="UIElement"
+            target_label="UIElement",
         )
-        
+
         return AtlasStateDetail(
             state_id=state_id,
             window_title=record.get("window_title", "Unknown"),
-            elements=elements_nodes
+            elements=elements_nodes,
         )
 
     async def get_transitions_summary(self, bundle_id: str, platform: str = "macos") -> list[dict[str, Any]]:
         """Returns all known transitions for an app."""
         driver = GraphManager.get_driver()
-        
+
         # We use execute_query as it's the most efficient for multi-hop relationship retrieval
         query = """
         MATCH (a:App {bundle_id: $bundle_id, platform: $platform})-[:HAS_STATE]->(s1:State)-[r:TRANSITION]->(s2:State)
@@ -150,7 +158,7 @@ class GraphAtlasStore(IAtlasStore):
             AtlasAppInfo(
                 app_name=n.get("app_name", "Unknown"),
                 bundle_id=n["bundle_id"],
-                platform=n.get("platform", "macos")
+                platform=n.get("platform", "macos"),
             )
             for n in nodes
         ]

@@ -48,12 +48,13 @@ class AtlasConfigManager:
     async def _detect_bundle_id(app_name: str) -> str | None:
         """Auto-detect bundle ID from system (macOS only)."""
         import subprocess
+
         try:
             result = subprocess.run(
                 ["osascript", "-e", f'id of app "{app_name}"'],
                 capture_output=True,
                 text=True,
-                timeout=5
+                timeout=5,
             )
             if result.returncode == 0:
                 bundle_id = result.stdout.strip()
@@ -91,7 +92,6 @@ class AtlasConfigManager:
     async def get_dynamic_apps(platform: str = "android") -> set[str]:
         """Get all dynamic app bundle IDs from cache for a specific platform."""
         try:
-
             key = AtlasConfigManager._get_dynamic_apps_key(platform)
             apps = await cache.smembers(key)
             return set(apps) if apps else set()
@@ -103,7 +103,6 @@ class AtlasConfigManager:
     async def mark_app_dynamic(bundle_id: str, platform: str = "android", reason: str = ""):
         """Mark an app as dynamic (coordinate-unstable)."""
         try:
-
             key = AtlasConfigManager._get_dynamic_apps_key(platform)
             await cache.sadd(key, bundle_id)
             if reason:
@@ -118,7 +117,6 @@ class AtlasConfigManager:
     async def unmark_app_dynamic(bundle_id: str, platform: str = "android"):
         """Remove app from dynamic list."""
         try:
-
             key = AtlasConfigManager._get_dynamic_apps_key(platform)
             await cache.srem(key, bundle_id)
             await cache.hdel(f"system:app_categorization:{platform}", bundle_id)
@@ -141,6 +139,7 @@ class AtlasConfigManager:
         """Get default strategy for an app on a specific platform."""
         try:
             from app.core.atlas.strategy import AtlasStrategyStore
+
             strategy = await AtlasStrategyStore.get_strategy(bundle_id, platform)
             if strategy:
                 return strategy.model_dump()
@@ -153,6 +152,7 @@ class AtlasConfigManager:
         """Set default strategy for an app on a specific platform."""
         try:
             from app.core.atlas.strategy import AppStrategy, AtlasStrategyStore
+
             app_strategy = AppStrategy.model_validate(strategy)
             await AtlasStrategyStore.save_strategy(app_strategy)
             logger.info(f"[AtlasConfig] Set strategy for '{platform}:{bundle_id}'")
@@ -198,6 +198,7 @@ class AtlasConfigManager:
 
             # 3. Initialize default strategies
             from app.core.atlas.strategy import AtlasStrategyStore
+
             await AtlasStrategyStore.init_default_strategies()
 
         except Exception as e:

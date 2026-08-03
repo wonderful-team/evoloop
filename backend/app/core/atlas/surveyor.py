@@ -38,10 +38,27 @@ MENUBAR_STATE_ID = "__menubar__"
 RESURVEY_JACCARD_THRESHOLD = 0.8
 
 INTERACTIVE_ROLES = {
-    "AXButton", "AXTextField", "AXTextArea", "AXMenuItem", "AXMenuBarItem",
-    "AXCheckBox", "AXRadioButton", "AXSlider", "AXPopUpButton", "AXComboBox",
-    "AXTab", "AXTabGroup", "AXLink", "AXSwitch", "AXStepper", "AXSearchField",
-    "AXIncrementor", "AXValueIndicator", "AXOutline", "AXTable", "AXRow",
+    "AXButton",
+    "AXTextField",
+    "AXTextArea",
+    "AXMenuItem",
+    "AXMenuBarItem",
+    "AXCheckBox",
+    "AXRadioButton",
+    "AXSlider",
+    "AXPopUpButton",
+    "AXComboBox",
+    "AXTab",
+    "AXTabGroup",
+    "AXLink",
+    "AXSwitch",
+    "AXStepper",
+    "AXSearchField",
+    "AXIncrementor",
+    "AXValueIndicator",
+    "AXOutline",
+    "AXTable",
+    "AXRow",
 }
 
 # Labels that must NEVER be clicked during exploration (recorded, not triggered).
@@ -439,7 +456,11 @@ class AtlasSurveyor:
             if not detail:
                 continue
             stored = frozenset(
-                (str(e.get("role", "")), str(e.get("label", "")).strip(), str(e.get("ax_path", "")))
+                (
+                    str(e.get("role", "")),
+                    str(e.get("label", "")).strip(),
+                    str(e.get("ax_path", "")),
+                )
                 for e in detail.elements
                 if str(e.get("label", "")).strip()
             )

@@ -69,6 +69,7 @@ class BenefitService:
         async def _fetch():
             try:
                 from app.core.evocloud import evocloud_manager
+
                 res = await evocloud_manager.api.get_member_benefits(token=token)
                 if res.get("code") == 0:
                     data = res.get("data", {})
@@ -127,7 +128,7 @@ class BenefitService:
             data = await self.get_member_entitlements(member_id)
 
             if data.get("is_expired", False):
-                return {code: False for code in benefit_codes}
+                return dict.fromkeys(benefit_codes, False)
 
             benefits = data.get("benefits", {})
 
@@ -138,7 +139,7 @@ class BenefitService:
             return result
         except Exception as e:
             logger.error(f"Batch benefit check failed: {e}")
-            return {code: False for code in benefit_codes}
+            return dict.fromkeys(benefit_codes, False)
 
 
 benefit_service = BenefitService()

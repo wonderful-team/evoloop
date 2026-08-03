@@ -16,7 +16,7 @@ import logging
 import os
 
 from app.core.atlas.source.native_factory import generate_for_atlas_app, persist_native_macros
-from app.core.atlas.surveyor import MENUBAR_STATE_ID, AtlasSurveyor, SurveyPolicy
+from app.core.atlas.surveyor import AtlasSurveyor, SurveyPolicy
 
 logger = logging.getLogger(__name__)
 
@@ -63,10 +63,17 @@ async def resurvey_and_regen(
         bundle_id, app_name=app_name, policy=policy or SurveyPolicy(explore=False)
     )
     if result.error or result.app is None:
-        return {"bundle_id": bundle_id, "action": "survey_failed", "error": result.error}
+        return {
+            "bundle_id": bundle_id,
+            "action": "survey_failed",
+            "error": result.error,
+        }
 
     states = {
-        sid: {"window_title": s.window_title, "elements": [e.model_dump() for e in s.elements]}
+        sid: {
+            "window_title": s.window_title,
+            "elements": [e.model_dump() for e in s.elements],
+        }
         for sid, s in result.app.states.items()
     }
     candidates = generate_for_atlas_app(bundle_id, app_name, states)

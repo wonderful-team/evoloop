@@ -36,8 +36,16 @@ MAX_MENU_DEPTH = 3
 # OS-level junk with badge-suffixed labels ("App Store…，9项更新").
 DYNAMIC_MENU_ROOTS = {
     "apple",
-    "书签", "bookmarks", "历史记录", "history",
-    "最近使用", "最近使用的项目", "最近打开", "open recent", "recents", "recent items",
+    "书签",
+    "bookmarks",
+    "历史记录",
+    "history",
+    "最近使用",
+    "最近使用的项目",
+    "最近打开",
+    "open recent",
+    "recents",
+    "recent items",
 }
 
 # 标签页/窗口 menus mix static commands (新标签页/最小化) with enumerated
@@ -68,8 +76,16 @@ FIELD_CONTAINER_RE = re.compile(r"AXOutline|AXTable", re.IGNORECASE)
 ADDRESS_FIELD_RE = re.compile(r"address|地址|搜索栏|search", re.IGNORECASE)
 # Junk field labels observed in surveys (log-level text misread as a field).
 FIELD_LABEL_STOPWORDS = {
-    "error", "warn", "warning", "info", "debug", "fatal", "log",
-    "错误", "警告", "日志",
+    "error",
+    "warn",
+    "warning",
+    "info",
+    "debug",
+    "fatal",
+    "log",
+    "错误",
+    "警告",
+    "日志",
 }
 
 
@@ -226,14 +242,24 @@ def generate_field_macros(
             triggers = ["打开{{text}}", "访问{{text}}", f"在{app_name}打开{{{{text}}}}"]
             name = f"{app_name} 打开网址"
         else:
-            triggers = [f"在{app_name}的{label}输入{{{{text}}}}", f"{app_name}{label}输入{{{{text}}}}"]
+            triggers = [
+                f"在{app_name}的{label}输入{{{{text}}}}",
+                f"{app_name}{label}输入{{{{text}}}}",
+            ]
             name = f"{app_name} {label}输入"
         candidates.append(
             NativeMacroCandidate(
                 name=name,
                 description=f"{app_name} 字段 {label} 文本输入（AXSetValue 读回验证）",
                 trigger_patterns=triggers,
-                parameters=[{"name": "text", "type": "string", "required": True, "description": f"写入{label}的文本"}],
+                parameters=[
+                    {
+                        "name": "text",
+                        "type": "string",
+                        "required": True,
+                        "description": f"写入{label}的文本",
+                    }
+                ],
                 steps=steps,
                 risk_tier="data" if not is_address else "ui",
             )
@@ -276,9 +302,8 @@ async def persist_native_macros(
     ids: list[int] = []
     async with session_scope() as db:
         for prefix in prefixes:
-            await db.execute(
-                delete(Macro).where(Macro.namespace == NATIVE_NS, Macro.name.startswith(f"{prefix} "))
-            )
+            stmt = delete(Macro).where(Macro.namespace == NATIVE_NS, Macro.name.startswith(f"{prefix} "))
+            await db.execute(stmt)
         for c in candidates:
             script = MacroScript(steps=c.steps).to_yaml()
             macro = Macro(

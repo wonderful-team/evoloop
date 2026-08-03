@@ -24,6 +24,7 @@ class InteractionStrategy(DynamicBaseModel):
     A strategy for finding/interacting with an element.
     Examples: "search_then_click", "scroll_until_visible", "static_click"
     """
+
     strategy_type: str  # "search_then_click", "scroll_until_visible", etc.
     target_element: str  # What we're looking for (e.g., "Alice", "Send button")
 
@@ -49,6 +50,7 @@ class AppStrategy(DynamicBaseModel):
     Complete strategy set for a dynamic app.
     Stores infrastructure elements (static) and interaction strategies.
     """
+
     bundle_id: str
     platform: str
 
@@ -131,13 +133,13 @@ class AtlasStrategyStore:
             AppStrategy(
                 bundle_id="com.tencent.xinWeChat",
                 platform="macos",
-                hints={"has_search_bar": True, "search_bar_location": "top"}
+                hints={"has_search_bar": True, "search_bar_location": "top"},
             ),
             AppStrategy(
                 bundle_id="com.apple.Safari",
                 platform="macos",
-                hints={"has_search_bar": True}
-            )
+                hints={"has_search_bar": True},
+            ),
         ]
         for s in defaults:
             await cls.save_strategy(s)

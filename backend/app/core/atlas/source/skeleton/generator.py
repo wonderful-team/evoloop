@@ -91,18 +91,48 @@ CATEGORY_LAYER = {
 }
 
 _ENTITY_SUFFIXES = [
-    "controller", "controllers", "service", "services",
-    "repository", "repositories", "dao", "mapper", "mappers",
-    "model", "models", "entity", "entities", "bean", "beans",
-    "validate", "validation", "validator", "logic",
-    "action", "actions", "handler", "handlers",
-    "impl", "implementation", "interface", "intf",
-    "base", "abstract",
+    "controller",
+    "controllers",
+    "service",
+    "services",
+    "repository",
+    "repositories",
+    "dao",
+    "mapper",
+    "mappers",
+    "model",
+    "models",
+    "entity",
+    "entities",
+    "bean",
+    "beans",
+    "validate",
+    "validation",
+    "validator",
+    "logic",
+    "action",
+    "actions",
+    "handler",
+    "handlers",
+    "impl",
+    "implementation",
+    "interface",
+    "intf",
+    "base",
+    "abstract",
 ]
 
 SKIP_APPMAP_DETAIL_CATEGORIES = {
-    "service", "repository", "library", "config", "middleware",
-    "test", "asset", "third_party", "schema", "unknown",
+    "service",
+    "repository",
+    "library",
+    "config",
+    "middleware",
+    "test",
+    "asset",
+    "third_party",
+    "schema",
+    "unknown",
 }
 
 APPMAP_ACTION_CATEGORIES = {
@@ -113,16 +143,41 @@ APPMAP_ACTION_CATEGORIES = {
 _FRONTEND_EXTS = {".vue", ".js", ".ts", ".jsx", ".tsx"}
 
 _NON_CONTROLLER_STEMS = {
-    "application", "app", "main", "bootstrap",
-    "base", "abstract", "common",
-    "util", "utils", "helper", "helpers",
+    "application",
+    "app",
+    "main",
+    "bootstrap",
+    "base",
+    "abstract",
+    "common",
+    "util",
+    "utils",
+    "helper",
+    "helpers",
 }
 
 _GENERIC_ENTITY_NAMES = {
-    "base", "common", "index", "main", "app", "application",
-    "default", "util", "utils", "helper", "helpers",
-    "public", "home", "api", "web", "admin",
-    "test", "tests", "config", "setup", "install",
+    "base",
+    "common",
+    "index",
+    "main",
+    "app",
+    "application",
+    "default",
+    "util",
+    "utils",
+    "helper",
+    "helpers",
+    "public",
+    "home",
+    "api",
+    "web",
+    "admin",
+    "test",
+    "tests",
+    "config",
+    "setup",
+    "install",
     "abstract",
 }
 
@@ -164,6 +219,7 @@ class EntityGrouper:
         try:
             with open(pj_path, encoding="utf-8") as f:
                 import json
+
                 data = json.load(f)
             fp = data.get("framework_profile", {})
             self._role_classifiers = fp.get("role_classifiers")
@@ -254,7 +310,8 @@ class EntityGrouper:
                     category=file_category,
                     layer=file_layer,
                     risk_tier=file_risk,
-                    is_entry_point=file_category in {"controller", "route", "entry_point"},
+                    is_entry_point=file_category
+                    in {"controller", "route", "entry_point"},
                 )
             )
 
@@ -280,7 +337,11 @@ class EntityGrouper:
                 else:
                     name_patterns = rules.get("name_patterns") or []
                 for pattern in name_patterns:
-                    if isinstance(pattern, str) and pattern.startswith("*") and stem.endswith(pattern[1:].lower()):
+                    if (
+                        isinstance(pattern, str)
+                        and pattern.startswith("*")
+                        and stem.endswith(pattern[1:].lower())
+                    ):
                         return role
                     if isinstance(pattern, str) and stem == pattern.lower().rstrip("*"):
                         return role
@@ -312,9 +373,7 @@ class EntityGrouper:
             result.extend(self._flatten_files(c))
         return result
 
-    def _extract_entity(
-        self, path: str, category: str | None = None
-    ) -> str | None:
+    def _extract_entity(self, path: str, category: str | None = None) -> str | None:
         filename = os.path.basename(path)
         stem, _ = os.path.splitext(filename)
         lower_stem = stem.lower()
@@ -328,8 +387,14 @@ class EntityGrouper:
                 break
 
         if category in {
-            "controller", "service", "model", "repository",
-            "mapper", "dao", "route", "entity",
+            "controller",
+            "service",
+            "model",
+            "repository",
+            "mapper",
+            "dao",
+            "route",
+            "entity",
         }:
             if lower_stem not in _GENERIC_ENTITY_NAMES:
                 return lower_stem

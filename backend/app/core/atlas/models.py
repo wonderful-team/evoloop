@@ -23,6 +23,7 @@ class AtlasElement(DynamicBaseModel):
     A semantic anchor for a single interactive UI element.
     Platform-agnostic representation.
     """
+
     role: str = ""  # e.g., "BUTTON", "INPUT", "AXButton"
     label: str = ""  # e.g., "Save", "File"
     ax_path: str = ""  # Primary structural path/locator (Legacy/macOS specific)
@@ -46,6 +47,7 @@ class AtlasState(DynamicBaseModel):
     """
     A snapshot of the application at a given UI state (a 'screen').
     """
+
     state_id: str
     window_title: str
     elements: list[AtlasElement] = Field(default_factory=list)
@@ -65,6 +67,7 @@ class AtlasTransition(DynamicBaseModel):
     """
     Records a causal link between states.
     """
+
     from_state: str
     action: AtlasElement
     to_state: str
@@ -76,6 +79,7 @@ class AtlasApp(DynamicBaseModel):
     """
     The complete structural map of an application.
     """
+
     app_name: str
     bundle_id: str
     platform: str
@@ -116,6 +120,7 @@ class AtlasApp(DynamicBaseModel):
         Compute a hash representing the current state of the app map.
         """
         from app.core.file import compute_version_hash as _compute_version_hash
+
         content = f"{self.bundle_id}:{version_name or ''}:{update_time or ''}:{len(self.states)}:{len(self.transitions)}"
         return _compute_version_hash(content)
 

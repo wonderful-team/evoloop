@@ -27,6 +27,7 @@ class MenuTree(DynamicBaseModel):
 
 class Rect(BaseModel):
     """Represents a rectangular area in UI coordinates."""
+
     x: int
     y: int
     width: int
@@ -48,6 +49,7 @@ class Rect(BaseModel):
 
 class ElementMetadata(DynamicBaseModel):
     """Platform-specific metadata for a UI element."""
+
     model_config = ConfigDict(populate_by_name=True)
 
     # Common cross-platform attributes
@@ -89,6 +91,7 @@ class ElementMetadata(DynamicBaseModel):
 
 class AtlasAppSummary(DynamicBaseModel):
     """Summary of an Atlas app for LLM context generation."""
+
     app_name: str
     bundle_id: str
     platform: str
@@ -99,6 +102,7 @@ class AtlasAppSummary(DynamicBaseModel):
 
 class AtlasStateDetail(DynamicBaseModel):
     """Detailed information about a specific UI state."""
+
     state_id: str
     window_title: str | None = None
     elements: list = []
@@ -106,6 +110,7 @@ class AtlasStateDetail(DynamicBaseModel):
 
 class AtlasAppInfo(DynamicBaseModel):
     """Lightweight info for a mapped app."""
+
     app_name: str
     bundle_id: str
     platform: str

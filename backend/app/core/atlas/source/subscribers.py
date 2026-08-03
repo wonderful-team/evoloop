@@ -9,6 +9,9 @@ from __future__ import annotations
 
 import logging
 
+from sqlalchemy import select, func
+from sqlalchemy.orm import Session
+
 from app.core.atlas.source.event.types import AppMapEventType
 from app.core.events.decorators import event_register, event_subscribe
 
@@ -40,10 +43,9 @@ class AppMapLifecycleSubscriber:
     @event_subscribe("system.artifact_validation")
     async def on_artifact_validation(self, event):
         if event.item == "appmap":
-            from sqlalchemy import select, func
-            from sqlalchemy.orm import Session
             from app.infrastructure.database.resource_manager import db_resource_manager as rm
             from app.models.app_map import AppMap
+
             try:
                 with Session(rm.sync_engine) as session:
                     count = session.scalar(
