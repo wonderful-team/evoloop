@@ -2,9 +2,9 @@ import logging
 import time
 
 from app.core.engine.message.native_classes import SystemMessage
+from app.infrastructure.llm.vision import VisionLLMFactory, get_vision_llm_async
 from app.infrastructure.vision.providers.base import VisionProvider
 from app.infrastructure.vision.types import VisionResult, VisionTask
-from app.infrastructure.llm.vision import VisionLLMFactory, get_vision_llm_async
 from app.utils.template import render_template
 
 logger = logging.getLogger(__name__)

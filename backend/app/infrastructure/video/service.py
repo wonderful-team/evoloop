@@ -12,6 +12,7 @@ Usage:
 """
 
 import asyncio
+import json
 import logging
 import os
 import subprocess
@@ -52,7 +53,7 @@ class VideoService:
                 *cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
             )
             stdout, _ = await result.communicate()
-            import json
+
             data = json.loads(stdout.decode())
             stream = data["streams"][0]
             fmt = data.get("format", {})

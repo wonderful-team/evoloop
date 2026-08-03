@@ -11,6 +11,7 @@ from app.infrastructure.pydantic_base import DynamicBaseModel
 
 class ToolRequest(DynamicBaseModel):
     """Represents a pending tool execution request."""
+
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     request_id: str
@@ -51,6 +52,7 @@ class ResultEnvelope(DynamicBaseModel):
 
 class LLMCacheStats(DynamicBaseModel):
     """Statistics for the LLM instance cache."""
+
     cache_hits: int
     cache_misses: int
     hit_rate: str
@@ -96,13 +98,14 @@ class ModelProfile(DynamicBaseModel):
 
 class PlatformModel(DynamicBaseModel):
     """平台模型配置"""
+
     model_id: str
     display_name: str
     provider_name: str
     provider_type: str = "openai"  # openai | anthropic
     model_type: str = "llm"  # llm, embedding, vision
     config_type: str = "evoloop"  # evoloop, custom
-    context_window: int = 128000 # Default to 128k as requested
+    context_window: int = 128000  # Default to 128k as requested
     max_tokens: int = 4096
     supports_streaming: bool = True
     supports_vision: bool = False
@@ -122,6 +125,7 @@ class PlatformModel(DynamicBaseModel):
     def max_context_tokens(self) -> int:
         """Alias for context_window (compatibility with ModelProfile interface)."""
         from app.constants import DEFAULT_MAX_CONTEXT_TOKENS
+
         return self.context_window or DEFAULT_MAX_CONTEXT_TOKENS
 
     @property
@@ -177,6 +181,7 @@ class AvailableEmbeddingModel(DynamicBaseModel):
 
 class LLMConfig(DynamicBaseModel):
     """LLM 实例化配置"""
+
     model_name: str
     temperature: float = 0.3
     base_url: str | None = None
@@ -189,6 +194,7 @@ class LLMConfig(DynamicBaseModel):
 
 class ThinkingConfig(DynamicBaseModel):
     """LLM 推理意图配置（Provider 无关的抽象层）"""
+
     enable: bool = True
     return_reasoning: bool = True
     # 语义化深度意图，None = 跟随模型默认，不注入任何约束

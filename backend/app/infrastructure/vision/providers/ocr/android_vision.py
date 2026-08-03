@@ -1,14 +1,14 @@
 import logging
 
-from app.infrastructure.vision.providers.ocr.macos_vision import MacOSVisionOCRProvider
 from app.infrastructure.drivers.adb import adb_driver
+from app.infrastructure.vision.providers.ocr.macos_vision import MacOSVisionOCRProvider
 
 logger = logging.getLogger(__name__)
 
 
 class AndroidVisionOCRProvider(MacOSVisionOCRProvider):
     """
-    Specialized Android OCR provider that utilizes MacOS Vision.framework 
+    Specialized Android OCR provider that utilizes MacOS Vision.framework
     but handles Android-specific coordinate scaling (pixel-perfect, no logical scaling).
     """
 

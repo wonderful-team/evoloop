@@ -69,7 +69,7 @@ class ProjectTask(Base):
         remote_side="ProjectTask.id",
         back_populates="subtasks"
     )
-    subtasks: Mapped[List["ProjectTask"]] = relationship(
+    subtasks: Mapped[list["ProjectTask"]] = relationship(
         "ProjectTask",
         back_populates="parent",
         cascade="all, delete-orphan"

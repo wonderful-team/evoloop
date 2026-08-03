@@ -8,6 +8,7 @@ from app.infrastructure.pydantic_base import DynamicBaseModel
 
 class ElementType(str, Enum):
     """Type of UI element."""
+
     BUTTON = "button"
     INPUT = "input"
     TEXT = "text"
@@ -22,6 +23,7 @@ class ElementType(str, Enum):
 
 class PlatformType(str, Enum):
     """Supported screenshot capture platforms."""
+
     MACOS = "macos"
     ANDROID = "android"
     BROWSER = "browser"
@@ -29,11 +31,12 @@ class PlatformType(str, Enum):
 
 class VisionTask(str, Enum):
     """Types of vision tasks."""
-    OCR = "ocr"             # Text extraction
-    DETECT = "detect"       # Object/Element detection
-    CAPTION = "caption"     # Image description
-    ANALYZE = "analyze"     # Detailed UI analysis
-    COMPARE = "compare"     # Screenshot comparison
+
+    OCR = "ocr"  # Text extraction
+    DETECT = "detect"  # Object/Element detection
+    CAPTION = "caption"  # Image description
+    ANALYZE = "analyze"  # Detailed UI analysis
+    COMPARE = "compare"  # Screenshot comparison
 
 
 class NativeAttributes(DynamicBaseModel):
@@ -50,6 +53,7 @@ class UIElement(DynamicBaseModel):
     """
     Represents a detected UI element on screen.
     """
+
     id: int
     text: str
     x: int  # Center X coordinate
@@ -78,7 +82,7 @@ class UIElement(DynamicBaseModel):
         """Format element for LLM prompt."""
         type_str = self.element_type.value
         text_preview = self.text[:30] + "..." if len(self.text) > 30 else self.text
-        return f"[{self.id}] \"{text_preview}\" ({self.x}, {self.y}) [{type_str}]"
+        return f'[{self.id}] "{text_preview}" ({self.x}, {self.y}) [{type_str}]'
 
 
 class VisionMetadata(DynamicBaseModel):
@@ -89,6 +93,7 @@ class VisionMetadata(DynamicBaseModel):
 
 class VisionResult(DynamicBaseModel):
     """Standardized result from VisionEngine."""
+
     task: VisionTask
     success: bool
     elements: list[UIElement] = Field(default_factory=list)

@@ -18,9 +18,11 @@ def get_search_backend():
 
     if engine == "sqlite_fts":
         from app.infrastructure.search.sqlite_fts import SQLiteFTSBackend
+
         _search_backend = SQLiteFTSBackend()
     elif engine == "meilisearch":
         from app.infrastructure.search.meilisearch import MeilisearchBackend
+
         _search_backend = MeilisearchBackend()
     else:
         raise ValueError(f"Unknown search engine: {engine}")

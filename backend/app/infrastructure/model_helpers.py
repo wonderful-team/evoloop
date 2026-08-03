@@ -1,10 +1,11 @@
-from typing import Any, Iterator
+from collections.abc import Iterator
+from typing import Any
 
 
 class LegacyDictMixin:
     """
     Mixin to provide dict-like access to Pydantic models for backward compatibility.
-    
+
     Supports:
     - model["field"]
     - model.get("field", default)

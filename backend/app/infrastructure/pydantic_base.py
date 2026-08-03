@@ -16,4 +16,5 @@ class DynamicBaseModel(BaseModel, LegacyDictMixin):
 
 class EventBase(DynamicBaseModel):
     """Base class for all SSE/streaming events with automatic timestamp."""
+
     timestamp: float = Field(default_factory=time.time)
