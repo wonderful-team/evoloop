@@ -1,6 +1,7 @@
 """
 Git-related Pydantic models for knowledge extraction and harvesting.
 """
+
 from pydantic import Field
 
 from app.core.memory.schemas import Concept

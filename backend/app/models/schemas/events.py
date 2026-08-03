@@ -10,19 +10,25 @@ SSE 流式事件 Schema —— 全系统通用事件定义。
 - 消息/引擎特定事件 → app.core.engine.message.schemas
 """
 
-from typing import Any, Dict, Literal, Union
+from typing import Any, Literal
 
 from pydantic import model_validator
 
 from app.core.events.base import BaseEvent
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.core.engine.message.schemas import MessageBlock
+
 
 # --- Base Class for all SSE/Stream Events ---
 class BaseStreamEvent(BaseEvent):
     """全系统流式协议基类：统一字段、平铺结构、高性能序列化"""
+
     type: str
     thread_id: str | None = None
-    
+
     # Governance: Stream events are always public to the chat channel by default
     is_public: bool = True
     broadcast_channel: str = "chat"
@@ -53,16 +59,16 @@ class ThinkingEvent(BaseStreamEvent):
 class ProgressEvent(BaseStreamEvent):
     type: Literal["progress"] = "progress"
     status: Literal["running", "success", "failed", "interrupted"] = "running"
-    message: str = ""                                # 给用户看的显示文案
-    progress: int | None = None                   # 0-100
-    metadata: Dict[str, Any] = {}                    # 扩展信息：如 tool_name, call_id
+    message: str = ""  # 给用户看的显示文案
+    progress: int | None = None  # 0-100
+    metadata: dict[str, Any] = {}  # 扩展信息：如 tool_name, call_id
 
 
 # --- 4. 状态同步流：通用 UI 状态更新 ---
 class StatusEvent(BaseStreamEvent):
     type: Literal["status"] = "status"
-    status: str                                      # 内部状态码
-    message: str | None = None                    # 显示消息
+    status: str  # 内部状态码
+    message: str | None = None  # 显示消息
 
 
 # --- 5. 资源流：Artifacts (Files, Shell, etc.) ---
@@ -70,8 +76,8 @@ class ArtifactEvent(BaseStreamEvent):
     type: Literal["artifact"] = "artifact"
     id: str
     name: str
-    kind: str                                        # file, shell, terminal
-    status: str                                      # pending, success, failed
+    kind: str  # file, shell, terminal
+    status: str  # pending, success, failed
     path: str | None = None
     content: str | None = None
 
@@ -79,23 +85,23 @@ class ArtifactEvent(BaseStreamEvent):
 # --- 6. 智能体全局状态流 ---
 class AgentStateEvent(BaseStreamEvent):
     type: Literal["agent_state"] = "agent_state"
-    mode: str                                        # PLANNING, EXECUTING
+    mode: str  # PLANNING, EXECUTING
     task_name: str | None = None
     task_status: str | None = None
-    active_skills: list[dict] | None = None       # [{id, name, description}] — Worker 实际挂载的技能
+    active_skills: list[dict] | None = None  # [{id, name, description}] — Worker 实际挂载的技能
 
 
 # --- 7. 消息块同步流：同步全量 MessageBlock ---
 class MessageSyncEvent(BaseStreamEvent):
     type: Literal["message"] = "message"
     action: Literal["create", "update", "append"] = "create"
-    data: "MessageBlock"                             # Forward ref to avoid circular import
+    data: "MessageBlock"  # Forward ref to avoid circular import
 
 
 # --- 8. 人机交互请求事件 ---
 class HumanRequestEvent(BaseStreamEvent):
     type: Literal["human_request"] = "human_request"
-    action: str                                      # create, clear, update
+    action: str  # create, clear, update
     id: str | None = None
     prompt: str | None = None
     request_type: str | None = None
@@ -103,7 +109,7 @@ class HumanRequestEvent(BaseStreamEvent):
     context: str | None = None
     default_value: str | None = None
     allow_cancel: bool = True
-    payload: Dict[str, Any] = {}
+    payload: dict[str, Any] = {}
 
 
 # --- 9. 异常与资源事件 ---
@@ -128,16 +134,12 @@ class LLMAuthErrorEvent(BaseStreamEvent):
     hint: str | None = None
 
 
-# Type-safe import of MessageBlock for type checking
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from app.core.engine.message.schemas import MessageBlock
-
 # Rebuild models that use forward references
 def rebuild_event_models():
     from app.core.engine.message.schemas import MessageBlock  # noqa: F401
+
     MessageSyncEvent.model_rebuild()
+
 
 try:
     rebuild_event_models()

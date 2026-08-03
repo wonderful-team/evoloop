@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import JSON, DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.infrastructure.database.sql.database import Base
 from app.utils.time import utcnow
+
+if TYPE_CHECKING:
+    from app.models.codebase import AppMapRouteLink
 
 
 class AppMap(Base):
@@ -50,6 +54,6 @@ class AppMap(Base):
         DateTime(timezone=True), default=utcnow, onupdate=utcnow
     )
 
-    route_links: Mapped[list["AppMapRouteLink"]] = relationship(
+    route_links: Mapped[list[AppMapRouteLink]] = relationship(
         "AppMapRouteLink", back_populates="app_map", cascade="all, delete-orphan"
     )

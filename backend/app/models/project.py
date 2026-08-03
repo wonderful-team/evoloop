@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import List
 
 from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -15,7 +14,7 @@ class ProjectTask(Base):
 
     Sync status flow:
         pending → syncing → synced → failed
-    
+
     Hierarchy:
         - parent_id is null: root task
         - parent_id is set: subtask of parent
@@ -24,25 +23,18 @@ class ProjectTask(Base):
     __tablename__ = "project_tasks"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    
+
     # Optional link to requirement analysis (for historical compatibility or future trace)
     analysis_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
-    
     project_id: Mapped[int] = mapped_column(Integer, index=True)
-
-    # Owner member ID for multi-user isolation
     member_id: Mapped[int] = mapped_column(Integer, default=0, index=True)
 
     # EvoCloud task ID (backfilled after sync)
     evocloud_task_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     # Hierarchy support for subtasks
-    parent_id: Mapped[str | None] = mapped_column(
-        ForeignKey("project_tasks.id"), 
-        nullable=True,
-        index=True
-    )
-    
+    parent_id: Mapped[str | None] = mapped_column(ForeignKey("project_tasks.id"), nullable=True, index=True)
+
     # Task execution status
     status: Mapped[str] = mapped_column(String(50), default="pending")  # pending, in_progress, completed, failed
     progress: Mapped[int] = mapped_column(Integer, default=0)  # 0-100

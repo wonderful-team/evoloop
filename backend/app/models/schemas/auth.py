@@ -5,6 +5,7 @@ from app.infrastructure.pydantic_base import DynamicBaseModel
 
 class EvoCloudProxyResponse(DynamicBaseModel):
     """Generic transparent proxy response from EvoCloud / Member Center APIs."""
+
     code: int = -1
     message: str | None = None
     data: Any | None = None

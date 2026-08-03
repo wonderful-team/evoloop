@@ -1,5 +1,7 @@
 """Wiki database models."""
+
 from datetime import datetime
+
 from sqlalchemy import Column, Text
 from sqlmodel import Field as SQLField
 from sqlmodel import Relationship, SQLModel
