@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.api.deps import get_db
-from app.api.schemas.symbols import SymbolResponse, SymbolRelationResponse
+from app.api.schemas.symbols import SymbolRelationResponse, SymbolResponse
 from app.models import CodeEntity, Repository
 
 router = APIRouter()
@@ -37,10 +37,13 @@ async def search_symbols(
 
     from app.models import SourceFile
 
-    query = select(CodeEntity).join(SourceFile, CodeEntity.file_id == SourceFile.id)\
-            .where(SourceFile.repository_id.in_(repo_ids))\
-            .where(CodeEntity.full_name.ilike(f"%{q}%"))\
-            .options(selectinload(CodeEntity.file))
+    query = (
+        select(CodeEntity)
+        .join(SourceFile, CodeEntity.file_id == SourceFile.id)
+        .where(SourceFile.repository_id.in_(repo_ids))
+        .where(CodeEntity.full_name.ilike(f"%{q}%"))
+        .options(selectinload(CodeEntity.file))
+    )
 
     if type:
         query = query.where(CodeEntity.type == type)
@@ -77,7 +80,6 @@ async def get_project_relations(
     """
     Get all dependency relationships (CodeRelations) within a project.
     """
-    from sqlalchemy.orm import selectinload
     from app.models import CodeRelation, SourceFile
 
     # 1. Find Repositories for Project

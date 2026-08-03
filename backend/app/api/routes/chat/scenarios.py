@@ -89,7 +89,10 @@ async def happy_path_scenario(thread_id: str):
         {"DirectoryPath": "frontend/src/components"}, run_id,
     )
     await MessageHandler.stream_progress(
-        thread_id, "正在获取目录中的文件列表...", progress=50, status="running",
+        thread_id,
+        "正在获取目录中的文件列表...",
+        progress=50,
+        status="running",
     )
     await asyncio.sleep(0.5)
     dir_output = "['Button.tsx', 'Header.tsx', 'Footer.tsx']"
@@ -225,10 +228,7 @@ async def happy_path_scenario(thread_id: str):
         task_status="生成最终答复...",
     )
     await asyncio.sleep(0.5)
-    answer_thinking = (
-        "我将向用户反馈 Button.tsx 文件的修改已完成，"
-        "并且已通过 Vite 构建编译测试。\n"
-    )
+    answer_thinking = "我将向用户反馈 Button.tsx 文件的修改已完成，并且已通过 Vite 构建编译测试。\n"
     await _stream_thinking(thread_id, answer_thinking)
     answer_content = (
         "你好！我已为您完成了对 `Button.tsx` 的读取与重构，"
@@ -237,7 +237,10 @@ async def happy_path_scenario(thread_id: str):
     await _stream_tokens(thread_id, answer_content)
     await _publish_final_message(thread_id, 10, answer_content, answer_thinking, run_id)
     await activity_monitor.end_run(
-        thread_id, status="done", final_outcome="完成代码修改与校验", run_id=run_id,
+        thread_id,
+        status="done",
+        final_outcome="完成代码修改与校验",
+        run_id=run_id,
     )
 
 
@@ -305,7 +308,10 @@ async def hitl_scenario(thread_id: str):
         {"CommandLine": "npm run deploy:production"}, run_id,
     )
     await MessageHandler.stream_progress(
-        thread_id, "SSH 连接已恢复，正在传输构建制品包...", progress=80, status="running",
+        thread_id,
+        "SSH 连接已恢复，正在传输构建制品包...",
+        progress=80,
+        status="running",
     )
     await asyncio.sleep(1.0)
     deploy_output = (
@@ -331,14 +337,14 @@ async def hitl_scenario(thread_id: str):
     await asyncio.sleep(0.5)
     answer_thinking = "部署已成功完成，现在生成用户可读的上线确认报告。\n"
     await _stream_thinking(thread_id, answer_thinking)
-    answer_content = (
-        "项目已成功发布至生产环境 (`aws-prod-01`)！"
-        "所有服务已在线并处于健康运行状态。"
-    )
+    answer_content = "项目已成功发布至生产环境 (`aws-prod-01`)！所有服务已在线并处于健康运行状态。"
     await _stream_tokens(thread_id, answer_content)
     await _publish_final_message(thread_id, 4, answer_content, answer_thinking, run_id)
     await activity_monitor.end_run(
-        thread_id, status="done", final_outcome="完成生产环境部署", run_id=run_id,
+        thread_id,
+        status="done",
+        final_outcome="完成生产环境部署",
+        run_id=run_id,
     )
 
 
@@ -388,14 +394,14 @@ async def quota_exhausted_scenario(thread_id: str):
     await publisher.publish(msg_block)
     await asyncio.sleep(0.5)
 
-    await publisher.publish(
-        StatusEvent(thread_id=thread_id, status="error")
-    )
+    await publisher.publish(StatusEvent(thread_id=thread_id, status="error"))
     await asyncio.sleep(0.5)
 
     await activity_monitor.end_run(
-        thread_id, status="failed",
-        final_outcome="因配额耗尽中断执行", run_id=run_id,
+        thread_id,
+        status="failed",
+        final_outcome="因配额耗尽中断执行",
+        run_id=run_id,
     )
 
 
@@ -403,7 +409,9 @@ async def long_task_scenario(thread_id: str):
     """Simulate a long-running task with 12 tool calls (code search)."""
     run_id = f"run-mock-{gen_uuid_hex()[:8]}"
     await activity_monitor.start_run(
-        thread_id, main_goal="长程深度代码搜索与分析任务模拟", run_id=run_id,
+        thread_id,
+        main_goal="长程深度代码搜索与分析任务模拟",
+        run_id=run_id,
     )
     await asyncio.sleep(0.5)
 
@@ -446,8 +454,10 @@ async def long_task_scenario(thread_id: str):
             thread_id, seq_base + 1, tool_name, call_id, tool_args, run_id
         )
         await MessageHandler.stream_progress(
-            thread_id, f"正在搜索模块 {i}...",
-            progress=(i * 100 // 12), status="running",
+            thread_id,
+            f"正在搜索模块 {i}...",
+            progress=(i * 100 // 12),
+            status="running",
         )
         await asyncio.sleep(0.6)
         tool_out = (
@@ -475,9 +485,14 @@ async def long_task_scenario(thread_id: str):
         "您可以查看上方的检索过程记录。"
     )
     await _stream_tokens(thread_id, answer_content)
-    await _publish_final_message(thread_id, 100, answer_content, answer_thinking, run_id)
+    await _publish_final_message(
+        thread_id, 100, answer_content, answer_thinking, run_id
+    )
     await activity_monitor.end_run(
-        thread_id, status="done", final_outcome="完成全库深度搜索分析", run_id=run_id,
+        thread_id,
+        status="done",
+        final_outcome="完成全库深度搜索分析",
+        run_id=run_id,
     )
 
 

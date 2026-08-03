@@ -1,6 +1,8 @@
 import logging
+
 from fastapi import APIRouter, HTTPException
 
+from app.api.deps import CurrentUserOptional, TokenDep
 from app.api.responses import BaseAPIResponse
 from app.api.schemas.subtasks import (
     NextTaskResponse,
@@ -12,7 +14,6 @@ from app.api.schemas.subtasks import (
     TaskTreeWrapperResponse,
     TaskWithSubtasksCreate,
 )
-from app.api.deps import CurrentUserOptional, TokenDep
 from app.core.project.subtask_service import subtask_service
 from app.utils.id import gen_uuid
 
@@ -30,9 +31,9 @@ async def create_task_with_subtasks(
 ):
     """
     Create a parent task with optional subtasks.
-    
+
     This is the main entry for Agent to create hierarchical tasks.
-    
+
     Example:
         {
             "title": "实现用户登录模块",
@@ -50,7 +51,7 @@ async def create_task_with_subtasks(
         # Generate dummy analysis_id if not provided
         analysis_id = req.analysis_id or f"direct-{gen_uuid()}"
         member_id = current_user.id if current_user else 0
-        
+
         task = await subtask_service.create_task_with_subtasks(
             project_id=project_id,
             analysis_id=analysis_id,
@@ -62,16 +63,16 @@ async def create_task_with_subtasks(
             created_by="api",
             member_id=member_id,
         )
-        
+
         # Get full tree
         tree = await subtask_service.get_task_tree(task.id)
-        
+
         return TaskCreateResponse(
             success=True,
             message=f"Created task with {len(task.subtasks)} subtasks",
-            task=tree
+            task=tree,
         )
-        
+
     except Exception as e:
         logger.error(f"[SubtasksAPI] Failed to create task: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -86,14 +87,11 @@ async def get_task_tree(
 ):
     """Get task tree structure."""
     tree = await subtask_service.get_task_tree(task_id, max_depth)
-    
+
     if not tree:
         raise HTTPException(status_code=404, detail="Task not found")
-        
-    return TaskTreeWrapperResponse(
-        success=True,
-        task=tree
-    )
+
+    return TaskTreeWrapperResponse(success=True, task=tree)
 
 
 @router.put("/progress/{task_id}", response_model=BaseAPIResponse)
@@ -105,7 +103,7 @@ async def update_task_progress(
 ):
     """
     Update task progress and propagate to parent.
-    
+
     Example:
         {"status": "completed", "progress": 100, "result": "API implemented successfully"}
     """
@@ -115,57 +113,36 @@ async def update_task_progress(
         progress=req.progress,
         result=req.result
     )
-    
+
     if not success:
         raise HTTPException(status_code=404, detail="Task not found")
-        
-    return BaseAPIResponse(
-        success=True,
-        message="Progress updated"
-    )
+
+    return BaseAPIResponse(success=True, message="Progress updated")
 
 
 @router.get("/next", response_model=NextTaskResponse)
-async def get_next_executable_task(
-    project_id: int,
-    token: TokenDep = None
-):
+async def get_next_executable_task(project_id: int, token: TokenDep = None):
     """
     Get next task ready for execution.
     Returns first pending subtask in order.
     """
     task = await subtask_service.get_next_executable_task(project_id)
-    
+
     if not task:
-        return NextTaskResponse(
-            success=True,
-            message="No pending tasks",
-            task=None
-        )
-        
-    return NextTaskResponse(
-        success=True,
-        message="",
-        task=task
-    )
+        return NextTaskResponse(success=True, message="No pending tasks", task=None)
+
+    return NextTaskResponse(success=True, message="", task=task)
+
 
 @router.get("/flat/{task_id}", response_model=TaskFlatResponse)
-async def flatten_task_tree(
-    project_id: int,
-    task_id: str,
-    token: TokenDep = None
-):
+async def flatten_task_tree(project_id: int, task_id: str, token: TokenDep = None):
     """
     Flatten task tree to execution list.
     Useful for Agent to get sequential execution order.
     """
     flat_list = await subtask_service.flatten_task_tree(task_id)
-    
-    return TaskFlatResponse(
-        success=True,
-        count=len(flat_list),
-        tasks=flat_list
-    )
+
+    return TaskFlatResponse(success=True, count=len(flat_list), tasks=flat_list)
 
 
 @router.get("/list", response_model=TaskListResponse)
@@ -181,7 +158,7 @@ async def list_root_tasks(
 
     from app.infrastructure.database import session_scope
     from app.models.project import ProjectTask
-    
+
     async with session_scope() as session:
         query = select(ProjectTask).where(
             ProjectTask.project_id == project_id,
@@ -192,10 +169,10 @@ async def list_root_tasks(
             query = query.where(ProjectTask.status == status)
         if current_user is not None:
             query = query.where(ProjectTask.member_id == current_user.id)
-            
+
         result = await session.execute(query)
         tasks = result.scalars().all()
-        
+
         return TaskListResponse(
             success=True,
             count=len(tasks),
@@ -207,8 +184,7 @@ async def list_root_tasks(
                     progress=t.progress,
                     priority=t.task_data.get("priority", "medium"),
                     has_subtasks=len(t.subtasks) > 0,
-                    created_at=t.created_at.isoformat() if t.created_at else None
-                )
-                for t in tasks
+                    created_at=t.created_at.isoformat() if t.created_at else None,
+                ) for t in tasks
             ]
         )

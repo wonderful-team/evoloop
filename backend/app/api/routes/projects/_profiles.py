@@ -9,6 +9,7 @@ import os
 import time
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from sqlalchemy import select
 
 from app.api.deps import TokenDep, TokenDepOptional, require_benefit
 from app.api.schemas.projects._profiles import (
@@ -33,7 +34,6 @@ router = APIRouter(tags=["project-profiles"])
 
 async def _ensure_project_discovery_skill() -> LearnedSkill | None:
     async with session_scope() as session:
-        from sqlalchemy import select
         stmt = select(LearnedSkill).where(
             LearnedSkill.name == "Project Discovery",
             LearnedSkill.is_active,
@@ -45,7 +45,6 @@ async def _ensure_project_discovery_skill() -> LearnedSkill | None:
 
     try:
         async with session_scope() as session:
-            from sqlalchemy import select
             stmt = select(LearnedSkill).where(
                 LearnedSkill.name == "Project Discovery",
                 LearnedSkill.is_active,
@@ -92,6 +91,7 @@ async def discover_profile(
     )
 
     from app.core.context import thread_context_store
+
     thread_context_store.set_working_directory(thread_id, path)
 
     result = await dispatch_agent_run(
@@ -132,8 +132,12 @@ async def discover_profile(
 
     bg_tasks.add_task(run_agent_background, thread_id, result.inputs)
 
-    logger.info("[ProjectProfilesAPI] Dispatched discovery mission for project %d (thread_id=%s, skill_ids=%s)",
-                project_id, thread_id, [skill.id] if skill else "None")
+    logger.info(
+        "[ProjectProfilesAPI] Dispatched discovery mission for project %d (thread_id=%s, skill_ids=%s)",
+        project_id,
+        thread_id,
+        [skill.id] if skill else "None",
+    )
 
     return DiscoverResponse(
         status="queued",
@@ -169,6 +173,7 @@ async def get_profile(
     if project_id > 0 and content:
         try:
             from app.core.memory.lifespan import MemoryLifespanManager
+
             if not MemoryLifespanManager.is_initialized():
                 await MemoryLifespanManager.ainitialize()
             container = MemoryLifespanManager.get_container()
@@ -219,6 +224,7 @@ async def update_profile(
     if req.url is not None:
         try:
             from app.core.evocloud import evocloud_manager
+
             await evocloud_manager.api.update_project(
                 project_id=project_id, url=req.url
             )
@@ -229,6 +235,7 @@ async def update_profile(
     if project_id > 0 and req.content:
         try:
             from app.core.memory.lifespan import MemoryLifespanManager
+
             if not MemoryLifespanManager.is_initialized():
                 await MemoryLifespanManager.ainitialize()
             container = MemoryLifespanManager.get_container()

@@ -68,14 +68,14 @@ def get_system_config() -> list[SystemConfig]:
 
 # --- Lightning Channel Config ---
 
+
 @router.get("/lightning/status", dependencies=[Depends(get_current_user)])
 async def get_lightning_status() -> LightningStatusResponse:
     """Return current Lightning Channel configuration and availability."""
-    from app.infrastructure.llm.lightning import get_lightning_service, _cfg
+    from app.infrastructure.llm.lightning import _cfg, get_lightning_service
 
     service = get_lightning_service()
     mode = _cfg("LIGHTNING_MODE", "none")
-    llm_ok = False
     try:
         llm = await service.get_llm()
         llm_ok = llm is not None
@@ -85,6 +85,7 @@ async def get_lightning_status() -> LightningStatusResponse:
     llama_cpp_available = False
     try:
         import llama_cpp  # noqa: F401
+
         llama_cpp_available = True
     except ImportError:
         pass
@@ -119,9 +120,9 @@ async def apply_lightning_config(req: LightningConfigRequest) -> LightningApplyR
 @router.post("/lightning/test", dependencies=[Depends(get_current_user)])
 async def test_lightning_connection(req: LightningConfigRequest) -> LightningTestResponse:
     """Test Lightning Channel LLM connection."""
-    from app.infrastructure.llm.lightning import LightningService
-
     import traceback
+
+    from app.infrastructure.llm.lightning import LightningService
 
     if req.mode == "none":
         return LightningTestResponse(llm_ok=False, llm_reply="Lightning Channel is disabled")
@@ -148,11 +149,7 @@ async def test_lightning_connection(req: LightningConfigRequest) -> LightningTes
             if hasattr(result, "content"):
                 llm_reply = result.content or ""
             elif isinstance(result, dict):
-                llm_reply = (
-                    result.get("choices", [{}])[0]
-                    .get("message", {})
-                    .get("content", "")
-                )
+                llm_reply = result.get("choices", [{}])[0].get("message", {}).get("content", "")
             llm_ok = True
     except Exception as e:
         logger.error("[LightningTest] LLM error:\n%s", traceback.format_exc())
@@ -163,10 +160,11 @@ async def test_lightning_connection(req: LightningConfigRequest) -> LightningTes
 
 # --- Model Discovery ---
 
+
 @router.get("/models/discover", dependencies=[Depends(get_current_user)])
 async def discover_models() -> ModelDiscoveryResponse:
     """Auto-discover available models from local providers (LM Studio, Ollama, GGUF)."""
-    from app.infrastructure.llm.discovery import DiscoveredModel, ModelDiscoveryService
+    from app.infrastructure.llm.discovery import ModelDiscoveryService
 
     raw_models = await ModelDiscoveryService.discover_all()
     models: list[DiscoveredModelResponse] = [
@@ -207,6 +205,7 @@ async def update_system_config(config: SystemConfig) -> SystemConfig:
     return await SystemConfigService.set_value_async(config.key, config.value, config.description)
 
 # --- Embedding Channel (independent tier chain) ---
+
 
 @router.get("/embedding/tier-status", dependencies=[Depends(get_current_user)])
 async def get_embedding_tier_status() -> EmbeddingTierStatusResponse:
@@ -312,6 +311,7 @@ async def apply_embedding_config(req: EmbeddingConfigRequest) -> EmbeddingApplyR
 
 # --- LLM Config ---
 
+
 @router.post("/llm/test", dependencies=[Depends(get_current_user)])
 async def test_llm_connection(req: LLMConfigRequest) -> LLMTestResponse:
     """
@@ -411,4 +411,3 @@ async def get_embedding_models() -> ModelsListResponse:
     """
     models = [m.model_dump() for m in await get_available_embedding_models()]
     return ModelsListResponse(models=models, last_updated=time.strftime("%Y-%m-%d"))
-

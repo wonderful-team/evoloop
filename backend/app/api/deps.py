@@ -6,12 +6,11 @@ from fastapi import Depends, Header, HTTPException, Query, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlmodel import Session
 
-from app.core.benefits import BenefitErrorDetail, create_benefit_error_detail
+from app.core.benefits import create_benefit_error_detail
 from app.core.benefits.service import benefit_service
 from app.core.config import settings
 from app.core.identity import identity_service
 from app.infrastructure.database.resource_manager import db_resource_manager
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models import User
 from app.services.cache_services import RateLimitService
 
@@ -29,7 +28,7 @@ async def verify_device_token(authorization: str = Header(..., description="Bear
     if not authorization.startswith("Bearer "):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authorization header format"
+            detail="Invalid authorization header format",
         )
 
     token = authorization.replace("Bearer ", "")
@@ -37,10 +36,7 @@ async def verify_device_token(authorization: str = Header(..., description="Bear
     # TODO: Validate token against device registry
     # For now, accept any non-empty token
     if not token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Empty device token"
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Empty device token")
 
     return token
 
@@ -110,10 +106,7 @@ async def get_current_user(request: Request, token: TokenDepOptional = None) -> 
 CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
-async def get_current_user_optional(
-    request: Request,
-    token: TokenDepOptional = None
-) -> User | None:
+async def get_current_user_optional(request: Request, token: TokenDepOptional = None) -> User | None:
     """
     Get user if session or token is present, otherwise return None.
     """
@@ -149,7 +142,7 @@ async def check_multiple_benefits(benefit_codes: list[str], token: TokenDep) -> 
     """
     member_id = await identity_service.resolve_member_id_from_token(token)
     if not member_id:
-        return {code: False for code in benefit_codes}
+        return dict.fromkeys(benefit_codes, False)
 
     try:
         # For simplicity, we can fetch all entitlements once
@@ -157,7 +150,7 @@ async def check_multiple_benefits(benefit_codes: list[str], token: TokenDep) -> 
 
         # Subscription expired: all benefits denied
         if data.get("is_expired", False):
-            return {code: False for code in benefit_codes}
+            return dict.fromkeys(benefit_codes, False)
 
         benefits = data.get("benefits", {})
 
@@ -169,7 +162,7 @@ async def check_multiple_benefits(benefit_codes: list[str], token: TokenDep) -> 
         return result
     except Exception as e:
         logger.error(f"Batch benefit check failed: {e}")
-        return {code: False for code in benefit_codes}
+        return dict.fromkeys(benefit_codes, False)
 
 
 def raise_benefit_required(benefit_code: str, current_level: str | None = None):
@@ -177,16 +170,13 @@ def raise_benefit_required(benefit_code: str, current_level: str | None = None):
     抛出统一的权益不足异常
     """
     detail_model = create_benefit_error_detail(benefit_code, current_level)
-    raise HTTPException(
-        status_code=status.HTTP_403_FORBIDDEN,
-        detail=detail_model.model_dump()
-    )
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail_model.model_dump())
 
 
 def require_benefit(benefit_code: str):
     """
     FastAPI 依赖工厂：要求特定权益
-    
+
     Usage:
         @router.post("/desktop/control")
         async def desktop_control(
@@ -195,9 +185,10 @@ def require_benefit(benefit_code: str):
         ):
             ...
     """
+
     async def checker(token: TokenDep) -> bool:
         has_access = await check_benefit(benefit_code, token)
-        
+
         if not has_access:
             # 获取当前用户等级（如果可能）
             current_level = None
@@ -207,11 +198,11 @@ def require_benefit(benefit_code: str):
                 current_level = benefits_data.get("level_name")
             except Exception as e:
                 logger.debug("Suppressed error: %s", e, exc_info=True)
-            
+
             raise_benefit_required(benefit_code, current_level)
-        
+
         return True
-    
+
     return checker
 
 
@@ -220,6 +211,7 @@ def require_benefit(benefit_code: str):
 
 
 # ==================== Guest Access ====================
+
 
 async def verify_guest_access(
     current_user: CurrentUserOptional,
@@ -264,9 +256,9 @@ async def verify_guest_access(
         rate_limit = RateLimitService()
         endpoint = "guest:usage"
         current_usage = await rate_limit.increment(
-            endpoint, 
+            endpoint,
             effective_guest_id,
-            window=86400  # 24h
+            window=86400,  # 24h
         )
 
         if current_usage > limit:

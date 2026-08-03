@@ -6,6 +6,7 @@ from app.core.tools.registry import REGISTRY
 
 router = APIRouter(prefix="/tools", tags=["tools"])
 
+
 @router.get("/runtime")
 async def list_runtime_tools() -> list[ToolInfo]:
     """
@@ -28,6 +29,7 @@ async def list_runtime_tools() -> list[ToolInfo]:
             ToolInfo(name=t.name, description=t.description, args_schema=args_schema)
         )
     return results
+
 
 @router.get("")
 async def list_all_tools() -> list[ToolInfo]:

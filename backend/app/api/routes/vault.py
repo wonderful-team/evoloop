@@ -8,12 +8,14 @@ from app.infrastructure.config.vault import SecureVaultService
 
 router = APIRouter(prefix="/vault", tags=["vault"])
 
+
 class CredentialCreate(BaseModel):
     identifier: str
     type: str
     payload: dict[str, Any]
     project_id: int | None = None
     description: str | None = None
+
 
 class CredentialListItem(BaseModel):
     id: int | None
@@ -30,6 +32,7 @@ def list_credentials(project_id: int | None = Query(None)) -> list[dict[str, Any
     """
     return SecureVaultService.list_credentials(project_id=project_id)
 
+
 @router.post("/credentials", dependencies=[Depends(get_current_user)])
 def add_credential(data: CredentialCreate) -> dict[str, Any]:
     """
@@ -41,11 +44,12 @@ def add_credential(data: CredentialCreate) -> dict[str, Any]:
             type=data.type,
             payload=data.payload,
             project_id=data.project_id,
-            description=data.description
+            description=data.description,
         )
         return {"success": True, "identifier": credential.identifier}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.delete("/credentials/{identifier}", dependencies=[Depends(get_current_user)])
 def delete_credential(identifier: str, project_id: int | None = Query(None)) -> dict[str, Any]:

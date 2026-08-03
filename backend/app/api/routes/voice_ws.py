@@ -659,7 +659,10 @@ async def _run_agent_pipeline(websocket: WebSocket, thread_id: str, text: str) -
             await voice_state_machine.set(thread_id, VoiceSessionState.PROCESSING)
             try:
                 await websocket.send_json(
-                    _envelope("voice:state", {"state": "processing", "thread_id": thread_id})
+                    _envelope("voice:state", {
+                        "state": "processing",
+                        "thread_id": thread_id
+                    })
                 )
             except Exception:
                 logger.debug("[voice-ws] failed to send processing state for %s", thread_id, exc_info=True)
@@ -685,6 +688,7 @@ async def _run_agent_pipeline(websocket: WebSocket, thread_id: str, text: str) -
             # --- EARLY ACK ---
             if outcome and not outcome.handled and outcome.msg:
                 from app.core.engine.domain_mapping import ACK_TEMPLATES
+
                 ack_text = random.choice(ACK_TEMPLATES)
                 if ack_text:
                     await VoiceChannel.push_tts_chunk(thread_id, ack_text, end=True, force_start=True)

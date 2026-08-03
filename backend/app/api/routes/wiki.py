@@ -5,11 +5,13 @@ Read operations are direct DB queries.
 Generation is Agent-driven via the Skill system (Wiki Generation SKILL.md),
 following the same pattern as project_profile discovery.
 """
+
 import logging
 import os
 import time
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from sqlalchemy import select, delete
 from sqlmodel import Session
 
 from app.api.deps import CurrentUserOptional, TokenDep, require_benefit
@@ -39,7 +41,6 @@ async def _ensure_wiki_generation_skill():
     from app.models.learning import LearnedSkill
 
     async with session_scope() as session:
-        from sqlalchemy import select
         stmt = select(LearnedSkill).where(
             LearnedSkill.name == "Wiki Generation",
             visible_filter(),
@@ -51,7 +52,6 @@ async def _ensure_wiki_generation_skill():
 
     try:
         async with session_scope() as session:
-            from sqlalchemy import select
             stmt = select(LearnedSkill).where(
                 LearnedSkill.name == "Wiki Generation",
                 visible_filter(),
@@ -98,12 +98,9 @@ async def generate_wiki(
         logger.warning("[Wiki] Wiki Generation skill not found; falling back to generic mission.")
 
     if req.force_regenerate:
-        from sqlmodel import delete
-
-        from app.infrastructure.database.resource_manager import (
-            db_resource_manager as rm,
-        )
+        from app.infrastructure.database.resource_manager import db_resource_manager as rm
         from app.models.wiki import WikiPage
+
         with Session(rm.sync_engine) as session:
             session.exec(delete(WikiPage).where(WikiPage.project_id == req.project_id))
             session.commit()
@@ -138,6 +135,7 @@ async def generate_wiki(
     )
 
     from app.core.context import thread_context_store
+
     thread_context_store.set_working_directory(thread_id, path)
 
     result = await dispatch_agent_run(
@@ -160,9 +158,16 @@ async def generate_wiki(
             role_name="Worker",
             system_instructions=system_instructions,
             tools=[
-                "write_wiki_page", "edit_wiki_page", "read_wiki_page", "list_wiki_pages",
-                "create_plan", "update_step_status",
-            ] + [t for t in get_tool_bundle("file_tools") if t not in ("edit_file", "delete_file", "move_file", "execute_command")],
+                "write_wiki_page",
+                "edit_wiki_page",
+                "read_wiki_page",
+                "list_wiki_pages",
+                "create_plan",
+                "update_step_status",
+            ] + [
+                t for t in get_tool_bundle("file_tools")
+                if t not in ("edit_file", "delete_file", "move_file", "execute_command")
+            ],
         ),
     )
     result.inputs["ticket"] = ticket.model_dump(mode="json")

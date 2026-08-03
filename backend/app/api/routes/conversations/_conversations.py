@@ -36,7 +36,11 @@ async def list_conversations(
         total_count_result = await session.execute(count_stmt)
         total_count = total_count_result.scalar() or 0
 
-        stmt = select(Conversation).where(Conversation.parent_thread_id.is_(None)).order_by(Conversation.is_pinned.desc(), Conversation.updated_at.desc())
+        stmt = (
+            select(Conversation)
+            .where(Conversation.parent_thread_id.is_(None))
+            .order_by(Conversation.is_pinned.desc(), Conversation.updated_at.desc())
+        )
         if project_id is not None:
             stmt = stmt.where(Conversation.project_id == project_id)
         if current_user is not None:
@@ -125,6 +129,7 @@ async def delete_conversation(
                     raise HTTPException(403, "Access denied")
 
         from app.core.engine.event.publishers import publish_conversation_deleted
+
         await publish_conversation_deleted(thread_id)
 
         async with session_scope() as session:

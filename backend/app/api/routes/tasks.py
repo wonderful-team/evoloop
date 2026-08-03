@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["tasks"])
 
+
 # --- Helper ---
 def get_token(authorization: str | None = Header(None)):
     if not authorization:
@@ -32,6 +33,7 @@ def get_token(authorization: str | None = Header(None)):
     if authorization.startswith("Bearer "):
         return authorization.replace("Bearer ", "")
     return authorization
+
 
 @router.get("/")
 async def get_project_tasks(
@@ -57,6 +59,7 @@ async def get_project_tasks(
 
     return res.get("data", {})
 
+
 @router.get("/{task_id}")
 async def get_task_detail(task_id: int, token: TokenDep):
     """
@@ -69,6 +72,7 @@ async def get_task_detail(task_id: int, token: TokenDep):
         )
 
     return res.get("data", {})
+
 
 @router.post("/")
 async def create_task(req: TaskCreateRequest, authorization: str | None = Header(None)):
@@ -87,6 +91,7 @@ async def create_task(req: TaskCreateRequest, authorization: str | None = Header
 
     return res
 
+
 @router.put("/{task_id}")
 async def update_task(task_id: int, req: TaskUpdateRequest, authorization: str | None = Header(None)):
     """
@@ -94,7 +99,7 @@ async def update_task(task_id: int, req: TaskUpdateRequest, authorization: str |
     """
     token = get_token(authorization)
     data = req.model_dump(exclude_none=True)
-    data["task_id"] = task_id  # Ensure ID is passed if needed by backend, though URL param usually sufficient for routing
+    data["task_id"] = task_id
 
     res = await evocloud_manager.api.update_task(task_id, data)
     if res.get("code") != 0:
@@ -103,6 +108,7 @@ async def update_task(task_id: int, req: TaskUpdateRequest, authorization: str |
         )
 
     return res
+
 
 @router.delete("/{task_id}")
 async def delete_task(task_id: int, authorization: str | None = Header(None)):
@@ -118,6 +124,7 @@ async def delete_task(task_id: int, authorization: str | None = Header(None)):
 
     return res
 
+
 @router.put("/{task_id}/status")
 async def update_task_status_endpoint(task_id: int, req: TaskStatusUpdate, authorization: str | None = Header(None)):
     """
@@ -126,11 +133,10 @@ async def update_task_status_endpoint(task_id: int, req: TaskStatusUpdate, autho
     token = get_token(authorization)
     res = await evocloud_manager.api.update_task_status(task_id, req.status, req.progress or 0)
     if res.get("code") != 0:
-        raise HTTPException(
-            status_code=400, detail=res.get("message", "Failed to update task status")
-        )
+        raise HTTPException(status_code=400, detail=res.get("message", "Failed to update task status"))
 
     return res
+
 
 @router.post("/{task_id}/execute")
 async def execute_task(task_id: int, bg_tasks: BackgroundTasks, authorization: str | None = Header(None)):

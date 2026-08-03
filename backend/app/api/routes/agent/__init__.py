@@ -1,28 +1,28 @@
 from fastapi import APIRouter, BackgroundTasks
 
-from ._chat import router as chat_router
-from ._hitl import router as hitl_router
-from ._webhook import router as webhook_router
+# External dependencies used by agent endpoints that tests patch directly on agent module
+from app.infrastructure.database.resource_manager import db_resource_manager
 
 # Re-exports for test compatibility
 from ._chat import (
-    chat_endpoint,
-    stop_chat,
-    retry_chat,
-    resume_chat,
     ChatRequest,
     ResumeRequest,
-    activity_monitor,
-    session_scope,
-    run_agent_background,
-    thread_context_store,
     _check_thread_not_running,
+    activity_monitor,
+    chat_endpoint,
+    resume_chat,
+    retry_chat,
+    run_agent_background,
+    session_scope,
+    stop_chat,
+    thread_context_store,
 )
-from ._webhook import webhook_endpoint, WebhookRequest, EventAdapter, evocloud_manager
+from ._chat import router as chat_router
 from ._hitl import cancel_hitl_request, resume_graph_background
+from ._hitl import router as hitl_router
+from ._webhook import EventAdapter, WebhookRequest, evocloud_manager, webhook_endpoint
+from ._webhook import router as webhook_router
 
-# External dependencies used by agent endpoints that tests patch directly on agent module
-from app.infrastructure.database.resource_manager import db_resource_manager
 
 async def _prepare_and_dispatch(
     thread_id: str,
@@ -36,11 +36,9 @@ async def _prepare_and_dispatch(
     model: str | None = None,
 ):
     from app.core.context.manager import ContextManager, EvoContext
-    from app.core.engine.dispatch import dispatch_agent_run
     from app.core.engine.background_agent import run_agent_background
-    
-    await activity_monitor._state_service.start_run(thread_id, message_content or "")
-    
+    from app.core.engine.dispatch import dispatch_agent_run
+
     ctx = EvoContext(
         thread_id=thread_id,
         project_id=project_id,
@@ -48,7 +46,7 @@ async def _prepare_and_dispatch(
         active_model=model,
     )
     ContextManager.set(ctx)
-    
+
     result = await dispatch_agent_run(
         thread_id=thread_id,
         message_content=message_content,
@@ -60,17 +58,18 @@ async def _prepare_and_dispatch(
         model=model,
         context=ctx,
     )
-    
+
     if result.status == "failed":
         raise Exception(result.error)
-        
+
     bg_tasks.add_task(run_agent_background, thread_id, result.inputs)
-    
+
     return {
         "status": "queued",
         "thread_id": thread_id,
         "message_id": result.message_id,
     }
+
 
 router = APIRouter()
 router.include_router(chat_router)

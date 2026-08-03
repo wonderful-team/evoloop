@@ -86,24 +86,24 @@ async def chat_endpoint(
 
         if outcome.handled:
             local_outcome = outcome.local_response
-            
+
             # Map ActionOutcome to WebPresenter-compatible JSON response
             status = "done" if local_outcome.ok else "failed"
             summary = local_outcome.message
-            
+
             response = {
                 "status": status,
                 "action_type": local_outcome.action_type,
                 "summary": summary,
             }
-            
+
             if local_outcome.action_type == "navigate":
                 response["navigate"] = local_outcome.data.get("route")
             elif local_outcome.action_type == "macro":
                 response["fell_back"] = local_outcome.data.get("fell_back", False)
-                
+
             response["thread_id"] = req.thread_id
-            
+
             await activity_monitor.end_run(
                 req.thread_id,
                 status="done",

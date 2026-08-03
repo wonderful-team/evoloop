@@ -36,6 +36,7 @@ async def _member_center_request(method: str, endpoint: str, **kwargs) -> EvoClo
 
 # --- Username/Password Login (Proxied) ---
 
+
 @router.post("/login/access-token", response_model=Token)
 async def login_access_token(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
     """
@@ -66,6 +67,7 @@ async def login_access_token(form_data: Annotated[OAuth2PasswordRequestForm, Dep
 
 # --- Mobile Login (New Routines) ---
 
+
 @router.post("/login/mobile/code")
 async def request_mobile_code(req: MobileCodeRequest) -> MobileCodeResponse:
     """
@@ -75,15 +77,15 @@ async def request_mobile_code(req: MobileCodeRequest) -> MobileCodeResponse:
         mobile=req.mobile,
         captcha_id=req.captcha_id or "",
         captcha_code=req.captcha_code or "",
-        type="login"
+        type="login",
     )
-    
+
     if result.get("code", -1) != 0:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=result.get("message", "Failed to send verification code"),
         )
-        
+
     return MobileCodeResponse(
         code=0,
         message="Verification code sent",
@@ -101,13 +103,13 @@ async def login_mobile(req: MobileLoginRequest):
         key=req.key,
         code=req.code
     )
-    
+
     if not result.get("success", False):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=result.get("message", "Login failed"),
         )
-        
+
     token = result.get("token")
     if not token:
         raise HTTPException(status_code=500, detail="Session missing token")
@@ -122,6 +124,7 @@ async def login_mobile(req: MobileLoginRequest):
 
 
 # --- WeChat Authentication (Proxied) ---
+
 
 @router.get("/auth/wechat/config")
 async def get_wechat_config() -> WeChatConfigResponse:
@@ -241,9 +244,15 @@ async def wechat_direct_login(
 
         # Save access token to local store (Only in single-user mode)
         from app.models.schemas.auth import LoginResult
+
         if not settings.MULTI_TENANT_MODE:
             await identity_service.login_with_cloud_result(
-                LoginResult(success=True, token=member_center_token, member_id=int(member_id), data=data)
+                LoginResult(
+                    success=True,
+                    token=member_center_token,
+                    member_id=int(member_id),
+                    data=data,
+                )
             )
             await publish_user_logged_in(token=member_center_token, member_id=int(member_id))
         return Token(access_token=member_center_token, token_type="bearer")
@@ -280,6 +289,7 @@ async def wechat_callback(
 
 
 # --- Logout ---
+
 
 @router.post("/logout")
 async def logout() -> LogoutResponse:

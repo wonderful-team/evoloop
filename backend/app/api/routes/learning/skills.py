@@ -274,9 +274,7 @@ async def delete_skill(skill_id: int, current_user: CurrentUserOptional = None):
         async with session_scope() as db:
             stmt = (
                 select(LearnedSkill)
-                .where(
-                    LearnedSkill.member_id == (_member_id(current_user))
-                )
+                .where(LearnedSkill.member_id == (_member_id(current_user)))
                 .where(LearnedSkill.id == skill_id)
             )
             result = await db.execute(stmt)
@@ -325,9 +323,7 @@ async def update_skill(
         async with session_scope() as db:
             stmt = (
                 select(LearnedSkill)
-                .where(
-                    LearnedSkill.member_id == (_member_id(current_user))
-                )
+                .where(LearnedSkill.member_id == (_member_id(current_user)))
                 .where(LearnedSkill.id == skill_id)
             )
             result = await db.execute(stmt)
@@ -343,8 +339,7 @@ async def update_skill(
                         .where(
                             or_(
                                 LearnedSkill.member_id == 0,
-                                LearnedSkill.member_id
-                                == (_member_id(current_user)),
+                                LearnedSkill.member_id == (_member_id(current_user)),
                             )
                         )
                         .where(LearnedSkill.name == body.name)
@@ -632,7 +627,8 @@ async def create_skill_from_yaml(
 
 @router.post("/skills/validate-yaml", response_model=ValidateYamlResponse)
 async def validate_skill_yaml(
-    body: ValidateYamlRequest, current_user: CurrentUserOptional = None  # noqa: ARG001
+    body: ValidateYamlRequest,
+    current_user: CurrentUserOptional = None,  # noqa: ARG001
 ):
     """Validate YAML macro format without creating a skill."""
     try:

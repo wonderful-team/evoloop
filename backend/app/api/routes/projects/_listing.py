@@ -73,8 +73,12 @@ async def get_projects(
     res = await evocloud_manager.api.get_projects(page, page_size, token=_token)
     projects, container = _extract_projects(res)
     workspace_projects = _scan_workspace_projects()
-    logger.info("[ProjectsAPI] Scanned workspace: %d projects found, cloud: %d projects, filter: %s",
-                len(workspace_projects), len(projects), filter_type)
+    logger.info(
+        "[ProjectsAPI] Scanned workspace: %d projects found, cloud: %d projects, filter: %s",
+        len(workspace_projects),
+        len(projects),
+        filter_type,
+    )
 
     local_status_map = {}
     ignored_project_ids = set()
@@ -84,8 +88,6 @@ async def get_projects(
             stmt = select(Repository).where(Repository.sync_status != "IGNORED")
             result = await session.execute(stmt)
             repos = result.scalars().all()
-
-            repo_by_project_id = {repo.project_id: repo for repo in repos if repo.project_id}
 
             matched_count = 0
 
@@ -258,8 +260,14 @@ async def get_projects(
             switchable_ids = cloud_project_ids & valid_local_ids
 
             projects = [p for p in projects if (_resolve_project_id(p)) in switchable_ids]
-            logger.info("[ProjectsAPI] Filtered to switchable projects: %d of %d (cloud=%d, valid_local=%d, intersection=%d)",
-                        len(projects), original_count, len(cloud_project_ids), len(valid_local_ids), len(switchable_ids))
+            logger.info(
+                "[ProjectsAPI] Filtered to switchable projects: %d of %d (cloud=%d, valid_local=%d, intersection=%d)",
+                len(projects),
+                original_count,
+                len(cloud_project_ids),
+                len(valid_local_ids),
+                len(switchable_ids),
+            )
         elif filter_type == "cloud_only":
             cloud_project_ids = {_resolve_project_id(p) for p in projects}
             local_linked_ids = set(local_status_map.keys())

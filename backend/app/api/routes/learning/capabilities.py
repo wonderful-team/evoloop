@@ -1,4 +1,5 @@
 """Capabilities sub-router — action registry export."""
+
 from fastapi import APIRouter
 
 from app.api.deps import CurrentUserOptional

@@ -11,8 +11,8 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 
 from app.api.deps import verify_guest_access
-from app.core.monitoring.activity import activity_monitor
 from app.core.engine.message.broker import get_message_broker
+from app.core.monitoring.activity import activity_monitor
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/stream", tags=["stream"])

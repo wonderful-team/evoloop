@@ -13,6 +13,7 @@ from app.api.routes import (
     mcp,
     member,
     memory,
+    models,
     planning,
     projects,
     resources,
@@ -27,7 +28,6 @@ from app.api.routes import (
     tools,
     utils,
     vault,
-    models,
     voice_ws,
     wiki,
 )
@@ -63,6 +63,7 @@ api_router.include_router(projects.modules_router, prefix="/project-modules", ta
 
 # Code Module Graph (Leiden)
 from app.api.routes.modules import router as code_modules_router
+
 api_router.include_router(code_modules_router, prefix="/api/v1", tags=["code-modules"])
 
 # Learning & Human-in-Loop (Phase 0.2)

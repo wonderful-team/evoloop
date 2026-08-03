@@ -1,10 +1,11 @@
 """API routes for module graph data."""
+
 from __future__ import annotations
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter
 
 from app.api.deps import TokenDep
-from app.domain.codebase.generation.module_graph import Module, module_graph_service
+from app.domain.codebase.generation.module_graph import module_graph_service
 
 router = APIRouter(tags=["modules"])
 

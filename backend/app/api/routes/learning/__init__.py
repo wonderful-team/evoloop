@@ -9,6 +9,7 @@ Routes are split by functional domain:
 - mirror: device mirroring, event capture, extract points
 - capabilities: action registry
 """
+
 from fastapi import APIRouter
 
 from .capabilities import router as capabilities_router

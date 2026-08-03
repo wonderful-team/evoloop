@@ -1,4 +1,5 @@
 """Mirror sub-router — device mirroring, event capture, extract points."""
+
 import json
 import logging
 import subprocess
@@ -169,15 +170,27 @@ async def persist_mirror_events(body: PersistMirrorEventsRequest, current_user: 
     """Persist Android mirror events (final flush / retry for real-time events)."""
     events = mirror_manager.get_session_events(body.session_id)
     if not events:
-        return MirrorPersistResponse(success=True, message="No events to persist (already persisted in real-time)", count=0)
+        return MirrorPersistResponse(
+            success=True,
+            message="No events to persist (already persisted in real-time)",
+            count=0,
+        )
 
     async with session_scope() as db:
-        stmt = select(TraceEvent).where(TraceEvent.member_id == (current_user.id if current_user else 0)).where(TraceEvent.recording_session_id == body.session_id)
+        stmt = (
+            select(TraceEvent)
+            .where(TraceEvent.member_id == (current_user.id if current_user else 0))
+            .where(TraceEvent.recording_session_id == body.session_id)
+        )
         result = await db.execute(stmt)
         existing_count = len(result.scalars().all())
 
         if existing_count >= len(events):
-            return MirrorPersistResponse(success=True, message="Events already persisted in real-time", count=existing_count)
+            return MirrorPersistResponse(
+                success=True,
+                message="Events already persisted in real-time",
+                count=existing_count,
+            )
 
     try:
         async with session_scope() as db:
@@ -334,9 +347,13 @@ async def upload_screenshot(file: UploadFile = File(...), current_user: CurrentU
     """Upload a screenshot for a skill step."""
     try:
         from app.infrastructure.vision.storage import screenshot_storage
+
         content = await file.read()
         file_path = screenshot_storage.save_screenshot(
-            image_data=content, purpose="dataset", platform="macos", suffix=f"upload_{file.filename}"
+            image_data=content,
+            purpose="dataset",
+            platform="macos",
+            suffix=f"upload_{file.filename}",
         )
         return UploadScreenshotResponse(success=True, path=file_path, message="Screenshot uploaded successfully")
     except Exception as e:
@@ -365,14 +382,24 @@ async def create_android_extract_point(body: AndroidExtractPointRequest, current
             target_selector=f"android://screen/{body.x:.4f}/{body.y:.4f}",
             target_text=body.note or "Android mirror extract point",
             payload={
-                "coordinates": {"x": body.x, "y": body.y, "width": region_width, "height": region_height},
+                "coordinates": {
+                    "x": body.x,
+                    "y": body.y,
+                    "width": region_width,
+                    "height": region_height,
+                },
                 "platform": "android",
                 "relative_timestamp_ms": timestamp_ms,
             },
             source="android",
             app_name="android_mirror",
             state_context={"context": "android_region_marker"},
-            action_payload={"x": body.x, "y": body.y, "width": region_width, "height": region_height},
+            action_payload={
+                "x": body.x,
+                "y": body.y,
+                "width": region_width,
+                "height": region_height,
+            },
         )
         db.add(trace_event)
         await db.flush()

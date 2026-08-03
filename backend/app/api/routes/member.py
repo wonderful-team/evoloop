@@ -12,6 +12,7 @@ from app.api.schemas.member import (
     ChangePasswordRequest,
     UpdateUserRequest,
 )
+from app.core.benefits import benefit_service
 from app.core.evocloud import evocloud_manager
 from app.core.identity import identity_service
 from app.infrastructure.cache import cache
@@ -21,7 +22,6 @@ from app.models.schemas.auth import (
     EvoCloudProxyResponse,
     MemberBenefitsResponse,
 )
-from app.core.benefits import benefit_service
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +30,7 @@ router = APIRouter(tags=["member"])
 # --- Request/Response Schemas ---
 
 # --- User Profile (Unified) ---
+
 
 def _parse_int_safe(value: Any, default: int = 0) -> int:
     """Safely parse a value to int, handling strings and edge cases."""
@@ -41,6 +42,7 @@ def _parse_int_safe(value: Any, default: int = 0) -> int:
         except ValueError:
             return default
     return default
+
 
 def _map_mc_user_to_user(data: dict) -> User:
     """
@@ -55,38 +57,31 @@ def _map_mc_user_to_user(data: dict) -> User:
         mobile=data.get("mobile"),
         email=data.get("email"),
         headimg=data.get("headimg"),
-
         # Member level
         member_level=data.get("member_level", 0),
         member_level_name=data.get("member_level_name"),
         member_level_type=data.get("member_level_type", 0),
         level_expire_time=data.get("level_expire_time", 0),
-
         # Member labels (handle string values like ",")
         member_label=_parse_int_safe(data.get("member_label"), 0),
         member_label_name=data.get("member_label_name"),
         member_code=data.get("member_code"),
-
         # Account assets
         point=data.get("point", 0),
         balance=float(data.get("balance", 0) or 0),
         balance_money=float(data.get("balance_money", 0) or 0),
         growth=data.get("growth", 0),
-
         # Status flags
         status=data.get("status", 1),
         has_password=bool(data.get("password", 0)),
         is_edit_username=data.get("is_edit_username", 0),
         is_fenxiao=data.get("is_fenxiao", 0),
-
         # Profile
         realname=data.get("realname"),
         sex=data.get("sex", 0),
         birthday=str(data.get("birthday")) if data.get("birthday") and data.get("birthday") != 0 else None,
-
         # Referral
         source_member=data.get("source_member", 0),
-
         # Address
         province_id=data.get("province_id", 0),
         city_id=data.get("city_id", 0),
@@ -95,14 +90,13 @@ def _map_mc_user_to_user(data: dict) -> User:
         full_address=data.get("full_address"),
         longitude=float(data.get("longitude", 0) or 0),
         latitude=float(data.get("latitude", 0) or 0),
-
         # Third-party
         wx_openid=data.get("wx_openid"),
         wx_unionid=data.get("wx_unionid"),
-
         # Compatibility
         is_active=data.get("status") == 1,
     )
+
 
 @router.get("/me", response_model=UserPublic)
 async def read_user_me(current_user: CurrentUser, token: TokenDepOptional = None) -> Any:
@@ -131,6 +125,7 @@ async def read_user_me(current_user: CurrentUser, token: TokenDepOptional = None
             if token:
                 profile_key = f"evoloop:user_profile:{token}"
                 from app.core.identity.service import TOKEN_CACHE_TTL
+
                 await cache.set(profile_key, json.dumps(data), ex=TOKEN_CACHE_TTL)
             return _map_mc_user_to_user(data)
         else:
@@ -148,6 +143,7 @@ async def read_user_me(current_user: CurrentUser, token: TokenDepOptional = None
             detail="Session expired",
         )
 
+
 @router.put("/password", response_model=BaseAPIResponse)
 async def change_password(
     data: ChangePasswordRequest,
@@ -163,6 +159,7 @@ async def change_password(
         token=token,
     )
 
+
 @router.put("/me", response_model=UserPublic)
 async def update_user_me(
     data: UpdateUserRequest,
@@ -175,27 +172,33 @@ async def update_user_me(
     update_data = data.model_dump(exclude_none=True)
     return await evocloud_manager.api.update_user_info(update_data, token=token)
 
+
 # --- Account Cancellation ---
+
 
 @router.get("/cancellation/info")
 async def get_cancellation_info(_token: TokenDep) -> EvoCloudProxyResponse:
     return await evocloud_manager.api.get_cancellation_info()
 
+
 @router.post("/cancellation/apply")
 async def apply_cancellation(_token: TokenDep) -> EvoCloudProxyResponse:
     return await evocloud_manager.api.apply_cancellation()
+
 
 @router.post("/cancellation/cancel")
 async def cancel_cancellation(_token: TokenDep) -> EvoCloudProxyResponse:
     return await evocloud_manager.api.cancel_cancellation_apply()
 
+
 # --- Batch Benefits & Cache Management ---
+
 
 @router.post("/benefits/check-batch", response_model=BatchCheckResponse)
 async def check_benefits_batch(req: BatchCheckRequest, token: TokenDep):
     """
     批量检查多项权益
-    
+
     性能优化：只查询一次API，同时检查多个权益
     """
     member_id = await identity_service.get_member_id(token)
@@ -207,18 +210,19 @@ async def check_benefits_batch(req: BatchCheckRequest, token: TokenDep):
     
     # 获取额外信息
     benefits_data = await benefit_service.get_member_entitlements(member_id)
-    
+
     return BatchCheckResponse(
         results=results,
         is_expired=benefits_data.get("is_expired", False),
-        level_name=benefits_data.get("level_name", "免费用户")
+        level_name=benefits_data.get("level_name", "免费用户"),
     )
+
 
 @router.get("/benefits")
 async def get_member_benefits_api(force_refresh: bool = False, token: TokenDep = None) -> MemberBenefitsResponse:
     """
     获取会员完整权益信息
-    
+
     Args:
         force_refresh: 是否强制刷新缓存
     """
@@ -227,6 +231,7 @@ async def get_member_benefits_api(force_refresh: bool = False, token: TokenDep =
         force_refresh=force_refresh
     )
     return MemberBenefitsResponse(code=0, data=data)
+
 
 @router.post("/benefits/cache/invalidate")
 async def invalidate_member_benefits_cache(token: TokenDep) -> CacheInvalidateResponse:

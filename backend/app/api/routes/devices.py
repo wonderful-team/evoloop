@@ -38,6 +38,7 @@ async def get_devices(token: TokenDep):
     # 2. Fetch Local ADB Devices (from AwakenedState cache)
     try:
         from app.core.environment import get_awakened_state
+
         state = get_awakened_state()
         local_devices = state.android_devices if state else []
 
@@ -75,7 +76,7 @@ async def get_devices(token: TokenDep):
 
 @router.post("/{device_key}/command", dependencies=[Depends(require_benefit("mobile_control"))])
 async def send_command(device_key: str, req: SendCommandRequest, token: TokenDep):
-    """Send remote command"""
+    """Send remote command."""
     cmd_data = req.model_dump()
     # 与 Gateway 的 MobileCommandRequest 对齐：业务数据必须放在 content 字段
     if "content" not in cmd_data:

@@ -70,6 +70,7 @@ async def list_files(
     """
     if project_id == DEFAULT_PROJECT_ID:
         from app.infrastructure.config.service import SystemConfigService
+
         root_path = SystemConfigService.get_value("WORKSPACE_ROOT")
         if not root_path:
             raise HTTPException(status_code=404, detail="WORKSPACE_ROOT not configured")
@@ -114,7 +115,7 @@ async def get_file_content(
 
 def _resolve_upload_file(normalized: str) -> str | None:
     """Resolve uploads/{filename} to a physical file in CHAT_UPLOAD_DIR."""
-    rel_path = normalized[len("uploads/"):]
+    rel_path = normalized[len("uploads/") :]
     target_file = os.path.join(settings.CHAT_UPLOAD_DIR, rel_path)
 
     # 如果根目录下没有，尝试在子目录中找（适配隔离后的路径）
@@ -234,6 +235,7 @@ async def create_file(
     try:
         os.makedirs(os.path.dirname(target_file), exist_ok=True)
         from app.core.file import write_file
+
         write_file(target_file, req.content)
 
         return FileNode(name=os.path.basename(target_file), path=req.path, type="file")
@@ -354,7 +356,7 @@ async def search_files(
         FileSearchResult(
             file=os.path.relpath(r["file"], root_path),
             line=r["line"],
-            content=r["content"]
+            content=r["content"],
         ) for r in results_data
     ]
 
@@ -385,12 +387,12 @@ async def search_files_by_name(
             rel_path = os.path.relpath(full_path, root_path)
             is_dir = os.path.isdir(full_path)
             depth = rel_path.count(os.sep)
-            
-            matches.append((depth, FileNameSearchResult(
+            fns_result = FileNameSearchResult(
                 name=file_name,
                 path=rel_path,
-                type="directory" if is_dir else "file"
-            )))
+                type="directory" if is_dir else "file",
+            )
+            matches.append((depth, fns_result))
             # Collect a reasonable sample size before sorting
             if len(matches) >= 300:
                 break
@@ -443,8 +445,10 @@ async def move_file(
     target_file = os.path.join(root_path, req.target_path.lstrip("/"))
 
     # Security check
-    if not os.path.commonpath([root_path, source_file]) == root_path or \
-       not os.path.commonpath([root_path, target_file]) == root_path:
+    if (
+        not os.path.commonpath([root_path, source_file]) == root_path
+        or not os.path.commonpath([root_path, target_file]) == root_path
+    ):
         raise HTTPException(403, "Access denied")
 
     if not os.path.exists(source_file):
@@ -458,7 +462,11 @@ async def move_file(
         shutil.move(source_file, target_file)
 
         is_dir = os.path.isdir(target_file)
-        return FileNode(name=os.path.basename(target_file), path=req.target_path, type="directory" if is_dir else "file")
+        return FileNode(
+            name=os.path.basename(target_file),
+            path=req.target_path,
+            type="directory" if is_dir else "file",
+        )
     except Exception as e:
         logger.error(f"Failed to move {source_file} to {target_file}: {e}")
         raise HTTPException(500, f"Failed to move: {str(e)}")

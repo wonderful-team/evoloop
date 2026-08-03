@@ -69,22 +69,18 @@ async def run_terminal_command(thread_id: str, req: TerminalCommandRequest):
 
     async def _run_async():
         await task_manager.start_task(task.task_id)
-
         await task_manager.append_output_async(task.task_id, f"\r\n$ {command}\r\n")
 
         loop = asyncio.get_running_loop()
 
         def _blocking_run():
             def on_output(text: str):
-                loop.call_soon_threadsafe(
-                    task_manager.append_output, task.task_id, text
-                )
+                loop.call_soon_threadsafe(task_manager.append_output, task.task_id, text)
 
             with ContextManager.use(EvoContext(thread_id=thread_id)):
-                _, _, exit_code = terminal_manager.run_command(
-                    command, on_output=on_output
-                )
+                _, _, exit_code = terminal_manager.run_command(command, on_output=on_output)
             return exit_code
+
         try:
             exit_code = await loop.run_in_executor(None, _blocking_run)
         except Exception as exc:
@@ -95,9 +91,7 @@ async def run_terminal_command(thread_id: str, req: TerminalCommandRequest):
         if exit_code == 0:
             await task_manager.complete_task(task.task_id)
         else:
-            await task_manager.fail_task(
-                task.task_id, error=f"Exited with code {exit_code}"
-            )
+            await task_manager.fail_task(task.task_id, error=f"Exited with code {exit_code}")
 
     asyncio.create_task(_run_async())
     return {"task_id": task.task_id}
@@ -144,6 +138,5 @@ async def get_active_thread_tasks(thread_id: str):
                 if hasattr(t.metadata, "model_dump")
                 else dict(t.metadata)
             ),
-        }
-        for t in tasks
+        } for t in tasks
     ]

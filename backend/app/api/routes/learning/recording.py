@@ -1,4 +1,5 @@
 """Recording sub-router — trace recording sessions."""
+
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException

@@ -54,11 +54,13 @@ async def cancel_hitl_request(req: CancelHITLRequest, bg_tasks: BackgroundTasks)
         )
     else:
         from app.core.engine.message.converter import EvoMessageConverter
+
         serialized_inputs = inputs.copy() if inputs else {}
         if "messages" in serialized_inputs:
             serialized_inputs["messages"] = EvoMessageConverter.repair(serialized_inputs["messages"])
 
         from app.infrastructure.queue.factory import get_scheduler
+
         get_scheduler().send_task(
             "engine_resume_graph_background",
             args=(req.thread_id, serialized_inputs, config, "Resuming after cancellation...", False),

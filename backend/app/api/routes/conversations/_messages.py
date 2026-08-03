@@ -36,10 +36,7 @@ async def get_conversation_messages(
     )
 
     async with session_scope() as session:
-        file_ops_stmt = (
-            select(FileOperation)
-            .where(FileOperation.thread_id == thread_id)
-        )
+        file_ops_stmt = select(FileOperation).where(FileOperation.thread_id == thread_id)
         file_ops_result = await session.execute(file_ops_stmt)
         all_file_ops = file_ops_result.scalars().all()
 
@@ -179,7 +176,10 @@ async def get_thread_changeset(thread_id: str):
         aggregated = {}
         for op in ops:
             if op.file_path not in aggregated:
-                aggregated[op.file_path] = {"operation": op.operation, "diff": op.diff_content}
+                aggregated[op.file_path] = {
+                    "operation": op.operation,
+                    "diff": op.diff_content,
+                }
             else:
                 current = aggregated[op.file_path]
                 if current["operation"] == "ADD" and op.operation == "EDIT":
