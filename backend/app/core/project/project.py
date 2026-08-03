@@ -50,7 +50,7 @@ class Project:
     # --- Factories ---
 
     @classmethod
-    def from_local_entry(cls, entry: "LocalProjectEntry") -> "Project":
+    def from_local_entry(cls, entry: LocalProjectEntry) -> Project:
         """Construct from a LocalProjectEntry (filesystem scan result)."""
         return cls(
             project_id=entry.project_id,
@@ -60,7 +60,7 @@ class Project:
         )
 
     @classmethod
-    def from_repo(cls, repo: "Repository") -> "Project":
+    def from_repo(cls, repo: Repository) -> Project:
         """Construct from a Repository DB ORM row."""
         return cls(
             project_id=repo.project_id,
@@ -72,7 +72,7 @@ class Project:
         )
 
     @classmethod
-    def from_cloud_dict(cls, data: dict[str, Any]) -> "Project":
+    def from_cloud_dict(cls, data: dict[str, Any]) -> Project:
         """Construct from an EvoCloud project dict."""
         return cls(
             project_id=data.get("project_id"),

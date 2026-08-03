@@ -7,8 +7,10 @@ and subscribes to SystemEventType.CONTEXT_POLISHING events emitted by the Engine
 
 The Engine is completely agnostic of this module's existence.
 """
+
 import logging
 import re
+
 from app.core.events.base import BaseEvent
 
 logger = logging.getLogger(__name__)

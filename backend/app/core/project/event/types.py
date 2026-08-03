@@ -14,6 +14,7 @@ class ProjectEventType(str, Enum):
 
     Events related to project lifecycle and synchronization.
     """
+
     PROJECT_CREATED = "project.created"
     PROJECT_DELETED = "project.deleted"
     PROJECT_MOVED = "project.moved"

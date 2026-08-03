@@ -5,8 +5,6 @@ Project Event Publishers
 Helper functions for publishing project lifecycle events.
 """
 
-from datetime import datetime
-
 from app.core.events import system_bus
 
 from .schemas import (
@@ -46,9 +44,7 @@ async def publish_project_deleted(
 
 async def publish_project_moved(src_path: str, dest_path: str) -> None:
     """Publish an event when a project is moved or renamed."""
-    await system_bus.publish(
-        ProjectMovedEvent(src_path=src_path, dest_path=dest_path)
-    )
+    await system_bus.publish(ProjectMovedEvent(src_path=src_path, dest_path=dest_path))
 
 
 async def publish_project_switched(

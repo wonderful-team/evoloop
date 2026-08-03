@@ -6,6 +6,7 @@ context_plugin.py) to ProjectStateContextPlugin. Fixes the sync/async
 bug where session_scope (an asynccontextmanager) was used with `with`
 instead of `async with`.
 """
+
 import logging
 
 from sqlalchemy import select

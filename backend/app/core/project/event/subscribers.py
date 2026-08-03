@@ -269,7 +269,6 @@ class ProjectLifecycleSubscriber:
 
             try:
                 from app.core.project.sync_service import project_sync_service
-                logger.info(f"[Project] WORKSPACE_ROOT changed, reconciling projects in {new_value}...")
                 await project_sync_service.reconcile_projects(new_value)
                 logger.info(f"[Project] ✓ Reconciliation complete for {new_value}")
 
@@ -315,8 +314,6 @@ class ProjectContextHydratorSubscriber:
             if not working_dir:
                 logger.warning(f"[ProjectHydrator] Could not resolve path for project {project_id}")
                 return
-
-            logger.info(f"[ProjectHydrator] Resolved project {project_id} path: {working_dir}")
 
             # Update Context
             ctx.working_directory = working_dir
