@@ -149,6 +149,7 @@ def distribute_list_to_schema_fields(data: list, schema: type) -> dict:
             score = len(overlap)
 
             from pydantic_core import PydanticUndefined
+
             required_overlap = 0
             for rname, rinfo in item_model.model_fields.items():
                 if rinfo.default is PydanticUndefined and rname in item_keys:

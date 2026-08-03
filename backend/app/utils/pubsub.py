@@ -12,6 +12,7 @@ class SimplePubSubBus:
     Works across asyncio event loops (e.g. Huey worker threads
     vs. main FastAPI thread).
     """
+
     _instance = None
     _init_lock = threading.Lock()
 
@@ -19,7 +20,7 @@ class SimplePubSubBus:
         if cls._instance is None:
             with cls._init_lock:
                 if cls._instance is None:
-                    cls._instance = super(SimplePubSubBus, cls).__new__(cls)
+                    cls._instance = super().__new__(cls)
                     cls._instance.subscribers = defaultdict(list)
                     cls._instance._lock = threading.Lock()
         return cls._instance
@@ -55,6 +56,7 @@ class SimplePubSubBus:
                     queue.put_nowait(message)
                 except (TypeError, ValueError, RuntimeError):
                     pass
+
 
 # Global Instance
 in_memory_bus = SimplePubSubBus()

@@ -12,10 +12,12 @@ def _get_fernet_key() -> bytes:
     derived = sha256_digest(key_material)
     return base64.urlsafe_b64encode(derived)
 
+
 def encrypt_payload(data: str) -> str:
     """Encrypt a string payload using AES-256 (Fernet)."""
     f = Fernet(_get_fernet_key())
     return f.encrypt(data.encode("utf-8")).decode("utf-8")
+
 
 def decrypt_payload(token: str) -> str:
     """Decrypt an encrypted payload back to string."""

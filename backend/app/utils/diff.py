@@ -8,13 +8,13 @@ differences between file versions using unified diff format.
 import difflib
 import logging
 import os
-from typing import Tuple
 
 logger = logging.getLogger(__name__)
 
 
 class DiffStats:
     """Statistics about the difference between two texts."""
+
     lines_added: int
     lines_removed: int
     lines_unchanged: int
@@ -36,19 +36,19 @@ class DiffStats:
 class DiffTracker:
     """
     Tracks file changes to generate precise memory of what actually changed.
-    
+
     Logic:
     1. capture_snapshot(path): Read file before edit.
     2. compute_diff(path): Read file after edit, compare with snapshot.
-    
+
     Example:
         tracker = DiffTracker()
-        
+
         # Before edit
         tracker.capture_snapshot("/path/to/file.py", thread_id="task_1")
-        
+
         # ... perform edit ...
-        
+
         # After edit
         operation, diff, original = tracker.compute_diff("/path/to/file.py", thread_id="task_1")
         # operation: "ADD" | "EDIT" | "DELETE"
@@ -63,7 +63,7 @@ class DiffTracker:
         """
         Reads the current content of the file and stores it in memory.
         Call this BEFORE executing an edit tool.
-        
+
         Args:
             path: File path to capture
             thread_id: Optional thread identifier for isolation
@@ -82,20 +82,17 @@ class DiffTracker:
             logger.warning(f"Failed to capture snapshot for {path} (thread {thread_id}): {e}")
 
     def compute_diff(
-        self, 
-        path: str, 
-        thread_id: str = "default",
-        context_lines: int = 2
-    ) -> Tuple[str, str, str | None]:
+        self, path: str, thread_id: str = "default", context_lines: int = 2
+    ) -> tuple[str, str, str | None]:
         """
         Reads the file AGAIN and computes diff vs snapshot.
         Call this AFTER executing an edit tool.
-        
+
         Args:
             path: File path to compare
             thread_id: Optional thread identifier for isolation
             context_lines: Number of context lines in unified diff
-        
+
         Returns:
             Tuple of (operation, diff, original_content)
             - operation: "ADD" | "EDIT" | "DELETE" | "" (no change)
@@ -152,7 +149,7 @@ class DiffTracker:
     def clear(self, thread_id: str | None = None) -> None:
         """
         Clear snapshots.
-        
+
         Args:
             thread_id: If provided, only clear snapshots for this thread.
                       If None, clear all snapshots.
@@ -168,10 +165,10 @@ class DiffTracker:
     def get_snapshot_count(self, thread_id: str | None = None) -> int:
         """
         Get number of stored snapshots.
-        
+
         Args:
             thread_id: If provided, count only snapshots for this thread.
-        
+
         Returns:
             Number of snapshots
         """
@@ -182,25 +179,25 @@ class DiffTracker:
 
 
 def compute_text_diff(
-    old_text: str, 
+    old_text: str,
     new_text: str,
     old_label: str = "original",
     new_label: str = "modified",
-    context_lines: int = 3
+    context_lines: int = 3,
 ) -> str:
     """
     Compute unified diff between two text strings.
-    
+
     Args:
         old_text: Original text
         new_text: Modified text
         old_label: Label for original text in diff header
         new_label: Label for modified text in diff header
         context_lines: Number of context lines
-    
+
     Returns:
         Unified diff text
-    
+
     Example:
         >>> diff = compute_text_diff("hello\\nworld", "hello\\npython")
         >>> print(diff)

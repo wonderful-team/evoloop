@@ -44,6 +44,7 @@ def _get_encoder(encoding_name: str):
     """Lazily load and cache tiktoken encoder."""
     try:
         import tiktoken
+
         return tiktoken.get_encoding(encoding_name)
     except ImportError:
         logger.warning("tiktoken not installed. Using character-based estimation. Install with: pip install tiktoken")
@@ -76,6 +77,7 @@ def get_encoding_for_model(model: str) -> str | None:
 # ---------------------------------------------------------------------------
 # Precise counting (use when model is known)
 # ---------------------------------------------------------------------------
+
 
 def count_tokens(text: str, model: str) -> int:
     """
@@ -158,6 +160,7 @@ def count_messages_tokens(messages: list[BaseMessage], model: str) -> int:
 # ---------------------------------------------------------------------------
 # Fast estimation (use when model is unknown or for high-frequency calls)
 # ---------------------------------------------------------------------------
+
 
 def estimate_tokens(text: str) -> int:
     """

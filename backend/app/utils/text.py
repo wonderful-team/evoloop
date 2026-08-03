@@ -256,7 +256,9 @@ def html_to_markdown(html: str, base_url: str = "") -> str:
         if thead:
             header_row = thead.find("tr")
             if header_row:
-                headers = [th.get_text(strip=True) for th in header_row.find_all(["th", "td"])]
+                headers = [
+                    th.get_text(strip=True) for th in header_row.find_all(["th", "td"])
+                ]
                 if headers:
                     rows.append("| " + " | ".join(headers) + " |")
                     rows.append("| " + " | ".join(["---"] * len(headers)) + " |")

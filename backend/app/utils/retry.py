@@ -92,65 +92,68 @@ def retry_async(
     delay: float = 1.0,
     backoff: float = 2.0,
     exceptions: tuple[type[Exception], ...] = (Exception,),
-    on_retry: Callable[[Exception, int], None] | None = None
+    on_retry: Callable[[Exception, int], None] | None = None,
 ):
     """
     Decorator to retry an async function on failure.
-    
+
     Args:
         max_attempts: Maximum number of attempts
         delay: Initial delay between attempts (seconds)
         backoff: Multiplier for delay after each attempt
         exceptions: Tuple of exceptions to catch and retry
         on_retry: Optional callback function(exc, attempt_number)
-    
+
     Example:
         @retry_async(max_attempts=3, delay=1.0)
         async def fetch_data():
             return await api.get_data()
     """
+
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(func)
         async def wrapper(*args, **kwargs) -> Any:
             current_delay = delay
-            
+
             for attempt in range(1, max_attempts + 1):
                 try:
                     return await func(*args, **kwargs)
                 except exceptions as e:
                     if attempt == max_attempts:
                         raise
-                    
+
                     logger.warning(
                         f"Attempt {attempt}/{max_attempts} failed for {func.__name__}: {e}. "
                         f"Retrying in {current_delay}s..."
                     )
-                    
+
                     if on_retry:
                         on_retry(e, attempt)
-                    
+
                     await asyncio.sleep(current_delay)
                     current_delay *= backoff
-            
+
             # Should never reach here
             raise RuntimeError("Unexpected end of retry loop")
-        
+
         return wrapper
+
     return decorator
 
 
 def retry_with_fallback(fallback_value: T):
     """
     Decorator that returns a fallback value on failure instead of raising.
-    
+
     Args:
         fallback_value: Value to return on failure
-    
+
     Example:
         @retry_with_fallback(fallback_value={"error": "failed"})
         async def fetch_optional_data():
             return await api.get_data()
     """
+
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(func)
         async def wrapper(*args, **kwargs) -> Any:
@@ -159,14 +162,16 @@ def retry_with_fallback(fallback_value: T):
             except Exception as e:
                 logger.warning(f"{func.__name__} failed, returning fallback: {e}")
                 return fallback_value
+
         return wrapper
+
     return decorator
 
 
 class RetryContext:
     """
     Context manager for retrying a block of code.
-    
+
     Example:
         with RetryContext(max_attempts=3, delay=1.0) as retry:
             while retry.attempt():
@@ -177,13 +182,13 @@ class RetryContext:
                 except Exception as e:
                     retry.fail(e)
     """
-    
+
     def __init__(
         self,
         max_attempts: int = 3,
         delay: float = 1.0,
         backoff: float = 2.0,
-        exceptions: tuple[type[Exception], ...] = (Exception,)
+        exceptions: tuple[type[Exception], ...] = (Exception,),
     ):
         self.max_attempts = max_attempts
         self.delay = delay
@@ -192,36 +197,37 @@ class RetryContext:
         self._attempt = 0
         self._current_delay = delay
         self._last_exception: Exception | None = None
-    
+
     def attempt(self) -> bool:
         """Check if we should attempt again."""
         return self._attempt < self.max_attempts
-    
+
     def success(self) -> None:
         """Mark current attempt as successful."""
         self._last_exception = None
-    
+
     def fail(self, exception: Exception) -> None:
         """Mark current attempt as failed, will retry after delay."""
         self._last_exception = exception
         self._attempt += 1
-        
+
         if self._attempt >= self.max_attempts:
             raise exception
-        
+
         logger.warning(
             f"Attempt {self._attempt}/{self.max_attempts} failed: {exception}. "
             f"Retrying in {self._current_delay}s..."
         )
-        
+
         # Sleep before next attempt
         import time
+
         time.sleep(self._current_delay)
         self._current_delay *= self.backoff
-    
+
     def __enter__(self):
         return self
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         if exc_val and self._last_exception is None:
             # Unhandled exception
@@ -237,20 +243,20 @@ async def retry_operation(
     operation: Callable[[], T],
     max_attempts: int = 3,
     delay: float = 1.0,
-    exceptions: tuple[type[Exception], ...] = (Exception,)
+    exceptions: tuple[type[Exception], ...] = (Exception,),
 ) -> T:
     """
     Retry an operation with simple interface.
-    
+
     Args:
         operation: Callable that performs the operation
         max_attempts: Maximum number of attempts
         delay: Delay between attempts
         exceptions: Exceptions to catch
-    
+
     Returns:
         Result of operation
-    
+
     Raises:
         Last exception if all attempts fail
     """
@@ -262,5 +268,5 @@ async def retry_operation(
                 raise
             logger.warning(f"Attempt {attempt} failed: {e}. Retrying...")
             await asyncio.sleep(delay)
-    
+
     raise RuntimeError("Unexpected end of retry loop")

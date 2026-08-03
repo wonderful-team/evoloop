@@ -13,19 +13,20 @@ from yaml.scanner import ScannerError
 
 class YAMLError(Exception):
     """Custom YAML error with context."""
+
     pass
 
 
 def safe_yaml_loads(content: str) -> Any:
     """
     Safely parse YAML content.
-    
+
     Args:
         content: YAML string
-        
+
     Returns:
         Parsed Python object
-        
+
     Raises:
         YAMLError: If parsing fails
     """
@@ -38,11 +39,11 @@ def safe_yaml_loads(content: str) -> Any:
 def safe_yaml_dumps(obj: Any, indent: int = 2) -> str:
     """
     Safely serialize object to YAML.
-    
+
     Args:
         obj: Object to serialize
         indent: Indentation level
-        
+
     Returns:
         YAML string
     """
@@ -51,17 +52,17 @@ def safe_yaml_dumps(obj: Any, indent: int = 2) -> str:
         indent=indent,
         allow_unicode=True,
         sort_keys=False,  # Preserve key order for readability
-        default_flow_style=False
+        default_flow_style=False,
     )
 
 
 def macro_to_yaml(macro_steps: list[dict]) -> str:
     """
     Convert macro steps to human-friendly YAML format.
-    
+
     Args:
         macro_steps: List of macro step dicts
-        
+
     Returns:
         Formatted YAML string
     """
@@ -80,71 +81,71 @@ def macro_to_yaml(macro_steps: list[dict]) -> str:
 def macro_from_yaml(yaml_content: str) -> list[dict]:
     """
     Parse YAML macro and extract steps.
-    
+
     Args:
         yaml_content: YAML string
-        
+
     Returns:
         List of macro step dicts
-        
+
     Raises:
         YAMLError: If format is invalid
     """
     # Handle empty or whitespace-only content
     if not yaml_content or not yaml_content.strip():
         return []
-    
+
     data = safe_yaml_loads(yaml_content)
-    
+
     # Handle None (empty YAML)
     if data is None:
         return []
-    
+
     # Support pure array format (direct list of steps)
     if isinstance(data, list):
         return data
-    
+
     if not isinstance(data, dict):
         raise YAMLError("YAML root must be a mapping or a list")
-    
+
     # Support both wrapped and unwrapped formats
     steps = data.get("steps", data.get("macro_script", data))
-    
+
     if not isinstance(steps, list):
         raise YAMLError("Macro steps must be a list")
-    
+
     return steps
 
 
 def validate_macro_yaml(yaml_content: str) -> tuple[bool, list[str]]:
     """
     Validate YAML macro format without full parsing.
-    
+
     Returns:
         Tuple of (is_valid, error_messages)
     """
     errors = []
-    
+
     try:
         data = safe_yaml_loads(yaml_content)
     except YAMLError as e:
         return False, [str(e)]
-    
+
     if not isinstance(data, (dict, list)):
         return False, ["YAML root must be a mapping or list"]
-    
+
     steps = data.get("steps", data) if isinstance(data, dict) else data
-    
+
     if not isinstance(steps, list):
         return False, ["'steps' must be a list"]
-    
+
     # Validate each step has required fields
     for i, step in enumerate(steps):
         if not isinstance(step, dict):
-            errors.append(f"Step {i+1}: must be a mapping")
+            errors.append(f"Step {i + 1}: must be a mapping")
             continue
-            
+
         if "type" not in step:
-            errors.append(f"Step {i+1}: missing required field 'type'")
-    
+            errors.append(f"Step {i + 1}: missing required field 'type'")
+
     return len(errors) == 0, errors

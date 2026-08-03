@@ -72,11 +72,7 @@ def run_command(
         return CommandResult(-1, "", str(e))
 
 
-async def run_async_command(
-    cmd: str | list[str],
-    cwd: str | None = None,
-    timeout: float | None = None
-) -> CommandResult:
+async def run_async_command(cmd: str | list[str], cwd: str | None = None, timeout: float | None = None) -> CommandResult:
     """
     Run an asynchronous subprocess command.
     """
@@ -111,7 +107,9 @@ async def run_async_command(
 
         try:
             if timeout:
-                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
+                stdout, stderr = await asyncio.wait_for(
+                    process.communicate(), timeout=timeout
+                )
             else:
                 stdout, stderr = await process.communicate()
         except asyncio.TimeoutError:
@@ -124,6 +122,12 @@ async def run_async_command(
             stderr=stderr.decode().strip() if stderr else "",
         )
 
-    except (subprocess.SubprocessError, OSError, TypeError, ValueError, asyncio.TimeoutError) as e:
+    except (
+        subprocess.SubprocessError,
+        OSError,
+        TypeError,
+        ValueError,
+        asyncio.TimeoutError,
+    ) as e:
         logger.error(f"Async command failed: {e}")
         return CommandResult(-1, "", str(e))
