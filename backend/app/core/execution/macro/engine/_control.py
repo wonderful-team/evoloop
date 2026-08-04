@@ -7,7 +7,16 @@ logger = logging.getLogger(__name__)
 
 class ControlMixin:
     @classmethod
-    async def _handle_control_flow(cls, thread_id, step, payload, params, extracted_data, disable_ocr=True, active_bundle_id=None):
+    async def _handle_control_flow(
+        cls,
+        thread_id,
+        step,
+        payload,
+        params,
+        extracted_data,
+        disable_ocr=True,
+        active_bundle_id=None,
+    ):
         if params is None:
             params = {}
         condition = step.condition
@@ -21,17 +30,39 @@ class ControlMixin:
             is_true = await cls._evaluate_condition(cond_type, selector, step.source)
             branch = step.then_steps if is_true else step.else_steps
             if branch:
-                return await cls.execute_steps(thread_id, branch, params, extracted_data, disable_ocr, active_bundle_id)
+                return await cls.execute_steps(
+                    thread_id,
+                    branch,
+                    params,
+                    extracted_data,
+                    disable_ocr,
+                    active_bundle_id,
+                )
 
         elif step.type == MacroStepType.LOOP:
             collect_mode = step.collect_mode
             if collect_mode in ("list", "detail", "auto"):
                 return await cls._handle_collect_loop(
-                    thread_id, step, payload, params, extracted_data, disable_ocr, collect_mode, active_bundle_id
+                    thread_id,
+                    step,
+                    payload,
+                    params,
+                    extracted_data,
+                    disable_ocr,
+                    collect_mode,
+                    active_bundle_id,
                 )
 
             if payload.get("items_key"):
-                return await cls._handle_loop(thread_id, step, payload, params, extracted_data, disable_ocr, active_bundle_id)
+                return await cls._handle_loop(
+                    thread_id,
+                    step,
+                    payload,
+                    params,
+                    extracted_data,
+                    disable_ocr,
+                    active_bundle_id,
+                )
 
             iterations = 0
             if not step.steps:
@@ -52,7 +83,14 @@ class ControlMixin:
                 loop_params = dict(params) if params else {}
                 loop_params["loop_index"] = iterations
 
-                success, msg, fallback = await cls.execute_steps(thread_id, step.steps, loop_params, extracted_data, disable_ocr, active_bundle_id)
+                success, msg, fallback = await cls.execute_steps(
+                    thread_id,
+                    step.steps,
+                    loop_params,
+                    extracted_data,
+                    disable_ocr,
+                    active_bundle_id,
+                )
 
                 if not success:
                     if not fallback:
@@ -61,7 +99,7 @@ class ControlMixin:
                         "loop_step_number": step.step_number,
                         "current_iteration": iterations,
                         "max_iterations": max_iters,
-                        "condition": cond_type
+                        "condition": cond_type,
                     }
                     return False, msg, fallback
 
@@ -86,7 +124,10 @@ class ControlMixin:
                 res = await MobileController.execute(action="dump_ui")
                 return selector in str(res)
             elif source == MacroSource.DESKTOP:
-                res = await DesktopController.execute(action="applescript", script=f'tell application "System Events" to exists (first UI element whose name contains "{selector}")')
+                res = await DesktopController.execute(
+                    action="applescript",
+                    script=f'tell application "System Events" to exists (first UI element whose name contains "{selector}")',
+                )
                 return "true" in str(res).lower()
 
         elif cond_type == "element_visible":
@@ -97,7 +138,10 @@ class ControlMixin:
                 res = await MobileController.execute(action="dump_ui")
                 return selector in str(res)
             elif source == MacroSource.DESKTOP:
-                res = await DesktopController.execute(action="applescript", script=f'tell application "System Events" to get visible of (first UI element whose name contains "{selector}")')
+                res = await DesktopController.execute(
+                    action="applescript",
+                    script=f'tell application "System Events" to get visible of (first UI element whose name contains "{selector}")',
+                )
                 return "true" in str(res).lower()
 
         elif cond_type == "text_contains":
@@ -108,7 +152,10 @@ class ControlMixin:
                 res = await MobileController.execute(action="dump_ui")
                 return selector in str(res)
             elif source == MacroSource.DESKTOP:
-                res = await DesktopController.execute(action="applescript", script=f'tell application "System Events" to get name of every UI element whose name contains "{selector}"')
+                res = await DesktopController.execute(
+                    action="applescript",
+                    script=f'tell application "System Events" to get name of every UI element whose name contains "{selector}"',
+                )
                 return len(str(res)) > 5
 
         elif cond_type in ("has_more_items", "more_items", "pagination_exists"):

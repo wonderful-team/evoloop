@@ -18,7 +18,7 @@ class DumpMixin:
             state_file = extracted_data.get("collect_results", {}).get("state_file")
             if state_file and os.path.exists(state_file):
                 try:
-                    with open(state_file, encoding='utf-8') as f:
+                    with open(state_file, encoding="utf-8") as f:
                         state_data = json.load(f)
                         data_to_dump["batch_items"] = state_data.get("items", [])
                         logger.info(f"[{thread_id}] Enriched dump with {len(data_to_dump['batch_items'])} items from state file")
@@ -57,8 +57,10 @@ class DumpMixin:
 
         await activity_monitor.log_event(
             "macro_thought",
-            {"text": f"Pushing data to MCP server '{mcp_server}' using {mcp_tool_name or operation}"},
-            thread_id
+            {
+                "text": f"Pushing data to MCP server '{mcp_server}' using {mcp_tool_name or operation}"
+            },
+            thread_id,
         )
 
         try:
@@ -106,7 +108,7 @@ class DumpMixin:
                     "table": table,
                     "data": extracted_data,
                     "thread_id": thread_id,
-                    "timestamp": datetime.now(timezone.utc).isoformat()
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
 
             result = await target_tool.ainvoke(data_payload)
@@ -130,7 +132,7 @@ class DumpMixin:
         await activity_monitor.log_event(
             "macro_thought",
             {"text": f"Pushing data to webhook: {webhook_url}"},
-            thread_id
+            thread_id,
         )
 
         try:
@@ -138,7 +140,7 @@ class DumpMixin:
                 request_data = {
                     "thread_id": thread_id,
                     "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "data": extracted_data
+                    "data": extracted_data,
                 }
 
                 if method == "POST":

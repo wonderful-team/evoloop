@@ -31,14 +31,14 @@ class NativeMixin:
         await activity_monitor.log_event(
             "macro_thought",
             {"text": f"Running native script: {' '.join(cmd_list)}"},
-            thread_id
+            thread_id,
         )
 
         try:
             process = await asyncio.create_subprocess_exec(
                 *cmd_list,
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+                stderr=asyncio.subprocess.PIPE,
             )
 
             stdout, stderr = await process.communicate()
@@ -48,10 +48,10 @@ class NativeMixin:
                 logger.error(f"[{thread_id}] Native script failed with code {process.returncode}: {err_msg}")
 
             if sync_state and os.path.exists(sync_state):
-                with open(sync_state, encoding='utf-8') as f:
+                with open(sync_state, encoding="utf-8") as f:
                     state_data = json.load(f)
 
-                items = state_data.get('items', [])
+                items = state_data.get("items", [])
                 if items:
                     extracted_data["batch_items"] = items
                     logger.info(f"[{thread_id}] Synced {len(items)} items from {sync_state} to extracted_data")

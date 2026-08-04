@@ -86,11 +86,7 @@ class BashMixin:
         returncode = process.returncode if process else -1
 
         if returncode != 0:
-            output = (
-                f"Exit code {returncode}\n"
-                f"STDOUT:\n{stdout_str}\n"
-                f"STDERR:\n{stderr_str}"
-            ).strip()
+            output = (f"Exit code {returncode}\nSTDOUT:\n{stdout_str}\nSTDERR:\n{stderr_str}").strip()
             logger.warning(
                 f"[{thread_id}] Bash step failed with exit code {returncode}: {output[:200]}"
             )

@@ -96,7 +96,12 @@ class MacroEngine(
             token = ContextManager.set(ctx)
         try:
             return await cls._execute_steps_inner(
-                thread_id, steps, params, extracted_data, disable_ocr, active_bundle_id,
+                thread_id,
+                steps,
+                params,
+                extracted_data,
+                disable_ocr,
+                active_bundle_id,
                 skip_activity_log=skip_activity_log,
                 skip_recording=skip_recording,
             )
@@ -167,11 +172,24 @@ class MacroEngine(
 
             if step.type == MacroStepType.EXTRACT:
                 try:
-                    await cls._handle_extraction(thread_id, step, target_selector, payload, params, extracted_data)
+                    await cls._handle_extraction(
+                        thread_id,
+                        step,
+                        target_selector,
+                        payload,
+                        params,
+                        extracted_data,
+                    )
                 except _STEP_EXCEPTIONS as e:
                     error_msg = str(e)
                     screenshot_path = await cls._debug_screenshot(step.source)
-                    await cls._handle_action_error(thread_id, step_num, step.event_type or "extract", error_msg, screenshot_path)
+                    await cls._handle_action_error(
+                        thread_id,
+                        step_num,
+                        step.event_type or "extract",
+                        error_msg,
+                        screenshot_path,
+                    )
                     return (
                         False,
                         error_msg,
@@ -261,7 +279,12 @@ class MacroEngine(
                             expected_pkg=active_bundle_id,
                         )
                     elif source == MacroSource.DESKTOP:
-                        await cls._execute_desktop_step(event_type, target_selector, payload, skip_recording=skip_recording)
+                        await cls._execute_desktop_step(
+                            event_type,
+                            target_selector,
+                            payload,
+                            skip_recording=skip_recording,
+                        )
                     else:
                         logger.warning(f"Unknown macro source: {source}")
                 except _STEP_EXCEPTIONS as e:
