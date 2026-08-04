@@ -102,6 +102,7 @@ class FileGraphDriver:
             return
         try:
             import networkx as nx
+
             data = nx.node_link_data(self._graph)
             # 确保目录存在
             self.graph_file.parent.mkdir(parents=True, exist_ok=True)

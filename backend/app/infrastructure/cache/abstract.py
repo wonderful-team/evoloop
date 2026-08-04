@@ -58,7 +58,7 @@ class CacheLock(ABC):
 class Cache(ABC):
     """
     Abstract cache backend interface.
-    
+
     Provides Redis-like operations that work with both Redis/FileCache (production)
     and FileCache (embedded mode) implementations.
     """
@@ -74,7 +74,7 @@ class Cache(ABC):
     async def set(self, key: str, value: Any, ex: int | None = None) -> bool:
         """
         Set key to value with optional expiration (in seconds).
-        
+
         Args:
             key: The key to set
             value: Value to store (will be JSON serialized if needed)
@@ -111,7 +111,7 @@ class Cache(ABC):
     async def keys(self, pattern: str = "*", **kwargs) -> list[str]:
         """
         Find all keys matching the given pattern (glob format).
-        
+
         Args:
             pattern: Glob-style pattern (e.g., "activity:*")
             **kwargs: Backend-specific arguments (e.g., count for Redis SCAN)
@@ -126,10 +126,16 @@ class Cache(ABC):
         ...
 
     @abstractmethod
-    async def hset(self, name: str, key: str | None = None, value: Any = None, mapping: dict | None = None) -> int:
+    async def hset(
+        self,
+        name: str,
+        key: str | None = None,
+        value: Any = None,
+        mapping: dict | None = None,
+    ) -> int:
         """
         Set field(s) in hash.
-        
+
         Supports both single field and bulk operations:
             await hset("myhash", "field1", "value1")
             await hset("myhash", mapping={"field1": "v1", "field2": "v2"})
@@ -210,7 +216,13 @@ class Cache(ABC):
     # ========== Locks ==========
 
     @abstractmethod
-    def lock(self, name: str, timeout: float = None, blocking: bool = True, blocking_timeout: float = None) -> CacheLock:
+    def lock(
+        self,
+        name: str,
+        timeout: float = None,
+        blocking: bool = True,
+        blocking_timeout: float = None,
+    ) -> CacheLock:
         """Create a distributed lock."""
         ...
 
@@ -253,7 +265,13 @@ class CachePipeline(ABC):
         ...
 
     @abstractmethod
-    def hset(self, name: str, key: str | None = None, value: Any = None, mapping: dict | None = None) -> "CachePipeline":
+    def hset(
+        self,
+        name: str,
+        key: str | None = None,
+        value: Any = None,
+        mapping: dict | None = None,
+    ) -> "CachePipeline":
         """Queue hset operation."""
         ...
 

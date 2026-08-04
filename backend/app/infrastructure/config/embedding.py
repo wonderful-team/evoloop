@@ -99,4 +99,5 @@ class EmbeddingConfigService:
                 logger.info(f"Emitting system.embedding_updated event for active project {current_project_id} (Repo {repo.id})")
 
                 from app.core.events.publishers import publish_embedding_updated
+
                 await publish_embedding_updated(repo.id, current_project_id)

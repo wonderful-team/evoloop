@@ -10,6 +10,7 @@ from app.utils.crypto import decrypt_payload, encrypt_payload
 
 logger = logging.getLogger(__name__)
 
+
 class SecureVaultService:
     @staticmethod
     def add_credential(
@@ -17,7 +18,7 @@ class SecureVaultService:
         type: str,
         payload: dict[str, Any],
         project_id: int | None = None,
-        description: str | None = None
+        description: str | None = None,
     ) -> SecureCredential:
         """
         Encrypt and save a new secure credential in the database.
@@ -45,7 +46,7 @@ class SecureVaultService:
                     type=type,
                     project_id=project_id,
                     description=description,
-                    encrypted_payload=encrypted
+                    encrypted_payload=encrypted,
                 )
                 session.add(config)
                 logger.info(f"[SecureVault] Added new credential: {identifier}")
@@ -126,7 +127,7 @@ class SecureVaultService:
                 statement = select(SecureCredential).where(
                     or_(
                         SecureCredential.project_id == project_id,
-                        SecureCredential.project_id == None
+                        SecureCredential.project_id == None,
                     )
                 )
             else:
@@ -139,7 +140,7 @@ class SecureVaultService:
                     "identifier": c.identifier,
                     "type": c.type,
                     "description": c.description,
-                    "project_id": c.project_id
+                    "project_id": c.project_id,
                 }
                 for c in results
             ]

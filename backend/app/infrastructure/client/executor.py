@@ -9,9 +9,10 @@ This module provides decorators and wrappers for transparent routing.
 """
 
 import logging
+from collections.abc import Callable
 from functools import wraps
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import yaml
 
@@ -81,9 +82,7 @@ def should_use_client(tool_name: str) -> bool:
 
 
 async def execute_via_client(
-    thread_id: str,
-    tool_name: str,
-    params: dict[str, Any]
+    thread_id: str, tool_name: str, params: dict[str, Any]
 ) -> Any:
     """
     Execute a tool via Client.
@@ -103,7 +102,7 @@ async def execute_via_client(
             thread_id=thread_id,
             tool=tool_name,
             params=params,
-            timeout=settings.CLIENT_TOOL_TIMEOUT
+            timeout=settings.CLIENT_TOOL_TIMEOUT,
         )
         return result
     except ToolExecutionError as e:
@@ -123,6 +122,7 @@ def wrap_tool_for_client(tool_func: Callable) -> Callable:
         async def file_read(path: str) -> str:
             ...
     """
+
     @wraps(tool_func)
     async def wrapper(*args, **kwargs):
         # Get thread_id from context if available
@@ -142,6 +142,7 @@ def wrap_tool_for_client(tool_func: Callable) -> Callable:
             if args:
                 # Try to map positional args to first param names
                 import inspect
+
                 sig = inspect.signature(tool_func)
                 param_names = list(sig.parameters.keys())
                 for i, arg in enumerate(args):

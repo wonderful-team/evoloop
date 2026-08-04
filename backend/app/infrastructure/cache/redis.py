@@ -1,6 +1,7 @@
 """
 Redis implementation of Cache interface.
 """
+
 import asyncio
 import json
 import logging
@@ -112,7 +113,7 @@ class RedisCache(Cache):
     def __init__(self):
         async def cleanup_redis(client):
             await client.close()
-            
+
         self._redis_pool = LoopBoundResource(
             factory=self._create_redis,
             cleanup=cleanup_redis
@@ -128,15 +129,15 @@ class RedisCache(Cache):
             max_connections=settings.REDIS_MAX_CONNECTIONS,
             socket_timeout=5.0,
             socket_connect_timeout=5.0,
-            retry_on_timeout=True
+            retry_on_timeout=True,
         )
         client = redis_lib.Redis(connection_pool=pool)
-        
+
         try:
             loop_id = id(asyncio.get_running_loop())
         except RuntimeError:
             loop_id = "none"
-            
+
         logger.info(f"[RedisCache] Connected to Redis (loop={loop_id})")
         return client
 
@@ -210,8 +211,12 @@ class RedisCache(Cache):
         await self._ensure_connected()
         # JSON encode values if needed
         if mapping is not None:
-            mapping = {k: json.dumps(v) if not isinstance(v, (str, bytes, int, float)) else str(v) 
-                      for k, v in mapping.items()}
+            mapping = {
+                k: json.dumps(v)
+                if not isinstance(v, (str, bytes, int, float))
+                else str(v)
+                for k, v in mapping.items()
+            }
         elif value is not None and key is not None:
             if not isinstance(value, (str, bytes, int, float)):
                 value = json.dumps(value)

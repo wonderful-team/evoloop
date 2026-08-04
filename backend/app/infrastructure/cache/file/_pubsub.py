@@ -3,6 +3,7 @@ In-memory Pub/Sub adapter for FileCache.
 """
 
 import asyncio
+import time
 from queue import Empty
 from typing import Any
 
@@ -32,7 +33,6 @@ class InMemoryPubSubAdapter(PubSubBackend):
         queue = self._subscriptions[channel]
 
         if timeout:
-            import time
             deadline = time.monotonic() + timeout
             while time.monotonic() < deadline:
                 try:

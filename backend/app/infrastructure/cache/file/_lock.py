@@ -5,6 +5,7 @@ File-based lock adapter for FileCache.
 import asyncio
 import logging
 import os
+import time
 from pathlib import Path
 
 from app.infrastructure.cache.abstract import CacheLock
@@ -14,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 try:
     import fcntl
+
     _HAS_FCNTL = True
 except ImportError:
     _HAS_FCNTL = False
@@ -21,6 +23,7 @@ except ImportError:
 
 try:
     import msvcrt
+
     _HAS_MSVCRT = True
 except ImportError:
     _HAS_MSVCRT = False
@@ -39,6 +42,7 @@ class FileCacheLockAdapter(CacheLock):
             return True
 
         from app.core.config import settings
+
         lock_dir = Path(settings.APP_DATA_DIR) / "cache" / "locks"
         lock_dir.mkdir(parents=True, exist_ok=True)
         self._lock_file = lock_dir / f"{self.name}.lock"
@@ -74,7 +78,6 @@ class FileCacheLockAdapter(CacheLock):
                 self._fd = None
                 return False
 
-        import time
         deadline = time.monotonic() + blocking_timeout
         while time.monotonic() < deadline:
             try:

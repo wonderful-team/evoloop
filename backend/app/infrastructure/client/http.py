@@ -29,6 +29,7 @@ class ToolRequestManager:
     Manages pending tool requests for Client execution.
     Singleton pattern for global access.
     """
+
     _instance = None
     _lock = asyncio.Lock()
     _requests: dict[str, ToolRequest]
@@ -60,10 +61,7 @@ class ToolRequestManager:
             self._cleanup_task = None
 
     async def create_request(
-        self,
-        thread_id: str,
-        tool: str,
-        params: dict[str, Any]
+        self, thread_id: str, tool: str, params: dict[str, Any]
     ) -> ToolRequest:
         """Create a new tool request."""
         request_id = f"tool-{gen_uuid_hex()[:12]}"
@@ -100,17 +98,9 @@ class ToolRequestManager:
     async def get_all_pending(self) -> list[ToolRequest]:
         """Get all pending requests."""
         async with self._lock:
-            return [
-                req for req in self._requests.values()
-                if req.status == "pending"
-            ]
+            return [req for req in self._requests.values() if req.status == "pending"]
 
-    async def complete_request(
-        self,
-        request_id: str,
-        result: Any,
-        error: str | None = None
-    ) -> bool:
+    async def complete_request(self, request_id: str, result: Any, error: str | None = None) -> bool:
         """Mark a request as completed with result or error."""
         async with self._lock:
             request = self._requests.get(request_id)
@@ -127,11 +117,7 @@ class ToolRequestManager:
         logger.info(f"[Client] Request {request_id} completed")
         return True
 
-    async def wait_for_result(
-        self,
-        request_id: str,
-        timeout: float = 300.0
-    ) -> ToolRequest | None:
+    async def wait_for_result(self, request_id: str, timeout: float = 300.0) -> ToolRequest | None:
         """Wait for a request to complete."""
         request = await self.get_request(request_id)
         if not request:
@@ -215,7 +201,7 @@ class ClientCapabilitiesManager:
         self,
         tools: list[str],
         version: str = "1.0",
-        patterns: dict[str, list[str]] | None = None
+        patterns: dict[str, list[str]] | None = None,
     ):
         """Update Client capabilities."""
         self._tools = set(tools)
@@ -328,6 +314,7 @@ class ClientToolExecutor:
 
 class ToolExecutionError(Exception):
     """Error executing tool through Client."""
+
     pass
 
 

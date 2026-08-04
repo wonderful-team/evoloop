@@ -89,6 +89,7 @@ class GraphManager:
         A threading.Lock protects the shared driver cache so that multiple
         Huey worker threads can safely call get_driver concurrently.
     """
+
     # Key: (event_loop, project_path) for FileGraph; (event_loop, None) for Neo4j
     _drivers: dict[tuple[asyncio.AbstractEventLoop, str | None], IGraphDriver] = {}
     _lock = threading.Lock()
@@ -141,7 +142,7 @@ class GraphManager:
         driver = Neo4jDriver(
             uri=settings.NEO4J_URI or "bolt://localhost:7687",
             user=settings.NEO4J_USER or "neo4j",
-            password=settings.NEO4J_PASSWORD
+            password=settings.NEO4J_PASSWORD,
         )
 
         with cls._lock:
@@ -193,6 +194,7 @@ class GraphManager:
 # =============================================================================
 # Standard Helper Functions
 # =============================================================================
+
 
 async def get_graph_db(project_path: str | None = None) -> IGraphDriver:
     """

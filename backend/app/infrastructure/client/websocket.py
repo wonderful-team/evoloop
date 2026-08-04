@@ -10,6 +10,7 @@ Flow:
        │──── execute_tool ───────────────────────►│
        │◄─── execute_result ──────────────────────│
 """
+
 import asyncio
 import json
 import logging
@@ -24,6 +25,7 @@ from app.infrastructure.schemas import ToolRequest
 
 try:
     from zeroconf import IPVersion, ServiceInfo, Zeroconf
+
     HAS_ZEROCONF = True
 except ImportError:
     HAS_ZEROCONF = False
@@ -96,9 +98,10 @@ class ClientWebSocketManager:
         if HAS_ZEROCONF:
             try:
                 self._zeroconf = Zeroconf(ip_version=IPVersion.V4Only)
-                desc = {'description': 'EvoLoop Desktop Agent'}
+                desc = {"description": "EvoLoop Desktop Agent"}
 
                 import socket
+
                 local_ip = socket.gethostbyname(socket.gethostname())
                 # Fallback for some systems
                 if local_ip == "127.0.0.1":
@@ -273,7 +276,7 @@ class ClientWebSocketManager:
             thread_id=thread_id,
             tool=tool,
             params=params,
-            future=asyncio.get_running_loop().create_future()
+            future=asyncio.get_running_loop().create_future(),
         )
 
         async with self._lock:
@@ -286,7 +289,7 @@ class ClientWebSocketManager:
                 "request_id": request_id,
                 "thread_id": thread_id,
                 "tool": tool,
-                "params": params
+                "params": params,
             }
 
             await self._websocket.send(json.dumps(message))
@@ -300,7 +303,7 @@ class ClientWebSocketManager:
                 self._pending_requests.pop(request_id, None)
             raise TimeoutError(f"Tool execution timed out after {timeout}s")
 
-        except Exception as e:
+        except Exception:
             async with self._lock:
                 self._pending_requests.pop(request_id, None)
             raise

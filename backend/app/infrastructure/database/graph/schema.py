@@ -23,7 +23,7 @@ class GraphSchemaManager:
     async def initialize(self) -> None:
         """Initialize all required indexes and constraints."""
         driver = self._driver or GraphManager.get_driver()
-        
+
         # In FileGraph mode, we don't need to create indexes/constraints explicitly
         # but we check connectivity.
         if not await driver.verify_connectivity():

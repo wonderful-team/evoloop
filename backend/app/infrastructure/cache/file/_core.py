@@ -24,6 +24,7 @@ class _FileCacheCore:
     def __init__(self, cache_dir: str | None = None):
         if cache_dir is None:
             from app.core.config import settings
+
             cache_dir = os.path.join(settings.APP_DATA_DIR, "cache")
         self.cache_dir = Path(cache_dir)
         self._ensure_directories()
@@ -256,6 +257,7 @@ class _FileCacheCore:
 
     async def keys(self, pattern: str = "*") -> list[str]:
         import fnmatch
+
         result = []
         for category in ["strings", "hashes", "sets", "lists"]:
             dir_path = self.cache_dir / category

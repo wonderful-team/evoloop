@@ -34,7 +34,13 @@ class FileCachePipelineAdapter(CachePipeline):
         self._commands.append(("hget", (name, key), {}))
         return self
 
-    def hset(self, name: str, key: str | None = None, value: Any = None, mapping: dict | None = None) -> "FileCachePipelineAdapter":
+    def hset(
+        self,
+        name: str,
+        key: str | None = None,
+        value: Any = None,
+        mapping: dict | None = None,
+    ) -> "FileCachePipelineAdapter":
         self._commands.append(("hset", (name, key, value), {"mapping": mapping}))
         return self
 
