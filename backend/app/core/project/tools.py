@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 )
 async def create_project_tasks(
     project_id: int,
-    tasks: List[Dict[str, Any]],
+    tasks: list[dict[str, Any]],
     source_context: str | None = None
 ) -> str:
     """

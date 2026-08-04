@@ -6,6 +6,7 @@ from app.core.context.manager import ContextManager
 from app.core.file import ensure_local_path, read_file, resolve_path
 from app.core.file.document_reader import document_reader_service
 from app.core.tools import evoloop_tool
+from app.domain.tools.files.formatting import format_file_content, format_spreadsheet
 from app.domain.tools.schemas import (
     DocxHeading,
     DocxInspectionResult,
@@ -13,7 +14,7 @@ from app.domain.tools.schemas import (
     ExcelSheetInfo,
     PdfInspectionResult,
 )
-from app.utils.controller_response import ContentFormatter, ControllerResponse
+from app.utils.controller_response import ControllerResponse
 from app.utils.detect import detect_language
 from app.utils.json import dumps
 from app.utils.template import render_template
@@ -91,12 +92,12 @@ def inspect_document(file_path: str) -> str:
 
 @evoloop_tool(
     summary_template="evoloop.tool_summary.query_excel_sql",
-    affected_path_keys=["file_path"]
+    affected_path_keys=["file_path"],
 )
 async def query_excel_sql(file_path: str, sql_query: str) -> str:
     """
     Execute a SQL query on an Excel file using an in-memory SQLite database.
-    
+
     This is designed for efficiently querying large Excel files (>500MB) without loading
     the entire file into context. The Excel data is loaded into a temporary SQLite
     database for fast SQL querying.
@@ -113,13 +114,13 @@ async def query_excel_sql(file_path: str, sql_query: str) -> str:
 
     Returns:
         JSON string of the query results.
-    
+
     Example:
         query_excel_sql(file_path="sales_data.xlsx", sql_query="SELECT * FROM data WHERE revenue > 10000")
     """
     # Import here to avoid circular imports
     from app.domain.tools.files.utils import resolve_and_validate_path
-    
+
     try:
         # Resolve and validate path for security
         real_path = await resolve_and_validate_path(file_path, None)
@@ -159,7 +160,7 @@ async def read_document(file_path: str, start_page: int | None = None, end_page:
     [INTERNAL USE ONLY - Not exposed as Agent tool]
     Read and parse content from various document formats (PDF, DOCX, XLSX, MD, TXT, HTML, PY, JS, IMG, etc.).
     Returns the content converted to Markdown format.
-    
+
     This function is called internally by read_file for special document formats.
     It should NOT be called directly by the Agent.
 
@@ -175,16 +176,18 @@ async def read_document(file_path: str, start_page: int | None = None, end_page:
         if os.path.isdir(real_path):
             return _list_directory(real_path)
 
-        content = await document_reader_service.read_document(real_path, start_page, end_page)
+        content = await document_reader_service.read_document(
+            real_path, start_page, end_page
+        )
 
         # Wrap in file header if not already
         filename = os.path.basename(real_path)
         lang = detect_language(real_path) or "text"
 
-        if content.strip().startswith("# "): # Already has a header
+        if content.strip().startswith("# "):  # Already has a header
             return content
 
-        return ContentFormatter.file_content(filename, content, lang)
+        return format_file_content(filename, content, lang)
 
     except Exception as e:
         logger.error(f"Read failed: {e}")
@@ -218,6 +221,7 @@ def _resolve_and_validate(file_path: str) -> tuple[str | None, str | None]:
     if os.path.exists(dir_name) and os.path.isdir(dir_name):
         try:
             from app.core.file import FileTraverser
+
             entries = FileTraverser.list_entries(dir_name)
             visible_entries = [e for e in entries if not e.name.startswith(".")]
 
@@ -247,9 +251,10 @@ def _list_directory(real_path: str) -> str:
     """Returns a standardized formatted listing of the directory using unified traverser."""
     try:
         from app.core.file import FileTraverser
+
         entries = FileTraverser.list_entries(real_path)
         visible_entries = [e for e in entries if not e.name.startswith(".")]
-        
+
         formatted_items = []
         for e in visible_entries:
             if e.is_dir():
@@ -291,7 +296,7 @@ def _read_file_content(real_path: str, start: int | None, end: int | None) -> st
 def _wrap_code_block(path: str, content: str, lang: str) -> str:
     """Reads a text file and returns it wrapped in a markdown code block."""
     filename = os.path.basename(path)
-    return ContentFormatter.file_content(filename, content, lang)
+    return format_file_content(filename, content, lang)
 
 
 # --- Inspection Helpers ---
@@ -333,7 +338,7 @@ def _read_pdf(path: str, start: int | None, end: int | None) -> str:
 
     MAX_PAGES = 20
     start_idx = (start - 1) if start else 0
-    
+
     is_truncated = False
     if end is None:
         end_idx = min(start_idx + MAX_PAGES, total_pages)
@@ -345,10 +350,9 @@ def _read_pdf(path: str, start: int | None, end: int | None) -> str:
     try:
         content_blocks = []
         for i in range(start_idx, end_idx):
-            content_blocks.append({
-                "title": f"Page {i+1}",
-                "content": reader.pages[i].extract_text()
-            })
+            content_blocks.append(
+                {"title": f"Page {i + 1}", "content": reader.pages[i].extract_text()}
+            )
 
         footer_msg = ""
         if is_truncated:
@@ -377,8 +381,8 @@ def _read_pdf(path: str, start: int | None, end: int | None) -> str:
             type="document",
             filename=os.path.basename(path),
             metadata=reader.metadata,
-            page_info=f"Pages: {start_idx+1} to {end_idx} (Total {total_pages})",
-            content_blocks=content_blocks
+            page_info=f"Pages: {start_idx + 1} to {end_idx} (Total {total_pages})",
+            content_blocks=content_blocks,
         )
 
 
@@ -387,28 +391,28 @@ def _read_docx(path: str) -> str:
     # mammoth requires a file-like object in binary mode
     with open(path, "rb") as docx_file:
         result = mammoth.convert_to_markdown(docx_file)
-        return ContentFormatter.file_content(os.path.basename(path), result.value, lang="markdown")
+        return format_file_content(os.path.basename(path), result.value, lang="markdown")
 
 
 def _read_excel(path: str) -> str:
     xl = pd.ExcelFile(path)
-    sheet_names = xl.sheet_names # Get sheet names once
+    sheet_names = xl.sheet_names  # Get sheet names once
     MAX_ROWS_PER_SHEET = 100
     try:
         content_blocks = []
         for sheet_name in sheet_names:
             # Read only first N rows for preview
             df = pd.read_excel(path, sheet_name=sheet_name, nrows=MAX_ROWS_PER_SHEET + 1)
-            
+
             is_truncated = len(df) > MAX_ROWS_PER_SHEET
             if is_truncated:
                 df = df.head(MAX_ROWS_PER_SHEET)
-            
+
             content = df.to_markdown(index=False) if not df.empty else "*Empty Sheet*"
-            
+
             if is_truncated:
                 content += f"\n\n... (Sheet '{sheet_name}' truncated to first {MAX_ROWS_PER_SHEET} rows)"
-                content += f"\nTip: This spreadsheet is large. Use `query_excel_sql` to perform precise queries on the data."
+                content += "\nTip: This spreadsheet is large. Use `query_excel_sql` to perform precise queries on the data."
 
             content_blocks.append({
                 "title": f"Sheet: {sheet_name}",
@@ -419,7 +423,7 @@ def _read_excel(path: str) -> str:
             "domain/project/document_content.prompt.j2",
             type="spreadsheet",
             filename=os.path.basename(path),
-            content_blocks=content_blocks
+            content_blocks=content_blocks,
         )
     except Exception as e:
         logger.error(f"Failed to render Spreadsheet template: {e}")
@@ -432,11 +436,12 @@ def _read_excel(path: str) -> str:
                 "content": df.to_markdown(index=False) if not df.empty else "*Empty Sheet*",
                 "is_empty": df.empty
             })
-        return ContentFormatter.spreadsheet(os.path.basename(path), sheets)
+        return format_spreadsheet(os.path.basename(path), sheets)
 
 
 def _read_html(path: str) -> str:
     """Standardized HTML reading using unified core IO."""
     from app.core.file import read_file
+
     result = read_file(path)
-    return ContentFormatter.file_content(os.path.basename(path), md(result.content), lang="markdown")
+    return format_file_content(os.path.basename(path), md(result.content), lang="markdown")

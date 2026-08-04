@@ -24,11 +24,11 @@ def sql_query(db_uri: str, sql: str) -> str:
     Executes a READ-ONLY SQL query against the specified database and returns the results as JSON.
     Use this tool to read data from connected databases (MySQL, Postgres, etc.).
     Maximum 1000 rows will be returned.
-    
+
     Args:
         db_uri: The connection string. e.g. "mysql+pymysql://user:pass@host:port/dbname"
         sql: The SQL query to execute. MUST be a SELECT statement.
-    
+
     Returns:
         JSON string containing the query results.
     """
@@ -93,4 +93,3 @@ def sql_query(db_uri: str, sql: str) -> str:
     except Exception as e:
         logger.error(f"Failed to execute SQL: {e}")
         return json.dumps({"status": "error", "message": str(e)})
-

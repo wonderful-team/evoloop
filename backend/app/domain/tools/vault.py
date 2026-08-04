@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 @evoloop_tool(
     is_state_mutating=False,
-    summary_template="evoloop.tool_summary.list_vault_credentials"
+    summary_template="evoloop.tool_summary.list_vault_credentials",
 )
 async def list_vault_credentials(
     type: str | None = None,
@@ -21,27 +21,27 @@ async def list_vault_credentials(
     """
     List all secure credential identifiers, types, and descriptions available in the Secure Vault
     for the current project context.
-    
+
     This tool does NOT return the decrypted passwords, private keys, or secret payloads.
     It only returns metadata, letting you know what credential identifiers are available
     for placeholder substitution (e.g. {{vault.credential_id.field}}).
-    
+
     Args:
         type: Optional filter by credential type (e.g. "ssh", "env", "password", "api_key").
     """
     from app.infrastructure.config.vault import SecureVaultService
-    
+
     ctx = ContextManager.current()
     project_id = ctx.project_id
-    
+
     try:
         credentials = SecureVaultService.list_credentials(project_id=project_id)
         if type:
             credentials = [c for c in credentials if c["type"] == type]
-            
+
         if not credentials:
             return "No credentials found in the Secure Vault for the current project context."
-            
+
         output = ["### Available Secure Credentials in Vault:"]
         for c in credentials:
             project_desc = f" (Project: {c['project_id']})" if c['project_id'] else " (Global)"
@@ -56,22 +56,22 @@ async def list_vault_credentials(
 
 @evoloop_tool(
     is_state_mutating=True,
-    summary_template="evoloop.tool_summary.request_secure_credential"
+    summary_template="evoloop.tool_summary.request_secure_credential",
 )
 async def request_secure_credential(
     identifier: str,
     type: str,
     fields: list[str],
     description: str | None = None,
-    config: Annotated[RunnableConfig, InjectedToolArg] = None
+    config: Annotated[RunnableConfig, InjectedToolArg] = None,
 ) -> str:
     """
     Request the user to securely enter sensitive credentials (passwords, private keys, API keys).
-    
+
     This triggers a secure prompt where the user enters the secrets directly into the database vault.
     Once submitted, the credentials are saved encrypted in the vault, and you can use them using
     the placeholder format: {{vault.identifier.field_name}}.
-    
+
     Args:
         identifier: The unique identifier for the credential (e.g. "customer_a_ssh", "github_token")
         type: The credential type ("ssh", "env", "password", "api_key")
@@ -81,10 +81,10 @@ async def request_secure_credential(
     import getpass
 
     from app.infrastructure.config.vault import SecureVaultService
-    
+
     ctx = ContextManager.current()
     project_id = ctx.project_id
-    
+
     # Check if we are in an interactive TTY console
     if not sys.stdin.isatty():
         logger.warning(f"[SecureVault] Non-interactive environment detected. Stdin prompt blocked for: {identifier}")
@@ -94,12 +94,12 @@ async def request_secure_credential(
             f"Please direct the user to open the project's 'Vault' settings page in the UI and add the "
             f"credential identifier '{identifier}' with keys: {', '.join(fields)}."
         )
-    
+
     logger.info(f"[HITL] Requesting credential entry for: {identifier} (Type: {type})")
     if description:
         logger.info(f"[HITL] Reason: {description}")
     logger.info(f"[HITL] Required Fields: {', '.join(fields)}")
-    
+
     payload = {}
     for field in fields:
         prompt = f"Enter value for '{field}': "
@@ -118,7 +118,7 @@ async def request_secure_credential(
             type=type,
             payload=payload,
             project_id=project_id,
-            description=description
+            description=description,
         )
         return (
             f"✓ Credential '{identifier}' has been successfully saved to the Secure Vault.\n"

@@ -1,8 +1,8 @@
 import logging
 
 from app.core.tools import evoloop_tool
-from app.infrastructure.vision import VisionTask, vision_engine
 from app.infrastructure.drivers.macos import macos_driver
+from app.infrastructure.vision import VisionTask, vision_engine
 from app.utils.template import render_template
 
 logger = logging.getLogger(__name__)
@@ -11,12 +11,12 @@ logger = logging.getLogger(__name__)
 @evoloop_tool(
     summary_template="evoloop.tool_summary.analyze_image",
     affected_path_keys=["image_source"],
-    is_multimodal=True
+    is_multimodal=True,
 )
 async def analyze_image(
     image_source: str,
     question: str = "Describe this image in detail.",
-    include_ax_tree: bool = False
+    include_ax_tree: bool = False,
 ) -> str:
     """
     Analyze an image using the unified VisionEngine.
@@ -34,11 +34,13 @@ async def analyze_image(
     if include_ax_tree:
         try:
             from app.core.context import ContextManager
+
             ctx = ContextManager.current()
             current_ecosystem = ctx.metadata.get("current_ecosystem")
 
             if current_ecosystem == "android":
                 from app.infrastructure.drivers.adb import adb_driver
+
                 ax_tree = adb_driver.dump_ui()
                 tree_label = "Android UI Hierarchy"
             else:
@@ -46,7 +48,11 @@ async def analyze_image(
                 tree_label = "macOS Accessibility (AX) Tree"
 
             if ax_tree and "Error" not in ax_tree:
-                final_prompt = render_template("core/vision/vision_context.prompt.j2", tree_label=tree_label, ax_tree=ax_tree)
+                final_prompt = render_template(
+                    "core/vision/vision_context.prompt.j2",
+                    tree_label=tree_label,
+                    ax_tree=ax_tree,
+                )
                 logger.info(f"[Vision] Injected {tree_label} into prompt via template.")
         except Exception as e:
             logger.warning(f"[Vision] Failed to inject AX Tree: {e}")

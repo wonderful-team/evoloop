@@ -22,13 +22,12 @@ async def _search_concepts(
     limit: int = 5,
 ) -> list[dict]:
     from app.core.memory.lifespan import MemoryLifespanManager
+
     try:
         if not MemoryLifespanManager.is_initialized():
             await MemoryLifespanManager.ainitialize()
         container = MemoryLifespanManager.get_container()
-        concepts = await container.memory_manager.search_concepts(
-            query or "", project_id=project_id, limit=limit,
-        )
+        concepts = await container.memory_manager.search_concepts(query or "", project_id=project_id, limit=limit)
         source = "global" if project_id == DEFAULT_PROJECT_ID else "project"
         return [
             {"name": c.name, "description": c.description, "source": source}

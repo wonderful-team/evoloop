@@ -5,6 +5,7 @@ Enables the agent to pause execution, request user input, and seek approval for 
 This module is now a thin wrapper around app.core.hitl; the shared HITL primitives
 live there so they can also be used by the authorization framework.
 """
+
 import logging
 from typing import Literal
 
@@ -90,7 +91,7 @@ async def ask_human(
     # Format response for the agent
     context_section = ""
     if context:
-        context_section = f"\n{i18n.get('domain_tools.human_input.context', context=context)}"
+        context_section = f"\n{i18n.get('domain_tools.human_input.context', context={'context': context})}"
 
     options_section = ""
     if options:
@@ -98,7 +99,9 @@ async def ask_human(
 
     default_section = ""
     if default_value:
-        default_section = f"\n{i18n.get('domain_tools.human_input.default', default=default_value)}"
+        # default 同名碰撞：i18n.get 的 default 参数是缺失 key 时的回退值，
+        # 若直接用 default=default_value 会吞掉模板变量 {default}。
+        default_section = f"\n{i18n.get('domain_tools.human_input.default', context={'default': default_value})}"
 
     response_text = i18n.get(
         "domain_tools.human_input.request_template",

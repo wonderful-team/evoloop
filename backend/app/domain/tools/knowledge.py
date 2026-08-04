@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 @evoloop_tool(
     is_state_mutating=True,
     is_hidden=True,  # Internal knowledge management, not user-facing
-    summary_template="evoloop.tool_summary.save_concepts"
+    summary_template="evoloop.tool_summary.save_concepts",
 )
 async def save_concepts(
     concepts: list[ExtractedConcept],
@@ -39,7 +39,10 @@ async def save_concepts(
         normalized = []
         for c in concepts:
             if isinstance(c, dict):
-                normalized.append({"name": c.get("name", ""), "description": c.get("description", "")})
+                normalized.append({
+                    "name": c.get("name", ""),
+                    "description": c.get("description", "")
+                })
             else:
                 normalized.append({"name": c.name, "description": c.description})
 

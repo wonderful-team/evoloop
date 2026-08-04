@@ -1,6 +1,7 @@
 """
 Git-based knowledge harvesting tools.
 """
+
 import os
 
 from app.constants import DEFAULT_PROJECT_ID

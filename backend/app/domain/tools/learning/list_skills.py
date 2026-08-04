@@ -6,9 +6,7 @@ from app.i18n.service import i18n
 logger = logging.getLogger(__name__)
 
 
-@evoloop_tool(
-    summary_template="evoloop.tool_summary.list_skills"
-)
+@evoloop_tool(summary_template="evoloop.tool_summary.list_skills")
 async def list_skills(namespace: str | None = None, query: str | None = None) -> str:
     """
     List available SOPs (Standard Operating Procedures) in the skill library.
@@ -24,12 +22,25 @@ async def list_skills(namespace: str | None = None, query: str | None = None) ->
     count = len(index)
     ns = namespace or i18n.get("common.all", default="all")
 
-    lines = [i18n.get("domain_tools.learning.list_skills.catalog_header", namespace=ns, count=str(count))]
+    lines = [
+        i18n.get(
+            "domain_tools.learning.list_skills.catalog_header",
+            namespace=ns,
+            count=str(count),
+        )
+    ]
     if not index:
         lines.append(i18n.get("domain_tools.learning.list_skills.no_skills"))
     else:
         for skill in index:
-            lines.append(i18n.get("domain_tools.learning.list_skills.skill_item", id=skill['id'], name=skill['name'], description=skill['description']))
+            lines.append(
+                i18n.get(
+                    "domain_tools.learning.list_skills.skill_item",
+                    id=skill["id"],
+                    name=skill["name"],
+                    description=skill["description"],
+                )
+            )
 
     lines.append(i18n.get("domain_tools.learning.list_skills.instruction"))
 

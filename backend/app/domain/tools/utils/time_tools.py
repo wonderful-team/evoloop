@@ -9,13 +9,13 @@ logger = logging.getLogger(__name__)
 @evoloop_tool(
     is_state_mutating=True,
     is_hidden=True,
-    summary_template="evoloop.tool_summary.wait_for"
+    summary_template="evoloop.tool_summary.wait_for",
 )
 async def wait_for(seconds: float) -> str:
     """
     Wait for a specified number of seconds.
     Useful for UI automation to wait for elements to load or animations to finish.
-    
+
     Args:
         seconds: Number of seconds to wait (e.g., 2, 0.5).
     """

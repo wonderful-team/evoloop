@@ -1,14 +1,12 @@
-
 from app.core.tools import evoloop_tool
 
 
 @evoloop_tool(
-    is_hidden=True,
-    summary_template="evoloop.tool_summary.search_native_tools"
+    is_hidden=True, summary_template="evoloop.tool_summary.search_native_tools"
 )
 async def search_native_tools(query: str = "") -> str:
     """
-    Search available system tools and capabilities. 
+    Search available system tools and capabilities.
     Use this to find specific 'sensors' (telemetry) or 'actuators' (control tools).
     Returns tools grouped by ecosystem for better strategic planning.
     """
@@ -17,7 +15,7 @@ async def search_native_tools(query: str = "") -> str:
     all_tools = await tool_manager.get_all_capabilities()
 
     query_lower = query.lower() if query else ""
-    
+
     # Ecosystem buckets
     groups = {
         "android": [],
@@ -55,6 +53,6 @@ async def search_native_tools(query: str = "") -> str:
         lines.append(f"\n## {eco.upper()} ({len(tools)} tools)")
         for t in tools:
             lines.append(f"- {t['name']}: {t['description']}")
-    
+
     total_count = sum(len(t) for t in groups.values())
     return "\n".join(lines) if lines else "No tools found.", {"count": total_count}

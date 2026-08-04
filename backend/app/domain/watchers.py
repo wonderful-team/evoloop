@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 # --- Global Observer Manager ---
 
+
 class GlobalObserverManager:
     """
     Singleton to manage a single Watchdog Observer instance for the entire application.
@@ -110,6 +111,7 @@ observer_manager = GlobalObserverManager()
 
 
 # --- Reuse Handlers ---
+
 
 class IndexingEventSubscriber(FileSystemEventHandler):
     """
@@ -204,10 +206,7 @@ class IndexingEventSubscriber(FileSystemEventHandler):
             # Publish event to system bus instead of directly calling service
             from app.domain.codebase.event.publishers import publish_file_removed
 
-            asyncio.run_coroutine_threadsafe(
-                publish_file_removed(repo_id=self.repo_id, file_path=path),
-                self.loop
-            )
+            asyncio.run_coroutine_threadsafe(publish_file_removed(repo_id=self.repo_id, file_path=path), self.loop)
 
     def _process_move(self, src: str, dest: str):
         """Publish FileMovedEvent or FileRemovedEvent to the event bus."""
@@ -222,7 +221,7 @@ class IndexingEventSubscriber(FileSystemEventHandler):
 
             asyncio.run_coroutine_threadsafe(
                 publish_file_moved(repo_id=self.repo_id, src_path=src, dest_path=dest),
-                self.loop
+                self.loop,
             )
         elif src_valid and not dest_valid:
             # Moved out of valid scope -> Treat as delete

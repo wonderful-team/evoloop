@@ -10,14 +10,14 @@ logger = logging.getLogger(__name__)
 async def reconcile_skill(skill_id: int, thread_id: str) -> str:
     """
     Self-heal a skill by reconciling its broken macro with a successful execution trace.
-    Use this AFTER you have successfully performed the action using your reasoning or 
-    after a human has helped you recover. This will update the skill's deterministic macro 
+    Use this AFTER you have successfully performed the action using your reasoning or
+    after a human has helped you recover. This will update the skill's deterministic macro
     so it works automatically next time.
-    
+
     Args:
         skill_id: The ID of the skill to repair.
         thread_id: The current thread ID containing the successful recovery trace.
-        
+
     Returns:
         A message indicating if the reconciliation was triggered.
     """

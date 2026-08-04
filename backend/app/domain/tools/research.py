@@ -6,6 +6,8 @@ from urllib.parse import quote, quote_plus
 import requests
 
 from app.core.tools import evoloop_tool
+from app.utils.controller_response import ControllerResponse
+from app.utils.search_results_formatter import format_web_search_results
 
 logger = logging.getLogger(__name__)
 
@@ -52,20 +54,15 @@ async def _search_baidu(query: str) -> list[str] | None:
             "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         ),
         "Accept": (
-            "text/html,application/xhtml+xml,application/xml;q=0.9,"
-            "image/webp,*/*;q=0.8"
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
         ),
         "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
     }
 
     url = f"https://www.baidu.com/s?wd={quote_plus(query)}"
 
-
     loop = asyncio.get_running_loop()
-    response = await loop.run_in_executor(
-        None,
-        lambda: requests.get(url, headers=headers, timeout=15)
-    )
+    response = await loop.run_in_executor(None, lambda: requests.get(url, headers=headers, timeout=15))
     response.encoding = "utf-8"
 
     soup = BeautifulSoup(response.text, "html.parser")
@@ -128,10 +125,7 @@ async def _search_wikipedia(query: str) -> list[str] | None:
 
     try:
         loop = asyncio.get_running_loop()
-        response = await loop.run_in_executor(
-            None,
-            lambda: requests.get(api_url, params=params, timeout=15)
-        )
+        response = await loop.run_in_executor(None, lambda: requests.get(api_url, params=params, timeout=15))
         response.raise_for_status()
         data = response.json()
 
@@ -145,7 +139,7 @@ async def _search_wikipedia(query: str) -> list[str] | None:
             snippet = item.get("snippet", "")
             # 清理 HTML 标签
             snippet_clean = re.sub(r"<[^>]+>", "", snippet)
-            page_url = f"https://{lang}.wikipedia.org/wiki/{quote(title.replace(' ', '_'))}"
+            page_url = (f"https://{lang}.wikipedia.org/wiki/{quote(title.replace(' ', '_'))}")
 
             results.append(
                 f"Title: {title}\n"
@@ -175,10 +169,7 @@ async def _fetch_wikipedia_summary(title: str, lang: str = "en") -> str | None:
 
     try:
         loop = asyncio.get_running_loop()
-        response = await loop.run_in_executor(
-            None,
-            lambda: requests.get(api_url, params=params, timeout=15)
-        )
+        response = await loop.run_in_executor(None, lambda: requests.get(api_url, params=params, timeout=15))
         response.raise_for_status()
         data = response.json()
 
@@ -193,20 +184,16 @@ async def _fetch_wikipedia_summary(title: str, lang: str = "en") -> str | None:
         return None
 
 
-@evoloop_tool(
-    summary_template="evoloop.tool_summary.search_web"
-)
+@evoloop_tool(summary_template="evoloop.tool_summary.search_web")
 async def search_web(query: str) -> str:
     """
     Searches the web for the given query using DuckDuckGo, Baidu, or Wikipedia.
     Returns a list of search results with titles and URLs.
     """
-    from app.utils.controller_response import ContentFormatter, ControllerResponse
-    
     # 首先尝试 DuckDuckGo
     results = await _search_duckduckgo(query)
     if results:
-        res = ContentFormatter.web_search_results(query, results)
+        res = format_web_search_results(query, results)
         if isinstance(res, tuple):
             text, meta = res
             meta["page"] = 1
@@ -216,7 +203,7 @@ async def search_web(query: str) -> str:
     # 回退到百度搜索
     results = await _search_baidu(query)
     if results:
-        res = ContentFormatter.web_search_results(query, results)
+        res = format_web_search_results(query, results)
         if isinstance(res, tuple):
             text, meta = res
             meta["page"] = 1
@@ -226,7 +213,7 @@ async def search_web(query: str) -> str:
     # 回退到 Wikipedia 百科搜索
     results = await _search_wikipedia(query)
     if results:
-        res = ContentFormatter.web_search_results(query, results)
+        res = format_web_search_results(query, results)
         if isinstance(res, tuple):
             text, meta = res
             meta["page"] = 1
@@ -237,5 +224,5 @@ async def search_web(query: str) -> str:
     return ControllerResponse.error(
         "Unable to search the web",
         details="Search services are currently unavailable",
-        note="Use 'browser_control' to navigate to target sites directly for higher reliability"
+        note="Use 'browser_control' to navigate to target sites directly for higher reliability",
     ), {"count": 0}

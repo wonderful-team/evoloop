@@ -4,6 +4,7 @@ Wiki page read-only service.
 Generation is now handled by the Agent + Skill system (Wiki Generation SKILL.md).
 This module only provides query utilities for the WikiPage table.
 """
+
 import logging
 
 from sqlalchemy import select

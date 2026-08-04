@@ -22,10 +22,11 @@ from app.core.monitoring.ui_actions import (
 )
 from app.core.tools import evoloop_tool, get_working_directory
 from app.core.tools.base import InjectedToolArg
+from app.domain.wiki.formatting import format_wiki_pages
 from app.domain.wiki.service import wiki_service
 from app.infrastructure.database.resource_manager import db_resource_manager
 from app.models.wiki import WikiPage
-from app.utils.controller_response import ControllerResponse, PerceptionsFormatter
+from app.utils.controller_response import ControllerResponse
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +76,9 @@ async def _resolve_wiki_project_id() -> int | None:
     pid = ContextManager.resolve_project_id(allow_global=False, request_temp=True)
     if pid == 0:
         result = await require_project_for_tool(
-            tool_name="wiki", tool_category="wiki", prompt="Please select a project to use Wiki:"
+            tool_name="wiki",
+            tool_category="wiki",
+            prompt="Please select a project to use Wiki:",
         )
         if isinstance(result, str):
             return None
@@ -173,7 +176,7 @@ def _sync_page_to_db(
 @evoloop_tool(
     summary_template="evoloop.tool_summary.list_wiki_pages",
 )
-async def list_wiki_pages(config: Annotated[RunnableConfig, InjectedToolArg] = None) -> str:
+async def list_wiki_pages(config: Annotated[RunnableConfig, InjectedToolArg] = None,) -> str:
     """
     List all available Wiki pages for the current project.
     Returns a list of page titles.
@@ -233,11 +236,9 @@ async def list_wiki_pages(config: Annotated[RunnableConfig, InjectedToolArg] = N
 
     pages = wiki_service.get_pages(project_id)
     if not pages:
-        return ControllerResponse.error(
-            f"No Wiki pages found for project {project_id}."
-        ), {"count": 0}
+        return ControllerResponse.error(f"No Wiki pages found for project {project_id}."), {"count": 0}
 
-    return PerceptionsFormatter.wiki_pages(pages), {"count": len(pages)}
+    return format_wiki_pages(pages), {"count": len(pages)}
 
 
 @evoloop_tool(
