@@ -6,11 +6,12 @@ and parses it into UIElement objects.
 """
 
 import logging
+import time
 import xml.etree.ElementTree as ET
 
+from app.infrastructure.drivers.adb import ADBError, adb_driver
 from app.infrastructure.vision.providers.base import VisionProvider
 from app.infrastructure.vision.types import ElementType, UIElement, VisionResult, VisionTask
-from app.infrastructure.drivers.adb import ADBError, adb_driver
 from app.utils.geometry import parse_bounds
 
 logger = logging.getLogger(__name__)
@@ -19,12 +20,12 @@ logger = logging.getLogger(__name__)
 def _parse_bounds(bounds_str: str) -> tuple[int, int, int, int] | None:
     """
     Parse bounds string like "[100,200][300,400]" to (x1, y1, x2, y2).
-    
+
     Note: Delegates to app.utils.geometry.parse_bounds for the actual implementation.
     """
     bounds = parse_bounds(bounds_str)
     if bounds:
-        return (bounds.x1, bounds.y1, bounds.x2, bounds.y2)
+        return bounds.x1, bounds.y1, bounds.x2, bounds.y2
     return None
 
 
@@ -55,7 +56,7 @@ def _infer_element_type(node: ET.Element) -> ElementType:
 class AndroidA11yProvider(VisionProvider):
     """
     Vision provider using Android UI Automator.
-    
+
     This is the fastest and most accurate provider for Android devices,
     as it directly reads the accessibility tree.
     """
@@ -77,21 +78,17 @@ class AndroidA11yProvider(VisionProvider):
             return False
 
     async def process(
-        self,
-        task: VisionTask,
-        image_source: str,
-        prompt: str | None = None,
-        **kwargs
+        self, task: VisionTask, image_source: str, prompt: str | None = None, **kwargs
     ) -> VisionResult:
         """
         Extract UI elements from Android UI hierarchy.
-        
+
         Args:
             task: VisionTask (detect or analyze)
             image_source: Not used (we get fresh data from device)
             prompt: Not used
             **kwargs: May contain device_id
-            
+
         Returns:
             VisionResult with elements
         """
@@ -99,10 +96,9 @@ class AndroidA11yProvider(VisionProvider):
             return VisionResult(
                 task=task,
                 success=False,
-                metadata={"error": f"Task {task} not supported by AndroidA11yProvider"}
+                metadata={"error": f"Task {task} not supported by AndroidA11yProvider"},
             )
 
-        import time
         start = time.time()
         device_id = kwargs.get("device_id")
 
@@ -111,11 +107,7 @@ class AndroidA11yProvider(VisionProvider):
             xml_content = adb_driver.dump_ui(device_id=device_id, compressed=compressed)
         except ADBError as e:
             logger.error(f"UI dump failed: {e}")
-            return VisionResult(
-                task=task,
-                success=False,
-                metadata={"error": str(e)}
-            )
+            return VisionResult(task=task, success=False, metadata={"error": str(e)})
 
         elements = self._parse_xml(xml_content)
 
@@ -212,7 +204,7 @@ class AndroidA11yProvider(VisionProvider):
                     "selected": selected,
                     "content_desc": node.get("content-desc", ""),
                     "index": node.get("index", ""),
-                }
+                },
             )
 
             elements.append(element)

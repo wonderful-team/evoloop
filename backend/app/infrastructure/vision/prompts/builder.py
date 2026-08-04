@@ -30,7 +30,7 @@ class VisionPromptBuilder:
         template_vars = {
             "mode": "locate",
             "element": element,
-            "user_lang": self.get_user_lang()
+            "user_lang": self.get_user_lang(),
         }
         return self._render(template_vars)
 
@@ -38,7 +38,7 @@ class VisionPromptBuilder:
         template_vars = {
             "mode": "compare",
             "focus_instruction": focus_instruction,
-            "user_lang": self.get_user_lang()
+            "user_lang": self.get_user_lang(),
         }
         return self._render(template_vars)
 

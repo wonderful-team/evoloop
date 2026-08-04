@@ -82,6 +82,7 @@ class VisionRouter:
         # Default Routing
         if self._ocr_enabled and task == VisionTask.OCR:
             from app.core.context import ContextManager
+
             ctx = ContextManager.current()
             current_ecosystem = ctx.metadata.get("current_ecosystem")
 
@@ -94,7 +95,11 @@ class VisionRouter:
             # 2. MacOS Native Vision (Retina Aware)
             else:
                 for p in self.providers:
-                    if isinstance(p, MacOSVisionOCRProvider) and not isinstance(p, AndroidVisionOCRProvider) and await p.is_available():
+                    if (
+                        isinstance(p, MacOSVisionOCRProvider)
+                        and not isinstance(p, AndroidVisionOCRProvider)
+                        and await p.is_available()
+                    ):
                         return p
 
         if task in [VisionTask.ANALYZE, VisionTask.CAPTION, VisionTask.COMPARE]:

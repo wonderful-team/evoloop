@@ -18,18 +18,22 @@ import os
 import shutil
 from datetime import datetime, timedelta
 from enum import Enum
+
 from app.core.config import settings
 from app.core.file import compute_file_hash, ensure_dir
 from app.infrastructure.vision.types import PlatformType
 
 logger = logging.getLogger(__name__)
 
+
 class ScreenshotPurpose(Enum):
     """Screenshot storage purpose categories."""
-    TEMP = "temp"         # 临时使用（OCR、即时处理）
-    ATLAS = "atlas"       # Atlas知识图谱学习
-    DEBUG = "debug"       # 调试/错误排查
-    DATASET = "dataset"   # 训练数据集
+
+    TEMP = "temp"  # 临时使用（OCR、即时处理）
+    ATLAS = "atlas"  # Atlas知识图谱学习
+    DEBUG = "debug"  # 调试/错误排查
+    DATASET = "dataset"  # 训练数据集
+
 
 class ScreenshotStorage:
     """
@@ -83,7 +87,7 @@ class ScreenshotStorage:
         platform: str,
         bundle_id: str | None = None,
         suffix: str | None = None,
-        ext: str = "png"
+        ext: str = "png",
     ) -> str:
         """Generate organized filename with timestamp."""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
@@ -107,7 +111,7 @@ class ScreenshotStorage:
         platform: PlatformType = PlatformType.MACOS,
         bundle_id: str | None = None,
         suffix: str | None = None,
-        create_dir: bool = True
+        create_dir: bool = True,
     ) -> str:
         """
         Get a file path for saving a screenshot.
@@ -147,7 +151,7 @@ class ScreenshotStorage:
         purpose: ScreenshotPurpose = ScreenshotPurpose.TEMP,
         platform: PlatformType = PlatformType.MACOS,
         bundle_id: str | None = None,
-        suffix: str | None = None
+        suffix: str | None = None,
     ) -> str:
         """
         Save screenshot bytes to appropriate location.
@@ -179,7 +183,7 @@ class ScreenshotStorage:
         purpose: ScreenshotPurpose,
         platform: PlatformType = PlatformType.MACOS,
         bundle_id: str | None = None,
-        suffix: str | None = None
+        suffix: str | None = None,
     ) -> str | None:
         """
         Copy an existing screenshot to another purpose category.
@@ -231,7 +235,7 @@ class ScreenshotStorage:
 
             for root, dirs, files in os.walk(base_dir):
                 for file in files:
-                    if not file.endswith(('.png', '.jpg', '.jpeg')):
+                    if not file.endswith((".png", ".jpg", ".jpeg")):
                         continue
 
                     filepath = os.path.join(root, file)
@@ -278,7 +282,7 @@ class ScreenshotStorage:
             if os.path.exists(base_dir):
                 for root, dirs, files in os.walk(base_dir):
                     for file in files:
-                        if file.endswith(('.png', '.jpg', '.jpeg')):
+                        if file.endswith((".png", ".jpg", ".jpeg")):
                             filepath = os.path.join(root, file)
                             try:
                                 total_size += os.path.getsize(filepath)
@@ -301,24 +305,27 @@ class ScreenshotStorage:
         result = compute_file_hash(filepath, algo="md5")
         return result[:16] if result else ""
 
+
 # Singleton instance
 screenshot_storage = ScreenshotStorage()
+
 
 def get_screenshot_path(
     purpose: ScreenshotPurpose = ScreenshotPurpose.TEMP,
     platform: PlatformType = PlatformType.MACOS,
     bundle_id: str | None = None,
-    suffix: str | None = None
+    suffix: str | None = None,
 ) -> str:
     """Convenience function to get screenshot path."""
     return screenshot_storage.get_path(purpose, platform, bundle_id, suffix)
+
 
 def save_screenshot(
     image_data: bytes,
     purpose: ScreenshotPurpose = ScreenshotPurpose.TEMP,
     platform: PlatformType = PlatformType.MACOS,
     bundle_id: str | None = None,
-    suffix: str | None = None
+    suffix: str | None = None,
 ) -> str:
     """Convenience function to save screenshot."""
     return screenshot_storage.save_screenshot(image_data, purpose, platform, bundle_id, suffix)
@@ -326,6 +333,7 @@ def save_screenshot(
 # ============================================================================
 # Screen Recording Storage (屏幕录制存储)
 # ============================================================================
+
 
 class ScreenRecordingStorage:
     """
@@ -363,7 +371,7 @@ class ScreenRecordingStorage:
         session_id: str | None = None,
         timestamp: int | None = None,
         ext: str = "mp4",
-        create_dir: bool = True
+        create_dir: bool = True,
     ) -> str:
         """
         Get a file path for saving a screen recording.
@@ -400,7 +408,7 @@ class ScreenRecordingStorage:
         session_id: str,
         timestamp_ms: int,
         ext: str = "png",
-        create_dir: bool = True
+        create_dir: bool = True,
     ) -> str:
         """
         Get a file path for saving an extracted frame.
@@ -457,7 +465,7 @@ class ScreenRecordingStorage:
         if os.path.exists(settings.SCREEN_RECORDINGS_DIR):
             for root, dirs, files in os.walk(settings.SCREEN_RECORDINGS_DIR):
                 for file in files:
-                    if not file.endswith(('.mp4', '.mov', '.avi', '.mkv')):
+                    if not file.endswith((".mp4", ".mov", ".avi", ".mkv")):
                         continue
 
                     filepath = os.path.join(root, file)
@@ -502,8 +510,9 @@ class ScreenRecordingStorage:
     def _remove_empty_dirs(self, base_dir: str):
         """Remove empty directories recursively using unified traverser."""
         from app.core.file import FileTraverser, TraverseOptions
+
         options = TraverseOptions(include_dirs=True, follow_ignore=False)
-        # We need bottom-up but walk is top-down. 
+        # We need bottom-up but walk is top-down.
         # Actually, we can just get all dirs and sort by depth descending.
         dirs = []
         for path in FileTraverser.walk(base_dir, options):
@@ -524,17 +533,26 @@ class ScreenRecordingStorage:
     def get_stats(self) -> dict[str, dict]:
         """Get storage statistics for recordings."""
         stats = {
-            "videos": {"directory": settings.SCREEN_RECORDINGS_DIR, "file_count": 0, "total_size_mb": 0},
-            "frames": {"directory": settings.SCREEN_RECORDING_FRAMES_DIR, "file_count": 0, "total_size_mb": 0},
+            "videos": {
+                "directory": settings.SCREEN_RECORDINGS_DIR,
+                "file_count": 0,
+                "total_size_mb": 0,
+            },
+            "frames": {
+                "directory": settings.SCREEN_RECORDING_FRAMES_DIR,
+                "file_count": 0,
+                "total_size_mb": 0,
+            },
         }
 
         from app.core.file import FileTraverser, TraverseOptions
+
         no_ignore_options = TraverseOptions(follow_ignore=False)
 
         # Count videos
         if os.path.exists(settings.SCREEN_RECORDINGS_DIR):
             for filepath in FileTraverser.walk(settings.SCREEN_RECORDINGS_DIR, no_ignore_options):
-                if filepath.lower().endswith(('.mp4', '.mov', '.avi', '.mkv')):
+                if filepath.lower().endswith((".mp4", ".mov", ".avi", ".mkv")):
                     try:
                         stats["videos"]["total_size_mb"] += os.path.getsize(filepath) / (1024 * 1024)
                         stats["videos"]["file_count"] += 1
@@ -544,7 +562,7 @@ class ScreenRecordingStorage:
         # Count frames
         if os.path.exists(settings.SCREEN_RECORDING_FRAMES_DIR):
             for filepath in FileTraverser.walk(settings.SCREEN_RECORDING_FRAMES_DIR, no_ignore_options):
-                if filepath.lower().endswith(('.png', '.jpg', '.jpeg')):
+                if filepath.lower().endswith((".png", ".jpg", ".jpeg")):
                     try:
                         stats["frames"]["total_size_mb"] += os.path.getsize(filepath) / (1024 * 1024)
                         stats["frames"]["file_count"] += 1
@@ -578,16 +596,17 @@ class ScreenRecordingStorage:
 
         return result
 
+
 # Singleton instance
 screen_recording_storage = ScreenRecordingStorage()
 
+
 def get_recording_path(
-    session_id: str | None = None,
-    timestamp: int | None = None,
-    ext: str = "mp4"
+    session_id: str | None = None, timestamp: int | None = None, ext: str = "mp4"
 ) -> str:
     """Convenience function to get recording path."""
     return screen_recording_storage.get_recording_path(session_id, timestamp, ext)
+
 
 def get_frame_path(session_id: str, timestamp_ms: int, ext: str = "png") -> str:
     """Convenience function to get frame path."""

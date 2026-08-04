@@ -1,6 +1,5 @@
 import logging
 import subprocess
-from typing import Any, cast
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +24,7 @@ class InfoMixin:
 
         try:
             import Quartz
+
             display_id = Quartz.CGMainDisplayID()
             # backingScaleFactor: 2.0 on Retina, 1.0 on non-Retina
             scale = Quartz.CGDisplayBackingScaleFactor(display_id)
@@ -39,7 +39,6 @@ class InfoMixin:
     @staticmethod
     def get_system_info():
         import platform
-        import plistlib
 
         try:
             result = subprocess.run(

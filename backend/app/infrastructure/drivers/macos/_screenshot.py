@@ -1,8 +1,7 @@
 import logging
 import os
 import subprocess
-import time
-from typing import Any, Literal, cast
+from typing import Literal, cast
 
 logger = logging.getLogger(__name__)
 
@@ -11,6 +10,7 @@ class ScreenshotMixin:
     @staticmethod
     def screenshot(region=None, purpose="temp", bundle_id=None, suffix=None):
         from app.infrastructure.vision.storage import screenshot_storage
+
         filepath = screenshot_storage.get_path(
             purpose=cast(Literal["temp", "atlas", "debug", "dataset"], purpose),
             platform="macos",

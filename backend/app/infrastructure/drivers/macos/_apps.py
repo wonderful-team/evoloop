@@ -73,6 +73,7 @@ class AppMixin:
     def get_current_app():
         try:
             import AppKit
+
             NSWorkspace = cast(Any, getattr(AppKit, "NSWorkspace", None))
             if not NSWorkspace:
                 raise ImportError("AppKit symbols not found")
@@ -109,21 +110,25 @@ class AppMixin:
         try:
             script = (
                 'tell application "System Events"\n'
-                '    set frontApp to first application process whose frontmost is true\n'
-                '    set appName to name of frontApp\n'
-                '    try\n'
-                '        set winBounds to size of window 1 of frontApp\n'
-                '        set winPos to position of window 1 of frontApp\n'
+                "    set frontApp to first application process whose frontmost is true\n"
+                "    set appName to name of frontApp\n"
+                "    try\n"
+                "        set winBounds to size of window 1 of frontApp\n"
+                "        set winPos to position of window 1 of frontApp\n"
                 '        return appName & "|" & (item 1 of winPos) & "," & (item 2 of winPos) & "," & (item 1 of winBounds) & "," & (item 2 of winBounds)\n'
-                '    on error\n'
+                "    on error\n"
                 '        return appName & "|0,0,0,0"\n'
-                '    end try\n'
-                'end tell'
+                "    end try\n"
+                "end tell"
             )
             result = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=5)
             if result.returncode == 0 and result.stdout.strip():
                 parts = result.stdout.strip().split("|")
-                return {"name": parts[0], "pid": -1, "bounds": parts[1] if len(parts) > 1 else "0,0,0,0"}
+                return {
+                    "name": parts[0],
+                    "pid": -1,
+                    "bounds": parts[1] if len(parts) > 1 else "0,0,0,0",
+                }
         except Exception as e:
             logger.debug(f"AppleScript get_current_app failed: {e}")
 
@@ -139,6 +144,7 @@ class AppMixin:
         """
         try:
             import AppKit
+
             NSWorkspace = cast(Any, getattr(AppKit, "NSWorkspace", None))
             if not NSWorkspace:
                 raise ImportError("AppKit symbols not found")
@@ -180,17 +186,17 @@ class AppMixin:
         try:
             script = (
                 'tell application "System Events"\n'
-                '    set frontApp to first application process whose frontmost is true\n'
-                '    set appName to name of frontApp\n'
-                '    try\n'
-                '        set winTitle to name of window 1 of frontApp\n'
-                '        set winBounds to size of window 1 of frontApp\n'
-                '        set winPos to position of window 1 of frontApp\n'
+                "    set frontApp to first application process whose frontmost is true\n"
+                "    set appName to name of frontApp\n"
+                "    try\n"
+                "        set winTitle to name of window 1 of frontApp\n"
+                "        set winBounds to size of window 1 of frontApp\n"
+                "        set winPos to position of window 1 of frontApp\n"
                 '        return appName & ":::" & winTitle & ":::" & (item 1 of winPos) & "," & (item 2 of winPos) & "," & (item 1 of winBounds) & "," & (item 2 of winBounds)\n'
-                '    on error\n'
+                "    on error\n"
                 '        return appName & "::::::0,0,0,0"\n'
-                '    end try\n'
-                'end tell'
+                "    end try\n"
+                "end tell"
             )
             result = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=5)
             if result.returncode == 0 and result.stdout.strip():

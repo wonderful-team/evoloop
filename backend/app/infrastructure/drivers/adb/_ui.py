@@ -15,7 +15,13 @@ class UIMixin:
     def screenshot(self, device_id=None, purpose="temp", bundle_id=None, suffix=None):
         try:
             from app.infrastructure.vision.storage import screenshot_storage
-            filepath = screenshot_storage.get_path(purpose=purpose, platform="android", bundle_id=bundle_id, suffix=suffix)
+
+            filepath = screenshot_storage.get_path(
+                purpose=purpose,
+                platform="android",
+                bundle_id=bundle_id,
+                suffix=suffix
+            )
         except Exception as e:
             logger.warning(f"[ADB] Failed to use hierarchical storage: {e}, using temp")
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -45,6 +51,7 @@ class UIMixin:
             if not device_id:
                 try:
                     from app.core.context.manager import ContextManager
+
                     ctx_env = ContextManager.get_var("_env", {})
                     devices = ctx_env.get("devices", [])
                     if devices and len(devices) == 1:
@@ -57,6 +64,7 @@ class UIMixin:
             if capabilities.get("uiautomator2"):
                 try:
                     import uiautomator2 as u2
+
                     d = u2.connect(device_id) if device_id else u2.connect()
                     xml_content = d.dump_hierarchy()
                     if xml_content and "<hierarchy" in xml_content:
@@ -72,17 +80,21 @@ class UIMixin:
 
             try:
                 import uiautomator2 as u2
+
                 d = u2.connect(device_id) if device_id else u2.connect()
                 xml_content = d.dump_hierarchy()
                 if xml_content and "<hierarchy" in xml_content:
                     if device_id:
-                        self._device_capabilities[device_id] = {"uiautomator2": True, "native_uiautomator": False}
-                    logger.info(f"Dumped UI hierarchy in {(time.time()-start)*1000:.0f}ms (uiautomator2, auto-detected)")
+                        self._device_capabilities[device_id] = {
+                            "uiautomator2": True,
+                            "native_uiautomator": False,
+                        }
+                    logger.info(f"Dumped UI hierarchy in {(time.time() - start) * 1000:.0f}ms (uiautomator2, auto-detected)")
                     return xml_content
             except Exception:
                 pass
 
-            logger.debug(f"[ADB] uiautomator2 not available, trying native...")
+            logger.debug("[ADB] uiautomator2 not available, trying native...")
             try:
                 return self._dump_ui_native(device_id, compressed, start)
             except Exception as native_err:
@@ -105,8 +117,11 @@ class UIMixin:
 
                 if xml_start >= 0 and "</hierarchy>" in stdout:
                     if device_id:
-                        self._device_capabilities[device_id] = {"native_uiautomator": True, "uiautomator2": False}
-                    logger.info(f"Dumped UI hierarchy in {(time.time()-start_time)*1000:.0f}ms (native exec-out)")
+                        self._device_capabilities[device_id] = {
+                            "native_uiautomator": True,
+                            "uiautomator2": False,
+                        }
+                    logger.info(f"Dumped UI hierarchy in {(time.time() - start_time) * 1000:.0f}ms (native exec-out)")
                     return stdout[xml_start:]
             except Exception:
                 continue
@@ -128,8 +143,11 @@ class UIMixin:
             )
 
             if device_id:
-                self._device_capabilities[device_id] = {"native_uiautomator": True, "uiautomator2": False}
-            logger.info(f"Dumped UI hierarchy in {(time.time()-start_time)*1000:.0f}ms (native file)")
+                self._device_capabilities[device_id] = {
+                    "native_uiautomator": True,
+                    "uiautomator2": False,
+                }
+            logger.info(f"Dumped UI hierarchy in {(time.time() - start_time) * 1000:.0f}ms (native file)")
             return stdout
         except Exception as e:
             raise ADBError(f"Native uiautomator failed: {e}")

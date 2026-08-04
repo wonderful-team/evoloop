@@ -13,6 +13,7 @@ Thread-safety: BatchedEmbedder is designed to run inside a single event loop
 (e.g. one Huey worker thread). It uses only asyncio primitives and is not shared
 across OS threads.
 """
+
 import asyncio
 import logging
 from typing import Any

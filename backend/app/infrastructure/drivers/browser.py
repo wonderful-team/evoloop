@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import platform
 
 from app.core.config import settings
 from app.utils.async_utils import LoopBoundResource
@@ -11,6 +12,7 @@ logger = logging.getLogger(__name__)
 # ─────────────────────────────────────────────
 #  Browser Manager (Persistent Singleton)
 # ─────────────────────────────────────────────
+
 
 class _PageState:
     """Pages + active index for a thread or the default session."""
@@ -130,21 +132,27 @@ class BrowserManager:
 
         from playwright.async_api import Error as PlaywrightError
         from playwright.async_api import async_playwright
+
         self._playwright = await async_playwright().start()
 
         # ─── Mode 1: Try Takeover (CDP – external Chrome already running) ──
         logger.info(f"[Browser] Attempting CDP takeover: {settings.CHROME_CDP_URL}")
         try:
-            self._browser = await self._playwright.chromium.connect_over_cdp(
-                settings.CHROME_CDP_URL, timeout=3000  # fast probe, 3 s
-            )
+            self._browser = await self._playwright.chromium.connect_over_cdp(settings.CHROME_CDP_URL, timeout=3000)
             if self._browser.contexts:
                 self._context = self._browser.contexts[0]
             else:
                 self._context = await self._browser.new_context()
             logger.info("✅ [Browser] Mode 1: Took over existing Chrome via CDP.")
             self._is_cdp = True
-        except (PlaywrightError, ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+        except (
+            PlaywrightError,
+            ValueError,
+            OSError,
+            RuntimeError,
+            TypeError,
+            KeyError,
+        ) as e:
             # Playwright wraps connection-refused/timeout in its own Error type, which is
             # NOT a built-in — without it here, Mode 1 failure crashes instead of falling
             # through to Mode 2 auto-launch (dead code). Probe failure = expected "no
@@ -158,7 +166,6 @@ class BrowserManager:
             logger.info(f"[Browser] Mode 2: Launching Chrome-Automation → {automation_dir}")
             os.makedirs(automation_dir, exist_ok=True)
 
-            import platform
             chrome_cmd = [settings.CHROME_EXECUTABLE]
 
             # Performance optimization: force native ARM64 on Apple Silicon Macs
@@ -175,15 +182,17 @@ class BrowserManager:
             if is_apple_silicon:
                 chrome_cmd = ["arch", "-arm64"] + chrome_cmd
 
-            chrome_cmd.extend([
-                "--remote-debugging-port=9222",
-                f"--user-data-dir={automation_dir}",
-                "--disable-infobars",
-                "--disable-extensions",
-                "--no-first-run",
-                # "--disable-blink-features=AutomationControlled",
-                "--disable-background-timer-throttling",
-            ])
+            chrome_cmd.extend(
+                [
+                    "--remote-debugging-port=9222",
+                    f"--user-data-dir={automation_dir}",
+                    "--disable-infobars",
+                    "--disable-extensions",
+                    "--no-first-run",
+                    # "--disable-blink-features=AutomationControlled",
+                    "--disable-background-timer-throttling",
+                ]
+            )
             try:
                 self._chrome_proc = subprocess.Popen(
                     chrome_cmd,
@@ -217,8 +226,7 @@ class BrowserManager:
         else:
             default_state.pages = [await self._context.new_page()]
         default_state.active_idx = 0
-        logger.info(
-            f"[Browser] Ready — {len(default_state.pages)} page(s), mode={'CDP-Takeover' if self._is_cdp and not hasattr(self, '_chrome_proc') else 'CDP-AutoLaunch' if self._is_cdp else 'Launch'}.")
+        logger.info(f"[Browser] Ready — {len(default_state.pages)} page(s), mode={'CDP-Takeover' if self._is_cdp and not hasattr(self, '_chrome_proc') else 'CDP-AutoLaunch' if self._is_cdp else 'Launch'}.")
 
     async def new_tab(self, url: str | None = None, thread_id: str | None = None):
         """Open a new tab, optionally navigate to url, and switch to it."""
@@ -261,9 +269,19 @@ class BrowserManager:
         thread_id = self._resolve_thread_id(thread_id)
         state = self._get_state(thread_id)
         if not self._context:
-            return {"mode": "Disconnected", "cdp_url": settings.CHROME_CDP_URL, "tab_count": 0}
+            return {
+                "mode": "Disconnected",
+                "cdp_url": settings.CHROME_CDP_URL,
+                "tab_count": 0,
+            }
 
-        mode = "CDP-Takeover" if self._is_cdp and not self._chrome_proc else "CDP-AutoLaunch" if self._is_cdp else "Launch"
+        mode = (
+            "CDP-Takeover"
+            if self._is_cdp and not self._chrome_proc
+            else "CDP-AutoLaunch"
+            if self._is_cdp
+            else "Launch"
+        )
         active_url = "None"
         try:
             if state.pages and state.active_idx < len(state.pages):

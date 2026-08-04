@@ -1,4 +1,5 @@
 """Auto-discover task modules by scanning for @shared_task decorators."""
+
 import ast
 import logging
 from pathlib import Path

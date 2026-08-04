@@ -9,9 +9,9 @@ import ast
 import logging
 import time
 
+from app.infrastructure.drivers.macos import macos_driver
 from app.infrastructure.vision.providers.base import VisionProvider
 from app.infrastructure.vision.types import ElementType, UIElement, VisionResult, VisionTask
-from app.infrastructure.drivers.macos import macos_driver
 
 logger = logging.getLogger(__name__)
 
@@ -57,13 +57,7 @@ class MacOSAxProvider(VisionProvider):
         """Check if accessibility permissions are granted."""
         return macos_driver.check_accessibility_permission()
 
-    async def process(
-        self,
-        task: VisionTask,
-        image_source: str,
-        prompt: str | None = None,
-        **kwargs
-    ) -> VisionResult:
+    async def process(self, task: VisionTask, image_source: str, prompt: str | None = None, **kwargs) -> VisionResult:
         """
         Extract UI elements from the frontmost Mac application.
         """
@@ -71,7 +65,7 @@ class MacOSAxProvider(VisionProvider):
             return VisionResult(
                 task=task,
                 success=False,
-                metadata={"error": f"Task {task} not supported by MacOSAxProvider"}
+                metadata={"error": f"Task {task} not supported by MacOSAxProvider"},
             )
 
         start = time.time()
@@ -79,11 +73,7 @@ class MacOSAxProvider(VisionProvider):
         ax_output = macos_driver.dump_ax_tree()
         if ax_output.startswith("Error"):
             logger.error(f"MacOS AX dump failed: {ax_output}")
-            return VisionResult(
-                task=task,
-                success=False,
-                metadata={"error": ax_output}
-            )
+            return VisionResult(task=task, success=False, metadata={"error": ax_output})
 
         elements = self._parse_ax_output(ax_output)
 
@@ -116,7 +106,7 @@ class MacOSAxProvider(VisionProvider):
         for i, raw in enumerate(raw_elements):
             name = raw.get("name")
             if name is None or name == "None":
-                 name = ""
+                name = ""
 
             # bounds: [x, y, width, height]
             bounds = raw.get("bounds", [0, 0, 0, 0])
@@ -155,7 +145,7 @@ class MacOSAxProvider(VisionProvider):
                     # Additional attributes for element classification
                     "is_scrollable": is_scrollable,
                     "ax_description": raw.get("description", ""),
-                }
+                },
             )
             elements.append(element)
 

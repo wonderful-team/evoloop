@@ -23,6 +23,7 @@ class AXMixin:
         """
         try:
             import AppKit
+
             try:
                 import HIServices
             except ImportError:
@@ -110,7 +111,7 @@ class AXMixin:
                 flattened.append(item)
                 if "children" in node:
                     for i, child in enumerate(node["children"]):
-                        flatten(child, path=f"{path} > {child['role']} {i+1}")
+                        flatten(child, path=f"{path} > {child['role']} {i + 1}")
 
             flatten(tree)
             return json.dumps(flattened)

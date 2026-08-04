@@ -13,6 +13,7 @@ class CoreMixin:
         if not device_id:
             try:
                 from app.core.context.manager import ContextManager
+
                 ctx_env = ContextManager.get_var("_env", {})
                 devices = ctx_env.get("devices", [])
                 if devices and len(devices) == 1:
@@ -61,6 +62,7 @@ class CoreMixin:
     def check_uiautomator2_available(self, device_id=None):
         try:
             import uiautomator2 as u2
+
             d = u2.connect(device_id) if device_id else u2.connect()
             d.info
             return True
@@ -70,16 +72,19 @@ class CoreMixin:
     def install_uiautomator2(self, device_id=None):
         try:
             import uiautomator2 as u2
+
             u2.connect(device_id) if device_id else u2.connect()
             return True
         except Exception:
             pass
         try:
             from app.core.context.manager import ContextManager
+
             device_id_val = device_id or ContextManager.get_var("device_id")
             stdout, stderr = subprocess.Popen(
                 ["python3", "-m", "uiautomator2", "init"],
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
             ).communicate(timeout=30)
             output = (stdout + stderr).decode().lower()
             return "success" in output
@@ -99,7 +104,11 @@ class CoreMixin:
         capabilities = {"native_uiautomator": True, "uiautomator2": False}
 
         try:
-            stdout, stderr = self._run_adb(["shell", "uiautomator", "dump", "/dev/null"], device_id=device_id, timeout=5)
+            stdout, stderr = self._run_adb(
+                ["shell", "uiautomator", "dump", "/dev/null"],
+                device_id=device_id,
+                timeout=5,
+            )
             output = (stdout + stderr).lower()
             if "idle" in output or "could not get" in output:
                 capabilities["native_uiautomator"] = False

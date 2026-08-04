@@ -1,4 +1,5 @@
 import logging
+import os
 import threading
 
 from app.core.config import settings
@@ -97,8 +98,10 @@ class EmbedderFactory:
         model_path = _svc("EMBEDDING_GGUF_MODEL")
         if not model_path:
             return None
+        model_path = os.path.expanduser(model_path)
         try:
             import llama_cpp  # noqa: F401
+
             logger.info("[EmbeddingFactory] Tier=gguf, model=%s", model_path)
             return LocalEmbedder(model_path=model_path)
         except ImportError:
@@ -129,7 +132,10 @@ class EmbedderFactory:
         dim_val = _svc("EMBEDDING_DIMENSIONS")
         dims = int(dim_val) if dim_val else settings.EMBEDDING_DIMENSIONS
         return GenericOpenAIEmbedder(
-            api_key=api_key, base_url=base_url, model=model, dimensions=dims,
+            api_key=api_key,
+            base_url=base_url,
+            model=model,
+            dimensions=dims,
         )
 
     @classmethod
@@ -143,10 +149,13 @@ class EmbedderFactory:
         api_key = _svc("EMBEDDING_API_KEY")
         dim_val = _svc("EMBEDDING_DIMENSIONS")
         if not api_key:
-            raise ValueError(f"Custom embedding requires EMBEDDING_API_KEY")
+            raise ValueError("Custom embedding requires EMBEDDING_API_KEY")
         dims = int(dim_val) if dim_val else 1536
         return GenericOpenAIEmbedder(
-            api_key=api_key, base_url=base_url, model=actual_model, dimensions=dims,
+            api_key=api_key,
+            base_url=base_url,
+            model=actual_model,
+            dimensions=dims,
         )
 
     @classmethod

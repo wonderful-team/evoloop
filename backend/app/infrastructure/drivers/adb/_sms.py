@@ -17,15 +17,23 @@ class SMSMixin:
 
         while True:
             try:
-                cmd = ["shell", "content", "query", "--uri", "content://sms/inbox", "--projection", "body,date"]
+                cmd = [
+                    "shell",
+                    "content",
+                    "query",
+                    "--uri",
+                    "content://sms/inbox",
+                    "--projection",
+                    "body,date",
+                ]
                 stdout_str, _ = self._run_adb(cmd, device_id=device_id)
 
                 messages = []
                 for line in stdout_str.splitlines():
                     if not line.startswith("Row:"):
                         continue
-                    body_match = re.search(r'body=(.*?), date=', line)
-                    date_match = re.search(r'date=(\d+)', line)
+                    body_match = re.search(r"body=(.*?), date=", line)
+                    date_match = re.search(r"date=(\d+)", line)
 
                     if body_match and date_match:
                         body_text = body_match.group(1).strip()
@@ -34,7 +42,11 @@ class SMSMixin:
                         if after_timestamp and date_val <= after_timestamp:
                             continue
 
-                        msg_dict = {"body": body_text, "date": date_val, "extract": None}
+                        msg_dict = {
+                            "body": body_text,
+                            "date": date_val,
+                            "extract": None,
+                        }
 
                         if regex_pattern:
                             extract_match = re.search(regex_pattern, body_text)

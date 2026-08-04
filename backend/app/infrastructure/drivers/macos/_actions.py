@@ -153,14 +153,47 @@ class ActionsMixin:
     @staticmethod
     def key_press(key):
         key_codes = {
-            "enter": 36, "return": 36, "escape": 53, "esc": 53,
-            "tab": 48, "space": 49, "delete": 51, "back": 51, "backspace": 51,
-            "del": 117, "forward_delete": 117, "caps_lock": 57, "caps": 57,
-            "up": 126, "down": 125, "left": 123, "right": 124,
-            "pageup": 116, "pagedown": 121, "home": 115, "end": 119,
-            "command": 55, "cmd": 55, "shift": 56, "option": 58, "opt": 58, "alt": 58, "control": 59, "ctrl": 59,
-            "f1": 122, "f2": 120, "f3": 99, "f4": 118, "f5": 96, "f6": 97,
-            "f7": 98, "f8": 100, "f9": 101, "f10": 109, "f11": 103, "f12": 111,
+            "enter": 36,
+            "return": 36,
+            "escape": 53,
+            "esc": 53,
+            "tab": 48,
+            "space": 49,
+            "delete": 51,
+            "back": 51,
+            "backspace": 51,
+            "del": 117,
+            "forward_delete": 117,
+            "caps_lock": 57,
+            "caps": 57,
+            "up": 126,
+            "down": 125,
+            "left": 123,
+            "right": 124,
+            "pageup": 116,
+            "pagedown": 121,
+            "home": 115,
+            "end": 119,
+            "command": 55,
+            "cmd": 55,
+            "shift": 56,
+            "option": 58,
+            "opt": 58,
+            "alt": 58,
+            "control": 59,
+            "ctrl": 59,
+            "f1": 122,
+            "f2": 120,
+            "f3": 99,
+            "f4": 118,
+            "f5": 96,
+            "f6": 97,
+            "f7": 98,
+            "f8": 100,
+            "f9": 101,
+            "f10": 109,
+            "f11": 103,
+            "f12": 111,
         }
 
         parts = key.lower().split("+")
@@ -168,10 +201,14 @@ class ActionsMixin:
         modifiers = parts[:-1]
 
         mod_map = {
-            "command": "command down", "cmd": "command down",
+            "command": "command down",
+            "cmd": "command down",
             "shift": "shift down",
-            "option": "option down", "opt": "option down", "alt": "option down",
-            "control": "control down", "ctrl": "control down",
+            "option": "option down",
+            "opt": "option down",
+            "alt": "option down",
+            "control": "control down",
+            "ctrl": "control down",
         }
 
         using_mods = []

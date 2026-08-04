@@ -2,9 +2,9 @@ import logging
 import os
 import time
 
+from app.infrastructure.drivers.macos import macos_driver
 from app.infrastructure.vision.providers.base import VisionProvider
 from app.infrastructure.vision.types import ElementType, UIElement, VisionResult, VisionTask
-from app.infrastructure.drivers.macos import macos_driver
 
 logger = logging.getLogger(__name__)
 
@@ -28,22 +28,19 @@ class MacOSVisionOCRProvider(VisionProvider):
         try:
             import Quartz
             import Vision
+
             return True
         except ImportError:
             return False
 
-    async def process(
-        self,
-        task: VisionTask,
-        image_source: str,
-        prompt: str | None = None,
-        **kwargs
-    ) -> VisionResult:
+    async def process(self, task: VisionTask, image_source: str, prompt: str | None = None, **kwargs) -> VisionResult:
         if task != VisionTask.OCR and task != VisionTask.DETECT:
             return VisionResult(
                 task=task,
                 success=False,
-                metadata={"error": f"Task {task} not supported by MacOSVisionOCRProvider"}
+                metadata={
+                    "error": f"Task {task} not supported by MacOSVisionOCRProvider"
+                },
             )
 
         start_time = time.time()
@@ -80,6 +77,7 @@ class MacOSVisionOCRProvider(VisionProvider):
 
             # Get image size
             from PIL import Image
+
             with Image.open(image_source) as img:
                 img_w, img_h = img.size
 
@@ -119,7 +117,7 @@ class MacOSVisionOCRProvider(VisionProvider):
                     height=int(h / scale),
                     element_type=ElementType.TEXT,
                     confidence=float(confidence),
-                    source=self.name
+                    source=self.name,
                 )
                 elements.append(element)
 
@@ -130,7 +128,7 @@ class MacOSVisionOCRProvider(VisionProvider):
                 elements=elements,
                 summary=f"Extracted {len(elements)} elements using {self.name}.",
                 screenshot_path=image_source,
-                latency_ms=latency
+                latency_ms=latency,
             )
 
             return result

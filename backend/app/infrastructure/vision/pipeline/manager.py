@@ -30,10 +30,10 @@ def merge_elements(results: list[VisionResult]) -> list[UIElement]:
     def is_overlapping(e1: UIElement, e2: UIElement, threshold: float = 0.5) -> bool:
         """Check if two elements significantly overlap."""
         # Intersection calculation
-        x1 = max(e1.x - e1.width//2, e2.x - e2.width//2)
-        y1 = max(e1.y - e1.height//2, e2.y - e2.height//2)
-        x2 = min(e1.x + e1.width//2, e2.x + e2.width//2)
-        y2 = min(e1.y + e1.height//2, e2.y + e2.height//2)
+        x1 = max(e1.x - e1.width // 2, e2.x - e2.width // 2)
+        y1 = max(e1.y - e1.height // 2, e2.y - e2.height // 2)
+        x2 = min(e1.x + e1.width // 2, e2.x + e2.width // 2)
+        y2 = min(e1.y + e1.height // 2, e2.y + e2.height // 2)
 
         if x1 >= x2 or y1 >= y2:
             return False
@@ -54,8 +54,10 @@ def merge_elements(results: list[VisionResult]) -> list[UIElement]:
 
         if overlapping is not None:
             existing = merged[overlapping]
-            if (len(element.text) > len(existing.text) or
-                (len(element.text) == len(existing.text) and element.confidence > existing.confidence)):
+            if len(element.text) > len(existing.text) or (
+                len(element.text) == len(existing.text)
+                and element.confidence > existing.confidence
+            ):
                 merged[overlapping] = element
         else:
             merged.append(element)
@@ -158,7 +160,7 @@ class PipelineManager:
             "core/vision/elements_list.prompt.j2",
             elements=element_data,
             has_more=len(elements) > max_elements,
-            more_count=len(elements) - max_elements
+            more_count=len(elements) - max_elements,
         )
 
 

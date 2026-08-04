@@ -21,8 +21,9 @@ def config_loggers(*args, **kwargs):
     is applied to both the main Celery process and any spawned worker processes.
     """
     from app.logging import setup_logging as app_setup_logging
+
     app_setup_logging()
-    
+
     # Also ensure celery task logger propagates or we configure root
     # setup_logging() already sets the root logger, which handles everything.
 
@@ -34,6 +35,7 @@ def on_worker_init(*args, **kwargs):
     event handlers (like MemoryRewind, TodoRewind) are auto-discovered and registered.
     """
     from app.core.events.discovery import auto_discover_handlers
+
     try:
         auto_discover_handlers()
         logger.info("[Celery] All event handlers auto-discovered and registered in worker process.")
@@ -89,4 +91,3 @@ def create_celery_app():
 
 # Module-level app for Celery CLI (-A app.infrastructure.queue.celery_app) and tests
 celery_app = create_celery_app()
-

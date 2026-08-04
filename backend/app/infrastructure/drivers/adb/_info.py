@@ -54,8 +54,10 @@ class DeviceInfoMixin:
             if not pkg:
                 return True
             system_prefixes = (
-                "com.android.systemui", "com.android.launcher",
-                "com.google.android.inputmethod", "android",
+                "com.android.systemui",
+                "com.android.launcher",
+                "com.google.android.inputmethod",
+                "android",
             )
             return pkg.startswith(system_prefixes) or pkg in ("unknown", "error", "")
 
@@ -72,7 +74,7 @@ class DeviceInfoMixin:
                 stdout, _ = self._run_adb(["shell", "dumpsys", "activity", "top"], device_id=device_id, timeout=3)
                 for line in stdout.splitlines():
                     if "ACTIVITY" in line and "/" in line:
-                        parsed = parse_package_from_line(line, r'ACTIVITY\s+([\w\.]+)/([\w\.\$]+)')
+                        parsed = parse_package_from_line(line, r"ACTIVITY\s+([\w\.]+)/([\w\.\$]+)")
                         if parsed:
                             pkg, act = parsed
                             if not is_system_package(pkg):
@@ -83,10 +85,14 @@ class DeviceInfoMixin:
 
             if not results:
                 try:
-                    stdout, _ = self._run_adb(["shell", "dumpsys", "activity", "activities"], device_id=device_id, timeout=3)
+                    stdout, _ = self._run_adb(
+                        ["shell", "dumpsys", "activity", "activities"],
+                        device_id=device_id,
+                        timeout=3,
+                    )
                     for line in stdout.splitlines():
                         if ("mResumedActivity" in line or "topResumedActivity" in line) and "/" in line:
-                            parsed = parse_package_from_line(line, r'([\w\.]+)/([\w\.\$]+)')
+                            parsed = parse_package_from_line(line, r"([\w\.]+)/([\w\.\$]+)")
                             if parsed:
                                 pkg, act = parsed
                                 if not is_system_package(pkg):
@@ -97,10 +103,14 @@ class DeviceInfoMixin:
 
             if not results:
                 try:
-                    stdout, _ = self._run_adb(["shell", "dumpsys", "window", "windows"], device_id=device_id, timeout=3)
+                    stdout, _ = self._run_adb(
+                        ["shell", "dumpsys", "window", "windows"],
+                        device_id=device_id,
+                        timeout=3,
+                    )
                     for line in stdout.splitlines():
                         if ("mCurrentFocus" in line or "mFocusedApp" in line) and "/" in line:
-                            parsed = parse_package_from_line(line, r'([\w\.]+)/([\w\.\$]+)')
+                            parsed = parse_package_from_line(line, r"([\w\.]+)/([\w\.\$]+)")
                             if parsed:
                                 pkg, act = parsed
                                 if not is_system_package(pkg):
@@ -109,7 +119,11 @@ class DeviceInfoMixin:
                 except Exception as e:
                     logger.debug("Suppressed error: %s", e, exc_info=True)
 
-            final_data = {"package": "unknown", "activity": "unknown", "confidence": 0.0}
+            final_data = {
+                "package": "unknown",
+                "activity": "unknown",
+                "confidence": 0.0,
+            }
 
             if results:
                 packages = [r[0] for r in results]
@@ -142,15 +156,19 @@ class DeviceInfoMixin:
 
     def get_package_info(self, package, device_id=None):
         try:
-            stdout, _ = self._run_adb(["shell", "dumpsys", "package", package], device_id=device_id, timeout=10)
+            stdout, _ = self._run_adb(
+                ["shell", "dumpsys", "package", package],
+                device_id=device_id,
+                timeout=10,
+            )
             info = {"package": package}
-            vc_match = re.search(r'versionCode=(\d+)', stdout)
+            vc_match = re.search(r"versionCode=(\d+)", stdout)
             if vc_match:
                 info["version_code"] = int(vc_match.group(1))
-            vn_match = re.search(r'versionName=([\d\.\w\-]+)', stdout)
+            vn_match = re.search(r"versionName=([\d\.\w\-]+)", stdout)
             if vn_match:
                 info["version_name"] = vn_match.group(1).strip()
-            lut_match = re.search(r'lastUpdateTime=([\d\-: ]+)', stdout)
+            lut_match = re.search(r"lastUpdateTime=([\d\-: ]+)", stdout)
             if lut_match:
                 info["last_update_time"] = lut_match.group(1).strip()
             return info
@@ -168,7 +186,11 @@ class DeviceInfoMixin:
             if curr.get("package") == package:
                 return "foreground"
 
-            stdout, _ = self._run_adb(["shell", "dumpsys", "window", "windows"], device_id=device_id, timeout=10)
+            stdout, _ = self._run_adb(
+                ["shell", "dumpsys", "window", "windows"],
+                device_id=device_id,
+                timeout=10,
+            )
             if "Application Error:" in stdout or "Application Not Responding:" in stdout:
                 if package in stdout:
                     return "crashed"
@@ -187,7 +209,10 @@ class DeviceInfoMixin:
     def list_installed_apps(self, device_id=None):
         try:
             output = self._run_adb(["shell", "pm", "list", "packages", "-3"], device_id=device_id)[0]
-            packages = [line.replace("package:", "").strip() for line in output.splitlines() if line.startswith("package:")]
+            packages = [
+                line.replace("package:", "").strip()
+                for line in output.splitlines() if line.startswith("package:")
+            ]
             return sorted(packages)
         except Exception:
             return []
