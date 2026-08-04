@@ -77,7 +77,7 @@ class AgentMacroValidator:
         # Evolution tracking
         self.evolution_records: list[MacroEvolutionRecord] = []
         self.current_macro: list[dict[str, Any]] = [
-            copy.deepcopy(s.model_dump() if hasattr(s, 'model_dump') else s)
+            copy.deepcopy(s.model_dump() if hasattr(s, "model_dump") else s)
             for s in request.macro_script
         ]
 
@@ -106,10 +106,7 @@ class AgentMacroValidator:
             # Third round: chaos
             strategies.append(ChaosStrategy(intensity=0.7))
 
-        return RoundOrchestrator(
-            strategies=strategies,
-            enable_interference=True
-        )
+        return RoundOrchestrator(strategies=strategies, enable_interference=True)
 
     async def validate(self) -> VerificationResponse:
         """
@@ -133,7 +130,7 @@ class AgentMacroValidator:
                     round_number=round_num,
                     base_config=base_config,
                     macro_script=self.current_macro,
-                    previous_reports=self.round_reports
+                    previous_reports=self.round_reports,
                 )
 
                 # Check if orchestrator says we should continue
@@ -183,7 +180,7 @@ class AgentMacroValidator:
         worker = VerificationWorker(
             environment_config=self.request.target_environment,
             agent_config=self.agent_config,
-            thread_id=self.request.thread_id
+            thread_id=self.request.thread_id,
         )
         await worker.initialize()
         return worker
@@ -196,14 +193,14 @@ class AgentMacroValidator:
         # Default config
         return RoundConfig(
             round_name=f"round_{round_num}",
-            timeout_per_step=self.agent_config.max_retries_per_step * 30
+            timeout_per_step=self.agent_config.max_retries_per_step * 30,
         )
 
     async def _execute_round(
         self,
         round_num: int,
         config: RoundConfig,
-        macro_script: list[dict[str, Any]] | None = None
+        macro_script: list[dict[str, Any]] | None = None,
     ) -> RoundReport:
         """
         Execute a single verification round
@@ -220,7 +217,7 @@ class AgentMacroValidator:
             round_name=config.round_name,
             status=VerificationStatus.RUNNING,
             total_steps=len(steps_to_execute),
-            started_at=datetime.now()
+            started_at=datetime.now(),
         )
 
         step_results: list[StepResult] = []
@@ -283,13 +280,13 @@ class AgentMacroValidator:
         """
         Check if a step is redundant using Agentic perception.
         """
-        step_num = step_number or step.get('step_number', '?')
+        step_num = step_number or step.get("step_number", "?")
 
         # Quick rule-based checks first
-        event_type = step.get('event_type', '')
+        event_type = step.get("event_type", "")
 
         # Never mark critical actions as redundant
-        if event_type in ('open_app', 'launch_app', 'goto', 'navigate'):
+        if event_type in ("open_app", "launch_app", "goto", "navigate"):
             logger.debug(f"[Redundancy:{step_num}] {event_type} is critical, not redundant")
             return RedundancyCheckResult(is_redundant=False)
 
@@ -316,7 +313,7 @@ class AgentMacroValidator:
         step: dict[str, Any],
         step_number: int,
         round_config: RoundConfig,
-        is_loop_substep: bool = False
+        is_loop_substep: bool = False,
     ) -> StepResult:
         """
         Execute a single step with anomaly detection and adaptation
@@ -329,10 +326,7 @@ class AgentMacroValidator:
         """
         start_time = time.time()
 
-        result = StepResult(
-            step_number=step_number,
-            original_step=step.copy()
-        )
+        result = StepResult(step_number=step_number, original_step=step.copy())
 
         # Capture pre-execution state
         event_type = step.get("event_type", "")
@@ -400,7 +394,7 @@ class AgentMacroValidator:
                 adapted_strategy=decision.suggested_step or step,
                 reasoning=decision.reasoning,
                 success=True,
-                additional_steps=decision.additional_steps
+                additional_steps=decision.additional_steps,
             )
             result.adaptations.append(adaptation)
 
@@ -426,7 +420,7 @@ class AgentMacroValidator:
                 step=step,
                 step_number=step_number,
                 round_config=round_config,
-                result=result
+                result=result,
             )
         else:
             execution_result = await self._execute_step(step, round_config)
@@ -467,7 +461,7 @@ class AgentMacroValidator:
                 ui_state=post_state,  # Use post-state for recovery context
                 history=self.execution_history,
                 is_recovery=True,
-                failure_reason=verification_reason
+                failure_reason=verification_reason,
             )
 
             logger.info(f"[Validator] Step {step_number} Recovery Decision: action={recovery_decision.action}, confidence={recovery_decision.confidence}")
@@ -490,7 +484,7 @@ class AgentMacroValidator:
                         original_strategy=step.copy(),
                         adapted_strategy=recovery_decision.suggested_step or step,
                         reasoning=f"Recovery from verification failure: {verification_reason}. Agent reasoning: {recovery_decision.reasoning}",
-                        success=True
+                        success=True,
                     )
                     result.adaptations.append(adaptation)
 
@@ -531,7 +525,7 @@ class AgentMacroValidator:
         step: dict[str, Any],
         step_number: int,
         round_config: RoundConfig,
-        result: StepResult
+        result: StepResult,
     ) -> dict[str, Any]:
         """
         Execute a loop step with anomaly detection and adaptation for sub-steps.
@@ -569,7 +563,7 @@ class AgentMacroValidator:
                     step=sub_step_copy,
                     step_number=sub_step_num,
                     round_config=round_config,
-                    is_loop_substep=True
+                    is_loop_substep=True,
                 )
 
                 iteration_results.append({
@@ -602,7 +596,7 @@ class AgentMacroValidator:
             "status": "completed",
             "iterations": len(loop_results),
             "results": loop_results,
-            "sub_step_adaptations": len(sub_step_adaptations)
+            "sub_step_adaptations": len(sub_step_adaptations),
         }
 
     async def _capture_app_state_only(self) -> dict[str, Any]:
@@ -624,6 +618,7 @@ class AgentMacroValidator:
                 from app.core.environment.controllers.mobile import (
                     MobileController,
                 )
+
                 current_app = await MobileController.get_current_app_cached(
                     self.worker.config.device_id
                 )
@@ -638,7 +633,7 @@ class AgentMacroValidator:
         self,
         step: dict[str, Any],
         config: RoundConfig,
-        step_validator: Any | None = None
+        step_validator: Any | None = None,
     ) -> Any:
         """Execute a single step through the worker"""
         try:
@@ -646,7 +641,7 @@ class AgentMacroValidator:
             if step.get("type") == "loop" and step_validator:
                 return await asyncio.wait_for(
                     self.worker.execute_step(step, step_validator=step_validator),
-                    timeout=config.timeout_per_step
+                    timeout=config.timeout_per_step,
                 )
             else:
                 return await asyncio.wait_for(
@@ -654,7 +649,10 @@ class AgentMacroValidator:
                     timeout=config.timeout_per_step
                 )
         except asyncio.TimeoutError:
-            return {"error": "timeout", "message": f"Step timed out after {config.timeout_per_step}s"}
+            return {
+                "error": "timeout",
+                "message": f"Step timed out after {config.timeout_per_step}s",
+            }
         except Exception as e:
             return {"error": "execution_failed", "message": str(e)}
 
@@ -716,7 +714,7 @@ class AgentMacroValidator:
         if self.worker:
             is_terminal = await self.reasoning_engine.is_failure_terminal(
                 step=step_result.original_step,
-                error=step_result.error_message or "Unknown error"
+                error=step_result.error_message or "Unknown error",
             )
             should_continue = not is_terminal
             logger.info(f"[Validator] Step {step_num} terminal analysis: is_terminal={is_terminal}, continue={should_continue}")
@@ -742,7 +740,7 @@ class AgentMacroValidator:
             verification_report=report,
             evolution_records=self.evolution_records,
             processing_time_seconds=time.time() - (self.start_time or time.time()),
-            rounds_completed=len(self.round_reports)
+            rounds_completed=len(self.round_reports),
         )
 
     async def _generate_agentic_report(self) -> VerificationReport:
@@ -765,7 +763,7 @@ class AgentMacroValidator:
             rounds=self.round_reports,
             issues=analysis.issues,
             recommendations=analysis.recommendations,
-            qualitative_assessment=analysis.qualitative_assessment
+            qualitative_assessment=analysis.qualitative_assessment,
         )
 
     def _calculate_basic_summary(self) -> ReportSummary:
@@ -784,7 +782,7 @@ class AgentMacroValidator:
 
         return ReportSummary(
             overall_success_rate=passed_steps / max(total_steps, 1),
-            average_execution_time_ms=average_time
+            average_execution_time_ms=average_time,
         )
 
     def _build_evolved_macro(self) -> tuple[list[dict[str, Any]], dict[str, Any]]:
@@ -827,7 +825,7 @@ class AgentMacroValidator:
             original_macro=filtered_macro,
             evolution_records=self.evolution_records,
             step_results=all_step_results,
-            target_platform=target_platform
+            target_platform=target_platform,
         )
 
         logger.info(
@@ -838,6 +836,7 @@ class AgentMacroValidator:
 
         # Phase 3b: Optimize the evolved macro using full MacroOptimizer
         from app.core.execution.macro.schemas import MacroScript
+
         optimizer = MacroOptimizer(enable_all_strategies=True)
         script = MacroScript(steps=evolved_macro)
         optimized_script, stats = optimizer.optimize(script)
@@ -845,7 +844,7 @@ class AgentMacroValidator:
         if stats.reduction_ratio > 0:
             logger.info(
                 f"[Validator] MacroOptimizer reduced steps: {stats.original_steps} -> {stats.optimized_steps} "
-                f"({stats.reduction_ratio*100:.1f}% reduction, saved {stats.time_saved_ms}ms)"
+                f"({stats.reduction_ratio * 100:.1f}% reduction, saved {stats.time_saved_ms}ms)"
             )
             if stats.removed_steps > 0:
                 logger.info(f"[Validator] Removed {stats.removed_steps} redundant steps")
@@ -853,14 +852,14 @@ class AgentMacroValidator:
                 logger.info(f"[Validator] Merged {stats.merged_steps} steps")
 
         # Convert back to list format
-        optimized_macro = [step.model_dump() if hasattr(step, 'model_dump') else step for step in optimized_script.steps]
+        optimized_macro = [
+            step.model_dump() if hasattr(step, "model_dump") else step
+            for step in optimized_script.steps
+        ]
 
-        return optimized_macro, stats.__dict__ if hasattr(stats, '__dict__') else None
+        return optimized_macro, stats.__dict__ if hasattr(stats, "__dict__") else None
 
-    def _filter_redundant_steps_from_macro(
-        self,
-        macro: list[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
+    def _filter_redundant_steps_from_macro(self, macro: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """
         从宏中过滤掉被标记为冗余的步骤（包括 loop 内的子步骤）
         """
@@ -885,7 +884,7 @@ class AgentMacroValidator:
                         # Calculate sub-step number (e.g., 501 for step 5, sub-step 0)
                         # This MUST match the calculation in _execute_loop_with_adaptation
                         sub_step_num = idx * 100 + sub_idx + 1
-                        sub_step_original_num = sub_step.get('step_number', sub_idx + 1)
+                        sub_step_original_num = sub_step.get("step_number", sub_idx + 1)
                         if sub_step_num in self._redundant_step_numbers:
                             logger.info(f"[Evolution] Removing redundant sub-step {sub_step_num} (original: {sub_step_original_num}): {sub_step.get('event_type', 'unknown')}")
                             removed_count += 1
@@ -929,14 +928,16 @@ class AgentMacroValidator:
             execution_mode=ExecutionMode.AGENTIC,
             confidence_score=0.0,
             verification_report=VerificationReport(
-                issues=[VerificationIssue(
-                    severity="critical",
-                    category="verification_error",
-                    description=error_message,
-                    affected_steps=[]
-                )]
+                issues=[
+                    VerificationIssue(
+                        severity="critical",
+                        category="verification_error",
+                        description=error_message,
+                        affected_steps=[],
+                    )
+                ]
             ),
             processing_time_seconds=processing_time,
             rounds_completed=len(self.round_reports),
-            error_message=error_message
+            error_message=error_message,
         )

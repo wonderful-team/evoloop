@@ -40,13 +40,13 @@ logger = logging.getLogger(__name__)
 class McpClientManager:
     """
     Manages connections to external MCP servers and exposes their capabilities.
-    
+
     Responsibilities:
     - Connection lifecycle management (connect/disconnect/reconnect)
     - Health checking and auto-reconnection
     - Tool caching and conversion
     - Configuration persistence (DB integration)
-    
+
     Architecture:
         ┌─────────────────────────────────┐
         │      McpClientManager           │
@@ -86,10 +86,10 @@ class McpClientManager:
     async def connect(self, config: McpServerConfig) -> ConnectionResult:
         """
         Connect to an MCP server.
-        
+
         Args:
             config: Server configuration
-            
+
         Returns:
             ConnectionResult with success status and tool count
         """
@@ -160,7 +160,7 @@ class McpClientManager:
 
         except Exception as e:
             logger.error(f"Error connecting to {server_name}: {e}")
-            if 'stack' in locals():
+            if "stack" in locals():
                 await stack.aclose()
             return ConnectionResult(
                 success=False,
@@ -171,10 +171,10 @@ class McpClientManager:
     async def connect_from_db(self, server_name: str) -> ConnectionResult:
         """
         Connect to a server using configuration from database.
-        
+
         Args:
             server_name: Name of server in database
-            
+
         Returns:
             ConnectionResult
         """
@@ -191,7 +191,7 @@ class McpClientManager:
                 return ConnectionResult(
                     success=False,
                     server_name=server_name,
-                    error=f"Server '{server_name}' not found in database or disabled"
+                    error=f"Server '{server_name}' not found in database or disabled",
                 )
 
             # Parse args and env
@@ -207,7 +207,7 @@ class McpClientManager:
                 command=server.command,
                 args=args,
                 env=env,
-                enabled=server.enabled
+                enabled=server.enabled,
             )
 
             return await self.connect(config)
@@ -216,7 +216,7 @@ class McpClientManager:
         """
         Connect to all enabled servers from database.
         Also handles legacy config migration.
-        
+
         Returns:
             List of connection results
         """
@@ -227,9 +227,7 @@ class McpClientManager:
 
         # 2. Fetch and connect all enabled servers
         async with session_scope() as session:
-            result = await session.execute(
-                select(McpServer).where(McpServer.enabled)
-            )
+            result = await session.execute(select(McpServer).where(McpServer.enabled))
             servers = result.scalars().all()
 
             for server in servers:
@@ -289,10 +287,10 @@ class McpClientManager:
     async def ensure_connected(self, server_name: str) -> bool:
         """
         Ensure server is connected, reconnect if necessary.
-        
+
         Args:
             server_name: Server to check/connect
-            
+
         Returns:
             True if connected after this call
         """
@@ -330,10 +328,10 @@ class McpClientManager:
     async def get_tools(self, server_name: str | None = None) -> list[EvoLoopTool]:
         """
         Get tools for a specific server, or all tools if no server specified.
-        
+
         Args:
             server_name: Server name (optional, None = get all)
-            
+
         Returns:
             List of native tools
         """
@@ -364,10 +362,10 @@ class McpClientManager:
     async def list_resources(self, server_name: str) -> list[McpResource]:
         """
         List available resources from a server.
-        
+
         Args:
             server_name: Server name
-            
+
         Returns:
             List of resource info dicts
         """
@@ -389,11 +387,11 @@ class McpClientManager:
     async def read_resource(self, server_name: str, uri: str) -> McpResourceContent:
         """
         Read content from a resource URI.
-        
+
         Args:
             server_name: Server name
             uri: Resource URI to read
-            
+
         Returns:
             Dict with content and metadata
         """
@@ -406,10 +404,10 @@ class McpClientManager:
     def get_resources_formatted(self, server_name: str) -> str:
         """
         Get formatted markdown list of resources.
-        
+
         Args:
             server_name: Server name
-            
+
         Returns:
             Markdown formatted string
         """
@@ -425,10 +423,10 @@ class McpClientManager:
     async def list_prompts(self, server_name: str) -> list[McpPrompt]:
         """
         List available prompts from a server.
-        
+
         Args:
             server_name: Server name
-            
+
         Returns:
             List of prompt info dicts
         """
@@ -453,16 +451,16 @@ class McpClientManager:
         self,
         server_name: str,
         prompt_name: str,
-        arguments: dict[str, str] | None = None
+        arguments: dict[str, str] | None = None,
     ) -> McpPromptResult:
         """
         Get a rendered prompt with optional arguments.
-        
+
         Args:
             server_name: Server name
             prompt_name: Prompt name
             arguments: Optional arguments for the prompt
-            
+
         Returns:
             Dict with prompt messages and metadata
         """
@@ -475,10 +473,10 @@ class McpClientManager:
     def get_prompts_formatted(self, server_name: str) -> str:
         """
         Get formatted markdown list of prompts.
-        
+
         Args:
             server_name: Server name
-            
+
         Returns:
             Markdown formatted string
         """
@@ -514,7 +512,7 @@ class McpClientManager:
                     command=details.get("command"),
                     args=args_json,
                     env=env_json,
-                    enabled=True
+                    enabled=True,
                 )
                 session.add(db_server)
 
@@ -527,7 +525,7 @@ class McpClientManager:
             command=details.get("command"),
             args=details.get("args", []),
             env=details.get("env", {}),
-            enabled=True
+            enabled=True,
         )
 
         return await self.connect(config)
@@ -558,13 +556,15 @@ class McpClientManager:
                 feature = self._tools_feature.get(s.name)
                 tools_count = len(feature.get_tools()) if feature else 0
 
-                output.append(McpServerSummary(
-                    name=s.name,
-                    command=s.command,
-                    status="connected" if is_connected else "available",
-                    tools_count=tools_count,
-                    enabled=s.enabled
-                ))
+                output.append(
+                    McpServerSummary(
+                        name=s.name,
+                        command=s.command,
+                        status="connected" if is_connected else "available",
+                        tools_count=tools_count,
+                        enabled=s.enabled,
+                    )
+                )
             return output
 
     def get_connection_state(self, server_name: str) -> ConnectionState:
@@ -576,7 +576,7 @@ class McpClientManager:
             server_name=server_name,
             is_connected=is_connected,
             last_health_check=self._health_checker.get_last_check_time(server_name),
-            tools_count=len(feature.get_tools()) if feature else 0
+            tools_count=len(feature.get_tools()) if feature else 0,
         )
 
     # ═══════════════════════════════════════════════════════════
@@ -605,7 +605,7 @@ class McpClientManager:
                             command=details.get("command"),
                             args=json.dumps(details.get("args", [])),
                             env=json.dumps(details.get("env", {})),
-                            enabled=True
+                            enabled=True,
                         )
                         session.add(new_server)
                 logger.info("Legacy MCP config migrated successfully.")

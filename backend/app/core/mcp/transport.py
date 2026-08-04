@@ -47,10 +47,10 @@ class McpTransport:
     ) -> AsyncGenerator[tuple[Any, Any], None]:
         """
         Create transport (read/write streams) based on config.
-        
+
         Args:
             config: Server configuration
-            
+
         Yields:
             Tuple of (read_stream, write_stream)
         """
@@ -78,17 +78,14 @@ class McpTransport:
                     yield read, write
 
     @staticmethod
-    async def create_session(
-        read_stream: Any,
-        write_stream: Any
-    ) -> ClientSession:
+    async def create_session(read_stream: Any, write_stream: Any) -> ClientSession:
         """
         Create and initialize a ClientSession.
-        
+
         Args:
             read_stream: Read stream from transport
             write_stream: Write stream from transport
-            
+
         Returns:
             Initialized ClientSession
         """

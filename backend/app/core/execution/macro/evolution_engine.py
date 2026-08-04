@@ -33,7 +33,7 @@ class StepTransformer(ABC):
         self,
         step: dict[str, Any],
         record: MacroEvolutionRecord,
-        context: EvolutionContext
+        context: EvolutionContext,
     ) -> list[dict[str, Any]]:
         """
         Transform a single step into one or more enhanced steps
@@ -47,7 +47,7 @@ class StepTransformer(ABC):
 class AgenticTransformer(StepTransformer):
     """
     General purpose transformer for Agent-derived evolution.
-    
+
     Directly uses the evolved_step and additional_steps provided by the Agent
     in the MacroEvolutionRecord.
     """
@@ -60,7 +60,7 @@ class AgenticTransformer(StepTransformer):
         self,
         step: dict[str, Any],
         record: MacroEvolutionRecord,
-        context: EvolutionContext
+        context: EvolutionContext,
     ) -> list[dict[str, Any]]:
         """
         Transform: Use the Agent's decided output directly.
@@ -81,9 +81,7 @@ class AgenticTransformer(StepTransformer):
         return evolved_steps
 
     def _extract_navigation(
-        self,
-        context: EvolutionContext,
-        target_step: dict[str, Any]
+        self, context: EvolutionContext, target_step: dict[str, Any]
     ) -> list[dict[str, Any]]:
         """Extract navigation steps to reach target step's context"""
         # Find goto/open_app step before target
@@ -114,7 +112,7 @@ class MacroEvolutionEngine:
         original_macro: list[dict[str, Any]],
         evolution_records: list[MacroEvolutionRecord],
         step_results: list[StepResult],
-        target_platform: str = "web"
+        target_platform: str = "web",
     ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
         """
         Evolve macro based on verification results
@@ -128,7 +126,7 @@ class MacroEvolutionEngine:
             original_macro=original_macro,
             step_results=step_results,
             evolution_records=evolution_records,
-            target_platform=target_platform
+            target_platform=target_platform,
         )
 
         evolved_macro = []
@@ -169,9 +167,7 @@ class MacroEvolutionEngine:
 
             if step_records:
                 # Apply transformations
-                evolved_steps = self._transform_step(
-                    step, step_records, context
-                )
+                evolved_steps = self._transform_step(step, step_records, context)
 
                 # Renumber steps
                 for i, es in enumerate(evolved_steps):
@@ -197,11 +193,7 @@ class MacroEvolutionEngine:
 
         return evolved_macro, metadata
 
-    def _record_matches_step(
-        self,
-        record: MacroEvolutionRecord,
-        step_number: int
-    ) -> bool:
+    def _record_matches_step(self, record: MacroEvolutionRecord, step_number: int) -> bool:
         """Check if evolution record applies to given step number"""
         original_step_num = record.original_step.get("step_number")
         evolved_step_num = record.evolved_step.get("step_number")
@@ -212,7 +204,7 @@ class MacroEvolutionEngine:
         self,
         step: dict[str, Any],
         records: list[MacroEvolutionRecord],
-        context: EvolutionContext
+        context: EvolutionContext,
     ) -> list[dict[str, Any]]:
         """Apply appropriate transformers to a step
 
@@ -302,7 +294,7 @@ class MacroEvolutionEngine:
         step: dict[str, Any],
         step_number: int,
         evolution_records: list[MacroEvolutionRecord],
-        context: EvolutionContext
+        context: EvolutionContext,
     ) -> dict[str, Any]:
         """
         Evolve a loop step including its sub-steps.
@@ -328,9 +320,7 @@ class MacroEvolutionEngine:
 
             if sub_records:
                 # Apply transformations to sub-step
-                transformed = self._transform_step(
-                    sub_step, sub_records, context
-                )
+                transformed = self._transform_step(sub_step, sub_records, context)
                 evolved_sub_steps.extend(transformed)
                 logger.info(
                     f"[EvolutionEngine] Loop sub-step {sub_step_num}: "
@@ -343,11 +333,7 @@ class MacroEvolutionEngine:
         evolved_loop["steps"] = evolved_sub_steps
         return evolved_loop
 
-    def _generate_metadata(
-        self,
-        context: EvolutionContext,
-        final_step_count: int
-    ) -> dict[str, Any]:
+    def _generate_metadata(self, context: EvolutionContext, final_step_count: int) -> dict[str, Any]:
         """Generate evolution metadata"""
         return {
             "original_step_count": len(context.original_macro),
@@ -374,11 +360,7 @@ class MacroEvolutionEngine:
         # mapping yet, so we just return 'agent_correction'
         return "agent_correction"
 
-    def generate_fallback_chain(
-        self,
-        step: dict[str, Any],
-        max_fallbacks: int = 3
-    ) -> list[dict[str, Any]]:
+    def generate_fallback_chain(self, step: dict[str, Any], max_fallbacks: int = 3) -> list[dict[str, Any]]:
         """
         Generate a fallback chain for a single step
 

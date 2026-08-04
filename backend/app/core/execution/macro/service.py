@@ -23,7 +23,7 @@ class MacroService:
         thread_id: str,
         script_input: MacroScript | list[dict],
         params: dict[str, Any] | None = None,
-        macro: Macro | None = None  # Macro, optional for policy check
+        macro: Macro | None = None,  # Macro, optional for policy check
     ) -> MacroRunResult:
         """
         High-level entry point to execute a macro.
@@ -88,13 +88,14 @@ class MacroService:
                     skill_name=params.get("_skill_name") if params else "manual_macro",
                     error_message=msg,
                     fallback_context=fallback_ctx,
-                    thread_id=thread_id
+                    thread_id=thread_id,
                 )
 
                 # Publish event for listeners (advisor will add suggestions)
                 from app.core.execution.macro.event.publishers import (
                     publish_macro_execution_failed,
                 )
+
                 event = await publish_macro_execution_failed(
                     skill_id=params.get("_skill_id") if params else None,
                     skill_name=params.get("_skill_name") if params else "manual_macro",
@@ -113,12 +114,16 @@ class MacroService:
                 )
 
             # 4. Success Reporting
-            await activity_monitor.log_event("macro_thought", {"text": "Macro execution completed successfully."}, thread_id)
+            await activity_monitor.log_event(
+                "macro_thought",
+                {"text": "Macro execution completed successfully."},
+                thread_id,
+            )
             await activity_monitor.end_run(thread_id, "done")
             return MacroRunResult(
                 success=True,
                 message="Deterministic Macro Execution Complete.",
-                extracted_data=extracted_data
+                extracted_data=extracted_data,
             )
 
         except Exception as e:

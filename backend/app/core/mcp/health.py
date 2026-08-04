@@ -20,11 +20,11 @@ class McpHealthChecker:
     async def check(self, server_name: str, session: ClientSession) -> HealthStatus:
         """
         Check health of a session by listing tools.
-        
+
         Args:
             server_name: Server identifier
             session: Active MCP ClientSession
-            
+
         Returns:
             HealthStatus with check results
         """
@@ -34,7 +34,7 @@ class McpHealthChecker:
                 server_name=server_name,
                 last_check=time.time(),
                 response_time_ms=0.0,
-                error_message="No session available"
+                error_message="No session available",
             )
 
         start_time = time.time()
@@ -50,7 +50,7 @@ class McpHealthChecker:
                 is_healthy=True,
                 server_name=server_name,
                 last_check=time.time(),
-                response_time_ms=response_time
+                response_time_ms=response_time,
             )
 
         except Exception as e:
@@ -62,7 +62,7 @@ class McpHealthChecker:
                 server_name=server_name,
                 last_check=time.time(),
                 response_time_ms=response_time,
-                error_message=str(e)
+                error_message=str(e),
             )
 
     def get_last_check_time(self, server_name: str) -> float | None:
@@ -72,11 +72,11 @@ class McpHealthChecker:
     def is_stale(self, server_name: str, max_age_seconds: float = 300.0) -> bool:
         """
         Check if health status is stale.
-        
+
         Args:
             server_name: Server identifier
             max_age_seconds: Maximum age before considered stale
-            
+
         Returns:
             True if no recent health check
         """

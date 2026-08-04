@@ -5,6 +5,7 @@ from app.infrastructure.pydantic_base import DynamicBaseModel
 
 class UseMcpServerSchema(DynamicBaseModel):
     """Schema for use_mcp_server tool."""
+
     server_name: str
     tool_name: str
     arguments: dict | None = None

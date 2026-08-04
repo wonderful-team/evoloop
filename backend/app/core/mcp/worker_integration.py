@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class WorkerMcpIntegration:
     """
     Integrates Worker-specific MCP into tool management.
-    
+
     This class bridges the gap between Worker lifecycle and MCP connections:
     1. Initialize MCP sessions when Worker starts
     2. Provide tools to Worker during execution
@@ -26,17 +26,17 @@ class WorkerMcpIntegration:
         worker_id: str,
         worker_name: str,
         mcp_config: WorkerMcpConfig | None,
-        execution_ticket: ExecutionTicket | None
+        execution_ticket: ExecutionTicket | None,
     ) -> list[EvoLoopTool]:
         """
         Initialize MCP for a Worker and return available tools.
-        
+
         Args:
             worker_id: Unique worker instance ID
             worker_name: Worker role name
             mcp_config: Worker's MCP configuration
             execution_ticket: Execution ticket with mcp_servers_required
-            
+
         Returns:
             List of tools available to this Worker
         """
@@ -131,10 +131,10 @@ class WorkerMcpIntegration:
     def get_worker_tools(worker_id: str) -> list[EvoLoopTool]:
         """
         Get tools from a Worker's existing MCP session.
-        
+
         Args:
             worker_id: Worker instance ID
-            
+
         Returns:
             List of tools (empty if no session)
         """
@@ -147,7 +147,7 @@ class WorkerMcpIntegration:
     async def cleanup_worker_mcp(worker_id: str) -> None:
         """
         Cleanup MCP session for a Worker.
-        
+
         Args:
             worker_id: Worker instance ID
         """

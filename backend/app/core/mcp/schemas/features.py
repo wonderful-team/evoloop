@@ -11,6 +11,7 @@ class McpFeatureCapabilities(DynamicBaseModel):
 
 class McpResourceContent(DynamicBaseModel):
     """Content returned from reading an MCP resource."""
+
     uri: str = ""
     content: str = ""
     mime_type: str | None = None
@@ -19,6 +20,7 @@ class McpResourceContent(DynamicBaseModel):
 
 class McpPromptMessage(DynamicBaseModel):
     """A single message within an MCP prompt result."""
+
     role: str
     content: str | None = None
     content_type: str | None = None
@@ -28,6 +30,7 @@ class McpPromptMessage(DynamicBaseModel):
 
 class McpPromptResult(DynamicBaseModel):
     """Result of getting a rendered MCP prompt."""
+
     name: str = ""
     description: str | None = None
     messages: list[McpPromptMessage] = Field(default_factory=list)

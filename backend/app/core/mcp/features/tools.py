@@ -76,6 +76,7 @@ class McpToolsFeature(McpFeature):
         server_name = self._server_name
 
         for tool in self._tools:
+
             async def _tool_func(*_args, tool_name: str = tool.name, **kwargs) -> Any:
                 return await session.call_tool(tool_name, arguments=kwargs)
 

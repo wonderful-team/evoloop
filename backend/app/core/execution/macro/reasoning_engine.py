@@ -44,7 +44,7 @@ class AgentReasoningEngine:
         ui_state: dict[str, Any],
         history: list[dict[str, Any]] | None = None,
         is_recovery: bool = False,
-        failure_reason: str = ""
+        failure_reason: str = "",
     ) -> ActionDecision:
         """
         Decide the next action based on visual state and current macro step.
@@ -66,7 +66,7 @@ class AgentReasoningEngine:
             return ActionDecision(
                 action="execute",
                 reasoning="No screenshot available for visual reasoning, falling back to direct execution.",
-                confidence=0.5
+                confidence=0.5,
             )
 
         prompt = self._build_reasoning_prompt(current_step, ui_state, history, is_recovery, failure_reason)
@@ -108,14 +108,14 @@ class AgentReasoningEngine:
             return ActionDecision(
                 action="execute",
                 reasoning=f"Reasoning error: {e}. Falling back to default execution.",
-                confidence=0.0
+                confidence=0.0,
             )
 
     async def verify_outcome(
         self,
         step: dict[str, Any],
         pre_state: dict[str, Any],
-        post_state: dict[str, Any]
+        post_state: dict[str, Any],
     ) -> tuple[bool, str]:
         """
         Verify if the action had the intended effect visually.
@@ -153,7 +153,7 @@ class AgentReasoningEngine:
             if isinstance(content, list):
                 content = "".join([c.get("text", "") if isinstance(c, dict) else str(c) for c in content])
 
-            json_match = re.search(r'\{.*\}', str(content), re.DOTALL)
+            json_match = re.search(r"\{.*\}", str(content), re.DOTALL)
             if json_match:
                 data = json.loads(json_match.group())
                 success = data.get("success", True)
@@ -170,11 +170,7 @@ class AgentReasoningEngine:
             logger.error(f"[LLM:VERIFY:{step_number}] Verification failed: {e}")
             return False, f"Verification error: {e}"
 
-    async def is_failure_terminal(
-        self,
-        step: dict[str, Any],
-        error: str
-    ) -> bool:
+    async def is_failure_terminal(self, step: dict[str, Any], error: str) -> bool:
         """
         Reason whether a failure at a specific step is terminal for the entire macro.
         Avoids hardcoded 'critical' types.
@@ -186,7 +182,7 @@ class AgentReasoningEngine:
         prompt = self._render_template(
             "core/execution/is_failure_terminal.prompt.j2",
             step_yaml=step_yaml,
-            error=error
+            error=error,
         )
         logger.info(f"[LLM:TERMINAL:{step_number}] Checking if failure is terminal")
         logger.info(f"[LLM:TERMINAL:{step_number}] Error: {error}")
@@ -201,7 +197,7 @@ class AgentReasoningEngine:
             if isinstance(content, list):
                 content = "".join([c.get("text", "") if isinstance(c, dict) else str(c) for c in content])
 
-            json_match = re.search(r'\{.*\}', str(content), re.DOTALL)
+            json_match = re.search(r"\{.*\}", str(content), re.DOTALL)
             if json_match:
                 data = json.loads(json_match.group())
                 is_terminal = data.get("is_terminal", True)
@@ -224,7 +220,7 @@ class AgentReasoningEngine:
         ui_state: dict[str, Any],
         history: list[dict[str, Any]] | None = None,
         is_recovery: bool = False,
-        failure_reason: str = ""
+        failure_reason: str = "",
     ) -> str:
         """Build the prompt for the Vision LLM"""
 
@@ -239,16 +235,16 @@ class AgentReasoningEngine:
             "core/execution/decide_next_step.prompt.j2",
             mental_model=self.mental_model,
             step_yaml=step_yaml,
-            platform=ui_state.get('platform'),
-            url_or_activity=ui_state.get('url') or ui_state.get('current_activity'),
+            platform=ui_state.get("platform"),
+            url_or_activity=ui_state.get("url") or ui_state.get("current_activity"),
             history_context=history_context,
             is_recovery=is_recovery,
-            failure_reason=failure_reason
+            failure_reason=failure_reason,
         )
 
     def _parse_reasoning_response(self, content: str, original_step: dict[str, Any]) -> ActionDecision:
         """Parse LLM JSON response"""
-        json_match = re.search(r'\{.*\}', content, re.DOTALL)
+        json_match = re.search(r"\{.*\}", content, re.DOTALL)
         if not json_match:
             raise ValueError(f"No JSON found in response: {content[:200]}")
 
@@ -285,14 +281,14 @@ class AgentReasoningEngine:
             reasoning=data.get("reasoning", "No reasoning provided"),
             suggested_step=suggested,
             additional_steps=additional_steps,
-            confidence=data.get("confidence", 0.5)
+            confidence=data.get("confidence", 0.5),
         )
 
     async def check_redundancy(
         self,
         step: dict[str, Any],
         ui_state: dict[str, Any],
-        history: list[dict[str, Any]] | None = None
+        history: list[dict[str, Any]] | None = None,
     ) -> RedundancyCheckResult:
         """
         Check if a step is redundant based on visual state and history.
@@ -330,14 +326,14 @@ class AgentReasoningEngine:
             if isinstance(content, list):
                 content = "".join([c.get("text", "") if isinstance(c, dict) else str(c) for c in content])
 
-            json_match = re.search(r'\{.*\}', str(content), re.DOTALL)
+            json_match = re.search(r"\{.*\}", str(content), re.DOTALL)
             if json_match:
                 data = json.loads(json_match.group())
                 result = RedundancyCheckResult(
                     is_redundant=data.get("is_redundant", False),
                     redundancy_type=RedundancyType(data.get("type", "none")),
                     reason=data.get("reason", "Agent reasoning"),
-                    suggested_action=data.get("suggested_action", "keep")
+                    suggested_action=data.get("suggested_action", "keep"),
                 )
             else:
                 result = RedundancyCheckResult(is_redundant=False)
@@ -378,7 +374,7 @@ class AgentReasoningEngine:
         prompt = self._render_template(
             "core/execution/analyze_results.prompt.j2",
             total_steps=len(macro_script),
-            reports_json=json.dumps(condensed_reports, indent=2, ensure_ascii=False)
+            reports_json=json.dumps(condensed_reports, indent=2, ensure_ascii=False),
         )
         logger.info(f"[LLM:ANALYZE] Analyzing results from {len(reports)} rounds")
         logger.info(f"[LLM:ANALYZE] Prompt:\n{prompt}")
@@ -392,7 +388,7 @@ class AgentReasoningEngine:
             if isinstance(content, list):
                 content = "".join([c.get("text", "") if isinstance(c, dict) else str(c) for c in content])
 
-            json_match = re.search(r'\{.*\}', str(content), re.DOTALL)
+            json_match = re.search(r"\{.*\}", str(content), re.DOTALL)
             if not json_match:
                 return AIAnalysisResult(qualitative_assessment="Could not parse analysis JSON")
 

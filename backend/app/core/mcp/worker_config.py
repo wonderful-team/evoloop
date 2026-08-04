@@ -10,6 +10,7 @@ from app.infrastructure.pydantic_base import DynamicBaseModel
 
 class WorkerMcpServerConfig(DynamicBaseModel):
     """MCP server configuration for a specific Worker."""
+
     name: str
     # Connection
     transport: TransportType = TransportType.STDIO
@@ -62,6 +63,7 @@ class WorkerMcpServerConfig(DynamicBaseModel):
 
 class WorkerMcpConfig(DynamicBaseModel):
     """MCP configuration for a Worker."""
+
     # Worker-specific MCP servers
     servers: list[WorkerMcpServerConfig] = Field(default_factory=list)
     # Global MCP servers to inherit

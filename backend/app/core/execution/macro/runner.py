@@ -237,7 +237,9 @@ async def run_deterministic(
         from app.core.execution.macro.engine import MacroEngine
 
         ok, msg, _data = await MacroEngine.execute(
-            thread_id, script, params=params or {},
+            thread_id,
+            script,
+            params=params or {},
             skip_activity_log=skip_activity_log,
             skip_recording=skip_recording,
         )
@@ -256,7 +258,9 @@ async def run_deterministic(
     from app.core.execution.macro.engine import MacroEngine
 
     ok, msg, _data = await MacroEngine.execute(
-        thread_id, script, params=params or {},
+        thread_id,
+        script,
+        params=params or {},
         skip_activity_log=skip_activity_log,
         skip_recording=skip_recording,
     )

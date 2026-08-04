@@ -2,6 +2,7 @@
 MCP (Model Context Protocol) Module Lifecycle Handlers
 Handles connection initialization and global client cleanup.
 """
+
 import json
 import logging
 
@@ -39,6 +40,7 @@ class McpLifecycleSubscriber:
         """
         try:
             from app.core.mcp import mcp_client_manager
+
             await mcp_client_manager.disconnect_all()
             logger.info("[MCP] All clients disconnected")
         except Exception as e:
@@ -51,7 +53,7 @@ class McpLifecycleSubscriber:
         """
         key = event.data.get("key")
         new_value = event.data.get("new_value")
-        
+
         if key == "WORKSPACE_ROOT":
             logger.info(f"[MCP] WORKSPACE_ROOT changed to {new_value}, reloading filesystem MCP...")
             await reload_mcp_for_workspace_change()

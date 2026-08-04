@@ -219,7 +219,12 @@ async def remember_concept(name: str, description: str, related_files: list[str]
             await MemoryLifespanManager.ainitialize()
         container = MemoryLifespanManager.get_container()
         manager = container.memory_manager
-        concept = Concept(name=name, description=description, project_id=DEFAULT_PROJECT_ID, related_files=related_files)
+        concept = Concept(
+            name=name,
+            description=description,
+            project_id=DEFAULT_PROJECT_ID,
+            related_files=related_files,
+        )
         await manager.store_concept(concept)
         return f"Stored concept: {name}"
     except Exception as e:

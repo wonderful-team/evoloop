@@ -49,7 +49,7 @@ class MacroOptimizer:
             return script, OptimizationResult(0, 0, 0, 0, 0)
 
         original_count = len(steps)
-        stats = {'removed': 0, 'merged': 0, 'time_saved': 0, 'strategies': []}
+        stats = {"removed": 0, "merged": 0, "time_saved": 0, "strategies": []}
 
         # Lossless port of the 5-round optimization pipeline
 
@@ -57,39 +57,39 @@ class MacroOptimizer:
         current_steps = steps
         if self.strategies_enabled[OptimizationStrategy.FILTER_REDUNDANT]:
             current_steps = self._filter_redundant(current_steps)
-            stats['removed'] += original_count - len(current_steps)
+            stats["removed"] += original_count - len(current_steps)
             if len(current_steps) < original_count:
-                stats['strategies'].append('filter_redundant')
+                stats["strategies"].append("filter_redundant")
 
         # Round 2: Merge waits
         if self.strategies_enabled[OptimizationStrategy.MERGE_WAITS]:
             prev_len = len(current_steps)
             current_steps, merge_count, time_saved = self._merge_waits(current_steps)
-            stats['merged'] += merge_count
-            stats['time_saved'] += time_saved
+            stats["merged"] += merge_count
+            stats["time_saved"] += time_saved
             if merge_count > 0:
-                stats['strategies'].append('merge_waits')
+                stats["strategies"].append("merge_waits")
 
         # Round 3: Remove duplicates
         if self.strategies_enabled[OptimizationStrategy.REMOVE_DUPLICATES]:
             prev_len = len(current_steps)
             current_steps, dup_count = self._remove_duplicates(current_steps)
-            stats['removed'] += dup_count
+            stats["removed"] += dup_count
             if dup_count > 0:
-                stats['strategies'].append('remove_duplicates')
+                stats["strategies"].append("remove_duplicates")
 
         # Round 4: Time interval optimization (Auto-wait insertion)
         if self.strategies_enabled[OptimizationStrategy.TIME_INTERVAL]:
             current_steps, time_saved = self._optimize_intervals(current_steps)
-            stats['time_saved'] += time_saved
+            stats["time_saved"] += time_saved
             if time_saved > 0:
-                stats['strategies'].append('time_interval')
+                stats["strategies"].append("time_interval")
 
         # Round 5: Batch Extract Coalescing (Simplified Model Port)
         if self.strategies_enabled[OptimizationStrategy.COALESCE_EXTRACTS]:
             current_steps, coalesce_count = self._coalesce_extracts(current_steps)
             if coalesce_count > 0:
-                stats['strategies'].append('coalesce_extracts')
+                stats["strategies"].append("coalesce_extracts")
 
         # Renumber and return
         for i, step in enumerate(current_steps, 1):
@@ -99,22 +99,24 @@ class MacroOptimizer:
         result = OptimizationResult(
             original_steps=original_count,
             optimized_steps=len(current_steps),
-            removed_steps=stats['removed'],
-            merged_steps=stats['merged'],
-            time_saved_ms=stats['time_saved'],
-            strategies_applied=stats['strategies']
+            removed_steps=stats["removed"],
+            merged_steps=stats["merged"],
+            time_saved_ms=stats["time_saved"],
+            strategies_applied=stats["strategies"],
         )
         return optimized_script, result
 
     def _filter_redundant(self, steps: list[MacroStep]) -> list[MacroStep]:
         filtered = []
         for step in steps:
-            if step.event_type in self.LOW_VALUE_ACTIONS: continue
+            if step.event_type in self.LOW_VALUE_ACTIONS:
+                continue
             if step.event_type == MacroActionType.WAIT:
                 payload = step.payload or {}
-                duration_ms = payload.get('duration_ms', 0)
-                seconds = payload.get('seconds', 0)
-                if (duration_ms + seconds * 1000) <= 0: continue
+                duration_ms = payload.get("duration_ms", 0)
+                seconds = payload.get("seconds", 0)
+                if (duration_ms + seconds * 1000) <= 0:
+                    continue
             filtered.append(step)
         return filtered
 
@@ -130,20 +132,20 @@ class MacroOptimizer:
                 i += 1
                 continue
 
-            total_wait_ms = step.payload.get('duration_ms', 0) + (step.payload.get('seconds', 0) * 1000)
+            total_wait_ms = step.payload.get("duration_ms", 0) + (step.payload.get("seconds", 0) * 1000)
             consecutive = 1
             j = i + 1
             while j < len(steps) and steps[j].event_type == MacroActionType.WAIT:
-                total_wait_ms += steps[j].payload.get('duration_ms', 0) + (steps[j].payload.get('seconds', 0) * 1000)
+                total_wait_ms += steps[j].payload.get("duration_ms", 0) + (steps[j].payload.get("seconds", 0) * 1000)
                 consecutive += 1
                 j += 1
 
             new_step = step.model_copy()
             final_wait_ms = min(max(total_wait_ms, self.MIN_WAIT_DURATION_MS), self.MAX_WAIT_DURATION_MS)
             time_saved += (total_wait_ms - final_wait_ms) + (consecutive - 1) * 50
-            new_step.payload['duration_ms'] = final_wait_ms
-            if 'seconds' in new_step.payload:
-                del new_step.payload['seconds'] # Standardize to duration_ms
+            new_step.payload["duration_ms"] = final_wait_ms
+            if "seconds" in new_step.payload:
+                del new_step.payload["seconds"]  # Standardize to duration_ms
             merged.append(new_step)
             merge_count += consecutive - 1
             i = j
@@ -163,15 +165,22 @@ class MacroOptimizer:
                     # Fuzzy match coordinates for mobile/desktop
                     if step.event_type in (MacroActionType.CLICK, MacroActionType.TAP):
                         c_p, p_p = step.payload, prev.payload
-                        if abs(c_p.get('x',0)-p_p.get('x',0)) < 0.01 and abs(c_p.get('y',0)-p_p.get('y',0)) < 0.01:
-                            is_dup = True; break
+                        if abs(c_p.get("x", 0) - p_p.get("x", 0)) < 0.01 and abs(c_p.get("y", 0) - p_p.get("y", 0)) < 0.01:
+                            is_dup = True
+                            break
                     elif step.event_type in (MacroActionType.INPUT, MacroActionType.TYPE_TEXT):
-                        if step.payload.get('text') == prev.payload.get('text'):
-                            is_dup = True; break
+                        if step.payload.get("text") == prev.payload.get("text"):
+                            is_dup = True
+                            break
                     else:
                         # General payload match
-                        if {k:v for k,v in step.payload.items() if k!='timestamp'} == {k:v for k,v in prev.payload.items() if k!='timestamp'}:
-                            is_dup = True; break
+                        if {
+                            k: v for k, v in step.payload.items() if k != "timestamp"
+                        } == {
+                            k: v for k, v in prev.payload.items() if k != "timestamp"
+                        }:
+                            is_dup = True
+                            break
 
             if is_dup:
                 removed += 1
@@ -185,17 +194,21 @@ class MacroOptimizer:
         last_ts = 0
         for step in steps:
             # We assume payload might have timestamp from trace
-            ts = step.payload.get('timestamp', 0)
+            ts = step.payload.get("timestamp", 0)
             if ts > 0 and last_ts > 0:
                 interval = ts - last_ts
                 if interval < self.min_interval_ms:
                     needed = self.min_interval_ms - interval
                     if optimized and optimized[-1].event_type == MacroActionType.WAIT:
-                        optimized[-1].payload['duration_ms'] += needed
+                        optimized[-1].payload["duration_ms"] += needed
                     else:
                         wait_step = MacroStep(
-                            step_number=0, type=MacroStepType.ACTION, event_type=MacroActionType.WAIT,
-                            source=step.source, payload={'duration_ms': needed}, description="Auto-timing"
+                            step_number=0,
+                            type=MacroStepType.ACTION,
+                            event_type=MacroActionType.WAIT,
+                            source=step.source,
+                            payload={"duration_ms": needed},
+                            description="Auto-timing",
                         )
                         optimized.append(wait_step)
                     time_saved -= needed
@@ -223,9 +236,15 @@ class MacroOptimizer:
                 coalesced.append(steps[i])
             else:
                 batch = MacroStep(
-                    step_number=steps[i].step_number, type=MacroStepType.EXTRACT,
-                    extract_type="batch", source=steps[i].source,
-                    payload={"batch": True, "count": len(extracts), "keys": [e.key for e in extracts]}
+                    step_number=steps[i].step_number,
+                    type=MacroStepType.EXTRACT,
+                    extract_type="batch",
+                    source=steps[i].source,
+                    payload={
+                        "batch": True,
+                        "count": len(extracts),
+                        "keys": [e.key for e in extracts],
+                    },
                 )
                 coalesced.append(batch)
                 count += len(extracts) - 1

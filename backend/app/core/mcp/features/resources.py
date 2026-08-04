@@ -82,10 +82,10 @@ class McpResourcesFeature(McpFeature):
     async def read_resource(self, uri: str) -> McpResourceContent:
         """
         Read content from a resource URI.
-        
+
         Args:
             uri: Resource URI to read
-            
+
         Returns:
             Dict with content, mime_type, and other metadata
         """

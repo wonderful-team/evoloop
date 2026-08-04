@@ -47,7 +47,11 @@ class McpPromptsFeature(McpFeature):
                     "name": p.name,
                     "description": p.description,
                     "arguments": [
-                        {"name": arg.name, "required": arg.required, "description": arg.description}
+                        {
+                            "name": arg.name,
+                            "required": arg.required,
+                            "description": arg.description,
+                        }
                         for arg in (p.arguments or [])
                     ],
                 }
@@ -62,11 +66,11 @@ class McpPromptsFeature(McpFeature):
     async def get_prompt(self, name: str, arguments: dict[str, str] | None = None) -> McpPromptResult:
         """
         Get a rendered prompt with optional arguments.
-        
+
         Args:
             name: Prompt name
             arguments: Optional arguments for the prompt
-            
+
         Returns:
             Dict with prompt messages and metadata
         """
@@ -80,30 +84,36 @@ class McpPromptsFeature(McpFeature):
             for msg in result.messages:
                 # Handle text content
                 if msg.content.type == "text":
-                    messages.append(McpPromptMessage(
-                        role=msg.role,
-                        content=msg.content.text,
-                        content_type="text",
-                    ))
+                    messages.append(
+                        McpPromptMessage(
+                            role=msg.role,
+                            content=msg.content.text,
+                            content_type="text",
+                        )
+                    )
                 # Handle image content
                 elif msg.content.type == "image":
-                    messages.append(McpPromptMessage(
-                        role=msg.role,
-                        content=msg.content.data,
-                        content_type="image",
-                        mime_type=msg.content.mimeType,
-                    ))
+                    messages.append(
+                        McpPromptMessage(
+                            role=msg.role,
+                            content=msg.content.data,
+                            content_type="image",
+                            mime_type=msg.content.mimeType,
+                        )
+                    )
                 # Handle resource content
                 elif msg.content.type == "resource":
                     resource = msg.content.resource
-                    content = resource.text if hasattr(resource, 'text') else str(resource)
-                    resource_uri = resource.uri if hasattr(resource, 'uri') else None
-                    messages.append(McpPromptMessage(
-                        role=msg.role,
-                        content=content,
-                        content_type="resource",
-                        resource_uri=resource_uri,
-                    ))
+                    content = resource.text if hasattr(resource, "text") else str(resource)
+                    resource_uri = resource.uri if hasattr(resource, "uri") else None
+                    messages.append(
+                        McpPromptMessage(
+                            role=msg.role,
+                            content=content,
+                            content_type="resource",
+                            resource_uri=resource_uri,
+                        )
+                    )
 
             return McpPromptResult(
                 name=name,

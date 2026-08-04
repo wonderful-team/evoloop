@@ -11,7 +11,6 @@ import logging
 from typing import Any
 
 from app.constants import DEFAULT_PROJECT_ID
-from app.core.execution.macro.validator import AgentMacroValidator
 from app.core.execution.macro.models import (
     EnvironmentConfig,
     ExecutionMode,
@@ -26,6 +25,7 @@ from app.core.execution.macro.schemas import (
     ModeRecommendation,
 )
 from app.core.execution.macro.service import MacroRunResult, MacroService
+from app.core.execution.macro.validator import AgentMacroValidator
 from app.core.execution.macro.verification_reporter import VerificationReporter
 from app.utils.yaml import macro_from_yaml
 
@@ -48,7 +48,7 @@ class VerificationService:
         max_rounds: int = 2,
         auto_evolve: bool = True,
         thread_id: str | None = None,
-        stop_on_failure: bool = True
+        stop_on_failure: bool = True,
     ) -> VerificationResponse:
         """
         Verify a macro script with optional evolution.
@@ -97,9 +97,8 @@ class VerificationService:
             )
 
         # Build verification request with agent config
-        from app.core.execution.macro.models import (
-            VerificationAgentConfig as AgentConfig,
-        )
+        from app.core.execution.macro.models import VerificationAgentConfig as AgentConfig
+
         agent_config = AgentConfig(conservative_mode=stop_on_failure)
 
         request = VerificationRequest(
@@ -107,7 +106,7 @@ class VerificationService:
             target_environment=EnvironmentConfig(platform=platform),
             max_rounds=max_rounds,
             output_mode="evolved" if auto_evolve else "report_only",
-            agent_config=agent_config
+            agent_config=agent_config,
         )
 
         if thread_id:
@@ -159,7 +158,7 @@ class VerificationService:
         cls,
         macro_script: list[MacroStep] | MacroScript,
         platform: str = "web",
-        confidence_threshold: float = 0.8
+        confidence_threshold: float = 0.8,
     ) -> ModeRecommendation:
         """
         Verify macro and return recommended execution mode.
@@ -179,7 +178,7 @@ class VerificationService:
             macro_script=macro_script,
             platform=platform,
             max_rounds=1,  # Single round for quick check
-            auto_evolve=False
+            auto_evolve=False,
         )
 
         if not result.success:
@@ -187,7 +186,7 @@ class VerificationService:
                 can_execute=False,
                 recommended_mode="agentic",
                 reason=result.error_message or "Verification failed",
-                confidence=0.0
+                confidence=0.0,
             )
 
         confidence = result.confidence_score
@@ -197,21 +196,21 @@ class VerificationService:
                 can_execute=True,
                 recommended_mode="deterministic",
                 reason=f"High confidence ({confidence:.2%}) with no failures",
-                confidence=confidence
+                confidence=confidence,
             )
         elif confidence >= 0.5:
             return ModeRecommendation(
                 can_execute=True,
                 recommended_mode="hybrid",
                 reason=f"Moderate confidence ({confidence:.2%}), some adaptations needed",
-                confidence=confidence
+                confidence=confidence,
             )
         else:
             return ModeRecommendation(
                 can_execute=True,
                 recommended_mode="agentic",
                 reason=f"Low confidence ({confidence:.2%}), agent supervision recommended",
-                confidence=confidence
+                confidence=confidence,
             )
 
     @classmethod
@@ -219,7 +218,7 @@ class VerificationService:
         cls,
         macro_script: list[MacroStep] | MacroScript | str,
         platform: str = "web",
-        max_rounds: int = 2
+        max_rounds: int = 2,
     ) -> MacroEvolutionResult:
         """
         Evolve a macro through verification and adaptation.
@@ -238,7 +237,7 @@ class VerificationService:
             macro_script=macro_script,
             platform=platform,
             max_rounds=max_rounds,
-            auto_evolve=True
+            auto_evolve=True,
         )
 
         if not result.success or not result.evolved_macro:
@@ -247,7 +246,7 @@ class VerificationService:
                 error=result.error_message or "Evolution failed",
                 original_macro=macro_script,
                 evolved_macro=None,
-                improvements=[]
+                improvements=[],
             )
 
         # Calculate improvements
@@ -286,7 +285,7 @@ class VerificationService:
             execution_mode=result.execution_mode.value if result.execution_mode else None,
             confidence=result.confidence_score,
             improvements=improvements,
-            report=report
+            report=report,
         )
 
 
@@ -301,7 +300,7 @@ class SynthesisIntegration:
     async def verify_for_synthesis(
         macro_script: list[dict[str, Any]] | Any,
         thread_id: str,
-        project_id: int = DEFAULT_PROJECT_ID
+        project_id: int = DEFAULT_PROJECT_ID,
     ) -> VerificationResponse:
         """
         Verify macro during skill synthesis.
@@ -343,7 +342,7 @@ class SynthesisIntegration:
             platform=platform,
             max_rounds=2,
             auto_evolve=True,
-            thread_id=thread_id
+            thread_id=thread_id,
         )
 
         return result
@@ -396,6 +395,7 @@ class SynthesisIntegration:
         else:
             return "web"
 
+
 class MacroServiceIntegration:
     """
     Integration layer for MacroService.
@@ -409,7 +409,7 @@ class MacroServiceIntegration:
         macro_script: MacroScript | list[dict],
         params: dict[str, Any] | None = None,
         verify_first: bool = True,
-        confidence_threshold: float = 0.7
+        confidence_threshold: float = 0.7,
     ) -> MacroRunResult:
         """
         Execute macro with optional pre-flight verification.
@@ -435,7 +435,7 @@ class MacroServiceIntegration:
             check = await VerificationService.verify_and_select_mode(
                 macro_script=macro_script,
                 platform=platform,
-                confidence_threshold=confidence_threshold
+                confidence_threshold=confidence_threshold,
             )
 
             logger.info(
@@ -456,11 +456,8 @@ class MacroServiceIntegration:
 
 # Convenience functions for direct import
 
-async def verify_macro(
-    macro_script: list[MacroStep],
-    platform: str = "web",
-    max_rounds: int = 2
-) -> VerificationResponse:
+
+async def verify_macro(macro_script: list[MacroStep], platform: str = "web", max_rounds: int = 2) -> VerificationResponse:
     """
     Quick function to verify a macro.
 
@@ -473,14 +470,11 @@ async def verify_macro(
         macro_script=macro_script,
         platform=platform,
         max_rounds=max_rounds,
-        auto_evolve=True
+        auto_evolve=True,
     )
 
 
-async def quick_verify(
-    macro_script: list[MacroStep],
-    platform: str = "web"
-) -> ModeRecommendation:
+async def quick_verify(macro_script: list[MacroStep], platform: str = "web") -> ModeRecommendation:
     """
     Quick single-round verification to check if macro is viable.
 
@@ -490,7 +484,4 @@ async def quick_verify(
             # Safe to run deterministically
             pass
     """
-    return await VerificationService.verify_and_select_mode(
-        macro_script=macro_script,
-        platform=platform
-    )
+    return await VerificationService.verify_and_select_mode(macro_script=macro_script, platform=platform)

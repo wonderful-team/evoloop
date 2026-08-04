@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 class ReadMcpResourceInput(BaseModel):
     """Input schema for read_mcp_resource tool."""
+
     server_name: str = Field(
         description="The name of the MCP server hosting the resource."
     )
@@ -24,15 +25,15 @@ class ReadMcpResourceInput(BaseModel):
     "read_mcp_resource",
     args_schema=ReadMcpResourceInput,
     is_state_mutating=False,
-    summary_template="evoloop.tool_summary.read_mcp_resource"
+    summary_template="evoloop.tool_summary.read_mcp_resource",
 )
 async def read_mcp_resource(server_name: str, uri: str) -> str:
     """
     Read content from an MCP resource URI.
-    
+
     Resources are data sources exposed by MCP servers (files, database records, etc).
     Use list_mcp_resources first to discover available URIs.
-    
+
     The content is returned as text when possible, or base64-encoded if binary.
     """
     try:

@@ -3,8 +3,6 @@
 import asyncio
 import base64
 import json
-
-from app.core.file import sha256_digest
 import logging
 import secrets
 import time
@@ -13,6 +11,7 @@ from urllib.parse import parse_qs, urlencode, urlparse
 
 import aiohttp
 
+from app.core.file import sha256_digest
 from app.core.mcp.auth.base import AuthConfig, AuthHandler, AuthMethod, AuthToken
 from app.infrastructure.cache import cache
 
@@ -22,7 +21,7 @@ logger = logging.getLogger(__name__)
 class OAuthAuthorizationCodeHandler(AuthHandler):
     """
     OAuth 2.0 Authorization Code flow handler.
-    
+
     Flow:
     1. Generate PKCE parameters
     2. Open browser for user authorization
@@ -99,7 +98,7 @@ class OAuthAuthorizationCodeHandler(AuthHandler):
     async def authenticate(self) -> AuthToken:
         """
         Perform OAuth Authorization Code flow.
-        
+
         Returns:
             AuthToken with access token
         """
@@ -150,7 +149,7 @@ class OAuthAuthorizationCodeHandler(AuthHandler):
     async def _wait_for_callback(self) -> str:
         """
         Wait for OAuth callback.
-        
+
         Returns:
             Authorization code from callback
         """
@@ -170,7 +169,7 @@ class OAuthAuthorizationCodeHandler(AuthHandler):
     async def handle_callback(self, url: str) -> None:
         """
         Handle OAuth callback URL.
-        
+
         Args:
             url: Callback URL with code and state
         """
@@ -211,7 +210,7 @@ class OAuthAuthorizationCodeHandler(AuthHandler):
             async with session.post(
                 self.config.token_endpoint,
                 data=data,
-                headers={"Accept": "application/json"}
+                headers={"Accept": "application/json"},
             ) as resp:
                 if resp.status != 200:
                     text = await resp.text()
@@ -245,7 +244,7 @@ class OAuthAuthorizationCodeHandler(AuthHandler):
             async with session.post(
                 self.config.token_endpoint,
                 data=data,
-                headers={"Accept": "application/json"}
+                headers={"Accept": "application/json"},
             ) as resp:
                 if resp.status != 200:
                     text = await resp.text()
@@ -270,7 +269,7 @@ class OAuthAuthorizationCodeHandler(AuthHandler):
 class OAuthDeviceCodeHandler(AuthHandler):
     """
     OAuth 2.0 Device Authorization Grant flow.
-    
+
     Flow:
     1. Request device code from authorization server
     2. Display user code and verification URI to user
@@ -288,7 +287,7 @@ class OAuthDeviceCodeHandler(AuthHandler):
     async def authenticate(self) -> AuthToken:
         """
         Perform OAuth Device Code flow.
-        
+
         Returns:
             AuthToken with access token
         """
@@ -329,7 +328,7 @@ class OAuthDeviceCodeHandler(AuthHandler):
             async with session.post(
                 self.config.device_authorization_endpoint,
                 data=data,
-                headers={"Accept": "application/json"}
+                headers={"Accept": "application/json"},
             ) as resp:
                 if resp.status != 200:
                     text = await resp.text()
@@ -337,12 +336,7 @@ class OAuthDeviceCodeHandler(AuthHandler):
 
                 return await resp.json()
 
-    async def _poll_for_token(
-        self,
-        device_code: str,
-        interval: int,
-        expires_in: int
-    ) -> AuthToken:
+    async def _poll_for_token(self, device_code: str, interval: int, expires_in: int) -> AuthToken:
         """Poll token endpoint until authorization complete."""
         data = {
             "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
@@ -362,7 +356,7 @@ class OAuthDeviceCodeHandler(AuthHandler):
                 async with session.post(
                     self.config.token_endpoint,
                     data=data,
-                    headers={"Accept": "application/json"}
+                    headers={"Accept": "application/json"},
                 ) as resp:
                     result = await resp.json()
 
@@ -426,7 +420,7 @@ class OAuthDeviceCodeHandler(AuthHandler):
             async with session.post(
                 self.config.token_endpoint,
                 data=data,
-                headers={"Accept": "application/json"}
+                headers={"Accept": "application/json"},
             ) as resp:
                 if resp.status != 200:
                     text = await resp.text()

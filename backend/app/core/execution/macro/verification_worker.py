@@ -4,7 +4,7 @@ VerificationWorker - Real Environment Step Executor
 Executes macro steps in the actual target environment (browser, mobile, desktop).
 Interfaces with existing controllers to perform actions and capture state.
 """
-
+import asyncio
 import logging
 import time
 from typing import Any
@@ -30,7 +30,7 @@ class VerificationWorker:
         self,
         environment_config: EnvironmentConfig,
         agent_config: AgentConfig,
-        thread_id: str | None = None
+        thread_id: str | None = None,
     ):
         self.config = environment_config
         self.agent_config = agent_config
@@ -102,11 +102,7 @@ class VerificationWorker:
             logger.error(f"[Worker] Failed to import DesktopController: {e}")
             raise RuntimeError("Desktop automation not available") from e
 
-    async def execute_step(
-        self,
-        step: dict[str, Any],
-        step_validator: Any | None = None
-    ) -> Any:
+    async def execute_step(self, step: dict[str, Any], step_validator: Any | None = None) -> Any:
         """
         Execute a single macro step
 
@@ -144,18 +140,15 @@ class VerificationWorker:
             elif source == "desktop" or self._current_platform == "desktop":
                 return await self._execute_desktop_step(step_type, event_type, payload)
             else:
-                raise ValueError(f"Unknown source/platform: {source}/{self._current_platform}")
+                raise ValueError(
+                    f"Unknown source/platform: {source}/{self._current_platform}"
+                )
 
         except Exception as e:
             logger.error(f"[Worker] Step execution failed: {e}")
             return {"error": "execution_failed", "message": str(e), "step": step}
 
-    async def _execute_browser_step(
-        self,
-        step_type: str,
-        event_type: str,
-        payload: dict[str, Any]
-    ) -> Any:
+    async def _execute_browser_step(self, step_type: str, event_type: str, payload: dict[str, Any]) -> Any:
         """Execute browser/DOM step"""
         if not self._browser_controller:
             raise RuntimeError("Browser controller not available")
@@ -220,6 +213,7 @@ class VerificationWorker:
                 return await controller.wait_for(condition, timeout=duration / 1000)
             else:
                 import asyncio
+
                 await asyncio.sleep(duration / 1000)
                 return {"status": "waited", "duration_ms": int(duration)}
 
@@ -258,15 +252,8 @@ class VerificationWorker:
             logger.warning(f"[Worker] Unknown browser event type: {event_type}")
             return {"status": "skipped", "reason": f"Unknown event type: {event_type}"}
 
-    async def _execute_mobile_step(
-        self,
-        step_type: str,
-        event_type: str,
-        payload: dict[str, Any]
-    ) -> Any:
+    async def _execute_mobile_step(self, step_type: str, event_type: str, payload: dict[str, Any]) -> Any:
         """Execute mobile/Android step using MobileController.execute"""
-        import asyncio
-
         from app.core.environment.controllers.mobile import MobileController
         from app.infrastructure.drivers.adb import adb_driver
 
@@ -279,12 +266,12 @@ class VerificationWorker:
             package = payload.get("package") or payload.get("package_name")
             force_stop = payload.get("force_stop", False)
             return await MobileController.execute(
-                action='open_app',
+                action="open_app",
                 text=package,
                 device_id=device_id,
                 force_stop=force_stop,
                 disable_trace_screenshot=True,
-                disable_atlas=True
+                disable_atlas=True,
             )
 
         # Tap/Click
@@ -311,20 +298,20 @@ class VerificationWorker:
                     abs_x, abs_y = int(x), int(y)
 
                 return await MobileController.execute(
-                    action='click',
+                    action="click",
                     x=abs_x,
                     y=abs_y,
                     device_id=device_id,
                     disable_trace_screenshot=True,
-                    disable_atlas=True
+                    disable_atlas=True,
                 )
             elif selector:
                 return await MobileController.execute(
-                    action='click',
+                    action="click",
                     element_name=selector,
                     device_id=device_id,
                     disable_trace_screenshot=True,
-                    disable_atlas=True
+                    disable_atlas=True,
                 )
             else:
                 raise ValueError("Tap requires coordinates or selector")
@@ -333,31 +320,31 @@ class VerificationWorker:
         elif event_type == "input" or event_type == "input_text":
             text = payload.get("text") or payload.get("value", "")
             return await MobileController.execute(
-                action='input_text',
+                action="input_text",
                 text=text,
                 device_id=device_id,
                 disable_trace_screenshot=True,
-                disable_atlas=True
+                disable_atlas=True,
             )
 
         # Back button
         elif event_type == "back":
             return await MobileController.execute(
-                action='press_key',
+                action="press_key",
                 keycode=4,
                 device_id=device_id,
                 disable_trace_screenshot=True,
-                disable_atlas=True
+                disable_atlas=True,
             )
 
         # Home button
         elif event_type == "home":
             return await MobileController.execute(
-                action='press_key',
+                action="press_key",
                 keycode=3,
                 device_id=device_id,
                 disable_trace_screenshot=True,
-                disable_atlas=True
+                disable_atlas=True,
             )
 
         # Wait (支持 duration_ms 和 seconds)
@@ -370,30 +357,33 @@ class VerificationWorker:
                 duration = seconds * 1000
             else:
                 duration = 1000  # 默认 1 秒
-            import asyncio
+
             await asyncio.sleep(duration / 1000)
             return {"status": "waited", "duration_ms": int(duration)}
 
         # Screenshot
         elif event_type == "screenshot":
             result = await MobileController.execute(
-                action='screenshot',
+                action="screenshot",
                 device_id=device_id,
                 disable_trace_screenshot=True,
-                disable_atlas=True
+                disable_atlas=True,
             )
             # Parse screenshot path from result
             if isinstance(result, str) and result.startswith("Screenshot: "):
-                return {"status": "success", "screenshot_path": result.replace("Screenshot: ", "").strip()}
+                return {
+                    "status": "success",
+                    "screenshot_path": result.replace("Screenshot: ", "").strip(),
+                }
             return {"status": "success", "result": result}
 
         # Dump UI
         elif event_type == "dump_ui":
             return await MobileController.execute(
-                action='dump_ui',
+                action="dump_ui",
                 device_id=device_id,
                 disable_trace_screenshot=True,
-                disable_atlas=True
+                disable_atlas=True,
             )
 
         # Scroll (swipe)
@@ -416,14 +406,14 @@ class VerificationWorker:
                         start_y = center_y - swipe_distance // 2
                         end_y = center_y + swipe_distance // 2
                     return await MobileController.execute(
-                        action='swipe',
+                        action="swipe",
                         x=center_x,
                         y=start_y,
                         x2=center_x,
                         y2=end_y,
                         device_id=device_id,
                         disable_trace_screenshot=True,
-                        disable_atlas=True
+                        disable_atlas=True,
                     )
             except Exception as e:
                 logger.warning(f"[Worker] Scroll failed: {e}")
@@ -433,12 +423,7 @@ class VerificationWorker:
             logger.warning(f"[Worker] Unknown mobile event type: {event_type}, step_type: {step_type}")
             return {"status": "skipped", "reason": f"Unknown event type: {event_type}"}
 
-    async def _execute_desktop_step(
-        self,
-        step_type: str,
-        event_type: str,
-        payload: dict[str, Any]
-    ) -> Any:
+    async def _execute_desktop_step(self, step_type: str, event_type: str, payload: dict[str, Any]) -> Any:
         """Execute desktop step"""
         if not self._desktop_controller:
             raise RuntimeError("Desktop controller not available")
@@ -485,7 +470,7 @@ class VerificationWorker:
                 duration = seconds * 1000
             else:
                 duration = 1000  # 默认 1 秒
-            import asyncio
+
             await asyncio.sleep(duration / 1000)
             return {"status": "waited", "duration_ms": int(duration)}
 
@@ -497,11 +482,7 @@ class VerificationWorker:
             logger.warning(f"[Worker] Unknown desktop event type: {event_type}")
             return {"status": "skipped", "reason": f"Unknown event type: {event_type}"}
 
-    async def _execute_loop_step(
-        self,
-        step: dict[str, Any],
-        step_validator: Any | None = None
-    ) -> dict[str, Any]:
+    async def _execute_loop_step(self, step: dict[str, Any], step_validator: Any | None = None) -> dict[str, Any]:
         """
         Execute a loop step - iterates over sub-steps
 
@@ -561,7 +542,7 @@ class VerificationWorker:
             "status": "completed",
             "iterations": len(loop_results),
             "results": loop_results,
-            "validated": step_validator is not None
+            "validated": step_validator is not None,
         }
 
     async def _execute_extract_step(self, step: dict[str, Any]) -> dict[str, Any]:
@@ -600,7 +581,7 @@ class VerificationWorker:
             steps=[],
             max_iterations=100,
             extract_type=extract_type,
-            key=key
+            key=key,
         )
 
         # Prepare extraction context
@@ -619,7 +600,7 @@ class VerificationWorker:
                 selector=selector,
                 payload=payload,
                 params=params,
-                extracted_data=extracted_data
+                extracted_data=extracted_data,
             )
 
             # Return the extracted data
@@ -631,16 +612,12 @@ class VerificationWorker:
                 "key": key,
                 "extract_type": extract_type,
                 "data": extracted_value,
-                "extracted_data": extracted_data  # Include all extracted data
+                "extracted_data": extracted_data,  # Include all extracted data
             }
 
         except Exception as e:
             logger.error(f"[Worker] Extraction failed: {e}", exc_info=True)
-            return {
-                "status": "failed",
-                "key": key,
-                "error": str(e)
-            }
+            return {"status": "failed", "key": key, "error": str(e)}
 
     async def capture_state(self) -> dict[str, Any]:
         """
@@ -682,18 +659,14 @@ class VerificationWorker:
                 state["package_name"] = current_app.get("package")
 
                 # Get UI dump via execute
-                ui_result = await MobileController.execute(
-                    action='dump_ui',
-                    device_id=self.config.device_id
-                )
+                ui_result = await MobileController.execute(action="dump_ui", device_id=self.config.device_id)
                 if isinstance(ui_result, dict):
                     state["elements"] = ui_result.get("elements", [])
 
                 # Screenshot if enabled
                 if self.agent_config.enable_screenshot_analysis:
                     result = await MobileController.execute(
-                        action='screenshot',
-                        device_id=self.config.device_id
+                        action="screenshot", device_id=self.config.device_id
                     )
                     # Parse screenshot path from result message
                     if isinstance(result, str) and result.startswith("Screenshot: "):
@@ -740,4 +713,3 @@ class VerificationWorker:
             logger.error(f"[Worker] Cleanup error: {e}")
 
         self._initialized = False
-

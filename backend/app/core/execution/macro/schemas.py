@@ -12,8 +12,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils.yaml import macro_from_yaml, macro_to_yaml
 
-
 # === Classes migrated from schema.py (singular) ===
+
 
 class MacroSource(str, Enum):
     DOM = "dom"
@@ -43,10 +43,10 @@ class MacroActionType(str, Enum):
     # Interaction
     CLICK = "click"
     DOUBLE_CLICK = "double_click"
-    TAP = "tap" # Alias for click on mobile
+    TAP = "tap"  # Alias for click on mobile
     LONG_PRESS = "long_press"
     INPUT = "input"
-    TYPE_TEXT = "type_text" # Legacy alias
+    TYPE_TEXT = "type_text"  # Legacy alias
     KEY_PRESS = "key_press"
     SCROLL = "scroll"
     SWIPE = "swipe"
@@ -123,8 +123,14 @@ def action_family(step_type: MacroStepType, event_type: MacroActionType | str | 
     if step_type in (MacroStepType.EXTRACT, MacroStepType.DUMP):
         return "observe"
     _perception = frozenset({
-        "get_text", "get_attribute", "get_html", "get_links", "get_elements",
-        "screenshot", "dump_ui", "gui_extract",
+        "get_text",
+        "get_attribute",
+        "get_html",
+        "get_links",
+        "get_elements",
+        "screenshot",
+        "dump_ui",
+        "gui_extract",
     })
     if event_type and str(event_type) in _perception:
         return "observe"
@@ -137,32 +143,59 @@ def action_risk(event_type: MacroActionType | str | None) -> str:
     """Default risk tier for a given action type."""
     _risk: dict[str, str] = {
         # Navigation — observe
-        "navigate": "observe", "back": "observe", "forward": "observe",
+        "navigate": "observe",
+        "back": "observe",
+        "forward": "observe",
         "reload": "observe",
         # Interaction — act (safe clicks / scrolls)
-        "click": "act", "double_click": "act", "tap": "act",
-        "long_press": "act", "key_press": "act", "scroll": "observe",
-        "swipe": "act", "drag_drop": "act", "hover": "act",
-        "wait": "observe", "wait_for": "observe",
+        "click": "act",
+        "double_click": "act",
+        "tap": "act",
+        "long_press": "act",
+        "key_press": "act",
+        "scroll": "observe",
+        "swipe": "act",
+        "drag_drop": "act",
+        "hover": "act",
+        "wait": "observe",
+        "wait_for": "observe",
         # Data input — data
-        "input": "data", "type_text": "data", "select_option": "data",
+        "input": "data",
+        "type_text": "data",
+        "select_option": "data",
         "upload": "data",
         # Browser tabs — act
-        "new_tab": "act", "switch_tab": "act", "dialog_handle": "act",
+        "new_tab": "act",
+        "switch_tab": "act",
+        "dialog_handle": "act",
         # Code execution — escape
-        "run_js": "escape", "applescript": "escape", "bash": "escape",
+        "run_js": "escape",
+        "applescript": "escape",
+        "bash": "escape",
         # Perception / read-only — observe
-        "get_text": "observe", "get_attribute": "observe", "get_html": "observe",
-        "get_links": "observe", "screenshot": "observe", "dump_ui": "observe",
-        "get_elements": "observe", "gui_extract": "observe",
+        "get_text": "observe",
+        "get_attribute": "observe",
+        "get_html": "observe",
+        "get_links": "observe",
+        "screenshot": "observe",
+        "dump_ui": "observe",
+        "get_elements": "observe",
+        "gui_extract": "observe",
         # Desktop app — act
-        "open_app": "act", "close_app": "act", "home": "act",
-        "back_key": "act", "mouse_click": "act",
-        "get_active_app": "observe", "get_info": "observe",
+        "open_app": "act",
+        "close_app": "act",
+        "home": "act",
+        "back_key": "act",
+        "mouse_click": "act",
+        "get_active_app": "observe",
+        "get_info": "observe",
         # Atlas-Native AX primitives — act / data
-        "ax_press": "act", "ax_menu_press": "act", "ax_set_value": "data",
+        "ax_press": "act",
+        "ax_menu_press": "act",
+        "ax_set_value": "data",
         # Advanced
-        "batch": "observe", "detect_pagination": "observe",
+        "batch": "observe",
+        "detect_pagination": "observe",
         "scroll_to_bottom": "observe",
         "evaluate": "escape",
     }
@@ -173,6 +206,7 @@ def action_risk(event_type: MacroActionType | str | None) -> str:
 
 class ExtractType(str, Enum):
     """Valid extract types for EXTRACT steps."""
+
     GET_TEXT = "get_text"
     GET_ATTRIBUTE = "get_attribute"
     GET_HTML = "get_html"
@@ -187,20 +221,22 @@ class ExtractType(str, Enum):
 
 class CollectMode(str, Enum):
     """Collect mode for LOOP steps - enables two-phase batch collection."""
+
     NORMAL = "normal"  # Standard loop execution
-    LIST = "list"      # Phase 1: List collection - gather items without executing steps
+    LIST = "list"  # Phase 1: List collection - gather items without executing steps
     DETAIL = "detail"  # Phase 2: Detail execution - process collected items
-    AUTO = "auto"      # Automatic: collect list first, then execute detail steps
+    AUTO = "auto"  # Automatic: collect list first, then execute detail steps
 
 
 class NavigationPayload(DynamicBaseModel):
     """Payload for navigation actions (goto, open_app)."""
+
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
     url: str | None = None
     package_name: str | None = Field(None, alias="package")
     app_name: str | None = None
-    wait_until: str = "load" # load | domcontentloaded | networkidle
+    wait_until: str = "load"  # load | domcontentloaded | networkidle
     timeout_ms: int = 30000
 
 
@@ -217,16 +253,16 @@ class InteractionPayload(DynamicBaseModel):
     # Text input
     text: str | None = None
     append: bool = False
-    enter: bool = True # Press enter after input
+    enter: bool = True  # Press enter after input
 
     # Mouse/Keyboard
-    button: str = "left" # left | middle | right
+    button: str = "left"  # left | middle | right
     clicks: int = 1
-    modifiers: list[str] = Field(default_factory=list) # shift | control | alt | meta
+    modifiers: list[str] = Field(default_factory=list)  # shift | control | alt | meta
 
     # Scroll / Swipe
-    direction: str = "down" # up | down | left | right
-    amount: float = 0.5 # 0.0 to 1.0 or pixels
+    direction: str = "down"  # up | down | left | right
+    amount: float = 0.5  # 0.0 to 1.0 or pixels
     duration_ms: int = 300
 
     # Timing
@@ -251,11 +287,12 @@ class ControlPayload(DynamicBaseModel):
 
 class ExtractionPayload(DynamicBaseModel):
     """Payload for data extraction steps."""
+
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
     attribute: str | None = None
     script: str | None = Field(None, alias="expression")
-    region: dict[str, int] | None = None # {"x": 0, "y": 0, "w": 100, "h": 100}
+    region: dict[str, int] | None = None  # {"x": 0, "y": 0, "w": 100, "h": 100}
     wait_for_selector: str | None = None
     timeout_ms: int = 5000
 
@@ -265,6 +302,7 @@ class ExtractionPayload(DynamicBaseModel):
 
 class BashPayload(DynamicBaseModel):
     """Payload for a bash step that runs a shell command."""
+
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
     command: str
@@ -313,7 +351,7 @@ class MacroStep(DynamicBaseModel):
     # Enables two-phase collection: LIST (gather) -> DETAIL (execute)
     collect_mode: CollectMode = CollectMode.NORMAL
 
-    @model_validator(mode='before')
+    @model_validator(mode="before")
     @classmethod
     def migrate_legacy_fields(cls, values):
         # 1. Migrate Type
@@ -360,7 +398,7 @@ class MacroStep(DynamicBaseModel):
     extract_type: ExtractType | None = None
     key: str | None = "data"
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def validate_extract_type(self):
         """Validate extract_type is valid when step type is 'extract'."""
         if self.type == MacroStepType.EXTRACT and self.extract_type is None:
@@ -386,7 +424,7 @@ class MacroScript(DynamicBaseModel):
     steps: list[MacroStep] = Field(default_factory=list)
     parameters_schema: list[dict[str, Any]] = Field(default_factory=list)
 
-    @model_validator(mode='before')
+    @model_validator(mode="before")
     @classmethod
     def check_step_numbers(cls, values):
         """Validate step numbers are unique and sequential."""
@@ -400,20 +438,20 @@ class MacroScript(DynamicBaseModel):
             for i, step in enumerate(steps_list, 1):
                 current_num = f"{parent_num}.{i}" if parent_num else str(i)
                 if isinstance(step, dict):
-                    step_num = step.get('step_number')
+                    step_num = step.get("step_number")
                 else:
-                    step_num = getattr(step, 'step_number', None)
+                    step_num = getattr(step, "step_number", None)
                 numbers.append((current_num, step_num))
 
                 # Check nested steps
                 if isinstance(step, dict):
-                    then_steps = step.get('then_steps', []) or []
-                    else_steps = step.get('else_steps', []) or []
-                    loop_steps = step.get('steps', []) or []
+                    then_steps = step.get("then_steps", []) or []
+                    else_steps = step.get("else_steps", []) or []
+                    loop_steps = step.get("steps", []) or []
                 else:
-                    then_steps = getattr(step, 'then_steps', []) or []
-                    else_steps = getattr(step, 'else_steps', []) or []
-                    loop_steps = getattr(step, 'steps', []) or []
+                    then_steps = getattr(step, "then_steps", []) or []
+                    else_steps = getattr(step, "else_steps", []) or []
+                    loop_steps = getattr(step, "steps", []) or []
 
                 if then_steps:
                     numbers.extend(collect_step_numbers(then_steps, current_num))
@@ -444,9 +482,9 @@ class MacroScript(DynamicBaseModel):
         """Export macro to YAML string."""
         steps_data = []
         for step in self.steps:
-            if hasattr(step, 'model_dump'):
+            if hasattr(step, "model_dump"):
                 steps_data.append(step.model_dump(mode="json"))
-            elif hasattr(step, 'dict'):
+            elif hasattr(step, "dict"):
                 steps_data.append(step.model_dump())
             else:
                 steps_data.append(dict(step))
@@ -497,6 +535,7 @@ MacroStep.model_rebuild()
 
 class VerificationStatus(str, Enum):
     """验证状态"""
+
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -506,6 +545,7 @@ class VerificationStatus(str, Enum):
 
 class StepExecutionStatus(str, Enum):
     """单步执行状态"""
+
     PENDING = "pending"
     PASSED = "passed"  # 按原计划执行成功
     ADAPTED = "adapted"  # 经修正后执行成功
@@ -517,6 +557,7 @@ class StepExecutionStatus(str, Enum):
 
 class RedundancyType(str, Enum):
     """冗余类型"""
+
     LOW_VALUE_ACTION = "low_value_action"  # 低价值动作（如 mouse_move）
     DUPLICATE_ACTION = "duplicate_action"  # 重复动作
     UNNECESSARY_WAIT = "unnecessary_wait"  # 不必要的等待
@@ -527,6 +568,7 @@ class RedundancyType(str, Enum):
 
 class AnomalyType(str, Enum):
     """异常类型"""
+
     COORDINATE_DRIFT = "coordinate_drift"  # 坐标漂移
     ELEMENT_NOT_FOUND = "element_not_found"  # 元素未找到
     ELEMENT_OBSCURED = "element_obscured"  # 元素被遮挡
@@ -540,6 +582,7 @@ class AnomalyType(str, Enum):
 
 class ExecutionMode(str, Enum):
     """执行模式"""
+
     DETERMINISTIC = "deterministic"  # 确定性执行
     HYBRID = "hybrid"  # 混合模式
     AGENTIC = "agentic"  # 完全 Agent 模式
@@ -547,6 +590,7 @@ class ExecutionMode(str, Enum):
 
 class EnvironmentConfig(DynamicBaseModel):
     """验证环境配置"""
+
     platform: str = "mobile"  # web / android / desktop
     device_id: str | None = None
     browser_config: dict[str, Any] | None = None
@@ -556,6 +600,7 @@ class EnvironmentConfig(DynamicBaseModel):
 
 class RoundConfig(DynamicBaseModel):
     """单轮验证配置"""
+
     round_name: str = "default"
     environment_overrides: dict[str, Any] = Field(default_factory=dict)
     inject_anomalies: list[str] = Field(default_factory=list)
@@ -564,6 +609,7 @@ class RoundConfig(DynamicBaseModel):
 
 class VerificationAgentConfig(DynamicBaseModel):
     """Agent 行为配置"""
+
     llm_model: str | None = None  # Must be provided explicitly
     max_retries_per_step: int = 3
     allow_strategy_adaptation: bool = True
@@ -573,6 +619,7 @@ class VerificationAgentConfig(DynamicBaseModel):
 
 class EvolutionRule(DynamicBaseModel):
     """Rule for transforming a step based on anomaly type"""
+
     name: str
     anomaly_type: AnomalyType
     description: str
@@ -581,6 +628,7 @@ class EvolutionRule(DynamicBaseModel):
 
 class EvolutionContext(DynamicBaseModel):
     """Context for macro evolution"""
+
     original_macro: list[dict[str, Any]]
     step_results: list[StepResult]
     evolution_records: list[MacroEvolutionRecord]
@@ -595,6 +643,7 @@ class EvolutionContext(DynamicBaseModel):
 
 class HealingDecision(DynamicBaseModel):
     """Result of a self-healing policy check."""
+
     allowed: bool
     reason: str
     # Source of the decision for debugging
@@ -603,6 +652,7 @@ class HealingDecision(DynamicBaseModel):
 
 class RedundancyCheckResult(DynamicBaseModel):
     """冗余检查结果"""
+
     is_redundant: bool = False
     redundancy_type: RedundancyType = RedundancyType.UNKNOWN
     reason: str = ""
@@ -617,6 +667,7 @@ class AdaptationRecord(DynamicBaseModel):
     - adapted_strategy: 修改后的主步骤
     - additional_steps: 额外添加的步骤（如前置等待、弹窗关闭等）
     """
+
     anomaly_type: AnomalyType = AnomalyType.UNKNOWN
     original_strategy: MacroStep = Field(default_factory=lambda: MacroStep(type="action"))
     adapted_strategy: MacroStep = Field(default_factory=lambda: MacroStep(type="action"))
@@ -630,6 +681,7 @@ class AdaptationRecord(DynamicBaseModel):
 
 class ExecutionDetail(DynamicBaseModel):
     """执行详情"""
+
     pre_state: dict[str, Any] | None = None
     action_taken: MacroStep = Field(default_factory=lambda: MacroStep(type="action"))
     post_state: dict[str, Any] | None = None
@@ -639,6 +691,7 @@ class ExecutionDetail(DynamicBaseModel):
 
 class StepResult(DynamicBaseModel):
     """单步执行结果"""
+
     step_number: int
     original_step: MacroStep = Field(default_factory=lambda: MacroStep(type="action"))
     status: StepExecutionStatus = StepExecutionStatus.PENDING
@@ -663,6 +716,7 @@ class MacroEvolutionRecord(DynamicBaseModel):
     - evolved_step: 修改后的主步骤
     - additional_steps: 额外添加的步骤（如前置等待、弹窗关闭等）
     """
+
     original_step: MacroStep
     evolved_step: MacroStep
     evolution_reason: str
@@ -674,6 +728,7 @@ class MacroEvolutionRecord(DynamicBaseModel):
 
 class RoundReport(DynamicBaseModel):
     """单轮验证报告"""
+
     round_number: int
     round_name: str
     status: VerificationStatus = VerificationStatus.PENDING
@@ -693,6 +748,7 @@ class RoundReport(DynamicBaseModel):
 
 class ReportSummary(DynamicBaseModel):
     """报告汇总"""
+
     overall_success_rate: float = 0.0
     adaptation_rate: float = 0.0
     max_round_variance: float = 0.0
@@ -709,6 +765,7 @@ class ReportSummary(DynamicBaseModel):
 
 class VerificationIssue(DynamicBaseModel):
     """验证问题"""
+
     severity: str = "warning"  # critical / warning / info
     category: str = ""
     description: str = ""
@@ -718,6 +775,7 @@ class VerificationIssue(DynamicBaseModel):
 
 class VerificationReport(DynamicBaseModel):
     """详细验证报告"""
+
     summary: ReportSummary = Field(default_factory=ReportSummary)
     rounds: list[RoundReport] = Field(default_factory=list)
     issues: list[VerificationIssue] = Field(default_factory=list)
@@ -727,6 +785,7 @@ class VerificationReport(DynamicBaseModel):
 
 class VerificationRequest(DynamicBaseModel):
     """验证请求"""
+
     macro_script: list[MacroStep]
     instructions: str | None = None
     session_id: str | None = None
@@ -742,6 +801,7 @@ class VerificationRequest(DynamicBaseModel):
 
 class VerificationResponse(DynamicBaseModel):
     """验证响应"""
+
     success: bool = False
     status: VerificationStatus = VerificationStatus.PENDING
 
@@ -760,6 +820,7 @@ class VerificationResponse(DynamicBaseModel):
 
 class AIAnalysisResult(DynamicBaseModel):
     """Result of agentic analysis of verification data"""
+
     issues: list[VerificationIssue] = Field(default_factory=list)
     recommendations: list[str] = Field(default_factory=list)
     recommended_execution_mode: ExecutionMode = ExecutionMode.AGENTIC
@@ -784,6 +845,7 @@ class OptimizationResult(DynamicBaseModel):
 
 class ActionDecision(DynamicBaseModel):
     """Decision made by the reasoning engine"""
+
     action: str  # 'execute', 'correct', 'skip', 'retry', 'abort'
     reasoning: str
     suggested_step: dict[str, Any] | None = None
@@ -793,6 +855,7 @@ class ActionDecision(DynamicBaseModel):
 
 class InterferenceConfig(DynamicBaseModel):
     """Configuration for interference injection"""
+
     enabled: bool = False
     type: str = "none"  # none, delay, chaos, network_degradation
     intensity: float = 0.3  # 0.0 - 1.0
@@ -802,6 +865,7 @@ class InterferenceConfig(DynamicBaseModel):
 
 class RoundContext(DynamicBaseModel):
     """Context passed between rounds"""
+
     round_number: int
     previous_reports: list[RoundReport]
     shared_state: dict[str, Any] = Field(default_factory=dict)

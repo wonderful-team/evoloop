@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 class ListMcpResourcesInput(BaseModel):
     """Input schema for list_mcp_resources tool."""
+
     server_name: str = Field(
         description="The name of the MCP server to list resources from (e.g., 'github', 'postgres')."
     )
@@ -21,15 +22,15 @@ class ListMcpResourcesInput(BaseModel):
     "list_mcp_resources",
     args_schema=ListMcpResourcesInput,
     is_state_mutating=False,
-    summary_template="evoloop.tool_summary.list_mcp_resources"
+    summary_template="evoloop.tool_summary.list_mcp_resources",
 )
 async def list_mcp_resources(server_name: str) -> str:
     """
     List all available resources from an MCP server.
-    
+
     Resources are files, database records, or other data sources exposed by the MCP server
     that can be read using the read_mcp_resource tool.
-    
+
     Use this to discover what resources are available before trying to read them.
     """
     try:

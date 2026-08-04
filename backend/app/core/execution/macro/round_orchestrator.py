@@ -40,12 +40,7 @@ class InterferenceInjector(ABC):
         pass
 
     @abstractmethod
-    def apply(
-        self,
-        step: dict[str, Any],
-        context: RoundContext,
-        intensity: float
-    ) -> dict[str, Any]:
+    def apply(self, step: dict[str, Any], context: RoundContext, intensity: float) -> dict[str, Any]:
         """
         Apply interference to a step
 
@@ -70,12 +65,7 @@ class DelayInjector(InterferenceInjector):
         # Can apply to any action step
         return step.get("type") == "action"
 
-    def apply(
-        self,
-        step: dict[str, Any],
-        context: RoundContext,
-        intensity: float
-    ) -> dict[str, Any]:
+    def apply(self, step: dict[str, Any], context: RoundContext, intensity: float) -> dict[str, Any]:
         modified = copy.deepcopy(step)
         payload = modified.get("payload", {})
 
@@ -91,7 +81,7 @@ class DelayInjector(InterferenceInjector):
         payload["injected_interference"] = {
             "type": "delay",
             "duration_ms": delay,
-            "description": f"Injected {delay}ms delay"
+            "description": f"Injected {delay}ms delay",
         }
 
         modified["payload"] = payload
@@ -112,12 +102,7 @@ class NetworkDegradationInjector(InterferenceInjector):
         event_type = step.get("event_type", "")
         return event_type in ("goto", "navigate", "wait", "wait_for")
 
-    def apply(
-        self,
-        step: dict[str, Any],
-        context: RoundContext,
-        intensity: float
-    ) -> dict[str, Any]:
+    def apply(self, step: dict[str, Any], context: RoundContext, intensity: float) -> dict[str, Any]:
         modified = copy.deepcopy(step)
         payload = modified.get("payload", {})
 
@@ -137,7 +122,7 @@ class NetworkDegradationInjector(InterferenceInjector):
         payload["injected_interference"] = {
             "type": "network_degradation",
             "timeout_multiplier": multiplier,
-            "description": f"Simulated slow network ({payload['simulated_network_speed']})"
+            "description": f"Simulated slow network ({payload['simulated_network_speed']})",
         }
 
         modified["payload"] = payload
@@ -158,28 +143,19 @@ class ElementInstabilityInjector(InterferenceInjector):
         event_type = step.get("event_type", "")
         return event_type in ("click", "tap", "input", "type_text")
 
-    def apply(
-        self,
-        step: dict[str, Any],
-        context: RoundContext,
-        intensity: float
-    ) -> dict[str, Any]:
+    def apply(self, step: dict[str, Any], context: RoundContext, intensity: float) -> dict[str, Any]:
         modified = copy.deepcopy(step)
         payload = modified.get("payload", {})
 
         # Add retry configuration
-        retries = random_int_range(
-            base=1,
-            max_additional=4,
-            intensity=intensity
-        )
+        retries = random_int_range(base=1, max_additional=4, intensity=intensity)
 
         payload["max_retries"] = retries
         payload["retry_delay_ms"] = 500 + int(1000 * intensity)
         payload["injected_interference"] = {
             "type": "element_instability",
             "retries": retries,
-            "description": f"Simulated element instability with {retries} retries"
+            "description": f"Simulated element instability with {retries} retries",
         }
 
         modified["payload"] = payload
@@ -199,12 +175,7 @@ class PopupInterferenceInjector(InterferenceInjector):
         # Apply to some steps randomly (30% chance)
         return should_trigger(0.3)
 
-    def apply(
-        self,
-        step: dict[str, Any],
-        context: RoundContext,
-        intensity: float
-    ) -> dict[str, Any]:
+    def apply(self, step: dict[str, Any], context: RoundContext, intensity: float) -> dict[str, Any]:
         modified = copy.deepcopy(step)
 
         # Mark step as potentially having popup interference
@@ -212,7 +183,7 @@ class PopupInterferenceInjector(InterferenceInjector):
         payload["injected_interference"] = {
             "type": "popup_interference",
             "probability": intensity,
-            "description": f"May encounter unexpected popup ({int(intensity * 100)}% chance)"
+            "description": f"May encounter unexpected popup ({int(intensity * 100)}% chance)",
         }
 
         modified["payload"] = payload
@@ -233,12 +204,7 @@ class CoordinateDriftInjector(InterferenceInjector):
         payload = step.get("payload", {})
         return payload.get("x") is not None and payload.get("y") is not None
 
-    def apply(
-        self,
-        step: dict[str, Any],
-        context: RoundContext,
-        intensity: float
-    ) -> dict[str, Any]:
+    def apply(self, step: dict[str, Any], context: RoundContext, intensity: float) -> dict[str, Any]:
         modified = copy.deepcopy(step)
         payload = modified.get("payload", {})
 
@@ -256,7 +222,7 @@ class CoordinateDriftInjector(InterferenceInjector):
         payload["injected_interference"] = {
             "type": "coordinate_drift",
             "drift": {"x": drift_x, "y": drift_y},
-            "description": f"Applied coordinate drift ({drift_x:+d}, {drift_y:+d})"
+            "description": f"Applied coordinate drift ({drift_x:+d}, {drift_y:+d})",
         }
 
         modified["payload"] = payload
@@ -297,20 +263,12 @@ class RoundStrategy(ABC):
         pass
 
     @abstractmethod
-    def configure_round(
-        self,
-        round_number: int,
-        base_config: RoundConfig
-    ) -> RoundConfig:
+    def configure_round(self, round_number: int, base_config: RoundConfig) -> RoundConfig:
         """Configure the round based on strategy"""
         pass
 
     @abstractmethod
-    def should_continue(
-        self,
-        current_round: int,
-        reports: list[RoundReport]
-    ) -> bool:
+    def should_continue(self, current_round: int, reports: list[RoundReport]) -> bool:
         """Determine if verification should continue to next round"""
         pass
 
@@ -322,20 +280,14 @@ class BaselineStrategy(RoundStrategy):
         return "baseline"
 
     def configure_round(
-        self,
-        round_number: int,
-        base_config: RoundConfig
+        self, round_number: int, base_config: RoundConfig
     ) -> RoundConfig:
         config = copy.deepcopy(base_config)
         config.round_name = f"baseline_round_{round_number}"
         config.inject_anomalies = []
         return config
 
-    def should_continue(
-        self,
-        current_round: int,
-        reports: list[RoundReport]
-    ) -> bool:
+    def should_continue(self, current_round: int, reports: list[RoundReport]) -> bool:
         # Always continue after baseline
         return True
 
@@ -349,27 +301,19 @@ class StressTestStrategy(RoundStrategy):
     def get_name(self) -> str:
         return "stress_test"
 
-    def configure_round(
-        self,
-        round_number: int,
-        base_config: RoundConfig
-    ) -> RoundConfig:
+    def configure_round(self, round_number: int, base_config: RoundConfig) -> RoundConfig:
         config = copy.deepcopy(base_config)
         config.round_name = f"stress_test_{round_number}"
         config.inject_anomalies = [
             "delay",
             "element_instability",
-            "network_degradation"
+            "network_degradation",
         ]
         config.timeout_per_step = int(base_config.timeout_per_step * 1.5)
         config.environment_overrides["interference_intensity"] = self.intensity
         return config
 
-    def should_continue(
-        self,
-        current_round: int,
-        reports: list[RoundReport]
-    ) -> bool:
+    def should_continue(self, current_round: int, reports: list[RoundReport]) -> bool:
         # Continue if previous rounds had acceptable success rate
         if not reports:
             return True
@@ -388,11 +332,7 @@ class ChaosStrategy(RoundStrategy):
     def get_name(self) -> str:
         return "chaos"
 
-    def configure_round(
-        self,
-        round_number: int,
-        base_config: RoundConfig
-    ) -> RoundConfig:
+    def configure_round(self, round_number: int, base_config: RoundConfig) -> RoundConfig:
         config = copy.deepcopy(base_config)
         config.round_name = f"chaos_{round_number}"
         # All interference types
@@ -402,11 +342,7 @@ class ChaosStrategy(RoundStrategy):
         config.environment_overrides["chaos_mode"] = True
         return config
 
-    def should_continue(
-        self,
-        current_round: int,
-        reports: list[RoundReport]
-    ) -> bool:
+    def should_continue(self, current_round: int, reports: list[RoundReport]) -> bool:
         # Always continue - chaos round is final test
         return True
 
@@ -417,11 +353,7 @@ class ProgressiveDifficultyStrategy(RoundStrategy):
     def get_name(self) -> str:
         return "progressive"
 
-    def configure_round(
-        self,
-        round_number: int,
-        base_config: RoundConfig
-    ) -> RoundConfig:
+    def configure_round(self, round_number: int, base_config: RoundConfig) -> RoundConfig:
         config = copy.deepcopy(base_config)
 
         # Increase intensity with each round
@@ -434,11 +366,7 @@ class ProgressiveDifficultyStrategy(RoundStrategy):
 
         return config
 
-    def should_continue(
-        self,
-        current_round: int,
-        reports: list[RoundReport]
-    ) -> bool:
+    def should_continue(self, current_round: int, reports: list[RoundReport]) -> bool:
         # Continue if macro is adapting well
         if not reports:
             return True
@@ -460,12 +388,12 @@ class RoundOrchestrator:
     def __init__(
         self,
         strategies: list[RoundStrategy] | None = None,
-        enable_interference: bool = True
+        enable_interference: bool = True,
     ):
         self.strategies = strategies or [
             BaselineStrategy(),
             StressTestStrategy(intensity=0.5),
-            ChaosStrategy(intensity=0.7)
+            ChaosStrategy(intensity=0.7),
         ]
         self.enable_interference = enable_interference
         self.injectors: list[InterferenceInjector] = []
@@ -475,7 +403,7 @@ class RoundOrchestrator:
         round_number: int,
         base_config: RoundConfig,
         macro_script: list[dict[str, Any]],
-        previous_reports: list[RoundReport]
+        previous_reports: list[RoundReport],
     ) -> tuple[RoundConfig, list[dict[str, Any]]]:
         """
         Prepare a verification round
@@ -509,11 +437,7 @@ class RoundOrchestrator:
 
         return config, modified_macro
 
-    def should_continue(
-        self,
-        current_round: int,
-        reports: list[RoundReport]
-    ) -> bool:
+    def should_continue(self, current_round: int, reports: list[RoundReport]) -> bool:
         """Determine if verification should continue"""
         strategy = self._get_strategy(current_round)
         should = strategy.should_continue(current_round, reports)
@@ -535,7 +459,7 @@ class RoundOrchestrator:
         macro_script: list[dict[str, Any]],
         interference_types: list[str],
         intensity: float,
-        context: RoundContext
+        context: RoundContext,
     ) -> list[dict[str, Any]]:
         """Apply interference to macro script"""
         modified = []
@@ -563,11 +487,7 @@ class RoundOrchestrator:
 
         return modified
 
-    def generate_round_plan(
-        self,
-        max_rounds: int,
-        base_config: RoundConfig
-    ) -> list[RoundConfig]:
+    def generate_round_plan(self, max_rounds: int, base_config: RoundConfig) -> list[RoundConfig]:
         """Generate a complete round plan"""
         plan = []
 
@@ -584,7 +504,7 @@ class RoundOrchestrator:
             "total_steps": len(macro_script),
             "interfered_steps": 0,
             "interference_types": set(),
-            "details": []
+            "details": [],
         }
 
         for step in macro_script:

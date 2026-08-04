@@ -36,6 +36,7 @@ class ServerCapabilities(DynamicBaseModel):
 
 class McpServerConfig(DynamicBaseModel):
     """Configuration for an MCP server connection."""
+
     name: str
     transport: str = "stdio"
     command: str | None = None
@@ -51,6 +52,7 @@ class McpServerConfig(DynamicBaseModel):
 
 class ConnectionState(DynamicBaseModel):
     """Connection state tracking."""
+
     server_name: str
     is_connected: bool = False
     last_health_check: float | None = None
@@ -60,6 +62,7 @@ class ConnectionState(DynamicBaseModel):
 
 class ConnectionResult(DynamicBaseModel):
     """Result of a connection attempt."""
+
     success: bool
     server_name: str
     tools_count: int = 0
@@ -69,6 +72,7 @@ class ConnectionResult(DynamicBaseModel):
 
 class WorkerMcpServerConfig(DynamicBaseModel):
     """MCP server configuration for a specific Worker."""
+
     name: str
     transport: str = "stdio"
     command: str | None = None
@@ -83,6 +87,7 @@ class WorkerMcpServerConfig(DynamicBaseModel):
 
 class WorkerMcpConfig(DynamicBaseModel):
     """MCP configuration for a Worker."""
+
     servers: list[WorkerMcpServerConfig] = Field(default_factory=list)
     inherit_servers: list[str] = Field(default_factory=list)
     auto_connect: bool = True
@@ -90,6 +95,7 @@ class WorkerMcpConfig(DynamicBaseModel):
 
 class HealthStatus(DynamicBaseModel):
     """Health check result."""
+
     is_healthy: bool
     server_name: str
     last_check: float

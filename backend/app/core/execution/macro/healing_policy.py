@@ -21,6 +21,7 @@ Usage:
     if not decision.allowed:
         logger.info(f"Self-healing disabled: {decision.reason}")
 """
+
 from typing import Any
 
 from app.core.config import settings
@@ -40,7 +41,7 @@ class SelfHealingPolicy:
     def check(
         cls,
         macro: "Macro | None" = None,
-        execution_params: dict[str, Any] | None = None
+        execution_params: dict[str, Any] | None = None,
     ) -> HealingDecision:
         """
         Check if self-healing is allowed based on all policy levels.
@@ -57,7 +58,7 @@ class SelfHealingPolicy:
             return HealingDecision(
                 allowed=False,
                 reason="Global policy disables macro self-healing",
-                source="global"
+                source="global",
             )
 
         # Level 2: Macro-level switch
@@ -65,7 +66,7 @@ class SelfHealingPolicy:
             return HealingDecision(
                 allowed=False,
                 reason=f"Macro '{macro.name}' has self-healing disabled",
-                source="macro"
+                source="macro",
             )
 
         # Level 3: Execution-time override
@@ -77,21 +78,17 @@ class SelfHealingPolicy:
             return HealingDecision(
                 allowed=False,
                 reason="Execution explicitly disabled self-healing",
-                source="execution"
+                source="execution",
             )
 
         # All checks passed
-        return HealingDecision(
-            allowed=True,
-            reason="Self-healing is enabled",
-            source="allowed"
-        )
+        return HealingDecision(allowed=True, reason="Self-healing is enabled", source="allowed")
 
     @classmethod
     def is_allowed(
         cls,
         macro: "Macro | None" = None,
-        execution_params: dict[str, Any] | None = None
+        execution_params: dict[str, Any] | None = None,
     ) -> bool:
         """
         Simple boolean check if self-healing is allowed.

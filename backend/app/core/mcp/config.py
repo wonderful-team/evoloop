@@ -19,12 +19,14 @@ class ServerCapabilities(DynamicBaseModel):
 
 class TransportType(str, Enum):
     """MCP transport types."""
+
     STDIO = "stdio"
     SSE = "sse"
 
 
 class AuthType(str, Enum):
     """Authentication types for MCP servers."""
+
     NONE = "none"
     API_KEY = "api_key"
     OAUTH_AUTHORIZATION_CODE = "oauth_auth_code"
@@ -33,6 +35,7 @@ class AuthType(str, Enum):
 
 class McpServerConfig(DynamicBaseModel):
     """Configuration for an MCP server connection."""
+
     name: str
     transport: TransportType = TransportType.STDIO
     # Stdio transport
@@ -73,10 +76,14 @@ class McpServerConfig(DynamicBaseModel):
         # Parse auth config if stored
         auth_config_data = {}
         auth_type = AuthType.NONE
-        if hasattr(server, 'auth_config') and server.auth_config:
+        if hasattr(server, "auth_config") and server.auth_config:
             try:
-                auth_config_data = json.loads(server.auth_config) if isinstance(server.auth_config, str) else server.auth_config
-                auth_type = AuthType(auth_config_data.get('method', 'none'))
+                auth_config_data = (
+                    json.loads(server.auth_config)
+                    if isinstance(server.auth_config, str)
+                    else server.auth_config
+                )
+                auth_type = AuthType(auth_config_data.get("method", "none"))
             except (json.JSONDecodeError, TypeError, ValueError):
                 pass
 
@@ -106,6 +113,7 @@ class McpServerConfig(DynamicBaseModel):
 
 class ConnectionState(DynamicBaseModel):
     """Connection state tracking."""
+
     server_name: str
     is_connected: bool = False
     last_health_check: float | None = None
@@ -115,6 +123,7 @@ class ConnectionState(DynamicBaseModel):
 
 class ConnectionResult(DynamicBaseModel):
     """Result of a connection attempt."""
+
     success: bool
     server_name: str
     tools_count: int = 0

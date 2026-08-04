@@ -36,7 +36,6 @@ class VerificationReporter:
     def to_markdown(self) -> str:
         """Generate Markdown report using template."""
         try:
-
             # Prepare auxiliary data for template
             round_status_displays = [self._format_status(r.status) for r in self.report.rounds]
             step_emojis = []
@@ -49,7 +48,7 @@ class VerificationReporter:
 
             return render_template(
                 "common/report/verification.md.j2",
-                timestamp=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 status_display=self._format_status(self.response.status),
                 execution_mode=self.response.execution_mode.value,
                 confidence_score=self.response.confidence_score,
@@ -58,7 +57,7 @@ class VerificationReporter:
                 evolved_macro=self.response.evolved_macro,
                 evolved_macro_json=evolved_macro_json,
                 round_status_displays=round_status_displays,
-                step_emojis=step_emojis
+                step_emojis=step_emojis,
             )
         except Exception as e:
             logger.error(f"Failed to render Verification template: {e}")
@@ -66,12 +65,7 @@ class VerificationReporter:
 
     def to_json(self) -> str:
         """Generate JSON report"""
-        return json.dumps(
-            self.response.model_dump(),
-            indent=2,
-            default=str,
-            ensure_ascii=False
-        )
+        return json.dumps(self.response.model_dump(), indent=2, default=str, ensure_ascii=False)
 
     def to_html(self) -> str:
         """Generate HTML report with rich visualization"""
@@ -100,7 +94,7 @@ class VerificationReporter:
 <body>
     <div class="header">
         <h1>Macro Verification Report</h1>
-        <p>Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+        <p>Generated: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</p>
         <p>Status: <span class="status-{self.response.status.value}">{self._format_status(self.response.status)}</span></p>
         <p>Execution Mode: <strong>{self.response.execution_mode.value}</strong></p>
         <p>Confidence Score: <strong>{self.response.confidence_score:.2%}</strong></p>
@@ -129,7 +123,7 @@ class VerificationReporter:
 
     <h2>Recommendations</h2>
     <ul>
-        {''.join(f'<li>{rec}</li>' for rec in self.report.recommendations)}
+        {"".join(f"<li>{rec}</li>" for rec in self.report.recommendations)}
     </ul>
 </body>
 </html>"""
@@ -165,8 +159,8 @@ class VerificationReporter:
             css_class = f"issue {issue.severity}"
             issues_html.append(
                 f'<div class="{css_class}">'
-                f'<strong>{issue.category}</strong>: {issue.description}'
-                f'</div>'
+                f"<strong>{issue.category}</strong>: {issue.description}"
+                f"</div>"
             )
         return "\n".join(issues_html)
 
@@ -195,7 +189,7 @@ class VerificationReporter:
         <th>Adapted</th>
         <th>Failed</th>
     </tr>
-    {''.join(rows)}
+    {"".join(rows)}
 </table>"""
 
     def format_summary(self) -> str:

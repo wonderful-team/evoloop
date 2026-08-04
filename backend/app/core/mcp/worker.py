@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class WorkerMcpSession:
     """
     An isolated MCP session for a specific Worker instance.
-    
+
     Each Worker gets its own set of MCP connections that are:
     1. Separate from global MCP connections
     2. Lifecycle-bound to the Worker (created on start, cleaned up on end)
@@ -50,10 +50,10 @@ class WorkerMcpSession:
     async def connect_server(self, config: McpServerConfig) -> bool:
         """
         Connect to an MCP server for this worker.
-        
+
         Args:
             config: Server configuration
-            
+
         Returns:
             True if connected successfully
         """
@@ -115,17 +115,17 @@ class WorkerMcpSession:
 
         except Exception as e:
             logger.error(f"[WorkerMcp] {self.worker_name} failed to connect to {server_name}: {e}")
-            if 'stack' in locals():
+            if "stack" in locals():
                 await stack.aclose()
             return False
 
     async def connect_servers(self, configs: list[McpServerConfig]) -> dict[str, bool]:
         """
         Connect to multiple MCP servers.
-        
+
         Args:
             configs: List of server configurations
-            
+
         Returns:
             Dict of server_name -> success status
         """
@@ -233,7 +233,7 @@ class WorkerMcpSession:
 class WorkerMcpManager:
     """
     Manages MCP sessions for Workers.
-    
+
     Creates and tracks isolated MCP sessions per Worker instance.
     """
 
@@ -243,11 +243,11 @@ class WorkerMcpManager:
     def create_session(self, worker_id: str, worker_name: str) -> WorkerMcpSession:
         """
         Create a new MCP session for a Worker.
-        
+
         Args:
             worker_id: Unique worker instance ID
             worker_name: Worker role name
-            
+
         Returns:
             WorkerMcpSession instance
         """
