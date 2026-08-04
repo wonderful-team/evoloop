@@ -18,7 +18,7 @@ async def verify_macro_script(
     macro_script: list[dict[str, Any]] | str,
     thread_id: str = "verifier",
     project_id: int = DEFAULT_PROJECT_ID,
-    params: dict[str, Any] | None = None
+    params: dict[str, Any] | None = None,
 ) -> MacroVerificationResult:
     """
     统一宏脚本验证函数
@@ -51,7 +51,7 @@ async def verify_macro_script(
             return MacroVerificationResult(
                 status="error",
                 success=False,
-                error="macro_script must be a list of steps or a YAML string"
+                error="macro_script must be a list of steps or a YAML string",
             )
 
         result = cast(
@@ -81,15 +81,11 @@ async def verify_macro_script(
             success=success,
             missing_keys=missing_keys,
             extracted_count=len(extracted_data),
-            error=result.get("error")
+            error=result.get("error"),
         )
     except Exception as e:
         logger.error(f"[{thread_id}] Macro verification crashed: {e}")
-        return MacroVerificationResult(
-            status="error",
-            success=False,
-            error=str(e)
-        )
+        return MacroVerificationResult(status="error", success=False, error=str(e))
 
 
 def cleanup_macro_steps(
