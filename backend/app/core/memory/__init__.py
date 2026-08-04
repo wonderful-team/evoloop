@@ -58,25 +58,21 @@ from app.core.memory.two_tier import (
 __all__ = [
     # Manager
     "MemoryManager",
-
     # Configuration & Dependency Injection
     "MemoryConfig",
     "get_default_memory_config",
     "MemoryContainer",
-
     # Models
     "MemoryEntry",
     "MemoryIndexEntry",
     "MemorySearchResult",
     "MemoryType",
     "PrivacyLevel",
-
     # Services
     "MemoryPruningService",
     "MemoryRetriever",
     "get_relevant_memories",
     "MemoryQualityAnalyzer",
-
     # Types
     "QualityScores",
     "CleanupRecommendation",
@@ -90,7 +86,6 @@ __all__ = [
     "MemorySection",
     "SectionBudget",
     "CheckpointDedupResult",
-
     # Maintenance
     "MemoryMaintenanceAgent",
     "MaintenanceScheduler",

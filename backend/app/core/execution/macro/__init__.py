@@ -7,7 +7,6 @@ This module provides active verification of macros through real environment exec
 perception-first reasoning, macro evolution, and multi-round orchestration.
 """
 
-from app.core.execution.macro.validator import AgentMacroValidator
 from app.core.execution.macro.event.subscribers import MacroSelfHealingAdvisor
 from app.core.execution.macro.evolution_engine import (
     AgenticTransformer,
@@ -31,6 +30,7 @@ from app.core.execution.macro.round_orchestrator import (
     StressTestStrategy,
 )
 from app.core.execution.macro.schemas import EvolutionRule
+from app.core.execution.macro.validator import AgentMacroValidator
 from app.core.execution.macro.verification_reporter import (
     VerificationReporter,
     generate_comparison_report,
@@ -47,13 +47,11 @@ from app.core.execution.macro.verification_worker import VerificationWorker
 __all__ = [
     # Main validator
     "AgentMacroValidator",
-
     # Evolution engine (Phase 3)
     "MacroEvolutionEngine",
     "EvolutionRule",
     "StepTransformer",
     "AgenticTransformer",
-
     # Round orchestration (Phase 4)
     "RoundOrchestrator",
     "RoundContext",
@@ -69,24 +67,19 @@ __all__ = [
     "ElementInstabilityInjector",
     "PopupInterferenceInjector",
     "CoordinateDriftInjector",
-
     # Phase 5: Integration
     "VerificationService",
     "SynthesisIntegration",
     "MacroServiceIntegration",
     "verify_macro",
     "quick_verify",
-
     # Worker
     "VerificationWorker",
-
     # Reporter
     "VerificationReporter",
     "generate_comparison_report",
-
     # Self-healing
     "MacroSelfHealingAdvisor",
-
     # Models
     "VerificationRequest",
     "VerificationResponse",

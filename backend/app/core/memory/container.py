@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 class MemoryContainer:
     """
     Dependency injection container for the memory system.
-    
+
     This container manages the lifecycle of all memory components,
     eliminating the need for global singletons and making the system
     fully testable with dependency injection.
@@ -33,7 +33,7 @@ class MemoryContainer:
     def __init__(self, config: MemoryConfig | None = None):
         """
         Initialize the container with configuration.
-        
+
         Args:
             config: Memory system configuration. If None, uses default config.
         """
@@ -140,16 +140,14 @@ class MemoryContainer:
         if self._pruning is None:
             # Note: project_context and todo_service will be injected as needed
             # e.g. from the domain services
-            self._pruning = MemoryPruningService(
-                storage=self.storage
-            )
+            self._pruning = MemoryPruningService(storage=self.storage)
         return self._pruning
 
     @property
     def retrieval_service(self) -> MemoryRetriever:
         """
         Get memory retrieval service (lazy).
-        
+
         Note: This now returns MemoryRetriever, which combines the functionality
         of legacy retrieval classes.
         """

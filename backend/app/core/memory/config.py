@@ -28,31 +28,32 @@ def _default_user_memory_root() -> Path:
 def get_project_memory_root(project_path: str) -> Path:
     """
     Get project-level memory root.
-    
+
     Args:
         project_path: 项目本地路径
-        
+
     Returns:
         Path 指向 {project}/.evoloop/memory/
     """
     from app.core.project.utils import get_memory_path
+
     return get_memory_path(project_path)
 
 
 class MemoryConfig(DynamicBaseModel):
     """
     Centralized configuration for the memory system.
-    
+
     支持两级存储架构：
     - user_memory_root: 用户级记忆（偏好、经验教训、通用术语）
     - project_memory_root: 项目级记忆（上下文、决策、架构）
-    
+
     Usage:
         config = MemoryConfig.from_settings()
-        
+
         # 用户级操作
         user_storage = MemoryStore(str(config.user_memory_root))
-        
+
         # 项目级操作
         project_root = config.get_project_memory_root("/path/to/project")
         project_storage = MemoryStore(str(project_root))

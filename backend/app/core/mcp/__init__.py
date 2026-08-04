@@ -32,25 +32,25 @@ Architecture:
 
 Usage:
     from app.core.mcp import mcp_client_manager
-    
+
     # Connect to all enabled servers
     results = await mcp_client_manager.connect_all()
-    
+
     # Get tools from a specific server
     tools = await mcp_client_manager.get_tools("github")
-    
+
     # Ensure connection before use
     if await mcp_client_manager.ensure_connected("postgres"):
         tools = await mcp_client_manager.get_tools("postgres")
-    
+
     # Access resources
     resources = await mcp_client_manager.list_resources("github")
     content = await mcp_client_manager.read_resource("github", "file://readme.md")
-    
+
     # Access prompts
     prompts = await mcp_client_manager.list_prompts("github")
     prompt = await mcp_client_manager.get_prompt("github", "review_pr", {"pr_number": "123"})
-    
+
     # OAuth authentication is automatic based on server config
 """
 
