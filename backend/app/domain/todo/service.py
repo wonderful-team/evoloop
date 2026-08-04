@@ -4,11 +4,15 @@ Todo Service - Business logic layer for Todo domain.
 The Service layer orchestrates domain operations, applying business rules
 and coordinating between the repository and external services.
 """
+
 import logging
 from collections.abc import Sequence
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import make_transient
 
+from app.domain.todo.formatting import format_todo_list
 from app.domain.todo.repository import TodoRepository, TodoRepositorySync
 from app.domain.todo.schemas import (
     TodoCreate,
@@ -21,30 +25,32 @@ from app.domain.todo.schemas import (
 from app.domain.todo.utils import parse_due_date
 from app.i18n.service import i18n
 from app.models.todo import TodoItem, TodoPriority, TodoStatus
-from app.utils.controller_response import ContentFormatter
 
 logger = logging.getLogger(__name__)
 
 
 class TodoServiceError(Exception):
     """Base exception for Todo service errors."""
+
     pass
 
 
 class TodoNotFoundError(TodoServiceError):
     """Raised when a Todo is not found."""
+
     pass
 
 
 class TodoValidationError(TodoServiceError):
     """Raised when Todo data is invalid."""
+
     pass
 
 
 class TodoService:
     """
     Service for Todo domain operations.
-    
+
     This class encapsulates all business logic for todo management,
     providing a clean interface for both API and Tool layers.
     """
@@ -72,15 +78,15 @@ class TodoService:
     ) -> TodoResponse:
         """
         Create a new Todo.
-        
+
         Args:
             data: Todo creation data
             source_conversation_id: Optional conversation tracking ID
             source_message_id: Optional message tracking ID
-            
+
         Returns:
             Created Todo as response schema
-            
+
         Raises:
             TodoValidationError: If data is invalid
         """
@@ -123,13 +129,13 @@ class TodoService:
     async def get_by_id(self, todo_id: str) -> TodoResponse:
         """
         Get a Todo by ID.
-        
+
         Args:
             todo_id: The todo's UUID
-            
+
         Returns:
             Todo as response schema
-            
+
         Raises:
             TodoNotFoundError: If todo not found
         """
@@ -147,11 +153,11 @@ class TodoService:
     ) -> list[TodoResponse] | TodoListResponse:
         """
         List todos with optional filtering.
-        
+
         Args:
             filters: Filter criteria
             include_total: Whether to include total count
-            
+
         Returns:
             List of todos or paginated response with total
         """
@@ -173,11 +179,11 @@ class TodoService:
     async def list_pending_by_project(self, project_id: int, limit: int = 50) -> list[TodoResponse]:
         """
         Get pending todos for a project.
-        
+
         Args:
             project_id: Project ID
             limit: Maximum results
-            
+
         Returns:
             List of pending todos
         """
@@ -194,14 +200,14 @@ class TodoService:
     async def update(self, todo_id: str, data: TodoUpdate) -> TodoResponse:
         """
         Update an existing Todo.
-        
+
         Args:
             todo_id: The todo's UUID
             data: Update data
-            
+
         Returns:
             Updated Todo as response schema
-            
+
         Raises:
             TodoNotFoundError: If todo not found
             TodoValidationError: If data is invalid
@@ -216,9 +222,7 @@ class TodoService:
         if data.due_date and isinstance(data.due_date, str):
             parsed = parse_due_date(data.due_date)
             if parsed is None:
-                raise TodoValidationError(
-                    i18n.get("domain_tools.manage_todo.error_due_date", date=data.due_date)
-                )
+                raise TodoValidationError(i18n.get("domain_tools.manage_todo.error_due_date", date=data.due_date))
 
         # Normalize priority if provided
         if data.priority and isinstance(data.priority, str):
@@ -232,10 +236,10 @@ class TodoService:
     async def mark_completed(self, todo_id: str) -> TodoResponse:
         """
         Mark a Todo as completed.
-        
+
         Args:
             todo_id: The todo's UUID
-            
+
         Returns:
             Updated Todo as response schema
         """
@@ -251,10 +255,10 @@ class TodoService:
     async def mark_cancelled(self, todo_id: str) -> TodoResponse:
         """
         Mark a Todo as cancelled.
-        
+
         Args:
             todo_id: The todo's UUID
-            
+
         Returns:
             Updated Todo as response schema
         """
@@ -272,10 +276,10 @@ class TodoService:
     async def delete(self, todo_id: str) -> None:
         """
         Delete a Todo.
-        
+
         Args:
             todo_id: The todo's UUID
-            
+
         Raises:
             TodoNotFoundError: If todo not found
         """
@@ -293,12 +297,12 @@ class TodoService:
     async def cleanup_by_message_ids(self, message_ids: list[str]) -> int:
         """
         Delete todos associated with message IDs.
-        
+
         Used by cleanup engine.
-        
+
         Args:
             message_ids: List of message IDs to cleanup
-            
+
         Returns:
             Number of deleted todos
         """
@@ -310,7 +314,7 @@ class TodoService:
 class TodoServiceSync:
     """
     Synchronous version of TodoService for use in sync contexts (Tools).
-    
+
     Provides the same interface but uses sync repository methods.
     """
 
@@ -360,13 +364,13 @@ class TodoServiceSync:
     def mark_completed(self, todo_id: str) -> TodoItem:
         """
         Mark a Todo as completed (sync version).
-        
+
         Args:
             todo_id: The todo's UUID
-            
+
         Returns:
             Updated TodoItem
-            
+
         Raises:
             TodoNotFoundError: If todo not found
         """
@@ -374,10 +378,7 @@ class TodoServiceSync:
 
         with session_scope() as session:
             # Re-query within session context
-            from sqlalchemy import select
-            result = session.execute(
-                select(TodoItem).where(TodoItem.id == todo_id)
-            )
+            result = session.execute(select(TodoItem).where(TodoItem.id == todo_id))
             todo = result.scalar_one_or_none()
 
             if not todo:
@@ -390,30 +391,26 @@ class TodoServiceSync:
             session.refresh(todo)
 
             # Detach for return
-            from sqlalchemy.orm import make_transient
             make_transient(todo)
             return todo
 
     def mark_cancelled(self, todo_id: str) -> TodoItem:
         """
         Mark a Todo as cancelled (sync version).
-        
+
         Args:
             todo_id: The todo's UUID
-            
+
         Returns:
             Updated TodoItem
-            
+
         Raises:
             TodoNotFoundError: If todo not found
         """
         from app.infrastructure.database import session_scope
 
         with session_scope() as session:
-            from sqlalchemy import select
-            result = session.execute(
-                select(TodoItem).where(TodoItem.id == todo_id)
-            )
+            result = session.execute(select(TodoItem).where(TodoItem.id == todo_id))
             todo = result.scalar_one_or_none()
 
             if not todo:
@@ -425,31 +422,27 @@ class TodoServiceSync:
             session.commit()
             session.refresh(todo)
 
-            from sqlalchemy.orm import make_transient
             make_transient(todo)
             return todo
 
-    def format_todo_list(
-        self,
-        todos: Sequence[TodoItem],
-        title: str = "Todo List"
-    ) -> str:
+    def format_todo_list(self, todos: Sequence[TodoItem], title: str = "Todo List") -> str:
         """
         Format a list of todos for display.
-        
+
         Args:
             todos: List of TodoItem instances
             title: Title for the list
-            
+
         Returns:
-            Formatted string using ContentFormatter
+            Rendered todo list and metadata dict.
         """
         if not todos:
             return i18n.get("domain_tools.manage_todo.no_todos")
-        return ContentFormatter.todo_list(todos, title=title)
+        return format_todo_list(todos, title=title)
 
 
 # ============== Factory Functions ==============
+
 
 def get_todo_service(session: AsyncSession) -> TodoService:
     """Factory function to create TodoService with session."""

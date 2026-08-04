@@ -26,6 +26,7 @@ def get_working_directory(config: dict | None = None) -> str:
     Extracts the working directory from the context or configuration.
     """
     from app.core.context.manager import ContextManager
+
     ctx = ContextManager.current()
     if ctx.working_directory:
         return ctx.working_directory
@@ -38,6 +39,7 @@ def get_working_directory(config: dict | None = None) -> str:
     if ctx.thread_id:
         try:
             from app.core.context import thread_context_store
+
             managed_cwd = thread_context_store.get_working_directory(ctx.thread_id)
             if managed_cwd:
                 return managed_cwd
@@ -46,6 +48,7 @@ def get_working_directory(config: dict | None = None) -> str:
 
     try:
         from app.infrastructure.config.service import SystemConfigService
+
         workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
         if workspace_root:
             return workspace_root
@@ -57,6 +60,7 @@ def get_working_directory(config: dict | None = None) -> str:
 
 class StructuredTool:
     """Mock StructuredTool for runtime compatibility with dynamic tools."""
+
     def __init__(self, func, name: str, description: str):
         self.func = func
         self.name = name
@@ -171,7 +175,7 @@ def evoloop_tool(
                             return ToolResult(
                                 json.dumps(error_detail.model_dump(), ensure_ascii=False),
                                 meta={"status": "error", "error": "permission_denied"},
-                                display_name=display_name
+                                display_name=display_name,
                             )
                     except Exception:
                         if not settings.EMBEDDED_MODE:
@@ -182,7 +186,7 @@ def evoloop_tool(
                     return ToolResult(
                         json.dumps(error_detail.model_dump(), ensure_ascii=False),
                         meta={"status": "error", "error": "permission_denied"},
-                        display_name=display_name
+                        display_name=display_name,
                     )
             return None
 
@@ -222,6 +226,7 @@ def evoloop_tool(
             return ToolResult(result, meta=result_meta, display_name=display_name)
 
         if asyncio.iscoroutinefunction(func):
+
             @functools.wraps(func)
             async def wrapper(*args_f, **kwargs_f):
                 input_data = {k: v for k, v in kwargs_f.items() if k != "config" and not k.startswith("_")}
@@ -236,6 +241,7 @@ def evoloop_tool(
                     display_name = config.get_display_name(func.__name__, args=input_data)
                     return ToolResult(f"Error: {str(e)}", meta={"status": "error", "error": str(e)}, display_name=display_name)
         else:
+
             @functools.wraps(func)
             def wrapper(*args_f, **kwargs_f):
                 input_data = {k: v for k, v in kwargs_f.items() if k != "config" and not k.startswith("_")}
@@ -253,7 +259,7 @@ def evoloop_tool(
             wrapper,
             name=kwargs.get("name"),
             description=kwargs.get("description"),
-            args_schema=kwargs.get("args_schema")
+            args_schema=kwargs.get("args_schema"),
         )
 
         tool_instance.metadata["is_state_mutating"] = config.is_state_mutating
@@ -274,5 +280,7 @@ def evoloop_tool(
         return decorator(func)
     else:
         return decorator
+
+
 # Marker for arguments injected dynamically by the agent runtime
 InjectedToolArg = object

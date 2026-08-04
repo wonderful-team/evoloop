@@ -45,6 +45,7 @@ class ToolManager:
 
         # 2. Filter out multimodal tools if no vision model is configured
         from app.infrastructure.config.service import SystemConfigService
+
         vision_configured = SystemConfigService.get_value("VISION_MODEL") is not None
         if not vision_configured:
             multimodal_tools = [t.name for t in combined_map.values() if t.metadata.get("is_multimodal")]
@@ -67,7 +68,6 @@ class ToolManager:
 
             if requested_servers or all_requested_tools:
                 try:
-
                     # We need to run get_tools synchronously, or rather, it assumes
                     # mcp_client_manager.get_tools() which returns cached tools is sufficient
                     # if ensure_connected was called previously (e.g. by `use_mcp_server`).

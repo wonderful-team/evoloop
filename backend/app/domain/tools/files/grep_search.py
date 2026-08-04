@@ -23,23 +23,23 @@ async def grep_search_internal(
         return str(e)
 
     MAX_MATCHES = 100
-    
+
     results = await FileSearcher.search_content(
         pattern=pattern,
         root_path=target_path,
         scope=scope,
         case_insensitive=case_insensitive,
-        limit=MAX_MATCHES + 1
+        limit=MAX_MATCHES + 1,
     )
-    
+
     total_matches = len(results)
-    
+
     # Format for Agent view
     formatted_results = []
     for r in results[:MAX_MATCHES]:
         rel_path = os.path.relpath(r["file"], target_path)
         formatted_results.append(f"{rel_path}:{r['line']}:{r['content']}")
-        
+
     output = "\n".join(formatted_results) if formatted_results else "No matches found."
 
     if total_matches > MAX_MATCHES:

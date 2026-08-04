@@ -6,6 +6,7 @@ as @evoloop_tools so the Agent can call them via function calling.
 All actual logic lives in:
   app.core.environment.controllers.desktop.DesktopController
 """
+
 import logging
 from typing import Literal
 
@@ -17,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 @evoloop_tool(
     required_benefit="desktop_control",
-    summary_template="evoloop.tool_summary.desktop_control"
+    summary_template="evoloop.tool_summary.desktop_control",
 )
 async def desktop_control(
     action: Literal["screenshot", "click", "double_click", "type_text", "key_press", "open_app", "applescript", "get_info", "list_apps", "batch", "get_active_app", "scroll", "drag_drop", "dump_ui", "gui_extract"] = "screenshot",
@@ -185,9 +186,7 @@ async def desktop_control(
     return await DesktopController.execute(**locals())
 
 
-@evoloop_tool(
-    summary_template="evoloop.tool_summary.verify_ui_state"
-)
+@evoloop_tool(summary_template="evoloop.tool_summary.verify_ui_state")
 async def verify_ui_state(
     expected_element: str | None = None,
     expected_role: str | None = None,
@@ -207,9 +206,7 @@ async def verify_ui_state(
     return await DesktopController.verify_ui_state(**locals())
 
 
-@evoloop_tool(
-    summary_template="evoloop.tool_summary.quick_check_screen"
-)
+@evoloop_tool(summary_template="evoloop.tool_summary.quick_check_screen")
 async def quick_check_screen(
     check_type: Literal["has_text", "has_element", "is_loaded"] = "is_loaded",
     target: str | None = None,

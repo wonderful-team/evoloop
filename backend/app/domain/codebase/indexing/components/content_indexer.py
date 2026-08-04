@@ -1,6 +1,7 @@
 """
 ContentIndexer: Handles code extraction and embedding generation.
 """
+
 import logging
 
 from app.domain.codebase.indexing.extractors.treesitter_extractor import (
@@ -79,12 +80,7 @@ class ContentIndexer:
         all_docs = [file_summary_doc] + docs
         return all_docs, entities, relations, file_summary_doc
 
-    async def index(
-        self,
-        file_path: str,
-        content: str,
-        rel_path: str
-    ) -> IndexedContent | None:
+    async def index(self, file_path: str, content: str, rel_path: str) -> IndexedContent | None:
         """
         Extract and embed file content.
 
@@ -122,5 +118,5 @@ class ContentIndexer:
             entities=entities,
             relations=relations,
             embeddings=embeddings,
-            file_summary_doc=file_summary_doc
+            file_summary_doc=file_summary_doc,
         )

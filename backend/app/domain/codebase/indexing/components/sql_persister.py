@@ -1,6 +1,7 @@
 """
 SQLPersister: Handles SQL database persistence for indexed content.
 """
+
 import logging
 
 from sqlalchemy import delete, insert, select
@@ -35,11 +36,7 @@ class SQLPersister:
     - CodeRelations
     """
 
-    async def clear_old_data(
-        self,
-        source_file: SourceFile,
-        session: AsyncSession
-    ):
+    async def clear_old_data(self, source_file: SourceFile, session: AsyncSession):
         """Clear existing chunks, entities, and relations for the file."""
         batch_file_ids = [source_file.id]
         await self._batch_clear(file_ids=batch_file_ids, session=session)
@@ -152,21 +149,14 @@ class SQLPersister:
             else:
                 rel.confidence = "AMBIGUOUS"
 
-    async def persist(
-        self,
-        indexed: IndexedContent,
-        source_file: SourceFile,
-        session: AsyncSession
-    ) -> dict[str, int]:
+    async def persist(self, indexed: IndexedContent, source_file: SourceFile, session: AsyncSession) -> dict[str, int]:
         """
         Persist indexed content to SQL database.
 
         Returns:
             Mapping of entity full_name to entity ID for relation linking.
         """
-        name_to_id = await self.batch_persist(
-            [(indexed, source_file)], session
-        )
+        name_to_id = await self.batch_persist([(indexed, source_file)], session)
         return name_to_id[0] if name_to_id else {}
 
     async def batch_persist(

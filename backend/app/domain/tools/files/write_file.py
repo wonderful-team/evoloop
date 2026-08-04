@@ -38,7 +38,7 @@ async def handle_write(
 
         original_content = None
         op_type = "ADD"
-        
+
         if os.path.exists(target_path):
             if action == "create":
                 return (
@@ -48,6 +48,7 @@ async def handle_write(
                 )
             # If overwrite is True and file exists, read original content for Rewind
             from app.core.file.verification import safe_read_with_hash
+
             original_content, _, _ = safe_read_with_hash(target_path)
             op_type = "EDIT"
 
@@ -58,14 +59,14 @@ async def handle_write(
             # Record Rewind operation
             from app.core.context import ContextManager
             from app.core.file.editor.algorithms import generate_unified_diff
-            
+
             ctx = ContextManager.current()
             if ctx.thread_id:
                 try:
                     diff = generate_unified_diff(
                         original=original_content or "",
                         modified=content,
-                        file_path=path
+                        file_path=path,
                     )
                     persist_file_operation_task.delay(
                         thread_id=ctx.thread_id,
@@ -103,8 +104,8 @@ async def write_file(
 ) -> str:
     """
     Create a new file.
-    
-    For targeted modifications to existing files or to overwrite an existing file, 
+
+    For targeted modifications to existing files or to overwrite an existing file,
     use the edit_file tool instead, as it preserves unchanged content and has better error recovery.
 
     Args:

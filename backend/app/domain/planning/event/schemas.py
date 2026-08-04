@@ -4,13 +4,16 @@ Planning Event Schemas
 
 Pydantic data classes for planning domain events.
 """
+
 from typing import Any
+
 from app.core.events.base import BaseEvent
 from app.core.events.registry import SystemEventType
 
 
 class PlanUpdatedEvent(BaseEvent):
     """Event published when a plan is created, modified, or deleted."""
+
     event_type: str = SystemEventType.PLAN_UPDATED
     plan_id: str | None = None
     thread_id: str | None = None
@@ -27,4 +30,3 @@ class PlanUpdatedEvent(BaseEvent):
             "step_id": self.step_id,
             "status": self.status,
         }
-

@@ -4,6 +4,7 @@ import asyncio
 import logging
 import os
 import signal
+
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.context import ContextManager
 from app.core.engine.message.native_classes import RunnableConfig
@@ -13,9 +14,9 @@ from app.core.tools.background import (
     TaskType,
     task_manager,
 )
-from app.infrastructure.config import SystemConfigService
 from app.domain.tools.execution._utils import format_command_result, get_thread_id
 from app.domain.tools.execution.security import is_dangerous_command
+from app.infrastructure.config import SystemConfigService
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +96,7 @@ async def run_command_background(
                     line = await asyncio.wait_for(stream.readline(), timeout=1.0)
                     if not line:
                         break
-                    output = prefix + line.decode('utf-8', errors='replace').rstrip()
+                    output = prefix + line.decode("utf-8", errors="replace").rstrip()
                     task_manager.append_output(task.task_id, output)
                 except asyncio.TimeoutError:
                     if process.returncode is not None:
@@ -193,7 +194,7 @@ async def execute_smart(
                 line = await asyncio.wait_for(stream.readline(), timeout=0.5)
                 if not line:
                     break
-                decoded_line = line.decode('utf-8', errors='replace')
+                decoded_line = line.decode("utf-8", errors="replace")
                 if is_stderr:
                     stderr_buf.append(decoded_line)
                 else:

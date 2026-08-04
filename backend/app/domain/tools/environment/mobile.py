@@ -5,6 +5,7 @@ This module exposes `mobile_control` as an @evoloop_tool so the Agent can
 call it via function calling. All actual logic lives in:
   app.core.environment.controllers.mobile.MobileController
 """
+
 import logging
 from typing import Literal
 
@@ -17,7 +18,7 @@ logger = logging.getLogger(__name__)
 @evoloop_tool(
     required_benefit="mobile_control",
     summary_template="evoloop.tool_summary.mobile_control",
-    affected_path_keys=["local_path", "remote_path"]
+    affected_path_keys=["local_path", "remote_path"],
 )
 async def mobile_control(
     action: Literal["screenshot", "tap", "click", "long_press", "swipe", "scroll", "input_text", "press_key", "dump_ui", "list_devices", "get_info", "list_apps", "open_app", "push", "pull", "intent_flow", "read_sms", "gui_extract"] = "screenshot",

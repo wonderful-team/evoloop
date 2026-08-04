@@ -4,6 +4,7 @@ Unified Tool Registry — Dynamic Discovery & RBAC.
 This module centralizes tool registration, auto-discovery, and role-based access control (RBAC).
 It replaces the legacy registry_utils.py and provides a single source of truth for tools.
 """
+
 import asyncio
 import importlib
 import inspect
@@ -134,7 +135,9 @@ def _validate_critical_tools():
         tool_map = REGISTRY.get_tool_map()
         still_missing = [t for t in _CRITICAL_TOOLS if t not in tool_map]
         if still_missing:
-            logger.error(f"[Registry] CRITICAL: Tools still missing after retry: {still_missing}")
+            logger.error(
+                f"[Registry] CRITICAL: Tools still missing after retry: {still_missing}"
+            )
 
 
 def _ensure_scanned():
@@ -240,6 +243,7 @@ def get_tools_by_names(tool_names: list[str], source_role: str | None = None) ->
 
 # --- YAML-Driven Tool Configuration ---
 
+
 @lru_cache(maxsize=1)
 def _load_yaml_config(config_path: str | None = None) -> dict:
     """Load and cache the YAML config for tool-role mappings."""
@@ -269,6 +273,7 @@ def _report_missing_tools(node_role: str | None, missing_tools: list[str]):
 
     # We have a running loop, safe to create and schedule the coroutine
     from app.core.monitoring.activity import activity_monitor
+
     coro = activity_monitor.log_event(
         event_type="tool_missing",
         data={
@@ -320,16 +325,19 @@ def get_tool_bundle(bundle_name: str, config_path: str | None = None) -> list[st
     config = _load_yaml_config(config_path)
     return config.get("tool_bundles", {}).get(bundle_name, [])
 
+
 # --- Convenience Accessors ---
 
 
 async def get_supervisor_tools() -> list[BaseTool]:
     """Return tools for the Supervisor agent."""
     from app.core.tools.manager import tool_manager
+
     return await tool_manager.get_node_tools("supervisor")
 
 
 # --- Utility Functions ---
+
 
 def is_state_mutating_tool(tool_name: str) -> bool:
     """Return True if the tool mutates state and should bypass strict dedup."""
@@ -393,7 +401,7 @@ def get_tool_affected_paths(tool_name: str, tool_args: dict) -> list[str]:
     if tool_name == "execute_command" and not snapshot_paths:
         cmd = tool_args.get("command", "")
         # Heuristic for rm [flags] path
-        rm_match = re.search(r'\brm\s+(?:-[a-zA-Z]+\s+)?([^\s;\|]+)', cmd)
+        rm_match = re.search(r"\brm\s+(?:-[a-zA-Z]+\s+)?([^\s;\|]+)", cmd)
         if rm_match:
             path = rm_match.group(1).strip("'\"")
             snapshot_paths.append(path)

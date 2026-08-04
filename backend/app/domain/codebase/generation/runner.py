@@ -6,6 +6,8 @@ import logging
 import os
 import time
 
+from sqlalchemy import text
+
 from app.core.engine.background_agent import run_agent_background
 from app.core.engine.dispatch import dispatch_agent_run
 from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket
@@ -16,14 +18,34 @@ from app.domain.codebase.generation.scheduler import (
     mark_generation_failed,
 )
 
-_MONEY_KEYWORDS = frozenset({
-    "price", "stock", "balance", "refund", "amount", "money",
-    "salary", "payment", "withdraw", "recharge",
-})
-_DATA_KEYWORDS = frozenset({
-    "save", "update", "delete", "remove", "create", "add", "edit",
-    "set", "change", "status",
-})
+_MONEY_KEYWORDS = frozenset(
+    {
+        "price",
+        "stock",
+        "balance",
+        "refund",
+        "amount",
+        "money",
+        "salary",
+        "payment",
+        "withdraw",
+        "recharge",
+    }
+)
+_DATA_KEYWORDS = frozenset(
+    {
+        "save",
+        "update",
+        "delete",
+        "remove",
+        "create",
+        "add",
+        "edit",
+        "set",
+        "change",
+        "status",
+    }
+)
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +79,7 @@ async def _run_wiki(project_id: int) -> None:
 
     # Inject module graph summary so the Agent knows the project structure upfront
     from app.domain.codebase.generation.module_graph import module_graph_service
+
     try:
         module_summary = await module_graph_service.format_summary(project_id)
     except Exception:
@@ -64,6 +87,7 @@ async def _run_wiki(project_id: int) -> None:
 
     thread_id = f"wiki-gen-{project_id}-{int(time.time())}"
     from app.core.context import thread_context_store
+
     thread_context_store.set_working_directory(thread_id, path)
 
     msg = (
@@ -124,10 +148,13 @@ async def _run_appmap(project_id: int) -> None:
 
     # Validate groupings against ModuleGraph — log cross-module entities
     from app.domain.codebase.generation.module_graph import module_graph_service
+
     try:
         cross_module = []
         for entity_name in groups:
-            expected_module = await module_graph_service.get_module_of(project_id, entity_name)
+            expected_module = await module_graph_service.get_module_of(
+                project_id, entity_name
+            )
             if expected_module:
                 cross_module.append((entity_name, expected_module))
         if cross_module:
@@ -142,7 +169,8 @@ async def _run_appmap(project_id: int) -> None:
     # Incremental impact check — determine which entities need regeneration.
     affected_entities: set[str] | None = None
     try:
-        from sqlalchemy import select, func
+        from sqlalchemy import func, select
+
         from app.infrastructure.database import session_scope
         from app.models.app_map import AppMap
         from app.models.codebase import Repository, SourceFile
@@ -180,15 +208,24 @@ async def _run_appmap(project_id: int) -> None:
                         # Extract entity from path conventions
                         parts = rel_path.split("/")
                         for entity_candidate in groups:
-                            if entity_candidate in parts or any(entity_candidate.lower() in p.lower() for p in parts):
+                            if entity_candidate in parts or any(
+                                entity_candidate.lower() in p.lower() for p in parts
+                            ):
                                 changed_entities.add(entity_candidate)
                 except Exception:
                     pass
 
             if changed_entities:
-                logger.info("[AppMap] Changed entities detected: %s", list(changed_entities))
-                affected_entities = await module_graph_service.compute_impact(project_id, changed_entities)
-                logger.info("[AppMap] Computed minimal impact set of entities to regenerate: %s", list(affected_entities))
+                logger.info(
+                    "[AppMap] Changed entities detected: %s", list(changed_entities)
+                )
+                affected_entities = await module_graph_service.compute_impact(
+                    project_id, changed_entities
+                )
+                logger.info(
+                    "[AppMap] Computed minimal impact set of entities to regenerate: %s",
+                    list(affected_entities),
+                )
             else:
                 logger.info("[AppMap] No recently changed files detected. Running full batch write.")
     except Exception as e:
@@ -200,7 +237,9 @@ async def _run_appmap(project_id: int) -> None:
     if entities:
         if affected_entities is not None:
             # Filter to only affected entities
-            filtered_entities = {k: v for k, v in entities.items() if k in affected_entities}
+            filtered_entities = {
+                k: v for k, v in entities.items() if k in affected_entities
+            }
             if not filtered_entities:
                 logger.info("[AppMap] Incremental run: No affected entities need regeneration. Skipping batch write.")
                 return
@@ -223,6 +262,7 @@ async def _run_appmap(project_id: int) -> None:
 
     thread_id = f"appmap-gen-{project_id}-{int(time.time())}"
     from app.core.context import thread_context_store
+
     thread_context_store.set_working_directory(thread_id, path)
 
     result = await dispatch_agent_run(
@@ -243,7 +283,8 @@ async def _run_appmap(project_id: int) -> None:
         raise RuntimeError(result.error or "Agent dispatch failed")
 
     read_only_tools = [
-        t for t in get_tool_bundle("file_tools")
+        t
+        for t in get_tool_bundle("file_tools")
         if t not in ("edit_file", "delete_file", "move_file")
     ]
     ticket = ExecutionTicket(
@@ -252,9 +293,11 @@ async def _run_appmap(project_id: int) -> None:
         agent_config=AgentRuntimeConfig(
             role_name="Worker",
             tools=[
-                "query_code_chunks", "query_code_relations",
+                "query_code_chunks",
+                "query_code_relations",
                 "read_app_map",
-                "write_app_map", "execute_command",
+                "write_app_map",
+                "execute_command",
                 "generate_macros_from_app_map",
             ] + read_only_tools,
         ),
@@ -273,12 +316,14 @@ async def _run_appmap(project_id: int) -> None:
 async def _regenerate_macros(project_id: int) -> None:
     """Regenerate macros for all active AppMaps that have Chinese aliases."""
     from sqlalchemy import select
+
+    from app.core.execution.macro.tasks import synthesize_macros_task as _wrapped
     from app.infrastructure.database import session_scope
     from app.models.app_map import AppMap
-    from app.core.execution.macro.tasks import synthesize_macros_task as _wrapped
 
     _raw = getattr(_wrapped, "func", _wrapped)
     import inspect
+
     if not inspect.iscoroutinefunction(_raw):
         for _cell in getattr(_raw, "__closure__", None) or []:
             if inspect.iscoroutinefunction(_cell.cell_contents):
@@ -294,7 +339,6 @@ async def _regenerate_macros(project_id: int) -> None:
         )
         app_maps = list(result.scalars().all())
 
-        from sqlalchemy import text
         r = await session.execute(
             text("SELECT app_map_id, COUNT(*) FROM macros WHERE project_id = :pid GROUP BY app_map_id"),
             {"pid": project_id},
@@ -325,9 +369,7 @@ def _classify_action(name: str) -> tuple[str, str]:
     return "write", "ui"
 
 
-async def build_entities_from_index(
-    project_id: int, groups: dict,
-) -> dict:
+async def build_entities_from_index(project_id: int, groups: dict) -> dict:
     """Build AppMap entities dict from Tree-sitter parsed code chunks."""
     from app.core.atlas.source.skeleton.generator import APPMAP_ACTION_CATEGORIES, _FRONTEND_EXTS, _NON_CONTROLLER_STEMS
 
@@ -337,8 +379,9 @@ async def build_entities_from_index(
             all_ids.add(cf.source_file.id)
 
     from sqlalchemy import select
+
     from app.infrastructure.database import session_scope
-    from app.models.codebase import SourceFile, CodeChunk
+    from app.models.codebase import CodeChunk, SourceFile
 
     async with session_scope() as session:
         sf_result = await session.execute(
@@ -363,7 +406,7 @@ async def build_entities_from_index(
             cf for cf in classified_files
             if cf.category in APPMAP_ACTION_CATEGORIES
             and not any(cf.source_file.path.endswith(ext) for ext in _FRONTEND_EXTS)
-            and not entity_name in _NON_CONTROLLER_STEMS
+            and entity_name not in _NON_CONTROLLER_STEMS
         ]
         if not controller_files:
             continue
@@ -413,15 +456,13 @@ async def build_entities_from_index(
     return entities
 
 
-async def batch_write_appmaps(
-    project_id: int, entities: dict, member_id: int = 0,
-) -> dict:
+async def batch_write_appmaps(project_id: int, entities: dict, member_id: int = 0) -> dict:
     """Batch-write AppMap records and generate macros."""
     import inspect
 
     from app.core.atlas.source.persistence import save_app_map
-
     from app.core.execution.macro.tasks import synthesize_macros_task as _raw_sync
+
     _raw = getattr(_raw_sync, "func", _raw_sync)
     if not inspect.iscoroutinefunction(_raw):
         for _cell in getattr(_raw, "__closure__", None) or []:
@@ -471,8 +512,10 @@ async def batch_write_appmaps(
         written, skipped, failed, macros_generated,
     )
     return {
-        "written": written, "skipped": skipped,
-        "failed": failed, "macros_generated": macros_generated,
+        "written": written,
+        "skipped": skipped,
+        "failed": failed,
+        "macros_generated": macros_generated,
     }
 
 

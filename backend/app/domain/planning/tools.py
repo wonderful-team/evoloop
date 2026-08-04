@@ -18,12 +18,13 @@ logger = logging.getLogger(__name__)
 def _render_analysis_prompt(plan: str, context: str, tree: str, user_lang: str) -> str:
     """Render the feasibility analysis prompt from Jinja2 template."""
     from app.utils.template import render_template
+
     return render_template(
         "domain/planning/feasibility_analysis.prompt.j2",
         plan=plan,
         context=context,
         tree=tree,
-        user_lang=user_lang
+        user_lang=user_lang,
     )
 
 
@@ -148,7 +149,7 @@ async def create_plan(
                     } for s in db_steps
                 ],
                 "current_step_id": db_steps[0].id if db_steps else None,
-                "is_complete": False
+                "is_complete": False,
             }
 
             lines = [f"### Plan Created: {title}", f"**Plan ID**: {plan_id}", ""]
@@ -164,6 +165,7 @@ async def create_plan(
         try:
             from app.core.events import system_bus
             from app.domain.planning.event import PlanUpdatedEvent
+
             await system_bus.publish(PlanUpdatedEvent(thread_id=thread_id, plan_id=plan_id))
         except Exception as e:
             logger.warning(f"[create_plan] Failed to publish plan updated event: {e}")
@@ -222,7 +224,7 @@ async def update_step_status(
             "step_id": step_id,
             "status": status,
             "result": result,
-            "execution_run_id": execution_run_id
+            "execution_run_id": execution_run_id,
         }
 
         # Notify frontend plan panel to refresh
@@ -234,6 +236,7 @@ async def update_step_status(
                 # Fallback: look up thread_id from plan_id
                 from app.infrastructure.database import session_scope
                 from app.models.planning import Plan as DBPlan
+
                 async with session_scope() as session:
                     db_plan = await session.get(DBPlan, plan_id)
                     if db_plan:
@@ -242,6 +245,7 @@ async def update_step_status(
             if thread_id:
                 from app.core.events import system_bus
                 from app.domain.planning.event import PlanUpdatedEvent
+
                 await system_bus.publish(
                     PlanUpdatedEvent(
                         thread_id=thread_id,

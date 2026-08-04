@@ -98,7 +98,5 @@ async def _resolve_uploads_path(path: str, config: RunnableConfig | None = None)
         return legacy_path
 
     # 如果都不存在，默认返回会话隔离路径（用于后续写入或报错提示）
-    root = os.path.join(
-        settings.CHAT_UPLOAD_DIR, thread_id if thread_id else "global"
-    )
+    root = os.path.join(settings.CHAT_UPLOAD_DIR, thread_id if thread_id else "global")
     return resolve_path(filename, base_path=root)

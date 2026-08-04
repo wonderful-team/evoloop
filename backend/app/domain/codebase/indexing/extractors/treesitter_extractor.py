@@ -166,7 +166,7 @@ class TreeSitterExtractor(BaseExtractor):
                             continue
                         processed_ranges.add((start_byte, end_byte))
 
-                        chunk_content = content[node.start_point[0]:node.end_point[0] + 1]  # Approximate lines
+                        chunk_content = content[node.start_point[0] : node.end_point[0] + 1]  # Approximate lines
 
                         # Extract name
                         name = "anonymous"
@@ -247,15 +247,17 @@ class TreeSitterExtractor(BaseExtractor):
                         documents.append(doc)
 
                         # Add Entity
-                        entities.append(ExtractedEntity(
-                            name=name,
-                            type=capture_name,
-                            full_name=full_identifier,  # <--- UNIQUE GLOBAL ID
-                            start_line=node.start_point[0] + 1,
-                            end_line=node.end_point[0] + 1,
-                            content=chunk_content,
-                            metadata={"lang": lang_key},
-                        ))
+                        entities.append(
+                            ExtractedEntity(
+                                name=name,
+                                type=capture_name,
+                                full_name=full_identifier,  # <--- UNIQUE GLOBAL ID
+                                start_line=node.start_point[0] + 1,
+                                end_line=node.end_point[0] + 1,
+                                content=chunk_content,
+                                metadata={"lang": lang_key},
+                            )
+                        )
 
                         # --- RELATION EXTRACTION ---
                         # 1. Inheritance (Superclasses)
@@ -269,12 +271,14 @@ class TreeSitterExtractor(BaseExtractor):
                                 if clean_text:
                                     parts = [p.strip() for p in clean_text.split(",") if p.strip()]
                                     for parent_name in parts:
-                                        relations.append(ExtractedRelation(
-                                            source_full_name=full_identifier,  # <--- Source is now Unique
-                                            target_full_name=parent_name,  # Target is still just a name (Resolve later)
-                                            relation_type="inherits",
-                                            start_line=node.start_point[0] + 1,
-                                        ))
+                                        relations.append(
+                                            ExtractedRelation(
+                                                source_full_name=full_identifier,  # <--- Source is now Unique
+                                                target_full_name=parent_name,  # Target is still just a name (Resolve later)
+                                                relation_type="inherits",
+                                                start_line=node.start_point[0] + 1,
+                                            )
+                                        )
 
                     # 2. Imports (Dependencies)
                     elif capture_name == "import":
@@ -288,23 +292,27 @@ class TreeSitterExtractor(BaseExtractor):
                             import_path = m_node.text.decode("utf8").strip("'\"")  # strip quotes
                             if import_path:
                                 # Standard Import Relation
-                                relations.append(ExtractedRelation(
-                                    source_full_name=module_path,  # Link from FILE (Module Entity)
-                                    target_full_name=import_path,
-                                    relation_type="imports",
-                                    start_line=node.start_point[0] + 1,
-                                ))
+                                relations.append(
+                                    ExtractedRelation(
+                                        source_full_name=module_path,  # Link from FILE (Module Entity)
+                                        target_full_name=import_path,
+                                        relation_type="imports",
+                                        start_line=node.start_point[0] + 1,
+                                    )
+                                )
 
                                 # COGNITION: Inferred 'TESTS' relation
                                 # Heuristic: If this file is a test file, and it imports a local module,
                                 # it is likely testing that module.
                                 if is_test_file(file_path) and self._is_likely_local_import(import_path):
-                                    relations.append(ExtractedRelation(
-                                        source_full_name=module_path,
-                                        target_full_name=import_path,
-                                        relation_type="tests",  # Stronger semantic link
-                                        start_line=node.start_point[0] + 1,
-                                    ))
+                                    relations.append(
+                                        ExtractedRelation(
+                                            source_full_name=module_path,
+                                            target_full_name=import_path,
+                                            relation_type="tests",  # Stronger semantic link
+                                            start_line=node.start_point[0] + 1,
+                                        )
+                                    )
 
         return ExtractionResult(documents=documents, entities=entities, relations=relations)
 
@@ -365,6 +373,13 @@ class TreeSitterExtractor(BaseExtractor):
         # Customize for this specific project structure (EvoLoop)
         # We know top-level pkgs are app, domain, core, infrastructure, etc.
         # But 'app' is the main one.
-        common_prefixes = ["app", "domain", "core", "infrastructure", "interfaces", "common"]
+        common_prefixes = [
+            "app",
+            "domain",
+            "core",
+            "infrastructure",
+            "interfaces",
+            "common",
+        ]
         first_part = import_path.split(".")[0]
         return first_part in common_prefixes

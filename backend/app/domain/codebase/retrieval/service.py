@@ -62,12 +62,14 @@ class RetrievalService:
                 return []
 
             outgoing, _ = await self._load_relations(session, entity)
-            return [{
-                "full_name": entity.full_name,
-                "type": entity.type,
-                "file_path": entity.file.path if entity.file else "unknown",
-                "outgoing": [o["target"] for o in outgoing],
-            }]
+            return [
+                {
+                    "full_name": entity.full_name,
+                    "type": entity.type,
+                    "file_path": entity.file.path if entity.file else "unknown",
+                    "outgoing": [o["target"] for o in outgoing],
+                }
+            ]
 
     async def find_usages(self, symbol_name: str, project_id: int = None) -> list[dict[str, Any]]:
         pid = self._resolve_pid(project_id)

@@ -22,8 +22,12 @@ class DirectorySummarizer:
         return os.path.join(project_path, _SUMMARY_DIR, f"{safe}.json")
 
     async def summarize_directory(
-        self, project_path: str, project_id: int, dir_path: str,
-        recursive: bool = True, model: str | None = None,
+        self,
+        project_path: str,
+        project_id: int,
+        dir_path: str,
+        recursive: bool = True,
+        model: str | None = None,
     ) -> str:
         existing = await self.get_summary(project_path, dir_path)
         if existing:
@@ -73,7 +77,7 @@ class DirectorySummarizer:
         children = []
         seen_dirs = set()
         for path, content in rows:
-            rel = path[len(prefix):] if prefix else path
+            rel = path[len(prefix) :] if prefix else path
             if "/" in rel:
                 subdir = rel.split("/")[0]
                 if subdir not in seen_dirs:
@@ -86,12 +90,14 @@ class DirectorySummarizer:
 
     async def generate_summary(self, dir_path: str, child_summaries: list[dict], model: str | None = None) -> str:
         from app.utils.template import render_template
+
         prompt_text = render_template(
             "domain/codebase/directory_summary.prompt.j2",
             directory_path=dir_path,
             child_summaries=child_summaries,
         )
         from app.infrastructure.llm import InternalLLMService
+
         response = await InternalLLMService.invoke(
             messages=[{"role": "user", "content": prompt_text}],
             purpose="skill_synthesis",

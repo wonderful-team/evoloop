@@ -8,9 +8,9 @@ from app.core.context import ContextManager
 from app.core.engine.message.native_classes import RunnableConfig
 from app.core.tools import evoloop_tool, get_working_directory
 from app.core.tools.base import InjectedToolArg
-from app.infrastructure.config import SystemConfigService
 from app.domain.tools.execution.background import execute_in_background, execute_smart
 from app.domain.tools.execution.security import is_dangerous_command
+from app.infrastructure.config import SystemConfigService
 
 logger = logging.getLogger(__name__)
 

@@ -85,27 +85,30 @@ async def handle_list(
                         lines_str = f" ({lc} lines)"
                 lines.append(f"{e.name}{size_str}{lines_str}")
 
-        output = '\n'.join(lines[:max_entries])
+        output = "\n".join(lines[:max_entries])
 
         # 【虚拟注入】在根目录列表中注入 uploads/ 条目
         # 无论全局模式还是项目模式，uploads/ 都指向 CHAT_UPLOAD_DIR (~/.evoloop/uploads/)
         # 让 Agent 在任何模式下都能清楚地"看到"聊天附件的存放位置
         workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
-        is_root_listing = (path in (".", "") or
-                          (workspace_root and target_path == workspace_root) or
-                          target_path == workspace_root)
+        is_root_listing = (
+            path in (".", "")
+            or (workspace_root and target_path == workspace_root)
+            or target_path == workspace_root
+        )
 
         if is_root_listing and not any(line.startswith("uploads/") for line in lines):
             output = "uploads/\n" + output if output else "uploads/"
 
         if len(lines) > max_entries:
-            output += f"\n\n... ({len(lines) - max_entries} more entries hidden)\nTip: Use filter=\"*.ext\" to narrow results, or increase max_entries."
+            output += f'\n\n... ({len(lines) - max_entries} more entries hidden)\nTip: Use filter="*.ext" to narrow results, or increase max_entries.'
         return output, {"count": len(lines), "recursive": False}
     else:
         # Tree view using core.file
         # For with_symbols=True, fall back to existing tree generator
         if with_symbols:
             from app.core.project.tree_generator import AnnotatedTreeGenerator
+
             try:
                 generator = AnnotatedTreeGenerator(
                     target_path,
@@ -201,5 +204,5 @@ async def list_dir(
         stats=stats,
         with_symbols=with_symbols,
         max_entries=max_entries,
-        config=config
+        config=config,
     )

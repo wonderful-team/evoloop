@@ -5,6 +5,7 @@ This module exposes `browser_control` as an @evoloop_tool so the Agent can
 call it via function calling. All actual logic lives in:
   app.core.environment.controllers.browser.BrowserController
 """
+
 import logging
 from typing import Literal
 
@@ -17,7 +18,7 @@ logger = logging.getLogger(__name__)
 @evoloop_tool(
     required_benefit="browser_control",
     summary_template="evoloop.tool_summary.browser_control",
-    affected_path_keys=["url", "file_path"]
+    affected_path_keys=["url", "file_path"],
 )
 async def browser_control(
     action: Literal[

@@ -7,8 +7,8 @@ from typing import Annotated
 
 from app.core.engine.message.native_classes import RunnableConfig
 from app.core.tools import evoloop_tool
-from app.core.tools.base import InjectedToolArg
 from app.core.tools.background import TaskStatus, task_manager
+from app.core.tools.base import InjectedToolArg
 
 logger = logging.getLogger(__name__)
 
@@ -111,10 +111,6 @@ async def cancel_command(
             except ProcessLookupError:
                 pass
 
-        return (
-            "Task cancelled\n\n"
-            f"任务ID: `{task_id}`\n"
-            f"命令: `{task.title}`"
-        )
+        return f"Task cancelled\n\n任务ID: `{task_id}`\n命令: `{task.title}`"
     else:
         return f"Cannot cancel task (current status: {task.status.value})"

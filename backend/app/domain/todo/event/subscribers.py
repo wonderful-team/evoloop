@@ -9,24 +9,20 @@ import logging
 
 from sqlalchemy import delete, or_, select
 
-from app.core.engine.rewind import REWIND_REQUESTED, RewindRequestedEvent
-from app.core.events import SystemEventType
-from app.core.events.base import AsyncEventBus
-from app.core.events.decorators import (
-    event_register,
-    event_subscribe,
-    register_instance_handlers,
-)
 from app.core.engine.event import (
     ExtractionCompletedEvent,
     ExtractionRequest,
     ExtractionRequestedEvent,
 )
-
+from app.core.engine.rewind import REWIND_REQUESTED, RewindRequestedEvent
+from app.core.events import SystemEventType
+from app.core.events.decorators import (
+    event_register,
+    event_subscribe,
+)
 from app.domain.todo.schemas import TodoCreate
 from app.domain.todo.service import TodoService
 from app.infrastructure.database import session_scope
-from app.utils.template import render_template
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +70,7 @@ class TodoLifecycleSubscriber:
                         },
                     },
                     "required": ["title", "description", "priority"],
-                }
+                },
             )
         )
 
@@ -164,12 +160,7 @@ class TodoRewind:
         else:
             logger.debug(f"[TodoRewind] No todo items found to delete for thread {event.thread_id}")
 
-    async def _find_message_ids(
-        self,
-        thread_id: str,
-        target_message_id: str | None,
-        include_target: bool
-    ) -> list[str]:
+    async def _find_message_ids(self, thread_id: str, target_message_id: str | None, include_target: bool) -> list[str]:
         """Find message IDs to clean up for the given thread."""
         from app.models import Message
 
@@ -194,11 +185,7 @@ class TodoRewind:
             result = await session.execute(stmt)
             return [str(row[0]) for row in result.all()]
 
-    async def _delete_todos(
-        self,
-        message_ids: list[str],
-        run_ids: list[str] | None = None
-    ) -> int:
+    async def _delete_todos(self, message_ids: list[str], run_ids: list[str] | None = None) -> int:
         """
         Delete todo items by message IDs or run IDs.
         """

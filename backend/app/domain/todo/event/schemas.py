@@ -15,6 +15,7 @@ class TodoUpdatedEvent(BaseEvent):
     Public event published when todo items are created, updated, or deleted.
     Bridged to the frontend via UniversalBridgeSubscriber.
     """
+
     event_type: str = TodoEventType.UPDATED
     source: str = "todo"
     todo_id: str | None = None

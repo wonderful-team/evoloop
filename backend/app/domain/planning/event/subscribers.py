@@ -10,12 +10,7 @@ import logging
 from sqlalchemy import select
 
 from app.core.engine.rewind import REWIND_REQUESTED, RewindRequestedEvent
-from app.core.events.base import AsyncEventBus
-from app.core.events.decorators import (
-    event_register,
-    event_subscribe,
-    register_instance_handlers,
-)
+from app.core.events.decorators import event_register, event_subscribe
 from app.infrastructure.database import session_scope
 
 logger = logging.getLogger(__name__)
@@ -71,8 +66,13 @@ class PlanRewind:
                     try:
                         from app.core.events import system_bus
                         from app.domain.planning.event import PlanUpdatedEvent
+
                         await system_bus.publish(
-                            PlanUpdatedEvent(thread_id=event.thread_id, plan_id=plan.id, status="deleted")
+                            PlanUpdatedEvent(
+                                thread_id=event.thread_id,
+                                plan_id=plan.id,
+                                status="deleted",
+                            )
                         )
                     except Exception as e:
                         logger.warning(
@@ -120,6 +120,7 @@ class PlanRewind:
                     try:
                         from app.core.events import system_bus
                         from app.domain.planning.event import PlanUpdatedEvent
+
                         await system_bus.publish(
                             PlanUpdatedEvent(thread_id=event.thread_id, plan_id=plan.id)
                         )

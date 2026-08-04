@@ -4,7 +4,8 @@ Todo Domain Utilities - Todo-specific helper functions.
 This module provides Todo-specific utilities that build upon
 common utilities from app.utils.
 """
-from datetime import datetime
+
+from datetime import datetime, timedelta
 
 from app.models.todo import TodoStatus
 from app.utils.time import is_past, parse_relative_time, utcnow
@@ -24,13 +25,13 @@ See app.utils.time.parse_relative_time for full documentation.
 def format_todo_summary(todo) -> str:
     """
     Format a single Todo as a summary string.
-    
+
     This is Todo-specific formatting logic, using Todo status icons
     and priority markers.
-    
+
     Args:
         todo: TodoItem instance or dict with todo fields
-        
+
     Returns:
         Formatted summary string like "✓ [!] Review PR (Due: 2024-01-15)"
     """
@@ -44,27 +45,27 @@ def format_todo_summary(todo) -> str:
         status = getattr(todo, "status", "?")
         priority = getattr(todo, "priority", "?")
         due_date = getattr(todo, "due_date", None)
-    
+
     # Status labels specific to Todo domain
     status_label = {
         TodoStatus.COMPLETED: "[DONE]",
         TodoStatus.CANCELLED: "[CANCELLED]",
         TodoStatus.PENDING: "[PENDING]",
     }.get(status, "[UNKNOWN]")
-    
+
     # Priority markers
     # Handle enum type
-    if hasattr(priority, 'value'):
+    if hasattr(priority, "value"):
         priority_str = priority.value.lower()
     else:
         priority_str = str(priority).lower()
-    
+
     priority_marker = {
         "high": "[!]",
         "medium": "",
         "low": "",
     }.get(priority_str, "")
-    
+
     # Format due date if present
     due_str = ""
     if due_date:
@@ -72,7 +73,7 @@ def format_todo_summary(todo) -> str:
             due_str = f" (Due: {due_date.strftime('%Y-%m-%d %H:%M')})"
         else:
             due_str = f" (Due: {due_date})"
-    
+
     parts = [p for p in [status_label, priority_marker, title + due_str] if p]
     return " ".join(parts)
 
@@ -80,16 +81,16 @@ def format_todo_summary(todo) -> str:
 def is_overdue(todo, reference_time: datetime | None = None) -> bool:
     """
     Check if a Todo is overdue.
-    
+
     A Todo is overdue if:
     - It has a due_date
     - It's not completed or cancelled
     - The due_date is in the past
-    
+
     Args:
         todo: TodoItem instance or dict with due_date and status
         reference_time: Time to compare against (default: utcnow())
-        
+
     Returns:
         True if overdue, False otherwise
     """
@@ -99,11 +100,11 @@ def is_overdue(todo, reference_time: datetime | None = None) -> bool:
     else:
         due_date = getattr(todo, "due_date", None)
         status = getattr(todo, "status", None)
-    
+
     # Completed or cancelled todos are never overdue
     if status in [TodoStatus.COMPLETED, TodoStatus.CANCELLED]:
         return False
-    
+
     # Use common utility for time comparison
     return is_past(due_date, reference_time or utcnow())
 
@@ -111,29 +112,29 @@ def is_overdue(todo, reference_time: datetime | None = None) -> bool:
 def get_priority_weight(priority) -> int:
     """
     Get numeric weight for priority sorting.
-    
+
     Higher weight = more important. Used for sorting todos
     by priority in listings.
-    
+
     Args:
         priority: TodoPriority enum or string
-        
+
     Returns:
         Weight value (high=3, medium=2, low=1)
-        
+
     Example:
         >>> sorted(todos, key=lambda t: -get_priority_weight(t.priority))
         # Sorted by priority descending
     """
     if priority is None:
         return 2
-    
+
     # Handle enum type - extract value
-    if hasattr(priority, 'value'):
+    if hasattr(priority, "value"):
         priority_str = priority.value.lower()
     else:
         priority_str = str(priority).lower()
-    
+
     weights = {
         "high": 3,
         "medium": 2,
@@ -145,11 +146,11 @@ def get_priority_weight(priority) -> int:
 def should_remind(todo, reminder_offset_minutes: int = 0) -> bool:
     """
     Check if a Todo should trigger a reminder.
-    
+
     Args:
         todo: TodoItem with due_date
         reminder_offset_minutes: Minutes before due_date to trigger
-        
+
     Returns:
         True if reminder should be sent
     """
@@ -159,15 +160,14 @@ def should_remind(todo, reminder_offset_minutes: int = 0) -> bool:
     else:
         due_date = getattr(todo, "due_date", None)
         status = getattr(todo, "status", None)
-    
+
     # Only pending todos get reminders
     if status != TodoStatus.PENDING:
         return False
-    
+
     if not due_date:
         return False
-    
-    from datetime import timedelta
+
     reminder_time = due_date - timedelta(minutes=reminder_offset_minutes)
     return utcnow() >= reminder_time
 
@@ -175,16 +175,16 @@ def should_remind(todo, reminder_offset_minutes: int = 0) -> bool:
 def get_status_transition_allowed(current_status: TodoStatus, new_status: TodoStatus) -> bool:
     """
     Check if a status transition is valid.
-    
+
     Defines valid state transitions for Todo workflow:
     - pending -> completed, cancelled
     - completed -> pending (reopen)
     - cancelled -> pending (reopen)
-    
+
     Args:
         current_status: Current TodoStatus
         new_status: Desired new TodoStatus
-        
+
     Returns:
         True if transition is allowed
     """

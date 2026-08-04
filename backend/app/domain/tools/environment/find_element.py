@@ -4,22 +4,21 @@ Find Element Tool - Vision-guided UI element selection.
 Uses the Fusion Pipeline for perception and LLM for natural language
 element matching.
 """
+
 import asyncio
 import logging
 from typing import Literal
 
 from app.core.tools import evoloop_tool
-from app.infrastructure.vision import VisionTask, vision_engine
-from app.infrastructure.vision.pipeline.manager import pipeline_manager
 from app.infrastructure.drivers.adb import ADBError, adb_driver
 from app.infrastructure.drivers.macos import macos_driver
+from app.infrastructure.vision import VisionTask, vision_engine
+from app.infrastructure.vision.pipeline.manager import pipeline_manager
 
 logger = logging.getLogger(__name__)
 
 
-@evoloop_tool(
-    summary_template="evoloop.tool_summary.find_element"
-)
+@evoloop_tool(summary_template="evoloop.tool_summary.find_element")
 async def find_element(
     target: str,
     platform: Literal["macos", "android"] | None = None,
@@ -29,10 +28,10 @@ async def find_element(
 ) -> str:
     """
     Find a UI element by natural language description and optionally interact with it.
-    
+
     This tool uses Fusion Perception to extract all visible UI elements
     and either returns the best match or directly acts on it (tap/click).
-    
+
     Args:
         target: Natural language description of the element to find.
         platform: Target platform ("macos" or "android"). If None, resolved from session context.
@@ -44,6 +43,7 @@ async def find_element(
         # Step 1: Resolve Platform & Take a screenshot
         if platform is None:
             from app.core.context import ContextManager
+
             ctx = ContextManager.current()
             platform = ctx.metadata.get("current_ecosystem")
 
@@ -74,7 +74,6 @@ async def find_element(
 
         # Fire UI_TREE_OBSERVED event for spatial mapping (Background)
         try:
-
             if platform == "android":
                 app_info = adb_driver.get_current_app(device_id=device_id)
                 bundle_id = app_info.get("package", "unknown")
@@ -85,13 +84,16 @@ async def find_element(
                 window_title = app_info.get("title", "unknown")
 
             from app.core.environment.event.publishers import publish_ui_tree_observed
-            asyncio.create_task(publish_ui_tree_observed(
-                platform=platform,
-                bundle_id=bundle_id,
-                window_title=window_title,
-                elements=[e.model_dump() for e in elements],
-                screenshot_hash=result.metadata.get("file_hash", ""),
-            ))
+
+            asyncio.create_task(
+                publish_ui_tree_observed(
+                    platform=platform,
+                    bundle_id=bundle_id,
+                    window_title=window_title,
+                    elements=[e.model_dump() for e in elements],
+                    screenshot_hash=result.metadata.get("file_hash", ""),
+                )
+            )
         except Exception as e:
             logger.warning(f"Failed to publish UI_TREE_OBSERVED: {e}")
 
@@ -150,7 +152,7 @@ async def find_element(
 
         result_msg = (
             "Element found!\n"
-            f"Text: \"{best_match.text}\"\n"
+            f'Text: "{best_match.text}"\n'
             f"Position: ({best_match.x}, {best_match.y})\n"
             f"Type: {best_match.element_type.value}\n"
             f"Match Score: {score:.1f}\n"

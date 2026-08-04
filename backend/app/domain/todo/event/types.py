@@ -18,4 +18,5 @@ class TodoEventType(str, Enum):
 
     Events related to todo item lifecycle changes.
     """
+
     UPDATED = "todo.updated"

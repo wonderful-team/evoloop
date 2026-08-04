@@ -53,7 +53,7 @@ async def delete_file(
             try:
                 original_content, _, _ = safe_read_with_hash(absolute_path)
             except Exception:
-                pass # Binary or unreadable files
+                pass  # Binary or unreadable files
 
         # Perform deletion via the File Center
         if is_file:
@@ -66,6 +66,7 @@ async def delete_file(
         # Record Rewind operation
         if is_file:
             from app.core.context import ContextManager
+
             ctx = ContextManager.current()
             if ctx.thread_id:
                 persist_file_operation_task.delay(

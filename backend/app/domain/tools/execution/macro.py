@@ -10,12 +10,13 @@ from typing import Annotated, Any
 from sqlalchemy import func, select
 
 from app.core.engine.message.native_classes import RunnableConfig
+from app.core.execution.skill_response import SkillResponse
 from app.core.learning.skill_visibility import visible_filter
 from app.core.tools import evoloop_tool
 from app.core.tools.base import InjectedToolArg
 from app.infrastructure.database import session_scope
 from app.models.learning import LearnedSkill
-from app.utils.controller_response import ControllerResponse, SkillResponse
+from app.utils.controller_response import ControllerResponse
 
 logger = logging.getLogger(__name__)
 
@@ -122,6 +123,7 @@ async def _run_macro_row(macro_id, macro_name, params, thread_id, macro_service)
     if "base_url" not in execution_params:
         try:
             from app.core.project.utils import get_project_path, read_project_json
+
             proj_path = await get_project_path(macro.project_id)
             if proj_path:
                 pj = read_project_json(proj_path)

@@ -34,78 +34,97 @@ class ParserRegistry:
     def _register_default_loaders(self):
         def load_python():
             import tree_sitter_python
+
             return tree_sitter_python.language()
 
         def load_go():
             import tree_sitter_go
+
             return tree_sitter_go.language()
 
         def load_java():
             import tree_sitter_java
+
             return tree_sitter_java.language()
 
         def load_cpp():
             from tree_sitter_language_pack import get_language
+
             return get_language("cpp")
 
         def load_c():
             from tree_sitter_language_pack import get_language
+
             return get_language("c")
 
         def load_rust():
             import tree_sitter_rust
+
             return tree_sitter_rust.language()
 
         def load_php():
             import tree_sitter_php
+
             return tree_sitter_php.language_php()
 
         def load_ruby():
             import tree_sitter_ruby
+
             return tree_sitter_ruby.language()
 
         def load_csharp():
             import tree_sitter_c_sharp
+
             return tree_sitter_c_sharp.language()
 
         def load_js():
             import tree_sitter_javascript
+
             return tree_sitter_javascript.language()
 
         def load_ts():
             import tree_sitter_typescript
+
             return tree_sitter_typescript.language_typescript()
 
         def load_tsx():
             import tree_sitter_typescript
+
             return tree_sitter_typescript.language_tsx()
 
         def load_kotlin():
             import tree_sitter_kotlin
+
             return tree_sitter_kotlin.language()
 
         def load_swift():
             import tree_sitter_swift
+
             return tree_sitter_swift.language()
 
         def load_sql():
             import tree_sitter_sql
+
             return tree_sitter_sql.language()
 
         def load_html():
             import tree_sitter_html
+
             return tree_sitter_html.language()
 
         def load_vue():
             from tree_sitter_language_pack import get_language
+
             return get_language("vue")
 
         def load_bash():
             from tree_sitter_language_pack import get_language
+
             return get_language("bash")
 
         def load_yaml():
             import tree_sitter_yaml
+
             return tree_sitter_yaml.language()
 
         # Core languages

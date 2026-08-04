@@ -23,7 +23,7 @@ async def handle_multi_edit(
     edits: list[FileEditOperation],
     expected_hash: str | None,
     verify_types: bool,
-    config: RunnableConfig | None
+    config: RunnableConfig | None,
 ) -> str:
     """
     Perform multiple edits to a single file atomically.
@@ -41,7 +41,7 @@ async def handle_multi_edit(
         absolute_path=target_path,
         edits=edits,
         expected_hash=expected_hash,
-        display_path=path
+        display_path=path,
     )
 
     if not result["success"]:
@@ -51,7 +51,7 @@ async def handle_multi_edit(
             path=path,
             message=result["message"],
             details=result.get("details", ""),
-            labels=i18n.get("domain_tools.files.edit_labels") or {}
+            labels=i18n.get("domain_tools.files.edit_labels") or {},
         )
 
     # Success path
@@ -61,7 +61,7 @@ async def handle_multi_edit(
         "edit_count": result["applied_edits"],
         "new_hash": result.get("new_hash", "")[:8] if result.get("new_hash") else None,
         "diagnostics": None,
-        "labels": i18n.get("domain_tools.files.edit_labels") or {}
+        "labels": i18n.get("domain_tools.files.edit_labels") or {},
     }
 
     # Optional Semantic Validation
@@ -79,7 +79,7 @@ async def handle_multi_edit(
     from app.core.context import ContextManager
     from app.core.file.editor.algorithms import generate_unified_diff
     from app.core.file.io import read_file
-    
+
     ctx = ContextManager.current()
     if ctx.thread_id:
         try:
@@ -120,20 +120,22 @@ async def handle_edit(request: EditFileRequest) -> str:
         return str(e)
 
     # Convert single edit to multi-edit list for service
-    edits = [FileEditOperation(
-        target=request.target or "", 
-        replacement=request.content, 
-        allow_multiple=request.allow_multiple, 
-        mode=request.mode,
-        start_line=request.start_line,
-        end_line=request.end_line
-    )]
+    edits = [
+        FileEditOperation(
+            target=request.target or "",
+            replacement=request.content,
+            allow_multiple=request.allow_multiple,
+            mode=request.mode,
+            start_line=request.start_line,
+            end_line=request.end_line,
+        )
+    ]
 
     result = await FileEditorService.apply_edits(
         absolute_path=target_path,
         edits=edits,
         expected_hash=request.expected_hash,
-        display_path=request.path
+        display_path=request.path,
     )
 
     template_context = {
@@ -164,7 +166,7 @@ async def handle_edit(request: EditFileRequest) -> str:
         from app.core.context import ContextManager
         from app.core.file.editor.algorithms import generate_unified_diff
         from app.core.file.io import read_file
-        
+
         ctx = ContextManager.current()
         if ctx.thread_id:
             try:
@@ -173,7 +175,7 @@ async def handle_edit(request: EditFileRequest) -> str:
                 diff = generate_unified_diff(
                     original=original_content,
                     modified=modified_content,
-                    file_path=request.path
+                    file_path=request.path,
                 )
                 persist_file_operation_task.delay(
                     thread_id=ctx.thread_id,
@@ -200,7 +202,7 @@ def format_preview_result(result: EditPreviewResult, path: str, target: str, rep
             "domain/tools/edit_preview.prompt.j2",
             success=False,
             message="Preview failed",
-            details=result.message
+            details=result.message,
         )
 
     return render_template(
@@ -213,7 +215,7 @@ def format_preview_result(result: EditPreviewResult, path: str, target: str, rep
         diff=result.diff,
         confidence=result.confidence.value,
         target_preview=f"{target[:50]}{'...' if len(target) > 50 else ''}",
-        replacement_preview=f"{replacement[:50]}{'...' if len(replacement) > 50 else ''}"
+        replacement_preview=f"{replacement[:50]}{'...' if len(replacement) > 50 else ''}",
     )
 
 
@@ -239,7 +241,7 @@ async def edit_file(
 ) -> str:
     """
     Performs string replacements in files with automatic cascading fuzzy matching, or appends/prepends content. Always call read_file to inspect the content first before using this tool.
-    
+
     Args:
         path: Path to the file to edit.
         target: The text to find and replace. Optional if append/prepend is provided.
@@ -253,7 +255,7 @@ async def edit_file(
         expected_hash: Optional hash for optimistic concurrency.
         dry_run: If True, returns a preview without making changes.
         verify_types: If True, performs type checking after edit.
-        
+
     Examples:
         edit_file(path="file.txt", target="old", replacement="new")
         edit_file(path="file.txt", append="\\nnew line at the end")
@@ -263,8 +265,11 @@ async def edit_file(
     if edits:
         if not path:
             return "SYSTEM ERROR: You MUST provide 'path'."
-        
-        edit_models = [FileEditOperation.model_validate(e) if isinstance(e, dict) else e for e in edits]
+
+        edit_models = [
+            FileEditOperation.model_validate(e) if isinstance(e, dict) else e
+            for e in edits
+        ]
         return await handle_multi_edit(
             path=path,
             edits=edit_models,
@@ -298,7 +303,7 @@ async def edit_file(
                 path=path,
                 target=target,
                 replacement=replacement,
-                absolute_path=target_path
+                absolute_path=target_path,
             )
             return format_preview_result(result, path, target, replacement)
         except Exception as e:

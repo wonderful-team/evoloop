@@ -10,16 +10,16 @@ A standardized domain module for Todo management following DDD patterns:
 
 Usage:
     from app.domain.todo import TodoService, TodoCreate, TodoFilter
-    
+
     # In async context (API)
     service = TodoService(session)
     todo = await service.create(TodoCreate(title="Review PR"))
-    
+
     # In sync context (Tools)
     from app.domain.todo import get_todo_service_sync
     service = get_todo_service_sync()
     todo = service.create(TodoCreate(title="Review PR"))
-    
+
     # Tools are auto-registered
     from app.domain.todo import create_todo, list_todos
 """

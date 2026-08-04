@@ -4,6 +4,7 @@ Todo Domain Schemas - Pydantic models for data transfer.
 This module defines all DTOs (Data Transfer Objects) for the Todo domain,
 ensuring consistent data validation across API, Tools, and Service layers.
 """
+
 from datetime import datetime
 from typing import Literal
 
@@ -15,8 +16,10 @@ from app.models.todo import TodoPriority, TodoStatus
 
 # ============== Base Schemas ==============
 
+
 class TodoBase(BaseModel):
     """Base Todo fields."""
+
     title: str = Field(..., min_length=1, max_length=255)
     description: str | None = None
     priority: TodoPriority = TodoPriority.MEDIUM
@@ -27,8 +30,10 @@ class TodoBase(BaseModel):
 
 # ============== Create Schemas ==============
 
+
 class TodoCreate(BaseModel):
     """Schema for creating a new Todo."""
+
     title: str = Field(..., min_length=1, max_length=255)
     description: str | None = None
     priority: Literal["low", "medium", "high"] | TodoPriority = TodoPriority.MEDIUM
@@ -42,6 +47,7 @@ class TodoCreate(BaseModel):
 
 class TodoCreateInternal(BaseModel):
     """Internal schema after parsing and validation."""
+
     title: str
     description: str | None = None
     priority: TodoPriority = TodoPriority.MEDIUM
@@ -55,8 +61,10 @@ class TodoCreateInternal(BaseModel):
 
 # ============== Update Schemas ==============
 
+
 class TodoUpdate(BaseModel):
     """Schema for updating an existing Todo."""
+
     title: str | None = Field(None, min_length=1, max_length=255)
     description: str | None = None
     status: TodoStatus | None = None
@@ -68,8 +76,10 @@ class TodoUpdate(BaseModel):
 
 # ============== Response Schemas ==============
 
+
 class TodoResponse(TimestampedEntity):
     """Schema for Todo responses."""
+
     id: str
     title: str
     description: str | None
@@ -87,8 +97,10 @@ class TodoResponse(TimestampedEntity):
 
 # ============== Filter Schemas ==============
 
+
 class TodoFilter(BaseFilter):
     """Schema for filtering Todos."""
+
     status: TodoStatus | None = None
     statuses: list[TodoStatus] | None = None  # For multiple status filter
     project_id: int | None = None
@@ -102,6 +114,7 @@ class TodoFilter(BaseFilter):
 
 class TodoListResponse(BaseModel):
     """Schema for paginated list response."""
+
     items: list[TodoResponse]
     total: int
     limit: int
@@ -110,8 +123,10 @@ class TodoListResponse(BaseModel):
 
 # ============== Harvesting Schemas ==============
 
+
 class ExtractedTodo(BaseModel):
     """A single todo item extracted from conversation."""
+
     title: str = Field(..., description="Short descriptive title of the task")
     description: str | None = Field(None, description="Detailed explanation or context of the task")
     priority: Literal["low", "medium", "high"] = Field("medium", description="Importance level")
@@ -122,5 +137,6 @@ class ExtractedTodo(BaseModel):
 
 class TodoHarvestingResult(BaseModel):
     """The full result of a todo extraction run."""
+
     todos: list[ExtractedTodo] = Field(default_factory=list)
     summary: str = Field(default="", description="Brief summary of the extraction process")

@@ -62,7 +62,7 @@ async def move_file(
             try:
                 content, _, _ = safe_read_with_hash(source_absolute)
             except Exception:
-                pass # Binary files or unreadable files will just have empty diff
+                pass  # Binary files or unreadable files will just have empty diff
 
         dest_original = None
         if os.path.exists(dest_absolute) and os.path.isfile(dest_absolute) and overwrite:
@@ -79,6 +79,7 @@ async def move_file(
         # Record Rewind operation
         if is_file:
             from app.core.context import ContextManager
+
             ctx = ContextManager.current()
             if ctx.thread_id:
                 # Record DELETE for source
@@ -98,7 +99,7 @@ async def move_file(
                     message_id="",
                     file_path=str(dest_absolute),
                     operation="ADD" if dest_original is None else "EDIT",
-                    diff_content=content, # Simplification: use the content directly as diff for ADD
+                    diff_content=content,  # Simplification: use the content directly as diff for ADD
                     original_content=dest_original,
                     run_id=ctx.run_id,
                     tool_call_id=ctx.current_tool_call_id,

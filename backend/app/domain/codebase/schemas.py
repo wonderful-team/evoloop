@@ -1,6 +1,6 @@
 """Schemas for codebase module."""
 
-from typing import Any, Dict, List
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -16,7 +16,7 @@ class ExtractedEntity(DynamicBaseModel):
     start_line: int
     end_line: int
     content: str | None = None
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class ExtractedRelation(DynamicBaseModel):
@@ -27,13 +27,14 @@ class ExtractedRelation(DynamicBaseModel):
 
 
 class ExtractionResult(DynamicBaseModel):
-    documents: List[Document] = Field(default_factory=list)
-    entities: List[ExtractedEntity] = Field(default_factory=list)
-    relations: List[ExtractedRelation] = Field(default_factory=list)
+    documents: list[Document] = Field(default_factory=list)
+    entities: list[ExtractedEntity] = Field(default_factory=list)
+    relations: list[ExtractedRelation] = Field(default_factory=list)
 
 
 class IndexedContent(BaseModel):
     """Result of content indexing, ready for persistence."""
+
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     documents: list[Document]
@@ -45,6 +46,7 @@ class IndexedContent(BaseModel):
 
 class PreparedFile(BaseModel):
     """Result of file preparation, ready for indexing."""
+
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     file_path: str

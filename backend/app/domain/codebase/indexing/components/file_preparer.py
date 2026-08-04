@@ -143,4 +143,3 @@ class FilePreparer:
         source_file.parsed_at = datetime.now(timezone.utc)
         session.add(source_file)
         await session.flush()
-

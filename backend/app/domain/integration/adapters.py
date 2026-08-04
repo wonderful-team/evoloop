@@ -17,7 +17,9 @@ class EventAdapter:
             return EventAdapter._adapt_crawler(event_type, payload)
         else:
             # Default fallback
-            return [HumanMessage(content=f"Received unknown event from {source}: {payload}")]
+            return [
+                HumanMessage(content=f"Received unknown event from {source}: {payload}")
+            ]
 
     @staticmethod
     def _adapt_crawler(event_type: str, payload: dict[str, Any]) -> list[HumanMessage]:
@@ -25,11 +27,11 @@ class EventAdapter:
         url = payload.get("url", "N/A")
         message = payload.get("message", "")
         severity = payload.get("severity", "medium")
-        
+
         # 提取关键上下文
         page_state = payload.get("page_state") or {}
         snapshot = payload.get("page_snapshot") or {}
-        
+
         content = f"""
         **System Notification**: Crawler Error Detected [{severity.upper()}]
         **Error Type**: {error_type}
@@ -39,10 +41,10 @@ class EventAdapter:
         {message}
         
         **Page Diagnostics**:
-        - Title: {page_state.get('title', 'N/A')}
-        - Status Code: {page_state.get('status_code', 'N/A')}
-        - Content Length: {page_state.get('page_size_bytes', 0)} bytes
-        - DOM Elements: {snapshot.get('visible_elements_count', 0)}
+        - Title: {page_state.get("title", "N/A")}
+        - Status Code: {page_state.get("status_code", "N/A")}
+        - Content Length: {page_state.get("page_size_bytes", 0)} bytes
+        - DOM Elements: {snapshot.get("visible_elements_count", 0)}
         
         **Mission**:
         The crawler encountered a failure that requires intelligent diagnosis. 
