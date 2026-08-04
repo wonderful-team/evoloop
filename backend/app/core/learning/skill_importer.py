@@ -133,7 +133,7 @@ class SkillImporter:
                     status="verified" if validation.status == "healthy" else "candidate",
                     is_active=True,
                     skill_source="imported",
-                    validation_report=validation.model_dump()
+                    validation_report=validation.model_dump(),
                 )
                 db.add(new_skill)
 

@@ -1,5 +1,6 @@
 import logging
 import os
+
 from .document_reader import document_reader_service
 from .image_reader import image_reader_service
 from .io import read_file
@@ -15,13 +16,13 @@ class FileContentExtractor:
     """
 
     async def extract(
-        self, 
-        file_path: str, 
-        start_range: int | None = None, 
-        end_range: int | None = None
+        self,
+        file_path: str,
+        start_range: int | None = None,
+        end_range: int | None = None,
     ) -> str:
         """
-        Extract text from file. Automatically routes to Document, Image, Media 
+        Extract text from file. Automatically routes to Document, Image, Media
         or Plain Text readers.
         """
         if not os.path.exists(file_path):
@@ -52,5 +53,6 @@ class FileContentExtractor:
             raise IOError(result.error_message or f"Failed to read text file: {file_path}")
         
         return result.content
+
 
 content_extractor = FileContentExtractor()

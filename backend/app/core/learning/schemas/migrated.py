@@ -9,12 +9,14 @@ from app.infrastructure.pydantic_base import DynamicBaseModel
 
 class ActionSource(str, Enum):
     """Who initiated the action."""
+
     AGENT = "agent"
     HUMAN = "human"
 
 
 class ActionCategory(str, Enum):
     """High-level categorization of actions."""
+
     NAVIGATION = "navigation"  # File/URL navigation
     EDIT = "edit"  # Content modification
     QUERY = "query"  # Information retrieval
@@ -31,6 +33,7 @@ class SkillParams(DynamicBaseModel):
 
 class SkillListItem(DynamicBaseModel):
     """Lightweight item for active skills list."""
+
     id: int
     name: str
     namespace: str = "general"
@@ -39,6 +42,7 @@ class SkillListItem(DynamicBaseModel):
 
 class SkillMatch(DynamicBaseModel):
     """Result of skill matching (intentional execution)."""
+
     skill_id: int
     skill_name: str
     confidence: float
@@ -48,6 +52,7 @@ class SkillMatch(DynamicBaseModel):
 
 class RecordingSession(DynamicBaseModel):
     """录制会话数据"""
+
     video_path: str
     session_id: str
     task_description: str
@@ -56,6 +61,7 @@ class RecordingSession(DynamicBaseModel):
 
 class ActionRegistryItem(DynamicBaseModel):
     """Action metadata injected into prompt templates."""
+
     id: str
     description: str
     params: list[str] = Field(default_factory=list)
@@ -64,6 +70,7 @@ class ActionRegistryItem(DynamicBaseModel):
 
 class SkillImportResult(DynamicBaseModel):
     """Result of a bulk skill import operation."""
+
     total_found: int = 0
     imported: int = 0
     skipped: int = 0
@@ -84,6 +91,7 @@ class ValidationResult(BaseModel):
 
 class UIContext(DynamicBaseModel):
     """Visual/UI context at the time of action."""
+
     screenshot_path: str | None = None
     element_selector: str | None = None
     element_text: str | None = None
@@ -91,6 +99,7 @@ class UIContext(DynamicBaseModel):
 
 class TraceStateContext(DynamicBaseModel):
     """Dynamic state context for a trace step."""
+
     app_name: str | None = None
     is_mirrored: bool | None = None
     window_title: str | None = None
@@ -98,6 +107,7 @@ class TraceStateContext(DynamicBaseModel):
 
 class TraceSummary(DynamicBaseModel):
     """Summary of a trace sequence."""
+
     thread_id: str
     task_name: str | None = None
     total_steps: int
@@ -116,6 +126,7 @@ class TraceStep(DynamicBaseModel):
     A single semantic step in a trace sequence.
     Represents one complete action-observation pair.
     """
+
     step_number: int
     source: ActionSource
     category: ActionCategory
@@ -149,9 +160,10 @@ class TraceContext(DynamicBaseModel):
 
 class ActionTrace(DynamicBaseModel):
     """Represents a single user action captured during demonstration."""
+
     timestamp: float
     action_type: str  # click, type, swipe, key, navigate, etc.
-    platform: str     # android, web, desktop
+    platform: str  # android, web, desktop
     parameters: TraceParameters
     context: TraceContext = Field(default_factory=TraceContext) # View hierarchy, URL, etc.
     screenshot_path: str | None = None

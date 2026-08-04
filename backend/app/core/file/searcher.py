@@ -1,11 +1,12 @@
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 from app.utils.process import run_async_command
 
 from .filter import get_grep_exclude_args, get_ripgrep_exclude_args
 
 logger = logging.getLogger(__name__)
+
 
 class FileSearcher:
     """
@@ -16,6 +17,7 @@ class FileSearcher:
     @staticmethod
     def _has_ripgrep() -> bool:
         import shutil
+
         return shutil.which("rg") is not None
 
     @staticmethod
@@ -24,8 +26,8 @@ class FileSearcher:
         root_path: str,
         scope: str | None = None,
         case_insensitive: bool = True,
-        limit: int = 100
-    ) -> List[Dict[str, Any]]:
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
         """
         Search for text patterns inside files.
         """
@@ -54,11 +56,12 @@ class FileSearcher:
 
         # Parse output (simplified for now, mimicking existing logic)
         results = []
-        lines = result.stdout.strip().split('\n')
+        lines = result.stdout.strip().split("\n")
         for line in lines[:limit]:
             try:
                 if line.startswith("{"):
                     import json
+
                     data = json.loads(line)
                     if data.get("type") == "match":
                         results.append({

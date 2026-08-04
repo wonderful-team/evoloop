@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 class GlobalEventData(BaseModel):
     """全局桌面事件数据"""
+
     timestamp: float
     event_type: str  # "mouse_click", "key_press"
     key: str | None = None
@@ -20,6 +21,7 @@ class GlobalEventData(BaseModel):
 
 class DomEventData(BaseModel):
     """DOM 事件数据"""
+
     timestamp: float
     event_type: str  # "click", "input", "scroll", etc.
     selector: str | None = None

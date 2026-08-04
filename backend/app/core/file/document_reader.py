@@ -34,11 +34,11 @@ class DocumentReaderService:
             elif ext == ".html":
                 return await self._read_html(file_path)
             else:
-                # Text/Code fallback handled by ContentExtractor normally, 
+                # Text/Code fallback handled by ContentExtractor normally,
                 # but kept here for backward compatibility or internal calls.
                 result = read_file(file_path, start_line=start_page, end_line=end_page)
                 if not result.success:
-                    raise IOError(result.error_message or "Failed to read file")
+                    raise OSError(result.error_message or "Failed to read file")
                 return result.content
         except Exception as e:
             logger.error(f"Failed to read document {file_path}: {e}")

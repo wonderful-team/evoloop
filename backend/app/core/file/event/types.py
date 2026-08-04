@@ -14,6 +14,7 @@ class FileSystemEventType(str, Enum):
 
     Events related to file system monitoring and changes.
     """
+
     FILE_CREATED = "fs.file_created"
     FILE_MODIFIED = "fs.file_modified"
     FILE_DELETED = "fs.file_deleted"

@@ -17,6 +17,4 @@ async def publish_file_watcher_event(
     data = {"path": path, **kwargs}
     if watch_path:
         data["watch_path"] = watch_path
-    await system_bus.publish(
-        FileWatcherEvent(event_type=event_type, data=data)
-    )
+    await system_bus.publish(FileWatcherEvent(event_type=event_type, data=data))

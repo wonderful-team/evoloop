@@ -107,12 +107,14 @@ class StopRecordingResponse(BaseAPIResponse):
 
 # In-memory session tracking
 
+
 class UploadScreenshotResponse(BaseAPIResponse):
     path: str
 
 
 class SynthesizeFromRecordingResponse(BaseAPIResponse):
     """从录制合成 Skill 的响应"""
+
     skill_id: int | None
     skill_name: str | None
     skill_yaml: str | None
@@ -126,6 +128,7 @@ class SynthesizeFromRecordingResponse(BaseAPIResponse):
 
 class AnnotationResponse(BaseAPIResponse):
     """标注响应"""
+
     id: int
     session_id: str
     annotation_type: str
@@ -137,6 +140,7 @@ class AnnotationResponse(BaseAPIResponse):
 
 class AndroidExtractPointResponse(BaseAPIResponse):
     """Android镜像提取点标记响应"""
+
     id: int
     session_id: str
     x: float
@@ -150,6 +154,7 @@ class AndroidExtractPointResponse(BaseAPIResponse):
 
 class ValidateYamlResponse(BaseAPIResponse):
     """Response from YAML validation."""
+
     valid: bool
     errors: list[str]
     step_count: int = 0

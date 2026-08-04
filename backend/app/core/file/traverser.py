@@ -10,9 +10,11 @@ from .filter import is_ignored_path
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class TraverseOptions:
     """Configuration for directory traversal."""
+
     max_depth: int | None = None
     exclude_dirs: list[str] | None = None
     filter_func: Callable[[str], bool] | None = None
@@ -20,7 +22,7 @@ class TraverseOptions:
     include_dirs: bool = False
     recursive: bool = True
     follow_ignore: bool = True
-    gitignore_root: str | None = None   # 传入则启用嵌套 .gitignore 过滤；留空时自动探测
+    gitignore_root: str | None = None  # 传入则启用嵌套 .gitignore 过滤；留空时自动探测
 
 
 class FileTraverser:
@@ -52,13 +54,11 @@ class FileTraverser:
     def _create_gitignore_matcher(gitignore_root: str) -> Any | None:
         """Lazily create a NestedGitignoreMatcher to avoid circular imports."""
         from app.domain.codebase.ignore import NestedGitignoreMatcher
+
         return NestedGitignoreMatcher(gitignore_root)
 
     @staticmethod
-    def walk(
-        root_path: str,
-        options: TraverseOptions | None = None
-    ) -> Iterator[str]:
+    def walk(root_path: str, options: TraverseOptions | None = None) -> Iterator[str]:
         """
         Standardized directory walker.
         Returns an iterator of full file paths.
@@ -121,7 +121,7 @@ class FileTraverser:
         path: str,
         exclude_dirs: list[str] | None = None,
         follow_ignore: bool = True,
-        gitignore_root: str | None = None
+        gitignore_root: str | None = None,
     ) -> Iterator[os.DirEntry]:
         """
         Low-level shallow listing using os.scandir.

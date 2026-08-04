@@ -9,16 +9,16 @@ Usage:
     # Method 1: Direct event subscription
     from app.core.events import system_bus
     from app.core.file.event import FileSystemEventType
-    
+
     async def on_file_changed(event):
         if event.event_type == FileSystemEventType.FILE_MODIFIED:
             logger.info(f"File modified: {event.data['path']}")
-    
+
     system_bus.subscribe(FileSystemEventType.FILE_MODIFIED, on_file_changed)
-    
+
     # Method 2: Use FileWatcher (publishes to event bus)
     from app.core.file.watcher import FileWatcher
-    
+
     watcher = FileWatcher("/workspace")
     watcher.start()
 
@@ -51,7 +51,7 @@ logger = logging.getLogger(__name__)
 class _EventBusHandler(FileSystemEventHandler):
     """
     Internal handler that publishes watchdog events to the system event bus.
-    
+
     This handler is thread-safe and can be called from watchdog's observer thread.
     """
 
@@ -87,9 +87,9 @@ class _EventBusHandler(FileSystemEventHandler):
                         event_type=event_type,
                         path=path,
                         watch_path=self.watch_path,
-                        **extra_data
+                        **extra_data,
                     ),
-                    self._event_loop
+                    self._event_loop,
                 )
             except Exception as e:
                 logger.error(f"Failed to schedule event publish: {e}")
@@ -109,7 +109,7 @@ class _EventBusHandler(FileSystemEventHandler):
                     try:
                         task = self._event_loop.call_later(
                             self.debounce_delay,
-                            lambda: self._publish_event(event_type, path, **extra_data)
+                            lambda: self._publish_event(event_type, path, **extra_data),
                         )
                         self._pending_tasks[path] = task
                     except Exception as e:
@@ -161,30 +161,30 @@ class _EventBusHandler(FileSystemEventHandler):
             FileSystemEventType.FILE_MOVED,
             src_path,
             dest_path=dest_path,
-            is_directory=event.is_directory
+            is_directory=event.is_directory,
         )
 
 
 class FileWatcher:
     """
     File system watcher that publishes events to the system event bus.
-    
+
     This class integrates with app.core.events system, making it easy
     for any module to subscribe to file system changes without direct
     dependencies on the file watcher.
-    
+
     Example:
         # Start watching
         watcher = FileWatcher("/workspace", debounce_delay=1.0)
         watcher.start()
-        
+
         # Subscribe to events elsewhere
         from app.core.events import system_bus
         from app.core.file.event import FileSystemEventType
-        
+
         async def on_change(event):
             logger.info(f"File changed: {event.data['path']}")
-        
+
         system_bus.subscribe(FileSystemEventType.FILE_MODIFIED, on_change)
     """
 
@@ -198,7 +198,7 @@ class FileWatcher:
     ):
         """
         Initialize file watcher.
-        
+
         Args:
             path: Directory or file to watch
             recursive: Watch subdirectories
@@ -237,17 +237,14 @@ class FileWatcher:
                 debounce_delay=self.debounce_delay,
                 event_loop=self._event_loop,
             )
-            self._watch = self._observer.schedule(
-                self._handler,
-                self.path,
-                recursive=self.recursive
-            )
+            self._watch = self._observer.schedule(self._handler, self.path, recursive=self.recursive)
             self._observer.start()
             self._started = True
 
             # Publish started event
             if self._event_loop and self._event_loop.is_running():
                 from app.core.file.event.publishers import publish_file_watcher_event
+
                 asyncio.create_task(
                     publish_file_watcher_event(
                         event_type=FileSystemEventType.WATCHER_STARTED,
@@ -276,6 +273,7 @@ class FileWatcher:
         # Publish stopped event
         if self._event_loop and self._event_loop.is_running():
             from app.core.file.event.publishers import publish_file_watcher_event
+
             asyncio.create_task(
                 publish_file_watcher_event(
                     event_type=FileSystemEventType.WATCHER_STOPPED,
@@ -316,17 +314,17 @@ class FileWatcher:
 class FileWatcherManager:
     """
     Manager for multiple file watchers.
-    
+
     Provides centralized management of file watchers with automatic cleanup.
     All watchers publish to the system event bus.
-    
+
     Example:
         manager = FileWatcherManager()
-        
+
         # Watch multiple directories
         manager.create_watcher("/project1", debounce_delay=1.0)
         manager.create_watcher("/project2", debounce_delay=1.0)
-        
+
         # Subscribe to all events
         from app.core.events import system_bus
         from app.core.file.event import FileSystemEventType
@@ -346,13 +344,13 @@ class FileWatcherManager:
     ) -> FileWatcher:
         """
         Create and start a new watcher.
-        
+
         Args:
             path: Path to watch
             recursive: Watch subdirectories
             debounce_delay: Debounce delay in seconds
             file_filter: File filter function
-            
+
         Returns:
             Started FileWatcher instance
         """

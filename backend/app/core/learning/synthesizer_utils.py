@@ -105,7 +105,7 @@ def extract_yaml_block(text: str) -> str | None:
     从文本中提取 YAML 代码块
 
     支持 ```yaml 和 ``` 两种格式
-    
+
     Note: Delegates to app.utils.extract.extract_yaml_block for the actual implementation.
     """
     return _extract_yaml_block(text)
@@ -116,14 +116,14 @@ def extract_instructions_section(text: str) -> str:
     从 LLM 响应中提取 Markdown 文档部分
 
     识别 Expert Skill Guide 等标记
-    
+
     Note: Delegates to app.utils.extract.extract_section for the actual implementation.
     """
     markers = [
         "# 🧠 Expert Skill Guide",
         "# Expert Skill Guide",
         "## 1. Mental Model",
-        "## Skill Instructions"
+        "## Skill Instructions",
     ]
     return _extract_section(text, markers)
 
@@ -140,7 +140,7 @@ def normalize_timestamp_to_seconds(timestamp: float) -> float:
 
     Returns:
         float: 相对秒数（从视频开始计算的秒数）
-    
+
     Note: Delegates to app.utils.time.normalize_timestamp_ms_to_sec for the actual implementation.
     """
     return _normalize_timestamp(timestamp)

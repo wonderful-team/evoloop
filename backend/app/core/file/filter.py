@@ -10,6 +10,7 @@ from app.constants import (
 
 logger = logging.getLogger(__name__)
 
+
 def is_encrypted_path(file_path: str, pattern=r"[a-f0-9]{8,}") -> bool:
     """Check if path contains a hash-like pattern."""
     # Normalize and split to check each component
@@ -64,7 +65,7 @@ def get_grep_exclude_args() -> list[str]:
     # Directories
     for d in DEFAULT_EXCLUDED_DIRS:
         args.append(f"--exclude-dir={d}")
-    
+
     # Hidden directories and files
     args.append("--exclude-dir=.*")
     args.append("--exclude=.*")
@@ -72,7 +73,7 @@ def get_grep_exclude_args() -> list[str]:
     # Specific files
     for f in DEFAULT_EXCLUDED_FILES:
         args.append(f"--exclude={f}")
-    
+
     return args
 
 
@@ -84,8 +85,8 @@ def get_ripgrep_exclude_args() -> list[str]:
     # Directories and Files
     for d in DEFAULT_EXCLUDED_DIRS:
         args.extend(["-g", f"!{d}"])
-    
+
     for f in DEFAULT_EXCLUDED_FILES:
         args.extend(["-g", f"!{f}"])
-        
+
     return args

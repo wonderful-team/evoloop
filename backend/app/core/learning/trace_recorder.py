@@ -47,7 +47,7 @@ class TraceRecorder:
         platform: str,
         parameters: dict[str, Any],
         context: dict[str, Any] | None = None,
-        screenshot_data: bytes | None = None
+        screenshot_data: bytes | None = None,
     ):
         """Records a single action with its context."""
         if not self.is_recording:
@@ -67,7 +67,7 @@ class TraceRecorder:
             platform=platform,
             parameters=parameters,
             context=context or {},
-            screenshot_path=screenshot_path
+            screenshot_path=screenshot_path,
         )
         self.traces.append(trace)
         logger.debug(f"[TraceRecorder] Action recorded: {action_type} on {platform}")
@@ -262,7 +262,7 @@ async def sync_thread_to_graph(
     """
     Syncs a completed thread's trace events into the long-term memory Episode graph.
 
-    Reads TraceEvent rows to determine success, then records a concise episode 
+    Reads TraceEvent rows to determine success, then records a concise episode
     via memory_manager.record_episode().
     """
     try:
@@ -286,22 +286,23 @@ async def sync_thread_to_graph(
         )
 
         from app.core.memory.lifespan import MemoryLifespanManager
+
         if not MemoryLifespanManager.is_initialized():
             await MemoryLifespanManager.ainitialize()
         container = MemoryLifespanManager.get_container()
         manager = container.memory_manager
-        
+
         from app.core.memory.schemas import Episode
-        
+
         # Unified recording: Create Episode object first
         episode_obj = Episode(
             goal=goal,
             result=episode_result,
             project_id=project_id,
             source_message_id=source_message_id,
-            plan_summary="", # Optional
+            plan_summary="",  # Optional
         )
-        
+
         episode_id = await manager.record_episode(episode_obj)
 
         logger.info(f"Episode recorded for thread '{thread_id}' (id={episode_id})")

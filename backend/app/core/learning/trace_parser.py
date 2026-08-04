@@ -35,10 +35,11 @@ class TraceSequence(DynamicBaseModel):
     A complete sequence of steps representing a task.
     Can be used for pattern analysis and workflow synthesis.
     """
+
     thread_id: str
     session_id: str | None = None
     task_name: str | None = None
-    initial_intent: str | None = None # Captured from the first human message
+    initial_intent: str | None = None  # Captured from the first human message
 
     steps: list[TraceStep] = Field(default_factory=list)
 
@@ -141,7 +142,7 @@ class TraceParser:
         action_mapping = {
             "key_press": "key_press",
             "mouse_click": "click",
-            "window_change": "window_change"
+            "window_change": "window_change",
         }
 
         # Construct meaningful action name
@@ -169,7 +170,7 @@ class TraceParser:
                 "window_title": event.window_title,
                 "app_name": event.app_name,
             },
-            timestamp=event.timestamp or 0.0
+            timestamp=event.timestamp or 0.0,
         )
 
     def _parse_event(self, event: TraceEvent) -> TraceStep | None:
@@ -246,13 +247,16 @@ class TraceParser:
         """
         try:
             from app.utils.template import render_template
+
             return render_template(
                 "common/events/trace_narrative.prompt.j2",
                 thread_id=sequence.thread_id,
                 task_name=sequence.task_name,
                 steps=sequence.steps,
-                has_human_intervention=sequence.has_human_intervention
+                has_human_intervention=sequence.has_human_intervention,
             )
         except Exception as e:
             logger.error(f"Failed to render Trace narrative: {e}")
-            return f"Trace Narrative for {sequence.thread_id} (Error rendering template)"
+            return (
+                f"Trace Narrative for {sequence.thread_id} (Error rendering template)"
+            )

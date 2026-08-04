@@ -34,38 +34,33 @@ def levenshtein(a: str, b: str) -> int:
     return matrix[len(a)][len(b)]
 
 
-def generate_unified_diff(
-    original: str,
-    modified: str,
-    file_path: str = "file",
-    context_lines: int = 3
-) -> str:
+def generate_unified_diff(original: str, modified: str, file_path: str = "file", context_lines: int = 3) -> str:
     """Generate unified diff format."""
     original_lines = original.splitlines(keepends=True)
     modified_lines = modified.splitlines(keepends=True)
 
     # Ensure lines end with newline for proper diff
-    if original_lines and not original_lines[-1].endswith('\n'):
-        original_lines[-1] += '\n'
-    if modified_lines and not modified_lines[-1].endswith('\n'):
-        modified_lines[-1] += '\n'
+    if original_lines and not original_lines[-1].endswith("\n"):
+        original_lines[-1] += "\n"
+    if modified_lines and not modified_lines[-1].endswith("\n"):
+        modified_lines[-1] += "\n"
 
     diff = difflib.unified_diff(
         original_lines,
         modified_lines,
         fromfile=f"a/{file_path}",
         tofile=f"b/{file_path}",
-        n=context_lines
+        n=context_lines,
     )
 
-    return ''.join(diff)
+    return "".join(diff)
 
 
 def calculate_confidence(
     strategy_name: str | None,
     is_exact_match: bool,
     match_count: int,
-    similarity_score: float = 1.0
+    similarity_score: float = 1.0,
 ) -> MatchConfidence:
     """Calculate confidence level based on matching strategy and results."""
     if is_exact_match and match_count == 1:

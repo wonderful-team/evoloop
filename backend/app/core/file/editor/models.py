@@ -1,9 +1,11 @@
 from enum import Enum
+
 from pydantic import BaseModel, Field
 
 
 class MatchConfidence(Enum):
     """Confidence level for text matching."""
+
     HIGH = "high"  # Exact match or very close
     MEDIUM = "medium"  # Fuzzy match successful
     LOW = "low"  # Multiple candidates or partial match
@@ -12,6 +14,7 @@ class MatchConfidence(Enum):
 
 class EditPreviewResult(BaseModel):
     """Result of an edit preview operation."""
+
     success: bool
     confidence: MatchConfidence
     diff: str
@@ -34,6 +37,7 @@ class FileEditOperation(BaseModel):
 
 class EditFileRequest(BaseModel):
     """Request for file editing."""
+
     path: str
     target: str | None = None
     content: str | None = None

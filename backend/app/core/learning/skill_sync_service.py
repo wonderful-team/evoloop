@@ -10,6 +10,8 @@ import os
 import shutil
 import threading
 
+from sqlalchemy import select
+
 from app.core.config import settings
 from app.core.learning.skill_importer import SkillImporter
 from app.core.learning.synthesizer_utils import export_skill_to_filesystem
@@ -59,7 +61,6 @@ class SkillSyncService:
 
         try:
             async with session_scope() as db:
-                from sqlalchemy import select
                 stmt = select(LearnedSkill).where(LearnedSkill.id == skill_id)
                 skill = (await db.execute(stmt)).scalar_one_or_none()
 
@@ -106,6 +107,7 @@ class SkillSyncService:
             if not actual_namespace or not actual_name:
                 async with session_scope() as db:
                     from sqlalchemy import select
+
                     stmt = select(LearnedSkill).where(LearnedSkill.id == skill_id)
                     skill = (await db.execute(stmt)).scalar_one_or_none()
                     if skill:
@@ -122,7 +124,6 @@ class SkillSyncService:
             # Also try resource_path
             if not actual_namespace and not actual_name:
                 async with session_scope() as db:
-                    from sqlalchemy import select
                     stmt = select(LearnedSkill).where(LearnedSkill.id == skill_id)
                     skill = (await db.execute(stmt)).scalar_one_or_none()
                     if skill and skill.resource_path:
@@ -167,6 +168,7 @@ class SkillSyncService:
 
             if success:
                 from app.core.learning.discovery import skill_discovery
+
                 await skill_discovery.reload()
 
             return success
@@ -211,6 +213,7 @@ class SkillSyncService:
             deleted_skill_id = None
             async with session_scope() as db:
                 from sqlalchemy import select
+
                 stmt = select(LearnedSkill).where(
                     LearnedSkill.name == inferred_name,
                     LearnedSkill.namespace == inferred_namespace,
@@ -231,6 +234,7 @@ class SkillSyncService:
             # skill stops being routable immediately (not only after restart).
             from app.core.events.publishers import publish_skill_mutated
             from app.core.learning.discovery import skill_discovery
+
             await skill_discovery.reload()
             await publish_skill_mutated(skill_id=deleted_skill_id, action="delete")
             return True

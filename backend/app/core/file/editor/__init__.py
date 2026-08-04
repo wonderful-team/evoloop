@@ -29,16 +29,13 @@ from .strategies import (
 __all__ = [
     # Services
     "FileEditorService",
-
     # Main engine
     "EditEngine",
-
     # Models
     "MatchConfidence",
     "EditPreviewResult",
     "FileEditOperation",
     "EditFileRequest",
-
     # Strategy list and individual strategies
     "STRATEGIES",
     "simple_replacer",
@@ -50,7 +47,6 @@ __all__ = [
     "context_aware_replacer",
     "indentation_flexible_replacer",
     "multi_occurrence_replacer",
-
     # Algorithms
     "levenshtein",
     "generate_unified_diff",

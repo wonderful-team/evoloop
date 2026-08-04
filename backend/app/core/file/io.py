@@ -24,13 +24,14 @@ DEFAULT_PAGE_SIZE = 100
 # Encoding Detection
 # ============================================================================
 
+
 def detect_encoding(file_path: str) -> str:
     """
     Detect file encoding by trying common encodings.
-    
+
     Args:
         file_path: Path to the file
-        
+
     Returns:
         Detected encoding name (default: utf-8)
     """
@@ -52,13 +53,14 @@ def detect_encoding(file_path: str) -> str:
 # File Statistics
 # ============================================================================
 
+
 def compute_file_hash(file_path: str) -> str:
     """
     Compute MD5 hash of file content.
-    
+
     Args:
         file_path: Path to the file
-        
+
     Returns:
         Hex digest of MD5 hash (first 16 chars)
     """
@@ -72,10 +74,10 @@ def compute_file_hash(file_path: str) -> str:
 def get_file_info(file_path: str) -> FileInfo:
     """
     Get comprehensive file information.
-    
+
     Args:
         file_path: Path to the file
-        
+
     Returns:
         FileInfo with size, lines, encoding, hash
     """
@@ -86,7 +88,7 @@ def get_file_info(file_path: str) -> FileInfo:
             total_lines=0,
             encoding="utf-8",
             content_hash="",
-            exists=False
+            exists=False,
         )
 
     size = os.path.getsize(file_path)
@@ -107,7 +109,7 @@ def get_file_info(file_path: str) -> FileInfo:
         content_hash=content_hash,
         is_large=size > LARGE_FILE_THRESHOLD,
         is_binary=_is_binary_file(file_path),
-        exists=True
+        exists=True,
     )
 
 
@@ -132,6 +134,7 @@ def _is_binary_file(file_path: str) -> bool:
 # Read Operations
 # ============================================================================
 
+
 def read_file(
     file_path: str,
     start_line: int | None = None,
@@ -140,13 +143,13 @@ def read_file(
 ) -> ReadResult:
     """
     Read file content with optional line range.
-    
+
     Args:
         file_path: Path to the file
         start_line: 1-indexed starting line (None = from beginning)
         end_line: 1-indexed ending line (None = to end)
         encoding: Specific encoding (None = auto-detect)
-        
+
     Returns:
         ReadResult with content and metadata
     """
@@ -156,9 +159,15 @@ def read_file(
             content="",
             encoding=encoding or "utf-8",
             status=FileStatus.NOT_FOUND,
-            metadata=FileInfo(path=file_path, size=0, total_lines=0,
-                            encoding="utf-8", content_hash="", exists=False),
-            error_message=f"File not found: {file_path}"
+            metadata=FileInfo(
+                path=file_path,
+                size=0,
+                total_lines=0,
+                encoding="utf-8",
+                content_hash="",
+                exists=False,
+            ),
+            error_message=f"File not found: {file_path}",
         )
 
     # Get file info
@@ -169,9 +178,15 @@ def read_file(
             content="",
             encoding=encoding or "utf-8",
             status=FileStatus.ERROR,
-            metadata=FileInfo(path=file_path, size=0, total_lines=0,
-                            encoding="utf-8", content_hash="", exists=False),
-            error_message=f"Failed to get file info: {e}"
+            metadata=FileInfo(
+                path=file_path,
+                size=0,
+                total_lines=0,
+                encoding="utf-8",
+                content_hash="",
+                exists=False,
+            ),
+            error_message=f"Failed to get file info: {e}",
         )
 
     # Use detected encoding if not specified
@@ -191,7 +206,7 @@ def read_file(
                 content=content,
                 encoding=encoding,
                 status=FileStatus.SUCCESS,
-                metadata=info
+                metadata=info,
             )
 
         # For large files or paginated reads, use streaming
@@ -210,7 +225,7 @@ def read_file(
             encoding=encoding,
             status=FileStatus.ENCODING_ERROR,
             metadata=info,
-            error_message=f"Encoding error: {e}"
+            error_message=f"Encoding error: {e}",
         )
     except Exception as e:
         return ReadResult(
@@ -218,25 +233,20 @@ def read_file(
             encoding=encoding,
             status=FileStatus.ERROR,
             metadata=info,
-            error_message=f"Read error: {e}"
+            error_message=f"Read error: {e}",
         )
 
 
-def _read_lines_range(
-    file_path: str,
-    encoding: str,
-    start_idx: int = 0,
-    end_idx: int | None = None
-) -> str:
+def _read_lines_range(file_path: str, encoding: str, start_idx: int = 0, end_idx: int | None = None) -> str:
     """
     Read specific line range from file efficiently.
-    
+
     Args:
         file_path: Path to the file
         encoding: File encoding
         start_idx: 0-indexed starting line
         end_idx: 0-indexed ending line (None = to end)
-        
+
     Returns:
         Content of specified line range
     """
@@ -258,12 +268,12 @@ def read_lines_streaming(
 ) -> Iterator[str]:
     """
     Stream file lines one by one (memory efficient).
-    
+
     Args:
         file_path: Path to the file
         start_line: 1-indexed starting line
         limit: Maximum lines to yield (None = all)
-        
+
     Yields:
         Lines from the file
     """
@@ -284,6 +294,7 @@ def read_lines_streaming(
 # Write Operations
 # ============================================================================
 
+
 def write_file(
     file_path: str,
     content: str,
@@ -292,13 +303,13 @@ def write_file(
 ) -> WriteResult:
     """
     Write content to file atomically.
-    
+
     Args:
         file_path: Target file path
         content: Content to write
         encoding: File encoding (default: utf-8)
         create_dirs: Create parent directories if needed
-        
+
     Returns:
         WriteResult with status and metadata
     """
@@ -331,14 +342,14 @@ def write_file(
             path=file_path,
             status=FileStatus.SUCCESS,
             bytes_written=len(content.encode(encoding)),
-            new_hash=new_hash
+            new_hash=new_hash,
         )
 
     except PermissionError as e:
         return WriteResult(
             path=file_path,
             status=FileStatus.PERMISSION_DENIED,
-            error_message=f"Permission denied: {e}"
+            error_message=f"Permission denied: {e}",
         )
     except Exception as e:
         return WriteResult(
@@ -355,12 +366,12 @@ def append_to_file(
 ) -> WriteResult:
     """
     Append content to existing file.
-    
+
     Args:
         file_path: Target file path
         content: Content to append
         encoding: File encoding
-        
+
     Returns:
         WriteResult with status
     """
@@ -374,7 +385,7 @@ def append_to_file(
             path=file_path,
             status=FileStatus.SUCCESS,
             bytes_written=len(content.encode(encoding)),
-            new_hash=new_hash
+            new_hash=new_hash,
         )
 
     except Exception as e:
@@ -388,6 +399,7 @@ def append_to_file(
 # ============================================================================
 # Convenience Functions
 # ============================================================================
+
 
 def file_exists(file_path: str) -> bool:
     """Check if file exists."""
@@ -410,12 +422,12 @@ def get_pagination_info(
 ) -> PaginationInfo:
     """
     Get pagination info for a file.
-    
+
     Args:
         file_path: Path to the file
         start_line: 1-indexed starting line
         page_size: Lines per page
-        
+
     Returns:
         PaginationInfo with metadata
     """
@@ -427,5 +439,5 @@ def get_pagination_info(
         start_line=start_line,
         end_line=end_line,
         has_more=end_line < info.total_lines,
-        page_size=page_size
+        page_size=page_size,
     )

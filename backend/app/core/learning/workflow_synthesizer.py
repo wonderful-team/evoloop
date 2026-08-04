@@ -139,7 +139,7 @@ class WorkflowSynthesizer:
             narrative,
             sequence.summarize().model_dump(),
             sequence.initial_intent or "",
-            self.macro_script or ""
+            self.macro_script or "",
         )
 
         # Step 4: Parse YAML into the appropriate artifact

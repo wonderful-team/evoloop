@@ -3,6 +3,7 @@ Standardized high-level file services.
 Now delegates traversal and core logic to the File Center (traverser.py).
 Provides smart path resolution with URL and fuzzy overlap support.
 """
+
 import cgi
 import logging
 import mimetypes
@@ -99,7 +100,7 @@ def ensure_local_path(file_path: str) -> str:
         return file_path
 
     try:
-        req = urllib.request.Request(file_path, headers={'User-Agent': 'Mozilla/5.0'})
+        req = urllib.request.Request(file_path, headers={"User-Agent": "Mozilla/5.0"})
         with urllib.request.urlopen(req) as response:
             parsed = urlparse(file_path)
             ext = os.path.splitext(parsed.path)[1]

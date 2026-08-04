@@ -7,6 +7,7 @@ from app.infrastructure.pydantic_base import DynamicBaseModel
 
 class FileStatus(str, Enum):
     """Status of a file operation."""
+
     SUCCESS = "success"
     NOT_FOUND = "not_found"
     PERMISSION_DENIED = "permission_denied"
@@ -16,6 +17,7 @@ class FileStatus(str, Enum):
 
 class FileInfo(DynamicBaseModel):
     """Basic file information."""
+
     path: str
     size: int
     total_lines: int
@@ -36,6 +38,7 @@ class FileInfo(DynamicBaseModel):
 
 class ReadResult(DynamicBaseModel):
     """Result of a file read operation."""
+
     content: str
     encoding: str
     status: FileStatus
@@ -54,6 +57,7 @@ class ReadResult(DynamicBaseModel):
 
 class WriteResult(DynamicBaseModel):
     """Result of a file write operation."""
+
     path: str
     status: FileStatus
     bytes_written: int = 0

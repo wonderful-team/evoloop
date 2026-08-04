@@ -67,8 +67,6 @@ async def _handle_file_deleted(event):
     await skill_sync_service.delete_skill_by_path(path)
 
 
-
-
 async def _handle_directory_deleted(event):
     """Handle DIRECTORY_DELETED events."""
     path = event.data.get("path", "")

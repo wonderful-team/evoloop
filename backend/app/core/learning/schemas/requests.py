@@ -43,17 +43,20 @@ class StopMirrorRequest(BaseModel):
 
 class StartMirrorRecordingRequest(BaseModel):
     """[NEW] Request to start event recording for an active mirror session."""
+
     session_id: str
 
 
 class PersistMirrorEventsRequest(ScopedRequest):
     """请求模型：持久化存储镜像事件"""
+
     session_id: str
     thread_id: str | None = None  # [NEW] Optional thread binding
 
 
 class GlobalEventsRequest(ScopedRequest):
     """请求模型：接收全局桌面事件"""
+
     session_id: str
     thread_id: str
     events: list[GlobalEventData]
@@ -61,6 +64,7 @@ class GlobalEventsRequest(ScopedRequest):
 
 class DomEventsRequest(ScopedRequest):
     """请求模型：接收 DOM 事件"""
+
     session_id: str
     thread_id: str
     events: list[DomEventData]
@@ -97,6 +101,7 @@ class SynthesizeFromRecordingRequest(ScopedRequest):
     实时 API（/global/events, /dom/events, /mirror/events）持久化到数据库，
     合成时统一从数据库读取，不再支持通过请求体传入事件。
     """
+
     video_path: str  # Tauri 返回的视频文件路径
     session_id: str  # 关联事件的 session_id（用于从数据库查询事件）
     task_description: str  # 用户描述的任务
@@ -105,6 +110,7 @@ class SynthesizeFromRecordingRequest(ScopedRequest):
 
 class AndroidExtractPointRequest(ScopedRequest):
     """Android镜像实时提取点标记请求 - 支持区域标记"""
+
     session_id: str
     thread_id: str | None = None
     x: float  # 区域左上角 X 坐标（相对坐标 0-1）
@@ -117,6 +123,7 @@ class AndroidExtractPointRequest(ScopedRequest):
 
 class CreateSkillFromYamlRequest(BaseModel):
     """Request to create a skill from YAML macro definition."""
+
     name: str
     description: str | None = None
     namespace: str | None = None
@@ -126,4 +133,5 @@ class CreateSkillFromYamlRequest(BaseModel):
 
 class ValidateYamlRequest(BaseModel):
     """Request to validate YAML macro format."""
+
     yaml_content: str

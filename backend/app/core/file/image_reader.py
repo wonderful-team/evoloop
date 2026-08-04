@@ -15,10 +15,7 @@ class ImageReaderService:
     async def read(self, path: str) -> str:
         """Extract text from image using OCR."""
         try:
-            result = await vision_engine.process(
-                task=VisionTask.OCR,
-                image_source=path
-            )
+            result = await vision_engine.process(task=VisionTask.OCR, image_source=path)
             if not result.success:
                 return f"[OCR Error: {result.metadata.get('error')}]"
 

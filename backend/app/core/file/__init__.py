@@ -157,7 +157,6 @@ __all__ = [
     "FileChunk",
     "PaginationInfo",
     "FileMetadata",
-
     # I/O Operations
     "read_file",
     "read_lines_streaming",
@@ -165,7 +164,6 @@ __all__ = [
     "append_to_file",
     "detect_encoding",
     "get_file_info",
-
     # Hashing Operations
     "compute_md5",
     "compute_sha256",
@@ -174,12 +172,10 @@ __all__ = [
     "compute_version_hash",
     "compute_state_id",
     "compute_content_hash",
-
     # File Utility
     "file_exists",
     "ensure_dir",
     "cleanup_file",
-
     # Path Utilities
     "safe_join",
     "is_safe_path",
@@ -190,7 +186,6 @@ __all__ = [
     "get_absolute_path",
     "is_path_readable",
     "is_path_writable",
-
     # Directory Operations
     "list_directory",
     "DirectoryEntry",
@@ -206,30 +201,24 @@ __all__ = [
     "generate_tree",
     "ensure_directory",
     "is_empty_directory",
-
     # Editor
     "editor",
-
     # Verification
     "safe_read_with_hash",
     "verify_file_hash",
     "write_file_with_verification",
     "apply_edit_with_verification",
     "get_file_stats",
-
     # Outline
     "get_file_outline",
     "get_large_file_preview",
     "OutlineEntry",
-
     # Watcher (event system)
     "FileWatcher",
     "FileWatcherManager",
-
     # Constants
     "LARGE_FILE_THRESHOLD",
     "DEFAULT_PAGE_SIZE",
-
     # Legacy service
     "walk_tree",
     "resolve_path",
@@ -247,13 +236,11 @@ __all__ = [
     "is_text_file",
     "is_video_file",
     "filter_code_files",
-
     # Unified File Center (NEW)
     "FileTraverser",
     "TraverseOptions",
     "TreeService",
     "FileSearcher",
-
     # Filtering (NEW)
     "is_ignored_path",
     "is_encrypted_path",

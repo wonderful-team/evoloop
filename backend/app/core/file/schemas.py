@@ -7,6 +7,7 @@ from app.infrastructure.pydantic_base import DynamicBaseModel
 
 class DirectoryStatus(Enum):
     """Status of a directory operation."""
+
     SUCCESS = "success"
     NOT_FOUND = "not_found"
     ALREADY_EXISTS = "already_exists"
@@ -17,6 +18,7 @@ class DirectoryStatus(Enum):
 
 class DirectoryInfo(DynamicBaseModel):
     """Information about a directory."""
+
     path: str
     exists: bool
     is_empty: bool = False
@@ -27,6 +29,7 @@ class DirectoryInfo(DynamicBaseModel):
 
 class DirectoryOperationResult(DynamicBaseModel):
     """Result of a directory operation."""
+
     success: bool
     status: DirectoryStatus
     path: str
@@ -36,6 +39,7 @@ class DirectoryOperationResult(DynamicBaseModel):
 
 class DirectoryEntry(DynamicBaseModel):
     """A single entry in directory listing."""
+
     name: str
     path: str
     is_dir: bool
@@ -44,6 +48,7 @@ class DirectoryEntry(DynamicBaseModel):
 
 class FileChunk(DynamicBaseModel):
     """A chunk of file content for streaming."""
+
     content: str
     line_start: int
     line_end: int
@@ -52,6 +57,7 @@ class FileChunk(DynamicBaseModel):
 
 class PaginationInfo(DynamicBaseModel):
     """Pagination metadata."""
+
     total_lines: int
     start_line: int
     end_line: int
@@ -61,6 +67,7 @@ class PaginationInfo(DynamicBaseModel):
 
 class FileStats(DynamicBaseModel):
     """File statistics for a preview."""
+
     path: str
     size: int
     total_lines: int
@@ -70,6 +77,7 @@ class FileStats(DynamicBaseModel):
 
 class OutlineEntry(DynamicBaseModel):
     """A single entry in file outline."""
+
     type: str  # 'class', 'function', 'method', 'variable', etc.
     name: str
     line: int  # 1-based line number

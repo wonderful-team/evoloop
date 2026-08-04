@@ -67,9 +67,9 @@ class SkillDiscovery:
 
             # Save status flag in database
             SystemConfigService.set_value(
-                "SYSTEM_SKILLS_SYNCED", 
-                "true", 
-                "Indicates that the system skills have been successfully synchronized on first launch"
+                "SYSTEM_SKILLS_SYNCED",
+                "true",
+                "Indicates that the system skills have been successfully synchronized on first launch",
             )
             self._system_skills_synced = True
         except Exception as e:
@@ -81,11 +81,13 @@ class SkillDiscovery:
         Only copies new or updated skills (based on modification time).
         """
         from app.core.file import ensure_dir
+
         ensure_dir(user_path)
 
         from app.core.file import FileTraverser, TraverseOptions
+
         options = TraverseOptions(include_dirs=False)
-        
+
         for source_file in FileTraverser.walk(builtin_path, options):
             # Calculate relative path from builtin skills root
             rel_file_path = os.path.relpath(source_file, builtin_path)
@@ -203,7 +205,7 @@ class SkillDiscovery:
                 skill_name=best_skill.name,
                 confidence=1.0,
                 reasoning="Deterministic match found.",
-                extracted_params={}
+                extracted_params={},
             )
             return match, [best_skill], "Exact match found."
 
@@ -222,19 +224,19 @@ class SkillDiscovery:
         Optionally filter by namespace and a simple case-insensitive substring query.
         """
         all_skills = await self._get_active_skills()
-        
+
         results = []
         for s in all_skills:
             if namespace and s.namespace != namespace:
                 continue
-            
+
             if query:
                 q = query.lower()
                 name_match = s.name and q in s.name.lower()
                 desc_match = s.description and q in s.description.lower()
                 if not (name_match or desc_match):
                     continue
-                    
+
             results.append({
                 "id": s.id,
                 "name": s.name,
@@ -270,7 +272,7 @@ class SkillDiscovery:
                 id=s.id,
                 name=s.name,
                 namespace=s.namespace or "general",
-                description=(s.description or "No description.").replace('\n', ' ')
+                description=(s.description or "No description.").replace("\n", " "),
             )
             for s in all_skills
         ]

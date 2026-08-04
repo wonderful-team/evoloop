@@ -97,6 +97,7 @@ class IdentityService:
         async def _fetch():
             try:
                 from app.core.evocloud import evocloud_manager
+
                 result = await evocloud_manager.api.get_user_info(token)
                 if result.get("code") == 0:
                     data = result.get("data", {})
