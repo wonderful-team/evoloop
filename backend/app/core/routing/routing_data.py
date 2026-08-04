@@ -65,10 +65,11 @@ def _build_routing_data(lang: str) -> dict[str, Any]:
     intent_overrides = _load_yaml(lang_dir / "intent_overrides.yaml")
     builtin_responses = _load_yaml(lang_dir / "builtin_responses.yaml")
 
-    # Builtin templates / aliases / voice local actions
+    # Builtin templates / aliases / voice local actions / static app slots
     voice_local_actions: list[dict[str, Any]] = list(templates_data.get("voice_local_actions", []))
     templates: list[dict[str, Any]] = list(templates_data.get("templates", []))
     aliases: dict[str, str] = dict(templates_data.get("aliases", {}))
+    apps: list[dict[str, Any]] = list(templates_data.get("apps", []))
 
     # Context-aware intent redirect
     context_map: dict[str, dict[str, str]] = {
@@ -99,8 +100,7 @@ def _build_routing_data(lang: str) -> dict[str, Any]:
 
     # Canonical built-in L0 actions.
     builtin_actions: frozenset[str] = frozenset(
-        v
-        for v in intent_overrides.get("builtin_actions", [])
+        v for v in intent_overrides.get("builtin_actions", [])
         if isinstance(v, str)
     )
 
@@ -118,8 +118,7 @@ def _build_routing_data(lang: str) -> dict[str, Any]:
     for section, values in builtin_responses.items():
         if isinstance(values, dict):
             builtin_responses_clean[section] = {
-                k: str(v)
-                for k, v in values.items()
+                k: str(v) for k, v in values.items()
                 if isinstance(v, str | int)
             }
 
@@ -128,6 +127,7 @@ def _build_routing_data(lang: str) -> dict[str, Any]:
         "VOICE_LOCAL_ACTIONS": voice_local_actions,
         "TEMPLATES": templates,
         "ALIASES": aliases,
+        "APPS": apps,
         "CONTEXT_MAP": context_map,
         "BUILTIN_ALIASES": builtin_aliases,
         "COMPLEX_QUERY_INTENT": complex_query_intent,
@@ -167,6 +167,10 @@ class RoutingLanguageStore:
     @property
     def aliases(self) -> dict[str, str]:
         return self._data["ALIASES"]
+
+    @property
+    def apps(self) -> list[dict[str, Any]]:
+        return self._data["APPS"]
 
     @property
     def context_map(self) -> dict[str, dict[str, str]]:

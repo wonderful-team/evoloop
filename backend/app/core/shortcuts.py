@@ -21,7 +21,6 @@ SHORTCUTS = {
         "关闭": "cmd+w",
         "close": "cmd+w",
     },
-
     # Chrome / Chromium
     "com.google.Chrome": {
         "地址栏": "cmd+l",
@@ -40,7 +39,6 @@ SHORTCUTS = {
         "复制": "cmd+c",
         "粘贴": "cmd+v",
     },
-
     # Safari
     "com.apple.Safari": {
         "地址栏": "cmd+l",
@@ -49,7 +47,6 @@ SHORTCUTS = {
         "刷新": "cmd+r",
         "查找": "cmd+f",
     },
-
     # System / Finder
     "com.apple.finder": {
         "新建文件夹": "cmd+shift+n",
@@ -61,14 +58,12 @@ SHORTCUTS = {
         "删除": "cmd+delete",
         "搜索": "cmd+f",
     },
-
     # Notes
     "com.apple.Notes": {
         "新建": "cmd+n",
         "删除": "cmd+delete",
         "搜索": "cmd+f",
     },
-
     # Terminal
     "com.apple.Terminal": {
         "新建窗口": "cmd+n",
@@ -112,14 +107,14 @@ GENERIC_SHORTCUTS = {
 def get_shortcut(bundle_id: str, element_name: str) -> str | None:
     """
     Get keyboard shortcut for an element.
-    
+
     Args:
         bundle_id: App bundle identifier (e.g., "com.tencent.xinWeChat")
         element_name: UI element name/label (e.g., "发送", "close")
-        
+
     Returns:
         Shortcut string like "cmd+return" or None
-        
+
     Examples:
         >>> get_shortcut("com.tencent.xinWeChat", "发送")
         "cmd+return"

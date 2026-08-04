@@ -170,7 +170,7 @@ async def dispatch_user_message(
             logger.warning("[dispatch] macro decision missing id: %s", decision)
             inputs = await input_channel.dispatch(msg)
             return DispatchOutcome(handled=False, msg=msg, inputs=inputs)
-        
+
         macro_timeout = 10.0 if source == "voice" else None
         outcome = await run_macro(
             macro_id,

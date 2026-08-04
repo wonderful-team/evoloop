@@ -17,8 +17,7 @@ from __future__ import annotations
 import logging
 import time
 from collections import defaultdict, deque
-from dataclasses import dataclass, field
-from typing import Any
+from dataclasses import dataclass
 
 from sqlalchemy import select
 
@@ -229,6 +228,7 @@ class ModuleGraphService:
         Falls back to heuristic names when LLM is unavailable.
         """
         from app.domain.codebase.generation.leiden import name_clusters_with_llm
+
         return await name_clusters_with_llm(project_id, communities)
 
     def _log_gaps(self, communities: dict[int, list[str]], named: dict[str, list[str]]) -> None:

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import threading
 from pathlib import Path
 from typing import Any
@@ -94,8 +95,7 @@ def predict(text: str) -> tuple[str | None, float]:
     if not cleaned:
         return None, 0.0
     # 纯标点/符号（无中文、无字母）
-    import re
-    if not re.search(r'[\u4e00-\u9fff\w]', cleaned):
+    if not re.search(r"[\u4e00-\u9fff\w]", cleaned):
         return None, 0.0
     # 纯数字
     if cleaned.isdigit():

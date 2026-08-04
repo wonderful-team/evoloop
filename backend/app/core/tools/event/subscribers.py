@@ -3,6 +3,7 @@ Tool Module Lifecycle Handlers
 Handles eager discovery and registration of all @evoloop_tool decorated tools
 on application startup.
 """
+
 import logging
 
 from app.core.events import SystemEventType

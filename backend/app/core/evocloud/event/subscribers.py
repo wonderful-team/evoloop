@@ -11,12 +11,11 @@ import platform
 
 from app.core.config import settings
 from app.core.engine.event.types import AgentEventType
-from app.infrastructure.config.service import SystemConfigService
 from app.core.engine.rewind import MESSAGES_CLEANUP, MessagesCleanupEvent
 from app.core.events import BaseEvent, SystemEventType
 from app.core.events.decorators import event_register, event_subscribe
 from app.core.evocloud.manager import evocloud_manager
-from app.core.schemas.canonical import create_envelope
+from app.infrastructure.config.service import SystemConfigService
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +23,7 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 # Lifecycle Handler
 # =============================================================================
+
 
 @event_register()
 class EvoCloudLifecycleSubscriber:
@@ -116,6 +116,7 @@ class EvoCloudLifecycleSubscriber:
 # Sync Handler
 # =============================================================================
 
+
 @event_register()
 class EvoCloudSyncSubscriber:
     """
@@ -145,15 +146,17 @@ class EvoCloudSyncSubscriber:
 
         # 2. 通过 HTTP relay 通知 Gateway/Mobile 任务已完成（规范 agent.status 格式）
         from app.core.channel import channel_registry
+
         ch = channel_registry.get("mobile")
         if ch:
             from app.core.identity import identity_service
+
             device_key = await identity_service.store.get_device_key()
             await ch.send_envelope(
                 env_type="agent.status",
                 body={
-                    "thread_id": getattr(event, 'thread_id', ''),
-                    "status": getattr(event, 'status', 'done'),
+                    "thread_id": getattr(event, "thread_id", ""),
+                    "status": getattr(event, "status", "done"),
                 },
                 target_device_key=device_key,
                 member_id=0,
@@ -163,6 +166,7 @@ class EvoCloudSyncSubscriber:
 # =============================================================================
 # Device Info Sync Handler
 # =============================================================================
+
 
 @event_register()
 class DeviceInfoSyncSubscriber:
@@ -195,12 +199,10 @@ class DeviceInfoSyncSubscriber:
 
         info = {
             "device_name": (
-                SystemConfigService.get_value("EVOCLOUD_DEVICE_NAME")
-                or ""
+                SystemConfigService.get_value("EVOCLOUD_DEVICE_NAME") or ""
             ),
             "device_description": (
-                SystemConfigService.get_value("EVOCLOUD_DEVICE_DESCRIPTION")
-                or ""
+                SystemConfigService.get_value("EVOCLOUD_DEVICE_DESCRIPTION") or ""
             ),
             "device_type": EnvironmentProbe.get_inferred_device_type(),
             "os_info": platform.platform(),
@@ -215,6 +217,7 @@ class DeviceInfoSyncSubscriber:
 # =============================================================================
 # Rewind & Sync Cleanup Handler
 # =============================================================================
+
 
 @event_register()
 class EvoCloudSyncCleanupSubscriber:
@@ -247,7 +250,7 @@ class EvoCloudSyncCleanupSubscriber:
                     device_key=device_key,
                     thread_id=str(event.thread_id),
                     target_sequence=event.target_sequence,
-                    include_target=event.include_target
+                    include_target=event.include_target,
                 )
                 if result.get("code") == 0:
                     logger.info(f"[EvoCloud] Successfully rewound cloud messages from sequence {event.target_sequence}")
@@ -258,7 +261,7 @@ class EvoCloudSyncCleanupSubscriber:
                 result = await evocloud_manager.api.sync_delete_messages(
                     device_key=device_key,
                     thread_id=str(event.thread_id),
-                    message_ids=event.message_ids
+                    message_ids=event.message_ids,
                 )
                 if result.get("code") == 0:
                     logger.info(f"[EvoCloud] Successfully deleted {len(event.message_ids)} messages from cloud via fallback")

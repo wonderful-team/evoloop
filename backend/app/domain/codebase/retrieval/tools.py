@@ -48,7 +48,7 @@ async def search_codebase(
         result = await require_project_for_tool(
             tool_name="search_codebase",
             tool_category="code_search",
-            prompt="Please select a project to search code:"
+            prompt="Please select a project to search code:",
         )
         if isinstance(result, str):
             return result
@@ -76,7 +76,7 @@ async def search_codebase(
                     "type": target.get("type", "Unknown"),
                     "file": target.get("file_path", "Unknown"),
                     "outgoing": target.get("outgoing", []),
-                    "incoming": []
+                    "incoming": [],
                 }
                 if usages_task:
                     usages = await usages_task
@@ -101,7 +101,7 @@ async def search_codebase(
         content = render_template(
             "domain/codebase/codebase_retrieval.prompt.j2",
             graph_result=graph_data,
-            rag_results=rag_results
+            rag_results=rag_results,
         )
         return content, {"count": count, "pattern": query}
     except Exception as e:

@@ -33,6 +33,7 @@ class ProjectClassifier:
         try:
             # 1. Check for Strong Indicators (Config files) in Root using unified traverser
             from app.core.file import FileTraverser
+
             entries = {entry.name for entry in FileTraverser.list_entries(root_path)}
             intersection = self.SOFTWARE_MARKERS.intersection(entries)
 
@@ -44,7 +45,7 @@ class ProjectClassifier:
             # Scan top 2 levels for code files using unified traverser.
             code_file_count = 0
             from app.core.file import FileTraverser, TraverseOptions
-            
+
             options = TraverseOptions(max_depth=2)
             for full_path in FileTraverser.walk(root_path, options):
                 _, ext = os.path.splitext(full_path)

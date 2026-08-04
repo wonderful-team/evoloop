@@ -49,7 +49,10 @@ class CodeAnalyzer:
             result = read_file(file_path)
             if result.status != FileStatus.SUCCESS:
                 logger.error(f"Error reading file {file_path}: {result.error_message}")
-                return {"file_path": file_path, "error": result.error_message or "Read error"}
+                return {
+                    "file_path": file_path,
+                    "error": result.error_message or "Read error",
+                }
             content = result.content
 
         if not content:
@@ -91,6 +94,7 @@ class CodeAnalyzer:
         # Use TreeSitterExtractor for actual extraction
         # Run async method synchronously
         import asyncio
+
         try:
             result = asyncio.run(self._extractor.extract(file_path, content))
         except Exception as e:

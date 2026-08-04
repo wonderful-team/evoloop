@@ -5,9 +5,7 @@ from __future__ import annotations
 import re
 
 # Sequential or additive conjunctions that usually join two distinct actions.
-_SEQUENTIAL_MARKERS = re.compile(
-    r"(?:再|然后|接着|同时|并且|并|之后|顺便|先|后)"
-)
+_SEQUENTIAL_MARKERS = re.compile(r"(?:再|然后|接着|同时|并且|并|之后|顺便|先|后)")
 
 # Coordinating conjunctions that join two objects/verbs. These are weaker, so
 # we require two action words to avoid false positives such as "发消息给张三".

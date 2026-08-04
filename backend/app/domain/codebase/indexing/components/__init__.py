@@ -8,6 +8,7 @@ Components:
 - ContentIndexer: Code extraction and embedding generation
 - SQLPersister: SQL database persistence (Chunks, Entities, Relations)
 """
+
 from app.domain.codebase.indexing.components.content_indexer import (
     ContentIndexer,
     IndexedContent,

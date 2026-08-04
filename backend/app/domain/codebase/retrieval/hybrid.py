@@ -51,11 +51,15 @@ class HybridSearcher:
         return fused[:limit]
 
     async def _vector_search(
-        self, query: str, project_id: int, project_path: str | None = None, limit: int = 20
+        self,
+        query: str,
+        project_id: int,
+        project_path: str | None = None,
+        limit: int = 20,
     ) -> list[dict]:
         """
         Perform vector similarity search.
-        
+
         Args:
             query: Search query
             project_id: Project ID for filtering

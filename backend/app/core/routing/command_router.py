@@ -28,6 +28,7 @@ import logging
 from typing import Any
 
 from app.core.routing import domain_classifier
+from app.core.routing.action_classifier import predict as classifier_predict
 from app.core.routing.compound_detector import is_compound_intent
 from app.core.routing.context_assembler import build_high_intent_input
 from app.core.routing.conversation_state import (
@@ -36,7 +37,6 @@ from app.core.routing.conversation_state import (
 )
 from app.core.routing.decision_builder import build_decision
 from app.core.routing.domain_classifier import CONFIDENCE_THRESHOLD as HIGH_INTENT_THRESHOLD
-from app.core.routing.action_classifier import predict as classifier_predict
 from app.core.routing.intent_resolution import IntentResolver
 from app.core.routing.local_matcher import LocalMatcher
 from app.core.routing.matcher_cache import matcher_cache

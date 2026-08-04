@@ -6,9 +6,10 @@ Separated from ``module_graph.py`` so the heavy dependencies
 
 from __future__ import annotations
 
+import json
 import logging
+import os
 import re
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -74,13 +75,12 @@ async def name_clusters_with_llm(
     as *communities* but keyed by the LLM-generated name.
     Falls back to a heuristic name when the LLM call fails.
     """
-    from app.infrastructure.config.service import SystemConfigService
     from app.infrastructure.llm import InternalLLMService
 
     project_summary = ""
     try:
-        import json, os
         from app.domain.codebase.generation.runner import get_project_path
+
         path = await get_project_path(project_id)
         meta = os.path.join(path, ".evoloop", "project.json") if path else None
         if meta and os.path.isfile(meta):

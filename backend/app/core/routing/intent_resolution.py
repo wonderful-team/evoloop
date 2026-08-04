@@ -66,9 +66,7 @@ class IntentResolver:
         candidates = self._build_candidates(intent_name, text)
 
         # 5. Macro resolution
-        macro_match = await self._macro_resolver.resolve(
-            candidates, text, project_id
-        )
+        macro_match = await self._macro_resolver.resolve(candidates, text, project_id)
         if macro_match is not None:
             return macro_match
 
@@ -110,15 +108,11 @@ class IntentResolver:
             if intent_name == template.get("action"):
                 patterns = template.get("patterns", [])
                 if patterns and not any(
-                    re.search(
-                        re.escape(pattern).replace(r"\{name\}", r"(.+)"), text
-                    )
+                    re.search(re.escape(pattern).replace(r"\{name\}", r"(.+)"), text)
                     for pattern in patterns
                 ):
                     continue
-                return template["action"], {
-                    "name": text
-                } if template["action"] == "rename" else {}
+                return template["action"], {"name": text} if template["action"] == "rename" else {}
 
         if intent_name in self._routing_store.builtin_aliases:
             action = self._routing_store.builtin_aliases[intent_name]

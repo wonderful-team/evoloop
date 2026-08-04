@@ -104,9 +104,7 @@ def _get_thread_intent_state(thread_id: str) -> tuple[str | None, list[str]]:
     return conversation_state.get(thread_id)
 
 
-def _update_thread_intent_state(
-    thread_id: str, intent: str | None, text: str
-) -> None:
+def _update_thread_intent_state(thread_id: str, intent: str | None, text: str) -> None:
     """Record the resolved intent and append the user text to the rolling history."""
     conversation_state.update(thread_id, intent, text)
 

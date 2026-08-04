@@ -120,6 +120,7 @@ class LocalMatcherCache:
         self.invalidate()
         try:
             from app.core.routing.tasks import build_l0_init_spec
+
             build_l0_init_spec.delay()
         except Exception:
             logger.warning("[matcher_cache] failed to dispatch L0 init spec rebuild", exc_info=True)

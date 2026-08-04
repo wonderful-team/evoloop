@@ -32,6 +32,7 @@ class QueryRewriter:
 
             # Using InternalLLMService for query rewriting
             from app.infrastructure.llm import InternalLLMService
+
             response = await InternalLLMService.invoke(
                 messages=[{"role": "user", "content": prompt_text}],
                 purpose="task_analysis",

@@ -20,16 +20,16 @@ Typical Usage:
             timeout_seconds=300,
         )
     )
-    
+
     # Tool starts execution
     await task_manager.start_task(task.task_id, process_id=pid)
-    
+
     # Tool appends output
     task_manager.append_output(task.task_id, "Building modules...")
-    
+
     # Tool completes
     await task_manager.complete_task(task.task_id, result={"exit_code": 0})
-    
+
     # Or fails
     await task_manager.fail_task(task.task_id, error="Build failed")
 """
@@ -55,27 +55,27 @@ logger = logging.getLogger(__name__)
 class BackgroundTaskManager:
     """
     Manages background tasks for long-running tool operations.
-    
+
     This is a SINGLETON - use the global `task_manager` instance.
-    
+
     Responsibilities:
     1. Task lifecycle management (create, start, complete, fail, cancel)
     2. Task indexing by thread, tool, status
     3. Event publishing for real-time updates
     4. Automatic cleanup of old tasks
-    
+
     NOT Responsible for:
     - Actually executing tasks (tools do that)
     - Persisting tasks (ephemeral by design)
     - Scheduling (no priority queue)
     - Distributed execution (single-node only)
-    
+
     Thread Safety:
     - All public methods are async-safe
     - Internal data structures protected by asyncio.Lock
     """
 
-    _instance: 'BackgroundTaskManager | None' = None
+    _instance: "BackgroundTaskManager | None" = None
     _lock = asyncio.Lock()
 
     def __new__(cls):
@@ -93,7 +93,7 @@ class BackgroundTaskManager:
 
         # Indexes for efficient querying
         self._thread_index: dict[str, set[str]] = {}  # thread_id -> task_ids
-        self._tool_index: dict[str, set[str]] = {}    # tool_name -> task_ids
+        self._tool_index: dict[str, set[str]] = {}  # tool_name -> task_ids
         self._status_index: dict[TaskStatus, set[str]] = {}  # status -> task_ids
 
         # Concurrency control
@@ -205,11 +205,11 @@ class BackgroundTaskManager:
     async def start_task(self, task_id: str, process_id: int | None = None) -> bool:
         """
         Mark task as started (running).
-        
+
         Args:
             task_id: Task identifier
             process_id: Optional OS process ID for cancellation
-            
+
         Returns:
             True if state changed, False if task not found or already completed
         """
@@ -231,11 +231,11 @@ class BackgroundTaskManager:
     async def complete_task(self, task_id: str, result: Any = None) -> bool:
         """
         Mark task as successfully completed.
-        
+
         Args:
             task_id: Task identifier
             result: Optional result data
-            
+
         Returns:
             True if state changed, False otherwise
         """
@@ -260,11 +260,11 @@ class BackgroundTaskManager:
     async def fail_task(self, task_id: str, error: str) -> bool:
         """
         Mark task as failed.
-        
+
         Args:
             task_id: Task identifier
             error: Error message
-            
+
         Returns:
             True if state changed, False otherwise
         """
@@ -308,9 +308,9 @@ class BackgroundTaskManager:
     async def cancel_task(self, task_id: str) -> bool:
         """
         Cancel a task.
-        
+
         This calls the task's cancellation callback if registered.
-        
+
         Returns:
             True if cancelled, False if task not found or already completed
         """
@@ -335,14 +335,14 @@ class BackgroundTaskManager:
     def append_output(self, task_id: str, output: str) -> bool:
         """
         Append output to a task.
-        
-        This is synchronous (non-async) for performance - 
+
+        This is synchronous (non-async) for performance -
         called frequently during task execution.
-        
+
         Args:
             task_id: Task identifier
             output: Output line(s) to append
-            
+
         Returns:
             True if appended, False if task not found
         """
@@ -383,11 +383,11 @@ class BackgroundTaskManager:
     ) -> list[BackgroundTask]:
         """
         Get all tasks for a thread.
-        
+
         Args:
             thread_id: Thread identifier
             include_completed: If False, filter out completed tasks
-            
+
         Returns:
             List of tasks (sorted by created_at desc)
         """
@@ -403,7 +403,7 @@ class BackgroundTaskManager:
     def get_active_tasks(self, thread_id: str | None = None) -> list[BackgroundTask]:
         """
         Get all non-completed tasks.
-        
+
         Args:
             thread_id: Optional thread filter
         """
@@ -482,13 +482,14 @@ class BackgroundTaskManager:
                 thread_id=task.thread_id,
                 task_id=task.task_id,
                 action=event_type,
-                task_data=task.to_dict(include_output=False)
+                task_data=task.to_dict(include_output=False),
             )
         )
 
         # Log to activity monitor
         try:
             from app.core.monitoring.activity import activity_monitor
+
             await activity_monitor.record_task_update(task)
         except Exception as e:
             logger.debug(f"Failed to log to activity monitor: {e}")
@@ -515,11 +516,8 @@ class BackgroundTaskManager:
         return BackgroundTaskManagerStats(
             total_tasks=len(self._tasks),
             by_status={
-                status.value: len(ids)
-                for status, ids in self._status_index.items()
+                status.value: len(ids) for status, ids in self._status_index.items()
             },
             by_thread=len(self._thread_index),
-            by_tool={
-                tool: len(ids) for tool, ids in self._tool_index.items()
-            },
+            by_tool={tool: len(ids) for tool, ids in self._tool_index.items()},
         )

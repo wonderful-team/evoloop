@@ -159,7 +159,7 @@ class DebouncedIndexHandler:
             leftover = modified_list[MAX_PER_CYCLE:]
 
             for i in range(0, len(to_dispatch), BATCH_SIZE):
-                chunk = to_dispatch[i:i + BATCH_SIZE]
+                chunk = to_dispatch[i : i + BATCH_SIZE]
                 for file_path in chunk:
                     index_file_task.delay(file_path, repo_id)
                 if i + BATCH_SIZE < len(to_dispatch):

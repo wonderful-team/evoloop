@@ -10,6 +10,7 @@ from enum import Enum
 
 class IndexingEventType(str, Enum):
     """Event types for the codebase indexing domain."""
+
     FILE_MODIFIED = "indexing.file_modified"
     FILE_REMOVED = "indexing.file_removed"
     FILE_MOVED = "indexing.file_moved"

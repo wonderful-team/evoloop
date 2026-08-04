@@ -64,6 +64,7 @@ class SharedState:
 
     async def _publish(self, key: str, old_value: str, new_value: str) -> None:
         from app.core.events.publishers import publish_state_changed
+
         await publish_state_changed(key=key, old_value=old_value, new_value=new_value)
 
 

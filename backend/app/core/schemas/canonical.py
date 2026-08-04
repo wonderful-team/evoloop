@@ -5,14 +5,14 @@ Source: schemas/message.json (JSON Schema)
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, List, Optional
+from typing import Any
 
 from pydantic import BaseModel
 
 from app.utils.id import gen_uuid
 
-
 # ============ Enums ============
+
 
 class MessageType(str, Enum):
     COMMAND_RELAY = "command.relay"
@@ -56,6 +56,7 @@ class EndpointKind(str, Enum):
 
 # ============ Envelope ============
 
+
 class Endpoint(BaseModel):
     kind: EndpointKind | str
     device_key: str | None = None
@@ -93,6 +94,7 @@ class Envelope(BaseModel):
 
 # ============ command.relay ============
 
+
 class CommandRelayContent(BaseModel):
     text: str | None = None
     references: list[Attachment] | None = None
@@ -105,10 +107,11 @@ class CommandRelayBody(BaseModel):
     project_id: int | None = None
     action: str
     content: str | CommandRelayContent
-    references: Optional[List[dict[str, Any]]] = None
+    references: list[dict[str, Any]] | None = None
 
 
 # ============ command.ack ============
+
 
 class CommandAckBody(BaseModel):
     command_id: int
@@ -118,6 +121,7 @@ class CommandAckBody(BaseModel):
 
 
 # ============ command.stop / retry / rewind ============
+
 
 class CommandStopBody(BaseModel):
     command_id: int | None = None
@@ -140,11 +144,12 @@ class CommandRewindBody(BaseModel):
 
 # ============ hitl ============
 
+
 class HITLRequestBody(BaseModel):
     request_id: str
     request_type: str  # confirmation | choice | text | approval | project_switch | file_select
     prompt: str
-    options: List[str] | None = None
+    options: list[str] | None = None
     context: str | None = None
     default_value: str | None = None
     tool_name: str | None = None
@@ -166,6 +171,7 @@ class HITLCancelBody(BaseModel):
 
 # ============ message.sync ============
 
+
 class SyncMessage(BaseModel):
     message_id: str
     thread_id: str
@@ -182,7 +188,7 @@ class SyncMessage(BaseModel):
     tool_call_id: str | None = None
     thinking: str | None = None
     checkpoint_id: str | None = None
-    tool_calls: Optional[list[dict[str, Any]]] = None
+    tool_calls: list[dict[str, Any]] | None = None
     category: str | None = None
     node_source: str | None = None
     source: str | None = None
@@ -200,12 +206,14 @@ class MessageSyncBody(BaseModel):
 
 # ============ message.deleted ============
 
+
 class MessageDeletedBody(BaseModel):
     thread_id: str
     message_ids: list[str]
 
 
 # ============ device.status ============
+
 
 class DeviceStatusBody(BaseModel):
     device_key: str
@@ -215,11 +223,13 @@ class DeviceStatusBody(BaseModel):
 
 # ============ device.heartbeat ============
 
+
 class DeviceHeartbeatBody(BaseModel):
     timestamp: int
 
 
 # ============ agent.status ============
+
 
 class AgentStatusBody(BaseModel):
     command_id: int | None = None
@@ -229,6 +239,7 @@ class AgentStatusBody(BaseModel):
 
 
 # ============ system ============
+
 
 class SystemInitBody(BaseModel):
     client_id: str
@@ -242,6 +253,7 @@ class SystemErrorBody(BaseModel):
 
 # ============ Helpers ============
 
+
 def create_envelope(
     type: MessageType | str,
     body: dict[str, Any],
@@ -254,6 +266,7 @@ def create_envelope(
     Timestamp is Unix seconds, matching Go's time.Now().Unix().
     """
     import time
+
     return Envelope(
         version="2.0",
         type=type,

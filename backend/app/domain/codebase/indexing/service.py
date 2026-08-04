@@ -611,7 +611,8 @@ class IndexingService:
                     all_embeddings.extend(embs)
                 await asyncio.to_thread(
                     vector_store.upsert_code_chunks,
-                    all_chunks, all_embeddings,
+                    all_chunks,
+                    all_embeddings,
                 )
                 logger.info(
                     f"Vector upsert complete: {len(all_chunks)} chunks"

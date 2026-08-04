@@ -1,6 +1,7 @@
 """
 Data models for background task management.
 """
+
 import asyncio
 from collections import deque
 from collections.abc import Callable
@@ -17,6 +18,7 @@ class BackgroundTask(DynamicBaseModel):
     """
     Represents a background task instance.
     """
+
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     # Identity
@@ -85,7 +87,7 @@ class BackgroundTask(DynamicBaseModel):
                 # If result is available and is a dict, merge it
                 if isinstance(self.result, dict):
                     summary_args.update({k.lower(): v for k, v in self.result.items()})
-                
+
                 display_title = metadata.get_display_name(self.tool_name, summary_args)
             except Exception as e:
                 import logging
@@ -162,7 +164,7 @@ class BackgroundTask(DynamicBaseModel):
     async def cancel(self) -> bool:
         """
         Cancel this task.
-        
+
         Returns:
             True if cancellation was initiated, False otherwise.
         """
@@ -180,6 +182,7 @@ class BackgroundTask(DynamicBaseModel):
             except (TypeError, ValueError, RuntimeError, OSError) as e:
                 # Log but don't fail
                 import logging
+
                 logging.getLogger(__name__).warning(f"Cancel callback failed: {e}")
 
         self.completed_at = datetime.now()

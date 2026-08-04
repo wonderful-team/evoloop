@@ -14,5 +14,6 @@ class ToolEventType(str, Enum):
 
     Events related to background task state changes and output streaming.
     """
+
     BACKGROUND_TASK_UPDATED = "tool.background_task_updated"
     BACKGROUND_TASK_OUTPUT = "tool.background_task_output"

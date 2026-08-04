@@ -2,7 +2,6 @@ import asyncio
 import logging
 import os
 import threading
-from typing import Any
 
 from sqlalchemy import delete, select
 
@@ -394,16 +393,34 @@ class IndexingManager:
         from app.constants import SEMANTIC_EXTENSIONS
         from app.core.file.service import walk_tree
         from app.domain.codebase.filter import FileFilter
-        from app.models.codebase import SourceFile, CodeChunk
-        from sqlalchemy import select
+        from app.models.codebase import CodeChunk, SourceFile
 
         controller_patterns = {
-            "controller", "controllers", "handler", "handlers",
-            "action", "actions", "resource", "endpoint", "api",
+            "controller",
+            "controllers",
+            "handler",
+            "handlers",
+            "action",
+            "actions",
+            "resource",
+            "endpoint",
+            "api",
         }
         model_patterns = {
-            "model", "models", "entity", "entities", "bean", "beans",
-            "domain", "dto", "vo", "bo", "table", "tables", "po", "persistence",
+            "model",
+            "models",
+            "entity",
+            "entities",
+            "bean",
+            "beans",
+            "domain",
+            "dto",
+            "vo",
+            "bo",
+            "table",
+            "tables",
+            "po",
+            "persistence",
         }
 
         file_filter = FileFilter()
@@ -452,23 +469,32 @@ class IndexingManager:
                         continue
                     parts = sf.path.lower().split("/")
                     stem = os.path.splitext(parts[-1])[0]
-                    if any(p in controller_patterns for p in parts) \
-                       or any(stem.endswith(s) for s in ("controller", "handler", "action", "resource")):
+                    if any(p in controller_patterns for p in parts) or any(
+                        stem.endswith(s)
+                        for s in ("controller", "handler", "action", "resource")
+                    ):
                         file_ids_by_type["controller"].append(sf.id)
-                    if any(p in model_patterns for p in parts) \
-                       or any(stem.endswith(s) for s in ("model", "entity", "bean")):
+                    if any(p in model_patterns for p in parts) or any(
+                        stem.endswith(s) for s in ("model", "entity", "bean")
+                    ):
                         file_ids_by_type["model"].append(sf.id)
 
                 if file_ids_by_type["controller"]:
                     cr = await session.execute(
                         select(CodeChunk).where(
-                            CodeChunk.source_file_id.in_(file_ids_by_type["controller"]),
+                            CodeChunk.source_file_id.in_(
+                                file_ids_by_type["controller"]
+                            ),
                             CodeChunk.chunk_type.in_(["function", "method"]),
                         )
                     )
                     for chunk in cr.scalars().all():
                         name = chunk.identifier.split(".")[-1].split("::")[-1]
-                        if not name.startswith("_") and name not in ("__construct", "__destruct", "__init"):
+                        if not name.startswith("_") and name not in (
+                            "__construct",
+                            "__destruct",
+                            "__init",
+                        ):
                             chunk.is_api_route = True
                             has_routes = True
 
@@ -481,7 +507,9 @@ class IndexingManager:
                     )
                     for chunk in mr.scalars().all():
                         chunk.is_db_model = True
-                        chunk.db_table_name = chunk.identifier.split(".")[-1].split("::")[-1]
+                        chunk.db_table_name = chunk.identifier.split(".")[-1].split(
+                            "::"
+                        )[-1]
                         has_models = True
 
                 if has_routes or has_models:
@@ -553,9 +581,13 @@ class IndexingManager:
                     if source_file is not None:
                         source_file.security_scan_status = "failed"
             except Exception as mark_err:
-                logger.error(f"Failed to mark security_scan_status as failed: {mark_err}")
+                logger.error(
+                    f"Failed to mark security_scan_status as failed: {mark_err}"
+                )
 
-    async def _analyze_with_agent(self, repo_id: int, repo_path: str, project_id: int | None) -> None:
+    async def _analyze_with_agent(
+        self, repo_id: int, repo_path: str, project_id: int | None
+    ) -> None:
         """Dispatch an Agent to analyze project structure when convention inference fails.
 
         The Agent uses existing file tools to:
