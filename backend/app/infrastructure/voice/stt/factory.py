@@ -9,6 +9,7 @@ STT Provider Factory
 """
 
 import logging
+import os
 
 from app.infrastructure.voice.stt.base import (
     BaseSTTProvider,
@@ -32,14 +33,15 @@ class STTFactory:
     def get_provider(cls, prefer_local: bool = True) -> BaseSTTProvider:
         """
         获取 STT 提供商，读取系统配置数据库中的 STT_PROVIDER
-        
+
         Args:
             prefer_local: 仅用作向下兼容的备选参数
-            
+
         Returns:
             BaseSTTProvider: STT 提供商实例
         """
         from app.infrastructure.config.service import SystemConfigService
+
         provider_name = SystemConfigService.get_value("STT_PROVIDER")
 
         # 1. 尝试数据库配置的 Provider
@@ -88,7 +90,7 @@ class STTFactory:
     def get_qwen3_provider(cls, model_dir: str | None = None) -> Qwen3ASRProvider:
         """
         获取 Qwen3-ASR 提供商
-        
+
         Returns:
             Qwen3ASRProvider: Qwen3-ASR 提供商
         """
@@ -101,12 +103,13 @@ class STTFactory:
     def get_aliyun_provider(cls):
         """
         获取阿里云 SenseVoice 提供商
-        
+
         Returns:
             AliyunProvider: 阿里云 SenseVoice 提供商
         """
         if cls._aliyun_provider is None:
             from app.infrastructure.voice.stt.aliyun import AliyunProvider
+
             cls._aliyun_provider = AliyunProvider()
             logger.info("Aliyun SenseVoice provider initialized")
         return cls._aliyun_provider
@@ -115,13 +118,14 @@ class STTFactory:
     def get_whisper_provider(cls):
         """
         获取 Whisper 提供商
-        
+
         Returns:
             WhisperProvider: Whisper 提供商
         """
         if cls._whisper_provider is None:
             # 延迟导入，避免依赖问题
             from app.infrastructure.voice.stt.whisper import WhisperProvider
+
             cls._whisper_provider = WhisperProvider()
             logger.info("Whisper provider initialized")
         return cls._whisper_provider
@@ -130,7 +134,7 @@ class STTFactory:
     def list_available_providers(cls) -> list[dict]:
         """
         获取所有可用的提供商列表
-        
+
         Returns:
             list[dict]: 提供商信息列表
         """
@@ -155,6 +159,7 @@ class STTFactory:
         # 检查 Aliyun SenseVoice
         try:
             from app.infrastructure.voice.stt.aliyun import AliyunProvider
+
             aliyun = AliyunProvider()
             providers.append({
                 "name": "aliyun-sensevoice",
@@ -172,6 +177,7 @@ class STTFactory:
         # 检查 Whisper
         try:
             from app.infrastructure.voice.stt.whisper import WhisperProvider
+
             whisper = WhisperProvider()
             providers.append({
                 "name": "whisper",
@@ -224,7 +230,6 @@ async def transcribe_file(file_path: str, language: str | None = None, **kwargs)
     """
     便捷函数：识别音频文件
     """
-    import os
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"Audio file not found: {file_path}")
 
@@ -263,8 +268,10 @@ async def _on_stt_config_changed(_old_value: str, _new_value: str) -> None:
     logger.info("STT configuration changed, clearing provider cache...")
     STTFactory.clear_cache()
 
+
 try:
     from app.infrastructure.config.service import SystemConfigService
+
     SystemConfigService.register_change_handler("STT_PROVIDER", _on_stt_config_changed)
     SystemConfigService.register_change_handler("STT_API_KEY", _on_stt_config_changed)
     SystemConfigService.register_change_handler("QWEN3_ASR_MODEL_DIR", _on_stt_config_changed)

@@ -10,6 +10,7 @@ from typing import Any
 
 try:
     import openai
+
     OPENAI_AVAILABLE = True
 except ImportError:
     OPENAI_AVAILABLE = False
@@ -28,7 +29,7 @@ logger = logging.getLogger(__name__)
 class WhisperProvider(BaseSTTProvider):
     """
     OpenAI Whisper 语音识别提供商
-    
+
     使用 OpenAI Whisper API，支持多种语言，需要 API Key。
     """
 
@@ -38,7 +39,10 @@ class WhisperProvider(BaseSTTProvider):
 
     # 支持的模型
     MODELS = {
-        "whisper-1": {"description": "通用模型，多语言支持", "language": "multilingual"},
+        "whisper-1": {
+            "description": "通用模型，多语言支持",
+            "language": "multilingual",
+        },
         "whisper-large-v3": {"description": "高精度模型", "language": "multilingual"},
     }
 
@@ -72,10 +76,10 @@ class WhisperProvider(BaseSTTProvider):
     async def transcribe(self, options: STTOptions) -> STTResult:
         """
         识别语音
-        
+
         Args:
             options: STT 选项
-            
+
         Returns:
             STTResult: 识别结果
         """
@@ -119,14 +123,14 @@ class WhisperProvider(BaseSTTProvider):
 
             # 解析结果
             detected_language = self._code_to_locale(
-                getattr(response, 'language', language_code or 'zh')
+                getattr(response, "language", language_code or "zh")
             )
 
             return STTResult(
                 text=response.text,
                 language=detected_language,
-                duration_ms=getattr(response, 'duration', None),
-                confidence=getattr(response, 'confidence', None)
+                duration_ms=getattr(response, "duration", None),
+                confidence=getattr(response, "confidence", None),
             )
 
         except Exception as e:
@@ -137,9 +141,11 @@ class WhisperProvider(BaseSTTProvider):
         """
         流式识别（Whisper 不支持真正的流式，模拟返回）
         """
+
         async def _gen():
             result = await self.transcribe(options)
             yield result
+
         return _gen()
 
     def _locale_to_code(self, locale: VoiceLocale) -> str | None:
@@ -170,7 +176,7 @@ class WhisperProvider(BaseSTTProvider):
 class WhisperLocalProvider(BaseSTTProvider):
     """
     本地 Whisper 提供商（使用 faster-whisper 或 whisper.cpp）
-    
+
     TODO: 待实现
     """
 
