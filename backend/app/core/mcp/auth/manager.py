@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class McpAuthManager:
     """
     Manages authentication for MCP servers.
-    
+
     Handles multiple auth methods:
     - API Key (via headers/env)
     - OAuth 2.0 Authorization Code
@@ -29,11 +29,11 @@ class McpAuthManager:
     def create_handler(self, server_name: str, auth_config: dict[str, Any]) -> AuthHandler | None:
         """
         Create appropriate auth handler based on config.
-        
+
         Args:
             server_name: MCP server name
             auth_config: Auth configuration dict
-            
+
         Returns:
             AuthHandler instance or None if no auth needed
         """
@@ -77,10 +77,10 @@ class McpAuthManager:
     async def authenticate(self, server_name: str) -> AuthToken | None:
         """
         Authenticate with a server.
-        
+
         Args:
             server_name: Server to authenticate with
-            
+
         Returns:
             AuthToken or None
         """
@@ -99,10 +99,10 @@ class McpAuthManager:
     async def get_token(self, server_name: str) -> AuthToken | None:
         """
         Get valid token for a server, refreshing if needed.
-        
+
         Args:
             server_name: Server name
-            
+
         Returns:
             Valid AuthToken or None
         """
@@ -124,10 +124,10 @@ class McpAuthManager:
     def get_headers(self, server_name: str) -> dict[str, str]:
         """
         Get authentication headers for a server.
-        
+
         Args:
             server_name: Server name
-            
+
         Returns:
             Headers dict (empty if no auth)
         """
@@ -146,7 +146,7 @@ class McpAuthManager:
     async def handle_oauth_callback(self, server_name: str, url: str) -> None:
         """
         Handle OAuth callback for a server.
-        
+
         Args:
             server_name: Server name
             url: Callback URL

@@ -10,12 +10,7 @@ from pathlib import Path
 
 from app.core.engine.rewind import REWIND_REQUESTED, RewindRequestedEvent
 from app.core.engine.rewind.event import RewindEventType
-from app.core.events.base import AsyncEventBus
-from app.core.events.decorators import (
-    event_register,
-    event_subscribe,
-    register_instance_handlers,
-)
+from app.core.events.decorators import event_register, event_subscribe
 
 logger = logging.getLogger(__name__)
 
@@ -38,13 +33,13 @@ class FileRewind:
             file_ops = await self._find_file_operations_by_message_ids(
                 thread_id=event.thread_id,
                 message_ids=target_ids,
-                run_ids=event.affected_run_ids
+                run_ids=event.affected_run_ids,
             )
         else:
             file_ops = await self._find_file_operations(
                 thread_id=event.thread_id,
                 target_message_id=event.target_message_id,
-                include_target=event.include_target
+                include_target=event.include_target,
             )
 
         if file_ops:
@@ -108,7 +103,7 @@ class FileRewind:
         self,
         thread_id: str,
         message_ids: list[str] | None = None,
-        run_ids: list[str] | None = None
+        run_ids: list[str] | None = None,
     ) -> list[dict]:
         """Find file operations by message IDs or run IDs."""
         if not message_ids and not run_ids:
@@ -148,10 +143,10 @@ class FileRewind:
     async def _revert_files(self, file_operations: list[dict]) -> int:
         """
         Perform physical file restoration.
-        
+
         Args:
             file_operations: List of file operation dicts
-            
+
         Returns:
             Number of files successfully reverted
         """
@@ -189,10 +184,10 @@ class FileRewind:
     async def _cleanup_database_records(self, file_operations: list[dict]) -> int:
         """
         Clean up FileOperation database records.
-        
+
         Args:
             file_operations: List of file operation dicts
-            
+
         Returns:
             Number of records deleted
         """
@@ -261,6 +256,7 @@ class FileRewind:
     async def _handle_files_cleanup(self, event) -> None:
         """Helper to test file reverting with a mock event list directly."""
         from app.core.file.event.schemas import FilesCleanupEvent
+
         if not isinstance(event, FilesCleanupEvent):
             return
         if event.file_operations:

@@ -70,6 +70,7 @@ class SystemEventType(str, Enum):
 
 class ArtifactValidationEvent(BaseEvent):
     """Event triggered to request verification of an artifact's physical database presence."""
+
     event_type: str = SystemEventType.ARTIFACT_VALIDATION
     project_id: int
     item: str

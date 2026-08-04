@@ -1,4 +1,5 @@
 import logging
+import os
 import time
 
 from app.core.config import settings
@@ -47,6 +48,7 @@ class EvoCloudManager:
         try:
             if config is None:
                 from app.core.config import settings
+
                 config = EvoCloudConfig(
                     api_url=str(settings.EVOCLOUD_API_URL),
                     ws_url=str(settings.EVOCLOUD_WS_URL),
@@ -55,7 +57,7 @@ class EvoCloudManager:
                     device_name=settings.EVOCLOUD_DEVICE_NAME,
                     access_token=settings.EVOCLOUD_ACCESS_TOKEN,
                     app_data_dir=str(settings.APP_DATA_DIR),
-                    ssl_verify=settings.EVOCLOUD_SSL_VERIFY
+                    ssl_verify=settings.EVOCLOUD_SSL_VERIFY,
                 )
 
             self._config = config
@@ -67,8 +69,7 @@ class EvoCloudManager:
                 await link.stop()
 
             self._api_pool = LoopBoundResource(
-                factory=lambda: EvoCloudHTTPClient(self._config),
-                cleanup=cleanup_api
+                factory=lambda: EvoCloudHTTPClient(self._config), cleanup=cleanup_api
             )
 
             # Link is now also loop-bound to prevent cross-loop contamination
@@ -76,8 +77,7 @@ class EvoCloudManager:
                 return EvoCloudWebSocketLink(self._config, self.api)
 
             self._link_pool = LoopBoundResource(
-                factory=link_factory,
-                cleanup=cleanup_link
+                factory=link_factory, cleanup=cleanup_link
             )
 
             self._initialized = True
@@ -134,6 +134,7 @@ class EvoCloudManager:
             from app.core.evocloud.bridge.conversation_sync import (
                 stop_conversation_sync,
             )
+
             await stop_conversation_sync()
             logger.debug("[EvoCloud] Conversation sync stopped via bridge")
         except (ConnectionError, TimeoutError, OSError) as e:
@@ -149,7 +150,6 @@ class EvoCloudManager:
 
     async def _fetch_projects_from_api(self) -> list[EvoCloudProjectSummary]:
         """Internal method to fetch projects from API."""
-        import os
         resp = await self.api.get_projects(page=1, page_size=100)
         if not resp or resp.get("code") != 0:
             logger.error(f"Failed to fetch projects from API: {resp.get('message') if resp else 'Empty response'}")
@@ -159,15 +159,17 @@ class EvoCloudManager:
         projects: list[EvoCloudProjectSummary] = []
         for p in api_projects:
             path = p.get("external_path", "")
-            projects.append(EvoCloudProjectSummary(
-                id=p.get("project_id"),
-                name=p.get("project_name", "Unknown"),
-                description=p.get("project_desc", ""),
-                path=path,
-                exists_locally=os.path.exists(path) if path else False,
-                status_text=p.get("status_text", ""),
-                owner=p.get("owner_member_name", "")
-            ))
+            projects.append(
+                EvoCloudProjectSummary(
+                    id=p.get("project_id"),
+                    name=p.get("project_name", "Unknown"),
+                    description=p.get("project_desc", ""),
+                    path=path,
+                    exists_locally=os.path.exists(path) if path else False,
+                    status_text=p.get("status_text", ""),
+                    owner=p.get("owner_member_name", ""),
+                )
+            )
         return projects
 
     # --- Proxy Methods (Common Actions) ---
@@ -216,6 +218,7 @@ class EvoCloudManager:
         from app.core.evocloud.bridge.conversation_sync import (
             _conversation_sync_manager,
         )
+
         return _conversation_sync_manager
 
     async def scan_projects(self) -> list[EvoCloudProjectSummary]:
@@ -228,10 +231,11 @@ class EvoCloudManager:
         now = time.time()
 
         # Check if cache is valid
-        if (self._projects_cache is not None and
-            (now - self._projects_cache_time) < self._projects_cache_ttl):
-            logger.debug(f"[EvoCloud] Using cached projects ({len(self._projects_cache)} items, "
-                        f"age: {now - self._projects_cache_time:.1f}s)")
+        if self._projects_cache is not None and (now - self._projects_cache_time) < self._projects_cache_ttl:
+            logger.debug(
+                f"[EvoCloud] Using cached projects ({len(self._projects_cache)} items, "
+                f"age: {now - self._projects_cache_time:.1f}s)"
+            )
             return list(self._projects_cache)  # Return copy to prevent mutation
 
         # Fetch fresh data

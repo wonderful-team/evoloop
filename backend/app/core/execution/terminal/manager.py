@@ -63,6 +63,7 @@ class PersistentTerminal(BaseModel):
     """
     Manages a long-running interactive shell process via PTY with robust signal tracking.
     """
+
     session_id: str
     cwd: str
     env: dict[str, str]
@@ -99,7 +100,7 @@ class PersistentTerminal(BaseModel):
             cwd=self.cwd,
             env=shell_env,
             close_fds=True,
-            preexec_fn=os.setsid
+            preexec_fn=os.setsid,
         )
         os.close(slave_fd)
 
@@ -195,11 +196,11 @@ class PersistentTerminal(BaseModel):
         exit_code = -1
         actual_output = text
 
-        for line in text.split('\n'):
+        for line in text.split("\n"):
             if line.startswith(marker):
                 marker_with_code = line
                 try:
-                    exit_code_str = line[len(marker):].strip()
+                    exit_code_str = line[len(marker) :].strip()
                     exit_code = int(exit_code_str)
                 except ValueError:
                     logger.error(f"[PTY][{self.session_id}] Failed to parse exit code from: {line[:100]}")
@@ -246,12 +247,14 @@ class PersistentTerminal(BaseModel):
                 try:
                     chunk = os.read(self._master_fd, 1024)
                     output += chunk
-                    if marker.encode() in output: break
-                except OSError: break
+                    if marker.encode() in output:
+                        break
+                except OSError:
+                    break
 
         text = output.decode("utf-8", errors="replace")
         # Look for line starting with marker (format: "EVO_PWD_SIG_xxx_0")
-        for line in text.split('\n'):
+        for line in text.split("\n"):
             if line.startswith(marker):
                 new_cwd = text.split(line)[0].strip()
                 # Clean up bash non-interactive noise if any
@@ -266,11 +269,15 @@ class PersistentTerminal(BaseModel):
                 self._proc.terminate()
                 self._proc.wait(timeout=1)
             except (OSError, ProcessLookupError):
-                try: self._proc.kill()
-                except (OSError, ProcessLookupError): logger.debug("Process already exited during kill")
+                try:
+                    self._proc.kill()
+                except (OSError, ProcessLookupError):
+                    logger.debug("Process already exited during kill")
         if self._master_fd != -1:
-            try: os.close(self._master_fd)
-            except OSError: logger.debug("master_fd already closed")
+            try:
+                os.close(self._master_fd)
+            except OSError:
+                logger.debug("master_fd already closed")
 
 
 class TerminalSession(BaseModel):
@@ -278,6 +285,7 @@ class TerminalSession(BaseModel):
     Represents a persistent shell session for a specific context (Thread/Task).
     Holds the state (cwd, env) and the underlying PTY process.
     """
+
     cwd: str
     env: dict[str, str] = Field(default_factory=lambda: os.environ.copy())
     pty: PersistentTerminal | None = Field(default=None)
@@ -299,6 +307,7 @@ class TerminalManager:
     """
     Manages terminal sessions based on the current execution context.
     """
+
     _sessions: dict[str, TerminalSession] = {}
 
     @classmethod
@@ -310,6 +319,7 @@ class TerminalManager:
     def get_session(cls) -> TerminalSession:
         key = cls._get_session_key()
         from app.core.tools.base import get_working_directory
+
         current_cwd = get_working_directory()
 
         if key not in cls._sessions:

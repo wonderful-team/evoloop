@@ -21,8 +21,10 @@ class SubscriptionMixin:
 
     async def check_benefit(self, code: str, token: str | None = None) -> dict:
         return await self.request(
-            "POST", "/subscription/api/subscription/checkBenefit",
-            data={"code": code}, token=token,
+            "POST",
+            "/subscription/api/subscription/checkBenefit",
+            data={"code": code},
+            token=token,
         )
 
     async def get_subscription_plans(self, token: str | None = None) -> dict:
@@ -34,15 +36,22 @@ class SubscriptionMixin:
         self, target_level_id: int, token: str | None = None
     ) -> dict:
         return await self.request(
-            "POST", "/subscription/api/plan/calculateUpgradePrice",
-            data={"target_level_id": target_level_id}, token=token,
+            "POST",
+            "/subscription/api/plan/calculateUpgradePrice",
+            data={"target_level_id": target_level_id},
+            token=token,
         )
 
     async def create_subscription_order(
-        self, level_id: int, auto_renew: bool = False, pay_type: str = "wechatpay", token: str | None = None
+        self,
+        level_id: int,
+        auto_renew: bool = False,
+        pay_type: str = "wechatpay",
+        token: str | None = None,
     ) -> dict:
         return await self.request(
-            "POST", "/subscription/api/subscription/createOrder",
+            "POST",
+            "/subscription/api/subscription/createOrder",
             data={
                 "level_id": level_id,
                 "auto_renew": 1 if auto_renew else 0,
@@ -56,8 +65,10 @@ class SubscriptionMixin:
         self, order_id: str, token: str | None = None
     ) -> dict:
         return await self.request(
-            "GET", "/subscription/api/order/checkStatus",
-            params={"order_id": order_id}, token=token,
+            "GET",
+            "/subscription/api/order/checkStatus",
+            params={"order_id": order_id},
+            token=token,
         )
 
     async def get_subscription_detail(self, token: str | None = None) -> dict:
@@ -69,8 +80,10 @@ class SubscriptionMixin:
         self, cancel_type: str = "expire", reason: str = "", token: str | None = None
     ) -> dict:
         return await self.request(
-            "POST", "/subscription/api/subscription/cancel",
-            data={"cancel_type": cancel_type, "reason": reason}, token=token,
+            "POST",
+            "/subscription/api/subscription/cancel",
+            data={"cancel_type": cancel_type, "reason": reason},
+            token=token,
         )
 
     async def get_ai_quota(self, token: str | None = None) -> dict:
@@ -85,8 +98,10 @@ class SubscriptionMixin:
         self, count: int = 1, metadata: dict | None = None, token: str | None = None
     ) -> dict:
         return await self.request(
-            "POST", "/subscription/api/aiQuota/consumeQuota",
-            data={"count": count}, token=token,
+            "POST",
+            "/subscription/api/aiQuota/consumeQuota",
+            data={"count": count},
+            token=token,
         )
 
     async def get_ai_quota_history(
@@ -94,8 +109,10 @@ class SubscriptionMixin:
     ) -> dict:
         params = {"page": page, "page_size": page_size}
         return await self.request(
-            "GET", "/subscription/api/aiQuota/getUsageHistory",
-            params=params, token=token,
+            "GET",
+            "/subscription/api/aiQuota/getUsageHistory",
+            params=params,
+            token=token,
         )
 
     async def get_llm_models(self, token: str | None = None) -> dict:

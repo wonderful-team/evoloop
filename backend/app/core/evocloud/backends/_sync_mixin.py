@@ -92,7 +92,8 @@ class SyncMixin:
         self, device_key: str, conversation_ids: list[str], token: str | None = None
     ) -> dict:
         return await self.request(
-            "GET", "/evolooplink/api/sync/status",
+            "GET",
+            "/evolooplink/api/sync/status",
             params={"device_key": device_key, "conversation_ids": conversation_ids},
             token=token,
         )

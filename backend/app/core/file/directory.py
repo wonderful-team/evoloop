@@ -2,10 +2,11 @@
 Standardized directory operations using the new File Center core.
 All traversal and tree logic is now delegated to traverser.py and tree.py.
 """
+
 import logging
 import os
 import shutil
-from typing import Iterator
+from collections.abc import Iterator
 
 from .schemas import (
     DirectoryEntry,
@@ -22,6 +23,7 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 # Directory Listing & Tree (Delegated to TreeService & Traverser)
 # ============================================================================
+
 
 def list_directory(
     path: str,
@@ -45,7 +47,7 @@ def list_directory(
                 name=entry.name,
                 path=str(entry.path),
                 is_dir=entry.is_dir(),
-                size=stat.st_size if entry.is_file() else 0
+                size=stat.st_size if entry.is_file() else 0,
             )
     except Exception as e:
         logger.warning(f"Cannot list directory {path}: {e}")
@@ -70,13 +72,14 @@ def generate_tree(
         prefix=prefix,
         exclude_dirs=exclude_dirs,
         _state=_state,
-        with_stats=with_stats
+        with_stats=with_stats,
     )
 
 
 # ============================================================================
 # Directory Operations (Atomic)
 # ============================================================================
+
 
 def create_directory(path: str, exist_ok: bool = True) -> DirectoryOperationResult:
     """Create a directory and its parents if needed."""
@@ -86,21 +89,26 @@ def create_directory(path: str, exist_ok: bool = True) -> DirectoryOperationResu
             success=True,
             status=DirectoryStatus.SUCCESS,
             path=path,
-            message=f"Directory ensured: {path}"
+            message=f"Directory ensured: {path}",
         )
     except Exception as e:
         return DirectoryOperationResult(
             success=False,
             status=DirectoryStatus.ERROR,
             path=path,
-            message=f"Failed to create directory: {e}"
+            message=f"Failed to create directory: {e}",
         )
 
 
 def delete_directory(path: str, recursive: bool = False) -> DirectoryOperationResult:
     """Delete a directory."""
     if not os.path.isdir(path):
-        return DirectoryOperationResult(success=False, status=DirectoryStatus.NOT_FOUND, path=path, message="Not found")
+        return DirectoryOperationResult(
+            success=False,
+            status=DirectoryStatus.NOT_FOUND,
+            path=path,
+            message="Not found",
+        )
     try:
         if recursive:
             shutil.rmtree(path)
@@ -130,7 +138,7 @@ def move_path(source: str, destination: str) -> DirectoryOperationResult:
             status=DirectoryStatus.SUCCESS,
             path=source,
             destination=destination,
-            message="Moved"
+            message="Moved",
         )
     except Exception as e:
         return DirectoryOperationResult(success=False, status=DirectoryStatus.ERROR, path=source, message=str(e))
@@ -139,6 +147,7 @@ def move_path(source: str, destination: str) -> DirectoryOperationResult:
 # ============================================================================
 # Directory Information
 # ============================================================================
+
 
 def get_directory_info(path: str) -> DirectoryInfo:
     """Get information about a directory using unified traversal."""
@@ -164,7 +173,7 @@ def get_directory_info(path: str) -> DirectoryInfo:
         is_empty=is_empty,
         file_count=file_count,
         subdir_count=0,  # Simplified for now
-        total_size=total_size
+        total_size=total_size,
     )
 
 

@@ -454,6 +454,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
             if not new_token:
                 logger.warning("[EvoCloud] Token refresh failed (refresh_token expired), clearing session and stopping link...")
                 from app.core.identity import identity_service
+
                 await identity_service.logout()
                 await self.stop()
             return False
@@ -461,6 +462,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
         if code == "device_sync_failed":
             logger.warning("[EvoCloud] Device key rejected by server (revoked or belongs to another user), clearing and re-claiming...")
             from app.core.identity import identity_service
+
             await identity_service.store.delete_device_key()
             self._device_key = ""
             asyncio.create_task(self._force_reconnect())

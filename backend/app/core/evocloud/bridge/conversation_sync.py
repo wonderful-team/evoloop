@@ -95,6 +95,7 @@ class ConversationSyncManager:
             return
 
         from app.core.identity import identity_service
+
         if not await identity_service.is_logged_in():
             logger.info("[ConversationSync] Skip full sync: not logged in yet")
             return
@@ -104,10 +105,7 @@ class ConversationSyncManager:
 
             result = full_sync_task.delay(self.device_key)
 
-            logger.info(
-                f"[ConversationSync] Full sync scheduled: "
-                f"task_id={result.id}"
-            )
+            logger.info(f"[ConversationSync] Full sync scheduled: task_id={result.id}")
 
         except Exception as e:
             logger.error(f"[ConversationSync] Failed to schedule full sync: {e}", exc_info=True)
@@ -130,7 +128,9 @@ class ConversationSyncManager:
 
                 # 2. 获取包含未同步消息的会话ID
                 msg_result = await db.execute(
-                    select(MessageModel.thread_id).where(MessageModel.sync_status != 'synced').distinct()
+                    select(MessageModel.thread_id)
+                    .where(MessageModel.sync_status != "synced")
+                    .distinct()
                 )
                 msg_thread_ids = {str(r[0]) for r in msg_result.all() if r[0]}
 
@@ -144,7 +144,7 @@ class ConversationSyncManager:
                 # 分批提交（每批100个会话）
                 batch_size = 100
                 for i in range(0, len(thread_ids), batch_size):
-                    batch = thread_ids[i:i + batch_size]
+                    batch = thread_ids[i : i + batch_size]
                     result = incremental_sync_task.delay(self.device_key, batch)
                     logger.debug(
                         f"[ConversationSync] Incremental sync batch scheduled: "

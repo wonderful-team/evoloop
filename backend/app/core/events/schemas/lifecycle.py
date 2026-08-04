@@ -4,6 +4,7 @@ Core Event Schemas - Lifecycle
 
 Event schemas for system-wide lifecycle and status events.
 """
+
 from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
@@ -15,6 +16,7 @@ from app.core.events.registry import SystemEventType
 
 class SessionCompletedData(BaseModel):
     """Payload data for SESSION_COMPLETED event."""
+
     thread_id: str
     run_id: str | None = None
     project_id: int | None = None
@@ -38,6 +40,7 @@ class SessionCompletedData(BaseModel):
 
 class SessionCompletedEvent(BaseEvent):
     """Event published when an agent session reaches a successful conclusion."""
+
     event_type: str = SystemEventType.SESSION_COMPLETED
     data: SessionCompletedData
 
@@ -55,6 +58,7 @@ class SessionCompletedEvent(BaseEvent):
 
 class AppStartedEvent(BaseEvent):
     """Event published when the application starts."""
+
     event_type: str = SystemEventType.APP_STARTED
     is_public: bool = True
     broadcast_channel: str = "system"
@@ -62,6 +66,7 @@ class AppStartedEvent(BaseEvent):
 
 class AppStoppingEvent(BaseEvent):
     """Event published when the application is stopping."""
+
     event_type: str = SystemEventType.APP_STOPPING
     is_public: bool = True
     broadcast_channel: str = "system"
@@ -69,6 +74,7 @@ class AppStoppingEvent(BaseEvent):
 
 class UserLoggedInEvent(BaseEvent):
     """Event published when a user logs in."""
+
     event_type: str = SystemEventType.USER_LOGGED_IN
     is_public: bool = True
     broadcast_channel: str = "system"
@@ -77,6 +83,7 @@ class UserLoggedInEvent(BaseEvent):
 
 class UserLoggedOutEvent(BaseEvent):
     """Event published when a user logs out."""
+
     event_type: str = SystemEventType.USER_LOGGED_OUT
     is_public: bool = True
     broadcast_channel: str = "system"
@@ -85,6 +92,7 @@ class UserLoggedOutEvent(BaseEvent):
 
 class SubscriptionChangedEvent(BaseEvent):
     """Event published when a user's subscription or benefits change."""
+
     event_type: str = SystemEventType.SUBSCRIPTION_CHANGED
     source: str = "subscription"
     member_id: int | None = None
@@ -101,6 +109,7 @@ class SubscriptionChangedEvent(BaseEvent):
 
 class ConfigChangedEvent(BaseEvent):
     """Event published when a configuration value changes."""
+
     event_type: str = SystemEventType.CONFIG_CHANGED
     key: str = ""
     old_value: str = ""
@@ -116,6 +125,7 @@ class ConfigChangedEvent(BaseEvent):
 
 class StateChangedEvent(BaseEvent):
     """Event published when a shared state value changes."""
+
     event_type: str = SystemEventType.STATE_CHANGED
     is_public: bool = True
     key: str = ""

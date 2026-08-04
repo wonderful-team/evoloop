@@ -8,6 +8,7 @@ from app.core.mcp.schemas.auth import AuthConfig, AuthToken
 
 class AuthMethod(str, Enum):
     """Authentication methods for MCP servers."""
+
     API_KEY = "api_key"
     OAUTH_AUTH_CODE = "oauth_authorization_code"
     OAUTH_DEVICE_CODE = "oauth_device_code"

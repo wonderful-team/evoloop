@@ -32,6 +32,7 @@ def event_subscribe(event_type: str | Any) -> Callable[[F], F]:
     """
     Decorator to mark a method as an event handler for a specific type.
     """
+
     def decorator(func: F) -> F:
         if not hasattr(func, "_event_types"):
             func._event_types = []
@@ -46,6 +47,7 @@ def event_subscribe_all() -> Callable[[F], F]:
     """
     Decorator to mark a method as a global event handler (subscriber to all events).
     """
+
     def decorator(func: F) -> F:
         func._is_event_handler_all = True
         return func
@@ -113,6 +115,7 @@ def event_register_with_bus(bus: Any) -> Callable[[type], type]:
     Returns:
         The decorated class
     """
+
     def decorator(cls: type) -> type:
         # Mark the class for discovery
         cls._auto_register = True

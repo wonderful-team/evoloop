@@ -30,6 +30,7 @@ class BaseEvent(DynamicBaseModel):
     """
     Base class for all system events.
     """
+
     event_type: str = ""
     timestamp: datetime = Field(default_factory=datetime.now)
     source: str = "system"
@@ -56,16 +57,16 @@ EventHandler = Callable[[BaseEvent], Awaitable[None]]
 class AsyncEventBus(Generic[E]):
     """
     Generic asynchronous event bus implementing publish-subscribe pattern.
-    
+
     This is the core infrastructure for decoupled event-driven communication.
     All handlers are async and executed concurrently using asyncio.gather.
-    
+
     Features:
     - Type-safe event subscription
     - Concurrent async handler execution
     - Error isolation between handlers
     - Global handlers for cross-cutting concerns (logging, auditing)
-    
+
     Usage:
     - bus = AsyncEventBus()
     - bus.subscribe("user.created", my_handler)
@@ -85,7 +86,7 @@ class AsyncEventBus(Generic[E]):
     def subscribe(self, event_type: str | Enum, handler: EventHandler) -> None:
         """
         Subscribe a handler to a specific event type.
-        
+
         Args:
             event_type: The event type to subscribe to (string or Enum)
             handler: Async function that will be called when event is published
@@ -102,7 +103,7 @@ class AsyncEventBus(Generic[E]):
     def subscribe_all(self, handler: EventHandler) -> None:
         """
         Subscribe a handler to all events (for logging/monitoring).
-        
+
         Global handlers receive every published event regardless of type.
         """
         if handler not in self._global_handlers:
@@ -125,7 +126,7 @@ class AsyncEventBus(Generic[E]):
     ) -> None:
         """
         Publish an event to all subscribed handlers.
-        
+
         Args:
             event: The event instance to publish
             sequential: If True, execute handlers one by one instead of concurrently.
@@ -142,7 +143,7 @@ class AsyncEventBus(Generic[E]):
         async def safe_handle(handler: EventHandler) -> None:
             try:
                 await handler(event)
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, IndexError) as e:
+            except Exception as e:
                 handler_name = handler.__name__ if hasattr(handler, "__name__") else str(handler)
                 logger.exception(f"[{self._name}] Handler '{handler_name}' failed for event {type_key}: {e}")
                 if propagate_errors:
@@ -182,13 +183,15 @@ class AsyncEventBus(Generic[E]):
 # Singleton System Bus
 # ============================================================
 
+
 class SystemEventBus(AsyncEventBus):
     """
     Singleton system-wide event bus.
-    
+
     Use this for cross-domain events that need to be accessible globally.
     Domain-specific buses (like AwakenEventBus) can bridge to this bus.
     """
+
     _instance = None
 
     def __new__(cls):

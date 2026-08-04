@@ -29,7 +29,10 @@ class AuthMixin:
                 if not settings.MULTI_TENANT_MODE:
                     await identity_service.store.save_member_id(member_id)
                 return LoginResult(
-                    success=True, token=token, member_id=member_id, data=data,
+                    success=True,
+                    token=token,
+                    member_id=member_id,
+                    data=data,
                 )
         return LoginResult(success=False, message=res.get("message", "Login failed"))
 
@@ -52,7 +55,10 @@ class AuthMixin:
                 if not settings.MULTI_TENANT_MODE:
                     await identity_service.store.save_member_id(member_id)
                 return LoginResult(
-                    success=True, token=token, member_id=member_id, data=data,
+                    success=True,
+                    token=token,
+                    member_id=member_id,
+                    data=data,
                 )
         return LoginResult(success=False, message=res.get("message", "Login failed"))
 
@@ -70,8 +76,10 @@ class AuthMixin:
     ) -> EvoCloudProxyResponse:
         return EvoCloudProxyResponse.model_validate(
             await self.request(
-                "GET", "/passport/api/mobile/check",
-                params={"mobile": mobile}, token=token,
+                "GET",
+                "/passport/api/mobile/check",
+                params={"mobile": mobile},
+                token=token,
             )
         )
 
@@ -80,7 +88,8 @@ class AuthMixin:
     ) -> EvoCloudProxyResponse:
         return EvoCloudProxyResponse.model_validate(
             await self.request(
-                "POST", "/passport/api/password/reset/mobile",
+                "POST",
+                "/passport/api/password/reset/mobile",
                 data={"mobile": mobile, "code": code, "key": key, "password": password},
                 token=token,
             )
@@ -91,7 +100,8 @@ class AuthMixin:
     ) -> EvoCloudProxyResponse:
         return EvoCloudProxyResponse.model_validate(
             await self.request(
-                "POST", "/passport/api/password/change",
+                "POST",
+                "/passport/api/password/change",
                 data={"old_password": old_password, "new_password": new_password},
                 token=token,
             )
@@ -121,7 +131,10 @@ class AuthMixin:
     ) -> EvoCloudProxyResponse:
         return EvoCloudProxyResponse.model_validate(
             await self.request(
-                "GET", "/api/captcha/get", params={"id": captcha_id}, token=token,
+                "GET",
+                "/api/captcha/get",
+                params={"id": captcha_id},
+                token=token,
             )
         )
 
@@ -137,7 +150,10 @@ class AuthMixin:
     ) -> EvoCloudProxyResponse:
         return EvoCloudProxyResponse.model_validate(
             await self.request(
-                "GET", "/api/register/aggrement", params={"type": type}, token=token,
+                "GET",
+                "/api/register/aggrement",
+                params={"type": type},
+                token=token,
             )
         )
 
@@ -151,7 +167,8 @@ class AuthMixin:
     ) -> EvoCloudProxyResponse:
         return EvoCloudProxyResponse.model_validate(
             await self.request(
-                "POST", "/api/sms/send",
+                "POST",
+                "/api/sms/send",
                 data={
                     "mobile": mobile,
                     "captcha_id": captcha_id,

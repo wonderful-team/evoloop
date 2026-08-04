@@ -45,7 +45,7 @@ class UniversalBridgeSubscriber:
 
         ctx = ChannelContext(
             thread_id=thread_id or "system",
-            project_id=getattr(event, "project_id", None)
+            project_id=getattr(event, "project_id", None),
         )
 
         try:

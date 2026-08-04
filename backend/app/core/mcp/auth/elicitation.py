@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 class McpElicitationHandler:
     """
     Handles MCP URL Elicitation errors (-32042).
-    
+
     When an MCP server returns an elicitation error, it needs
     additional configuration from the user before it can proceed.
     """
@@ -23,11 +23,11 @@ class McpElicitationHandler:
     def parse_elicitation_error(self, server_name: str, error_data: dict) -> ElicitationRequest:
         """
         Parse elicitation error from MCP server.
-        
+
         Args:
             server_name: Server that returned the error
             error_data: Error data from MCP response
-            
+
         Returns:
             ElicitationRequest
         """
@@ -39,18 +39,20 @@ class McpElicitationHandler:
         fields = []
         for field_name in required_fields:
             field_def = fields_def.get(field_name, {})
-            fields.append(ElicitationField(
-                name=field_name,
-                description=field_def.get("description", f"Please provide {field_name}"),
-                required=True,
-                sensitive=field_def.get("sensitive", False),
-                field_type=field_def.get("type", "string"),
-            ))
+            fields.append(
+                ElicitationField(
+                    name=field_name,
+                    description=field_def.get(
+                        "description", f"Please provide {field_name}"
+                    ),
+                    required=True,
+                    sensitive=field_def.get("sensitive", False),
+                    field_type=field_def.get("type", "string"),
+                )
+            )
 
         request = ElicitationRequest(
-            server_name=server_name,
-            message=message,
-            fields=fields
+            server_name=server_name, message=message, fields=fields
         )
 
         self._pending[server_name] = request
@@ -60,11 +62,11 @@ class McpElicitationHandler:
     async def wait_for_input(self, server_name: str, timeout: float = 300.0) -> ElicitationValues:
         """
         Wait for user to provide elicitation values.
-        
+
         Args:
             server_name: Server waiting for input
             timeout: Timeout in seconds
-            
+
         Returns:
             Dict of field values
         """
@@ -87,7 +89,7 @@ class McpElicitationHandler:
     def provide_input(self, server_name: str, values: ElicitationValues) -> None:
         """
         Provide values for pending elicitation.
-        
+
         Args:
             server_name: Server name
             values: Field values
