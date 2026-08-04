@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.context.manager import ContextManager
@@ -23,7 +23,7 @@ async def create_project_tasks(
     """
     Create a list of project tasks and sync them to EvoCloud.
     This is the core tool for requirement breakdown and task planning.
-    
+
     Args:
         project_id: Local project ID to associate with.
         tasks: List of task definitions. Each task can have:
@@ -36,7 +36,7 @@ async def create_project_tasks(
     """
     try:
         created_task_ids = []
-        
+
         for task_def in tasks:
             # Create task with subtasks using the service
             parent_task = await subtask_service.create_task_with_subtasks(
@@ -46,9 +46,9 @@ async def create_project_tasks(
                 description=task_def.get("description", source_context or ""),
                 priority=task_def.get("priority", "medium"),
                 estimated_hours=task_def.get("estimated_hours", 0),
-                subtasks=task_def.get("subtasks", [])
+                subtasks=task_def.get("subtasks", []),
             )
-            
+
             created_task_ids.append(parent_task.id)
             # Add subtask IDs for sync
             for sub in parent_task.subtasks:
@@ -67,10 +67,7 @@ async def create_project_tasks(
 
     except Exception as e:
         logger.exception(f"Failed to create project tasks: {e}")
-        return json.dumps({
-            "success": False,
-            "error": str(e)
-        })
+        return json.dumps({"success": False, "error": str(e)})
 
 
 @evoloop_tool(

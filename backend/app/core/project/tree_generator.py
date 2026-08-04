@@ -237,12 +237,9 @@ class AnnotatedTreeGenerator:
                 return None
 
             repo_path = repo.local_path
-            stmt = (
-                select(SourceFile)
-                .where(
-                    SourceFile.repository_id == repo.id,
-                    SourceFile.scan_status == "completed",
-                )
+            stmt = select(SourceFile).where(
+                SourceFile.repository_id == repo.id,
+                SourceFile.scan_status == "completed",
             )
             if self.with_symbols:
                 stmt = stmt.options(selectinload(SourceFile.chunks))
@@ -251,9 +248,7 @@ class AnnotatedTreeGenerator:
             if not source_files:
                 return None
 
-            root_node = TreeNode(
-                name=os.path.basename(self.root_path), type="dir"
-            )
+            root_node = TreeNode(name=os.path.basename(self.root_path), type="dir")
             nodes_map = {self.root_path: root_node}
 
             for sf in source_files:

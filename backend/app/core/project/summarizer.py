@@ -1,17 +1,14 @@
-import asyncio
 import json
 import logging
 import os
 
 from app.constants import DEFAULT_PROJECT_ID
-from app.core import file as file_utils
 from app.core.evocloud import evocloud_manager
 from app.core.monitoring.activity import activity_monitor
 from app.core.project.service import project_context_manager
 from app.core.project.utils import write_project_json
 from app.infrastructure.queue.factory import get_scheduler, shared_task
 from app.utils.async_utils import flush_loop_bound_resources
-from app.utils.json import dumps
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +53,6 @@ async def _summarize_project_logic(name: str, path: str, module_graph: str = "")
         try:
             pj_path = os.path.join(path, ".evoloop", "project.json")
             if os.path.isfile(pj_path):
-                import json
                 with open(pj_path, encoding="utf-8") as f:
                     pj = json.load(f)
                 fp = pj.get("framework_profile", {})
@@ -67,9 +63,8 @@ async def _summarize_project_logic(name: str, path: str, module_graph: str = "")
 
         if arch_summary in ("", "Not available yet.", " / "):
             try:
-                from app.domain.codebase.indexing.directory_summarizer import (
-                    DirectorySummarizer,
-                )
+                from app.domain.codebase.indexing.directory_summarizer import DirectorySummarizer
+
                 summary_dir = await DirectorySummarizer.get_summary(path)
                 if summary_dir:
                     arch_summary = summary_dir
@@ -77,10 +72,16 @@ async def _summarize_project_logic(name: str, path: str, module_graph: str = "")
                 pass
 
         # Update Status
-        await activity_monitor.update_agent_state(sys_tid, "Summarizing", "Project Analysis", "Reading Files & Context...")
+        await activity_monitor.update_agent_state(
+            sys_tid,
+            "Summarizing",
+            "Project Analysis",
+            "Reading Files & Context..."
+        )
 
         # 1. Gather Context (Files)
         from app.core.file import FileTraverser
+
         files = []
         try:
             for entry in FileTraverser.list_entries(path):
@@ -92,10 +93,16 @@ async def _summarize_project_logic(name: str, path: str, module_graph: str = "")
         readme_content = project_context_manager.extract_description_from_readme(path)
 
         # Update Status
-        await activity_monitor.update_agent_state(sys_tid, "Summarizing", "Project Analysis", "Generating Summary with LLM...")
+        await activity_monitor.update_agent_state(
+            sys_tid,
+            "Summarizing",
+            "Project Analysis",
+            "Generating Summary with LLM..."
+        )
 
         # 2. Call LLM
         from app.utils.template import render_template
+
         prompt_text = render_template(
             "domain/project/project_summary.prompt.j2",
             project_name=name,
@@ -106,6 +113,7 @@ async def _summarize_project_logic(name: str, path: str, module_graph: str = "")
         )
 
         from app.infrastructure.llm import InternalLLMService
+
         response = await InternalLLMService.invoke(
             messages=[{"role": "user", "content": prompt_text}],
             purpose="skill_synthesis",
@@ -144,6 +152,7 @@ async def _summarize_project_logic(name: str, path: str, module_graph: str = "")
             result["project_id"] = project_id
         # Ensure authorization defaults exist
         from app.core.hitl.policies import DEFAULT_SENSITIVE_PATTERNS
+
         result.setdefault("sensitive_patterns", DEFAULT_SENSITIVE_PATTERNS)
         result.setdefault("authorized_paths", [])
         write_project_json(path, result)
@@ -175,6 +184,7 @@ async def _summarize_project_logic(name: str, path: str, module_graph: str = "")
 
         # 5. Save Concepts to Memory
         from app.core.memory.lifespan import MemoryLifespanManager
+
         if not MemoryLifespanManager.is_initialized():
             await MemoryLifespanManager.ainitialize()
         container = MemoryLifespanManager.get_container()
@@ -184,7 +194,13 @@ async def _summarize_project_logic(name: str, path: str, module_graph: str = "")
             c_desc = c.get("description")
             if c_name and c_desc:
                 from app.core.memory.schemas import Concept
-                concept = Concept(name=c_name, description=c_desc, project_id=project_id, related_files=[path])
+
+                concept = Concept(
+                    name=c_name,
+                    description=c_desc,
+                    project_id=project_id,
+                    related_files=[path],
+                )
                 await manager.store_concept(concept)
 
         # Done

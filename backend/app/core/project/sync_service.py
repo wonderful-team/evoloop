@@ -563,7 +563,9 @@ class ProjectSyncService:
                     async with session_scope() as session:
                         r = await session.get(Repository, repo.id)
                         if r:
-                            r.sync_status = "SYNCED" if r.project_id else "PENDING_CREATION"
+                            r.sync_status = (
+                                "SYNCED" if r.project_id else "PENDING_CREATION"
+                            )
                             session.add(r)
                             repo.sync_status = r.sync_status
                 except Exception as e:
