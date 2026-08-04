@@ -17,6 +17,7 @@ class EventType(str, Enum):
         ``boundary_learned``) are defined in :class:`SystemEventType`
         in ``app.core.events.registry`` to maintain single source of truth.
     """
+
     # Device Events
     DEVICE_CONNECTED = "environment.device_connected"
     DEVICE_DISCONNECTED = "environment.device_disconnected"

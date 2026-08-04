@@ -1,6 +1,7 @@
 """
 Browser controller mixin — perception actions (screenshot, wait_for, check_element).
 """
+
 import logging
 import re
 
@@ -12,7 +13,6 @@ logger = logging.getLogger(__name__)
 
 
 class BrowserPerceptionMixin:
-
     @classmethod
     async def _handle_perception(cls, action: str, **ctx) -> str | None:
         page = ctx["page"]
@@ -32,13 +32,16 @@ class BrowserPerceptionMixin:
                     elem = page.locator(selector).first
                     await elem.screenshot(path=filepath, animations="disabled", timeout=timeout_ms)
                 else:
-                    await page.screenshot(path=filepath, full_page=full_page, animations="disabled", timeout=timeout_ms)
+                    await page.screenshot(
+                        path=filepath,
+                        full_page=full_page,
+                        animations="disabled",
+                        timeout=timeout_ms,
+                    )
             except Exception as e:
                 logger.error(f"[Browser] Screenshot action failed: {e}")
                 return ControllerResponse.error(
-                    f"Screenshot failed (timeout={timeout_ms}ms).",
-                    details=str(e)
-                )
+                    f"Screenshot failed (timeout={timeout_ms}ms).", details=str(e))
 
             result_msg = ControllerResponse.screenshot_result(success=True, filename=filepath)
             if ocr:
@@ -53,7 +56,7 @@ class BrowserPerceptionMixin:
                 )
                 return ControllerResponse.success(
                     f"URL matched pattern '{url_pattern}'.",
-                    details=f"Current: {page.url}"
+                    details=f"Current: {page.url}",
                 )
             loc = _resolve_selector(selector, text)
             if not loc:
@@ -65,10 +68,7 @@ class BrowserPerceptionMixin:
             if not selector:
                 return ControllerResponse.missing_param("selector")
             if await page.locator(selector).count() == 0:
-                return ControllerResponse.success(
-                    f"Not found: {selector}",
-                    details="visible=False, enabled=False"
-                )
+                return ControllerResponse.success(f"Not found: {selector}", details="visible=False, enabled=False")
             elem = page.locator(selector).first
             try:
                 visible = await elem.is_visible()
@@ -79,9 +79,6 @@ class BrowserPerceptionMixin:
             parts = [f"visible={visible}", f"enabled={enabled}"]
             if checked is not None:
                 parts.append(f"checked={checked}")
-            return ControllerResponse.success(
-                f"Found element: {selector}",
-                details=", ".join(parts)
-            )
+            return ControllerResponse.success(f"Found element: {selector}", details=", ".join(parts))
 
         return None

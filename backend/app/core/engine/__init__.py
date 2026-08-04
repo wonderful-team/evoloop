@@ -34,6 +34,7 @@ _import_map = {
     "EvoMessageConverter": ("app.core.engine.message.converter", "EvoMessageConverter"),
 }
 
+
 def __getattr__(name: str):
     if name in _import_map:
         module_path, obj_name = _import_map[name]

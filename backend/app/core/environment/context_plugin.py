@@ -1,4 +1,5 @@
 import logging
+import re
 
 from app.core.context.manager import EvoContext
 from app.core.context.plugins import ContextPlugin, plugin_registry
@@ -18,7 +19,11 @@ class EnvironmentContextPlugin(ContextPlugin):
     """
 
     _LOAD_FOR_INTENTS: frozenset[str | None] = frozenset({
-        None, "environment_query", "worker_task", "ambiguous", "macro_task",
+        None,
+        "environment_query",
+        "worker_task",
+        "ambiguous",
+        "macro_task",
     })
 
     def is_needed(self, intent: str | None) -> bool:
@@ -31,6 +36,7 @@ class EnvironmentContextPlugin(ContextPlugin):
 
         try:
             from app.core.environment import get_awakened_state
+
             state = get_awakened_state()
 
             # 1. Hydrate Active Boundaries
@@ -78,8 +84,7 @@ class EnvironmentContextPlugin(ContextPlugin):
                                 # e.g. "Alibaba Cloud (com.alibaba.aliyun)"
                                 if "(" in pkg and ")" in pkg:
                                     # Deep deduplication: Extract just the ID inside brackets
-                                    import re
-                                    match = re.search(r'\((.*?)\)', pkg)
+                                    match = re.search(r"\((.*?)\)", pkg)
                                     pkg_id = match.group(1) if match else pkg
                                 else:
                                     pkg_id = pkg

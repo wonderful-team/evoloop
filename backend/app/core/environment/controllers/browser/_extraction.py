@@ -1,12 +1,14 @@
 """
 Browser controller mixin — extraction/reading actions (get_text, get_html, etc.).
 """
+
 import json
 import logging
 import re
 
 from app.core.environment.controllers.utils import truncate_output
-from app.utils.controller_response import ControllerResponse, PerceptionsFormatter
+from app.core.vision.perceptions_formatter import PerceptionsFormatter
+from app.utils.controller_response import ControllerResponse
 
 from ._utils import _resolve_selector
 
@@ -14,7 +16,6 @@ logger = logging.getLogger(__name__)
 
 
 class BrowserExtractionMixin:
-
     @classmethod
     async def _handle_extraction(cls, action: str, **ctx) -> str | None:
         page = ctx["page"]
@@ -35,14 +36,22 @@ class BrowserExtractionMixin:
             else:
                 content = await page.inner_text("body")
             content = re.sub(r"\n{3,}", "\n\n", content).strip()
-            return truncate_output(content, max_len=20000, suffix="\n\u2026 [truncated, total {len(content)} chars]")
+            return truncate_output(
+                content,
+                max_len=20000,
+                suffix="\n\u2026 [truncated, total {len(content)} chars]",
+            )
 
         elif action == "get_html":
             if selector:
                 content = await page.locator(selector).first.outer_html()
             else:
                 content = await page.content()
-            return truncate_output(content, max_len=8000, suffix="\n<!-- truncated, total {len(content)} chars -->")
+            return truncate_output(
+                content,
+                max_len=8000,
+                suffix="\n<!-- truncated, total {len(content)} chars -->",
+            )
 
         elif action == "get_attribute":
             if not selector:
@@ -56,16 +65,13 @@ class BrowserExtractionMixin:
                     if val is not None:
                         return ControllerResponse.success(
                             f"Attribute (JS property) '{attribute}' of '{selector}'",
-                            details=str(val).strip()
+                            details=str(val).strip(),
                         )
                 except Exception as e:
                     logger.debug("Suppressed error: %s", e, exc_info=True)
             if val is None:
                 return ControllerResponse.not_found(attribute, item_type="attribute")
-            return ControllerResponse.success(
-                f"Attribute '{attribute}' of '{selector}'",
-                details=str(val)
-            )
+            return ControllerResponse.success(f"Attribute '{attribute}' of '{selector}'", details=str(val))
 
         elif action == "get_links":
             scope = page.locator(selector) if selector else page
@@ -87,12 +93,9 @@ class BrowserExtractionMixin:
                     cy = int(box["y"] + box["height"] / 2)
                     return ControllerResponse.success(
                         f"Element found: '{loc}' at ({cx}, {cy})",
-                        details=f"Size: {int(box['width'])}\u00d7{int(box['height'])}px"
+                        details=f"Size: {int(box['width'])}\u00d7{int(box['height'])}px",
                     )
-                return ControllerResponse.success(
-                    f"Element found: '{loc}'",
-                    note="Not in viewport, no bounding box."
-                )
+                return ControllerResponse.success(f"Element found: '{loc}'", note="Not in viewport, no bounding box.")
             except Exception:
                 return ControllerResponse.not_found(loc, item_type="element")
 

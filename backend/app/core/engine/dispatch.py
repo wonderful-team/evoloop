@@ -152,10 +152,7 @@ async def dispatch_agent_run(
     )
     hook_result = await hook_system.trigger(HookEvent.USER_PROMPT_SUBMIT, hook_ctx)
     if hook_result.modified_context:
-        context.metadata.intent_hint = (
-            hook_result.modified_context.metadata.get("intent_hint")
-            or context.metadata.get("intent_hint")
-        )
+        context.metadata.intent_hint = hook_result.modified_context.metadata.get("intent_hint") or context.metadata.get("intent_hint")
     if context.metadata.get("intent_hint"):
         metadata["intent_hint"] = context.metadata.intent_hint
 

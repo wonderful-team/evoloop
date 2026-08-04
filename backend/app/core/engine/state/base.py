@@ -105,8 +105,14 @@ class AgentStateBase(DynamicBaseModel):
     def build_metadata_dict(self) -> dict[str, Any]:
         fields = {
             "tool_history": self.tool_history,
-            "pending_approvals": [x.model_dump() if hasattr(x, "model_dump") else x for x in (self.pending_approvals or [])],
-            "audit_anomalies": [x.model_dump() if hasattr(x, "model_dump") else x for x in (self.audit_anomalies or [])],
+            "pending_approvals": [
+                x.model_dump() if hasattr(x, "model_dump") else x
+                for x in (self.pending_approvals or [])
+            ],
+            "audit_anomalies": [
+                x.model_dump() if hasattr(x, "model_dump") else x
+                for x in (self.audit_anomalies or [])
+            ],
             "tool_memory": self.tool_memory,
             "final_outcome": self.final_outcome,
             "shadow_audit": self.shadow_audit,

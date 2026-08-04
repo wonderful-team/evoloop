@@ -279,7 +279,7 @@ class FinishNode(BaseNode):
 
         # Extract tts_summary from the audit LLM response (not from original state messages)
         tts_summary = ""
-        for msg in (audit_result.messages or []):
+        for msg in audit_result.messages or []:
             content = msg.content or ""
             if "<evoloop_tts_summary>" in str(content):
                 m = re.search(r'<evoloop_tts_summary>(.*?)</evoloop_tts_summary>', str(content), re.DOTALL)

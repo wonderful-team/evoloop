@@ -6,7 +6,7 @@ channels by name. New transports are registered at startup.
 """
 
 import logging
-from typing import Iterator
+from collections.abc import Iterator
 
 from .base import Channel
 

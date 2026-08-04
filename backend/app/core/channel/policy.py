@@ -195,9 +195,8 @@ class OutputChannelPolicy:
     ) -> set[str]:
         """System lifecycle event (SessionCompletedEvent, AgentRunCompletedEvent, …) routing."""
         # If the event itself carries a source, prefer it over the ContextVar.
-        event_source = (
-            getattr(event, "source", None)
-            or getattr(getattr(event, "data", None), "source", None)
+        event_source = getattr(event, "source", None) or getattr(
+            getattr(event, "data", None), "source", None
         )
         effective_source = event_source or session_source
 

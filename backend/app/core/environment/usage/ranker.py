@@ -90,8 +90,10 @@ class UsageRanker:
 
         if len(records) < top_n:
             for name in candidates:
-                if name in existing_names: continue
-                if len(records) >= top_n * 3: break
+                if name in existing_names:
+                    continue
+                if len(records) >= top_n * 3:
+                    break
 
                 # Try individual probe for high-likelihood candidates
                 record = cls._probe_macos_app(name)
@@ -121,6 +123,7 @@ class UsageRanker:
         """Get names of currently running non-background processes via AppleScript."""
         try:
             from app.infrastructure.drivers.macos import macos_driver
+
             script = 'tell application "System Events" to get name of every process whose background only is false'
             output = macos_driver.run_applescript(script)
             if output:
@@ -148,7 +151,7 @@ class UsageRanker:
             app_name=app_name,
             bundle_id=bundle_id,
             platform="macos",
-            last_used_at=last_used_at
+            last_used_at=last_used_at,
         )
 
     @classmethod
@@ -163,10 +166,12 @@ class UsageRanker:
             f"kMDItemDisplayName == '{app_name}' && kMDItemKind == 'Application'",
         ]
         try:
-            result = subprocess.run(
-                find_cmd, capture_output=True, text=True, timeout=5
-            )
-            app_paths = [p.strip() for p in result.stdout.splitlines() if p.strip().endswith(".app")]
+            result = subprocess.run(find_cmd, capture_output=True, text=True, timeout=5)
+            app_paths = [
+                p.strip()
+                for p in result.stdout.splitlines()
+                if p.strip().endswith(".app")
+            ]
         except Exception as e:
             logger.debug("Suppressed error: %s", e, exc_info=True)
             return None
@@ -248,13 +253,15 @@ class UsageRanker:
                 except Exception as e:
                     logger.debug("Suppressed error: %s", e, exc_info=True)
 
-            records.append(AppUsageRecord(
-                app_name=pkg.split(".")[-1],    # Friendly name from package
-                bundle_id=pkg,
-                platform="android",
-                last_used_at=last_used_at,
-                total_foreground_ms=total_ms,
-            ))
+            records.append(
+                AppUsageRecord(
+                    app_name=pkg.split(".")[-1],  # Friendly name from package
+                    bundle_id=pkg,
+                    platform="android",
+                    last_used_at=last_used_at,
+                    total_foreground_ms=total_ms,
+                )
+            )
 
         cls._compute_priority_scores(records)
         records.sort(key=lambda r: r.priority_score, reverse=True)
@@ -334,8 +341,8 @@ class UsageRanker:
         for i, record in enumerate(records):
             running_val = 1.0 if record.is_running else 0.0
             record.priority_score = round(
-                W_RECENCY * recency_raw[i] +
-                W_FREQUENCY * freq_raw[i] +
-                W_RUNNING * running_val,
-                4
+                W_RECENCY * recency_raw[i]
+                + W_FREQUENCY * freq_raw[i]
+                + W_RUNNING * running_val,
+                4,
             )

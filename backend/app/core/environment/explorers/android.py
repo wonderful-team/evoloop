@@ -18,6 +18,7 @@ class AndroidExplorer(BaseExplorer):
 
             # Autonomous triage for discovered packages
             from app.core.environment.explorers.dynamic_apps import DynamicAppTriage
+
             triage = DynamicAppTriage()
             await triage.sync_dynamic_apps(android_packages=packages)
 

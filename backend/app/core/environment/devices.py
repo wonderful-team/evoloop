@@ -34,12 +34,12 @@ class DevicePool:
         """
         Try to reserve a device for a specific task.
         Uses cache to ensure exclusive access.
-        
+
         Args:
             task_id: The ID of the task requesting the device.
             preferred_device: Optional specific device_id to target.
             timeout: How long to wait for a device if none are free.
-            
+
         Returns:
             The device_id if successfully reserved, else None.
         """
@@ -52,7 +52,11 @@ class DevicePool:
                 continue
 
             # If a preferred device is specified, try it first
-            targets = [preferred_device] if preferred_device and preferred_device in available_serials else available_serials
+            targets = (
+                [preferred_device]
+                if preferred_device and preferred_device in available_serials
+                else available_serials
+            )
 
             for serial in targets:
                 lock_key = f"{REDIS_KEY_DEVICE_LOCK_PREFIX}{serial}"
@@ -69,9 +73,11 @@ class DevicePool:
                         logger.info(f"Locked device {serial} for task {task_id}")
                         return serial
                     else:
-                        logger.debug(f"[DevicePool] Lost race for {serial}, owner={owner}")
+                        logger.debug(
+                            f"[DevicePool] Lost race for {serial}, owner={owner}"
+                        )
 
-            await asyncio.sleep(1) # Poll interval
+            await asyncio.sleep(1)  # Poll interval
 
         return None
 

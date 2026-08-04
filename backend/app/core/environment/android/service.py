@@ -27,19 +27,21 @@ class AndroidService:
         dehydrated: list[DehydratedElement] = []
         for el in elements:
             # Map UIElement to the dehydrated model format used by harvesting tasks
-            dehydrated.append(DehydratedElement(
-                id=el.id,
-                text=el.text,
-                x=el.x,
-                y=el.y,
-                width=el.width,
-                height=el.height,
-                clickable=el.clickable,
-                scrollable=el.metadata.get("scrollable", False),
-                package=el.metadata.get("package", ""),
-                class_=el.metadata.get("class", ""),
-                resource_id=el.metadata.get("resource_id", ""),
-            ))
+            dehydrated.append(
+                DehydratedElement(
+                    id=el.id,
+                    text=el.text,
+                    x=el.x,
+                    y=el.y,
+                    width=el.width,
+                    height=el.height,
+                    clickable=el.clickable,
+                    scrollable=el.metadata.get("scrollable", False),
+                    package=el.metadata.get("package", ""),
+                    class_=el.metadata.get("class", ""),
+                    resource_id=el.metadata.get("resource_id", ""),
+                )
+            )
 
         summary = f"Dehydrated layout with {len(dehydrated)} interactive elements."
         return dehydrated, summary

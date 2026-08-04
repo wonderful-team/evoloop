@@ -23,10 +23,12 @@ from .schemas import (
 
 async def publish_awakening_complete(platforms: list[str], project_id: int | None = None) -> None:
     """Publish the awakening complete event."""
-    await system_bus.publish(AwakenEvent(
-        event_type=SystemEventType.AWAKENING_COMPLETE,
-        data={"platforms": platforms, "project_id": project_id}
-    ))
+    await system_bus.publish(
+        AwakenEvent(
+            event_type=SystemEventType.AWAKENING_COMPLETE,
+            data={"platforms": platforms, "project_id": project_id},
+        )
+    )
 
 
 async def publish_boundary_learned(
@@ -35,11 +37,13 @@ async def publish_boundary_learned(
     description: str,
 ) -> None:
     """Publish a boundary learned event."""
-    await system_bus.publish(BoundaryLearnedEvent(
-        tool_name=tool_name,
-        category=category,
-        description=description,
-    ))
+    await system_bus.publish(
+        BoundaryLearnedEvent(
+            tool_name=tool_name,
+            category=category,
+            description=description,
+        )
+    )
 
 
 async def publish_device_connected(
@@ -47,10 +51,12 @@ async def publish_device_connected(
     device_type: str = "android",
 ) -> None:
     """Publish a device connected event."""
-    await system_bus.publish(DeviceConnectedEvent(
-        device_id=device_id,
-        device_type=device_type,
-    ))
+    await system_bus.publish(
+        DeviceConnectedEvent(
+            device_id=device_id,
+            device_type=device_type,
+        )
+    )
 
 
 async def publish_device_disconnected(device_id: str) -> None:

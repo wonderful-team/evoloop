@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 class BoundaryCategory(str, Enum):
     """Categories of capability boundaries"""
+
     NETWORK = "network"
     PERMISSION = "permission"
     DEVICE = "device"
@@ -28,6 +29,7 @@ class BoundaryCategory(str, Enum):
 
 class DynamicBoundary(DynamicBaseModel):
     """A learned capability boundary with TTL"""
+
     description: str
     category: BoundaryCategory
     source_tool: str
@@ -52,20 +54,21 @@ class DynamicBoundary(DynamicBaseModel):
 class AdaptiveBoundaryManager:
     """
     Manages dynamic capability boundaries learned from tool failures.
-    
+
     Features:
     - Automatic failure attribution (network, permission, device, etc.)
     - TTL-based boundary expiration (default 1 hour, extended on repeat)
     - Occurrence counting for persistent issues
     - Integration with AwakenedState.capability_boundaries
-    
+
     Usage:
         # On tool failure
         await boundary_manager.on_tool_failure("adb_tap", timeout_error)
-        
+
         # Get all boundaries for prompt injection
         boundaries = boundary_manager.get_all_boundaries()
     """
+
     _instance = None
 
     def __new__(cls):
@@ -87,12 +90,12 @@ class AdaptiveBoundaryManager:
     ) -> DynamicBoundary | None:
         """
         Process a tool failure and potentially create a new boundary.
-        
+
         Args:
             tool_name: Name of the failed tool
             error: The exception that was raised
             context: Additional context (device_id, network status, etc.)
-            
+
         Returns:
             The created or updated DynamicBoundary, if applicable
         """
@@ -122,7 +125,7 @@ class AdaptiveBoundaryManager:
             category=category,
             source_tool=tool_name,
             source_error=error_str[:200],
-            expires_at=datetime.now() + timedelta(hours=1)
+            expires_at=datetime.now() + timedelta(hours=1),
         )
 
         self._boundaries[boundary_key] = boundary
@@ -130,6 +133,7 @@ class AdaptiveBoundaryManager:
 
         # 5. Publish event
         from app.core.environment.event.publishers import publish_boundary_learned
+
         await publish_boundary_learned(
             tool_name=tool_name,
             category=category.value,
@@ -141,7 +145,7 @@ class AdaptiveBoundaryManager:
     def _attribute_failure(self, error_str: str, tool_name: str) -> tuple[BoundaryCategory, str]:
         """
         Analyze error message to determine failure category and mitigation.
-        
+
         Returns:
             Tuple of (category, mitigation_description)
         """
@@ -149,35 +153,70 @@ class AdaptiveBoundaryManager:
         if any(kw in error_str for kw in ["timeout", "connection refused", "network", "unreachable", "timed out"]):
             return (
                 BoundaryCategory.NETWORK,
-                f"Tool '{tool_name}' may timeout under poor network conditions. Check connectivity first."
+                f"Tool '{tool_name}' may timeout under poor network conditions. Check connectivity first.",
             )
 
         # Permission issues
-        if any(kw in error_str for kw in ["permission denied", "access denied", "unauthorized", "forbidden", "not allowed"]):
+        if any(
+            kw in error_str
+            for kw in [
+                "permission denied",
+                "access denied",
+                "unauthorized",
+                "forbidden",
+                "not allowed",
+            ]
+        ):
             return (
                 BoundaryCategory.PERMISSION,
-                f"Tool '{tool_name}' requires elevated permissions. Verify access rights before use."
+                f"Tool '{tool_name}' requires elevated permissions. Verify access rights before use.",
             )
 
         # Device issues (ADB, etc.)
-        if any(kw in error_str for kw in ["adb", "device not found", "no devices", "offline", "not connected"]):
+        if any(
+            kw in error_str
+            for kw in [
+                "adb",
+                "device not found",
+                "no devices",
+                "offline",
+                "not connected",
+            ]
+        ):
             return (
                 BoundaryCategory.DEVICE,
-                f"Tool '{tool_name}' failed due to device issues. Ensure device is connected and authorized."
+                f"Tool '{tool_name}' failed due to device issues. Ensure device is connected and authorized.",
             )
 
         # Resource issues
-        if any(kw in error_str for kw in ["out of memory", "disk full", "quota exceeded", "resource", "no space"]):
+        if any(
+            kw in error_str
+            for kw in [
+                "out of memory",
+                "disk full",
+                "quota exceeded",
+                "resource",
+                "no space",
+            ]
+        ):
             return (
                 BoundaryCategory.RESOURCE,
-                f"Tool '{tool_name}' failed due to resource constraints. Free up resources before retry."
+                f"Tool '{tool_name}' failed due to resource constraints. Free up resources before retry.",
             )
 
         # Tool-specific issues
-        if any(kw in error_str for kw in ["not found", "not installed", "command not found", "no such file"]):
+        if any(
+            kw in error_str
+            for kw in [
+                "not found",
+                "not installed",
+                "command not found",
+                "no such file",
+            ]
+        ):
             return (
                 BoundaryCategory.TOOL,
-                f"Tool '{tool_name}' or its dependencies may not be properly installed."
+                f"Tool '{tool_name}' or its dependencies may not be properly installed.",
             )
 
         return (BoundaryCategory.UNKNOWN, "")
@@ -185,7 +224,7 @@ class AdaptiveBoundaryManager:
     def get_all_boundaries(self) -> list[str]:
         """
         Get all current capability boundaries (static + dynamic).
-        
+
         Expired dynamic boundaries are automatically pruned.
         """
         # Prune expired boundaries
@@ -221,7 +260,7 @@ class AdaptiveBoundaryManager:
                 cat.value: len([b for b in self._boundaries.values() if b.category == cat])
                 for cat in BoundaryCategory
                 if any(b.category == cat for b in self._boundaries.values())
-            }
+            },
         }
 
 

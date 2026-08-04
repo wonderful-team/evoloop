@@ -1,6 +1,7 @@
 """
 Desktop controller mixin — tri-engine element resolution (AX + Atlas + OCR).
 """
+
 import asyncio
 import logging
 import time
@@ -8,8 +9,8 @@ import time
 from app.core.atlas import atlas_engine
 from app.core.environment.schemas import ElementResolutionResult
 from app.core.file import cleanup_file
-from app.infrastructure.vision import VisionTask, vision_engine
 from app.infrastructure.drivers.macos import macos_driver
+from app.infrastructure.vision import VisionTask, vision_engine
 from app.utils.controller_response import ControllerResponse
 from app.utils.text import normalize_text
 
@@ -19,14 +20,10 @@ logger = logging.getLogger(__name__)
 
 
 class DesktopElementMixin:
-
     @classmethod
     async def _try_ax_tree(cls, name: str, role: str | None = None) -> ElementResolutionResult | None:
         try:
-            raw_tree = await asyncio.wait_for(
-                asyncio.to_thread(macos_driver.dump_ax_tree),
-                timeout=3.0
-            )
+            raw_tree = await asyncio.wait_for(asyncio.to_thread(macos_driver.dump_ax_tree), timeout=3.0)
             if not raw_tree or "Error" in raw_tree:
                 return None
 
@@ -82,12 +79,16 @@ class DesktopElementMixin:
             result = await atlas_engine.resolve_spatial_element(bundle_id, name, platform="macos")
             if result:
                 if "x" in result and "y" in result:
-                    return ElementResolutionResult(x=result["x"], y=result["y"], source=result.get("source", "atlas"))
+                    return ElementResolutionResult(
+                        x=result["x"],
+                        y=result["y"],
+                        source=result.get("source", "atlas"),
+                    )
                 elif "strategy" in result:
                     return ElementResolutionResult(
                         strategy=result["strategy"],
                         parameters=result.get("parameters", {}),
-                        source=result.get("source", "atlas_strategy")
+                        source=result.get("source", "atlas_strategy"),
                     )
             return None
         except Exception as e:
@@ -128,12 +129,12 @@ class DesktopElementMixin:
                 best = None
                 best_r = 0.0
                 for el in result.elements:
-                    clean = el.text.strip().rstrip('～~!@#$%^&*()_+-=[]{}|;:,.<>?/')
+                    clean = el.text.strip().rstrip("～~!@#$%^&*()_+-=[]{}|;:,.<>?/")
                     if clean == name:
                         logger.info(f"[Desktop] OCR exact resolved '{name}' at ({win_x + el.x}, {win_y + el.y})")
                         return ElementResolutionResult(type="coords", x=win_x + el.x, y=win_y + el.y)
                 for el in result.elements:
-                    clean = el.text.strip().rstrip('～~!@#$%^&*()_+-=[]{}|;:,.<>?/')
+                    clean = el.text.strip().rstrip("～~!@#$%^&*()_+-=[]{}|;:,.<>?/")
                     if name in clean:
                         logger.info(f"[Desktop] OCR resolved '{name}' at ({win_x + el.x}, {win_y + el.y})")
                         return ElementResolutionResult(type="coords", x=win_x + el.x, y=win_y + el.y)
@@ -170,10 +171,7 @@ class DesktopElementMixin:
         completed_sources = []
 
         while pending:
-            done, pending = await asyncio.wait(
-                pending,
-                return_when=asyncio.FIRST_COMPLETED
-            )
+            done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
 
             for task in done:
                 try:

@@ -4,6 +4,7 @@ Environment Event Subscribers
 
 Event subscribers for the Awakening/Environment domain.
 """
+
 import asyncio
 import logging
 
@@ -49,6 +50,7 @@ class EnvironmentLifecycleSubscriber:
         # 1. Awaken Agent
         logger.info("[Environment] 🌅 Scheduling Agent Awakening in background...")
         import asyncio
+
         task = asyncio.create_task(awaken())
         _background_tasks.add(task)
         task.add_done_callback(_background_tasks.discard)
@@ -113,6 +115,7 @@ class DeviceEventSubscriber:
 
         # Refresh awakened state
         from app.core.environment import _refresh_state
+
         await _refresh_state()
 
         # Trigger app probing for new Android devices
@@ -142,6 +145,7 @@ class DeviceEventSubscriber:
         logger.info(f"🔌 Device disconnected: {device_id}")
 
         from app.core.environment import _refresh_state
+
         await _refresh_state()
 
 
@@ -199,7 +203,9 @@ class SystemEventSubscriber:
         platforms = event.data.get("platforms", [])
         project = event.data.get("project")
 
-        logger.info(f"🧠 Awakening complete. Platforms: {platforms}, Project: {project}")
+        logger.info(
+            f"🧠 Awakening complete. Platforms: {platforms}, Project: {project}"
+        )
 
     @event_subscribe(SystemEventType.STATE_REFRESHED)
     async def on_state_refreshed(self, event: AwakenEvent) -> None:

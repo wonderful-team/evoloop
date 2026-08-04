@@ -4,6 +4,7 @@ Environment Event Schemas
 
 Pydantic data classes for environment/awakening events.
 """
+
 from typing import Any
 
 from pydantic import Field
@@ -16,6 +17,7 @@ from .types import EventType
 
 class AwakenEvent(BaseEvent):
     """Generic event for the awakening domain."""
+
     event_type: str = SystemEventType.AWAKENING_COMPLETE
 
     # Enable automatic bridging to UI
@@ -25,6 +27,7 @@ class AwakenEvent(BaseEvent):
 
 class DeviceConnectedEvent(BaseEvent):
     """Triggered when a new device is connected."""
+
     event_type: str = EventType.DEVICE_CONNECTED
     device_id: str = ""
     device_type: str = "android"
@@ -42,6 +45,7 @@ class DeviceConnectedEvent(BaseEvent):
 
 class DeviceDisconnectedEvent(BaseEvent):
     """Triggered when a device is disconnected."""
+
     event_type: str = EventType.DEVICE_DISCONNECTED
     device_id: str = ""
 
@@ -50,13 +54,12 @@ class DeviceDisconnectedEvent(BaseEvent):
     broadcast_channel: str = "system"
 
     def model_post_init(self, __context: Any) -> None:
-        self.data = EventData.model_validate({
-            "device_id": self.device_id
-        })
+        self.data = EventData.model_validate({"device_id": self.device_id})
 
 
 class BoundaryLearnedEvent(BaseEvent):
     """Triggered when a new capability boundary is learned."""
+
     event_type: str = SystemEventType.BOUNDARY_LEARNED
     tool_name: str = ""
     category: str = ""
@@ -78,6 +81,7 @@ class UiTreeObservedEvent(BaseEvent):
     """
     Triggered when a UI tree is observed.
     """
+
     event_type: str = EventType.UI_TREE_OBSERVED
     platform: str = ""
     bundle_id: str = ""

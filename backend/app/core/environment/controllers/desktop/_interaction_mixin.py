@@ -1,6 +1,7 @@
 """
 Desktop controller mixin — interaction actions (click, type, scroll, drag_drop).
 """
+
 import asyncio
 import logging
 
@@ -13,7 +14,6 @@ logger = logging.getLogger(__name__)
 
 
 class DesktopInteractionMixin:
-
     @classmethod
     async def _handle_interaction(cls, action: str, **ctx) -> str | None:
         recording_func = ctx["recording_func"]
@@ -61,7 +61,7 @@ class DesktopInteractionMixin:
                     if strategy_type == "search_then_click":
                         return ControllerResponse.error(
                             f"'{element_name}' is in a dynamic app. Strategy required.",
-                            details=f"Use search approach: {params.get('description', 'Search for the element')}. Direct coordinates are unreliable."
+                            details=f"Use search approach: {params.get('description', 'Search for the element')}. Direct coordinates are unreliable.",
                         )
                     elif strategy_type == "static_click" and params.get("resource_id"):
                         element_path = params.get("resource_id")
@@ -93,8 +93,8 @@ class DesktopInteractionMixin:
                 await asyncio.to_thread(macos_driver.double_click, target_x, target_y)
                 await recording_func("double_click", {"x": target_x, "y": target_y, "element_name": element_name})
                 return ControllerResponse.success(
-                    f"Visually double-clicked at ({target_x}, {target_y})" +
-                    (f" (resolved from '{element_name}')" if element_name else ".")
+                    f"Visually double-clicked at ({target_x}, {target_y})"
+                    + (f" (resolved from '{element_name}')" if element_name else ".")
                 )
 
         elif action == "type_text":
@@ -122,6 +122,7 @@ class DesktopInteractionMixin:
                     CGEventPost,
                     kCGHIDEventTap,
                 )
+
                 if direction == "up":
                     delta_y, delta_x = amount, 0
                 elif direction == "down":
@@ -135,7 +136,12 @@ class DesktopInteractionMixin:
                 await recording_func("scroll", {"direction": direction, "amount": amount})
                 return ControllerResponse.success(f"Scrolled {direction} by {amount}px.")
             except ImportError:
-                key_map = {"up": "pageup", "down": "pagedown", "left": "left", "right": "right"}
+                key_map = {
+                    "up": "pageup",
+                    "down": "pagedown",
+                    "left": "left",
+                    "right": "right",
+                }
                 k = key_map.get(direction)
                 if k:
                     presses = max(1, amount // 300)
@@ -180,6 +186,7 @@ class DesktopInteractionMixin:
                     kCGEventLeftMouseUp,
                     kCGHIDEventTap,
                 )
+
                 source_point = CGPointMake(source_x, source_y)
                 target_point = CGPointMake(target_x, target_y)
                 CGEventPost(kCGHIDEventTap, CGEventCreateMouseEvent(None, kCGEventLeftMouseDown, source_point, 0))
@@ -188,7 +195,7 @@ class DesktopInteractionMixin:
                 for i in range(steps):
                     point = CGPointMake(
                         source_x + (target_x - source_x) * (i + 1) / steps,
-                        source_y + (target_y - source_y) * (i + 1) / steps
+                        source_y + (target_y - source_y) * (i + 1) / steps,
                     )
                     CGEventPost(kCGHIDEventTap, CGEventCreateMouseEvent(None, kCGEventLeftMouseDragged, point, 0))
                     await asyncio.sleep(duration_ms / 1000 / steps)

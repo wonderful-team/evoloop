@@ -10,6 +10,7 @@ from app.infrastructure.pydantic_base import DynamicBaseModel
 
 class DehydratedElement(DynamicBaseModel):
     """A dehydrated Android UI element."""
+
     id: int
     text: str
     x: int
@@ -22,8 +23,10 @@ class DehydratedElement(DynamicBaseModel):
     class_: str = ""  # mapped from "class"
     resource_id: str = ""
 
+
 class AndroidEvent(DynamicBaseModel):
     """Represents a single Android input event."""
+
     timestamp: float
     event_type: str  # "touch_down", "touch_up", "touch_move", "swipe", "key"
     x: int | None = None
@@ -35,8 +38,10 @@ class AndroidEvent(DynamicBaseModel):
     swipe_end_y: int | None = None
     swipe_duration_ms: float | None = None
 
+
 class DebounceConfig(DynamicBaseModel):
     """Configuration for event debouncing."""
+
     # Time threshold in milliseconds - ignore events within this window
     time_threshold_ms: float = 50.0
     # Spatial threshold in pixels - ignore movements smaller than this
@@ -44,13 +49,16 @@ class DebounceConfig(DynamicBaseModel):
     # Maximum swipe events to keep (for very long swipes)
     max_swipe_points: int = 5
 
+
 class AndroidTraceEvent(DynamicBaseModel):
     """Trace event representation for Android mirror sessions."""
+
     timestamp: int
     event_type: str
     target_selector: str | None = None
     target_text: str | None = None
     payload: dict = {}
+
 
 class ElementResolutionResult(DynamicBaseModel):
     type: str | None = None
@@ -61,15 +69,18 @@ class ElementResolutionResult(DynamicBaseModel):
     parameters: dict | None = None
     source: str | None = None
 
+
 class MirrorSessionStopResult(DynamicBaseModel):
     video_path: str | None = None
     events: list[AndroidTraceEvent] = Field(default_factory=list)
     session_id: str
 
+
 class AppInfo(DynamicBaseModel):
     package: str
     activity: str = ""
     confidence: float = 1.0
+
 
 class BatchStepResult(DynamicBaseModel):
     step: int
@@ -78,11 +89,13 @@ class BatchStepResult(DynamicBaseModel):
     result: Any = None
     latency_ms: int
 
+
 class AppUsageRecord(DynamicBaseModel):
     """
     Activity profile for a single application.
     Produced by UsageRanker and stored in MacOSEnvironment.app_usage_stats.
     """
+
     app_name: str
     bundle_id: str
     platform: str = "macos"                   # "macos" | "android"
@@ -91,8 +104,10 @@ class AppUsageRecord(DynamicBaseModel):
     priority_score: float = 0.0               # Normalized 0-1 combined score
     is_running: bool = False                   # Is the app currently running?
 
+
 class HostEnvironment(DynamicBaseModel):
     """Host environment information (MacOS, Linux, Windows)."""
+
     os_name: str = "macOS"  # Default to macOS for backward compatibility
     os_version: str
     model: str
@@ -111,6 +126,7 @@ class HostEnvironment(DynamicBaseModel):
 
 class AndroidDevice(DynamicBaseModel):
     """Connected Android device information."""
+
     device_id: str
     model: str
     os_version: str
@@ -126,31 +142,41 @@ class AndroidDevice(DynamicBaseModel):
         """Alias for device_id (compatibility with ADB terminology)."""
         return self.device_id
 
+
 class NetworkStatus(DynamicBaseModel):
     """Network connectivity status."""
+
     internet_connected: bool = False
     local_ips: list[str] = []
 
+
 class EpisodeSummary(DynamicBaseModel):
     """Summary of a past task execution."""
+
     date: str
     goal: str
     result: str  # SUCCESS, PARTIAL, FAILED
 
+
 class ConceptSummary(DynamicBaseModel):
     """Summary of a knowledge concept."""
+
     name: str
     description: str = ""
 
+
 class MemoryContext(DynamicBaseModel):
     """Aggregated memory context for awakening."""
+
     episodes: list[EpisodeSummary] = []
     concepts: list[ConceptSummary] = []
     journal_highlights: str = ""
 
+
 class AndroidTelemetry(DynamicBaseModel):
     id: str
     reachable: bool
+
 
 class TelemetrySnapshot(DynamicBaseModel):
     android: list[AndroidTelemetry] = Field(default_factory=list)
@@ -161,6 +187,8 @@ class TelemetrySnapshot(DynamicBaseModel):
     memory: dict = Field(default_factory=dict)
     context_usage_percent: int = 0
 
+
 class PreferenceContext(DynamicBaseModel):
     """User preferences."""
+
     preferences: dict[str, str] = {}

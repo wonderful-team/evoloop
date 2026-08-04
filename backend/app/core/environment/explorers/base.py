@@ -43,6 +43,7 @@ class BaseExplorer(ABC):
             ).strip()
 
             from app.infrastructure.llm import InternalLLMService
+
             response = await InternalLLMService.invoke(
                 messages=[
                     {"role": "system", "content": role_name},

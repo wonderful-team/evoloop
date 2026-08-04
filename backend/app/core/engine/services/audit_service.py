@@ -32,6 +32,7 @@ def _role(msg):
 
 class AuditResult(DynamicBaseModel):
     """Result of an audit execution."""
+
     summary: str
     meta: dict = Field(default_factory=dict)
     messages: list = Field(default_factory=list)
@@ -173,6 +174,7 @@ class AuditService:
             audit_ticket = f"{audit_ticket}\n\n---\n📊 Structured Audit Input:\n{audit_input_json}"
 
         from app.core.tools.manager import tool_manager
+
         tools = await tool_manager.get_node_tools("finish", state)
 
         logger.info("[AuditService] 🕵️ Starting engine-driven audit")
@@ -185,6 +187,7 @@ class AuditService:
         # 1. Prepare Extraction Messages (Deep Semantic History)
         # We use ContextTrimmer to replace fat ToolMessages with placeholders, while keeping all reasoning.
         from app.core.engine.context_trimmer import ContextTrimmer
+
         trimmer = ContextTrimmer()
         # model parameter isn't strict here since we just want the semantic compaction, we use the active model
         extraction_trim_result = trimmer.trim(

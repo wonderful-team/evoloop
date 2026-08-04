@@ -1,6 +1,7 @@
 """
 Browser controller mixin — interaction actions (click, type, scroll, etc.).
 """
+
 import logging
 
 from app.utils.controller_response import ControllerResponse
@@ -11,7 +12,6 @@ logger = logging.getLogger(__name__)
 
 
 class BrowserInteractionMixin:
-
     @classmethod
     async def _handle_interaction(cls, action: str, **ctx) -> str | None:
         page = ctx["page"]

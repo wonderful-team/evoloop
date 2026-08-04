@@ -158,7 +158,7 @@ async def authorization_gate(context: HookContext) -> HookResult:
             now = datetime.now(timezone.utc)
             # Make sure we load granted permissions
             await auth_service._load()
-            for grant in (auth_service._granted or []):
+            for grant in auth_service._granted or []:
                 # Check match
                 # Try relative paths as well
                 check_paths = [resource_path]
