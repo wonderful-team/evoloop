@@ -60,12 +60,25 @@ TEXT_EXTENSIONS = [
 
 # Image file extensions
 IMAGE_EXTENSIONS = [
-    ".bmp", ".gif", ".ico", ".jpg", ".jpeg", ".png", ".svg", ".tiff", ".webp",
+    ".bmp",
+    ".gif",
+    ".ico",
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".svg",
+    ".tiff",
+    ".webp",
 ]
 
 # Video file extensions
 VIDEO_EXTENSIONS = [
-    ".avi", ".flv", ".mov", ".mpeg", ".mp4", ".wmv",
+    ".avi",
+    ".flv",
+    ".mov",
+    ".mpeg",
+    ".mp4",
+    ".wmv",
 ]
 
 # Audio file extensions
@@ -75,21 +88,53 @@ AUDIO_EXTENSIONS = [
 
 # Compressed and binary file extensions
 BINARY_EXTENSIONS = [
-    ".zip", ".rar", ".7z", ".zlib", ".dll", ".ipynb",  # Jupyter notebooks
-    ".pyc", ".so", ".exe", ".bin",
-    ".tar", ".gz", ".tgz", ".jar", ".war", ".ear",
-    ".o", ".a", ".lib",
-    ".db", ".class",
+    ".zip",
+    ".rar",
+    ".7z",
+    ".zlib",
+    ".dll",
+    ".ipynb",  # Jupyter notebooks
+    ".pyc",
+    ".so",
+    ".exe",
+    ".bin",
+    ".tar",
+    ".gz",
+    ".tgz",
+    ".jar",
+    ".war",
+    ".ear",
+    ".o",
+    ".a",
+    ".lib",
+    ".db",
+    ".class",
 ]
 
 # System and low-level programming languages
 LOW_LEVEL_EXTENSIONS = [
-    ".c", ".cpp", ".h", ".cs", ".go", ".java", ".m", ".rs",
+    ".c",
+    ".cpp",
+    ".h",
+    ".cs",
+    ".go",
+    ".java",
+    ".m",
+    ".rs",
 ]
 
 # Scripting and dynamic languages
 SCRIPT_EXTENSIONS = [
-    ".py", ".rb", ".js", ".mjs", ".php", ".pl", ".pm", ".lua", ".sh", ".swift",
+    ".py",
+    ".rb",
+    ".js",
+    ".mjs",
+    ".php",
+    ".pl",
+    ".pm",
+    ".lua",
+    ".sh",
+    ".swift",
 ]
 # Common Testing Related Patterns
 TEST_FILE_PATTERNS = {
@@ -101,17 +146,40 @@ TEST_FILE_PATTERNS = {
 
 # Functional programming languages
 FUNCTIONAL_EXTENSIONS = [
-    ".el", ".ex", ".exs", ".elm", ".hs", ".ml", ".mli", ".scala",
+    ".el",
+    ".ex",
+    ".exs",
+    ".elm",
+    ".hs",
+    ".ml",
+    ".mli",
+    ".scala",
 ]
 
 # Web development related
 WEB_EXTENSIONS = [
-    ".html", ".htm", ".css", ".less", ".scss", ".jsx", ".ts", ".tsx", ".vue",
+    ".html",
+    ".htm",
+    ".css",
+    ".less",
+    ".scss",
+    ".jsx",
+    ".ts",
+    ".tsx",
+    ".vue",
 ]
 
 # Configuration files
 CONFIG_EXTENSIONS = [
-    ".cfg", ".conf", ".ini", ".json", ".properties", ".toml", ".xml", ".yaml", ".yml",
+    ".cfg",
+    ".conf",
+    ".ini",
+    ".json",
+    ".properties",
+    ".toml",
+    ".xml",
+    ".yaml",
+    ".yml",
 ]
 
 # YAML specific extensions
@@ -119,13 +187,30 @@ YAML_EXTENSIONS = [".yaml", ".yml"]
 
 # Documentation and text files
 DOC_TEXT_EXTENSIONS = [
-    ".md", ".mdx", ".rst", ".txt", ".sql", ".xsq",
+    ".md",
+    ".mdx",
+    ".rst",
+    ".txt",
+    ".sql",
+    ".xsq",
 ]
 
 # Extensions allowed for documentation files (used by write_file for validation)
 ALLOWED_DOC_EXTENSIONS = [
-    ".md", ".txt", ".json", ".yaml", ".yml", ".csv", ".html", ".htm", ".css",
-    ".xml", ".rst", ".toml", ".ini", ".log",
+    ".md",
+    ".txt",
+    ".json",
+    ".yaml",
+    ".yml",
+    ".csv",
+    ".html",
+    ".htm",
+    ".css",
+    ".xml",
+    ".rst",
+    ".toml",
+    ".ini",
+    ".log",
 ]
 
 # Project norm/guideline files scanned for memory context extraction
@@ -181,12 +266,22 @@ SOURCE_MAP_EXTENSIONS = [".map", ".sourcemap"]
 
 # Development environment blacklisted directories
 DEV_ENV_DIRS = [
-    ".venv", "venv", "env", ".idea", ".vscode", ".git", ".github", ".gitlab", ".vs",
+    ".venv",
+    "venv",
+    "env",
+    ".idea",
+    ".vscode",
+    ".git",
+    ".github",
+    ".gitlab",
+    ".vs",
 ]
 
 # Cache and temporary file directories
 CACHE_TEMP_DIRS = [
-    "__pycache__", ".pytest_cache", ".tmp",
+    "__pycache__",
+    ".pytest_cache",
+    ".tmp",
 ]
 
 # Build and deploy related directories
