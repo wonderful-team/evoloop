@@ -9,7 +9,7 @@ import os
 import subprocess
 import threading
 import time
-from typing import Callable
+from collections.abc import Callable
 
 from app.core.environment.schemas import AndroidEvent, AndroidTraceEvent, DebounceConfig
 
@@ -82,7 +82,7 @@ class AndroidEventRecorder:
             app_package=self.current_package,
             swipe_end_x=final_x,
             swipe_end_y=final_y,
-            swipe_duration_ms=duration_ms
+            swipe_duration_ms=duration_ms,
         )
 
         self.events.append(swipe_event)
@@ -169,13 +169,13 @@ class AndroidEventRecorder:
                 elif ev_code == 0x36:
                     return AndroidEvent(timestamp=relative_ts_ms, event_type="touch_y", y=ev_value, device_id=self.device_id or ""), relative_ts_ms
                 elif ev_code == 0x39:
-                    if ev_value in (0xffffffff, -1):
+                    if ev_value in (0xFFFFFFFF, -1):
                         return AndroidEvent(timestamp=relative_ts_ms, event_type="touch_up", device_id=self.device_id or ""), relative_ts_ms
                     else:
                         return AndroidEvent(timestamp=relative_ts_ms, event_type="touch_down", device_id=self.device_id or ""), relative_ts_ms
 
             elif ev_type == 0x01:
-                if ev_code == 0x14a:
+                if ev_code == 0x14A:
                     event_type = "touch_down" if ev_value == 1 else "touch_up"
                     return AndroidEvent(timestamp=relative_ts_ms, event_type=event_type, device_id=self.device_id or ""), relative_ts_ms
                 else:
@@ -193,6 +193,7 @@ class AndroidEventRecorder:
         Uses centralized adb_driver with caching.
         """
         from app.infrastructure.drivers.adb import adb_driver
+
         target_device = device_id or self.device_id
         if not target_device:
             return None
@@ -240,11 +241,12 @@ class AndroidEventRecorder:
                 try:
                     chunk = os.read(fd, 4096)
                     if not chunk:
-                        if proc.poll() is not None: break
+                        if proc.poll() is not None:
+                            break
                         time.sleep(0.01)
                         continue
 
-                    buffer += chunk.decode('utf-8', errors='ignore')
+                    buffer += chunk.decode("utf-8", errors="ignore")
                     if "\n" in buffer:
                         lines = buffer.split("\n")
                         buffer = lines.pop()
@@ -280,7 +282,7 @@ class AndroidEventRecorder:
                                         x=current_touch["x"],
                                         y=current_touch["y"],
                                         device_id=self.device_id or "",
-                                        app_package=self.current_package
+                                        app_package=self.current_package,
                                     )
                                     self.events.append(data)
                                     if self.on_event_callback:
@@ -298,7 +300,7 @@ class AndroidEventRecorder:
                                         x=current_touch["x"],
                                         y=current_touch["y"],
                                         device_id=self.device_id or "",
-                                        app_package=self.current_package
+                                        app_package=self.current_package,
                                     )
                                     self.events.append(data)
                                     if self.on_event_callback:
@@ -310,7 +312,7 @@ class AndroidEventRecorder:
                                     event_type="key",
                                     key_code=event.key_code,
                                     device_id=self.device_id or "",
-                                    app_package=self.current_package
+                                    app_package=self.current_package,
                                 )
                                 self.events.append(data)
                                 if self.on_event_callback:
@@ -335,6 +337,7 @@ class AndroidEventRecorder:
         Avoids the 0.5s-1.0s startup latency of the adb process.
         """
         from app.infrastructure.drivers.adb import adb_driver
+
         try:
             # 1. Fetch kernel uptime (seconds)
             kernel_uptime = adb_driver.get_uptime(self.device_id)
@@ -359,7 +362,8 @@ class AndroidEventRecorder:
 
     def start_recording(self, device_id: str, callback=None, video_start_time: float | None = None) -> bool:
         """Start recording events."""
-        if self.is_recording: return False
+        if self.is_recording:
+            return False
         self.device_id = device_id
         self.events = []
         self.is_recording = True
@@ -409,7 +413,8 @@ class AndroidEventRecorder:
                 self.process.terminate()
                 self.process.wait(timeout=2)
             except (OSError, ProcessLookupError):
-                if self.process: self.process.kill()
+                if self.process:
+                    self.process.kill()
             self.process = None
         if self._recording_thread and self._recording_thread.is_alive():
             self._recording_thread.join(timeout=3)
@@ -425,9 +430,11 @@ class AndroidEventRecorder:
                     "x": event.x, "y": event.y,
                     "end_x": event.swipe_end_x, "end_y": event.swipe_end_y,
                     "duration_ms": event.swipe_duration_ms,
-                    "device_id": event.device_id, "platform": "android",
+                    "device_id": event.device_id,
+                    "platform": "android",
                     "package_name": event.app_package,
-                    "relative_timestamp_ms": relative_ms, "is_swipe": True,
+                    "relative_timestamp_ms": relative_ms,
+                    "is_swipe": True,
                 }
                 target_x, target_y = (event.swipe_end_x or event.x), (event.swipe_end_y or event.y)
             else:
@@ -439,11 +446,15 @@ class AndroidEventRecorder:
                 }
                 target_x, target_y = event.x, event.y
 
-            trace_events.append(AndroidTraceEvent(
-                timestamp=relative_ms,
-                event_type=event.event_type,
-                target_selector=f"android://screen/{target_x}/{target_y}" if target_x is not None else None,
-                target_text=None,
-                payload=payload
-            ))
+            trace_events.append(
+                AndroidTraceEvent(
+                    timestamp=relative_ms,
+                    event_type=event.event_type,
+                    target_selector=f"android://screen/{target_x}/{target_y}"
+                    if target_x is not None
+                    else None,
+                    target_text=None,
+                    payload=payload,
+                )
+            )
         return trace_events

@@ -1,6 +1,7 @@
 """
 Mobile controller mixin — interaction actions (tap, swipe, scroll, input, etc.).
 """
+
 import asyncio
 import logging
 import time
@@ -12,7 +13,6 @@ logger = logging.getLogger(__name__)
 
 
 class MobileInteractionMixin:
-
     @classmethod
     async def _handle_interaction(cls, action: str, **ctx) -> str | None:
         _normalize_coordinates = ctx["_normalize_coordinates"]
@@ -41,7 +41,15 @@ class MobileInteractionMixin:
             base_pkg = await _get_effective_package()
             tx, ty = await _normalize_coordinates(x, y)
             if element_name:
-                result = await _resolve_with_fallback(element_name, element_role, tx, ty, timeout, base_pkg, fast_probe_enabled=fast_probe)
+                result = await _resolve_with_fallback(
+                    element_name,
+                    element_role,
+                    tx,
+                    ty,
+                    timeout,
+                    base_pkg,
+                    fast_probe_enabled=fast_probe,
+                )
                 if isinstance(result, str):
                     return result
                 tx, ty = result
@@ -59,21 +67,40 @@ class MobileInteractionMixin:
             base_pkg = await _get_effective_package()
             tx, ty = await _normalize_coordinates(x, y)
             if element_name:
-                result = await _resolve_with_fallback(element_name, element_role, tx, ty, timeout, base_pkg, fast_probe_enabled=fast_probe)
+                result = await _resolve_with_fallback(
+                    element_name,
+                    element_role,
+                    tx,
+                    ty,
+                    timeout,
+                    base_pkg,
+                    fast_probe_enabled=fast_probe,
+                )
                 if isinstance(result, str):
                     return result
                 tx, ty = result
             if tx is None or ty is None:
                 return "Error: Coordinates or element_name required."
             press_duration = duration_ms if duration_ms > 300 else 800
-            await asyncio.to_thread(adb_driver.long_press, tx, ty, duration_ms=press_duration, device_id=device_id)
+            await asyncio.to_thread(
+                adb_driver.long_press,
+                tx,
+                ty,
+                duration_ms=press_duration,
+                device_id=device_id,
+            )
             return await _post_action_cleanup(
                 "long_press",
-                {"x": tx, "y": ty, "element_name": element_name, "duration": press_duration},
+                {
+                    "x": tx,
+                    "y": ty,
+                    "element_name": element_name,
+                    "duration": press_duration,
+                },
                 ControllerResponse.success(
-                    f"Long-pressed at ({tx}, {ty}) for {press_duration}ms" +
-                    (f" (resolved from '{element_name}')" if element_name else "")
-                )
+                    f"Long-pressed at ({tx}, {ty}) for {press_duration}ms"
+                    + (f" (resolved from '{element_name}')" if element_name else "")
+                ),
             )
 
         elif action == "swipe":
@@ -81,15 +108,21 @@ class MobileInteractionMixin:
                 return ControllerResponse.error("Swipe requires x, y, x2, y2.")
             rx, ry = await _normalize_coordinates(x, y)
             rx2, ry2 = await _normalize_coordinates(x2, y2)
-            await asyncio.to_thread(adb_driver.swipe, rx, ry, rx2, ry2, duration_ms=duration_ms, device_id=device_id)
+            await asyncio.to_thread(
+                adb_driver.swipe,
+                rx,
+                ry,
+                rx2,
+                ry2,
+                duration_ms=duration_ms,
+                device_id=device_id,
+            )
             return await _post_action_cleanup(
                 "swipe",
                 {"x1": rx, "y1": ry, "x2": rx2, "y2": ry2, "duration": duration_ms},
                 ControllerResponse.swipe_result(
-                    direction="custom",
-                    start=(rx, ry),
-                    end=(rx2, ry2)
-                )
+                    direction="custom", start=(rx, ry), end=(rx2, ry2)
+                ),
             )
 
         elif action == "scroll":
@@ -127,14 +160,26 @@ class MobileInteractionMixin:
             start_x, start_y = max(0, min(sw, start_x)), max(0, min(sh, start_y))
             end_x, end_y = max(0, min(sw, end_x)), max(0, min(sh, end_y))
 
-            await asyncio.to_thread(adb_driver.swipe, start_x, start_y, end_x, end_y, duration_ms=duration_ms, device_id=device_id)
+            await asyncio.to_thread(
+                adb_driver.swipe,
+                start_x,
+                start_y,
+                end_x,
+                end_y,
+                duration_ms=duration_ms,
+                device_id=device_id,
+            )
             return await _post_action_cleanup(
                 "scroll",
-                {"direction": direction, "amount": scroll_amount, "element_name": element_name},
+                {
+                    "direction": direction,
+                    "amount": scroll_amount,
+                    "element_name": element_name,
+                },
                 ControllerResponse.success(
-                    f"Scrolled {direction} by {scroll_amount}" +
-                    (f" (in '{element_name}')" if element_name else "")
-                )
+                    f"Scrolled {direction} by {scroll_amount}"
+                    + (f" (in '{element_name}')" if element_name else "")
+                ),
             )
 
         elif action == "input_text":
@@ -142,7 +187,12 @@ class MobileInteractionMixin:
                 return ControllerResponse.missing_param("text")
             base_pkg = await _get_effective_package()
             if element_name:
-                resolved = await resolve_element(element_name, element_role, timeout_val=timeout, expected_pkg=base_pkg)
+                resolved = await resolve_element(
+                    element_name,
+                    element_role,
+                    timeout_val=timeout,
+                    expected_pkg=base_pkg,
+                )
                 if isinstance(resolved, str):
                     return resolved
                 await asyncio.to_thread(adb_driver.tap, resolved["x"], resolved["y"], device_id=device_id)
@@ -192,7 +242,15 @@ class MobileInteractionMixin:
 
                 last_ui_hash = curr_hash
 
-                await asyncio.to_thread(adb_driver.swipe, start_x, start_y, end_x, end_y, duration_ms=400, device_id=device_id)
+                await asyncio.to_thread(
+                    adb_driver.swipe,
+                    start_x,
+                    start_y,
+                    end_x,
+                    end_y,
+                    duration_ms=400,
+                    device_id=device_id,
+                )
                 scroll_count += 1
 
             return ControllerResponse.success(

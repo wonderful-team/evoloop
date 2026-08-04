@@ -25,6 +25,7 @@ class MirrorSession:
     """
     Represents a single active scrcpy mirroring session.
     """
+
     def __init__(self, session_id: str, device_id: str):
         self.session_id = session_id
         self.device_id = device_id
@@ -144,7 +145,7 @@ class MirrorSession:
                         source="mobile",
                         app_name=payload.get("package_name"),
                         state_snapshot={"context": "android_mirror"},
-                        action_payload=json.dumps(payload)
+                        action_payload=json.dumps(payload),
                     )
                     db.add(trace_event)
             logger.debug(f"[MirrorSession] Persisted {len(events)} events to DB")
@@ -166,10 +167,14 @@ class MirrorSession:
             # Set up video recording path (organized by device)
             cmd = [
                 "scrcpy",
-                "-s", self.device_id,
-                "--window-title", f"EvoLoop Mirror - {self.device_id}",
-                "--video-bit-rate", bitrate,
-                "--max-fps", str(max_fps),
+                "-s",
+                self.device_id,
+                "--window-title",
+                f"EvoLoop Mirror - {self.device_id}",
+                "--video-bit-rate",
+                bitrate,
+                "--max-fps",
+                str(max_fps),
                 "--always-on-top",
             ]
 
@@ -177,10 +182,7 @@ class MirrorSession:
                 device_dir = ANDROID_RECORDINGS_DIR / self.device_id.replace(":", "_")
                 device_dir.mkdir(parents=True, exist_ok=True)
                 self.video_path = str(device_dir / f"{self.session_id}.mp4")
-                cmd.extend([
-                    "--record", self.video_path,
-                    "--record-format", "mp4"
-                ])
+                cmd.extend(["--record", self.video_path, "--record-format", "mp4"])
 
             # Start process in background
             self.process = subprocess.Popen(
@@ -189,7 +191,7 @@ class MirrorSession:
                 stderr=subprocess.PIPE,
                 text=True,
                 bufsize=1,
-                universal_newlines=True
+                universal_newlines=True,
             )
 
             # Record video start time immediately after process starts
@@ -259,13 +261,14 @@ class MirrorSession:
             self.event_recorder = AndroidEventRecorder()
 
             loop = asyncio.get_running_loop()
+
             def on_event(event):
                 loop.call_soon_threadsafe(self._event_queue.put_nowait, event)
 
             self.event_recorder.start_recording(
                 self.device_id,
                 callback=on_event,
-                video_start_time=self._video_start_time
+                video_start_time=self._video_start_time,
             )
             self._recording_started = True
             logger.info(f"[MirrorSession] Event recording started with video_start_time={self._video_start_time}")
@@ -295,10 +298,7 @@ class MirrorSession:
         captured_events: list[AndroidTraceEvent] = []
         if self.event_recorder and self._recording_started:
             android_events = self.event_recorder.stop_recording()
-            captured_events = self.event_recorder.to_trace_events(
-                session_id=self.session_id,
-                thread_id="global"
-            )
+            captured_events = self.event_recorder.to_trace_events(session_id=self.session_id, thread_id="global")
             self.captured_events = captured_events
             logger.info(f"Stopped event recording. Captured {len(captured_events)} events")
 
@@ -327,7 +327,7 @@ class MirrorSession:
             return MirrorSessionStopResult(
                 video_path=video_path,
                 events=captured_events,
-                session_id=self.session_id
+                session_id=self.session_id,
             )
         else:
             logger.warning(f"Mirror session {self.session_id} stopped but video file not found: {video_path}")
@@ -338,12 +338,14 @@ class MirrorSessionManager:
     """
     Manages multiple mirroring sessions.
     """
+
     def __init__(self):
         self.sessions: dict[str, MirrorSession] = {}
         self.stopped_sessions: dict[str, MirrorSession] = {}  # Cache stopped sessions for event count retrieval
 
     async def create_session(self, device_id: str, record_video: bool = True) -> MirrorSession:
         from app.utils.id import gen_uuid
+
         session_id = gen_uuid()
         session = MirrorSession(session_id, device_id)
 

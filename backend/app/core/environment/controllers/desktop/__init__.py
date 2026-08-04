@@ -6,6 +6,7 @@ Extracted from app.domain.tools.environment.desktop to allow:
   2. Clean separation between capability logic (here) and Agent-facing
      tool interface (domain/tools/environment/desktop.py thin wrapper).
 """
+
 import asyncio
 import logging
 import math
@@ -20,9 +21,10 @@ from app.core.environment.controllers.utils import (
     resolve_element_alias,
 )
 from app.core.learning.trace_recorder import get_recorder
-from app.infrastructure.vision import VisionTask, get_vision_router, vision_engine
+from app.core.vision.perceptions_formatter import PerceptionsFormatter
 from app.infrastructure.drivers.macos import macos_driver
-from app.utils.controller_response import ControllerResponse, PerceptionsFormatter
+from app.infrastructure.vision import VisionTask, get_vision_router, vision_engine
+from app.utils.controller_response import ControllerResponse
 
 from ._app_mixin import DesktopAppMixin
 from ._element_mixin import DesktopElementMixin
@@ -38,6 +40,7 @@ MAX_OUTPUT_LENGTH = 60000
 # ─────────────────────────────────────────────
 #  DesktopController
 # ─────────────────────────────────────────────
+
 
 class DesktopController(
     DesktopElementMixin,
@@ -113,7 +116,10 @@ class DesktopController(
 
                 async def context_fn():
                     app_info = await _get_cached_app_info()
-                    return {"app": app_info.get("name"), "bundle_id": app_info.get("bundle_id")}
+                    return {
+                        "app": app_info.get("name"),
+                        "bundle_id": app_info.get("bundle_id"),
+                    }
 
                 await recording_ctx.record(action_type, params, screenshot_fn, context_fn)
 
@@ -127,8 +133,10 @@ class DesktopController(
                 "x": x, "y": y, "x2": x2, "y2": y2,
                 "element_name": element_name,
                 "element_role": element_role,
-                "text": text, "key": key,
-                "app_name": app_name, "script": script,
+                "text": text,
+                "key": key,
+                "app_name": app_name,
+                "script": script,
                 "region": region,
                 "force_keystroke": force_keystroke,
                 "ocr": ocr,
@@ -157,19 +165,20 @@ class DesktopController(
                         if bounds:
                             region = bounds
                             logger.info(f"[Desktop] Auto-capturing current window region: {region}")
-                        else:
-                            logger.warning("[Desktop] No window bounds available, capturing full screen")
-                    else:
-                        logger.info("[Desktop] Partial screenshot disabled, capturing full screen")
 
                 if region:
                     try:
-                        rx, ry, _, _ = map(int, region.split(','))
+                        rx, ry, _, _ = map(int, region.split(","))
                         region_offset_x, region_offset_y = rx, ry
                     except ValueError:
                         pass
 
-                filepath = await asyncio.to_thread(macos_driver.screenshot, region=region, purpose="temp", bundle_id=bundle_id)
+                filepath = await asyncio.to_thread(
+                    macos_driver.screenshot,
+                    region=region,
+                    purpose="temp",
+                    bundle_id=bundle_id,
+                )
                 result_msg = ControllerResponse.screenshot_result(success=True, filename=filepath)
                 if ocr:
                     try:
@@ -179,10 +188,10 @@ class DesktopController(
                             for el in ocr_result.elements:
                                 el_dict = el.model_dump()
                                 if region_offset_x or region_offset_y:
-                                    el_dict['x'] = el.x + region_offset_x
-                                    el_dict['y'] = el.y + region_offset_y
-                                    el_dict['relative_x'] = el.x
-                                    el_dict['relative_y'] = el.y
+                                    el_dict["x"] = el.x + region_offset_x
+                                    el_dict["y"] = el.y + region_offset_y
+                                    el_dict["relative_x"] = el.x
+                                    el_dict["relative_y"] = el.y
                                 elements_for_prompt.append(el_dict)
 
                             if region_offset_x or region_offset_y:
@@ -192,7 +201,7 @@ class DesktopController(
                                 "core/vision/ocr_results.prompt.j2",
                                 platform="macos",
                                 elements=elements_for_prompt,
-                                total_count=len(ocr_result.elements)
+                                total_count=len(ocr_result.elements),
                             )
                         else:
                             result_msg += "\n\n" + ControllerResponse.error("OCR requested but no text detected.")
@@ -236,6 +245,7 @@ class DesktopController(
 
                     filtered_elements = elements
                     if max_depth is not None:
+
                         def _truncate_depth(nodes, depth=0):
                             if depth >= max_depth:
                                 return [{k: v for k, v in n.items() if k != "children"} for n in nodes]
@@ -246,6 +256,7 @@ class DesktopController(
                                     item["children"] = _truncate_depth(item["children"], depth + 1)
                                 result.append(item)
                             return result
+
                         filtered_elements = _truncate_depth(elements)
                     if role_filter:
                         filtered_elements = [el for el in filtered_elements if role_filter.lower() in str(el.get("role", "")).lower()]
@@ -283,7 +294,7 @@ class DesktopController(
 
                     target_x = x if x is not None else 0.5
                     target_y = y if y is not None else 0.5
-                    best_match, min_dist = None, float('inf')
+                    best_match, min_dist = None, float("inf")
 
                     for el in result.elements:
                         dist = math.sqrt((el.x - (target_x if target_x > 1 else target_x * 1000))**2 +
@@ -302,7 +313,7 @@ class DesktopController(
             return ControllerResponse.error(
                 "PERMISSION ERROR",
                 details=str(e),
-                note="Please grant Accessibility access to the terminal/application running this backend."
+                note="Please grant Accessibility access to the terminal/application running this backend.",
             )
         except Exception as e:
             logger.error(f"Desktop control error: {e}")

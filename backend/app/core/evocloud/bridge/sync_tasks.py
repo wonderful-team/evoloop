@@ -6,6 +6,7 @@ Conversation Sync Tasks - Huey-based background sync for EvoCloud.
 - 进程重启后恢复
 - 批量处理优化
 """
+
 import asyncio
 import logging
 from datetime import datetime, timezone
@@ -52,7 +53,7 @@ async def full_sync_task(device_key: str) -> dict:
             conversations = list(conv_result.scalars().all())
 
             msg_result = await db.execute(
-                select(MessageModel).where(MessageModel.sync_status != 'synced')
+                select(MessageModel).where(MessageModel.sync_status != "synced")
             )
             messages = list(msg_result.scalars().all())
 
@@ -250,7 +251,7 @@ async def incremental_sync_task(device_key: str, thread_ids: list[str]) -> dict:
                             msg_result = await db.execute(
                                 select(MessageModel).where(
                                     MessageModel.thread_id == thread_id,
-                                    MessageModel.sync_status != "synced"
+                                    MessageModel.sync_status != "synced",
                                 )
                             )
                             unsynced_msgs = msg_result.scalars().all()
@@ -278,7 +279,7 @@ async def incremental_sync_task(device_key: str, thread_ids: list[str]) -> dict:
                                     tool_call_id=m.tool_call_id or "",
                                     tool_name=m.tool_name or "",
                                     meta_data=m.meta_data if m.meta_data else None,
-                                    content_type=m.content_type or "text"
+                                    content_type=m.content_type or "text",
                                 )
                                 formatted_msgs.append(sm.model_dump())
 

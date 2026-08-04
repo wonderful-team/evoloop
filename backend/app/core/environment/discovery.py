@@ -1,6 +1,7 @@
 """
 Environment Discovery - Probes for collecting environment information.
 """
+
 import asyncio
 import logging
 import os
@@ -70,7 +71,7 @@ class EnvironmentProbe:
         # 3. 动态探测嵌入式 Linux 环境 (如树莓派/香橙派)
         if os.path.exists("/proc/device-tree/model"):
             try:
-                with open("/proc/device-tree/model", "r") as f:
+                with open("/proc/device-tree/model") as f:
                     model_info = f.read().lower()
                     if "raspberry pi" in model_info or "orange pi" in model_info or "embedded" in model_info:
                         return "embedded"
@@ -90,6 +91,7 @@ class EnvironmentProbe:
 
         # 6. 使用 AwakenedState 进行进一步检测 (如果有)
         from app.core.environment.state import get_awakened_state
+
         state = get_awakened_state()
         if state and state.host:
             if state.host.os_name == "macOS":
@@ -107,7 +109,7 @@ class EnvironmentProbe:
             # If environment controls are disabled, return a basic host profile (safe and read-only)
             # This ensures the Agent knows the target OS even on headless servers/sandboxes.
             try:
-                ram_gb = int(psutil.virtual_memory().total / (1024 ** 3))
+                ram_gb = int(psutil.virtual_memory().total / (1024**3))
             except Exception as e:
                 logger.debug(f"Failed to get RAM info: {e}")
                 ram_gb = 0
@@ -119,7 +121,7 @@ class EnvironmentProbe:
                 cpu=platform.processor() or "Unknown",
                 ram_gb=ram_gb,
                 installed_apps=[],
-                app_usage_stats=[]
+                app_usage_stats=[],
             )
 
         if os_name == "Darwin":
@@ -131,7 +133,7 @@ class EnvironmentProbe:
     async def _probe_standard_os_impl(os_name: str) -> HostEnvironment | None:
         """Standard host probe for Linux and Windows."""
         try:
-            ram_gb = int(psutil.virtual_memory().total / (1024 ** 3))
+            ram_gb = int(psutil.virtual_memory().total / (1024**3))
         except Exception as e:
             logger.debug(f"Failed to get RAM info: {e}")
             ram_gb = 0
@@ -143,7 +145,7 @@ class EnvironmentProbe:
             cpu=platform.processor() or "Unknown",
             ram_gb=ram_gb,
             installed_apps=[],
-            app_usage_stats=[]
+            app_usage_stats=[],
         )
 
         if os_name == "Linux":
@@ -158,7 +160,7 @@ class EnvironmentProbe:
             except Exception:
                 try:
                     if os.path.exists("/etc/os-release"):
-                        with open("/etc/os-release", "r") as f:
+                        with open("/etc/os-release") as f:
                             for line in f:
                                 if line.startswith("PRETTY_NAME="):
                                     distro = line.split("=", 1)[1].strip().strip('"')
@@ -182,9 +184,9 @@ class EnvironmentProbe:
                 try:
                     total, used, free = shutil.disk_usage(".")
                     return {
-                        "total_gb": round(total / (2 ** 30), 1),
-                        "free_gb": round(free / (2 ** 30), 1),
-                        "percent_used": round((used / total) * 100, 1)
+                        "total_gb": round(total / (2**30), 1),
+                        "free_gb": round(free / (2**30), 1),
+                        "percent_used": round((used / total) * 100, 1),
                     }
                 except Exception as e:
                     logger.debug("Suppressed error: %s", e, exc_info=True)
@@ -199,17 +201,28 @@ class EnvironmentProbe:
                         ['systemctl', 'list-units', '--type=service', '--state=running', '--no-legend'],
                         capture_output=True,
                         text=True,
-                        timeout=1.5
+                        timeout=1.5,
                     )
                     if res.returncode != 0:
                         return []
                     services = []
-                    for line in res.stdout.strip().split('\n'):
+                    for line in res.stdout.strip().split("\n"):
                         parts = line.split()
                         if parts:
-                            name = parts[0].replace('.service', '')
-                            if any(svc in name for svc in
-                                   ('nginx', 'mysql', 'postgres', 'redis', 'docker', 'apache', 'mongodb', 'memcached')):
+                            name = parts[0].replace(".service", "")
+                            if any(
+                                svc in name
+                                for svc in (
+                                    "nginx",
+                                    "mysql",
+                                    "postgres",
+                                    "redis",
+                                    "docker",
+                                    "apache",
+                                    "mongodb",
+                                    "memcached",
+                                )
+                            ):
                                 services.append(name)
                     return services
                 except Exception:
@@ -221,10 +234,14 @@ class EnvironmentProbe:
             def _get_gpus():
                 try:
                     res = subprocess.run(
-                        ['nvidia-smi', '--query-gpu=gpu_name,memory.total', '--format=csv,noheader,nounits'],
+                        [
+                            "nvidia-smi",
+                            "--query-gpu=gpu_name,memory.total",
+                            "--format=csv,noheader,nounits",
+                        ],
                         capture_output=True,
                         text=True,
-                        timeout=1.5
+                        timeout=1.5,
                     )
                     if res.returncode == 0:
                         return [line.strip() for line in res.stdout.strip().split('\n') if line.strip()]
@@ -255,6 +272,7 @@ class EnvironmentProbe:
             usage_stats = []
             try:
                 from app.core.environment.usage.ranker import UsageRanker
+
                 # rank_macos_apps performs shell commands, run in thread
                 usage_stats = await asyncio.to_thread(UsageRanker.rank_macos_apps, apps, top_n=10)
                 logger.info(f"[EnvironmentProbe] UsageRanker: top app = "
@@ -311,8 +329,12 @@ class EnvironmentProbe:
 
                 # Get device info
                 try:
-                    info = await asyncio.to_thread(adb_driver.get_system_info, device_id)
-                    packages = await asyncio.to_thread(adb_driver.list_installed_apps, device_id)
+                    info = await asyncio.to_thread(
+                        adb_driver.get_system_info, device_id
+                    )
+                    packages = await asyncio.to_thread(
+                        adb_driver.list_installed_apps, device_id
+                    )
 
                     # Fallback for battery since get_system_info handles it as string
                     # But we want int for models
@@ -323,15 +345,17 @@ class EnvironmentProbe:
                         except ValueError:
                             pass
 
-                    devices.append(AndroidDevice(
-                        device_id=device_id,
-                        model=info.get("model", "Unknown"),
-                        os_version=info.get("os_version", "Unknown"),
-                        sdk_version=0,  # Could be added to adb_driver if needed
-                        battery_percent=battery_percent,
-                        installed_packages=packages,
-                        is_reachable=True,
-                    ))
+                    devices.append(
+                        AndroidDevice(
+                            device_id=device_id,
+                            model=info.get("model", "Unknown"),
+                            os_version=info.get("os_version", "Unknown"),
+                            sdk_version=0,  # Could be added to adb_driver if needed
+                            battery_percent=battery_percent,
+                            installed_packages=packages,
+                            is_reachable=True,
+                        )
+                    )
 
                     # Autonomous triage for discovered packages (run in background)
                     triage = DynamicAppTriage()
@@ -344,14 +368,16 @@ class EnvironmentProbe:
 
                 except Exception as e:
                     logger.warning(f"Failed to get info for device {device_id}: {e}")
-                    devices.append(AndroidDevice(
-                        device_id=device_id,
-                        model="Unknown",
-                        os_version="Unknown",
-                        sdk_version=0,
-                        battery_percent=0,
-                        is_reachable=False,
-                    ))
+                    devices.append(
+                        AndroidDevice(
+                            device_id=device_id,
+                            model="Unknown",
+                            os_version="Unknown",
+                            sdk_version=0,
+                            battery_percent=0,
+                            is_reachable=False,
+                        )
+                    )
 
         except Exception as e:
             logger.warning(f"Failed to probe Android devices: {e}")
@@ -401,13 +427,19 @@ class EnvironmentProbe:
         """Probe running Docker containers."""
         try:
             import subprocess
+
             def _run_docker_ps():
                 try:
                     res = subprocess.run(
-                        ['docker', 'ps', '--format', '{{.ID}}\t{{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}'],
+                        [
+                            "docker",
+                            "ps",
+                            "--format",
+                            "{{.ID}}\t{{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}",
+                        ],
                         capture_output=True,
                         text=True,
-                        timeout=1.5
+                        timeout=1.5,
                     )
                     if res.returncode != 0:
                         return []
@@ -415,8 +447,8 @@ class EnvironmentProbe:
                     output = res.stdout.strip()
                     if not output:
                         return []
-                    for line in output.split('\n'):
-                        parts = line.split('\t')
+                    for line in output.split("\n"):
+                        parts = line.split("\t")
                         if len(parts) >= 5:
                             containers.append({
                                 "id": parts[0],

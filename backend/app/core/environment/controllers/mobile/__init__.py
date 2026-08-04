@@ -6,6 +6,7 @@ Extracted from app.domain.tools.environment.mobile to allow:
   2. Clean separation between capability logic (here) and Agent-facing
      tool interface (domain/tools/environment/mobile.py thin wrapper).
 """
+
 import asyncio
 import logging
 import os
@@ -21,9 +22,9 @@ from app.core.environment.controllers.utils import (
 )
 from app.core.environment.schemas import AppInfo
 from app.core.learning.trace_recorder import get_recorder
+from app.infrastructure.drivers.adb import ADBError, adb_driver
 from app.infrastructure.vision import VisionTask, vision_engine
 from app.infrastructure.vision.providers.native.android_a11y import android_a11y_provider
-from app.infrastructure.drivers.adb import ADBError, adb_driver
 from app.utils.controller_response import ControllerResponse
 from app.utils.text import normalize_text
 
@@ -119,6 +120,7 @@ class MobileController(
 
         if isinstance(msg, str):
             from app.utils.template import render_template
+
             wait_note = f"Wait: {wait_after_ms}ms" if wait_after_ms > 0 else None
             final_note = f"{note} ({wait_note})" if note and wait_note else (note or wait_note)
             return render_template("common/report/response.prompt.j2", success=success, message=msg, note=final_note)
@@ -185,7 +187,13 @@ class MobileController(
             return
         try:
             from app.core.atlas.tasks import map_observed_ui_task
-            map_observed_ui_task.delay(image_source=screenshot_path, device_id=device_id, platform="android", bundle_id=bundle_id)
+
+            map_observed_ui_task.delay(
+                image_source=screenshot_path,
+                device_id=device_id,
+                platform="android",
+                bundle_id=bundle_id,
+            )
         except Exception as e:
             logger.warning(f"[Harvest] Failed to trigger: {e}")
 
@@ -255,11 +263,12 @@ class MobileController(
     ) -> dict | tuple[int, int] | str:
         resolve_element = ctx["resolve_element"]
         resolved = await resolve_element(
-            name, role,
+            name,
+            role,
             timeout_val=timeout_val,
             expected_pkg=expected_pkg,
             fast_probe=fast_probe_enabled,
-            has_fallback=(fallback_x is not None and fallback_y is not None)
+            has_fallback=(fallback_x is not None and fallback_y is not None),
         )
         if isinstance(resolved, str):
             if fallback_x is not None and fallback_y is not None:
@@ -345,7 +354,10 @@ class MobileController(
                 used_initial_a11y = True
             else:
                 a11y_result = await android_a11y_provider.process(
-                    VisionTask.DETECT, "", device_id=device_id, compressed=compressed_dump
+                    VisionTask.DETECT,
+                    "",
+                    device_id=device_id,
+                    compressed=compressed_dump,
                 )
 
             if a11y_result.success and a11y_result.elements:
@@ -386,7 +398,13 @@ class MobileController(
                 ocr_attempts += 1
                 try:
                     temp_img = await asyncio.to_thread(adb_driver.screenshot, device_id=device_id)
-                    ocr_result = await vision_engine.process(VisionTask.OCR, temp_img, on_android=True, device_id=device_id, enable_atlas_learning=False)
+                    ocr_result = await vision_engine.process(
+                        VisionTask.OCR,
+                        temp_img,
+                        on_android=True,
+                        device_id=device_id,
+                        enable_atlas_learning=False,
+                    )
                     if os.path.exists(temp_img):
                         os.remove(temp_img)
                     if ocr_result.success:
@@ -398,7 +416,11 @@ class MobileController(
 
             await asyncio.sleep(0.05)
 
-        return render_template("common/report/response.prompt.j2", success=False, message=f"Could not find element '{name}' on device.")
+        return render_template(
+            "common/report/response.prompt.j2",
+            success=False,
+            message=f"Could not find element '{name}' on device.",
+        )
 
     @classmethod
     async def execute(
@@ -430,7 +452,7 @@ class MobileController(
         passive_safety: bool = False,
         compressed_dump: bool = True,
         expected_pkg: str | None = None,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> str:
         if not device_id:
             device_id = ContextManager.get_var("device_id")
@@ -442,8 +464,15 @@ class MobileController(
         recording_ctx = RecordingContext(
             platform="android",
             recorder=recorder,
-            screenshot_actions=("click", "long_press", "swipe", "scroll", "input_text", "open_app"),
-            disable_screenshot=kwargs.get("disable_trace_screenshot", False)
+            screenshot_actions=(
+                "click",
+                "long_press",
+                "swipe",
+                "scroll",
+                "input_text",
+                "open_app",
+            ),
+            disable_screenshot=kwargs.get("disable_trace_screenshot", False),
         )
 
         try:
@@ -462,7 +491,8 @@ class MobileController(
                 "x": x, "y": y, "x2": x2, "y2": y2,
                 "element_name": element_name,
                 "element_role": element_role,
-                "text": text, "keycode": keycode,
+                "text": text,
+                "keycode": keycode,
                 "device_id": device_id,
                 "local_path": local_path,
                 "remote_path": remote_path,
@@ -497,8 +527,16 @@ class MobileController(
             ctx["recording_func"] = partial(cls._record, ctx)
 
             # ── Dispatch ─────────────────────────────────────────────────
-            if action in ("tap", "click", "long_press", "swipe", "scroll",
-                          "scroll_to_bottom", "input_text", "press_key"):
+            if action in (
+                "tap",
+                "click",
+                "long_press",
+                "swipe",
+                "scroll",
+                "scroll_to_bottom",
+                "input_text",
+                "press_key",
+            ):
                 result = await cls._handle_interaction(action, **ctx)
                 if result is not None:
                     return result
@@ -508,9 +546,17 @@ class MobileController(
                 if result is not None:
                     return result
 
-            if action in ("list_devices", "screenshot", "push", "pull",
-                          "dump_ui", "intent_flow", "read_sms", "get_clipboard",
-                          "gui_extract"):
+            if action in (
+                "list_devices",
+                "screenshot",
+                "push",
+                "pull",
+                "dump_ui",
+                "intent_flow",
+                "read_sms",
+                "get_clipboard",
+                "gui_extract",
+            ):
                 result = await cls._handle_advanced(action, **ctx)
                 if result is not None:
                     return result
