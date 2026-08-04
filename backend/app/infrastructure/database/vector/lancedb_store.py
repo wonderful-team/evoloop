@@ -219,7 +219,7 @@ class LanceVectorStore(BaseVectorStore):
         query_vector: list[float],
         top_k: int = 10,
         filters: str | None = None,
-        repository_id: str | None = None
+        repository_id: str | None = None,
     ) -> list[dict[str, Any]]:
         """
         Semantic search for code chunks.
@@ -393,7 +393,13 @@ class LanceVectorStore(BaseVectorStore):
             self.skills_table.add(table_data)
         return len(records)
 
-    def search_skills(self, query_vector: list[float], bundle_id: str | None = None, platform: str | None = None, top_k: int = 10) -> list[dict[str, Any]]:
+    def search_skills(
+        self,
+        query_vector: list[float],
+        bundle_id: str | None = None,
+        platform: str | None = None,
+        top_k: int = 10,
+    ) -> list[dict[str, Any]]:
         """Semantic search over learned skills with Atlas filtering."""
         query = self.skills_table.search(query_vector)
 

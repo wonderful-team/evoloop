@@ -11,6 +11,7 @@ from app.infrastructure.database.graph.driver import IGraphDriver
 
 logger = logging.getLogger(__name__)
 
+
 class Neo4jDriver(IGraphDriver):
     """
     Neo4j-specific implementation of the Graph Driver using the official async driver.
@@ -59,7 +60,7 @@ class Neo4jDriver(IGraphDriver):
         id_val = properties.get(id_field)
         if not id_val:
             raise ValueError(f"Property '{id_field}' missing for upsert into {label}")
-            
+
         async with self.session() as session:
             result = await session.run(query, id=id_val, props=properties)
             record = await result.single()
@@ -69,15 +70,15 @@ class Neo4jDriver(IGraphDriver):
         """Find nodes matching the given property filters."""
         where_clauses = []
         params = {"limit": limit}
-        
+
         if filters:
             for i, (k, v) in enumerate(filters.items()):
                 where_clauses.append(f"n.{k} = $p{i}")
                 params[f"p{i}"] = v
-                
+
         where_str = " WHERE " + " AND ".join(where_clauses) if where_clauses else ""
         query = f"MATCH (n:{label}){where_str} RETURN n LIMIT $limit"
-        
+
         async with self.session() as session:
             result = await session.run(query, **params)
             data = await result.data()
@@ -87,16 +88,16 @@ class Neo4jDriver(IGraphDriver):
         """Delete nodes matching filters."""
         where_clauses = []
         params = {}
-        
+
         if filters:
             for i, (k, v) in enumerate(filters.items()):
                 where_clauses.append(f"n.{k} = $p{i}")
                 params[f"p{i}"] = v
-                
+
         where_str = " WHERE " + " AND ".join(where_clauses) if where_clauses else ""
         delete_op = "DETACH DELETE" if detach else "DELETE"
         query = f"MATCH (n:{label}){where_str} {delete_op} n RETURN count(n) as deleted"
-        
+
         async with self.session() as session:
             result = await session.run(query, **params)
             record = await result.single()
@@ -124,9 +125,9 @@ class Neo4jDriver(IGraphDriver):
         params = {
             **{f"s_{k}": v for k, v in src_filters.items()},
             **{f"t_{k}": v for k, v in tgt_filters.items()},
-            "r_props": rel_props or {}
+            "r_props": rel_props or {},
         }
-        
+
         async with self.session() as session:
             result = await session.run(query, **params)
             record = await result.single()
@@ -144,7 +145,7 @@ class Neo4jDriver(IGraphDriver):
         """Traverse the graph following relationships."""
         rel_pattern = f"-[:{rel_type}]->" if direction == "out" else f"<-[:{rel_type}]-"
         target_pattern = f"(target:{target_label})" if target_label else "(target)"
-        
+
         query = f"""
         MATCH (s:{start_label}){rel_pattern}{target_pattern}
         WHERE {" AND ".join([f"s.{k} = $s_{k}" for k in start_filters.keys()])}
@@ -169,16 +170,17 @@ class Neo4jDriver(IGraphDriver):
         filters: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         """Perform a vector similarity search in Neo4j (delegates to VectorStore for Concepts)."""
-        
+
         if label == "Concept":
             from app.infrastructure.database.vector import get_vector_store
+
             vector_store = get_vector_store()
-            
+
             # 1. Search in unified vector store
             vec_results = vector_store.search_concepts(query_embedding, top_k=top_k)
             if not vec_results:
                 return []
-            
+
             # 2. Re-hydrate from Neo4j to get the latest graph properties/relationships if needed
             # For now, we fetch the full nodes from Neo4j based on IDs returned by vector store
             concept_ids = [r["id"] for r in vec_results]
@@ -192,24 +194,24 @@ class Neo4jDriver(IGraphDriver):
 
         # Fallback for other labels (if they have native Neo4j indexes)
         index_name = f"{label.lower()}_embeddings"
-        
+
         where_clauses = []
         params = {"index": index_name, "query": query_embedding, "k": top_k}
-        
+
         if filters:
             for i, (k, v) in enumerate(filters.items()):
                 where_clauses.append(f"node.{k} = $p{i}")
                 params[f"p{i}"] = v
-        
+
         where_str = " WHERE " + " AND ".join(where_clauses) if where_clauses else ""
-        
+
         query = f"""
         CALL db.index.vector.queryNodes($index, $k, $query)
         YIELD node, score
         {where_str}
         RETURN node, score
         """
-        
+
         async with self.session() as session:
             result = await session.run(query, **params)
             data = await result.data()

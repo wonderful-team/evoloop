@@ -54,7 +54,7 @@ class ProjectContextManager:
             max_depth=3,
             with_symbols=False,
             file_limit=30,
-            max_lines=150 # Guard against extreme bloat
+            max_lines=150,  # Guard against extreme bloat
         )
         structure = await generator.generate()
 
@@ -88,6 +88,7 @@ class ProjectContextManager:
             if os.path.exists(full_path) and os.path.isfile(full_path):
                 try:
                     from app.core.file import read_file
+
                     return read_file(full_path).content
                 except Exception as e:
                     logger.warning(f"Failed to read README at {full_path}: {e}")

@@ -9,6 +9,7 @@ Provides:
 """
 
 import logging
+
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
@@ -45,11 +46,7 @@ class SubtaskService:
             return task
 
     @staticmethod
-    async def list_project_tasks(
-        project_id: int, 
-        status_filter: str = "all", 
-        limit: int = 20
-    ) -> list[ProjectTask]:
+    async def list_project_tasks(project_id: int, status_filter: str = "all", limit: int = 20) -> list[ProjectTask]:
         """
         List root tasks for a project.
         """
@@ -79,7 +76,7 @@ class SubtaskService:
     ) -> ProjectTask:
         """
         Create a parent task with optional subtasks.
-        
+
         Args:
             project_id: Project ID
             analysis_id: Analysis ID (can be dummy for direct creation)
@@ -90,7 +87,7 @@ class SubtaskService:
             subtasks: List of subtask dicts [{"title": ..., "description": ..., ...}]
             created_by: Creator identifier
             member_id: Owner member ID (0 = legacy/unknown)
-            
+
         Returns:
             Created parent task with subtasks loaded
         """
@@ -112,7 +109,7 @@ class SubtaskService:
                     "created_by": created_by,
                     "is_parent": True,
                 },
-                sync_status="pending"
+                sync_status="pending",
             )
             session.add(parent_task)
             await session.flush()  # Get parent ID
@@ -129,14 +126,14 @@ class SubtaskService:
                         status="pending",
                         progress=0,
                         task_data={
-                            "title": subtask_data.get("title", f"Subtask {i+1}"),
+                            "title": subtask_data.get("title", f"Subtask {i + 1}"),
                             "description": subtask_data.get("description", ""),
                             "priority": subtask_data.get("priority", priority),
                             "estimated_hours": subtask_data.get("estimated_hours", 0),
                             "order": i,  # Execution order
                             "created_by": created_by,
                         },
-                        sync_status="pending"
+                        sync_status="pending",
                     )
                     session.add(subtask)
 
@@ -149,17 +146,14 @@ class SubtaskService:
             return result.scalar_one()
 
     @staticmethod
-    async def get_task_tree(
-        task_id: str,
-        max_depth: int = 5
-    ) -> dict | None:
+    async def get_task_tree(task_id: str, max_depth: int = 5) -> dict | None:
         """
         Get task tree structure recursively.
-        
+
         Args:
             task_id: Root task ID
             max_depth: Maximum recursion depth
-            
+
         Returns:
             Tree structure dict or None
         """
@@ -170,19 +164,14 @@ class SubtaskService:
                 .options(selectinload(ProjectTask.subtasks))
             )
             task = result.scalar_one_or_none()
-            
+
             if not task:
                 return None
-                
+
             return await SubtaskService._build_tree_recursive(task, max_depth, 0, session)
 
     @staticmethod
-    async def _build_tree_recursive(
-        task: ProjectTask,
-        max_depth: int,
-        current_depth: int,
-        session
-    ) -> dict:
+    async def _build_tree_recursive(task: ProjectTask, max_depth: int, current_depth: int, session) -> dict:
         """Build tree recursively."""
         tree = {
             "id": task.id,
@@ -195,9 +184,9 @@ class SubtaskService:
             "is_parent": len(task.subtasks) > 0,
             "created_at": task.created_at.isoformat() if task.created_at else None,
             "updated_at": task.updated_at.isoformat() if task.updated_at else None,
-            "subtasks": []
+            "subtasks": [],
         }
-        
+
         if current_depth < max_depth and task.subtasks:
             # Load subtasks with their subtasks
             for subtask in task.subtasks:
@@ -206,7 +195,7 @@ class SubtaskService:
                     subtask, max_depth, current_depth + 1, session
                 )
                 tree["subtasks"].append(subtree)
-                
+
         return tree
 
     @staticmethod
@@ -214,17 +203,17 @@ class SubtaskService:
         task_id: str,
         status: str | None = None,
         progress: int | None = None,
-        result: str | None = None
+        result: str | None = None,
     ) -> bool:
         """
         Update task progress and propagate to parent.
-        
+
         Args:
             task_id: Task ID
             status: pending/in_progress/completed/failed
             progress: 0-100
             result: Execution result/summary
-            
+
         Returns:
             True if updated successfully
         """
@@ -241,20 +230,20 @@ class SubtaskService:
                     task.progress = 100
                 elif status == "pending":
                     task.progress = 0
-                    
+
             if progress is not None:
                 task.progress = max(0, min(100, progress))
-                
+
             if result:
                 task.task_data["result"] = result
-                
+
             task.updated_at = utcnow()
             await session.flush()
 
             # Propagate to parent
             if task.parent_id:
                 await SubtaskService._update_parent_progress(task.parent_id, session)
-                
+
             return True
 
     @staticmethod
@@ -263,34 +252,33 @@ class SubtaskService:
         parent = await session.get(ProjectTask, parent_id)
         if not parent:
             return
-            
+
         # Load subtasks
         result = await session.execute(
-            select(ProjectTask)
-            .where(ProjectTask.parent_id == parent_id)
+            select(ProjectTask).where(ProjectTask.parent_id == parent_id)
         )
         subtasks = result.scalars().all()
-        
+
         if not subtasks:
             return
-            
+
         # Calculate weighted progress
         total_hours = sum(s.task_data.get("estimated_hours", 1) for s in subtasks)
         if total_hours == 0:
             total_hours = len(subtasks)
-            
+
         weighted_progress = sum(
             s.progress * (s.task_data.get("estimated_hours", 1) / total_hours)
             for s in subtasks
         )
-        
+
         parent.progress = int(weighted_progress)
-        
+
         # Update parent status
         all_completed = all(s.status == "completed" for s in subtasks)
         any_failed = any(s.status == "failed" for s in subtasks)
         any_in_progress = any(s.status == "in_progress" for s in subtasks)
-        
+
         if all_completed:
             parent.status = "completed"
         elif any_failed:
@@ -299,7 +287,7 @@ class SubtaskService:
             parent.status = "in_progress"
         else:
             parent.status = "pending"
-            
+
         parent.updated_at = utcnow()
         logger.info(f"[SubtaskService] Updated parent {parent_id} progress to {parent.progress}%")
 
@@ -308,10 +296,10 @@ class SubtaskService:
         """
         Get next task ready for execution.
         Returns first pending subtask or parent task with no subtasks.
-        
+
         Args:
             project_id: Project ID
-            
+
         Returns:
             Task dict or None
         """
@@ -321,19 +309,19 @@ class SubtaskService:
                 select(ProjectTask)
                 .where(
                     ProjectTask.project_id == project_id,
-                    ProjectTask.parent_id.is_(None)
+                    ProjectTask.parent_id.is_(None),
                 )
                 .order_by(ProjectTask.created_at)
             )
             root_tasks = result.scalars().all()
-            
+
             for root in root_tasks:
                 if root.status == "completed":
                     continue
-                    
+
                 # Load subtasks
                 await session.refresh(root, ["subtasks"])
-                
+
                 if not root.subtasks:
                     # Leaf task, can execute
                     if root.status == "pending":
@@ -341,7 +329,7 @@ class SubtaskService:
                             "id": root.id,
                             "title": root.task_data.get("title", ""),
                             "description": root.task_data.get("description", ""),
-                            "is_subtask": False
+                            "is_subtask": False,
                         }
                 else:
                     # Find first pending subtask
@@ -352,28 +340,28 @@ class SubtaskService:
                                 "title": subtask.task_data.get("title", ""),
                                 "description": subtask.task_data.get("description", ""),
                                 "parent_title": root.task_data.get("title", ""),
-                                "is_subtask": True
+                                "is_subtask": True,
                             }
-                            
+
             return None
 
     @staticmethod
     async def flatten_task_tree(task_id: str) -> list[dict]:
         """
         Flatten task tree to execution list (depth-first).
-        
+
         Args:
             task_id: Root task ID
-            
+
         Returns:
             List of tasks in execution order
         """
         tree = await SubtaskService.get_task_tree(task_id)
         if not tree:
             return []
-            
+
         flat_list = []
-        
+
         def traverse(node, depth=0):
             flat_list.append({
                 "id": node["id"],
@@ -385,7 +373,7 @@ class SubtaskService:
             })
             for child in node.get("subtasks", []):
                 traverse(child, depth + 1)
-                
+
         traverse(tree)
         return flat_list
 

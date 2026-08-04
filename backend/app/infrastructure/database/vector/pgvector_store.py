@@ -5,6 +5,7 @@ Uses a dedicated PostgreSQL instance (or separate database) for vector storage.
 Schema is managed via Alembic migrations; the store only ensures the pgvector
 extension is present and tables exist as a fallback.
 """
+
 import logging
 from datetime import datetime
 from typing import Any
