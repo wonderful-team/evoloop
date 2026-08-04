@@ -1,18 +1,19 @@
 """
 Browser controller mixin — advanced actions (run_js, cookies, localStorage, etc.).
 """
+
 import asyncio
 import json
 import logging
 
-from app.utils.controller_response import ControllerResponse, PerceptionsFormatter
+from app.core.vision.perceptions_formatter import PerceptionsFormatter
+from app.utils.controller_response import ControllerResponse
 from app.utils.template import render_template
 
 logger = logging.getLogger(__name__)
 
 
 class BrowserAdvancedMixin:
-
     @classmethod
     async def _handle_advanced(cls, action: str, **ctx) -> str | None:
         page = ctx["page"]
@@ -50,13 +51,14 @@ class BrowserAdvancedMixin:
         elif action == "local_storage":
             if storage_action == "get":
                 val_js = await page.evaluate(f"() => localStorage.getItem({repr(storage_key)})")
-                return ControllerResponse.success(
-                    f"localStorage['{storage_key}']",
-                    details=str(val_js)
-                )
+                return ControllerResponse.success(f"localStorage['{storage_key}']", details=str(val_js))
             elif storage_action == "set":
                 if storage_key is None or value is None:
-                    return render_template("common/report/response.prompt.j2", success=False, message="'storage_key' and 'value' are required for local_storage set.")
+                    return render_template(
+                        "common/report/response.prompt.j2",
+                        success=False,
+                        message="'storage_key' and 'value' are required for local_storage set.",
+                    )
                 await page.evaluate(f"() => localStorage.setItem({repr(storage_key)}, {repr(value)})")
                 return ControllerResponse.success(f"localStorage['{storage_key}'] set.")
             elif storage_action == "clear":
@@ -69,6 +71,7 @@ class BrowserAdvancedMixin:
             if not url_pattern:
                 return ControllerResponse.missing_param("url_pattern")
             from typing import Any
+
             async with page.expect_response(
                 lambda r: url_pattern in r.url, timeout=timeout_ms
             ) as response_info:
@@ -81,15 +84,8 @@ class BrowserAdvancedMixin:
             except Exception:
                 body_preview = (await resp.text())[:500]
 
-            data = {
-                "URL": resp.url,
-                "Status": status,
-                "Body (preview)": body_preview
-            }
-            return ControllerResponse.success(
-                "Network response captured.",
-                details=str(data)
-            )
+            data = {"URL": resp.url, "Status": status, "Body (preview)": body_preview}
+            return ControllerResponse.success("Network response captured.", details=str(data))
 
         elif action == "wait_for_stability":
             check_interval = 0.5
@@ -103,15 +99,16 @@ class BrowserAdvancedMixin:
                         "document.body.scrollHeight"
                     )
                     if curr_hash == last_hash:
-                        return render_template("common/report/response.prompt.j2", success=True, message="Page stable (DOM hash matched).")
+                        return render_template(
+                            "common/report/response.prompt.j2",
+                            success=True,
+                            message="Page stable (DOM hash matched).",
+                        )
                     last_hash = curr_hash
                     await asyncio.sleep(check_interval)
                 except Exception:
                     break
-            return ControllerResponse.success(
-                "Stability check finished.",
-                note="Page stability timeout reached."
-            )
+            return ControllerResponse.success("Stability check finished.", note="Page stability timeout reached.")
 
         elif action == "dialog_handle":
             if not dialog_action:

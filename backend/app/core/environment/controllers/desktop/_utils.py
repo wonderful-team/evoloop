@@ -1,6 +1,7 @@
 """
 Desktop controller shared utilities.
 """
+
 import ast
 import asyncio
 import functools

@@ -1,6 +1,7 @@
 """
 Desktop controller mixin — app management actions (open_app, applescript, info).
 """
+
 import asyncio
 import logging
 
@@ -19,7 +20,6 @@ MAX_OUTPUT_LENGTH = 60000
 
 
 class DesktopAppMixin:
-
     @classmethod
     async def _handle_app(cls, action: str, **ctx) -> str | None:
         recording_func = ctx["recording_func"]

@@ -6,6 +6,7 @@ Extracted from app.domain.tools.environment.browser to allow:
   2. Clean separation between capability logic (here) and Agent-facing
      tool interface (domain/tools/environment/browser.py thin wrapper).
 """
+
 import logging
 import os
 import time
@@ -77,7 +78,7 @@ class BrowserController(
         continue_on_error: bool = True,
         delay_ms: int = 100,
         file_path: str | None = None,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> str:
         try:
             # ── Lifecycle ──────────────────────────────────────────────────
@@ -105,7 +106,7 @@ class BrowserController(
             recording_ctx = RecordingContext(
                 platform="web",
                 recorder=recorder,
-                screenshot_actions=("click", "type_text", "navigate", "submit")
+                screenshot_actions=("click", "type_text", "navigate", "submit"),
             )
 
             async def _record(action_type: str, params: dict):
@@ -167,14 +168,28 @@ class BrowserController(
                 if result is not None:
                     return result
 
-            elif action in ("click", "double_click", "hover", "type_text", "select_option",
-                            "key_press", "scroll", "drag_drop"):
+            elif action in (
+                "click",
+                "double_click",
+                "hover",
+                "type_text",
+                "select_option",
+                "key_press",
+                "scroll",
+                "drag_drop",
+            ):
                 result = await cls._handle_interaction(action, **ctx)
                 if result is not None:
                     return result
 
-            elif action in ("get_text", "get_html", "get_attribute", "get_links",
-                            "find_element", "get_elements"):
+            elif action in (
+                "get_text",
+                "get_html",
+                "get_attribute",
+                "get_links",
+                "find_element",
+                "get_elements",
+            ):
                 result = await cls._handle_extraction(action, **ctx)
                 if result is not None:
                     return result
@@ -184,9 +199,17 @@ class BrowserController(
                 if result is not None:
                     return result
 
-            elif action in ("run_js", "get_cookies", "set_cookies", "local_storage",
-                            "network_wait", "wait_for_stability", "dialog_handle",
-                            "scroll_to_bottom", "detect_pagination"):
+            elif action in (
+                "run_js",
+                "get_cookies",
+                "set_cookies",
+                "local_storage",
+                "network_wait",
+                "wait_for_stability",
+                "dialog_handle",
+                "scroll_to_bottom",
+                "detect_pagination",
+            ):
                 result = await cls._handle_advanced(action, **ctx)
                 if result is not None:
                     return result

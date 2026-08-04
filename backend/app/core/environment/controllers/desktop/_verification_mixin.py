@@ -1,6 +1,7 @@
 """
 Desktop controller mixin — UI verification actions.
 """
+
 import asyncio
 import logging
 import time
@@ -14,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 
 class DesktopVerificationMixin:
-
     @classmethod
     async def verify_ui_state(
         cls,
@@ -26,7 +26,10 @@ class DesktopVerificationMixin:
         async def _check_once():
             raw_tree = await asyncio.to_thread(macos_driver.dump_ax_tree)
             if not raw_tree or "Error" in raw_tree:
-                return (False, False), ControllerResponse.error("Verification Failed: Could not dump AX Tree.", details=str(raw_tree))
+                return (False, False), ControllerResponse.error(
+                    "Verification Failed: Could not dump AX Tree.",
+                    details=str(raw_tree),
+                )
             elements = await _async_literal_eval(raw_tree)
             found_element = False
             found_text = False
@@ -48,9 +51,9 @@ class DesktopVerificationMixin:
                     return err
                 if expected_element and not found_element:
                     return ControllerResponse.error(
-                        f"Verification FAILED: Element '{expected_element}'" +
-                        (f" (role: {expected_role})" if expected_role else "") +
-                        " not found."
+                        f"Verification FAILED: Element '{expected_element}'"
+                        + (f" (role: {expected_role})" if expected_role else "")
+                        + " not found."
                     )
                 if expected_text and not found_text:
                     return ControllerResponse.error(f"Verification FAILED: Text '{expected_text}' not found.")
@@ -66,9 +69,9 @@ class DesktopVerificationMixin:
                 if asyncio.get_running_loop().time() - start >= timeout_seconds:
                     if expected_element and not found_element:
                         return ControllerResponse.error(
-                            f"Verification FAILED: Element '{expected_element}'" +
-                            (f" (role: {expected_role})" if expected_role else "") +
-                            " not found."
+                            f"Verification FAILED: Element '{expected_element}'"
+                            + (f" (role: {expected_role})" if expected_role else "")
+                            + " not found."
                         )
                     if expected_text and not found_text:
                         return ControllerResponse.error(f"Verification FAILED: Text '{expected_text}' not found.")
@@ -101,15 +104,18 @@ class DesktopVerificationMixin:
                         elapsed = time.time() - start_time
                         return ControllerResponse.success(
                             f"Screen appears loaded ({len(elements)} elements)",
-                            details=f"Elapsed: {elapsed:.2f}s"
+                            details=f"Elapsed: {elapsed:.2f}s",
                         )
                 elif check_type == "has_text" and target:
                     target_lower = target.lower()
                     for el in elements:
-                        if target_lower in str(el.get("name", "")).lower() or target_lower in str(el.get("value", "")).lower():
+                        if (
+                            target_lower in str(el.get("name", "")).lower()
+                            or target_lower in str(el.get("value", "")).lower()
+                        ):
                             return ControllerResponse.success(
                                 f"Found text '{target}' on screen",
-                                details=f"Elapsed: {time.time() - start_time:.2f}s"
+                                details=f"Elapsed: {time.time() - start_time:.2f}s",
                             )
                 elif check_type == "has_element" and target:
                     target_lower = target.lower()
@@ -120,11 +126,11 @@ class DesktopVerificationMixin:
                                 ex, ey = int(bounds[0] + bounds[2] / 2), int(bounds[1] + bounds[3] / 2)
                                 return ControllerResponse.success(
                                     f"Found element '{target}' at ({ex}, {ey})",
-                                    details=f"Elapsed: {time.time() - start_time:.2f}s"
+                                    details=f"Elapsed: {time.time() - start_time:.2f}s",
                                 )
                             return ControllerResponse.success(
                                 f"Found element '{target}'",
-                                details=f"Elapsed: {time.time() - start_time:.2f}s"
+                                details=f"Elapsed: {time.time() - start_time:.2f}s",
                             )
                 await asyncio.sleep(0.5)
             except Exception as e:

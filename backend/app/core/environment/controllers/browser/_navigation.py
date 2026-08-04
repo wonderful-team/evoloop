@@ -6,7 +6,6 @@ from app.utils.controller_response import ControllerResponse
 
 
 class BrowserNavigationMixin:
-
     @classmethod
     async def _handle_navigation(cls, action: str, **ctx) -> str | None:
         page = ctx["page"]
@@ -38,9 +37,10 @@ class BrowserNavigationMixin:
 
         elif action == "get_url":
             from app.infrastructure.drivers.browser import browser_manager
+
             return ControllerResponse.success(
                 f"URL: {page.url}",
-                details=f"Title: {await page.title()}\nTabs open: {browser_manager.tab_count}"
+                details=f"Title: {await page.title()}\nTabs open: {browser_manager.tab_count}",
             )
 
         return None
