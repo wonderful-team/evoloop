@@ -1,6 +1,7 @@
 """
 Mobile controller mixin — app management actions (open_app, info, list_apps).
 """
+
 import asyncio
 import logging
 
@@ -12,7 +13,6 @@ logger = logging.getLogger(__name__)
 
 
 class MobileAppMixin:
-
     @classmethod
     async def _handle_app(cls, action: str, **ctx) -> str | None:
         recording_func = ctx["recording_func"]

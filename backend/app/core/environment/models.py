@@ -29,6 +29,7 @@ class AwakenedState(DynamicBaseModel):
     Complete awakened state of the Agent.
     Represents what the Agent "knows" about itself and its environment.
     """
+
     # == Environment Layer ==
     timestamp: datetime
     host: HostEnvironment | None = None
@@ -65,10 +66,10 @@ class AwakenedState(DynamicBaseModel):
     def get_telemetry_snapshot(self) -> TelemetrySnapshot:
         """
         Get telemetry snapshot with caching.
-        
+
         Returns a lightweight dict with device connectivity status.
         Uses 1-second TTL cache to avoid redundant computation.
-        
+
         Returns:
             dict with keys: "android", "macos", "network"
         """
@@ -80,7 +81,10 @@ class AwakenedState(DynamicBaseModel):
 
         # Compute fresh snapshot
         try:
-            cpu_data = {"usage_percent": psutil.cpu_percent(interval=None), "load_avg": psutil.getloadavg() if hasattr(psutil, "getloadavg") else []}
+            cpu_data = {
+                "usage_percent": psutil.cpu_percent(interval=None),
+                "load_avg": psutil.getloadavg() if hasattr(psutil, "getloadavg") else [],
+            }
             mem = psutil.virtual_memory()
             mem_data = {"percent": mem.percent, "available": mem.available}
         except Exception:
@@ -96,7 +100,7 @@ class AwakenedState(DynamicBaseModel):
             network=self.network.internet_connected if self.network else False,
             cpu=cpu_data,
             memory=mem_data,
-            context_usage_percent=0  # Filled dynamically by context_hydrator later if possible
+            context_usage_percent=0,  # Filled dynamically by context_hydrator later if possible
         )
         self._telemetry_cache_time = now
         return self._telemetry_cache

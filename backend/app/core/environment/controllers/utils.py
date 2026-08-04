@@ -5,6 +5,7 @@ This module provides common utilities used across MobileController,
 DesktopController, and BrowserController without forcing an inheritance
 hierarchy. Uses composition over inheritance for better flexibility.
 """
+
 import asyncio
 import logging
 import time
@@ -46,7 +47,7 @@ class RecordingContext:
         action_type: str,
         params: dict,
         screenshot_fn: Callable[[], Any] | None = None,
-        context_fn: Callable[[], dict] | None = None
+        context_fn: Callable[[], dict] | None = None,
     ) -> None:
         """
         Record an action with optional screenshot.
@@ -83,7 +84,7 @@ class RecordingContext:
             platform=self.platform,
             parameters=params,
             context=context,
-            screenshot_data=shot
+            screenshot_data=shot,
         )
 
 
@@ -97,11 +98,7 @@ def resolve_element_alias(target: str | None, element_name: str | None) -> str |
     return element_name if element_name else target
 
 
-async def run_with_timeout(
-    coro,
-    timeout: float,
-    default: Any = None
-):
+async def run_with_timeout(coro, timeout: float, default: Any = None):
     """Run a coroutine with timeout, return default on timeout."""
     try:
         return await asyncio.wait_for(coro, timeout=timeout)
@@ -139,22 +136,28 @@ class BatchExecutor:
             try:
                 result = await executor_func(action_dict)
                 latency = int((time.time() - step_start) * 1000)
-                self.results.append(BatchStepResult(
-                    step=i,
-                    action=step_action,
-                    status="success" if not str(result).startswith("Error") else "error",
-                    result=result,
-                    latency_ms=latency
-                ))
+                self.results.append(
+                    BatchStepResult(
+                        step=i,
+                        action=step_action,
+                        status="success"
+                        if not str(result).startswith("Error")
+                        else "error",
+                        result=result,
+                        latency_ms=latency,
+                    )
+                )
             except Exception as e:
                 latency = int((time.time() - step_start) * 1000)
-                self.results.append(BatchStepResult(
-                    step=i,
-                    action=step_action,
-                    status="error",
-                    result=str(e),
-                    latency_ms=latency
-                ))
+                self.results.append(
+                    BatchStepResult(
+                        step=i,
+                        action=step_action,
+                        status="error",
+                        result=str(e),
+                        latency_ms=latency,
+                    )
+                )
                 if not self.continue_on_error:
                     break
 
@@ -174,7 +177,7 @@ class BatchExecutor:
             total=total,
             ok=ok,
             fail=fail,
-            elapsed_time=round(elapsed_time, 2)
+            elapsed_time=round(elapsed_time, 2),
         )
 
 

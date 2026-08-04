@@ -4,8 +4,10 @@ App Environment Prompt
 Centralizes the logic for generating the "Awakening" section of the system prompt.
 This ensures both the Supervisor and Skills share the same understanding of the environment.
 """
+
 import asyncio
 import logging
+import re
 import shutil
 from datetime import datetime
 
@@ -67,6 +69,7 @@ class AppEnvironmentPrompt:
 
 # Environment Prompt Utilities - Shared logic for building environment awareness sections.
 
+
 def _get_active_background_tasks() -> list[dict]:
     try:
         from app.core.context import ContextManager
@@ -97,18 +100,17 @@ def _get_listening_local_ports() -> list[dict]:
         import warnings
         from collections import defaultdict
 
-        import psutil
         ports = []
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
-            for p in psutil.process_iter(['pid', 'name']):
+            for p in psutil.process_iter(["pid", "name"]):
                 try:
-                    for conn in p.connections(kind='inet'):
-                        if conn.status == 'LISTEN':
+                    for conn in p.connections(kind="inet"):
+                        if conn.status == "LISTEN":
                             ports.append({
                                 "port": conn.laddr.port,
-                                "pid": p.info['pid'],
-                                "process": p.info['name'] or "Unknown"
+                                "pid": p.info["pid"],
+                                "process": p.info["name"] or "Unknown",
                             })
                 except (psutil.AccessDenied, psutil.NoSuchProcess):
                     continue
@@ -123,9 +125,11 @@ def _get_listening_local_ports() -> list[dict]:
         for p in seen_ports.values():
             by_process[p["process"]].append(p["port"])
         return sorted(
-            [{"name": name, "ports": sorted(ports), "port_count": len(ports)}
-             for name, ports in by_process.items()],
-            key=lambda x: x["name"]
+            [
+                {"name": name, "ports": sorted(ports), "port_count": len(ports)}
+                for name, ports in by_process.items()
+            ],
+            key=lambda x: x["name"],
         )
     except Exception:
         logger.exception("Failed to enumerate listening local ports")
@@ -134,14 +138,13 @@ def _get_listening_local_ports() -> list[dict]:
 
 def _parse_docker_host_ports(docker_containers: list[dict]) -> set[int]:
     """Extract host-side ports from Docker container port mappings."""
-    import re
     host_ports = set()
     for c in docker_containers:
         ports_str = c.get("ports", "")
         if not ports_str:
             continue
         for mapping in ports_str.split(","):
-            m = re.search(r':(\d+)->', mapping.strip())
+            m = re.search(r":(\d+)->", mapping.strip())
             if m:
                 host_ports.add(int(m.group(1)))
     return host_ports
@@ -171,15 +174,12 @@ def build_environment_summaries(relevance: str = "auto") -> dict:
     """
     try:
         from app.core.environment import get_awakened_state
+
         state = get_awakened_state()
         if not state:
             return {}
 
-        data = {
-            "macos": None,
-            "android_devices": [],
-            "network": None
-        }
+        data = {"macos": None, "android_devices": [], "network": None}
 
         # 1. Host (macOS) Info
         if state.host:
@@ -190,7 +190,7 @@ def build_environment_summaries(relevance: str = "auto") -> dict:
                 "os_version": state.host.os_version,
                 "top_apps": [],
                 "running_apps": [],
-                "app_count": 0
+                "app_count": 0,
             }
             if relevance in ["macos", "both", "auto"]:
                 if state.host.app_usage_stats:
@@ -211,7 +211,7 @@ def build_environment_summaries(relevance: str = "auto") -> dict:
                 host_info["cpu_percent"] = psutil.cpu_percent(interval=None)
                 mem = psutil.virtual_memory()
                 host_info["memory_percent"] = mem.percent
-                host_info["memory_available_gb"] = round(mem.available / (1024 ** 3), 1)
+                host_info["memory_available_gb"] = round(mem.available / (1024**3), 1)
                 disk = shutil.disk_usage("/")
                 host_info["disk_space"] = {
                     "total_gb": round(disk.total / (2**30), 1),
@@ -236,7 +236,7 @@ def build_environment_summaries(relevance: str = "auto") -> dict:
                         "os_version": dev.os_version,
                         "battery_percent": dev.battery_percent,
                         "top_pkgs": [],
-                        "more_count": 0
+                        "more_count": 0,
                     }
                     if dev.installed_packages:
                         dev_data["top_pkgs"] = dev.installed_packages
@@ -245,9 +245,7 @@ def build_environment_summaries(relevance: str = "auto") -> dict:
 
         # 3. Network
         if state.network:
-            data["network"] = {
-                "internet_connected": state.network.internet_connected
-            }
+            data["network"] = {"internet_connected": state.network.internet_connected}
 
         # 4. Background Services, Listening Ports, and Docker
         data["running_services"] = _get_active_background_tasks()
@@ -258,9 +256,15 @@ def build_environment_summaries(relevance: str = "auto") -> dict:
         if docker_host_ports:
             filtered = []
             for svc in data["active_ports"]:
-                non_docker_ports = [p for p in svc["ports"] if p not in docker_host_ports]
+                non_docker_ports = [
+                    p for p in svc["ports"] if p not in docker_host_ports
+                ]
                 if non_docker_ports:
-                    filtered.append({"name": svc["name"], "ports": non_docker_ports, "port_count": len(non_docker_ports)})
+                    filtered.append({
+                        "name": svc["name"],
+                        "ports": non_docker_ports,
+                        "port_count": len(non_docker_ports),
+                    })
             data["active_ports"] = filtered
         # Build compact service labels for template
         data["service_labels"] = [
@@ -283,12 +287,14 @@ def get_capability_boundaries() -> list[str]:
     """
     try:
         from app.core.environment.boundaries import boundary_manager
+
         return boundary_manager.get_all_boundaries()
     except Exception:
         logger.exception("Failed to load boundaries from boundary_manager")
         # Fallback to state boundaries if manager unavailable
         try:
             from app.core.environment import get_awakened_state
+
             state = get_awakened_state()
             return state.capability_boundaries if state else []
         except Exception:

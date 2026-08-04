@@ -16,6 +16,7 @@ class DeviceWatcher:
     """
     Background service that tracks ADB device status changes.
     """
+
     def __init__(self):
         self._task: asyncio.Task | None = None
         self._running = False
@@ -50,9 +51,10 @@ class DeviceWatcher:
             try:
                 logger.info("Restarting 'adb track-devices' process...")
                 process = await asyncio.create_subprocess_exec(
-                    adb_driver._adb_path, "track-devices",
+                    adb_driver._adb_path,
+                    "track-devices",
                     stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
+                    stderr=asyncio.subprocess.PIPE,
                 )
 
                 while self._running:
@@ -115,12 +117,11 @@ class DeviceWatcher:
             try:
                 logger.info(f"🔍 Detecting UI automation capabilities for {serial}...")
                 from app.infrastructure.drivers.adb import adb_driver
+
                 # Run in executor to not block async loop
                 loop = asyncio.get_running_loop()
                 capabilities = await loop.run_in_executor(
-                    None,
-                    adb_driver.detect_device_capabilities,
-                    serial
+                    None, adb_driver.detect_device_capabilities, serial
                 )
                 logger.info(f"✅ Device {serial} capabilities: {capabilities}")
             except Exception as e:
@@ -128,6 +129,7 @@ class DeviceWatcher:
 
             await mirror_manager.on_device_connected(serial)
             from app.core.environment.event.publishers import publish_device_connected
+
             await publish_device_connected(device_id=serial, device_type="android")
             logger.info(f"🌅 Published device connected event: {serial}")
         else:
@@ -136,6 +138,7 @@ class DeviceWatcher:
             from app.core.environment.event.publishers import (
                 publish_device_disconnected,
             )
+
             await publish_device_disconnected(device_id=serial)
 
 

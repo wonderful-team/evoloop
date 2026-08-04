@@ -4,6 +4,7 @@ Memory Replay - Retrieves relevant memories during awakening.
 
 import logging
 import os
+import re
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.environment.schemas import (
@@ -18,10 +19,10 @@ logger = logging.getLogger(__name__)
 async def replay_memory(project_id: int | None = None) -> MemoryContext:
     """
     Retrieve relevant memories for the awakening context.
-    
+
     Args:
         project_id: Optional project ID to scope memory retrieval.
-        
+
     Returns:
         MemoryContext with episodes, concepts, and journal highlights.
     """
@@ -40,6 +41,7 @@ async def replay_memory(project_id: int | None = None) -> MemoryContext:
     if project_id is not None and project_id != DEFAULT_PROJECT_ID:
         try:
             from app.core.memory.models import MemoryType
+
             actual_memories = await manager.search_memories(
                 query="Recent episodes",
                 types=[MemoryType.EPISODE],
@@ -52,12 +54,14 @@ async def replay_memory(project_id: int | None = None) -> MemoryContext:
                 goal_str = mem.title.replace("Episode: ", "").strip()
                 # Content format: "Goal: ...\nOutcome: ..."
                 result_str = mem.description.upper() if mem.description else "SUCCESS"
-                
-                episodes.append(EpisodeSummary(
-                    date=date_str,
-                    goal=goal_str,
-                    result=result_str,
-                ))
+
+                episodes.append(
+                    EpisodeSummary(
+                        date=date_str,
+                        goal=goal_str,
+                        result=result_str,
+                    )
+                )
         except Exception as e:
             logger.warning(f"Failed to retrieve episodes: {e}")
 
@@ -91,15 +95,16 @@ def _parse_episodes(raw_text: str) -> list[EpisodeSummary]:
         return episodes
 
     # Expected format: "[date] goal -> result"
-    import re
     pattern = r"\[([^\]]+)\]\s+(.+?)\s*[-→>]+\s*(\w+)"
 
     for match in re.finditer(pattern, raw_text):
-        episodes.append(EpisodeSummary(
-            date=match.group(1).strip(),
-            goal=match.group(2).strip(),
-            result=match.group(3).strip().upper(),
-        ))
+        episodes.append(
+            EpisodeSummary(
+                date=match.group(1).strip(),
+                goal=match.group(2).strip(),
+                result=match.group(3).strip().upper(),
+            )
+        )
 
     return episodes[:5]  # Limit to 5
 
@@ -144,7 +149,9 @@ def _read_journal_highlights() -> str:
     try:
         from app.core.config import settings
 
-        journal_path = os.path.join(settings.BRAIN_MEMORY_ROOT, "knowledge", "journal.md")
+        journal_path = os.path.join(
+            settings.BRAIN_MEMORY_ROOT, "knowledge", "journal.md"
+        )
         if not os.path.exists(journal_path):
             return ""
 
