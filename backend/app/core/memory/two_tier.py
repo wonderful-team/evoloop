@@ -8,7 +8,7 @@ Architecture:
     ~/.evoloop/memory/
     ├── MEMORY.md          # Tier 1: Always loaded (200 lines / 25KB max)
     │   ├── Architecture   # 25 lines - System design, components
-    │   ├── Decisions      # 25 lines - ADRs, design choices  
+    │   ├── Decisions      # 25 lines - ADRs, design choices
     │   ├── Patterns       # 25 lines - Recurring solutions
     │   ├── Gotchas        # 20 lines - Warnings, pitfalls
     │   ├── Progress       # 30 lines - Recent work (decays)
@@ -32,13 +32,13 @@ Usage:
     retriever = MemoryRetriever(storage=storage, config=config)
 
     manager = TwoTierMemoryManager(storage=storage, config=config)
-    
+
     # Tier 1: Always loaded
     hot_memory = await manager.get_hot_memory()
-    
+
     # Tier 2: Search on demand (via retriever)
     cold_results = await retriever.find_relevant("docker deployment")
-    
+
     # Auto-generate Tier 1 from Tier 2
     await manager.regenerate_memory_md()
 """
@@ -68,6 +68,7 @@ logger = logging.getLogger(__name__)
 
 class MemorySection(DynamicBaseModel):
     """A section in MEMORY.md."""
+
     name: str
     title: str
     budget: int
@@ -95,7 +96,7 @@ class MemorySection(DynamicBaseModel):
 class TwoTierMemoryManager:
     """
     Two-tier memory system with budget management.
-    
+
     Tier 1 (Hot): MEMORY.md - Always loaded, limited size
     Tier 2 (Cold): Full storage - Searched on demand
     """
@@ -134,7 +135,7 @@ class TwoTierMemoryManager:
     ):
         """
         Initialize two-tier memory manager.
-        
+
         Args:
             storage: Storage backend (required)
             config: Memory configuration. Uses defaults if None.
@@ -199,7 +200,7 @@ class TwoTierMemoryManager:
     async def regenerate_memory_md(self) -> None:
         """
         Regenerate MEMORY.md from cold memory.
-        
+
         Algorithm:
         1. Collect all memories from cold storage
         2. Score by: confidence × access_count × freshness
@@ -236,7 +237,7 @@ class TwoTierMemoryManager:
     ) -> None:
         """
         Update a specific section in MEMORY.md.
-        
+
         Preserves other sections.
         """
         if not self.memory_md_path.exists():
@@ -264,7 +265,7 @@ class TwoTierMemoryManager:
     ) -> bool:
         """
         Add an entry to a section, respecting budget.
-        
+
         Returns True if added, False if budget full (should go to cold memory).
         """
         if not self.memory_md_path.exists():
@@ -320,7 +321,7 @@ class TwoTierMemoryManager:
     ) -> list[tuple[MemorySearchResult, float]]:
         """
         Score memories for ranking in MEMORY.md.
-        
+
         Formula: confidence × access_count × freshness
         """
         now = datetime.utcnow()
@@ -398,7 +399,7 @@ class TwoTierMemoryManager:
             title_norm = entry.title.strip().lower()
             if title_norm in seen_titles:
                 continue
-            
+
             # Determine section by type
             section_name = type_mapping.get(entry.type, "context")
 
@@ -421,7 +422,7 @@ class TwoTierMemoryManager:
     ) -> dict[str, dict[str, Any]]:
         """
         Apply budget constraints with redistribution.
-        
+
         Algorithm:
         1. Allocate within initial budget
         2. Collect unused budget
@@ -467,7 +468,7 @@ class TwoTierMemoryManager:
                 current_len = len(section["entries"])
                 all_entries = sections[name]["entries"]
 
-                section["entries"] = all_entries[:current_len + additional]
+                section["entries"] = all_entries[: current_len + additional]
                 section["overflow_count"] = original_overflow - additional
                 section["overflow"] = section["overflow_count"] > 0
 
@@ -490,8 +491,12 @@ class TwoTierMemoryManager:
 
         # Section order (important first)
         section_order = [
-            "architecture", "decisions", "patterns",
-            "gotchas", "progress", "context"
+            "architecture",
+            "decisions",
+            "patterns",
+            "gotchas",
+            "progress",
+            "context",
         ]
 
         for name in section_order:
@@ -538,7 +543,7 @@ class TwoTierMemoryManager:
             # Entry line
             elif line.startswith("- **") and current_section:
                 # Parse: - **Title**: Description
-                match = re.match(r'- \*\*(.+?)\*\*: (.+)', line)
+                match = re.match(r"- \*\*(.+?)\*\*: (.+)", line)
                 if match:
                     title, desc = match.groups()
                     current_entries.append({
@@ -584,14 +589,14 @@ class TwoTierMemoryManager:
         content_bytes = content.encode("utf-8")
         if len(content_bytes) > self.MAX_TOTAL_BYTES:
             # Truncate to byte limit
-            truncated = content_bytes[:self.MAX_TOTAL_BYTES]
+            truncated = content_bytes[: self.MAX_TOTAL_BYTES]
             content = truncated.decode("utf-8", errors="ignore")
             content += "\n\n*[Content truncated due to size limit]*"
 
         # Check line limit
         lines = content.split("\n")
         if len(lines) > self.MAX_TOTAL_LINES:
-            lines = lines[:self.MAX_TOTAL_LINES]
+            lines = lines[: self.MAX_TOTAL_LINES]
             lines.append("\n*[Content truncated due to line limit]*")
             content = "\n".join(lines)
 

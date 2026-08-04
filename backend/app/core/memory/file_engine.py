@@ -325,6 +325,7 @@ class _FileEngine:
         if "member_id" not in sql_filters:
             try:
                 from app.core.context.manager import ContextManager
+
                 ctx = ContextManager.current()
                 if ctx and ctx.member_id is not None:
                     sql_filters["member_id"] = ctx.member_id
@@ -633,8 +634,8 @@ class _FileEngine:
                     for word in words:
                         like_pat = f"%{word}%"
                         conditions.append(
-                            (MemoryIndex.title.like(like_pat)) |
-                            (MemoryIndex.description.like(like_pat))
+                            (MemoryIndex.title.like(like_pat))
+                            | (MemoryIndex.description.like(like_pat))
                         )
                     stmt = stmt.where(or_(*conditions))
 

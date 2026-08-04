@@ -8,17 +8,17 @@ and properly shutdown at app exit.
 Usage:
     # In main.py or application entry point
     from app.core.memory.lifespan import memory_lifespan
-    
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         async with memory_lifespan(app):
             yield
-    
+
     app = FastAPI(lifespan=lifespan)
 
     # In routes or services
     from app.core.memory.lifespan import get_memory_manager
-    
+
     manager = get_memory_manager()
     await manager.save_memory(entry)
 """
@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 class MemoryLifespanManager:
     """
     Manages the lifecycle of the MemoryContainer at application level.
-    
+
     This ensures:
     1. Single container instance per application
     2. Proper initialization at startup
@@ -56,13 +56,13 @@ class MemoryLifespanManager:
     def initialize(cls, config: MemoryConfig | None = None) -> MemoryContainer:
         """
         Initialize the global memory container.
-        
+
         Args:
             config: Memory configuration. Uses MemoryConfig.from_settings() if None.
-            
+
         Returns:
             The initialized MemoryContainer instance
-            
+
         Raises:
             RuntimeError: If already initialized
         """
@@ -104,7 +104,7 @@ class MemoryLifespanManager:
     async def shutdown(cls) -> None:
         """
         Shutdown the global memory container.
-        
+
         This should be called at application exit.
         """
         if cls._instance is not None:
@@ -121,10 +121,10 @@ class MemoryLifespanManager:
     def get_container(cls) -> MemoryContainer:
         """
         Get the global memory container.
-        
+
         Returns:
             The MemoryContainer instance
-            
+
         Raises:
             RuntimeError: If not initialized
         """
@@ -139,12 +139,12 @@ class MemoryLifespanManager:
     def get_manager(cls) -> MemoryManager:
         """
         Get the global memory manager.
-        
+
         This is a convenience method to get the manager directly.
-        
+
         Returns:
             The MemoryManager instance
-            
+
         Raises:
             RuntimeError: If not initialized
         """
@@ -158,22 +158,23 @@ class MemoryLifespanManager:
 
 # FastAPI lifespan context manager
 
+
 @asynccontextmanager
 async def memory_lifespan(app: FastAPI | None = None) -> AsyncGenerator[MemoryContainer, None]:
     """
     FastAPI lifespan context manager for memory system.
-    
+
     Usage:
         @asynccontextmanager
         async def lifespan(app: FastAPI):
             async with memory_lifespan(app):
                 yield
-        
+
         app = FastAPI(lifespan=lifespan)
-    
+
     Args:
         app: Optional FastAPI application instance
-        
+
     Yields:
         The initialized MemoryContainer
     """

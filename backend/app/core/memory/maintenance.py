@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 class MemoryMaintenanceAgent:
     """
     Agent-based memory maintenance.
-    
+
     Runs in isolated thread, cleans up after itself.
     Only logs timestamp of execution.
     """
@@ -124,7 +124,7 @@ class MemoryMaintenanceAgent:
 class MaintenanceScheduler:
     """
     Schedules memory maintenance based on time and capacity.
-    
+
     Triggers when:
     - 3+ days since last maintenance, OR
     - 100+ hot memory entries
@@ -173,6 +173,7 @@ class MaintenanceScheduler:
 _MAINTENANCE_ENABLED = settings.MEMORY_MAINTENANCE_ENABLED
 
 if _MAINTENANCE_ENABLED:
+
     @periodic_task(cron="0 2 * * *", name="memory_maintenance")
     async def scheduled_memory_maintenance():
         """
@@ -197,6 +198,7 @@ else:
 # Convenience functions for manual trigger / CLI
 def trigger_maintenance():
     """Manually trigger maintenance (for CLI/admin use)."""
+
     async def _run():
         agent = MemoryMaintenanceAgent()
         return await agent.run()

@@ -14,6 +14,7 @@ from app.utils.id import gen_uuid_hex
 
 class MemoryType(str, Enum):
     """Four-type memory taxonomy (inspired by Claude Code)."""
+
     USER = "user"
     FEEDBACK = "feedback"
     PROJECT = "project"
@@ -24,6 +25,7 @@ class MemoryType(str, Enum):
 
 class MemoryTier(str, Enum):
     """Quality-based tiering for memory management."""
+
     STRATEGIC = "strategic"
     OPERATIONAL = "operational"
     TRANSIENT = "transient"
@@ -31,6 +33,7 @@ class MemoryTier(str, Enum):
 
 class PrivacyLevel(str, Enum):
     """Privacy scope for memory entries."""
+
     PRIVATE = "private"
     TEAM = "team"
 
@@ -40,6 +43,7 @@ class MemoryEntry(DynamicBaseModel):
     Unified memory entry model.
     Format compatible with Claude Code memory files (Markdown + YAML Frontmatter).
     """
+
     # Identity
     id: str = Field(default_factory=lambda: f"mem_{gen_uuid_hex()[:8]}")
 
@@ -79,7 +83,7 @@ class MemoryEntry(DynamicBaseModel):
     # Additional metadata
     extra: MemoryMetadata = Field(default_factory=MemoryMetadata)
 
-    @model_validator(mode='before')
+    @model_validator(mode="before")
     @classmethod
     def set_default_privacy(cls, data: Any) -> Any:
         if isinstance(data, dict) and "privacy" not in data and "type" in data:
@@ -97,14 +101,15 @@ class MemoryEntry(DynamicBaseModel):
         if not content:
             return ""
         # Normalize: lower case, strip, replace complex whitespace with single space
-        normalized = re.sub(r'\s+', ' ', content.strip().lower())
+        normalized = re.sub(r"\s+", " ", content.strip().lower())
         return compute_sha256(normalized)
 
     def to_frontmatter(self) -> str:
         """Serialize to Markdown with YAML frontmatter."""
+
         # Clean strings for YAML
         def _clean(s: str, max_len: int = 150) -> str:
-            return ' '.join((s or "").replace('\n', ' ').split()).strip()[:max_len]
+            return " ".join((s or "").replace("\n", " ").split()).strip()[:max_len]
 
         frontmatter: dict[str, Any] = {
             "id": self.id,
@@ -188,7 +193,7 @@ class MemoryEntry(DynamicBaseModel):
             title=title,
             content=text,
             description=title[:200],
-            source="imported"
+            source="imported",
         )
 
     def to_search_result(self) -> "MemorySearchResult":
@@ -208,6 +213,7 @@ class MemoryEntry(DynamicBaseModel):
 
 class MemorySearchResult(DynamicBaseModel):
     """Lightweight result for search operations (without full content)."""
+
     id: str
     type: MemoryType
     tier: MemoryTier = MemoryTier.OPERATIONAL
@@ -221,6 +227,7 @@ class MemorySearchResult(DynamicBaseModel):
 
 class MemoryIndexEntry(DynamicBaseModel):
     """Entry in MEMORY.md index file."""
+
     title: str
     path: str
     description: str
@@ -235,8 +242,13 @@ class MemoryIndexEntry(DynamicBaseModel):
     def from_index_line(cls, line: str) -> "MemoryIndexEntry | None":
         """Parse from index line."""
         import re
+
         pattern = r"^- \[([^\]]+)\]\(([^)]+)\)(?:\s*—\s*(.+))?"
         match = re.match(pattern, line.strip())
         if match:
-            return cls(title=match.group(1), path=match.group(2), description=match.group(3) or "")
+            return cls(
+                title=match.group(1),
+                path=match.group(2),
+                description=match.group(3) or "",
+            )
         return None

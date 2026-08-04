@@ -38,10 +38,10 @@ logger = logging.getLogger(__name__)
 class MemoryRetriever:
     """
     Two-stage memory retrieval with LLM relevance ranking.
-    
+
     Stage 1: Fast keyword search to get candidates
     Stage 2: LLM selects the most relevant from candidates
-    
+
     Usage:
         from app.core.memory.store import MemoryStore
         from app.core.memory.config import MemoryConfig
@@ -58,11 +58,11 @@ class MemoryRetriever:
         max_candidates: int = 20,
         max_results: int = 5,
         enable_llm_selection: bool = True,
-        **kwargs
+        **kwargs,
     ):
         """
         Initialize smart retriever.
-        
+
         Args:
             storage: Storage backend (required)
             config: Memory configuration. Uses defaults if None.
@@ -109,17 +109,14 @@ class MemoryRetriever:
             query=ctx.query,
             project_id=ctx.project_id,
             member_id=ctx.member_id,
-            limit=self.max_candidates
+            limit=self.max_candidates,
         )
 
         if not candidates:
             return []
 
         # 2. 过滤已召回过的 (already_surfaced)
-        fresh_candidates = [
-            c for c in candidates
-            if c.id not in ctx.already_surfaced
-        ]
+        fresh_candidates = [c for c in candidates if c.id not in ctx.already_surfaced]
 
         if not fresh_candidates:
             return []
@@ -140,7 +137,7 @@ class MemoryRetriever:
     ) -> float:
         """
         Score a candidate memory for relevance.
-        
+
         Combines:
         - Keyword relevance
         - Freshness boost
@@ -151,9 +148,11 @@ class MemoryRetriever:
 
         # Keyword relevance
         text = f"{entry.title} {entry.description} {entry.content}".lower()
-        keyword_score = sum(2 if word in entry.title.lower() else 1
-                          for word in query_words
-                          if word in text)
+        keyword_score = sum(
+            2 if word in entry.title.lower() else 1
+            for word in query_words
+            if word in text
+        )
 
         # Freshness boost (exponential decay, 30-day half-life)
         age_days = (datetime.utcnow() - entry.updated_at).days
@@ -181,12 +180,12 @@ class MemoryRetriever:
     ) -> dict[str, list[MemoryEntry]]:
         """
         Get memories organized for context injection.
-        
+
         Args:
             query: Current query for relevance ranking
             member_id: Member ID for private memories
             project_id: Project ID for filtering
-            
+
         Returns:
             Dictionary with keys: user, feedback, project, reference
         """
@@ -254,10 +253,10 @@ class MemoryRetriever:
     ) -> str:
         """
         Format memories for injection into system prompt.
-        
+
         Args:
             memories: Dictionary of memories by type
-            
+
         Returns:
             Formatted string for prompt
         """
@@ -290,9 +289,9 @@ async def get_relevant_memories(
 ) -> list[MemoryEntry]:
     """
     Convenience function to get relevant memories using smart retrieval.
-    
+
     Uses a global singleton container to avoid repeated initialization overhead.
-    
+
     Args:
         query: The search query
         member_id: Optional user member ID for filtering
@@ -300,7 +299,7 @@ async def get_relevant_memories(
         max_results: Maximum number of results to return
         already_surfaced: Set of memory IDs already shown to user (to avoid repetition)
         context: Optional context dict with keys like "recent_tools"
-        
+
     Returns:
         List of relevant memory entries
     """

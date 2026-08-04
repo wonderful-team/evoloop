@@ -7,6 +7,7 @@ Provides safe forgetting mechanism with:
 - Soft forgetting (keep summary)
 - Recall capability
 """
+
 import logging
 import time
 
@@ -101,14 +102,16 @@ class ToolOutputMemory:
         self.forgotten[tool_call_id] = record
 
         # Log to audit
-        self.audit_log.append(AuditEntry(
-            action="forget",
-            tool_call_id=tool_call_id,
-            timestamp=time.time(),
-            reason=reason,
-            success=True,
-            details=f"Original length: {original_length}, Summary: {summary[:100]}...",
-        ))
+        self.audit_log.append(
+            AuditEntry(
+                action="forget",
+                tool_call_id=tool_call_id,
+                timestamp=time.time(),
+                reason=reason,
+                success=True,
+                details=f"Original length: {original_length}, Summary: {summary[:100]}...",
+            )
+        )
 
         logger.info(f"[ToolOutputMemory] Forgot {tool_name} ({tool_call_id}): {reason}")
         return record
@@ -154,26 +157,30 @@ class ToolOutputMemory:
         """
         record = self.forgotten.get(tool_call_id)
         if not record:
-            self.audit_log.append(AuditEntry(
-                action="recall",
-                tool_call_id=tool_call_id,
-                timestamp=time.time(),
-                reason="Attempted recall",
-                success=False,
-                details="Tool was not forgotten",
-            ))
+            self.audit_log.append(
+                AuditEntry(
+                    action="recall",
+                    tool_call_id=tool_call_id,
+                    timestamp=time.time(),
+                    reason="Attempted recall",
+                    success=False,
+                    details="Tool was not forgotten",
+                )
+            )
             return False, "Tool output was not forgotten"
 
         # Note: We don't remove from forgotten - we just mark it as recalled
         # The actual restoration is handled by the recall_tool_output tool
-        self.audit_log.append(AuditEntry(
-            action="recall",
-            tool_call_id=tool_call_id,
-            timestamp=time.time(),
-            reason=f"Recalled {record.tool_name}",
-            success=True,
-            details=f"Summary was: {record.summary[:100]}...",
-        ))
+        self.audit_log.append(
+            AuditEntry(
+                action="recall",
+                tool_call_id=tool_call_id,
+                timestamp=time.time(),
+                reason=f"Recalled {record.tool_name}",
+                success=True,
+                details=f"Summary was: {record.summary[:100]}...",
+            )
+        )
 
         logger.info(f"[ToolOutputMemory] Recalled {record.tool_name} ({tool_call_id})")
         return True, f"Recalled {record.tool_name}"
@@ -261,14 +268,16 @@ class ToolOutputMemory:
             )
 
         for e in data.get("audit_log", []):
-            memory.audit_log.append(AuditEntry(
-                action=e["action"],
-                tool_call_id=e["tool_call_id"],
-                timestamp=e["timestamp"],
-                reason=e["reason"],
-                success=e["success"],
-                details=e.get("details", ""),
-            ))
+            memory.audit_log.append(
+                AuditEntry(
+                    action=e["action"],
+                    tool_call_id=e["tool_call_id"],
+                    timestamp=e["timestamp"],
+                    reason=e["reason"],
+                    success=e["success"],
+                    details=e.get("details", ""),
+                )
+            )
 
         return memory
 

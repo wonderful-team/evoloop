@@ -4,8 +4,8 @@ Memory System Prompt Builders
 Standardizes LLM prompts for memory-related operations (Extraction, Pruning, Retrieval).
 Separates static system instructions from dynamic context to support prompt caching.
 """
+
 import logging
-from typing import List
 
 from app.utils.template import render_template
 
@@ -31,7 +31,7 @@ class MemoryExtractionPromptBuilder:
         self.messages_text = messages_text
         self.summary = summary
 
-    async def build(self) -> List[dict]:
+    async def build(self) -> list[dict]:
         """Builds standardized message list for extraction."""
 
         # 1. Static System Prompt (Persona & Rules)
@@ -46,7 +46,7 @@ class MemoryExtractionPromptBuilder:
             "messages_text": self.messages_text,
             "summary": self.summary,
         }
-        
+
         rendered = render_template("core/memory/auto_extraction.prompt.j2", **template_vars)
         
         return [
@@ -57,68 +57,72 @@ class MemoryExtractionPromptBuilder:
 
 class MemoryPruningPromptBuilder:
     """Builder for memory pruning and consolidation prompts."""
-    
+
     def __init__(
         self,
         strategy: str,  # 'semantic_pruning' | 'consolidation'
         project_root: str = "",
         readme: str = "",
-        memories_text: str = ""
+        memories_text: str = "",
     ):
         self.strategy = strategy
         self.project_root = project_root
         self.readme = readme
         self.memories_text = memories_text
 
-    async def build(self) -> List[dict]:
+    async def build(self) -> list[dict]:
         """Builds standardized message list for pruning."""
-        template_name = "core/memory/pruning_semantic.prompt.j2" if self.strategy == "semantic_pruning" else "core/memory/pruning_consolidation.prompt.j2"
-        
+        template_name = (
+            "core/memory/pruning_semantic.prompt.j2"
+            if self.strategy == "semantic_pruning"
+            else "core/memory/pruning_consolidation.prompt.j2"
+        )
+
         template_vars = {
             "project_root": self.project_root,
             "readme": self.readme,
             "memories_text": self.memories_text,
-            "content": self.memories_text, # For consolidation.prompt.j2 backwards compatibility
+            "content": self.memories_text,  # For consolidation.prompt.j2 backwards compatibility
         }
-        
+
         rendered = render_template(template_name, **template_vars)
-        
+
         system_role = "You are a precise librarian evaluating information redundancy."
         if self.strategy == "consolidation":
             system_role = "You are a Knowledge Architect specialized in distilling fragmented information."
-            
+
         return [
             {"role": "system", "content": system_role},
-            {"role": "user", "content": rendered}
+            {"role": "user", "content": rendered},
         ]
 
 
 class MemoryRetrievalPromptBuilder:
     """Builder for memory retrieval refinement prompts."""
-    
+
     def __init__(
         self,
         query: str,
-        memories: List[dict],
-        recent_tools: List[str] | None = None,
-        max_selections: int = 5
+        memories: list[dict],
+        recent_tools: list[str] | None = None,
+        max_selections: int = 5,
     ):
         self.query = query
         self.memories = memories
         self.recent_tools = recent_tools or []
         self.max_selections = max_selections
 
-    async def build(self) -> List[dict]:
+    async def build(self) -> list[dict]:
         """Builds standardized message list for retrieval selection."""
         template_vars = {
             "query": self.query,
             "memories": self.memories,
             "recent_tools": self.recent_tools,
-            "max_selections": self.max_selections
+            "max_selections": self.max_selections,
         }
-        
+
         rendered = render_template("core/memory/retrieval_selection.prompt.j2", **template_vars)
-        
+
         return [
             {"role": "system", "content": "You are a memory relevance selector. Your goal is to identify which items from the candidate pool are truly essential for the user's query."},
             {"role": "user", "content": rendered}

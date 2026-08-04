@@ -9,6 +9,7 @@ This module provides:
 
 Inspired by Claude Code's memory management and drift detection.
 """
+
 import logging
 import math
 import re
@@ -25,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 class QualityScores(DynamicBaseModel):
     """Heuristic quality scores for a memory entry (metadata-based)."""
+
     freshness: float  # 0-1, how recent
     usage: float  # 0-1, how often recalled
     specificity: float  # 0-1, how specific (vs vague)
@@ -38,6 +40,7 @@ class QualityScores(DynamicBaseModel):
 
 class CleanupRecommendation(DynamicBaseModel):
     """Recommendation for memory cleanup."""
+
     entry: MemoryEntry
     action: str  # 'archive', 'update', 'delete', 'keep'
     reason: str
@@ -48,7 +51,7 @@ class CleanupRecommendation(DynamicBaseModel):
 class MemoryQualityAnalyzer:
     """
     Analyze memory quality and provide maintenance recommendations.
-    
+
     Usage:
         from app.core.memory.config import MemoryConfig
         from app.core.memory.store import MemoryStore
@@ -77,7 +80,7 @@ class MemoryQualityAnalyzer:
     ):
         """
         Initialize quality analyzer.
-        
+
         Args:
             storage: Storage backend (required)
             config: Memory configuration. Uses defaults if None.
@@ -89,7 +92,7 @@ class MemoryQualityAnalyzer:
     async def analyze_memory(self, entry: MemoryEntry) -> QualityScores:
         """
         Calculate quality scores for a memory entry.
-        
+
         Returns scores for:
         - Freshness: How recent (exponential decay)
         - Usage: How often recalled
@@ -103,10 +106,10 @@ class MemoryQualityAnalyzer:
 
         # Weighted overall score
         overall = (
-            freshness * self.WEIGHTS["freshness"] +
-            usage * self.WEIGHTS["usage"] +
-            specificity * self.WEIGHTS["specificity"] +
-            actionability * self.WEIGHTS["actionability"]
+            freshness * self.WEIGHTS["freshness"]
+            + usage * self.WEIGHTS["usage"]
+            + specificity * self.WEIGHTS["specificity"]
+            + actionability * self.WEIGHTS["actionability"]
         )
 
         return QualityScores(
@@ -120,7 +123,7 @@ class MemoryQualityAnalyzer:
     def _score_freshness(self, entry: MemoryEntry) -> float:
         """
         Score memory freshness (0-1).
-        
+
         Uses exponential decay with 30-day half-life.
         """
         age_days = (datetime.utcnow() - entry.updated_at).days
@@ -129,7 +132,7 @@ class MemoryQualityAnalyzer:
     async def _score_usage(self, entry: MemoryEntry) -> float:
         """
         Score memory usage/recall frequency (0-1).
-        
+
         Based on how often the memory has been recalled.
         For now, uses a simple access count.
         """
@@ -141,7 +144,7 @@ class MemoryQualityAnalyzer:
     def _score_heuristic_specificity(self, entry: MemoryEntry) -> float:
         """
         Score how specific the memory is (0-1).
-        
+
         Vague memories are less useful. Look for:
         - Concrete nouns (files, functions, tools)
         - Specific numbers/dates
@@ -151,20 +154,17 @@ class MemoryQualityAnalyzer:
 
         # Positive indicators (specific)
         specific_patterns = [
-            r'\b\w+\.(py|js|ts|java|go|rs|cpp|c|h)\b',  # File extensions
-            r'\b[A-Z][a-z]+[A-Z]\w*\b',  # CamelCase (likely class names)
-            r'\b\d{4}-\d{2}-\d{2}\b',  # Dates
-            r'\b(v\d+\.\d+|version \d+)\b',  # Versions
-            r'`[^`]+`',  # Code/inline references
+            r"\b\w+\.(py|js|ts|java|go|rs|cpp|c|h)\b",  # File extensions
+            r"\b[A-Z][a-z]+[A-Z]\w*\b",  # CamelCase (likely class names)
+            r"\b\d{4}-\d{2}-\d{2}\b",  # Dates
+            r"\b(v\d+\.\d+|version \d+)\b",  # Versions
+            r"`[^`]+`",  # Code/inline references
         ]
 
-        specific_score = sum(
-            1 for pattern in specific_patterns
-            if re.search(pattern, content)
-        ) / len(specific_patterns)
+        specific_score = sum(1 for pattern in specific_patterns if re.search(pattern, content)) / len(specific_patterns)
 
         # Negative indicators (vague)
-        vague_words = ['something', 'somehow', 'maybe', 'probably', 'thing', 'stuff']
+        vague_words = ["something", "somehow", "maybe", "probably", "thing", "stuff"]
         vague_count = sum(1 for word in vague_words if word in content)
         vague_penalty = min(0.5, vague_count * 0.1)
 
@@ -173,7 +173,7 @@ class MemoryQualityAnalyzer:
     def _score_heuristic_actionability(self, entry: MemoryEntry) -> float:
         """
         Score how actionable the memory is (0-1).
-        
+
         Actionable memories include:
         - Direct instructions ("Use X", "Don't do Y")
         - Conditional guidance ("When X, do Y")
@@ -183,19 +183,18 @@ class MemoryQualityAnalyzer:
 
         # Actionable patterns
         actionable_patterns = [
-            r'\b(use|avoid|prefer|always|never|don\'t|should|must)\b',
-            r'\b(when|if)\s+\w+[,\s]+(then|do|use)\b',
-            r'\b(step \d+|first|second|third|finally)\b',
-            r'\b(why:|how to apply:|context:)\b',
+            r"\b(use|avoid|prefer|always|never|don\'t|should|must)\b",
+            r"\b(when|if)\s+\w+[,\s]+(then|do|use)\b",
+            r"\b(step \d+|first|second|third|finally)\b",
+            r"\b(why:|how to apply:|context:)\b",
         ]
 
         action_score = sum(
-            1 for pattern in actionable_patterns
-            if re.search(pattern, content)
+            1 for pattern in actionable_patterns if re.search(pattern, content)
         ) / len(actionable_patterns)
 
         # Boost for structured memories (have Why/How sections)
-        if '**why:**' in content or '**how to apply:**' in content:
+        if "**why:**" in content or "**how to apply:**" in content:
             action_score += 0.3
 
         return min(1.0, action_score)
@@ -207,7 +206,7 @@ class MemoryQualityAnalyzer:
     ) -> list[CleanupRecommendation]:
         """
         Get recommendations for memory cleanup.
-        
+
         Returns memories that should be archived, updated, or deleted.
         """
         # Get all memories (lightweight summaries)
@@ -229,13 +228,15 @@ class MemoryQualityAnalyzer:
             if scores.overall < min_quality:
                 action, reason, suggestions = self._determine_action(entry, scores)
 
-                recommendations.append(CleanupRecommendation(
-                    entry=entry,
-                    action=action,
-                    reason=reason,
-                    scores=scores,
-                    suggestions=suggestions,
-                ))
+                recommendations.append(
+                    CleanupRecommendation(
+                        entry=entry,
+                        action=action,
+                        reason=reason,
+                        scores=scores,
+                        suggestions=suggestions,
+                    )
+                )
 
         # Sort by overall score (lowest first)
         recommendations.sort(key=lambda r: r.scores.overall)
@@ -249,7 +250,7 @@ class MemoryQualityAnalyzer:
     ) -> tuple[str, str, list[str]]:
         """
         Determine what action to take for a low-quality memory.
-        
+
         Returns: (action, reason, suggestions)
         """
         suggestions = []
@@ -263,7 +264,11 @@ class MemoryQualityAnalyzer:
                 return (
                     "archive",
                     f"Very old project memory ({age_days} days). Likely outdated.",
-                    ["Verify if still relevant", "Update with current state", "Archive if obsolete"]
+                    [
+                        "Verify if still relevant",
+                        "Update with current state",
+                        "Archive if obsolete",
+                    ],
                 )
 
             suggestions.append("Update with more recent information")

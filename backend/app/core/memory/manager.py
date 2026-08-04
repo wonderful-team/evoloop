@@ -247,7 +247,12 @@ class MemoryManager:
             limit=limit,
         )
         return [
-            Concept(name=e.title, description=e.content, related_files=e.tags, source_thread_id=e.source_thread_id)
+            Concept(
+                name=e.title,
+                description=e.content,
+                related_files=e.tags,
+                source_thread_id=e.source_thread_id,
+            )
             for e in entries
         ]
 
@@ -613,7 +618,9 @@ class MemoryManager:
         """
         return await self._storage.get_recent(count, project_id=project_id)
 
-    async def deduplicate_checkpoints(self, dry_run: bool = True) -> "CheckpointDedupResult":
+    async def deduplicate_checkpoints(
+        self, dry_run: bool = True
+    ) -> "CheckpointDedupResult":
         """
         Remove duplicate checkpoint memories from storage.
 

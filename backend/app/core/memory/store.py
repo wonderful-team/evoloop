@@ -118,9 +118,7 @@ class MemoryStore:
     ) -> list[MemoryEntry]:
         return await self._engine.get_related(entry_id, relation_type, limit)
 
-    async def link_concept_to_episode(
-        self, concept_name: str, episode_id: str
-    ) -> None:
+    async def link_concept_to_episode(self, concept_name: str, episode_id: str) -> None:
         await self._engine.link_concept_to_episode(concept_name, episode_id)
 
     async def find_episodes_by_concept(

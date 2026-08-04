@@ -1,4 +1,5 @@
 """PostgreSQL implementation of short-term memory using Message table."""
+
 import logging
 
 from sqlalchemy import delete, or_, select
@@ -44,9 +45,12 @@ class SqlShortTermMemory(IShortTermMemory):
             role = "unknown"
 
         async with session_scope() as db:
-            stmt = select(Message.sequence_number).where(
-                Message.thread_id == thread_id
-            ).order_by(Message.sequence_number.desc()).limit(1)
+            stmt = (
+                select(Message.sequence_number)
+                .where(Message.thread_id == thread_id)
+                .order_by(Message.sequence_number.desc())
+                .limit(1)
+            )
             result = await db.execute(stmt)
             last_seq = result.scalar()
             next_seq = (last_seq or 0) + 1
@@ -84,9 +88,12 @@ class SqlShortTermMemory(IShortTermMemory):
                     if ai_count >= 2:
                         break
 
-            latest_run_stmt = select(Message.run_id).where(
-                Message.thread_id == thread_id, Message.run_id.is_not(None)
-            ).order_by(Message.id.desc()).limit(1)
+            latest_run_stmt = (
+                select(Message.run_id)
+                .where(Message.thread_id == thread_id, Message.run_id.is_not(None))
+                .order_by(Message.id.desc())
+                .limit(1)
+            )
             latest_run_id = (await db.execute(latest_run_stmt)).scalar_one_or_none()
             if latest_run_id:
                 recent_run_ids.add(latest_run_id)
@@ -154,9 +161,12 @@ class SqlShortTermMemory(IShortTermMemory):
                 return
 
             to_delete = total_count - MAX_MESSAGES
-            oldest_stmt = select(Message.id).where(
-                Message.thread_id == thread_id
-            ).order_by(Message.sequence_number.asc()).limit(to_delete)
+            oldest_stmt = (
+                select(Message.id)
+                .where(Message.thread_id == thread_id)
+                .order_by(Message.sequence_number.asc())
+                .limit(to_delete)
+            )
 
             result = await db.execute(oldest_stmt)
             ids_to_delete = [r for r in result.scalars().all()]

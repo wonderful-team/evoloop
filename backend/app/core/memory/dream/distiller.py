@@ -69,6 +69,7 @@ class DeepDreamDistiller:
         episodes_text = self.replay.format_for_distillation(episodes)
 
         from app.core.config import settings
+
         episodes_hash = compute_md5(episodes_text)
 
         # Resolve hash file path
@@ -125,7 +126,6 @@ class DeepDreamDistiller:
     ) -> list[DreamInsight]:
         """Invoke LLM to extract insights from formatted episodes."""
         try:
-            from app.infrastructure.config.service import SystemConfigService
             from app.infrastructure.llm import InternalLLMService
 
             # Build prompt via Jinja2 template
@@ -153,7 +153,7 @@ class DeepDreamDistiller:
 
     def _parse_insights(self, content: str) -> list[DreamInsight]:
         """Parse LLM response JSON into DreamInsight objects."""
-        match = re.search(r'\[.*\]', content, re.DOTALL)
+        match = re.search(r"\[.*\]", content, re.DOTALL)
         if not match:
             logger.warning("[Dream] No JSON array found in LLM response")
             return []
@@ -167,13 +167,15 @@ class DeepDreamDistiller:
         insights = []
         for item in raw_insights:
             try:
-                insights.append(DreamInsight(
-                    title=item.get("title", "")[:200],
-                    content=item.get("content", "")[:2000],
-                    category=item.get("category", "pattern"),
-                    utility_score=float(item.get("utility_score", 0.8)),
-                    related_goals=item.get("related_goals", []),
-                ))
+                insights.append(
+                    DreamInsight(
+                        title=item.get("title", "")[:200],
+                        content=item.get("content", "")[:2000],
+                        category=item.get("category", "pattern"),
+                        utility_score=float(item.get("utility_score", 0.8)),
+                        related_goals=item.get("related_goals", []),
+                    )
+                )
             except Exception as e:
                 logger.debug("[Dream] Skipping malformed insight: %s", e)
 

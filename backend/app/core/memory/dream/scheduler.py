@@ -34,6 +34,7 @@ class DreamScheduler:
     def _get_manager(self) -> Any:
         if self._memory_manager is None:
             from app.core.memory.lifespan import MemoryLifespanManager
+
             self._memory_manager = MemoryLifespanManager.get_manager()
         return self._memory_manager
 
@@ -185,6 +186,7 @@ class DreamScheduler:
 
 def trigger_dream(project_id: int | None = None) -> DreamRecord | None:
     """Manually trigger a dream cycle (for CLI/admin use)."""
+
     async def _run():
         scheduler = DreamScheduler()
         return await scheduler.run(project_id=project_id)

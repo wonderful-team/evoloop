@@ -1,7 +1,6 @@
 """Schemas for memory module."""
 
 from datetime import datetime
-from typing import List
 
 from pydantic import Field
 
@@ -11,14 +10,16 @@ from app.infrastructure.pydantic_base import DynamicBaseModel
 
 class SearchResult(DynamicBaseModel):
     """Semantic search result for concepts."""
+
     name: str
     description: str
     score: float
-    files: List[str] = Field(default_factory=list)
+    files: list[str] = Field(default_factory=list)
 
 
 class StorageHealthCheck(DynamicBaseModel):
     """Health check result for a memory storage backend."""
+
     status: str = "unknown"
     backend: str = ""
     version: str | None = None
@@ -35,6 +36,7 @@ class MemoryMetadata(DynamicBaseModel):
 
 class CheckpointDedupResult(DynamicBaseModel):
     """Result of a checkpoint deduplication operation."""
+
     dry_run: bool = True
     total_checkpoints: int = 0
     duplicate_groups: int = 0
@@ -47,6 +49,7 @@ class CheckpointDedupResult(DynamicBaseModel):
 
 class Concept(DynamicBaseModel):
     """A semantic concept or knowledge entity extracted from the codebase or conversations."""
+
     name: str = Field(description="Unique name of the concept, technology, or pattern")
     description: str = Field(description="Detailed description of what it is and how it is used")
     project_id: int | None = Field(default=DEFAULT_PROJECT_ID, description="Associated project ID (DEFAULT_PROJECT_ID/0 for global)")
@@ -57,6 +60,7 @@ class Concept(DynamicBaseModel):
 
 class Episode(DynamicBaseModel):
     """A recorded execution episode representing a past task attempt."""
+
     id: str | None = None
     goal: str = Field(description="What was the agent trying to achieve")
     result: str = Field(description="The outcome of the attempt")
@@ -70,6 +74,7 @@ class Episode(DynamicBaseModel):
 
 class RetrievalContext(DynamicBaseModel):
     """Context for memory retrieval."""
+
     query: str
     recent_tools: list[str] = Field(default_factory=list)
     already_surfaced: set[str] = Field(default_factory=set)  # Memory IDs already shown to user
@@ -79,6 +84,7 @@ class RetrievalContext(DynamicBaseModel):
 
 class ForgottenRecord(DynamicBaseModel):
     """Record of a forgotten tool output."""
+
     tool_call_id: str
     tool_name: str
     summary: str
@@ -90,6 +96,7 @@ class ForgottenRecord(DynamicBaseModel):
 
 class AuditEntry(DynamicBaseModel):
     """Audit log entry for tracking forget/recall operations."""
+
     action: str  # "forget" or "recall"
     tool_call_id: str
     timestamp: float
@@ -100,6 +107,7 @@ class AuditEntry(DynamicBaseModel):
 
 class SectionBudget(DynamicBaseModel):
     """Budget allocation for a MEMORY.md section."""
+
     name: str
     lines: int
     used: int = 0
@@ -112,6 +120,7 @@ class SectionBudget(DynamicBaseModel):
 
 class MemorySectionEntry(DynamicBaseModel):
     """A single entry in a MEMORY.md section."""
+
     id: str | None = None
     title: str
     description: str

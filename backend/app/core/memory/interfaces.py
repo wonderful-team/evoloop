@@ -17,6 +17,7 @@ class StorageError(Exception):
 
     Currently unused — defined for future backend implementations.
     """
+
     pass
 
 
@@ -25,6 +26,7 @@ class StorageNotFoundError(StorageError):
 
     Currently unused — defined for future backend implementations.
     """
+
     pass
 
 
@@ -33,6 +35,7 @@ class StorageConnectionError(StorageError):
 
     Currently unused — defined for future backend implementations.
     """
+
     pass
 
 

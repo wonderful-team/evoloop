@@ -12,8 +12,8 @@ from app.core.context.manager import ContextManager
 from app.core.memory.models import MemoryEntry, MemoryType, PrivacyLevel
 from app.core.memory.short_term import SqlShortTermMemory
 from app.core.tools import evoloop_tool
-from app.utils.controller_response import ContentFormatter
 from app.utils.id import gen_uuid_hex
+from app.utils.search_results_formatter import format_chat_search_results
 
 from .retrieval import get_relevant_memories
 
@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 # 1. Inter-Worker Handover Tools
 # ========================================================================
 
+
 @evoloop_tool(
     is_state_mutating=True,
     summary_template="evoloop.tool_summary.write_handover_notes"
@@ -31,7 +32,7 @@ logger = logging.getLogger(__name__)
 async def write_handover_notes(notes: str, key: str = "general") -> str:
     """
     Leave critical handover notes (like API contracts, architecture decisions)
-    for the next agent/worker to read. This is a short-term memory explicitly 
+    for the next agent/worker to read. This is a short-term memory explicitly
     passed to subsequent tasks in this workflow.
 
     Use this when you have finished designing an interface, API, or component,
@@ -68,15 +69,15 @@ async def write_handover_notes(notes: str, key: str = "general") -> str:
 async def remember(content: str, context: str = "", is_user_preference: bool = False) -> str:
     """
     Save important information to long-term memory.
-    
+
     Use when the user explicitly asks you to remember something:
     - "Remember that I prefer X"
-    - "Keep this in mind for next time"  
+    - "Keep this in mind for next time"
     - "Don't forget this approach"
     - "This is important"
-    
+
     The content will be automatically available in future conversations.
-    
+
     Args:
         content: The information to remember.
         context: Optional context about when/why this matters.
@@ -118,6 +119,7 @@ async def remember(content: str, context: str = "", is_user_preference: bool = F
         )
 
         from app.core.memory.lifespan import MemoryLifespanManager
+
         if not MemoryLifespanManager.is_initialized():
             await MemoryLifespanManager.ainitialize()
         container = MemoryLifespanManager.get_container()
@@ -139,12 +141,12 @@ async def remember(content: str, context: str = "", is_user_preference: bool = F
 async def recall(query: str, limit: int = 5) -> str:
     """
     Search memory for previously remembered information.
-    
+
     Use when:
     - User asks "What did we discuss about X?"
     - User says "Remember that pattern we used?"
     - You need context from previous conversations
-    
+
     Args:
         query: What to recall/search for.
         limit: Max results to return.
@@ -168,7 +170,7 @@ async def recall(query: str, limit: int = 5) -> str:
                 memory = SqlShortTermMemory()
                 messages = await memory.search_messages(query, thread_id, limit=5)
                 if messages:
-                    return ContentFormatter.chat_search_results(query, messages)
+                    return format_chat_search_results(query, messages)
 
             return f"No memories found for '{query}'.", {"count": 0}
 
@@ -193,16 +195,17 @@ async def recall(query: str, limit: int = 5) -> str:
 async def forget_memory(memory_id: str) -> str:
     """
     Delete a specific long-term memory by its ID.
-    
+
     Use when:
     - User says "Forget about X" or "Delete that memory about Y"
     - You realize a previously stored piece of information is now completely wrong or irrelevant.
-    
+
     Args:
         memory_id: The unique ID of the memory to delete (must be obtained via recall first).
     """
     try:
         from app.core.memory.lifespan import MemoryLifespanManager
+
         if not MemoryLifespanManager.is_initialized():
             await MemoryLifespanManager.ainitialize()
         container = MemoryLifespanManager.get_container()
@@ -223,6 +226,7 @@ async def forget_memory(memory_id: str) -> str:
 # ========================================================================
 # 2. History Search Tools
 # ========================================================================
+
 
 @evoloop_tool(
     is_memory_tool=True,
@@ -262,8 +266,11 @@ async def search_history(
         memory = SqlShortTermMemory()
         results = await memory.search_messages(query, target_thread, limit)
         if not results:
-            return f"No messages found for '{query}' in history.", {"count": 0, "top_k": limit}
-        text, meta = ContentFormatter.chat_search_results(query, results)
+            return f"No messages found for '{query}' in history.", {
+                "count": 0,
+                "top_k": limit,
+            }
+        text, meta = format_chat_search_results(query, results)
         meta["top_k"] = limit
         return text, meta
 
@@ -275,6 +282,7 @@ async def search_history(
 # ========================================================================
 # 3. Context Management Tools (Active Forgetting)
 # ========================================================================
+
 
 @evoloop_tool(
     is_state_mutating=True,
@@ -303,12 +311,20 @@ async def forget_tool_outputs(
         from app.models import Message
 
         async with session_scope() as session:
-            stmt = select(Message).where(Message.thread_id == thread_id).order_by(Message.sequence_number.asc())
+            stmt = (
+                select(Message)
+                .where(Message.thread_id == thread_id)
+                .order_by(Message.sequence_number.asc())
+            )
             result = await session.execute(stmt)
             db_messages = result.scalars().all()
 
         current_step = len(db_messages)
-        message_map = {msg.tool_call_id: {"index": i, "msg": msg} for i, msg in enumerate(db_messages) if msg.tool_call_id}
+        message_map = {
+            msg.tool_call_id: {"index": i, "msg": msg}
+            for i, msg in enumerate(db_messages)
+            if msg.tool_call_id
+        }
 
         results = {"forgotten": [], "skipped": []}
         forgotten_records = {}
@@ -327,7 +343,11 @@ async def forget_tool_outputs(
             msg = msg_info["msg"]
             tool_name = msg.tool_name
             content = msg.content or ""
-            summary = custom_summaries.get(tc_id) if custom_summaries else _generate_summary(tool_name, content)
+            summary = (
+                custom_summaries.get(tc_id)
+                if custom_summaries
+                else _generate_summary(tool_name, content)
+            )
 
             forgotten_records[tc_id] = {
                 "tool_call_id": tc_id,
@@ -338,13 +358,19 @@ async def forget_tool_outputs(
                 "step_index": msg_info["index"],
                 "forgotten_at": time.time(),
             }
-            results["forgotten"].append({"id": tc_id, "tool": tool_name, "summary": summary, "saved": len(content) - len(summary)})
+            results["forgotten"].append({
+                "id": tc_id,
+                "tool": tool_name,
+                "summary": summary,
+                "saved": len(content) - len(summary),
+            })
 
         total_saved = sum(r["saved"] for r in results["forgotten"])
 
         # Persist to blackboard so engine's apply_forgotten_status() can see it
         try:
             from app.core.memory.tool_output_memory import ToolOutputMemory
+
             ctx = ContextManager.current()
             if ctx and ctx.metadata.blackboard:
                 state = ctx.metadata.blackboard
@@ -370,10 +396,10 @@ async def forget_tool_outputs(
         msg = f"Successfully forgot {len(results['forgotten'])} outputs, saved {total_saved} chars."
         return msg, {
             "status": "success",
-            "count": len(results['forgotten']),
+            "count": len(results["forgotten"]),
             "total_saved": total_saved,
             "reason": reason,
-            "_signal": "forget_tool_outputs"
+            "_signal": "forget_tool_outputs",
         }
 
     except Exception as e:
@@ -404,11 +430,15 @@ async def recall_tool_output(
             msg = result.scalar_one_or_none()
 
             if not msg or not msg.content:
-                return f"Error: Content for {tool_call_id} not found.", {"status": "error", "_signal": "recall_tool_output"}
+                return f"Error: Content for {tool_call_id} not found.", {
+                    "status": "error",
+                    "_signal": "recall_tool_output",
+                }
 
             # Remove from blackboard tool_memory so engine stops replacing with summary
             try:
                 from app.core.memory.tool_output_memory import ToolOutputMemory
+
                 ctx = ContextManager.current()
                 if ctx and ctx.metadata.blackboard:
                     state = ctx.metadata.blackboard
@@ -433,7 +463,7 @@ async def recall_tool_output(
 
 @evoloop_tool(
     is_state_mutating=False,
-    summary_template="evoloop.tool_summary.list_forgotten_outputs"
+    summary_template="evoloop.tool_summary.list_forgotten_outputs",
 )
 async def list_forgotten_outputs(
     limit: Annotated[int, "Max records to return"] = 20,
@@ -481,10 +511,10 @@ def _generate_summary(tool_name: str, content: str, max_length: int = 200) -> st
         return f"[{tool_name}: {content}]"
 
     if tool_name == "read_file":
-        lines = content.split('\n')
+        lines = content.split("\n")
         return f"[read_file: {len(lines)} lines] {lines[0][:80]}..."
     elif tool_name == "list_dir":
-        items = [l for l in content.split('\n') if l.strip()]
+        items = [l for l in content.split("\n") if l.strip()]
         return f"[list_dir: {len(items)} items] {', '.join(items[:3])}..."
 
     return f"[{tool_name}: {len(content)} chars] {content[:max_length]}..."
