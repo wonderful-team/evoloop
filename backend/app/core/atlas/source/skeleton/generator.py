@@ -223,8 +223,8 @@ class EntityGrouper:
                 data = json.load(f)
             fp = data.get("framework_profile", {})
             self._role_classifiers = fp.get("role_classifiers")
-        except Exception:
-            pass
+        except (OSError, ValueError):
+            logger.warning("Failed to read .evoloop/project.json role_classifiers", exc_info=True)
 
     async def get_entity_groups(
         self, repo_id: int, session: AsyncSession

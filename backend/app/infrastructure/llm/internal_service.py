@@ -131,7 +131,7 @@ class InternalLLMService:
         max_tokens: int = 500,
         model_name: str | None = None,
         structured_output_method: str = "function_calling",
-        **kwargs
+        **kwargs,
     ) -> T:
         """
         使用结构化输出模式调用 LLM
@@ -145,7 +145,7 @@ class InternalLLMService:
             temperature=temperature,
             max_tokens=max_tokens,
             model_name=model_name,
-            **kwargs
+            **kwargs,
         )
 
         # 绑定结构化输出
@@ -161,11 +161,6 @@ class InternalLLMService:
                 "should_stream": False,
             },
         }
-
-        logger.debug(
-            f"[InternalLLM] Structured call: {purpose}, "
-            f"schema: {output_schema.__name__}"
-        )
 
         try:
             result = await structured_llm.ainvoke(messages, config=config)

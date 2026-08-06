@@ -94,7 +94,6 @@ class VisionLLMFactory:
             )
 
             def _run_coro_in_new_loop(c):
-                import asyncio
                 return asyncio.run(c)
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:

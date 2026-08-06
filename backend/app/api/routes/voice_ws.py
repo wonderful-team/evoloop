@@ -721,7 +721,7 @@ async def voice_receive_loop(
                             try:
                                 await websocket.send_json(
                                     _envelope(
-                                        "voice.partial",
+                                        MessageType.VOICE_PARTIAL,
                                         {"thread_id": thread_id, "text": asr_text},
                                     )
                                 )
@@ -1372,7 +1372,7 @@ async def voice_ws(websocket: WebSocket) -> None:
                 thread_id = str(body.get("thread_id", "")).strip()
                 if thread_id:
                     await asyncio.create_task(_handle_barge_in(thread_id))
-            elif mtype in ("voice.start",):
+            elif mtype in (MessageType.VOICE_START,):
                 thread_id = str(body.get("thread_id", "")).strip()
                 if not thread_id:
                     continue
@@ -1506,7 +1506,7 @@ async def voice_ws(websocket: WebSocket) -> None:
                             {"state": "idle", "thread_id": thread_id},
                         )
                     )
-            elif mtype in ("voice.stop",):
+            elif mtype in (MessageType.VOICE_STOP,):
                 thread_id = str(body.get("thread_id", "")).strip()
                 if thread_id:
                     current = await voice_state_machine.get(thread_id)

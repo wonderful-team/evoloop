@@ -132,7 +132,3 @@ class LLMConfigService:
 
         if api_key:
             SystemConfigService.set_value("LLM_API_KEY", api_key)
-
-        logger.info(f"LLM Configuration updated to use {model} at {base_url}")
-        if vision_base_url:
-            logger.info(f"Vision Configuration updated to use {vision_model or model} at {vision_base_url}")

@@ -5,7 +5,11 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from typing import Any, AsyncGenerator
+import platform
+from collections.abc import AsyncGenerator
+from typing import Any
+
+from app.core.engine.message.native_classes import AIMessage
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +47,7 @@ class LlamaCppChatModel:
 
     def _import_and_build(self):
         from llama_cpp import Llama
-        import platform
+
         n_gpu = -1 if platform.system() == "Darwin" else 0
         logger.info("[LlamaCpp] Using n_gpu_layers=%d on %s", n_gpu, platform.system())
         return Llama(
@@ -108,7 +112,7 @@ class LlamaCppChatModel:
             try:
                 await cb.on_llm_start({}, prompts=[], run_id=None)
             except Exception:
-                pass
+                logger.warning("[llamacpp] on_llm_start callback failed", exc_info=True)
 
         stream = await asyncio.to_thread(
             lambda: self._llm.create_chat_completion(
@@ -126,7 +130,7 @@ class LlamaCppChatModel:
                     try:
                         await cb.on_llm_new_token(content, run_id=None, chunk=chunk)
                     except Exception:
-                        pass
+                        logger.warning("[llamacpp] on_llm_new_token callback failed", exc_info=True)
             elif delta.get("role") == "assistant":
                 yield AIMessageChunk(content="")
             await asyncio.sleep(0)
@@ -138,7 +142,7 @@ class LlamaCppChatModel:
 
                 await emit_llm_end(callbacks, AIMessage(content=""), run_id=None)
             except Exception:
-                pass
+                logger.warning("[llamacpp] emit_llm_end callback failed", exc_info=True)
 
     chat = ainvoke
     stream = astream

@@ -29,14 +29,13 @@ def _load_client_tools() -> tuple[set[str], tuple[str, ...]]:
 
     Returns (exact_names, prefixes). Falls back to empty sets on error.
     """
-    try:
-        data = yaml.safe_load(_CONFIG_PATH.read_text("utf-8")) or {}
-        exact = set(data.get("exact", []))
-        prefixes = tuple(data.get("prefixes", []))
-        return exact, prefixes
-    except (OSError, yaml.YAMLError) as e:
-        logger.warning(f"[ClientExecutor] Failed to load client_tools.yaml: {e}")
+    data = load_yaml_file(_CONFIG_PATH)
+    if not data:
+        logger.warning("[ClientExecutor] Failed to load client_tools.yaml")
         return set(), ()
+    exact = set(data.get("exact", []))
+    prefixes = tuple(data.get("prefixes", []))
+    return exact, prefixes
 
 
 _CLIENT_TOOLS, _CLIENT_PREFIXES = _load_client_tools()

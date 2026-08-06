@@ -90,7 +90,8 @@ class VolcDialogClient:
         await self.ws.send(start_session)
 
         response = await self.ws.recv()
-        logger.debug(f"StartSession response: {protocol.parse_response(response)}")
+        parsed_session = protocol.parse_response(response)
+        logger.info(f"StartSession response: {parsed_session}")
 
     async def send_audio(self, audio: bytes) -> None:
         """Send client mic PCM audio block."""
@@ -171,7 +172,7 @@ class VolcDialogClient:
             try:
                 await self.ws.close()
             except Exception:
-                pass
+                logger.debug("[volc-dialog] ws.close failed", exc_info=True)
             self.ws = None
 
     async def reconnect(self) -> None:

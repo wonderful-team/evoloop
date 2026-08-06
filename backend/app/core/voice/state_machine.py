@@ -26,6 +26,8 @@ class VoiceSessionState(str, Enum):
 
 
 _VALID_TRANSITIONS: dict[VoiceSessionState, set[VoiceSessionState]] = {
+    # IDLE→PROCESSING: voice.stop 置 IDLE 后，finalize 派发的 Agent 回复仍需
+    # 进入 PROCESSING（否则 SPEAKING 不可达，本地 VAD 打断失效）。
     VoiceSessionState.IDLE: {
         VoiceSessionState.LISTENING,
     },

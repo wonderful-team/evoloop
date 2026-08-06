@@ -89,8 +89,8 @@ async def name_clusters_with_llm(
             project_summary = data.get("description", "")
             fp = data.get("framework_profile") or {}
             domain_vocab = fp.get("domain_vocabulary") or []
-    except Exception:
-        pass
+    except (OSError, ValueError):
+        logger.warning("Failed to read .evoloop/project.json for domain vocabulary", exc_info=True)
 
     result: dict[str, list[str]] = {}
 

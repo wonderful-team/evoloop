@@ -133,8 +133,8 @@ def _load_audio_samples_16k(file_path: str) -> list[float]:
                 if num_channels > 1:
                     raw_int16 = raw_int16[::num_channels]
                 return [s / 32768.0 for s in raw_int16]
-    except Exception:
-        pass
+    except (wave.Error, EOFError, OSError, ValueError):
+        logger.debug("[Qwen3ASR] wave read failed, trying ffmpeg", exc_info=True)
 
     # 尝试 2: 调用 ffmpeg 将任意格式 (webm/mp3/m4a/wav) 转码为 16kHz s16le PCM 流
     try:

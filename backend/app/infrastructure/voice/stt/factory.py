@@ -77,12 +77,9 @@ class STTFactory:
                 logger.warning(f"Qwen3-ASR fallback not available: {e}")
 
         # 3. 最终回退到阿里云/Whisper
-        try:
-            provider = cls.get_aliyun_provider()
-            if provider.is_available():
-                return provider
-        except Exception:
-            pass
+        provider = cls.get_aliyun_provider()
+        if provider.is_available():
+            return provider
 
         return cls.get_whisper_provider()
 

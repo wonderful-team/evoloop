@@ -253,8 +253,8 @@ class RubyLsp(SolidLanguageServer):
                     content = f.read().lower()
                     if "gem 'rails'" in content or 'gem "rails"' in content:
                         return True
-            except Exception:
-                pass
+            except OSError:
+                log.warning("[ruby_lsp] Gemfile exists but unreadable, rails detection inconclusive", exc_info=True)
 
         return False
 

@@ -12,7 +12,7 @@ class ClipboardMixin:
             d = u2.connect(device_id) if device_id else u2.connect()
             return d.clipboard
         except Exception:
-            pass
+            logger.debug("[ADB] uiautomator2 clipboard read failed, using adb", exc_info=True)
         try:
             from app.core.context.manager import ContextManager
 
@@ -36,7 +36,7 @@ class ClipboardMixin:
             d.clipboard = text
             return True
         except Exception:
-            pass
+            logger.debug("[ADB] uiautomator2 clipboard set failed, using adb", exc_info=True)
         try:
             escaped_text = text.replace("'", "'\\''")
             self._run_adb(

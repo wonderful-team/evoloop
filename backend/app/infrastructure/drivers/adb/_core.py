@@ -76,7 +76,7 @@ class CoreMixin:
             u2.connect(device_id) if device_id else u2.connect()
             return True
         except Exception:
-            pass
+            logger.debug("[ADB] u2 connect failed, using python3 init", exc_info=True)
         try:
             from app.core.context.manager import ContextManager
 

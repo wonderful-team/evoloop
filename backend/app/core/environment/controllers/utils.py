@@ -73,7 +73,7 @@ class RecordingContext:
             try:
                 shot = await screenshot_fn() if asyncio.iscoroutinefunction(screenshot_fn) else screenshot_fn()
             except Exception:
-                pass  # Screenshot is optional
+                logger.debug("[env-utils] screenshot capture failed, skipping", exc_info=True)
 
         # Build context
         context = await context_fn() if context_fn else {}

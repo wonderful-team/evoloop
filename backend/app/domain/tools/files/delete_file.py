@@ -1,3 +1,4 @@
+import logging
 import os
 from typing import Annotated
 
@@ -10,6 +11,8 @@ from app.core.tools import evoloop_tool
 from app.core.tools.base import InjectedToolArg
 
 from .utils import resolve_and_validate_path
+
+logger = logging.getLogger(__name__)
 
 
 @evoloop_tool(

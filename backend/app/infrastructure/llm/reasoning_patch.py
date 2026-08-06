@@ -70,7 +70,7 @@ def _apply_reasoning_patch() -> None:
                         if "Transfer-Encoding" in request.headers:
                             del request.headers["Transfer-Encoding"]
             except Exception:
-                pass
+                logger.debug("[ReasoningPatch] Failed to rewrite request body", exc_info=True)
 
         return await _original_httpx_send(self, request, **kwargs)
 

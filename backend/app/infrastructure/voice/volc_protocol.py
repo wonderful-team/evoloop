@@ -1,5 +1,8 @@
 import gzip
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 PROTOCOL_VERSION = 0b0001
 DEFAULT_HEADER_SIZE = 0b0001
@@ -113,18 +116,18 @@ def parse_response(res):
     if message_compression == GZIP and len(payload_msg) > 0:
         try:
             payload_msg = gzip.decompress(payload_msg)
-        except Exception:
-            pass
+        except (OSError, ValueError):
+            logger.warning("[volc-protocol] gzip decompress failed, keeping raw bytes", exc_info=True)
     if serialization_method == JSON and len(payload_msg) > 0:
         try:
             payload_msg = json.loads(payload_msg.decode("utf-8"))
-        except Exception:
-            pass
+        except (OSError, ValueError):
+            logger.warning("[volc-protocol] JSON payload decode failed, keeping raw bytes", exc_info=True)
     elif serialization_method != NO_SERIALIZATION:
         try:
             payload_msg = payload_msg.decode("utf-8")
-        except Exception:
-            pass
+        except (OSError, ValueError):
+            logger.warning("[volc-protocol] UTF-8 payload decode failed, keeping raw bytes", exc_info=True)
     result["payload_msg"] = payload_msg
     result["payload_size"] = payload_size
     return result

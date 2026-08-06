@@ -32,6 +32,8 @@ class MessageType(str, Enum):
     SYSTEM_ERROR = "system.error"
     MEMORY_SYNC = "memory.sync"
     # Voice assistant (thin-client) channel
+    VOICE_START = "voice.start"
+    VOICE_STOP = "voice.stop"
     VOICE_ROUTE = "voice.route"
     VOICE_CANCEL = "voice.cancel"
     VOICE_ROUTE_RESULT = "voice.route_result"

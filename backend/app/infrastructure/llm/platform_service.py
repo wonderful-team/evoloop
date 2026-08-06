@@ -3,6 +3,7 @@ LLM Platform Service - 从 EvoLoop Gateway 获取模型配置
 
 注：HTTP 请求逻辑已下沉到 EvoCloudHTTPClient，本模块只保留缓存和格式转换层
 """
+
 import asyncio
 import logging
 import time
@@ -20,9 +21,9 @@ class LLMPlatformService:
     """
     从 EvoLoop Gateway 获取 LLM 模型配置 (带本地缓存)
     """
-    
+
     _instance = None
-    _models_cache: Dict[str, PlatformModel] = {}
+    _models_cache: dict[str, PlatformModel] = {}
     _last_fetch_time: float = 0
     _cache_ttl: int = 300  # 5分钟缓存
     _fetch_lock = None  # 并发控制锁，防止同时发起多个请求
@@ -55,7 +56,7 @@ class LLMPlatformService:
         configured_vision_model = SystemConfigService.get_value("VISION_MODEL")
         if not configured_vision_model:
             configured_vision_model = SystemConfigService.get_value("CUSTOM_LLM_MODEL") or SystemConfigService.get_value("LLM_MODEL")
-            
+
         supports_vision = (effective_name == configured_vision_model) if configured_vision_model else False
 
         provider_type = "anthropic" if "claude" in effective_name.lower() else "openai"
@@ -146,7 +147,7 @@ llm_platform_service = LLMPlatformService()
 async def get_available_llm_models(config_type: str = None) -> List[Dict[str, Any]]:
     """
     获取可用的 LLM 模型列表 (platform + custom 组合)
-    
+
     - platform: 从 EvoLoop Gateway 获取的模型（需要配额）
     - custom: 用户自己配置的模型（使用自己的 API Key）
     """

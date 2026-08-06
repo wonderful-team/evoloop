@@ -86,7 +86,7 @@ class AdaptiveRetryState(BaseModel):
             attempt=self.attempt + 1,
             max_retries=self.max_retries,
             current_max_tokens=int(self.current_max_tokens * decay),
-            current_temperature=max(self.current_temperature - 0.2, 0.0)
+            current_temperature=max(self.current_temperature - 0.2, 0.0),
         )
 
     @property
@@ -129,7 +129,7 @@ class AdaptiveChatOpenAI:
             api_key=api_key,
             base_url=base_url,
             http_client=http_async_client,
-            default_headers=default_headers
+            default_headers=default_headers,
         )
 
     def bind_tools(self, tools: list[Any], tool_choice: str | None = None) -> "AdaptiveChatOpenAI":
@@ -282,7 +282,7 @@ class AdaptiveChatOpenAI:
                     msg_chunk = AIMessageChunk(
                         content=content,
                         tool_calls=tool_calls,
-                        additional_kwargs=additional_kwargs
+                        additional_kwargs=additional_kwargs,
                     )
 
                     if callbacks:
@@ -376,7 +376,7 @@ class AdaptiveChatOpenAI:
         return AIMessage(
             content=response_content,
             tool_calls=tool_calls,
-            additional_kwargs=additional_kwargs
+            additional_kwargs=additional_kwargs,
         )
 
     async def summarize(self, text: str) -> str:
@@ -414,7 +414,7 @@ def _inline_json_schema_refs(schema: dict) -> dict:
         if isinstance(node, dict):
             ref = node.get("$ref")
             if isinstance(ref, str) and ref.startswith("#/$defs/"):
-                name = ref[len("#/$defs/"):]
+                name = ref[len("#/$defs/") :]
                 if name in seen:
                     return {}
                 target = defs.get(name)

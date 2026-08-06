@@ -63,14 +63,11 @@ class BrowserManager:
         """Return explicit thread_id or fall back to the current EvoContext."""
         if thread_id:
             return thread_id
-        try:
-            from app.core.context import ContextManager
+        from app.core.context import ContextManager
 
-            tid = ContextManager.get_var("thread_id")
-            if tid:
-                return str(tid)
-        except Exception:
-            pass
+        tid = ContextManager.get_var("thread_id")
+        if tid:
+            return str(tid)
         return None
 
     def _get_state(self, thread_id: str | None) -> _PageState:

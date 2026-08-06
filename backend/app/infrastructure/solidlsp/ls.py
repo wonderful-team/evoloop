@@ -1230,7 +1230,7 @@ class SolidLanguageServer(ABC):
                                         path = path.relative_to(self.repository_root_path)
                                         node["location"]["relativePath"] = str(path)
                                     except Exception:
-                                        pass
+                                        log.debug("[ls] relative path fix failed, keeping absolute", exc_info=True)
                             if "children" in node:
                                 fix_relative_path(node["children"])
 

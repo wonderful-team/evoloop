@@ -58,18 +58,15 @@ async def _summarize_project_logic(name: str, path: str, module_graph: str = "")
                 fp = pj.get("framework_profile", {})
                 parts = [fp.get(k, "") for k in ("language", "framework", "architecture")]
                 arch_summary = " / ".join(p for p in parts if p)
-        except Exception:
-            pass
+        except (OSError, ValueError):
+            logger.warning("Failed to read .evoloop/project.json for %s", path, exc_info=True)
 
         if arch_summary in ("", "Not available yet.", " / "):
-            try:
-                from app.domain.codebase.indexing.directory_summarizer import DirectorySummarizer
+            from app.domain.codebase.indexing.directory_summarizer import DirectorySummarizer
 
-                summary_dir = await DirectorySummarizer.get_summary(path)
-                if summary_dir:
-                    arch_summary = summary_dir
-            except Exception:
-                pass
+            summary_dir = await DirectorySummarizer.get_summary(path)
+            if summary_dir:
+                arch_summary = summary_dir
 
         # Update Status
         await activity_monitor.update_agent_state(

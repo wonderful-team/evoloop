@@ -249,7 +249,7 @@ class SolidLanguageServerHandler:
             try:
                 pipe.close()
             except Exception:
-                pass
+                log.debug("[ls_handler] pipe close failed", exc_info=True)
 
     def _terminate_or_kill_process(self, process: subprocess.Popen[bytes]) -> None:
         """Try to terminate the process gracefully, then forcefully if necessary."""
@@ -286,7 +286,7 @@ class SolidLanguageServerHandler:
             try:
                 getattr(process, signal_method)()
             except Exception:
-                pass
+                log.debug("[ls_handler] process %s failed", signal_method, exc_info=True)
 
     def shutdown(self) -> None:
         """
