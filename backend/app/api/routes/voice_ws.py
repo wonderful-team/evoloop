@@ -529,7 +529,7 @@ class VoiceTtsBridge:
                     try:
                         await self._client.close()
                     except Exception:
-                        pass
+                        logger.debug("[voice-ws] bridge TTS close failed after run error", exc_info=True)
                     self._client = None
 
 
@@ -732,9 +732,7 @@ async def voice_receive_loop(
                                     exc_info=True,
                                 )
                             _is_sending_chat_tts_text[thread_id] = True
-                            asyncio.create_task(
-                                run_agent_pipeline(websocket, thread_id, asr_text)
-                            )
+                            asyncio.create_task(run_agent_pipeline(websocket, thread_id, asr_text))
                         else:
                             # ASR 专用链路：最终定案由 voice.stop 的收集流程统一触发，
                             # 这里仅保留最新文本（服务端负包后仍可能返回剩余结果）。
@@ -1226,17 +1224,11 @@ async def voice_ws(websocket: WebSocket) -> None:
                                 # Speech onset: flush the pre-roll + this frame.
                                 audio_log_bytes = _asr_audio_log.get(conn_id, 0)
                                 if audio_log_bytes == 0:
-                                    logger.info(
-                                        "[voice-ws] ASR audio frames arriving, first=%d bytes",
-                                        len(pcm_bytes),
-                                    )
+                                    logger.info("[voice-ws] ASR audio frames arriving, first=%d bytes", len(pcm_bytes))
                                 audio_log_bytes += len(pcm_bytes)
                                 _asr_audio_log[conn_id] = audio_log_bytes
                                 if audio_log_bytes >= 32000:
-                                    logger.info(
-                                        "[voice-ws] ASR audio received %d bytes total",
-                                        audio_log_bytes,
-                                    )
+                                    logger.info("[voice-ws] ASR audio received %d bytes total", audio_log_bytes)
                                     _asr_audio_log[conn_id] = 0
                                 for buffered in list(pre):
                                     await volc_client.send_audio(buffered)
@@ -1254,10 +1246,7 @@ async def voice_ws(websocket: WebSocket) -> None:
                                 # frame every few seconds while gated — billed as
                                 # ~0.7% of realtime duration instead of 100%.
                                 last_keepalive = _vad_last_keepalive.get(conn_id, 0.0)
-                                if (
-                                    silence_ms - last_keepalive
-                                    >= _VAD_KEEPALIVE_INTERVAL_MS
-                                ):
+                                if silence_ms - last_keepalive >= _VAD_KEEPALIVE_INTERVAL_MS:
                                     _vad_last_keepalive[conn_id] = silence_ms
                                     await volc_client.send_audio(b"\x00\x00" * 320)
                                 # Long idle window with no speech: refresh the ASR
