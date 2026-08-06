@@ -25,20 +25,33 @@ def _detect_wiki_language(query: str) -> str:
     return "en"
 
 
-async def _search_duckduckgo(query: str) -> list[str] | None:
-    """尝试使用 DuckDuckGo 搜索。"""
-    try:
-        from ddgs import DDGS
+def _ddg_search_sync(query: str) -> list[str] | None:
+    """同步执行 DuckDuckGo 搜索（在工作线程中调用，避免阻塞事件循环）。
 
-        results = []
-        with DDGS(backend="api", timeout=30) as ddgs:
-            for result in ddgs.text(query, max_results=5, backend="api"):
-                results.append(
-                    f"Title: {result['title']}\n"
-                    f"URL: {result['href']}\n"
-                    f"Description: {result['body']}\n"
-                )
-        return results if results else None
+    ddgs 9.x 为同步阻塞库，且内部重试可能耗时数秒到数十秒，必须在线程池运行。
+    """
+    from ddgs import DDGS
+
+    results = []
+    with DDGS(timeout=15) as ddgs:
+        for result in ddgs.text(query, max_results=5):
+            results.append(
+                f"Title: {result['title']}\n"
+                f"URL: {result['href']}\n"
+                f"Description: {result['body']}\n"
+            )
+    return results if results else None
+
+
+async def _search_duckduckgo(query: str) -> list[str] | None:
+    """尝试使用 DuckDuckGo 搜索（线程池执行 + 硬超时）。"""
+    try:
+        return await asyncio.wait_for(
+            asyncio.to_thread(_ddg_search_sync, query), timeout=20
+        )
+    except asyncio.TimeoutError:
+        logger.debug("DuckDuckGo search timed out for %r", query, exc_info=True)
+        return None
     except Exception as e:
         logger.debug("Suppressed error: %s", e, exc_info=True)
         return None
@@ -174,7 +187,7 @@ async def _fetch_wikipedia_summary(title: str, lang: str = "en") -> str | None:
         data = response.json()
 
         pages = data.get("query", {}).get("pages", {})
-        for page_id, page_data in pages.items():
+        for _page_id, page_data in pages.items():
             extract = page_data.get("extract", "")
             if extract:
                 return extract.strip()
@@ -184,34 +197,59 @@ async def _fetch_wikipedia_summary(title: str, lang: str = "en") -> str | None:
         return None
 
 
+_SEARCH_PARALLEL_TIMEOUT: float = 8.0
+
+
+async def _search_parallel(query: str) -> list[str] | None:
+    """并发跑 DDG/Baidu/Wikipedia，第一个返回非空结果的先用（先到先得）。
+
+    Baidu 实测 ~0.8s、DDG 16-30s，串行会为慢引擎白白等待；并发可立即用上快者。
+    整体硬上限 8s：即使所有引擎都慢/被限流，也不阻塞 Agent 超过 8s。
+    """
+    try:
+        return await asyncio.wait_for(
+            _search_parallel_inner(query), timeout=_SEARCH_PARALLEL_TIMEOUT
+        )
+    except asyncio.TimeoutError:
+        logger.debug("Web search overall timed out (%ss) for %r", _SEARCH_PARALLEL_TIMEOUT, query, exc_info=True)
+        return None
+
+
+async def _search_parallel_inner(query: str) -> list[str] | None:
+    tasks = [
+        asyncio.create_task(_search_duckduckgo(query)),
+        asyncio.create_task(_search_baidu(query)),
+        asyncio.create_task(_search_wikipedia(query)),
+    ]
+    pending = set(tasks)
+    try:
+        while pending:
+            done, pending = await asyncio.wait(
+                pending, return_when=asyncio.FIRST_COMPLETED
+            )
+            for t in done:
+                try:
+                    results = t.result()
+                except Exception:
+                    continue
+                if results:
+                    for p in pending:
+                        p.cancel()
+                    return results
+    finally:
+        for p in pending:
+            p.cancel()
+    return None
+
+
 @evoloop_tool(summary_template="evoloop.tool_summary.search_web")
 async def search_web(query: str) -> str:
     """
     Searches the web for the given query using DuckDuckGo, Baidu, or Wikipedia.
     Returns a list of search results with titles and URLs.
     """
-    # 首先尝试 DuckDuckGo
-    results = await _search_duckduckgo(query)
-    if results:
-        res = format_web_search_results(query, results)
-        if isinstance(res, tuple):
-            text, meta = res
-            meta["page"] = 1
-            return text, meta
-        return res, {"count": len(results), "page": 1}
-
-    # 回退到百度搜索
-    results = await _search_baidu(query)
-    if results:
-        res = format_web_search_results(query, results)
-        if isinstance(res, tuple):
-            text, meta = res
-            meta["page"] = 1
-            return text, meta
-        return res, {"count": len(results), "page": 1}
-
-    # 回退到 Wikipedia 百科搜索
-    results = await _search_wikipedia(query)
+    # 三个引擎并发，先到先得
+    results = await _search_parallel(query)
     if results:
         res = format_web_search_results(query, results)
         if isinstance(res, tuple):

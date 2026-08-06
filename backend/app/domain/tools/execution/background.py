@@ -21,6 +21,14 @@ from app.infrastructure.config import SystemConfigService
 logger = logging.getLogger(__name__)
 
 
+def _terminate_process_group(process: asyncio.subprocess.Process) -> None:
+    """Gracefully terminate the whole process group of a subprocess."""
+    try:
+        os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+
+
 async def execute_in_background(
     command: str,
     timeout: int,
@@ -62,7 +70,9 @@ async def run_command_background(
         ctx = ContextManager.current()
         working_dir = get_working_directory(config)
 
-        if ctx.project_id == DEFAULT_PROJECT_ID or (ctx.project_id is None and working_dir == "."):
+        if ctx.project_id == DEFAULT_PROJECT_ID or (
+            ctx.project_id is None and working_dir == "."
+        ):
             workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
             if workspace_root:
                 working_dir = workspace_root
@@ -81,13 +91,7 @@ async def run_command_background(
 
         await task_manager.start_task(task.task_id, process.pid)
 
-        def cancel_callback():
-            try:
-                os.killpg(os.getpgid(process.pid), signal.SIGTERM)
-            except ProcessLookupError:
-                pass
-
-        task.set_cancel_callback(cancel_callback)
+        task.set_cancel_callback(lambda: _terminate_process_group(process))
 
         async def read_stream(stream, is_stderr=False):
             prefix = "[stderr] " if is_stderr else ""
@@ -157,7 +161,9 @@ async def execute_smart(
     ctx = ContextManager.current()
     working_dir = get_working_directory(config)
 
-    if ctx.project_id == DEFAULT_PROJECT_ID or (ctx.project_id is None and working_dir == "."):
+    if ctx.project_id == DEFAULT_PROJECT_ID or (
+        ctx.project_id is None and working_dir == "."
+    ):
         workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
         if workspace_root:
             working_dir = workspace_root
@@ -176,13 +182,7 @@ async def execute_smart(
 
     await task_manager.start_task(task.task_id, process.pid)
 
-    def cancel_callback():
-        try:
-            os.killpg(os.getpgid(process.pid), signal.SIGTERM)
-        except ProcessLookupError:
-            pass
-
-    task.set_cancel_callback(cancel_callback)
+    task.set_cancel_callback(lambda: _terminate_process_group(process))
 
     stdout_buf = []
     stderr_buf = []
@@ -248,9 +248,13 @@ async def execute_smart(
                 await asyncio.wait_for(read_task, timeout=remaining)
                 exit_code = await asyncio.wait_for(process.wait(), timeout=5.0)
                 if exit_code == 0:
-                    await task_manager.complete_task(task.task_id, result={"exit_code": 0})
+                    await task_manager.complete_task(
+                        task.task_id, result={"exit_code": 0}
+                    )
                 else:
-                    await task_manager.fail_task(task.task_id, error=f"Exit code: {exit_code}")
+                    await task_manager.fail_task(
+                        task.task_id, error=f"Exit code: {exit_code}"
+                    )
             except asyncio.TimeoutError:
                 try:
                     os.killpg(os.getpgid(process.pid), signal.SIGKILL)

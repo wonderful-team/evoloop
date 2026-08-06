@@ -11,14 +11,6 @@ import logging
 from app.infrastructure.cache import get_cache
 from app.infrastructure.cache.abstract import Cache
 
-# Re-exports for backward compatibility
-from app.core.context._cache_service import ContextCacheService
-from app.core.monitoring.activity_state import (
-    ActivityArtifact,
-    ActivityState,
-    ActivityStateService,
-)
-
 logger = logging.getLogger(__name__)
 
 

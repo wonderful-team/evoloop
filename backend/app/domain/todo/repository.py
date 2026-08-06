@@ -35,7 +35,7 @@ class TodoRepository:
         Returns:
             Created TodoItem instance
         """
-        todo = TodoItem(**data.model_dump(exclude_unset=True))
+        todo = TodoItem(**{f: getattr(data, f) for f in data.model_fields_set})
         self.session.add(todo)
         await self.session.commit()
         await self.session.refresh(todo)
@@ -260,7 +260,7 @@ class TodoRepositorySync:
         from app.infrastructure.database import session_scope
 
         with session_scope() as session:
-            todo = TodoItem(**data.model_dump(exclude_unset=True))
+            todo = TodoItem(**{f: getattr(data, f) for f in data.model_fields_set})
             session.add(todo)
             session.commit()
             session.refresh(todo)
