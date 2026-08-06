@@ -32,8 +32,9 @@ class AgentSessionStartedEvent(AgentEvent):
     broadcast_channel: str = "chat"
 
     def model_post_init(self, __context: Any) -> None:
-        self.data = EventData.model_validate(
-            {"thread_id": self.thread_id, "project_id": self.project_id}
+        self.data = EventData(
+            thread_id=self.thread_id,
+            project_id=self.project_id,
         )
 
 
@@ -54,13 +55,11 @@ class AgentRunCompletedEvent(AgentEvent):
 
     @model_validator(mode="after")
     def _build_data(self):
-        self.data = EventData.model_validate(
-            {
-                "thread_id": self.thread_id,
-                "project_id": self.project_id,
-                "goal": self.goal,
-                "status": self.status,
-            }
+        self.data = EventData(
+            thread_id=self.thread_id,
+            project_id=self.project_id,
+            goal=self.goal,
+            status=self.status,
         )
         return self
 
@@ -100,11 +99,7 @@ class ConversationDeletedEvent(AgentEvent):
     thread_id: str = ""
 
     def model_post_init(self, __context: Any) -> None:
-        self.data = EventData.model_validate(
-            {
-                "thread_id": self.thread_id,
-            }
-        )
+        self.data = EventData(thread_id=self.thread_id)
 
 
 class ExtractionRequest(BaseModel):

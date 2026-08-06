@@ -254,9 +254,9 @@ class FinishNode(BaseNode):
         metadata_clean = state.build_metadata_dict()
 
         blackboard_dict = {
-            "ticket": state.ticket.model_dump() if hasattr(state.ticket, "model_dump") and state.ticket else state.ticket,
+            "ticket": state.ticket.model_dump() if state.ticket else None,
             "visited_nodes": state.visited_nodes,
-            "verification": state.verification.model_dump() if hasattr(state.verification, "model_dump") and state.verification else state.verification,
+            "verification": state.verification.model_dump() if state.verification else None,
             "metadata": metadata_clean,
         }
 

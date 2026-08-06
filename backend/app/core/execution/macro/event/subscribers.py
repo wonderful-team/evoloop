@@ -152,7 +152,7 @@ class MacroL0MatcherSubscriber:
         matcher_cache.invalidate_and_schedule_rebuild()
 
         logger.info(
-            "[L0Matcher] invalidated after macro lifecycle event: %s (macro_id=%s)",
+            "[L0Matcher] scheduled debounced rebuild and navigation cache refresh after macro lifecycle event: %s (macro_id=%s)",
             getattr(event, "event_type", "unknown"),
             macro_id,
         )

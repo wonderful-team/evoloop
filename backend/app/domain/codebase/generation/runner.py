@@ -114,7 +114,7 @@ async def _run_wiki(project_id: int) -> None:
         t for t in get_tool_bundle("file_tools")
         if t not in ("edit_file", "delete_file", "move_file", "execute_command")
     ]
-    ticket = ExecutionTicket(
+    result.inputs["ticket"] = ExecutionTicket(
         ticket_type="task",
         topic="Wiki Generation",
         agent_config=AgentRuntimeConfig(
@@ -126,7 +126,6 @@ async def _run_wiki(project_id: int) -> None:
             ] + read_only_tools,
         ),
     )
-    result.inputs["ticket"] = ticket.model_dump(mode="json")
     result.inputs.setdefault("metadata", {})["skip_persistence"] = True
     result.inputs["metadata"]["task_type"] = "wiki_generation"
     await run_agent_background(thread_id, result.inputs)
@@ -283,11 +282,10 @@ async def _run_appmap(project_id: int) -> None:
         raise RuntimeError(result.error or "Agent dispatch failed")
 
     read_only_tools = [
-        t
-        for t in get_tool_bundle("file_tools")
+        t for t in get_tool_bundle("file_tools")
         if t not in ("edit_file", "delete_file", "move_file")
     ]
-    ticket = ExecutionTicket(
+    result.inputs["ticket"] = ExecutionTicket(
         ticket_type="task",
         topic="AppMap Analysis",
         agent_config=AgentRuntimeConfig(
@@ -302,7 +300,6 @@ async def _run_appmap(project_id: int) -> None:
             ] + read_only_tools,
         ),
     )
-    result.inputs["ticket"] = ticket.model_dump(mode="json")
     result.inputs.setdefault("metadata", {})["skip_persistence"] = True
     result.inputs["metadata"]["task_type"] = "app_map_generation"
     result.inputs["metadata"]["initial_node"] = "worker"

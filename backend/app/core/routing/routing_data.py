@@ -216,19 +216,9 @@ class RoutingLanguageStore:
         logger.info("[routing_data] loaded routing data for language %s", lang)
 
 
-def load_for_language(lang: str) -> dict[str, Any]:
-    """Return a fresh routing data bundle for ``lang`` (for debugging/tests)."""
-    return _build_routing_data(lang)
-
-
 def get_store() -> RoutingLanguageStore:
     """Return the module singleton ``RoutingLanguageStore``."""
     return _store
-
-
-def get_current_language() -> str:
-    """Return the language code currently loaded by the store."""
-    return _store.lang
 
 
 # Module singleton initialized at import time with the active language.
@@ -238,6 +228,4 @@ _store = RoutingLanguageStore(_get_active_language())
 __all__ = [
     "RoutingLanguageStore",
     "get_store",
-    "get_current_language",
-    "load_for_language",
 ]

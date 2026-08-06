@@ -150,7 +150,7 @@ async def generate_wiki(
     if result.status == "failed":
         raise HTTPException(500, detail=result.error)
 
-    ticket = ExecutionTicket(
+    result.inputs["ticket"] = ExecutionTicket(
         ticket_type="task",
         topic="Wiki Generation",
         skill_ids=[skill.id] if skill else None,
@@ -170,7 +170,6 @@ async def generate_wiki(
             ],
         ),
     )
-    result.inputs["ticket"] = ticket.model_dump(mode="json")
 
     # Skip persisting Agent conversation transcript to DB for this background batch task
     if "metadata" not in result.inputs:

@@ -114,7 +114,7 @@ async def discover_profile(
         f"identify technical debt, tech stack, and ensure the project can be successfully initialized."
     )
 
-    ticket = ExecutionTicket(
+    result.inputs["ticket"] = ExecutionTicket(
         ticket_type="task",
         topic="Project Discovery",
         skill_ids=[skill.id] if skill else None,
@@ -123,7 +123,6 @@ async def discover_profile(
             system_instructions=system_instructions,
         ),
     )
-    result.inputs["ticket"] = ticket.model_dump(mode="json")
 
     if "metadata" not in result.inputs:
         result.inputs["metadata"] = {}

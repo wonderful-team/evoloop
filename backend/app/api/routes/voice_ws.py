@@ -243,7 +243,7 @@ async def _handle_dictation_finalize(body: dict[str, Any], conn_id: str) -> None
     await manager.bind_thread(thread_id, conn_id)
 
     # Check if dictation LLM polishing is enabled
-    polish_enabled = SystemConfigService.get_value("EVOLOOP_DICTATION_LLM_POLISH", "true")
+    polish_enabled = SystemConfigService.get_value("EVOLOOP_DICTATION_LLM_POLISH")
     if polish_enabled == "false":
         logger.info(f"[voice-ws] Dictation LLM polish is disabled, pushing raw text directly: {raw_text}")
         await manager.push(thread_id, _envelope("dictation.paste", {"text": raw_text}))
@@ -308,7 +308,10 @@ async def _handle_dictation_finalize(body: dict[str, Any], conn_id: str) -> None
         )
         await manager.push(
             thread_id,
-            _envelope(MessageType.VOICE_DICTATION_POLISHED, {"changes": [], "error": str(exc)[:200]}),
+            _envelope(
+                MessageType.VOICE_DICTATION_POLISHED,
+                {"changes": [], "error": str(exc)[:200]},
+            ),
         )
 
 
@@ -472,7 +475,7 @@ async def voice_receive_loop(
                     logger.debug(
                         "[voice-ws] SERVER_ACK payload_type=%s len=%s flag=%s",
                         type(payload),
-                        len(payload) if isinstance(payload, (bytes, bytearray)) else 0,
+                        len(payload) if isinstance(payload, bytes | bytearray) else 0,
                         flag,
                     )
                     if isinstance(payload, bytes):
@@ -513,7 +516,12 @@ async def voice_receive_loop(
                         await _handle_barge_in(thread_id)
                     else:
                         try:
-                            await websocket.send_json(_envelope(MessageType.VOICE_BARGE_IN, {"thread_id": thread_id}))
+                            await websocket.send_json(
+                                _envelope(
+                                    MessageType.VOICE_BARGE_IN,
+                                    {"thread_id": thread_id}
+                                )
+                            )
                         except Exception:
                             logger.debug("[voice-ws] failed to forward barge_in for %s", thread_id, exc_info=True)
 
@@ -585,7 +593,7 @@ async def voice_receive_loop(
                     asr_text = _last_asr_text.pop(thread_id, "")
                     logger.info(f"[voice-ws] ASR timeout: {asr_text} ({mode})")
                     if mode == "dialogue":
-                        asyncio.create_task(_run_agent_pipeline(websocket, thread_id, asr_text))
+                        asyncio.create_task(run_agent_pipeline(websocket, thread_id, asr_text))
                     else:
                         await manager.bind_thread(thread_id, conn_id)
                         asyncio.create_task(_handle_dictation_finalize({
@@ -684,15 +692,6 @@ async def _run_agent_pipeline(websocket: WebSocket, thread_id: str, text: str) -
 
             if outcome.msg is None:
                 return
-
-            # --- EARLY ACK ---
-            if outcome and not outcome.handled and outcome.msg:
-                from app.core.engine.domain_mapping import ACK_TEMPLATES
-
-                ack_text = random.choice(ACK_TEMPLATES)
-                if ack_text:
-                    await VoiceChannel.push_tts_chunk(thread_id, ack_text, end=True, force_start=True)
-                    VoiceChannel.reset_tts_started(thread_id)
 
             logger.info("[voice-perf] %s L0 miss → agent dispatch", thread_id)
             post = await voice_input.post_dispatch(outcome.msg, outcome.inputs)

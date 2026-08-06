@@ -198,12 +198,3 @@ class LocalMatcher:
 
     def _canonical(self, name: str) -> str:
         return self._aliases.get(name, name)
-
-
-def sorted_templates(templates: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Rule 2 shipping order: longest-literal patterns first."""
-    return sorted(
-        templates,
-        key=lambda t: max((_literal_len(p) for p in t.get("patterns", [])), default=0),
-        reverse=True,
-    )

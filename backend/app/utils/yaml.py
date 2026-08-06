@@ -4,6 +4,7 @@ YAML Utilities for Macro Script Processing
 Provides safe YAML parsing and conversion to/from JSON.
 """
 
+from pathlib import Path
 from typing import Any
 
 import yaml

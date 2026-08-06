@@ -106,11 +106,11 @@ class AgentStateBase(DynamicBaseModel):
         fields = {
             "tool_history": self.tool_history,
             "pending_approvals": [
-                x.model_dump() if hasattr(x, "model_dump") else x
+                x.model_dump()
                 for x in (self.pending_approvals or [])
             ],
             "audit_anomalies": [
-                x.model_dump() if hasattr(x, "model_dump") else x
+                x.model_dump()
                 for x in (self.audit_anomalies or [])
             ],
             "tool_memory": self.tool_memory,
@@ -118,11 +118,11 @@ class AgentStateBase(DynamicBaseModel):
             "shadow_audit": self.shadow_audit,
             "termination_outcome": self.termination_outcome,
             "audit_tier": self.audit_tier,
-            "audit_meta": self.audit_meta.model_dump() if hasattr(self.audit_meta, "model_dump") and self.audit_meta else self.audit_meta,
+            "audit_meta": self.audit_meta.model_dump() if self.audit_meta else None,
             "blocked_by_hook": self.blocked_by_hook,
-            "plan_progress": self.plan_progress.model_dump() if hasattr(self.plan_progress, "model_dump") and self.plan_progress else self.plan_progress,
+            "plan_progress": self.plan_progress.model_dump() if self.plan_progress else None,
             "max_supervisor_steps": self.max_supervisor_steps,
-            "audit_input_data": self.audit_input_data.model_dump() if hasattr(self.audit_input_data, "model_dump") and self.audit_input_data else self.audit_input_data,
+            "audit_input_data": self.audit_input_data.model_dump() if self.audit_input_data else None,
             "force_comprehensive_audit": self.force_comprehensive_audit,
         }
         return {k: v for k, v in fields.items() if v is not None}

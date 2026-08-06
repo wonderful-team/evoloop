@@ -235,7 +235,11 @@ class InferenceEngine:
                 default_model = cfg.get("model", "")
                 if default_model:
                     fallback_llm = await self._llm_factory.create_llm(
-                        LLMConfig(model_name=default_model, temperature=0.7, streaming=True),
+                        LLMConfig(
+                            model_name=default_model,
+                            temperature=0.7,
+                            streaming=True
+                        ),
                     )
                     response = await self._stream_llm_response(fallback_llm, loop_messages, config)
                     latency = time.perf_counter() - start_perf

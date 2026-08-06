@@ -23,29 +23,13 @@ current_node_source: contextvars.ContextVar[str | None] = contextvars.ContextVar
 logger = logging.getLogger(__name__)
 
 
-def _censor_secrets(val: Any) -> Any:
+def censor_secrets(val: Any) -> Any:
     """Censor any raw secrets stored in the EvoContext's injected_secrets."""
     from app.core.context.manager import ContextManager
+    from app.utils.security import redact_secrets
 
-    try:
-        ctx = ContextManager.current()
-        injected_secrets = ctx.injected_secrets
-        if not injected_secrets:
-            return val
-
-        if isinstance(val, str):
-            sanitized = val
-            for secret in injected_secrets:
-                if secret and secret in val:
-                    sanitized = sanitized.replace(secret, "******")
-            return sanitized
-        elif isinstance(val, dict):
-            return {k: _censor_secrets(v) for k, v in val.items()}
-        elif isinstance(val, list):
-            return [_censor_secrets(x) for x in val]
-    except (TypeError, ValueError, AttributeError) as e:
-        logger.warning(f"Error during secret censorship in callback: {e}")
-    return val
+    ctx = ContextManager.current()
+    return redact_secrets(val, ctx.injected_secrets or [])
 
 
 class DatabaseCallbackHandler(AsyncCallbackHandler):
@@ -148,7 +132,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
             tool_call_id = run_id_str  # 假设 run_id 就是 tool_call_id（符合 Engine 行为）
 
         # Censor raw secrets before writing to the database log
-        output = _censor_secrets(output)
+        output = censor_secrets(output)
 
         # 委托给统一处理器，传入 sequence_number 以 UPDATE 记录
         result = await self._handler.handle_tool_output(
@@ -195,7 +179,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         # Parse input data
         input_data = parse_tool_input(input_str)
         # Censor raw secrets before writing to the database log
-        input_data = _censor_secrets(input_data)
+        input_data = censor_secrets(input_data)
 
         # Pre-insert running record via MessageHandler
         result = await self._handler.handle_tool_start(
@@ -237,7 +221,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         seq = tool_info.get("seq")
 
         # Censor error message if it contains secrets
-        censored_message = _censor_secrets(str(error))
+        censored_message = censor_secrets(str(error))
         if censored_message != str(error):
             error = Exception(censored_message)
 

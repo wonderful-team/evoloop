@@ -147,13 +147,3 @@ def cleanup_macro_steps(
         clean_steps.append(step)
 
     return clean_steps, current_idx
-
-
-def macro_script_to_yaml(steps: list[dict[str, Any]]) -> str:
-    """Convert a list of macro step dicts to YAML string."""
-    return str(yaml.dump(
-        steps,
-        default_flow_style=False,
-        allow_unicode=True,
-        sort_keys=False,
-    ))

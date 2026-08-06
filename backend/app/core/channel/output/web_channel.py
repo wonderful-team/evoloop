@@ -8,6 +8,8 @@ app/api/routes/stream.py subscribes to the same pub/sub channel.
 import logging
 from typing import Any
 
+from pydantic import BaseModel
+
 from app.core.engine.message.broker import get_message_broker
 from app.core.engine.message.mapper import BlockMapper
 from app.core.engine.message.schemas import MessageBlock
@@ -37,7 +39,7 @@ def format_event_for_frontend(event: Any) -> dict:
             "type": "session_completed",
             "thread_id": event.thread_id,
             "timestamp": event.timestamp.isoformat(),
-            "data": event.data.model_dump(exclude={"messages", "blackboard_dict"}) if hasattr(event.data, "model_dump") else event.data
+            "data": event.data.model_dump(exclude={"messages", "blackboard_dict"})
         }
     elif isinstance(event, SystemStatusEvent):
         return {
@@ -120,11 +122,11 @@ def format_event_for_frontend(event: Any) -> dict:
             "thread_id": event.thread_id,
             "timestamp": event.timestamp.isoformat(),
             "source": event.source,
-            "data": event.data.model_dump() if hasattr(event.data, "model_dump") else event.data
+            "data": event.data.model_dump()
         }
 
     # Fallback
-    if hasattr(event, "model_dump"):
+    if isinstance(event, BaseModel):
         return event.model_dump()
     return str(event)
 
@@ -161,7 +163,7 @@ class WebChannel(Channel):
             from app.utils.json import dumps as utils_dumps
 
             data_json = utils_dumps(formatted, ensure_ascii=False)
-        elif hasattr(payload, "model_dump_json"):
+        elif isinstance(payload, BaseModel):
             data_json = payload.model_dump_json(exclude_none=True)
         else:
             data_json = str(payload)

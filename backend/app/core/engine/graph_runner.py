@@ -2,12 +2,16 @@
 
 import logging
 
+from sqlalchemy import select
+
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.engine.callbacks.database_logger import DatabaseCallbackHandler
 from app.core.engine.callbacks.transparent import TransparentCallbackHandler
 from app.core.engine.state import AgentState
 from app.core.exceptions import AgentCancelledException, AgentHumanInterruptException
 from app.core.monitoring.activity import activity_monitor
+from app.infrastructure.database.sql.database import session_scope
+from app.models import Message
 
 logger = logging.getLogger(__name__)
 
@@ -88,20 +92,15 @@ async def _restore_resume_context(thread_id: str, state: AgentState, config: dic
 
     last_human_msg = ""
     try:
-        from sqlalchemy import select
-
-        from app.infrastructure.database import session_scope
-        from app.models import Message as DBMessage
-
         async with session_scope() as session:
             stmt = (
-                select(DBMessage.content)
+                select(Message.content)
                 .where(
-                    DBMessage.thread_id == thread_id,
-                    DBMessage.role == "human",
-                    DBMessage.name != "context_ticket",
+                    Message.thread_id == thread_id,
+                    Message.role == "human",
+                    Message.name != "context_ticket",
                 )
-                .order_by(DBMessage.sequence_number.desc())
+                .order_by(Message.sequence_number.desc())
                 .limit(1)
             )
             res = await session.execute(stmt)

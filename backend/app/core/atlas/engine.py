@@ -3,7 +3,7 @@ import logging
 from typing import Any
 
 from app.core.atlas.adapters.sql_store import SQLAtlasStore
-from app.core.atlas.models import AtlasApp, AtlasElement, AtlasState
+from app.core.atlas.models import AtlasApp, AtlasElement, AtlasState, ElementMetadata
 from app.core.atlas.ports.store import IAtlasStore
 from app.core.atlas.strategy import AppStrategy, AtlasStrategyStore, InteractionStrategy
 from app.core.environment.explorers.dynamic_apps import DynamicAppTriage
@@ -498,10 +498,10 @@ class AtlasEngine:
         else:
             return self._classify_macos_element(element, metadata)
 
-    def _classify_android_element(self, element: AtlasElement, metadata: Any) -> str:
+    def _classify_android_element(self, element: AtlasElement, metadata: ElementMetadata) -> str:
         """Android-specific classification."""
         # Ensure we have a dict for uniform access
-        m = metadata.model_dump() if hasattr(metadata, "model_dump") else metadata
+        m = metadata.model_dump()
 
         class_name = str(m.get("class") or m.get("class_name") or "").lower()
         scrollable = m.get("scrollable", False)
@@ -551,11 +551,8 @@ class AtlasEngine:
 
         return "unknown"
 
-    def _classify_macos_element(self, element: AtlasElement, metadata: Any) -> str:
+    def _classify_macos_element(self, element: AtlasElement, metadata: ElementMetadata) -> str:
         """macOS-specific classification."""
-        # Ensure we have a dict for uniform access (reserved for future use)
-        m = metadata.model_dump() if hasattr(metadata, "model_dump") else metadata
-
         role = element.role.lower() if element.role else ""
         ax_path = element.ax_path.lower() if element.ax_path else ""
 

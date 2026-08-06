@@ -32,7 +32,7 @@ def build_high_intent_input(
 
     History is only included when the current turn clearly depends on the prior
     context (anaphora markers such as 它/这个/刚才, or very short utterances).
-    When the immediately preceding turn is a local action / macro / builtin /
+    When the immediately preceding turn is a local action / macro /
     ambiguous, an anaphora is likely referring to an earlier entity, so the full
     rolling history is used.  Otherwise only the most recent turn is used to
     avoid topic drift caused by concatenating unrelated previous turns.

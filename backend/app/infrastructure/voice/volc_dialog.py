@@ -45,9 +45,9 @@ class VolcDialogClient:
 
         # Send StartConnection request
         start_conn = bytearray(protocol.generate_header())
-        start_conn.extend(int(1).to_bytes(4, 'big'))
+        start_conn.extend((1).to_bytes(4, "big"))
         payload_bytes = gzip.compress(str.encode("{}"))
-        start_conn.extend(len(payload_bytes).to_bytes(4, 'big'))
+        start_conn.extend(len(payload_bytes).to_bytes(4, "big"))
         start_conn.extend(payload_bytes)
         await self.ws.send(start_conn)
 
@@ -158,7 +158,7 @@ class VolcDialogClient:
         req.extend(payload_bytes)
         await self.ws.send(req)
 
-    async def receive_response(self) -> Dict[str, Any]:
+    async def receive_response(self) -> dict[str, Any]:
         """Receive message from Volcengine and parse it."""
         if not self.ws:
             raise RuntimeError("WebSocket not connected")

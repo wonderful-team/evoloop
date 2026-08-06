@@ -236,14 +236,9 @@ class TraceCallbackHandler(AsyncCallbackHandler):
         except Exception as e:
             logger.warning(f"[TraceCallbackHandler] Failed to save event: {e}")
 
-    def _sanitize_snapshot(self, state: Any) -> dict:
-        """Safely convert arbitrary state into a JSON-serializable dict."""
-        if isinstance(state, dict):
-            # Strip heavy/sensitive fields
-            return {k: v for k, v in state.items() if k not in ("environment_block",)}
-        if hasattr(state, "model_dump"):
-            return state.model_dump()
-        return {"raw_state_type": type(state).__name__, "raw_state_value": str(state)}
+    def _sanitize_snapshot(self, state: dict) -> dict:
+        """Safely convert a state dict into a JSON-serializable dict."""
+        return {k: v for k, v in state.items() if k not in ("environment_block",)}
 
 
 # ---------------------------------------------------------------------------

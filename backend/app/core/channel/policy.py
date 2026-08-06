@@ -105,13 +105,6 @@ class OutputChannelPolicy:
             A set of channel names to deliver the payload to.
         """
         channels = cls._resolve(payload, session_source, node_source)
-        logger.debug(
-            "[OutputChannelPolicy] payload=%s session=%s node=%s -> %s",
-            type(payload).__name__,
-            session_source,
-            node_source,
-            sorted(channels),
-        )
         return channels
 
     # ── Internal helpers ────────────────────────────────────────────────────────

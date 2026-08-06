@@ -1,5 +1,7 @@
 """EvoCloud devices mixin: devices, heartbeat, logs, cancellation."""
 
+import time
+import uuid
 from typing import Any
 
 from app.models.schemas.auth import EvoCloudProxyResponse

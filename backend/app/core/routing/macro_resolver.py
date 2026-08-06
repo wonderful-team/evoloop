@@ -17,6 +17,7 @@ from sqlmodel import select
 from app.core.routing.routing_data import RoutingLanguageStore, get_store
 from app.infrastructure.database import session_scope
 from app.models.macro import Macro
+from app.utils.text import strip_filler_words
 
 logger = logging.getLogger(__name__)
 

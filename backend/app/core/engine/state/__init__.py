@@ -1,7 +1,5 @@
 """Agent engine state models package."""
 
-from typing import Any
-
 from app.core.engine.state.base import AgentState, StateUpdate
 from app.core.engine.state.config import (
     AgentRuntimeConfig,
@@ -19,7 +17,7 @@ __all__ = [
 ]
 
 
-def ensure_state(state: Any) -> AgentState:
+def ensure_state(state: AgentState | dict) -> AgentState:
     """Ensures that the state is an AgentState object (hydrating from dict if necessary)."""
     if isinstance(state, AgentState):
         return state

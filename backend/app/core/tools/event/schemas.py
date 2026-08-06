@@ -27,11 +27,11 @@ class BackgroundTaskEvent(BaseEvent):
     broadcast_channel: str = "chat"  # Usually tied to a thread
 
     def model_post_init(self, __context: Any) -> None:
-        self.data = EventData.model_validate({
-            "task_id": self.task_id,
-            "action": self.action,
-            "task": self.task_data
-        })
+        self.data = EventData(
+            task_id=self.task_id,
+            action=self.action,
+            task=self.task_data,
+        )
 
 
 class BackgroundTaskOutputEvent(BaseEvent):

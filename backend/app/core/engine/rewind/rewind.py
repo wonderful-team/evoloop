@@ -51,17 +51,17 @@ class RewindRequestedEvent(BaseEvent):
 
     @model_validator(mode="after")
     def _build_data(self):
-        self.data = EventData.model_validate({
-            "thread_id": self.thread_id,
-            "target_message_id": self.target_message_id,
-            "include_target": self.include_target,
-            "revert_files": self.revert_files,
-            "reset_state": self.reset_state,
-            "reason": self.reason,
-            "affected_message_ids": self.affected_message_ids,
-            "affected_run_ids": self.affected_run_ids,
-            "target_sequence": self.target_sequence,
-        })
+        self.data = EventData(
+            thread_id=self.thread_id,
+            target_message_id=self.target_message_id,
+            include_target=self.include_target,
+            revert_files=self.revert_files,
+            reset_state=self.reset_state,
+            reason=self.reason,
+            affected_message_ids=self.affected_message_ids,
+            affected_run_ids=self.affected_run_ids,
+            target_sequence=self.target_sequence,
+        )
         return self
 
 
@@ -78,13 +78,13 @@ class MessagesCleanupEvent(BaseEvent):
 
     @model_validator(mode="after")
     def _build_data(self):
-        self.data = EventData.model_validate({
-            "thread_id": self.thread_id,
-            "message_ids": self.message_ids,
-            "count": len(self.message_ids),
-            "target_sequence": self.target_sequence,
-            "include_target": self.include_target,
-        })
+        self.data = EventData(
+            thread_id=self.thread_id,
+            message_ids=self.message_ids,
+            count=len(self.message_ids),
+            target_sequence=self.target_sequence,
+            include_target=self.include_target,
+        )
         return self
 
 

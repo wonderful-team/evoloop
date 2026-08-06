@@ -86,6 +86,9 @@ def _to_dto(m: Macro) -> MacroDTO:
         namespace=m.namespace,
         fallback_skill_id=m.fallback_skill_id,
         project_id=m.project_id,
+        macro_script=m.macro_script,
+        app_map_version=m.app_map_version,
+        source_thread_id=m.source_thread_id,
     )
 
 
@@ -129,13 +132,7 @@ async def get_macro(macro_id: int, _token: TokenDep):
     macro = await lifecycle.load_macro(macro_id)
     if macro is None:
         raise HTTPException(404, f"Macro #{macro_id} not found")
-    dto = _to_dto(macro)
-    return MacroDetailDTO(
-        **dto.model_dump(),
-        macro_script=macro.macro_script,
-        app_map_version=macro.app_map_version,
-        source_thread_id=macro.source_thread_id,
-    )
+    return _to_dto(macro)
 
 
 @router.put("/{macro_id}", response_model=MacroDTO)

@@ -110,11 +110,10 @@ async def generate_app_map(
         raise HTTPException(500, detail=result.error)
 
     read_only_file_tools = [
-        t
-        for t in get_tool_bundle("file_tools")
+        t for t in get_tool_bundle("file_tools")
         if t not in ("edit_file", "delete_file", "move_file", "execute_command")
     ]
-    ticket = ExecutionTicket(
+    result.inputs["ticket"] = ExecutionTicket(
         ticket_type="task",
         topic="AppMap Analysis",
         skill_ids=[skill.id] if skill else None,
@@ -124,7 +123,6 @@ async def generate_app_map(
             tools=_SURVEY_TOOLS + read_only_file_tools,
         ),
     )
-    result.inputs["ticket"] = ticket.model_dump(mode="json")
 
     if "metadata" not in result.inputs:
         result.inputs["metadata"] = {}

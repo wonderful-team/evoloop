@@ -89,9 +89,7 @@ async def write_app_map(
         db_tables=[t.model_dump() for t in payload.db_tables],
         extra=payload.extra,
         generation_thread_id=thread_id,
-        member_id=ContextManager.current().member_id or 0
-        if ContextManager.current()
-        else 0,
+        member_id=ContextManager.current().member_id if ContextManager.current() else 0,
     )
 
     if not created:
@@ -113,26 +111,20 @@ async def read_app_map(entity: str, project_id: int | None = None) -> str:
         return ControllerResponse.error("No project_id available.")
     app_map = await persistence.get_active_app_map(pid, entity)
     if app_map is None:
-        return ControllerResponse.not_found(
-            f"entity='{entity}' in project {pid}", item_type="app_map"
-        )
+        return ControllerResponse.not_found(f"entity='{entity}' in project {pid}", item_type="app_map")
     return ControllerResponse.success(
         f"AppMap '{entity}' v{app_map.map_version} (id={app_map.id})",
-        details=yaml.safe_dump(
-            {
-                "entity": app_map.entity,
-                "platform": app_map.platform,
-                "aliases": app_map.aliases,
-                "routes": app_map.routes,
-                "actions": app_map.actions,
-                "elements": app_map.elements,
-                "db_tables": app_map.db_tables,
-                "map_version": app_map.map_version,
-                "content_hash": app_map.content_hash,
-            },
-            allow_unicode=True,
-            sort_keys=False,
-        ),
+        details=safe_yaml_dumps({
+            "entity": app_map.entity,
+            "platform": app_map.platform,
+            "aliases": app_map.aliases,
+            "routes": app_map.routes,
+            "actions": app_map.actions,
+            "elements": app_map.elements,
+            "db_tables": app_map.db_tables,
+            "map_version": app_map.map_version,
+            "content_hash": app_map.content_hash,
+        }),
     )
 
 

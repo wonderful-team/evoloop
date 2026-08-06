@@ -415,6 +415,33 @@ def normalize_text(text: str | None) -> str:
 # ============================================================================
 
 
+def strip_filler_words(value: str, prefixes: Sequence[str], suffixes: Sequence[str]) -> str:
+    """从槽位值中剥离口语填充词（词表数据驱动，最长词优先）。
+
+    LocalMatcher 与 MacroResolver 共用同一实现；词表全空时仅做 strip。
+    """
+    if not prefixes and not suffixes:
+        return value.strip()
+    v = value.strip()
+    prefix_list = sorted(prefixes, key=len, reverse=True)
+    suffix_list = sorted(suffixes, key=len, reverse=True)
+    while True:
+        changed = False
+        for p in prefix_list:
+            if v.startswith(p):
+                v = v[len(p) :].strip()
+                changed = True
+                break
+        for s in suffix_list:
+            if v.endswith(s):
+                v = v[: -len(s)].strip()
+                changed = True
+                break
+        if not changed:
+            break
+    return v
+
+
 def strip_markdown_for_tts(text: str) -> str:
     """Strip markdown formatting that would be spoken verbatim in TTS."""
     if not text:

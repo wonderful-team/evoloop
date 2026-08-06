@@ -12,6 +12,8 @@ class ConceptCreate(DynamicBaseModel):
     related_files: list[str] | None = None
     source_message_id: str | None = None
     source_thread_id: str | None = None
+    memory_kind: str | None = None
+    created_by_member_id: int | None = None
 
 
 class ConceptUpdate(DynamicBaseModel):

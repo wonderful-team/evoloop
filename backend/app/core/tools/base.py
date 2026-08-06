@@ -6,6 +6,8 @@ import logging
 import os
 from typing import Any
 
+from pydantic import BaseModel
+
 from app.core.tools.schemas import EvoLoopToolConfig
 
 logger = logging.getLogger(__name__)
@@ -204,7 +206,7 @@ def evoloop_tool(
                     for key in ["count", "id", "status", "path", "target"]:
                         if key in result:
                             result_meta[key] = result[key]
-                elif hasattr(result, "model_dump"):
+                elif isinstance(result, BaseModel):
                     try:
                         data = result.model_dump()
                         for key in ["count", "id", "status", "path", "target"]:
@@ -214,7 +216,7 @@ def evoloop_tool(
                         logger.debug("Suppressed error: %s", e, exc_info=True)
 
             if not isinstance(result, str):
-                if hasattr(result, "model_dump_json"):
+                if isinstance(result, BaseModel):
                     result = result.model_dump_json()
                 elif isinstance(result, (dict, list)):
                     result = json.dumps(result, ensure_ascii=False)

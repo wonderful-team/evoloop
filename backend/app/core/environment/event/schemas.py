@@ -37,10 +37,10 @@ class DeviceConnectedEvent(BaseEvent):
     broadcast_channel: str = "system"
 
     def model_post_init(self, __context: Any) -> None:
-        self.data = EventData.model_validate({
-            "device_id": self.device_id,
-            "device_type": self.device_type
-        })
+        self.data = EventData(
+            device_id=self.device_id,
+            device_type=self.device_type,
+        )
 
 
 class DeviceDisconnectedEvent(BaseEvent):
@@ -54,7 +54,7 @@ class DeviceDisconnectedEvent(BaseEvent):
     broadcast_channel: str = "system"
 
     def model_post_init(self, __context: Any) -> None:
-        self.data = EventData.model_validate({"device_id": self.device_id})
+        self.data = EventData(device_id=self.device_id)
 
 
 class BoundaryLearnedEvent(BaseEvent):
@@ -70,11 +70,11 @@ class BoundaryLearnedEvent(BaseEvent):
     broadcast_channel: str = "system"
 
     def model_post_init(self, __context: Any) -> None:
-        self.data = EventData.model_validate({
-            "tool_name": self.tool_name,
-            "category": self.category,
-            "description": self.description
-        })
+        self.data = EventData(
+            tool_name=self.tool_name,
+            category=self.category,
+            description=self.description,
+        )
 
 
 class UiTreeObservedEvent(BaseEvent):

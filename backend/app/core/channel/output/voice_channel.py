@@ -269,9 +269,7 @@ class VoiceChannel(Channel):
         return was_streaming
 
     @classmethod
-    async def push_tts_chunk(
-        cls, thread_id: str, text: str, end: bool, *, force_start: bool = False
-    ) -> None:
+    async def push_tts_chunk(cls, thread_id: str, text: str, end: bool, *, force_start: bool = False) -> None:
         """Push a text chunk to Volcengine ChatTTSText with correct start/end.
 
         Args:
