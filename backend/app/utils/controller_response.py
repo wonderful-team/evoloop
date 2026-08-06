@@ -1,5 +1,4 @@
-"""
-Controller Response Utility
+"""Controller Response Utility
 
 Provides standardized response formatting for environment controllers.
 Eliminates repetitive render_template calls for report/response.prompt.j2
@@ -14,23 +13,23 @@ from app.utils.template import render_template
 class ControllerResponse:
     """
     Utility class for generating standardized controller responses.
-    
+
     This class eliminates repetitive render_template calls across mobile,
     browser, and desktop controllers by providing convenient static methods
     for common response patterns.
-    
+
     Usage:
         from app.utils.controller_response import ControllerResponse
-        
+
         # Success responses
         return ControllerResponse.success("Action completed")
         return ControllerResponse.success("Tapped element", details=element_info)
-        
+
         # Error responses
         return ControllerResponse.error("Failed to tap")
         return ControllerResponse.not_found("button1")
         return ControllerResponse.missing_param("element_name")
-        
+
         # Custom responses
         return ControllerResponse.render(success=True, message="Custom", details=...)
     """
@@ -45,14 +44,14 @@ class ControllerResponse:
     ) -> str:
         """
         Render a standard response template with given parameters.
-        
+
         Args:
             success: Whether the operation succeeded
             message: Primary response message
             details: Optional detailed information
             note: Optional additional note
             **extra_vars: Additional template variables
-            
+
         Returns:
             Rendered response string
         """
@@ -62,7 +61,7 @@ class ControllerResponse:
             message=message,
             details=details,
             note=note,
-            **extra_vars
+            **extra_vars,
         )
 
     @staticmethod
@@ -103,7 +102,7 @@ class ControllerResponse:
     ) -> str:
         """
         Render an action result response.
-        
+
         Args:
             action: The action performed (e.g., "tap", "swipe", "input")
             target: The target element/location
@@ -123,7 +122,7 @@ class ControllerResponse:
         url: str,
         success: bool = True,
         title: str | None = None,
-        details: str | None = None
+        details: str | None = None,
     ) -> str:
         """Render a navigation result response."""
         message = f"Navigated to: {url}"
@@ -139,7 +138,7 @@ class ControllerResponse:
         field_name: str | None,
         value: str | None = None,
         success: bool = True,
-        details: str | None = None
+        details: str | None = None,
     ) -> str:
         """Render an input action result response."""
         field = field_name or "<unnamed>"
@@ -155,7 +154,7 @@ class ControllerResponse:
         direction: str,
         start: tuple | None = None,
         end: tuple | None = None,
-        success: bool = True
+        success: bool = True,
     ) -> str:
         """Render a swipe gesture result response."""
         message = f"Swiped {direction}"
@@ -172,7 +171,7 @@ class ControllerResponse:
         y: int,
         element_name: str | None = None,
         success: bool = True,
-        details: str | None = None
+        details: str | None = None,
     ) -> str:
         """Render a tap action result response."""
         if element_name:
@@ -184,9 +183,7 @@ class ControllerResponse:
 
     @staticmethod
     def screenshot_result(
-        success: bool = True,
-        filename: str | None = None,
-        error: str | None = None
+        success: bool = True, filename: str | None = None, error: str | None = None
     ) -> str:
         """Render a screenshot capture result response."""
         if success:
@@ -198,10 +195,7 @@ class ControllerResponse:
             return ControllerResponse.error(message=message, details=error)
 
     @staticmethod
-    def screenshot_analysis(
-        analysis_text: str,
-        prompt_used: str | None = None
-    ) -> str:
+    def screenshot_analysis(analysis_text: str, prompt_used: str | None = None) -> str:
         """Render a screenshot analysis response."""
         details = analysis_text
         note = f"Analysis prompt: {prompt_used}" if prompt_used else None
@@ -213,9 +207,7 @@ class ControllerResponse:
 
     @staticmethod
     def connection_result(
-        device_id: str,
-        connected: bool = True,
-        error: str | None = None
+        device_id: str, connected: bool = True, error: str | None = None
     ) -> str:
         """Render a device connection result response."""
         if connected:

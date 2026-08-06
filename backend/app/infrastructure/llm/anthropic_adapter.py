@@ -22,7 +22,7 @@ class CompatibleChatAnthropic:
         streaming: bool = True,
         model_kwargs: dict | None = None,
         http_async_client: Any = None,
-        **kwargs: Any
+        **kwargs: Any,
     ):
         self.model = model_name
         self.temperature = temperature
@@ -122,7 +122,7 @@ class CompatibleChatAnthropic:
             "model": self.model,
             "messages": api_messages,
             "temperature": self.temperature,
-            **self.model_kwargs
+            **self.model_kwargs,
         }
         if system_content:
             req_params["system"] = system_content
@@ -139,7 +139,7 @@ class CompatibleChatAnthropic:
                             "index": event.index,
                             "id": block.id,
                             "name": block.name,
-                            "args": ""
+                            "args": "",
                         }
                         msg_chunk = AIMessageChunk(content="", tool_calls=[tc])
                     else:
@@ -196,7 +196,7 @@ class CompatibleChatAnthropic:
         return AIMessage(
             content=response_content,
             tool_calls=tool_calls,
-            additional_kwargs=additional_kwargs
+            additional_kwargs=additional_kwargs,
         )
 
     def with_structured_output(self, output_schema: type, method: str = "function_calling"):

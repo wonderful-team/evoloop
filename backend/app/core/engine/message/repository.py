@@ -3,9 +3,10 @@ MessageRepository — Database persistence and query operations for messages.
 
 Extracted from MessageHandler to separate persistence concerns from orchestration.
 """
+
 import logging
 
-from sqlalchemy import desc, func, select, update
+from sqlalchemy import desc, func, select, update, or_
 from sqlalchemy.orm import selectinload
 
 from app.core.engine.message.category import MessageCategory
@@ -223,9 +224,10 @@ class MessageRepository:
         try:
             async with session_scope() as session:
                 from app.models import Message
+
                 stmt = select(Message).where(
                     Message.thread_id == self.thread_id,
-                    Message.sequence_number == sequence_number
+                    Message.sequence_number == sequence_number,
                 )
                 result = await session.execute(stmt)
                 msg = result.scalar_one_or_none()
@@ -281,12 +283,16 @@ class MessageRepository:
                 # 2. 查找是否已有 changeset 引用
                 stmt = select(MessageReference).where(
                     MessageReference.message_id == target_msg_id,
-                    MessageReference.type == "changeset"
+                    MessageReference.type == "changeset",
                 )
                 result = await session.execute(stmt)
                 ref = result.scalar_one_or_none()
 
-                new_file_entry = {"path": file_path, "operation": operation.lower(), "diff": diff_content}
+                new_file_entry = {
+                    "path": file_path,
+                    "operation": operation.lower(),
+                    "diff": diff_content,
+                }
 
                 if ref:
                     # 3. 更新现有引用
@@ -317,7 +323,7 @@ class MessageRepository:
                         meta_data={
                             "files": [new_file_entry],
                             "count": 1
-                        }
+                        },
                     )
                     session.add(ref)
                     logger.debug(f"[MessageRepository] Created new changeset for msg {target_msg_id} with {file_path}")
@@ -331,7 +337,7 @@ class MessageRepository:
     async def resolve_tool_input(self, tool_call_id: str | None, tool_name: str | None = None) -> dict:
         """
         Resolve tool input arguments.
-        Prioritizes the actual tool message (if pre-inserted by handler), 
+        Prioritizes the actual tool message (if pre-inserted by handler),
         falling back to the most recent AI message's tool_calls.
         """
         if not tool_call_id and not tool_name:
@@ -371,6 +377,7 @@ class MessageRepository:
                     return {}
 
                 from app.core.engine.message.utils import normalize_tool_calls
+
                 tool_calls = normalize_tool_calls(ai_msg.tool_calls)
 
                 for tc in tool_calls:
@@ -424,7 +431,12 @@ class MessageRepository:
         result = await session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def get_full_history(self, limit: int = 50, before_id: str | None = None, include_invisible: bool = True) -> tuple[list[Message], bool, int | None]:
+    async def get_full_history(
+        self,
+        limit: int = 50,
+        before_id: str | None = None,
+        include_invisible: bool = True,
+    ) -> tuple[list[Message], bool, int | None]:
         """
         Fetches conversation history.
         If include_invisible is True, fetches both visible and associated invisible messages.
@@ -433,7 +445,6 @@ class MessageRepository:
         """
         async with session_scope() as session:
             # 1. Query visible messages with cursor pagination
-            from sqlalchemy import or_
             visible_stmt = (
                 select(Message)
                 .where(
@@ -441,8 +452,8 @@ class MessageRepository:
                     Message.is_visible == True,
                     or_(
                         Message.category.is_(None),
-                        Message.category != MessageCategory.HITL_REQUEST.value
-                    )
+                        Message.category != MessageCategory.HITL_REQUEST.value,
+                    ),
                 )
                 .options(selectinload(Message.references))
                 .order_by(Message.sequence_number.desc())
@@ -481,7 +492,11 @@ class MessageRepository:
             if include_invisible and run_ids:
                 invisible_stmt = (
                     select(Message)
-                    .where(Message.thread_id == self.thread_id, Message.is_visible == False, Message.run_id.in_(run_ids))
+                    .where(
+                        Message.thread_id == self.thread_id,
+                        Message.is_visible == False,
+                        Message.run_id.in_(run_ids),
+                    )
                     .options(selectinload(Message.references))
                 )
                 invisible_messages = (await session.execute(invisible_stmt)).scalars().all()

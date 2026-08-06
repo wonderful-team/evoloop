@@ -265,9 +265,7 @@ class DatabaseResourceManager:
         """
         engine = self.engine
         if engine is None:
-            raise RuntimeError(
-                "Database engine not initialized for this event loop"
-            )
+            raise RuntimeError("Database engine not initialized for this event loop")
         raw = await engine.raw_connection()
         try:
             yield raw
@@ -279,11 +277,8 @@ class DatabaseResourceManager:
         """Get the path for the asynchronous task queue database."""
         if not self._task_queue_path:
             # Consistent with previous default but managed here
-            from app.core.config import settings
-
             self._task_queue_path = Path(settings.SQLITE_PATH).parent / "task_queue.db"
         return self._task_queue_path
-
 
 
 # Global Instance

@@ -8,7 +8,9 @@ from app.core.context.manager import ContextManager
 from app.core.evocloud.manager import evocloud_manager
 from app.core.evocloud.schemas import AgentTask, AgentTaskResult, TaskAttachment
 from app.core.tools import evoloop_tool
+from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.models import Conversation
 from app.utils.id import gen_uuid
 
 logger = logging.getLogger(__name__)
@@ -24,7 +26,7 @@ class ListAgentsInput(DynamicBaseModel):
 @evoloop_tool(
     args_schema=ListAgentsInput,
     is_state_mutating=False,
-    summary_template="a2a.tool_summary.list_agents"
+    summary_template="a2a.tool_summary.list_agents",
 )
 async def list_agents() -> str:
     """
@@ -60,15 +62,15 @@ async def list_agents() -> str:
 class SendAgentTaskInput(DynamicBaseModel):
     target_device_key: str = Field(
         ...,
-        description="The unique device_key of the target agent device to run the task."
+        description="The unique device_key of the target agent device to run the task.",
     )
     instruction: str = Field(
         ...,
-        description="The detailed natural language instruction/command to run on the target agent."
+        description="The detailed natural language instruction/command to run on the target agent.",
     )
     attachments: list[str] = Field(
         default_factory=list,
-        description="List of local absolute file paths to upload and attach as files for the target agent."
+        description="List of local absolute file paths to upload and attach as files for the target agent.",
     )
 
 
@@ -76,7 +78,7 @@ class SendAgentTaskInput(DynamicBaseModel):
     args_schema=SendAgentTaskInput,
     is_state_mutating=True,
     is_hitl=True,
-    summary_template="a2a.tool_summary.send_agent_task"
+    summary_template="a2a.tool_summary.send_agent_task",
 )
 async def send_agent_task(
     target_device_key: str,
@@ -100,18 +102,17 @@ async def send_agent_task(
     root_thread_id = thread_id
 
     from app.core.environment.discovery import EnvironmentProbe
+
     caller_role = EnvironmentProbe.get_inferred_device_type()
     global_goal = instruction
 
-    from app.infrastructure.database import session_scope
-    from app.models import Conversation
     async with session_scope() as session:
         conv = await session.get(Conversation, thread_id)
         if conv:
             global_goal = conv.title or instruction
             if conv.root_thread_id:
                 root_thread_id = conv.root_thread_id
-            
+
             # Trace the parent chain to count hops
             curr = conv
             while curr and curr.parent_thread_id:
@@ -128,12 +129,14 @@ async def send_agent_task(
         try:
             logger.info(f"[A2A] Uploading attachment: {path}")
             up_res = await evocloud_manager.api.upload_file(path)
-            task_attachments.append(TaskAttachment(
-                filename=up_res["filename"],
-                download_url=up_res["download_url"],
-                file_size=up_res["file_size"],
-                md5=up_res["md5"]
-            ))
+            task_attachments.append(
+                TaskAttachment(
+                    filename=up_res["filename"],
+                    download_url=up_res["download_url"],
+                    file_size=up_res["file_size"],
+                    md5=up_res["md5"],
+                )
+            )
         except Exception as e:
             logger.error(f"[A2A] Failed to upload attachment {path}: {e}")
             return f"Error uploading attachment {path}: {e}"
@@ -150,14 +153,14 @@ async def send_agent_task(
         root_thread_id=root_thread_id,
         parent_thread_id=thread_id,
         hop_count=hop_count,
-        max_hops=3
+        max_hops=3,
     )
 
     cmd_data = {
         "action": "a2a_task",
         "content": task_envelope.model_dump(),
         "thread_id": task_id,
-        "project_id": project_id
+        "project_id": project_id,
     }
 
     try:
@@ -173,14 +176,19 @@ async def send_agent_task(
     tool_call_id = kwargs.get("tool_call_id") or f"call-{task_id}"
 
     from app.core.monitoring.activity import HumanRequestData, activity_monitor
+
     req_data = HumanRequestData(
         type="a2a_callback",
         prompt=f"Waiting for A2A subtask callback from device {target_device_key}...",
         allow_cancel=True,
-        payload={"task_id": task_id, "target_device_key": target_device_key}
+        payload={
+            "task_id": task_id,
+            "target_device_key": target_device_key
+        },
     )
 
     from app.core.engine.message.repository import MessageRepository
+
     repo = MessageRepository(thread_id, project_id=project_id, run_id=ctx.run_id)
     await repo.persist(
         role="system",
@@ -188,7 +196,7 @@ async def send_agent_task(
         category="hitl_request",
         tool_call_id=tool_call_id,
         tool_name="SendAgentTaskTool",
-        is_visible=True
+        is_visible=True,
     )
 
     await activity_monitor.set_human_request(thread_id, req_data)
@@ -218,13 +226,9 @@ class CompleteTaskInput(DynamicBaseModel):
 @evoloop_tool(
     args_schema=CompleteTaskInput,
     is_state_mutating=True,
-    summary_template="a2a.tool_summary.complete_task"
+    summary_template="a2a.tool_summary.complete_task",
 )
-async def complete_task(
-    status: str,
-    summary: str,
-    attachments: list[str] = []
-) -> str:
+async def complete_task(status: str, summary: str, attachments: list[str] = []) -> str:
     """
     Finish executing the current A2A subtask and send the result back to the Caller Agent.
     This is the ONLY valid way to finish a subtask. Calling this will close the current session.
@@ -239,8 +243,6 @@ async def complete_task(
     parent_thread_id = None
     caller_device_key = None
 
-    from app.infrastructure.database import session_scope
-    from app.models import Conversation
     async with session_scope() as session:
         conv = await session.get(Conversation, thread_id)
         if conv:
@@ -255,12 +257,14 @@ async def complete_task(
         try:
             logger.info(f"[A2A] Uploading callback attachment: {path}")
             up_res = await evocloud_manager.api.upload_file(path)
-            task_attachments.append(TaskAttachment(
-                filename=up_res["filename"],
-                download_url=up_res["download_url"],
-                file_size=up_res["file_size"],
-                md5=up_res["md5"]
-            ))
+            task_attachments.append(
+                TaskAttachment(
+                    filename=up_res["filename"],
+                    download_url=up_res["download_url"],
+                    file_size=up_res["file_size"],
+                    md5=up_res["md5"],
+                )
+            )
         except Exception as e:
             logger.error(f"[A2A] Failed to upload callback attachment {path}: {e}")
             return f"Error uploading attachment {path}: {e}"
@@ -276,7 +280,7 @@ async def complete_task(
         "action": "a2a_callback",
         "content": callback_payload.model_dump(),
         "thread_id": parent_thread_id,
-        "project_id": project_id
+        "project_id": project_id,
     }
 
     try:
@@ -290,7 +294,9 @@ async def complete_task(
         return f"Error sending callback: {e}"
 
     from app.core.monitoring.activity import activity_monitor
+
     await activity_monitor.end_run(thread_id, status="done", final_outcome=summary)
 
     from app.core.exceptions import AgentCancelledException
-    raise AgentCancelledException(f"Task completed successfully. Session closed.")
+
+    raise AgentCancelledException("Task completed successfully. Session closed.")

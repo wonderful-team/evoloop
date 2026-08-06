@@ -48,10 +48,10 @@ async def _notify_file_operation(
     # SSE-only: Celery-side file operation progress is not a persisted chat
     # message and should never be pushed to mobile/voice channels.
     await publisher.publish(block, channels={"sse"})
-    logger.debug(f"[Celery] Published file operation event for {file_path}")
+    logger.debug(f"[Task] Published file operation event for {file_path}")
 
 
-async def _persist_file_operation_task(
+async def persist_file_operation_task(
     thread_id: str,
     message_id: str,
     file_path: str,
@@ -89,7 +89,7 @@ async def _persist_file_operation_task(
             original_content=original_content,
         )
         session.add(op)
-        logger.info(f"[Celery] Persisted file operation for {file_path}")
+        logger.info(f"[Task] Persisted file operation for {file_path}")
 
     # --- [Phase 2] 同步到消息标准化引用并触发实时更新 ---
     from app.core.engine.message.repository import MessageRepository
@@ -122,7 +122,7 @@ async def persist_file_operation_task(
     from app.core.engine.message.mapper import BlockMapper
     from app.core.engine.message.publisher import MessagePublisher
 
-    await _persist_file_operation_task(
+    await persist_file_operation_task(
         thread_id=thread_id,
         message_id=message_id,
         file_path=file_path,
@@ -169,7 +169,7 @@ async def persist_file_operation_task(
             )
         )
     except Exception as e:
-        logger.warning(f"[Celery] Failed to publish changeset updated event: {e}")
+        logger.warning(f"[Task] Failed to publish changeset updated event: {e}")
 
 
 @shared_task(name="engine_harvest_concepts")  # type: ignore[reportCallIssue]
@@ -183,7 +183,7 @@ async def harvest_concepts_task(concepts_data: list[dict], project_id: int):
     from app.core.environment.android import android_service
     from app.core.memory.lifespan import MemoryLifespanManager
 
-    logger.info(f"[Celery] Harvesting {len(concepts_data)} concepts...")
+    logger.info(f"[Task] Harvesting {len(concepts_data)} concepts...")
 
     # Ensure memory is initialized once per batch
     if not MemoryLifespanManager.is_initialized():
@@ -244,9 +244,7 @@ async def record_episode_task(
     """
     Background task to sync thread trace to the episode graph (memory system).
     """
-    logger.info(
-        f"[Celery] Recording episode for thread {thread_id} (Source: {source_message_id}, AutoSynth: {auto_synthesize})..."
-    )
+    logger.info(f"[Task] Recording episode for thread {thread_id} (Source: {source_message_id}, AutoSynth: {auto_synthesize})...")
 
     ctx = EvoContext(thread_id=thread_id, project_id=project_id, active_model=model)
     token = ContextManager.set(ctx)
@@ -260,7 +258,7 @@ async def record_episode_task(
             concept_names=concept_names,
             source_message_id=source_message_id,
         )
-        logger.info(f"[Celery] Episode recorded for thread {thread_id}")
+        logger.info(f"[Task] Episode recorded for thread {thread_id}")
 
         if auto_synthesize:
             from app.core.execution.macro.compiler import MacroScriptCompiler
@@ -275,9 +273,7 @@ async def record_episode_task(
                 event_count = count_res.scalar()
 
             if event_count and event_count >= 3:
-                logger.info(
-                    f"[Celery] 🧬 Auto-triggering skill synthesis for thread {thread_id} ({event_count} events)"
-                )
+                logger.info(f"[Task] 🧬 Auto-triggering skill synthesis for thread {thread_id} ({event_count} events)")
                 parser = TraceParser(thread_id=thread_id)
                 sequence = await parser.parse()
                 synthesizer = WorkflowSynthesizer(thread_id=thread_id, sequence=sequence)
@@ -326,13 +322,9 @@ async def record_episode_task(
                         db_skill.macro_id = db_macro.id
                     await publish_skill_mutated(skill_id=db_skill.id, action="create")
                     await publish_macro_mutated(db_macro.id, action="create")
-                    logger.info(
-                        f"[Celery] ✅ Skill synthesis complete: {result.skill.name} (pending_review)"
-                    )
+                    logger.info(f"[Task] ✅ Skill synthesis complete: {result.skill.name} (pending_review)")
                 else:
-                    logger.info(
-                        "[Celery] ⏩ Skill synthesis skipped (no unique pattern found)"
-                    )
+                    logger.info("[Task] ⏩ Skill synthesis skipped (no unique pattern found)")
     finally:
         ContextManager.reset(token)
 
@@ -350,7 +342,7 @@ def cleanup_artifacts_task(max_age_days: int = 3):
         if not os.path.exists(directory):
             continue
 
-        logger.info(f"[Celery] Cleaning up old artifacts in {directory}...")
+        logger.info(f"[Task] Cleaning up old artifacts in {directory}...")
         from app.core.file import FileTraverser
 
         for entry in FileTraverser.list_entries(directory):
@@ -379,9 +371,7 @@ async def git_harvest_task(cwd: str, project_id: int, model: str | None = None):
     try:
         # 1. Get Diff
         if not os.path.exists(cwd):
-            logger.warning(
-                f"[Celery] Skipping git harvest: Directory '{cwd}' does not exist."
-            )
+            logger.warning(f"[Task] Skipping git harvest: Directory '{cwd}' does not exist.")
             return
 
         cmd = ["git", "diff", "HEAD"]
@@ -436,7 +426,7 @@ async def git_harvest_task(cwd: str, project_id: int, model: str | None = None):
                     related_files=concept.related_files,
                 )
                 await container.memory_manager.store_concept(mem_concept)
-                logger.info(f"[Celery] Harvested concept: {concept.name}")
+                logger.info(f"[Task] Harvested concept: {concept.name}")
     finally:
         ContextManager.reset(token)
 
@@ -464,7 +454,7 @@ async def reconcile_skill_macro_task(
 
     if not event_count or event_count < 3:
         logger.warning(
-            f"[Celery] Skipping skill reconciliation for {thread_id}: "
+            f"[Task] Skipping skill reconciliation for {thread_id}: "
             f"only {event_count or 0} trace events found (need >= 3)."
         )
         return
@@ -473,7 +463,7 @@ async def reconcile_skill_macro_task(
     token = ContextManager.set(ctx)
 
     try:
-        logger.info(f"[Celery] Reconciling Skill {skill_id} from thread {thread_id}...")
+        logger.info(f"[Task] Reconciling Skill {skill_id} from thread {thread_id}...")
         parser = TraceParser(thread_id=thread_id)
         sequence = await parser.parse()
         synthesizer = WorkflowSynthesizer(thread_id=thread_id, sequence=sequence)
@@ -481,9 +471,7 @@ async def reconcile_skill_macro_task(
         macro_script = MacroScriptCompiler().compile(sequence).to_yaml()
 
         if not macro_script:
-            logger.warning(
-                f"[Celery] No valid macro synthesized from recovery thread {thread_id}. Aborting patch."
-            )
+            logger.warning(f"[Task] No valid macro synthesized from recovery thread {thread_id}. Aborting patch.")
             return
 
         healed = False
@@ -549,7 +537,7 @@ async def reconcile_skill_macro_task(
         # Publish AFTER commit: subscribers re-query the row in a new session
         # (file export + route-index upsert) and must see the patched macro.
         if healed:
-            logger.info(f"[Celery] ✅ Skill {skill_id} has been self-healed.")
+            logger.info(f"[Task] ✅ Skill {skill_id} has been self-healed.")
             await publish_skill_mutated(skill_id=skill_id, action="update")
             from app.core.events.publishers import publish_macro_mutated
 
@@ -628,9 +616,7 @@ async def run_autonomous_task_execution(task_id: int, project_id: int | None = N
         if result.status == "failed":
             raise RuntimeError(f"Dispatch failed for task {task_id}: {result.error}")
 
-        logger.info(
-            f"[Celery] Starting autonomous agent for task {task_id} on {device_id}"
-        )
+        logger.info(f"[Task] Starting autonomous agent for task {task_id} on {device_id}")
 
         async with session_scope() as session:
             task = await session.get(AutonomousTask, task_id)
@@ -674,9 +660,7 @@ async def run_engine_audit_structured_extraction(
     from app.utils.template import render_template
 
     if not collected_schemas:
-        logger.info(
-            f"[Celery] No extraction schemas requested for thread {thread_id}, skipping extraction."
-        )
+        logger.info(f"[Task] No extraction schemas requested for thread {thread_id}, skipping extraction.")
         return
 
     requests = [ExtractionRequest(**s) for s in collected_schemas]
@@ -723,14 +707,10 @@ async def run_engine_audit_structured_extraction(
                 run_id=run_id,
                 extracted_data=extracted_data,
             )
-            logger.info(
-                f"[Celery] 🚀 Publishing ExtractionCompletedEvent for thread {thread_id}"
-            )
+            logger.info(f"[Task] 🚀 Publishing ExtractionCompletedEvent for thread {thread_id}")
             await system_bus.publish(event)
     except Exception as e:
-        logger.error(
-            f"[Celery] engine_audit_structured_extraction failed for thread {thread_id}: {e!r}"
-        )
+        logger.error(f"[Task] engine_audit_structured_extraction failed for thread {thread_id}: {e!r}")
         raise
 
 

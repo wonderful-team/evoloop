@@ -57,12 +57,14 @@ class ActivityStateService:
     @staticmethod
     def _get_session_scope():
         from app.infrastructure.database import session_scope
+
         return session_scope
 
     async def start_run(self, thread_id: str, main_goal: str = "", session=None) -> bool:
         """Initialize activity state for a new run."""
         if session:
             return await self._start_run_with_session(thread_id, main_goal, session)
+
         async with self._get_session_scope()() as s:
             return await self._start_run_with_session(thread_id, main_goal, s)
 
@@ -85,6 +87,7 @@ class ActivityStateService:
         """Mark run as ended and return final state."""
         if session:
             return await self._end_run_with_session(thread_id, status, final_outcome, session)
+
         async with self._get_session_scope()() as s:
             return await self._end_run_with_session(thread_id, status, final_outcome, s)
 
@@ -228,7 +231,10 @@ class ActivityStateService:
         )
         status = result.scalar_one_or_none()
         is_cancelled = status == "stopping"
-        _CANCELLATION_CACHE[thread_id] = (is_cancelled, now + _CANCELLATION_CACHE_TTL_SECONDS)
+        _CANCELLATION_CACHE[thread_id] = (
+            is_cancelled,
+            now + _CANCELLATION_CACHE_TTL_SECONDS,
+        )
         return is_cancelled
 
     async def set_interrupted(self, thread_id: str, reason: str = "awaiting_human_input") -> bool:
@@ -287,7 +293,14 @@ class ActivityStateService:
             activity.agent_state_json = json.dumps(state)
         return True
 
-    async def add_artifact(self, thread_id: str, name: str, artifact_type: str, status: str = "created", path: str = None) -> bool:
+    async def add_artifact(
+        self,
+        thread_id: str,
+        name: str,
+        artifact_type: str,
+        status: str = "created",
+        path: str = None,
+    ) -> bool:
         """Add or update an artifact."""
         async with self._get_session_scope()() as session:
             activity = await session.get(AgentActivity, thread_id)

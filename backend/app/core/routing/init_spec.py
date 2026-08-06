@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -181,10 +182,7 @@ async def enrich_spec_with_macro_triggers(spec: RouteCatalog) -> RouteCatalog:
         for trigger in triggers:
             pattern = trigger.replace("{{", "{").replace("}}", "}")
             if pattern in seen_patterns:
-                logger.debug(
-                    "[init_spec] trigger '%s' skipped (macro %d, already bound)",
-                    pattern, macro.id,
-                )
+                logger.debug("[init_spec] trigger '%s' skipped (macro %d, already bound)", pattern, macro.id)
                 continue
             seen_patterns.add(pattern)
             deduped.append(pattern)

@@ -2,7 +2,7 @@
 Vision LLM Factory for multimodal capabilities.
 Provides LLM instances configured for image understanding (GPT-4V, Claude Vision, etc.)
 """
-
+import asyncio
 import base64
 import logging
 from pathlib import Path
@@ -78,7 +78,6 @@ class VisionLLMFactory:
         # Prefer ``create_vision_llm_async()`` in async contexts so the cache can
         # serve repeated calls with the same configuration.
         try:
-            import asyncio
             logger.warning(
                 "[VisionLLMFactory] Using asyncio.run() — "
                 "LLM instance cache is bypassed (new event loop). "

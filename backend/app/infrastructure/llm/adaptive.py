@@ -73,6 +73,7 @@ def _to_openai_tool_call(tc: dict) -> dict:
 
 class AdaptiveRetryState(BaseModel):
     """Encapsulates the state and logic for an adaptive retry attempt."""
+
     attempt: int = 0
     max_retries: int = 3
     current_max_tokens: int

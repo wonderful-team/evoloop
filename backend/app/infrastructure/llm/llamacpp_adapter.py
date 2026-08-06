@@ -38,19 +38,14 @@ class LlamaCppChatModel:
                 "[LlamaCpp] Loading chat model: %s (ctx=%s, threads=%s)",
                 self._model_path, self._n_ctx, self._n_threads,
             )
-            self._llm = await asyncio.to_thread(
-                lambda: self._import_and_build()
-            )
+            self._llm = await asyncio.to_thread(lambda: self._import_and_build())
             logger.info("[LlamaCpp] Chat model loaded.")
 
     def _import_and_build(self):
         from llama_cpp import Llama
         import platform
         n_gpu = -1 if platform.system() == "Darwin" else 0
-        logger.info(
-            "[LlamaCpp] Using n_gpu_layers=%d on %s",
-            n_gpu, platform.system(),
-        )
+        logger.info("[LlamaCpp] Using n_gpu_layers=%d on %s", n_gpu, platform.system())
         return Llama(
             model_path=self._model_path,
             n_ctx=self._n_ctx,
@@ -60,7 +55,7 @@ class LlamaCppChatModel:
             verbose=False,
         )
 
-    async def ainvoke(self, messages: list[dict], **kwargs) -> "AIMessage":
+    async def ainvoke(self, messages: list[dict], **kwargs) -> AIMessage:
         """Non-streaming chat completion.
 
         Returns an ``AIMessage`` (same interface as ``AdaptiveChatOpenAI.ainvoke``)
@@ -140,6 +135,7 @@ class LlamaCppChatModel:
             try:
                 from app.core.engine.callbacks.bridge import emit_llm_end
                 from app.core.engine.message.native_classes import AIMessage
+
                 await emit_llm_end(callbacks, AIMessage(content=""), run_id=None)
             except Exception:
                 pass
@@ -147,5 +143,5 @@ class LlamaCppChatModel:
     chat = ainvoke
     stream = astream
 
-    def bind_tools(self, tools: list[Any]) -> "LlamaCppChatModel":
+    def bind_tools(self, tools: list[Any]) -> LlamaCppChatModel:
         return self

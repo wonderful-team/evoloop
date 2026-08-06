@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 class ToolExecutionResult(BaseModel):
     """Result of a tool execution, including the message and raw output."""
+
     model_config = {"arbitrary_types_allowed": True}
 
     message: BaseMessage
@@ -46,6 +47,7 @@ class AgentToolExecutor:
     ):
         from app.core.engine.state import ensure_state
         from app.core.tools.executor import ToolExecutor
+
         self.tool_map = tool_map
         self.state = ensure_state(state)
         self.config = config
@@ -79,6 +81,7 @@ class AgentToolExecutor:
         logger.info(f"[{self.name}] 🛠   Call: {tool_name} | Args: {json.dumps(tool_args)}")
 
         from app.core.context.manager import ContextManager
+
         ctx = ContextManager.current()
         if run_id and ctx.run_id != run_id:
             ctx.run_id = run_id
@@ -169,6 +172,7 @@ class AgentToolExecutor:
                 emit_tool_error,
                 emit_tool_start,
             )
+
             tool_callbacks = _get_callbacks(self.config)
             tool_run_id = str(_uuid4())
             if tool_callbacks:
@@ -231,6 +235,7 @@ class AgentToolExecutor:
                 state=self.state,
                 extra=pre_result.modified_context.extra if ('pre_result' in locals() and pre_result and pre_result.modified_context) else pre_ctx.extra,
             )
+
             async def _fire_fail_hook():
                 try:
                     await hook_system.trigger(HookEvent.POST_TOOL_USE_FAILURE, fail_ctx)
@@ -274,13 +279,13 @@ class AgentToolExecutor:
                     logger.info(f"📝 Diff Detected ({operation}) on {path} (Persisting in Background)")
                     try:
                         from app.core.engine.state.config import RunnableConfigMetadata
+
                         meta = RunnableConfigMetadata.from_config(self.config)
                         msg_id = message_id
                         if settings.EMBEDDED_MODE:
-                            from app.core.engine.tasks import (
-                                _persist_file_operation_task,
-                            )
-                            await _persist_file_operation_task(
+                            from app.core.engine.tasks import persist_file_operation_task
+
+                            await persist_file_operation_task(
                                 thread_id=thread_id,
                                 message_id=str(msg_id),
                                 file_path=path,
@@ -302,7 +307,7 @@ class AgentToolExecutor:
                                     "original_content": original_content,
                                     "run_id": meta.run_id,
                                     "tool_call_id": tool_call_id,
-                                }
+                                },
                             )
                     except Exception as e:
                         logger.warning(f"Failed to dispatch FileOperation to Celery: {e}")

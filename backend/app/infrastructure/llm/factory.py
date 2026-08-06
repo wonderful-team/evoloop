@@ -64,22 +64,28 @@ async def _close_client(client: httpx.AsyncClient):
 # when Celery tasks shut down their event loops and GC destroys the LLM clients.
 try:
     from openai._base_client import AsyncAPIClient as OpenAIAsyncClient
+
     _original_openai_del = getattr(OpenAIAsyncClient, "__del__", None)
     if _original_openai_del:
+
         def _safe_openai_del(_self):
             # Do nothing! We manage the httpx client via _HTTP_CLIENT_POOL explicitly
             # so we don't need the SDK to asynchronously close it during GC.
             pass
+
         OpenAIAsyncClient.__del__ = _safe_openai_del
 except ImportError:
     pass
 
 try:
     from anthropic._base_client import AsyncAPIClient as AnthropicAsyncClient
+
     _original_anthropic_del = getattr(AnthropicAsyncClient, "__del__", None)
     if _original_anthropic_del:
+
         def _safe_anthropic_del(_self):
             pass
+
         AnthropicAsyncClient.__del__ = _safe_anthropic_del
 except ImportError:
     pass
@@ -129,8 +135,8 @@ _HTTP_CLIENT_POOL = LoopBoundResource(
     factory=lambda: httpx.AsyncClient(
         auth=EvoCloudPlatformAuth(),
         http2=True,
-        timeout=httpx.Timeout(300.0, connect=10.0), # Increased from 60s to 300s for reasoning models
-        limits=httpx.Limits(max_connections=100, max_keepalive_connections=20)
+        timeout=httpx.Timeout(300.0, connect=10.0),  # Increased from 60s to 300s for reasoning models
+        limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
     ),
     cleanup=_close_client,
     # NOTE: This pool is intentionally excluded from flush_loop_bound_resources()
@@ -246,17 +252,19 @@ class LLMFactory:
                     if lightning_mode == "llama.cpp":
                         # llama.cpp mode: use LlamaCppChatModel directly
                         from app.infrastructure.llm.lightning import get_lightning_service
+
                         llm = await get_lightning_service().get_llm()
                         if llm is not None:
-                            logger.info(f"[LLMFactory] Llama.cpp model from LightningService")
+                            logger.info("[LLMFactory] Llama.cpp model from LightningService")
                             return llm
                     if not lightning_base:
                         from app.infrastructure.llm.lightning import _LIGHTNING_DEFAULTS
+
                         defaults = _LIGHTNING_DEFAULTS.get(lightning_mode, {})
                         lightning_base = defaults.get("base_url", "http://localhost:1234/v1")
                         lightning_api_key = defaults.get("api_key", "lm-studio")
                     else:
-                        lightning_api_key = SystemConfigService.get_value("LIGHTNING_API_KEY", "")
+                        lightning_api_key = SystemConfigService.get_value("LIGHTNING_API_KEY")
                     config.base_url = lightning_base
                     config.api_key = lightning_api_key or "lm-studio"
                     config_type = "direct"

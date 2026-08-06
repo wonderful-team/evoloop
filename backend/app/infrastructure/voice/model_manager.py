@@ -9,7 +9,7 @@ import asyncio
 import json
 import logging
 import os
-import time
+import shutil
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -166,7 +166,6 @@ class ModelManager:
 
         # Remove partial download if exists
         if os.path.exists(target_dir):
-            import shutil
             shutil.rmtree(target_dir)
 
         # Estimate total download size for progress tracking
@@ -205,6 +204,7 @@ class ModelManager:
 
     async def _download_from_huggingface(self, model_id: str, model_def: dict) -> None:
         from huggingface_hub import snapshot_download as hf_sd
+
         src = model_def["source_id"]
         total = model_def.get("total_bytes", model_def["size_gb"] * 1_000_000_000)
         hf_cache_root = os.path.join(self._get_models_dir(), ".cache", "huggingface")
@@ -228,13 +228,9 @@ class ModelManager:
         self._progress[model_id] = DownloadProgress(model_id=model_id, progress=1.0, status="completed")
 
     def _fail(self, model_id: str, error: str) -> None:
-        self._progress[model_id] = DownloadProgress(
-            model_id=model_id, status="failed", error=error
-        )
+        self._progress[model_id] = DownloadProgress(model_id=model_id, status="failed", error=error)
 
-    async def wait_for_progress(
-        self, model_id: str
-    ) -> AsyncIterator[DownloadProgress]:
+    async def wait_for_progress(self, model_id: str) -> AsyncIterator[DownloadProgress]:
         """Yield progress updates as they happen (for SSE streaming)."""
         while True:
             prog = self._progress.get(model_id, DownloadProgress(model_id=model_id))

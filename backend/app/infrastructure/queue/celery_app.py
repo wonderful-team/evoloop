@@ -38,9 +38,9 @@ def on_worker_init(*args, **kwargs):
 
     try:
         auto_discover_handlers()
-        logger.info("[Celery] All event handlers auto-discovered and registered in worker process.")
+        logger.info("[Task] All event handlers auto-discovered and registered in worker process.")
     except (ImportError, ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
-        logger.error(f"[Celery] Failed to auto-discover event handlers in worker: {e}")
+        logger.error(f"[Task] Failed to auto-discover event handlers in worker: {e}")
 
 
 def create_celery_app():
@@ -85,7 +85,7 @@ def create_celery_app():
         },
     )
 
-    logger.info("[Celery] Full mode enabled with Redis broker")
+    logger.info("[Task] Full mode enabled with Redis broker")
     return app
 
 

@@ -13,13 +13,14 @@ class LLMConfigService:
         base_url: str,
         model: str,
         api_key: str = None,
-        headers: dict[str, str] | None = None
+        headers: dict[str, str] | None = None,
     ) -> tuple[bool, str]:
         """
         Pre-flight check: Validates that the LLM can actually generate text.
         """
         # 1. Load custom headers from database
         from app.infrastructure.config.service import SystemConfigService
+
         db_headers_str = SystemConfigService.get_value("LLM_HEADERS", "{}")
         try:
             final_headers = json.loads(db_headers_str) if db_headers_str else {}
@@ -65,7 +66,7 @@ class LLMConfigService:
             )
 
         # Test invocation
-        # For thinking/reasoning models, the content might be empty if max_tokens is small 
+        # For thinking/reasoning models, the content might be empty if max_tokens is small
         # and it only generated thinking/reasoning tokens.
         # We use stream to confirm connectivity by checking if any chunk contains text/reasoning.
         content = ""
@@ -97,7 +98,7 @@ class LLMConfigService:
         """
         Updates System Config for LLM.
         Non-destructive logic (unlike Embeddings).
-        
+
         Supports independent Vision endpoint configuration (e.g., local VLM).
         """
 

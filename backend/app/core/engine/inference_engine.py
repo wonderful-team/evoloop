@@ -95,7 +95,13 @@ class InferenceEngine:
         if provider == "anthropic":
             return [
                 SystemMessage(
-                    content=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}]
+                    content=[
+                        {
+                            "type": "text",
+                            "text": system_prompt,
+                            "cache_control": {"type": "ephemeral"},
+                        }
+                    ]
                 )
             ]
         return [SystemMessage(content=system_prompt)]
@@ -163,10 +169,9 @@ class InferenceEngine:
         msg_count = len(loop_messages)
         if model is not None:
             from app.core.engine.context_monitor import ContextMonitor
+
             stats = ContextMonitor.calculate(loop_messages, model=model)
-            logger.info(
-                f"--- {name} Context: {msg_count} msgs, ~{stats.total_tokens} tokens ({stats.usage_ratio * 100:.1f}%) ---"
-            )
+            logger.info(f"--- {name} Context: {msg_count} msgs, ~{stats.total_tokens} tokens ({stats.usage_ratio * 100:.1f}%) ---")
         else:
             logger.info(f"--- {name} Context: {msg_count} msgs ---")
 
@@ -181,6 +186,7 @@ class InferenceEngine:
         if not handler:
             return
         from app.core.engine.message.reasoning import extract_reasoning_from_message
+
         thinking = extract_reasoning_from_message(response)
         if not response.content and not response.tool_calls and not thinking:
             return
@@ -231,9 +237,7 @@ class InferenceEngine:
                     fallback_llm = await self._llm_factory.create_llm(
                         LLMConfig(model_name=default_model, temperature=0.7, streaming=True),
                     )
-                    response = await self._stream_llm_response(
-                        fallback_llm, loop_messages, config
-                    )
+                    response = await self._stream_llm_response(fallback_llm, loop_messages, config)
                     latency = time.perf_counter() - start_perf
                     logger.info(f"[{name}] Fallback LLM Latency: {latency:.2f}s")
                 else:

@@ -287,9 +287,7 @@ async def _run_with_self_heal(
     exec_params["_macro_name"] = macro.name
     exec_params["_skill_name"] = skill_name or macro.name
 
-    result = await MacroService.run(
-        thread_id=thread_id, script_input=script, params=exec_params, macro=macro
-    )
+    result = await MacroService.run(thread_id=thread_id, script_input=script, params=exec_params, macro=macro)
 
     if result.get("status") != "fallback_required":
         return ExecutionOutcome(bool(result.get("success")), result.get("message") or "")

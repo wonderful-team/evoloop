@@ -13,9 +13,7 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_GGUF_DIR = os.path.join(
-    os.path.expanduser("~"), ".evoloop", "models", "gguf"
-)
+_DEFAULT_GGUF_DIR = os.path.join(os.path.expanduser("~"), ".evoloop", "models", "gguf")
 _DEFAULT_TIMEOUT = 3.0  # seconds per probe
 
 
@@ -34,7 +32,6 @@ class DiscoveredModel:
 
 
 class ModelDiscoveryService:
-
     @staticmethod
     async def discover_all() -> list[DiscoveredModel]:
         """Run all discovery probes in parallel and return unified list."""
@@ -82,17 +79,19 @@ class ModelDiscoveryService:
             model_id = item.get("id", "")
             if not model_id:
                 continue
-            models.append(DiscoveredModel(
-                id=f"lm-studio:{model_id}",
-                name=f"{model_id} (LM Studio)",
-                source="lm-studio",
-                model_name=model_id,
-                base_url=base,
-                api_key="lm-studio",
-                capabilities=["chat", "embedding"],
-                status="available",
-                context_window=8192,
-            ))
+            models.append(
+                DiscoveredModel(
+                    id=f"lm-studio:{model_id}",
+                    name=f"{model_id} (LM Studio)",
+                    source="lm-studio",
+                    model_name=model_id,
+                    base_url=base,
+                    api_key="lm-studio",
+                    capabilities=["chat", "embedding"],
+                    status="available",
+                    context_window=8192,
+                )
+            )
         return models
 
     @staticmethod
@@ -113,17 +112,19 @@ class ModelDiscoveryService:
             name = item.get("name", "")
             if not name:
                 continue
-            models.append(DiscoveredModel(
-                id=f"ollama:{name}",
-                name=f"{name} (Ollama)",
-                source="ollama",
-                model_name=name,
-                base_url=f"{base}/v1",
-                api_key="",
-                capabilities=["chat", "embedding"],
-                status="available",
-                context_window=8192,
-            ))
+            models.append(
+                DiscoveredModel(
+                    id=f"ollama:{name}",
+                    name=f"{name} (Ollama)",
+                    source="ollama",
+                    model_name=name,
+                    base_url=f"{base}/v1",
+                    api_key="",
+                    capabilities=["chat", "embedding"],
+                    status="available",
+                    context_window=8192,
+                )
+            )
         return models
 
     @staticmethod
@@ -144,15 +145,17 @@ class ModelDiscoveryService:
         for fpath in files:
             name = os.path.splitext(os.path.basename(fpath))[0]
             is_embedding = "bge" in name.lower() or "embed" in name.lower()
-            models.append(DiscoveredModel(
-                id=f"gguf:{name}",
-                name=f"{name} (GGUF)",
-                source="gguf",
-                model_name=fpath,
-                capabilities=["embedding"] if is_embedding else ["chat"],
-                status="available",
-                context_window=512 if is_embedding else 8192,
-            ))
+            models.append(
+                DiscoveredModel(
+                    id=f"gguf:{name}",
+                    name=f"{name} (GGUF)",
+                    source="gguf",
+                    model_name=fpath,
+                    capabilities=["embedding"] if is_embedding else ["chat"],
+                    status="available",
+                    context_window=512 if is_embedding else 8192,
+                )
+            )
         return models
 
     @staticmethod
@@ -170,15 +173,17 @@ class ModelDiscoveryService:
         if not base_url or not model:
             return []
 
-        discovered: list[DiscoveredModel] = [DiscoveredModel(
-            id=f"custom:{model}",
-            name=f"{model} (Custom)",
-            source="custom",
-            model_name=model,
-            base_url=base_url,
-            api_key=api_key or "",
-            capabilities=["chat"],
-            status="available",
-            context_window=128000,
-        )]
+        discovered: list[DiscoveredModel] = [
+            DiscoveredModel(
+                id=f"custom:{model}",
+                name=f"{model} (Custom)",
+                source="custom",
+                model_name=model,
+                base_url=base_url,
+                api_key=api_key or "",
+                capabilities=["chat"],
+                status="available",
+                context_window=128000,
+            )
+        ]
         return discovered

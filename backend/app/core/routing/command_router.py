@@ -114,7 +114,7 @@ class CommandRouter:
             self._record_thread_intent(thread_id, decision, text)
             return decision
 
-        # 2. Compound / multi-intent guard: bypass L0 and delegate to agent.
+        # 3. Compound / multi-intent guard: bypass L0 and delegate to agent.
         if is_compound_intent(text):
             intent_hint_obj = IntentHint(
                 intent="domain_classified",
@@ -138,7 +138,7 @@ class CommandRouter:
             self._record_thread_intent(thread_id, decision, text)
             return decision
 
-        # 3. BERT intent classification + intent-specific resolution
+        # 4. BERT intent classification + intent-specific resolution
         intent_name, margin = await asyncio.to_thread(classifier_predict, text)
         l0_match = None
         if intent_name:

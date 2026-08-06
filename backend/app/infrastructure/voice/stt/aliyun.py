@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 class AliyunProvider(BaseSTTProvider):
     """
     阿里云百炼语音识别提供商
-    
+
     使用 OpenAI 兼容接口访问通义语音模型（如 qwen-audio-turbo），支持中英混杂，精度极高。
     """
 
@@ -72,10 +72,10 @@ class AliyunProvider(BaseSTTProvider):
     async def transcribe(self, options: STTOptions) -> STTResult:
         """
         识别语音
-        
+
         Args:
             options: STT 选项
-            
+
         Returns:
             STTResult: 识别结果
         """
@@ -114,14 +114,14 @@ class AliyunProvider(BaseSTTProvider):
                 response = await client.audio.transcriptions.create(**kwargs)
 
             detected_language = self._code_to_locale(
-                getattr(response, 'language', language_code or 'zh')
+                getattr(response, "language", language_code or "zh")
             )
 
             return STTResult(
                 text=response.text,
                 language=detected_language,
-                duration_ms=getattr(response, 'duration', None),
-                confidence=getattr(response, 'confidence', None)
+                duration_ms=getattr(response, "duration", None),
+                confidence=getattr(response, "confidence", None),
             )
 
         except Exception as e:
@@ -132,9 +132,11 @@ class AliyunProvider(BaseSTTProvider):
         """
         流式识别
         """
+
         async def _gen():
             result = await self.transcribe(options)
             yield result
+
         return _gen()
 
     def _locale_to_code(self, locale: VoiceLocale) -> str | None:

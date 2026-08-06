@@ -149,7 +149,7 @@ class MemoryCommandHandler:
             logger.warning("[EngineCommand] memory_delete missing name, skipping")
             return
 
-        logger.info(f"[EngineCommand] Processing memory_delete: name={name}")
+        logger.info(f"[EngineCommand] Processing memory_delete: name={name}, source_message_id={source_message_id}")
         from app.core.memory.lifespan import MemoryLifespanManager
 
         manager = MemoryLifespanManager.get_manager()

@@ -5,6 +5,7 @@ Memory Module Event Subscribers
 Handles application-level shutdown, session completion, and rewind cleanup
 for the memory domain.
 """
+
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -44,6 +45,7 @@ class MemoryLifecycleSubscriber:
         """Handle APP_STOPPING event - shutdown memory container."""
         try:
             from app.core.memory.lifespan import MemoryLifespanManager
+
             await MemoryLifespanManager.shutdown()
             logger.info("[Memory] Memory container shutdown")
         except Exception as e:
@@ -102,7 +104,7 @@ class MemoryLifecycleSubscriber:
                         },
                     },
                     "required": ["type", "content", "title", "confidence"],
-                }
+                },
             )
         )
 
@@ -162,12 +164,13 @@ class MemoryRewind:
             # Get message IDs to clean up
             # Prefer pre-computed affected_message_ids to avoid execution-order
             # dependency with MessageRewind (which may have already deleted rows).
-            message_ids = (event.affected_message_ids if event.affected_message_ids is not None
-                           else await self._find_message_ids(
-                thread_id=event.thread_id,
-                target_message_id=event.target_message_id,
-                include_target=event.include_target
-            ))
+            message_ids = (
+                event.affected_message_ids if event.affected_message_ids is not None else await self._find_message_ids(
+                    thread_id=event.thread_id,
+                    target_message_id=event.target_message_id,
+                    include_target=event.include_target,
+                )
+            )
 
             if message_ids or event.affected_run_ids:
                 logger.info(f"[MemoryRewind] Identified {len(message_ids)} affected messages and {len(event.affected_run_ids)} run_ids for thread {event.thread_id}")
@@ -236,11 +239,7 @@ class MemoryRewind:
             result = await session.execute(stmt)
             return [str(row.id) for row in result.all()]
 
-    async def _delete_memories(
-        self,
-        source_message_ids: list[str],
-        run_ids: list[str]
-    ) -> int:
+    async def _delete_memories(self, source_message_ids: list[str], run_ids: list[str]) -> int:
         """
         Delete memories linked to the given message IDs and run IDs.
 
@@ -344,6 +343,7 @@ class MemoryRewind:
         # 2. Regenerate MEMORY.md (Tier 1)
         try:
             from app.core.memory.lifespan import MemoryLifespanManager
+
             if not MemoryLifespanManager.is_initialized():
                 await MemoryLifespanManager.ainitialize()
 
@@ -372,16 +372,18 @@ class MemoryConversationCleanup:
 
         # 1. Clear in-memory caches
         from app.core.memory import memory_tracker, predictive_cache
+
         memory_tracker.clear_thread(thread_id)
         predictive_cache.clear_thread(thread_id)
 
         # 2. Clean up MemoryIndex DB records
         try:
             from app.core.memory.lifespan import MemoryLifespanManager
+
             if MemoryLifespanManager.is_initialized():
                 container = MemoryLifespanManager.get_container()
                 memory_manager = container.memory_manager
-                if hasattr(memory_manager, '_engine') and memory_manager._engine:
+                if hasattr(memory_manager, "_engine") and memory_manager._engine:
                     await memory_manager._engine._db_delete_by_source_thread_id(thread_id)
         except Exception as e:
             logger.warning(f"[MemoryCleanup] MemoryIndex cleanup warning: {e}")

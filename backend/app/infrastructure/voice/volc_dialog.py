@@ -29,8 +29,7 @@ class VolcDialogClient:
             "X-Api-Connect-Id": str(uuid.uuid4()),
         }
         logger.info(f"Connecting to Volcengine Realtime Dialogue: {self.base_url}")
-        
-        import ssl
+
         ssl_ctx = ssl.create_default_context()
         ssl_ctx.check_hostname = False
         ssl_ctx.verify_mode = ssl.CERT_NONE
@@ -51,7 +50,7 @@ class VolcDialogClient:
         start_conn.extend(len(payload_bytes).to_bytes(4, 'big'))
         start_conn.extend(payload_bytes)
         await self.ws.send(start_conn)
-        
+
         response = await self.ws.recv()
         logger.debug(f"StartConnection response: {protocol.parse_response(response)}")
 
@@ -79,17 +78,17 @@ class VolcDialogClient:
                     "format": "pcm",
                     "sample_rate": 24000
                 }
-            }
+            },
         }
         payload_bytes = gzip.compress(str.encode(json.dumps(request_params)))
         start_session = bytearray(protocol.generate_header())
-        start_session.extend(int(100).to_bytes(4, 'big'))
-        start_session.extend(len(self.session_id).to_bytes(4, 'big'))
+        start_session.extend((100).to_bytes(4, "big"))
+        start_session.extend(len(self.session_id).to_bytes(4, "big"))
         start_session.extend(str.encode(self.session_id))
-        start_session.extend(len(payload_bytes).to_bytes(4, 'big'))
+        start_session.extend(len(payload_bytes).to_bytes(4, "big"))
         start_session.extend(payload_bytes)
         await self.ws.send(start_session)
-        
+
         response = await self.ws.recv()
         logger.debug(f"StartSession response: {protocol.parse_response(response)}")
 
@@ -100,14 +99,14 @@ class VolcDialogClient:
         task_req = bytearray(
             protocol.generate_header(
                 message_type=protocol.CLIENT_AUDIO_ONLY_REQUEST,
-                serial_method=protocol.NO_SERIALIZATION
+                serial_method=protocol.NO_SERIALIZATION,
             )
         )
-        task_req.extend(int(200).to_bytes(4, 'big'))
-        task_req.extend(len(self.session_id).to_bytes(4, 'big'))
+        task_req.extend((200).to_bytes(4, "big"))
+        task_req.extend(len(self.session_id).to_bytes(4, "big"))
         task_req.extend(str.encode(self.session_id))
         payload_bytes = gzip.compress(audio)
-        task_req.extend(len(payload_bytes).to_bytes(4, 'big'))
+        task_req.extend(len(payload_bytes).to_bytes(4, "big"))
         task_req.extend(payload_bytes)
         await self.ws.send(task_req)
 
@@ -117,12 +116,12 @@ class VolcDialogClient:
             return
         payload = {"content": content}
         payload_bytes = gzip.compress(str.encode(json.dumps(payload)))
-        
+
         req = bytearray(protocol.generate_header())
-        req.extend(int(501).to_bytes(4, 'big'))
-        req.extend(len(self.session_id).to_bytes(4, 'big'))
+        req.extend((501).to_bytes(4, "big"))
+        req.extend(len(self.session_id).to_bytes(4, "big"))
         req.extend(str.encode(self.session_id))
-        req.extend(len(payload_bytes).to_bytes(4, 'big'))
+        req.extend(len(payload_bytes).to_bytes(4, "big"))
         req.extend(payload_bytes)
         await self.ws.send(req)
 
@@ -130,18 +129,19 @@ class VolcDialogClient:
         """Send Chat TTS Text to synthesize text to audio."""
         if not self.ws:
             return
+        logger.debug(f"Sending ChatTTSText start={start} end={end} len={len(content)}")
         payload = {
             "start": start,
             "end": end,
             "content": content,
         }
         payload_bytes = gzip.compress(str.encode(json.dumps(payload)))
-        
+
         req = bytearray(protocol.generate_header())
-        req.extend(int(500).to_bytes(4, 'big'))
-        req.extend(len(self.session_id).to_bytes(4, 'big'))
+        req.extend((500).to_bytes(4, "big"))
+        req.extend(len(self.session_id).to_bytes(4, "big"))
         req.extend(str.encode(self.session_id))
-        req.extend(len(payload_bytes).to_bytes(4, 'big'))
+        req.extend(len(payload_bytes).to_bytes(4, "big"))
         req.extend(payload_bytes)
         await self.ws.send(req)
 
@@ -150,11 +150,11 @@ class VolcDialogClient:
         if not self.ws:
             return
         req = bytearray(protocol.generate_header())
-        req.extend(int(102).to_bytes(4, 'big'))
+        req.extend((102).to_bytes(4, "big"))
         payload_bytes = gzip.compress(str.encode("{}"))
-        req.extend(len(self.session_id).to_bytes(4, 'big'))
+        req.extend(len(self.session_id).to_bytes(4, "big"))
         req.extend(str.encode(self.session_id))
-        req.extend(len(payload_bytes).to_bytes(4, 'big'))
+        req.extend(len(payload_bytes).to_bytes(4, "big"))
         req.extend(payload_bytes)
         await self.ws.send(req)
 

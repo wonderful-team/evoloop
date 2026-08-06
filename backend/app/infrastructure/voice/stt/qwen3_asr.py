@@ -81,6 +81,7 @@ _ensure_sherpa_onnx_runtime()
 # sherpa_onnx 延迟导入检查
 try:
     import sherpa_onnx
+
     SHERPA_ONNX_AVAILABLE = True
 except ImportError:
     SHERPA_ONNX_AVAILABLE = False
@@ -139,7 +140,7 @@ def _load_audio_samples_16k(file_path: str) -> list[float]:
     try:
         cmd = [
             "ffmpeg", "-loglevel", "quiet", "-y", "-i", file_path,
-            "-f", "s16le", "-ac", "1", "-ar", "16000", "-"
+            "-f", "s16le", "-ac", "1", "-ar", "16000", "-",
         ]
         res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
         raw_int16 = array.array("h", res.stdout)
@@ -273,4 +274,5 @@ class Qwen3ASRProvider(BaseSTTProvider):
         async def _gen():
             result = await self.transcribe(options)
             yield result
+
         return _gen()

@@ -3,6 +3,7 @@ Thinking Budget Adapter
 将 ThinkingConfig 的语义意图翻译为各 LLM Provider 的原生参数格式。
 每个函数都是纯函数，无副作用，便于单元测试。
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -10,6 +11,7 @@ from typing import Any
 from app.infrastructure.schemas import ThinkingConfig
 
 # --- 模型族检测 ---
+
 
 def detect_model_family(model_name: str, base_url: str = "") -> str:
     """
@@ -34,6 +36,7 @@ def detect_model_family(model_name: str, base_url: str = "") -> str:
 
 # --- Anthropic ---
 
+
 def build_anthropic_thinking_kwargs(cfg: ThinkingConfig) -> dict[str, Any]:
     """
     返回 Anthropic model_kwargs 中的 thinking 参数。
@@ -48,6 +51,7 @@ def build_anthropic_thinking_kwargs(cfg: ThinkingConfig) -> dict[str, Any]:
 
 
 # --- OpenAI o 系列 ---
+
 
 def build_openai_reasoning_extra(cfg: ThinkingConfig) -> dict[str, Any]:
     """
@@ -80,6 +84,7 @@ def get_kimi_min_max_tokens(cfg: ThinkingConfig) -> int:
 
 # --- Zhipu (GLM-5) ---
 
+
 def build_zhipu_thinking_extra(cfg: ThinkingConfig) -> dict[str, Any]:
     """
     返回智谱 (GLM-5 等) 开启深度思考的 extra_body 参数格式。
@@ -92,6 +97,7 @@ def build_zhipu_thinking_extra(cfg: ThinkingConfig) -> dict[str, Any]:
 
 # --- MiniMax (3.x 等) ---
 
+
 def build_minimax_thinking_extra(cfg: ThinkingConfig) -> dict[str, Any]:
     """
     返回 MiniMax 开启深度思考的 extra_body 参数格式。
@@ -103,6 +109,7 @@ def build_minimax_thinking_extra(cfg: ThinkingConfig) -> dict[str, Any]:
 
 
 # --- Gemini (3.x 等) ---
+
 
 def build_gemini_thinking_extra(cfg: ThinkingConfig) -> dict[str, Any]:
     """

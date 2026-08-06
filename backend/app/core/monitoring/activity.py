@@ -115,10 +115,12 @@ class ActivityMonitor:
 
     async def _publish_session_started(self, thread_id: str, project_id: int | None = None):
         from app.core.engine.event.publishers import publish_agent_session_started
+
         await publish_agent_session_started(thread_id=thread_id, project_id=project_id)
 
     async def _publish_run_completed(self, thread_id: str, result, run_id: str, task_type: str | None):
         from app.core.engine.event.publishers import publish_agent_run_completed
+
         await publish_agent_run_completed(
             thread_id=thread_id,
             status=result.status,
@@ -126,9 +128,8 @@ class ActivityMonitor:
         )
         from app.core.events.publishers import system_bus
         from app.core.monitoring.event import SystemStatusEvent
-        await system_bus.publish(
-            SystemStatusEvent(thread_id=thread_id, status=result.status)
-        )
+
+        await system_bus.publish(SystemStatusEvent(thread_id=thread_id, status=result.status))
 
     async def start_run(
         self,
@@ -410,24 +411,15 @@ class ActivityMonitor:
         # 2. Publish the full activity state via the system event bus
         activity = await self.get_activity(thread_id)
         if activity:
-            snapshot = (
-                activity.model_dump() if hasattr(activity, "model_dump") else activity
-            )
+            snapshot = activity.model_dump() if hasattr(activity, "model_dump") else activity
             from app.core.monitoring.event import ActivityStateRefreshedEvent
 
             event = ActivityStateRefreshedEvent(
                 thread_id=thread_id,
                 activity_state=snapshot
             )
-            try:
-                await system_bus.publish(event)
-                logger.info(
-                    f"[ActivityMonitor] Session goal updated and state refreshed for thread {thread_id}: {new_goal}"
-                )
-            except Exception as e:
-                logger.warning(
-                    f"[ActivityMonitor] Failed to publish goal update event: {e}"
-                )
+            await system_bus.publish(event)
+            logger.info(f"[ActivityMonitor] Session goal updated and state refreshed for thread {thread_id}: {new_goal}")
 
     async def get_statuses(self, thread_ids: list[str]) -> dict[str, dict[str, str]]:
         """Batch fetch statuses and goals for multiple threads efficiently."""

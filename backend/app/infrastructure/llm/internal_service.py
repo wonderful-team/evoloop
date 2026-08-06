@@ -47,7 +47,7 @@ T = TypeVar("T", bound=BaseModel)
 class InternalLLMService:
     """
     内部 LLM 调用服务
-    
+
     所有内部处理都应该使用此服务，而不是直接调用 LLM。
     这确保了内部处理不会意外触发回调，导致消息泄露。
     """
@@ -59,11 +59,11 @@ class InternalLLMService:
         temperature: float = 0.3,
         max_tokens: int = 500,
         model_name: str | None = None,
-        **kwargs
+        **kwargs,
     ) -> Any:
         """
         调用 LLM 进行内部处理
-        
+
         Args:
             messages: 消息列表，OpenAI 格式
             purpose: 调用用途，如 "memory_selection", "task_decomposition"
@@ -72,10 +72,10 @@ class InternalLLMService:
             max_tokens: 最大 token 数
             model_name: 指定模型（可选，默认使用系统配置）
             **kwargs: 其他参数传递给 LLM
-            
+
         Returns:
             LLM 响应对象
-            
+
         关键特性：
             - 自动禁用所有回调（config={"callbacks": []}）
             - 标记 metadata 表明是内部调用
@@ -329,17 +329,16 @@ class InternalLLMService:
 
         return coerced
 
-
     @staticmethod
     def validate_purpose(purpose: str) -> bool:
         """
         验证 purpose 是否有效
-        
+
         有效的 purpose 应该：
         1. 使用小写字母和下划线
         2. 清晰描述调用用途
         3. 在已知列表中（可选）
-        
+
         已知的 purpose 列表：
         - memory_selection: 记忆选择
         - memory_extraction: 记忆提取
@@ -354,7 +353,7 @@ class InternalLLMService:
         import re
 
         # 格式验证：小写字母和下划线
-        if not re.match(r'^[a-z_]+$', purpose):
+        if not re.match(r"^[a-z_]+$", purpose):
             return False
 
         # 已知用途列表（可选验证）

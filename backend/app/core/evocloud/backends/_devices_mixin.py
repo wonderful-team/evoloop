@@ -44,21 +44,20 @@ class DevicesMixin:
             "GET", "/evolooplink/api/log/search", params=params, token=token
         )
 
-    async def bind_client_id(
-        self, device_key: str, client_id: str, token: str | None = None
-    ) -> dict:
+    async def bind_client_id(self, device_key: str, client_id: str, token: str | None = None) -> dict:
         return await self.request(
-            "POST", "/api/v1/devices/bind",
-            data={"device_key": device_key, "client_id": client_id}, token=token,
+            "POST",
+            "/api/v1/devices/bind",
+            data={"device_key": device_key, "client_id": client_id},
+            token=token,
         )
 
-    async def register_device(
-        self, fingerprint: str, name: str, os_info: str, token: str | None = None
-    ) -> dict:
+    async def register_device(self, fingerprint: str, name: str, os_info: str, token: str | None = None) -> dict:
         from app.core.environment.discovery import EnvironmentProbe
 
         return await self.request(
-            "POST", "/evolooplink/api/device/register",
+            "POST",
+            "/evolooplink/api/device/register",
             data={
                 "fingerprint": fingerprint,
                 "device_name": name,
@@ -68,40 +67,31 @@ class DevicesMixin:
             token=token,
         )
 
-    async def sync_device_info(
-        self, device_key: str, info: dict[str, Any], token: str | None = None
-    ) -> dict:
+    async def sync_device_info(self, device_key: str, info: dict[str, Any], token: str | None = None) -> dict:
         payload = {"device_key": device_key, **info}
         return await self.request(
-            "POST", "/evolooplink/api/device/updateInfo", data=payload, token=token,
+            "POST",
+            "/evolooplink/api/device/updateInfo",
+            data=payload,
+            token=token,
         )
 
     async def send_heartbeat(self, device_key: str, token: str | None = None):
-        await self.request(
-            "POST", f"/api/v1/devices/{device_key}/heartbeat", token=token
-        )
+        await self.request("POST", f"/api/v1/devices/{device_key}/heartbeat", token=token)
 
     # --- Cancellation ---
 
-    async def get_cancellation_info(
-        self, token: str | None = None
-    ) -> EvoCloudProxyResponse:
+    async def get_cancellation_info(self, token: str | None = None) -> EvoCloudProxyResponse:
         return EvoCloudProxyResponse.model_validate(
             await self.request("GET", "/membercancel/api/membercancel/info", token=token)
         )
 
-    async def apply_cancellation(
-        self, token: str | None = None
-    ) -> EvoCloudProxyResponse:
+    async def apply_cancellation(self, token: str | None = None) -> EvoCloudProxyResponse:
         return EvoCloudProxyResponse.model_validate(
             await self.request("POST", "/membercancel/api/membercancel/apply", token=token)
         )
 
-    async def cancel_cancellation_apply(
-        self, token: str | None = None
-    ) -> EvoCloudProxyResponse:
+    async def cancel_cancellation_apply(self, token: str | None = None) -> EvoCloudProxyResponse:
         return EvoCloudProxyResponse.model_validate(
-            await self.request(
-                "POST", "/membercancel/api/membercancel/cancelApply", token=token
-            )
+            await self.request("POST", "/membercancel/api/membercancel/cancelApply", token=token)
         )
