@@ -267,14 +267,8 @@ class BlockMapper:
         - created_at: ISO 字符串 → Unix 秒级整数
         - is_visible: bool → int (0/1)
         """
-        # Defensive: ensure tool_calls are pure dicts before serialization
+        # 深拷贝防止流式消息并发修改；model_dump 自动将 ToolCall 序列化为 dict
         safe_msg = msg.model_copy(deep=True)
-        if safe_msg.tool_calls:
-            safe_tool_calls: list[dict[str, Any]] = [
-                dict(tc) if not isinstance(tc, dict) else tc
-                for tc in safe_msg.tool_calls
-            ]
-            safe_msg.tool_calls = cast(Any, safe_tool_calls)
 
         data = safe_msg.model_dump(exclude_none=True)
 

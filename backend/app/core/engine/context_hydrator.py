@@ -18,7 +18,14 @@ from app.core.engine.domain_mapping import resolve_domain
 from app.core.engine.hooks import HookContext, HookEvent, hook_system
 from app.core.engine.message.native_classes import RunnableConfig
 from app.core.routing.conversation_state import ConversationState
-from app.core.routing.schemas import IntentHint
+from app.core.routing.schemas import (
+    DOMAIN_AMBIGUOUS,
+    INTENT_DOMAIN_CLASSIFIED,
+    INTENT_MACRO_TASK,
+    INTENT_MEMORY_QUERY,
+    INTENT_WORKER_TASK,
+    IntentHint,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -26,12 +33,10 @@ logger = logging.getLogger(__name__)
 # When no intent_hint is available we keep the legacy full-load behavior.
 # Intents omitted from a set skip that loader entirely (telescopic loading).
 # See docs/supervisor-telescopic-context-design.md §5.4 for the mapping table.
-_INTENTS_NEEDING_ACTIVE_SKILLS = frozenset({"worker_task", "ambiguous", "macro_task"})
-_INTENTS_NEEDING_ACTIVE_MACROS = frozenset(
-    {"macro_task", "builtin_task", "ambiguous", "worker_task"}
-)
-_INTENTS_NEEDING_OPERATION_MAP = frozenset({"worker_task", "ambiguous"})
-_INTENTS_NEEDING_MEMORY = frozenset({"memory_query", "ambiguous"})
+_INTENTS_NEEDING_ACTIVE_SKILLS = frozenset({INTENT_WORKER_TASK, DOMAIN_AMBIGUOUS, INTENT_MACRO_TASK})
+_INTENTS_NEEDING_ACTIVE_MACROS = frozenset({INTENT_MACRO_TASK, DOMAIN_AMBIGUOUS, INTENT_WORKER_TASK})
+_INTENTS_NEEDING_OPERATION_MAP = frozenset({INTENT_WORKER_TASK, DOMAIN_AMBIGUOUS})
+_INTENTS_NEEDING_MEMORY = frozenset({INTENT_MEMORY_QUERY, DOMAIN_AMBIGUOUS})
 
 
 class AgentContextHydrator:
@@ -92,40 +97,39 @@ class AgentContextHydrator:
             "intent_hint"
         )
         if isinstance(intent_hint, IntentHint):
-            intent_hint = intent_hint.model_dump()
-        if isinstance(intent_hint, dict):
-            domain = intent_hint.get("domain")
-            intent = intent_hint.get("intent")
+            intent_hint_obj = intent_hint
+        elif isinstance(intent_hint, dict):
+            intent_hint_obj = IntentHint.model_validate(intent_hint)
+        else:
+            intent_hint_obj = None
+
+        if intent_hint_obj is not None:
+            domain = intent_hint_obj.domain
+            intent = intent_hint_obj.intent
             # L1 emits a domain label and leaves functional resolution to the engine.
-            if domain and intent == "domain_classified":
+            if domain and intent == INTENT_DOMAIN_CLASSIFIED:
                 resolved_intent, resolved_modules = resolve_domain(domain)
                 intent = resolved_intent
-                intent_hint["intent"] = resolved_intent
-                intent_hint["suggested_modules"] = list(resolved_modules)
-                # Make the reason explicit about the engine mapping.
-                intent_hint["reason"] = (
-                    f"{intent_hint.get('reason', '')} -> engine:{resolved_intent}"
-                ).strip()
+                intent_hint_obj = intent_hint_obj.model_copy(
+                    update={
+                        "intent": resolved_intent,
+                        "suggested_modules": list(resolved_modules),
+                        "reason": f"{intent_hint_obj.reason} -> engine:{resolved_intent}",
+                    }
+                )
 
             # §5.9 multi-turn coreference: when the current turn references a prior
             # entity (它/这个/刚才) and the thread has prior context, add "Memory" to
             # suggested_modules so semantic recall is available even for intents
             # (e.g. environment_query) that normally skip it. The routing layer no
             # longer performs this injection; it is part of the engine's mapping.
-            has_prior_context = bool(
-                intent_hint.get("previous_intent") or intent_hint.get("session_history")
-            )
+            has_prior_context = bool(intent_hint_obj.previous_intent or intent_hint_obj.session_history)
             if has_prior_context:
-                temp_hint = IntentHint.model_validate(intent_hint)
-                boosted = ConversationState.apply_anaphora_boost(
-                    temp_hint, last_human_msg, has_prior_context
-                )
-                # Persist the boost back into the dict so downstream code sees the
-                # resolved intent, modules, and anaphora tag.
-                intent_hint.update(boosted.model_dump(exclude_none=True))
+                boosted = ConversationState.apply_anaphora_boost(intent_hint_obj, last_human_msg, has_prior_context)
+                intent_hint_obj = intent_hint_obj.model_copy(update=boosted.model_dump(exclude_none=True))
 
-            suggested_modules_raw = intent_hint.get("suggested_modules")
-            session_history_raw = intent_hint.get("session_history")
+            suggested_modules_raw = intent_hint_obj.suggested_modules
+            session_history_raw = intent_hint_obj.session_history
         else:
             intent = None
             suggested_modules_raw = None

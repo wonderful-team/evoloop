@@ -13,6 +13,7 @@ from sqlalchemy import select
 
 from app.core.context.manager import EvoContext
 from app.core.context.plugins import ContextPlugin, plugin_registry
+from app.core.routing.schemas import INTENT_DIRECT_ANSWER, INTENT_ENVIRONMENT_QUERY
 from app.infrastructure.database import sync_session_scope
 
 logger = logging.getLogger(__name__)
@@ -25,7 +26,7 @@ class ProjectStateContextPlugin(ContextPlugin):
     - High-priority or In-Progress Todos
     """
 
-    _SKIP_FOR_INTENTS: frozenset[str | None] = frozenset({"direct_answer", "environment_query"})
+    _SKIP_FOR_INTENTS: frozenset[str | None] = frozenset({INTENT_DIRECT_ANSWER, INTENT_ENVIRONMENT_QUERY})
 
     def is_needed(self, intent: str | None) -> bool:
         """Project state is not needed for greetings or raw environment questions."""

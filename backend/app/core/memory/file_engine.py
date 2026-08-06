@@ -33,24 +33,14 @@ class MemoryCategory(str, Enum):
     DECISIONS = "decisions"
 
 
-class _DBIndexProxy:
-    __slots__ = ("_engine",)
-
-    def __init__(self, engine: "_FileEngine"):
-        self._engine = engine
-
-    async def search(self, filters: dict, limit: int = 100) -> list[dict]:
-        return await self._engine._db_search(filters, limit)
-
-
 class _FileEngine:
-    def __init__(self, base_dir: str | None = None, project_roots: dict[int, str] | None = None):
+    def __init__(
+        self, base_dir: str | None = None, project_roots: dict[int, str] | None = None
+    ):
         self.root = Path(base_dir or settings.BRAIN_MEMORY_ROOT)
         self._project_roots: dict[int, Path] = {}
         if project_roots:
-            self._project_roots = {
-                pid: Path(p) for pid, p in project_roots.items()
-            }
+            self._project_roots = {pid: Path(p) for pid, p in project_roots.items()}
         self.journal_dir = self.root / "journal"
         self.preferences_dir = self.root / "preferences"
         self.context_dir = self.root / "context"
@@ -60,7 +50,6 @@ class _FileEngine:
         self._db_initialized = True
         self._vector_store = None
         self.vector_db = None
-        self.index_db = _DBIndexProxy(self)
 
         self._id_index: dict[str, tuple[Path, MemoryCategory]] = {}
         self._hash_index: dict[str, str] = {}
@@ -97,7 +86,9 @@ class _FileEngine:
                     if entry.content_hash:
                         hash_idx[entry.content_hash] = entry.id
                 except Exception as exc:
-                    logger.debug(f"[FileEngine] Skipping corrupted file {path.name}: {exc}")
+                    logger.debug(
+                        f"[FileEngine] Skipping corrupted file {path.name}: {exc}"
+                    )
                     continue
 
         def _scan():
@@ -114,7 +105,9 @@ class _FileEngine:
         loop = asyncio.get_running_loop()
         self._id_index, self._hash_index = await loop.run_in_executor(None, _scan)
         elapsed = (time.time() - start_time) * 1000
-        logger.debug(f"[FileEngine] ID index built: {len(self._id_index)} entries in {elapsed:.1f}ms")
+        logger.debug(
+            f"[FileEngine] ID index built: {len(self._id_index)} entries in {elapsed:.1f}ms"
+        )
 
     async def _rebuild_index(self) -> None:
         await self._db_clear()
@@ -154,7 +147,11 @@ class _FileEngine:
         base_dir = self.root / category.value
 
         # Route to project-specific directory if a project root is registered
-        if entry.project_id and entry.project_id > 0 and entry.project_id in self._project_roots:
+        if (
+            entry.project_id
+            and entry.project_id > 0
+            and entry.project_id in self._project_roots
+        ):
             base_dir = self._project_roots[entry.project_id] / category.value
 
         if category == MemoryCategory.JOURNAL:
@@ -197,7 +194,9 @@ class _FileEngine:
             await self._build_memory_id_index()
             db_count = await self._db_get_count()
             if db_count == 0 and len(self._id_index) > 0:
-                logger.info(f"[FileEngine] Index empty but {len(self._id_index)} files found. Rebuilding...")
+                logger.info(
+                    f"[FileEngine] Index empty but {len(self._id_index)} files found. Rebuilding..."
+                )
                 await self._rebuild_index()
             self._initialized = True
             logger.info(f"[FileEngine] Initialized ({len(self._id_index)} entries)")
@@ -229,7 +228,9 @@ class _FileEngine:
             if entry.content_hash in self._hash_index:
                 existing_id = self._hash_index[entry.content_hash]
                 if existing_id != entry.id:
-                    logger.info(f"[FileEngine] Duplicate hash {entry.content_hash[:8]} (ID: {existing_id}). Skipping.")
+                    logger.info(
+                        f"[FileEngine] Duplicate hash {entry.content_hash[:8]} (ID: {existing_id}). Skipping."
+                    )
                     return
 
             path, category = self._get_storage_path(entry)
@@ -282,7 +283,9 @@ class _FileEngine:
             logger.info(f"[FileEngine] Deleted {entry_id}")
             return True
 
-    async def find_by_hash(self, content_hash: str, project_id: int | None = None) -> MemoryEntry | None:
+    async def find_by_hash(
+        self, content_hash: str, project_id: int | None = None
+    ) -> MemoryEntry | None:
         if not self._initialized:
             await self.initialize()
         entry_id = self._hash_index.get(content_hash)
@@ -343,7 +346,10 @@ class _FileEngine:
                     f = dict(sql_filters)
                     f["type"] = t.value
                     rows.extend(await self._db_search(f, limit=limit))
-                rows.sort(key=lambda x: x.get("created_at", datetime.min.isoformat()), reverse=True)
+                rows.sort(
+                    key=lambda x: x.get("created_at", datetime.min.isoformat()),
+                    reverse=True,
+                )
                 rows = rows[:limit]
             else:
                 rows = await self._db_search(sql_filters, limit=limit)
@@ -405,7 +411,9 @@ class _FileEngine:
             )
         return results
 
-    async def get_recent(self, count: int = 5, project_id: int | None = None) -> list[MemoryEntry]:
+    async def get_recent(
+        self, count: int = 5, project_id: int | None = None
+    ) -> list[MemoryEntry]:
         if not self._initialized:
             await self.initialize()
         filters = {"project_id": project_id} if project_id is not None else {}
@@ -417,7 +425,9 @@ class _FileEngine:
                 results.append(entry)
         return results
 
-    async def find_by_source_message_ids(self, message_ids: list[str]) -> list[MemoryEntry]:
+    async def find_by_source_message_ids(
+        self, message_ids: list[str]
+    ) -> list[MemoryEntry]:
         if not self._initialized:
             await self.initialize()
         results: list[MemoryEntry] = []
@@ -447,12 +457,12 @@ class _FileEngine:
             )
         except Exception as exc:
             return StorageHealthCheck(
-                status="unhealthy",
-                backend="_FileEngine (Hybrid)",
-                error=str(exc)
+                status="unhealthy", backend="_FileEngine (Hybrid)", error=str(exc)
             )
 
-    async def deduplicate_checkpoints(self, dry_run: bool = True) -> CheckpointDedupResult:
+    async def deduplicate_checkpoints(
+        self, dry_run: bool = True
+    ) -> CheckpointDedupResult:
         candidates = await self.list_all(type_filter=MemoryType.PROJECT)
         checkpoints = []
         for c in candidates:
@@ -461,7 +471,9 @@ class _FileEngine:
                 checkpoints.append(entry)
 
         if not checkpoints:
-            return CheckpointDedupResult(dry_run=dry_run, total_checkpoints=0, duplicates_removed=0)
+            return CheckpointDedupResult(
+                dry_run=dry_run, total_checkpoints=0, duplicates_removed=0
+            )
 
         groups = defaultdict(list)
         for cp in checkpoints:
@@ -505,7 +517,9 @@ class _FileEngine:
     async def link_concept_to_episode(self, concept_name: str, episode_id: str) -> None:
         return
 
-    async def find_episodes_by_concept(self, concept_name: str, limit: int = 10) -> list[dict[str, Any]]:
+    async def find_episodes_by_concept(
+        self, concept_name: str, limit: int = 10
+    ) -> list[dict[str, Any]]:
         return []
 
     async def get_all_concept_counts(self) -> dict[str, int]:
@@ -537,7 +551,9 @@ class _FileEngine:
 
             db_index.source_file_path = entry.source_file_path
             db_index.source_thread_id = entry.source_thread_id
-            db_index.source_message_id = entry.source_message_id or entry.source_message_id
+            db_index.source_message_id = (
+                entry.source_message_id or entry.source_message_id
+            )
             db_index.source_run_id = entry.run_id or entry.run_id
             db_index.source_wiki_title = entry.source_wiki_title
 
@@ -559,9 +575,9 @@ class _FileEngine:
     async def _db_close(self) -> None:
         self._db_initialized = False
 
-    async def _db_delete_by_run_id(self, run_id: str) -> int:
+    async def _db_delete_by_column(self, column, value: str) -> int:
         async with session_scope() as session:
-            stmt = select(MemoryIndex).where(MemoryIndex.source_run_id == run_id)
+            stmt = select(MemoryIndex).where(column == value)
             res = await session.execute(stmt)
             records = res.scalars().all()
             count = len(records)
@@ -570,57 +586,37 @@ class _FileEngine:
             return count
 
     async def _db_delete_by_source_thread_id(self, thread_id: str) -> int:
-        async with session_scope() as session:
-            stmt = select(MemoryIndex).where(MemoryIndex.source_thread_id == thread_id)
-            res = await session.execute(stmt)
-            records = res.scalars().all()
-            count = len(records)
-            for r in records:
-                await session.delete(r)
-            return count
+        return await self._db_delete_by_column(MemoryIndex.source_thread_id, thread_id)
 
-    async def _db_delete_by_source_message_id(self, msg_id: str) -> int:
-        async with session_scope() as session:
-            stmt = select(MemoryIndex).where(MemoryIndex.source_message_id == msg_id)
-            res = await session.execute(stmt)
-            records = res.scalars().all()
-            count = len(records)
-            for r in records:
-                await session.delete(r)
-            return count
+    @staticmethod
+    def _row_to_dict(row: MemoryIndex) -> dict:
+        return {
+            "id": row.id,
+            "type": row.type,
+            "tier": row.tier,
+            "privacy": row.privacy,
+            "title": row.title,
+            "description": row.description,
+            "path": row.path,
+            "project_id": row.project_id,
+            "member_id": row.member_id,
+            "source": row.source,
+            "source_message_id": row.source_message_id,
+            "run_id": row.source_run_id,
+            "source_file_path": row.source_file_path,
+            "source_thread_id": row.source_thread_id,
+            "source_wiki_title": row.source_wiki_title,
+            "content_hash": row.content_hash,
+            "confidence": row.confidence,
+            "utility_score": row.utility_score,
+            "version": row.version,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+            "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+        }
 
-    async def _db_get_by_id(self, memory_id: str) -> dict | None:
-        async with session_scope() as session:
-            stmt = select(MemoryIndex).where(MemoryIndex.id == memory_id)
-            res = await session.execute(stmt)
-            db_index = res.scalar_one_or_none()
-            if db_index:
-                return {
-                    "id": db_index.id,
-                    "type": db_index.type,
-                    "tier": db_index.tier,
-                    "privacy": db_index.privacy,
-                    "title": db_index.title,
-                    "description": db_index.description,
-                    "path": db_index.path,
-                    "project_id": db_index.project_id,
-                    "member_id": db_index.member_id,
-                    "source": db_index.source,
-                    "source_message_id": db_index.source_message_id,
-                    "run_id": db_index.source_run_id,
-                    "source_file_path": db_index.source_file_path,
-                    "source_thread_id": db_index.source_thread_id,
-                    "source_wiki_title": db_index.source_wiki_title,
-                    "content_hash": db_index.content_hash,
-                    "confidence": db_index.confidence,
-                    "utility_score": db_index.utility_score,
-                    "version": db_index.version,
-                    "created_at": db_index.created_at.isoformat() if db_index.created_at else None,
-                    "updated_at": db_index.updated_at.isoformat() if db_index.updated_at else None,
-                }
-            return None
-
-    async def _db_search(self, filters: dict, query: str | None = None, limit: int = 100) -> list[dict]:
+    async def _db_search(
+        self, filters: dict, query: str | None = None, limit: int = 100
+    ) -> list[dict]:
         async with session_scope() as session:
             stmt = select(MemoryIndex)
             for key, value in filters.items():
@@ -641,65 +637,7 @@ class _FileEngine:
 
             stmt = stmt.order_by(MemoryIndex.created_at.desc()).limit(limit)
             res = await session.execute(stmt)
-            rows = res.scalars().all()
-            return [
-                {
-                    "id": row.id,
-                    "type": row.type,
-                    "tier": row.tier,
-                    "privacy": row.privacy,
-                    "title": row.title,
-                    "description": row.description,
-                    "path": row.path,
-                    "project_id": row.project_id,
-                    "member_id": row.member_id,
-                    "source": row.source,
-                    "source_message_id": row.source_message_id,
-                    "run_id": row.source_run_id,
-                    "source_file_path": row.source_file_path,
-                    "source_thread_id": row.source_thread_id,
-                    "source_wiki_title": row.source_wiki_title,
-                    "content_hash": row.content_hash,
-                    "confidence": row.confidence,
-                    "utility_score": row.utility_score,
-                    "version": row.version,
-                    "created_at": row.created_at.isoformat() if row.created_at else None,
-                    "updated_at": row.updated_at.isoformat() if row.updated_at else None,
-                }
-                for row in rows
-            ]
-
-    async def _db_list_all(self) -> list[dict]:
-        async with session_scope() as session:
-            stmt = select(MemoryIndex)
-            res = await session.execute(stmt)
-            rows = res.scalars().all()
-            return [
-                {
-                    "id": row.id,
-                    "type": row.type,
-                    "tier": row.tier,
-                    "privacy": row.privacy,
-                    "title": row.title,
-                    "description": row.description,
-                    "path": row.path,
-                    "project_id": row.project_id,
-                    "member_id": row.member_id,
-                    "source": row.source,
-                    "source_message_id": row.source_message_id,
-                    "run_id": row.source_run_id,
-                    "source_file_path": row.source_file_path,
-                    "source_thread_id": row.source_thread_id,
-                    "source_wiki_title": row.source_wiki_title,
-                    "content_hash": row.content_hash,
-                    "confidence": row.confidence,
-                    "utility_score": row.utility_score,
-                    "version": row.version,
-                    "created_at": row.created_at.isoformat() if row.created_at else None,
-                    "updated_at": row.updated_at.isoformat() if row.updated_at else None,
-                }
-                for row in rows
-            ]
+            return [self._row_to_dict(row) for row in res.scalars().all()]
 
     async def _db_clear(self):
         async with session_scope() as session:

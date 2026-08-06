@@ -133,10 +133,6 @@ async def get_active_thread_tasks(thread_id: str):
             "status": t.status.value,
             "created_at": t.created_at.isoformat(),
             "output": t.get_recent_output(1000),
-            "metadata": (
-                t.metadata.model_dump()
-                if hasattr(t.metadata, "model_dump")
-                else dict(t.metadata)
-            ),
+            "metadata": t.metadata.model_dump(),
         } for t in tasks
     ]

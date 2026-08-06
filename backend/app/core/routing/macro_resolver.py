@@ -50,8 +50,15 @@ class MacroResolver:
     def __init__(self, routing_store: RoutingLanguageStore | None = None) -> None:
         self._routing_store = routing_store or get_store()
 
-    async def _load_macro_by_name(self, name: str, project_id: int) -> Macro | None:
-        """Load a verified, active macro by name, scoped to ``project_id``."""
+    async def _list_macros_by_name(self, name: str, project_id: int) -> list[Macro]:
+        """Load all verified, active macros by name, scoped to ``project_id``.
+
+        Ordered preset-first, then newest-first (``created_at`` desc), so that
+        the most recently confirmed macro wins when multiple macros share the
+        same intent label or trigger pattern.  This keeps runtime resolution
+        consistent with the Init Spec (which also keeps the newest macro for a
+        repeated pattern).
+        """
         async with session_scope() as session:
             stmt = (
                 select(Macro)
@@ -63,12 +70,11 @@ class MacroResolver:
                 )
                 .order_by(
                     case((Macro.namespace == "preset", 0), else_=1),
-                    Macro.created_at.asc(),
+                    Macro.created_at.desc(),
                 )
             )
             result = await session.execute(stmt)
-            macro = result.scalars().first()
-        return macro
+            return list(result.scalars().all())
 
     def _extract_slot_name(self, macro: Macro) -> str | None:
         """Return the first slot name declared by the macro, if any."""
@@ -143,41 +149,100 @@ class MacroResolver:
     ) -> tuple[str, dict[str, Any]] | None:
         """Try each candidate name against DB macros.
 
+        L0 是动作分类器主导的路由：候选名（BERT 意图标签）一旦命中对应宏，
+        就应以意图名命中该宏，触发词仅用于槽位提取，不作为命中门槛。
+
         Returns ``("macro:{macro.id}", args)`` on the first match, or ``None``
         if no macro accepts the text.
         """
         for name in candidates:
-            macro = await self._load_macro_by_name(name, project_id)
-            if macro is None:
-                continue
+            macros = await self._list_macros_by_name(name, project_id)
+            for macro in macros:
+                patterns = _normalize_trigger_patterns(macro)
+                slot_name = self._extract_slot_name(macro)
 
-            patterns = _normalize_trigger_patterns(macro)
-            slot_name = self._extract_slot_name(macro)
-            matched = False
-            slot_val = ""
+                # 1) 快速路径：触发词全匹配（槽位提取精准）。
+                #    优先对"去填充词"后的文本匹配（槽位值干净，不把"一下"等口语词
+                #    吃进槽位），miss 再回退原文匹配（兼容"把{app}打开"类含填充词的
+                #    触发词）。两种都失败才进入宽松槽位提取。
+                for text_variant in (self._strip_fillers(text), text):
+                    slot_val = ""
+                    matched = False
+                    for pattern in patterns:
+                        regex_str = self._build_pattern_regex(pattern, slot_name)
+                        match = re.fullmatch(regex_str, text_variant, re.IGNORECASE)
+                        if match:
+                            matched = True
+                            slot_val = match.group(1) if slot_name else ""
+                            break
+                    if matched:
+                        if slot_val:
+                            slot_val = strip_filler_words(
+                                slot_val,
+                                self._routing_store.slot_filler_prefixes,
+                                self._routing_store.slot_filler_suffixes
+                            )
+                        args = self._build_args(macro, text, slot_val, slot_name)
+                        return f"macro:{macro.id}", args
 
-            if patterns:
-                for pattern in patterns:
-                    regex_str = self._build_pattern_regex(pattern, slot_name)
-                    match = re.fullmatch(regex_str, text, re.IGNORECASE)
-                    if match:
-                        matched = True
-                        slot_val = match.group(1) if slot_name else ""
-                        break
-                if not matched:
-                    logger.info(
-                        "[macro_resolver] BERT predicted candidate %r but text %r "
-                        "doesn't match macro %d patterns, rejecting",
-                        name,
-                        text,
-                        macro.id,
-                    )
-                    continue
-
-            args = self._build_args(macro, text, slot_val, slot_name)
-            return f"macro:{macro.id}", args
+                # 2) 兜底：动作分类器已给出意图名 → 意图名命中该宏。
+                #    触发词不再作为命中门槛，仅用于宽松槽位提取。
+                args = self._resolve_args_loose(macro, text, slot_name)
+                if args is not None:
+                    return f"macro:{macro.id}", args
 
         return None
+
+    def _strip_fillers(self, text: str) -> str:
+        """去口语填充词（单前缀 + 后缀），与 local_matcher 词表一致（数据化）。"""
+        t = text.strip()
+        for p in sorted(self._routing_store.polite_prefixes, key=len, reverse=True):
+            if t.startswith(p):
+                t = t[len(p):].strip()
+                break
+        for s in sorted(self._routing_store.polite_suffixes, key=len, reverse=True):
+            if t.endswith(s):
+                t = t[:-len(s)].strip()
+        return t
+
+    def _resolve_args_loose(self, macro: Macro, text: str, slot_name: str | None) -> dict[str, Any] | None:
+        """意图名命中后做宽松槽位提取。
+
+        无参数宏直接命中（返回 {}）；参数化宏需要能从文本中提取到槽位值，
+        否则返回 None 保守跳过（避免 required 参数缺失导致执行失败）。
+        """
+        if not slot_name:
+            return {}
+        cleaned = self._strip_fillers(text)
+        if not cleaned:
+            return None
+        patterns = _normalize_trigger_patterns(macro)
+        for pattern in patterns:
+            if f"{{{slot_name}}}" not in pattern:
+                continue
+            full = self._build_pattern_regex(pattern, slot_name)
+            loose = full[1:-1]  # 去掉锚定 ^$，在 cleaned 内 search
+            m = re.search(loose, cleaned, re.IGNORECASE)
+            if not m:
+                continue
+            val = strip_filler_words(
+                m.group(1),
+                self._routing_store.slot_filler_prefixes,
+                self._routing_store.slot_filler_suffixes
+            )
+            if val and not self._is_noise_slot(val):
+                return {slot_name: val}
+        return None
+
+    def _is_noise_slot(self, value: str) -> bool:
+        """拒绝无意义的槽位值（口语指代/填充），避免误提。
+
+        词表数据化复用 ``free_text_reject_markers``（与 LocalMatcher 一致）。
+        """
+        return any(
+            marker in value
+            for marker in self._routing_store.free_text_reject_markers
+        )
 
 
 __all__ = ["MacroResolver"]

@@ -39,6 +39,7 @@ class MacroActionType(str, Enum):
     BACK = "back"
     FORWARD = "forward"
     RELOAD = "reload"
+    FRONTEND_NAVIGATE = "frontend_navigate"
 
     # Interaction
     CLICK = "click"

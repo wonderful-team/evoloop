@@ -137,6 +137,13 @@ class WorkerMcpSession:
 
     async def disconnect_server(self, server_name: str) -> None:
         """Disconnect a single server."""
+        session = self._sessions.get(server_name)
+        if session is not None:
+            try:
+                await session.__aexit__(None, None, None)
+            except Exception as e:
+                logger.debug(f"[WorkerMcp] Error closing session for '{server_name}': {e}")
+
         if server_name in self._stacks:
             try:
                 await self._stacks[server_name].aclose()

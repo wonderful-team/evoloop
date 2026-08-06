@@ -5,8 +5,6 @@ from __future__ import annotations
 import logging
 from typing import Any, cast
 
-import yaml
-
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.execution.macro.schemas import MacroVerificationResult
 from app.utils.yaml import macro_from_yaml

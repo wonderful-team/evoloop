@@ -26,8 +26,22 @@ from app.core.engine.message.reasoning import extract_reasoning_from_message
 from app.core.exceptions import InferenceError
 from app.core.file import compute_md5
 from app.infrastructure.llm.factory import LLMConfig, LLMFactory
+from app.infrastructure.llm.thinking_adapter import detect_model_family
 
 logger = logging.getLogger(__name__)
+
+
+def _is_reasoning_model(model_name: str) -> bool:
+    """保守判定模型是否为推理模型。
+
+    仅对已知的推理模型家族/命名标记启用 content→reasoning 迁移，避免普通
+    Chat 模型的开场白（如 "Let me search for that..."）被误存为 reasoning_content，
+    回传给下一轮请求时被 Provider 拒绝。
+    """
+    n = (model_name or "").lower()
+    if detect_model_family(n) == "openai_reasoning":
+        return True
+    return any(m in n for m in ("r1", "reasoner", "reasoning", "thinking", "think", "qwq"))
 
 
 class InferenceEngine:
@@ -66,11 +80,17 @@ class InferenceEngine:
             "configurable": config.get("configurable"),
             "metadata": config.get("metadata"),
         }
+        accumulated_reasoning: list[str] = []
         async for chunk in llm_with_tools.astream(loop_messages, config=lc_config):
             if response is None:
                 response = chunk
             else:
                 response = response + chunk
+
+            if chunk.additional_kwargs:
+                reasoning = chunk.additional_kwargs.get("reasoning_content") or chunk.additional_kwargs.get("thinking")
+                if reasoning:
+                    accumulated_reasoning.append(reasoning)
 
         if response is None:
             raise InferenceError(
@@ -86,6 +106,30 @@ class InferenceEngine:
                 tool_calls=response.tool_calls,
                 response_metadata=response.response_metadata,
             )
+
+        # Preserve the full reasoning content in the response so it can be passed back
+        # to reasoning-model providers on subsequent turns (e.g. DeepSeek).
+        if accumulated_reasoning:
+            full_reasoning = "".join(accumulated_reasoning)
+            response.additional_kwargs["reasoning_content"] = full_reasoning
+            response.additional_kwargs["thinking"] = full_reasoning
+
+        # For reasoning models that emit the thinking process as plain content on
+        # tool-call turns, move that content into the reasoning slot so providers
+        # receive the correct `reasoning_content` on the next request and the content
+        # field does not duplicate the reasoning. Gated on the model being a known
+        # reasoning model so ordinary chat models' preambles are not misclassified.
+        if (
+            response.tool_calls
+            and response.content
+            and not response.additional_kwargs.get("reasoning_content")
+            and not response.additional_kwargs.get("thinking")
+            and _is_reasoning_model(getattr(llm_with_tools, "model", "") or "")
+        ):
+            reasoning_from_content = response.content
+            response.additional_kwargs["reasoning_content"] = reasoning_from_content
+            response.additional_kwargs["thinking"] = reasoning_from_content
+            response.content = ""
 
         return response
 
@@ -192,8 +236,19 @@ class InferenceEngine:
             return
         node_source = current_node_source.get()
         metadata = {**(config_metadata or {}), **(response.metadata or {})}
+
+        # 关键安全：LLM 可能在回复中回显 {{vault.*}} 注入的密文。
+        # 工具输出已由 sensitive_file_censorship_gate 打码，但 AI 文本不受其覆盖，
+        # 必须在落库/下发前用 injected_secrets 统一打码。
+        from app.core.context.manager import ContextManager
+        from app.utils.security import redact_secrets
+
+        injected_secrets = ContextManager.current().injected_secrets or []
+        content = redact_secrets(response.content or "", injected_secrets)
+        thinking = redact_secrets(thinking, injected_secrets) if thinking else thinking
+
         await handler.handle_ai_message(
-            content=response.content or "",
+            content=content,
             tool_calls=response.tool_calls,
             thinking=thinking,
             metadata=metadata,

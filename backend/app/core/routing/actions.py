@@ -25,7 +25,6 @@ from app.core.execution.macro.runner import (
     run_deterministic,
 )
 from app.core.routing.routing_data import get_store
-from app.core.shared_state import shared_state
 
 logger = logging.getLogger(__name__)
 
@@ -34,51 +33,12 @@ _routing_store = get_store()
 
 @dataclass
 class ActionOutcome:
-    """Result of executing a routed local/macro/builtin action."""
+    """Result of executing a routed local/macro action."""
 
     ok: bool
     message: str
-    action_type: str  # macro | builtin | navigate
+    action_type: str  # macro | navigate | local
     data: dict[str, Any] = field(default_factory=dict)
-
-
-async def run_builtin(
-    action: str,
-    args: dict[str, Any],
-    *,
-    thread_id: str,
-    worker_registry: WorkerRegistry | None = None,
-) -> ActionOutcome:
-    """Execute a builtin L0 action (ack, cancel, rename, end, clarify)."""
-    registry = worker_registry if worker_registry is not None else _worker_registry
-    responses = _routing_store.builtin_responses
-    if action == "ack":
-        return ActionOutcome(True, responses["builtin"]["ack"], "builtin", {})
-
-    if action == "cancel":
-        cancelled = await registry.cancel_worker(thread_id)
-        if cancelled:
-            return ActionOutcome(True, responses["builtin"]["cancel_success"], "builtin", {"cancelled": True})
-        return ActionOutcome(True, responses["builtin"]["cancel_empty"], "builtin", {"cancelled": False})
-
-    if action == "rename":
-        name = args.get("name", "")
-        if name:
-            await shared_state.set("agent_name", name)
-        return ActionOutcome(
-            True,
-            responses["builtin"]["rename"].format(name=name) if name else responses["builtin"]["rename_no_name"],
-            "builtin",
-            {"name": name},
-        )
-
-    if action == "end":
-        return ActionOutcome(True, responses["builtin"]["end"], "builtin", {})
-
-    if action == "clarify":
-        return ActionOutcome(True, responses["builtin"]["clarify"], "builtin", {})
-
-    return ActionOutcome(False, responses["builtin"]["unknown"].format(action=action), "builtin", {})
 
 
 async def run_macro(
@@ -93,7 +53,7 @@ async def run_macro(
 ) -> ActionOutcome:
     """Execute a routed macro. Returns ``ActionOutcome`` with optional navigate route."""
     registry = worker_registry if worker_registry is not None else _worker_registry
-    responses = _routing_store.builtin_responses
+    responses = _routing_store.responses
 
     macro = await load_macro(macro_id)
     if macro is None:
@@ -142,5 +102,10 @@ async def run_macro(
         bool(outcome.ok),
         outcome.message or (responses["macro"]["success"] if outcome.ok else responses["macro"]["failure"]),
         "macro",
-        {"fell_back": outcome.fell_back},
+        {
+            "fell_back": outcome.fell_back,
+            "macro_id": macro_id,
+            "macro_name": macro.name,
+            "failure": outcome.message if not outcome.ok else "",
+        },
     )

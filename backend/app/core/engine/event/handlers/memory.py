@@ -141,34 +141,57 @@ class MemoryCommandHandler:
 
     async def _handle_memory_delete(self, command: RemoteCommand) -> None:
         payload = command.get_payload()
-        name = payload.get("name", "")
+        name = payload.get("name") or ""
         source_message_id = payload.get("source_message_id")
         project_id = self._resolve_project_id(payload, command)
 
-        if not name:
-            logger.warning("[EngineCommand] memory_delete missing name, skipping")
+        if not name and not source_message_id:
+            logger.warning("[EngineCommand] memory_delete missing both name and source_message_id, skipping")
             return
 
         logger.info(f"[EngineCommand] Processing memory_delete: name={name}, source_message_id={source_message_id}")
         from app.core.memory.lifespan import MemoryLifespanManager
 
         manager = MemoryLifespanManager.get_manager()
-        memory_id = f"concept_{name.lower().replace(' ', '_')}"
-        existing = await manager.get_memory(memory_id)
-        if existing:
-            await manager.delete_memory(memory_id)
+        deleted_names: list[str] = []
+
+        # 优先按 source_message_id 删除：消息 ID 是稳定标识，不受概念名变化影响。
+        if source_message_id:
+            try:
+                results = await manager.search_memories(
+                    query="",
+                    project_id=project_id,
+                    filters={"source_message_id": source_message_id},
+                    limit=100,
+                    member_id=None,
+                )
+                for mem in results:
+                    if await manager.delete_memory(mem.id):
+                        deleted_names.append(mem.title or mem.content[:20] or "unknown")
+            except Exception as e:
+                logger.warning(f"[EngineCommand] Failed to delete memories by source_message_id {source_message_id}: {e}")
+
+        # 按 name 兜底：兼容旧版只传 name 的调用。
+        if name:
+            memory_id = f"concept_{name.lower().replace(' ', '_')}"
+            existing = await manager.get_memory(memory_id)
+            if existing and existing.title not in deleted_names:
+                await manager.delete_memory(memory_id)
+                deleted_names.append(existing.title or name)
+            elif not existing and not deleted_names:
+                # 即使没删到实体，也把这个名字同步给 Mobile，让它有机会清掉本地状态。
+                deleted_names.append(name)
 
         if source_message_id:
             await self._update_message_remember_state(
                 source_message_id, is_remembered=False, memory_concept_id=None
             )
 
-        await self._sync_memory_to_gateway(project_id, [], deleted_names=[name])
-        logger.info(f"[EngineCommand] memory_delete processed: name={name}")
+        if deleted_names:
+            await self._sync_memory_to_gateway(project_id, [], deleted_names=deleted_names)
+        logger.info(f"[EngineCommand] memory_delete processed: deleted_names={deleted_names}")
 
-    def _resolve_project_id(
-        self, payload: dict[str, Any], command: RemoteCommand
-    ) -> int:
+    def _resolve_project_id(self, payload: dict[str, Any], command: RemoteCommand) -> int:
         project_id = payload.get("project_id")
         if project_id is None:
             project_id = command.get("project_id")

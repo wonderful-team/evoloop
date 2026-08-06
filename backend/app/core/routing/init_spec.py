@@ -6,10 +6,11 @@ does not cover. Everything is produced as data; the client does deterministic
 matching only. All sources are probed defensively so the spec still builds on
 first run or non-macOS hosts.
 
-Language-specific builtin templates, aliases, and voice-local actions are loaded
+Language-specific aliases, templates, and voice-local actions are loaded
 from ``app.core.routing.routing_data`` (``app/core/routing/data/{lang}/``).  The
-spec is further enriched with Atlas aliases and DB macro triggers before being
-used by the client or the server-side LocalMatcher.
+spec is further enriched with Atlas aliases and DB macro triggers; it is then
+returned by ``/route/init`` for client-side deterministic matching and is also
+used by the BERT macro resolution path.
 """
 
 from __future__ import annotations
@@ -22,7 +23,6 @@ from typing import Any
 
 from sqlalchemy import case, select
 
-from app.core.routing.local_matcher import sorted_templates
 from app.core.routing.pinyin import to_pinyin
 from app.core.routing.routing_data import get_store
 from app.core.routing.schemas import RouteCatalog
@@ -151,7 +151,8 @@ async def enrich_spec_with_macro_triggers(spec: RouteCatalog) -> RouteCatalog:
     """从 DB 加载 routable Macro 的 trigger_patterns，注入为 L0 templates。
 
     作用域：全局（project_id IS NULL）+ 当前项目（shared_state.project_id）。
-    冲突去重：preset 优先于用户，同 pattern 只保留第一条。
+    冲突去重：preset 优先于用户；同级别下最新确认的宏优先（created_at desc），
+    与 ``MacroResolver`` 的运行时选择保持一致 —— 用户新确认的宏立即生效。
     """
     from app.core.shared_state import shared_state
     from app.infrastructure.database import session_scope
@@ -167,7 +168,7 @@ async def enrich_spec_with_macro_triggers(spec: RouteCatalog) -> RouteCatalog:
                 (Macro.project_id.is_(None)) | (Macro.project_id == current_project_id),
             ).order_by(
                 case((Macro.namespace == "preset", 0), else_=1),
-                Macro.created_at.asc(),
+                Macro.created_at.desc(),
             )
             macros = (await session.execute(stmt)).scalars().all()
     except Exception:
@@ -209,19 +210,40 @@ async def enrich_spec_with_macro_triggers(spec: RouteCatalog) -> RouteCatalog:
 def build_init_spec() -> RouteCatalog:
     """Synchronous build (called by the Huey task / on-demand).
 
-    Uses the language-specific builtin templates / aliases / voice-local actions
+    Uses the language-specific templates / aliases / voice-local actions
     exported by ``app.core.routing.routing_data``.  The returned spec should then
     be enriched with Atlas aliases and DB macro triggers before use.
     """
     apps, rank = _probe_apps()
 
-    # Inject well-known spoken aliases when the canonical app is installed but
-    # the Chinese spoken name is not already an installed display name. This
-    # only matters for the Chinese language pack and lets "打开微信" match even
-    # if the system lists the app as "WeChat" and Atlas has not surveyed it.
+    # Merge static app entries from the language pack into the app slot dictionary.
+    # These entries ensure common apps can be routed by L0 even on hosts where
+    # the macOS installed-apps probe is unavailable; the client is still
+    # responsible for verifying whether the app is actually installed.
     aliases = dict(_routing_store.aliases)
+    installed_names = {e.get("name") for e in apps if isinstance(e, dict)}
+    for entry in list(_routing_store.apps):
+        if not isinstance(entry, dict):
+            continue
+        name = entry.get("name")
+        if name and name not in installed_names:
+            if not entry.get("pinyin"):
+                entry = dict(entry)
+                py = to_pinyin(str(name))
+                if py:
+                    entry["pinyin"] = py
+            apps.append(entry)
+            installed_names.add(name)
+            rank.append(name)
+        for alias in entry.get("aliases", []) or []:
+            if alias and name:
+                aliases.setdefault(alias, name)
+
+    # Defense-in-depth: inject well-known spoken aliases when the canonical app is
+    # installed but the Chinese spoken name is not already an installed display name.
+    # This lets "打开微信" match even if the system lists the app as "WeChat" and
+    # Atlas has not surveyed it.
     if _routing_store.lang == "zh":
-        installed_names = {e.get("name") for e in apps if isinstance(e, dict)}
         if "WeChat" in installed_names and "微信" not in installed_names:
             aliases.setdefault("微信", "WeChat")
 
@@ -238,17 +260,42 @@ def build_init_spec() -> RouteCatalog:
         "disabled_actions": [],
     }
 
-    version = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    version = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S%f")
     return RouteCatalog(
         version=version,
         actions=list(_routing_store.voice_local_actions),
-        templates=sorted_templates(_routing_store.templates),
+        templates=_sorted_templates(_routing_store.templates),
         slot_dictionaries=slot_dictionaries,
         aliases=aliases,
+        polite_prefixes=_routing_store.polite_prefixes,
+        polite_suffixes=_routing_store.polite_suffixes,
+        slot_filler_prefixes=_routing_store.slot_filler_prefixes,
+        slot_filler_suffixes=_routing_store.slot_filler_suffixes,
+        app_suffix_noise=_routing_store.app_suffix_noise,
+        free_text_reject_markers=_routing_store.free_text_reject_markers,
+        slot_filler_chars=_routing_store.slot_filler_chars,
         default_apps={"browser": "Safari", "music": "Apple Music"},
         app_usage_rank=rank[:50],
         capabilities=capabilities,
         preferences={"lang": _routing_store.lang},
+    )
+
+
+_SLOT_RE = re.compile(r"\{[a-zA-Z0-9_]+\}")
+
+
+def _template_literal_len(pattern: str) -> int:
+    return len(_SLOT_RE.sub("", pattern))
+
+
+def _sorted_templates(templates: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Rule 2 shipping order: longest-literal patterns first."""
+    return sorted(
+        templates,
+        key=lambda t: max(
+            (_template_literal_len(p) for p in t.get("patterns", [])), default=0
+        ),
+        reverse=True,
     )
 
 

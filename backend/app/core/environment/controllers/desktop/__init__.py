@@ -69,6 +69,7 @@ class DesktopController(
         app_name: str | None = None,
         script: str | None = None,
         region: str | None = None,
+        interactive: bool = False,
         force_keystroke: bool = False,
         ocr: bool = False,
         actions: list[dict] | None = None,
@@ -176,6 +177,7 @@ class DesktopController(
                 filepath = await asyncio.to_thread(
                     macos_driver.screenshot,
                     region=region,
+                    interactive=interactive,
                     purpose="temp",
                     bundle_id=bundle_id,
                 )

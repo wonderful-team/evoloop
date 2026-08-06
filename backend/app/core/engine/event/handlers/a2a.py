@@ -246,8 +246,15 @@ class A2ACommandHandler:
                     break
 
         if tool_call_id:
+            # 将 A2A 回调结果写入工具输出，LLM 才能看到并终结，避免因空结果重调。
+            # resume 路径的 get_pending_hitl_call 只匹配 status="waiting_human"，
+            # 而 send_agent_task 的 hitl_request 消息默认 status="completed"，
+            # 因此 hitl_resume_response 不会被消费——必须在此处把结果写进工具消息。
+            from app.core.engine.message.repository import MessageRepository
             from app.core.hitl.orchestrator import close_hitl_interaction
 
+            repo = MessageRepository(caller_thread_id)
+            await repo.update_content_by_tool_call_id(tool_call_id, result_content)
             await close_hitl_interaction(caller_thread_id, tool_call_id, "completed")
         else:
             logger.warning(f"[A2A] Could not find matching pending tool call for task_id {task_id}")

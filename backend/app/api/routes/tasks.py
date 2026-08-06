@@ -8,7 +8,7 @@ import time
 
 from fastapi import APIRouter, BackgroundTasks, Header, HTTPException
 
-from app.api.deps import TokenDep, TokenDepOptional
+from app.api.deps import TokenDep, TokenDepOptional, extract_bearer_token
 from app.api.schemas.tasks import (
     TaskCreateRequest,
     TaskExecutionResponse,
@@ -24,15 +24,6 @@ from app.utils.template import render_template
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["tasks"])
-
-
-# --- Helper ---
-def get_token(authorization: str | None = Header(None)):
-    if not authorization:
-        return None
-    if authorization.startswith("Bearer "):
-        return authorization.replace("Bearer ", "")
-    return authorization
 
 
 @router.get("/")
@@ -79,7 +70,7 @@ async def create_task(req: TaskCreateRequest, authorization: str | None = Header
     """
     Create a new task.
     """
-    token = get_token(authorization)
+    token = extract_bearer_token(authorization)
     # Convert Pydantic model to dict, exclude None to let backend handle defaults
     data = req.model_dump(exclude_none=True)
 
@@ -93,11 +84,13 @@ async def create_task(req: TaskCreateRequest, authorization: str | None = Header
 
 
 @router.put("/{task_id}")
-async def update_task(task_id: int, req: TaskUpdateRequest, authorization: str | None = Header(None)):
+async def update_task(
+    task_id: int, req: TaskUpdateRequest, authorization: str | None = Header(None)
+):
     """
     Update a task.
     """
-    token = get_token(authorization)
+    token = extract_bearer_token(authorization)
     data = req.model_dump(exclude_none=True)
     data["task_id"] = task_id
 
@@ -115,7 +108,7 @@ async def delete_task(task_id: int, authorization: str | None = Header(None)):
     """
     Delete a task.
     """
-    token = get_token(authorization)
+    token = extract_bearer_token(authorization)
     res = await evocloud_manager.api.delete_task(task_id)
     if res.get("code") != 0:
         raise HTTPException(
@@ -126,24 +119,32 @@ async def delete_task(task_id: int, authorization: str | None = Header(None)):
 
 
 @router.put("/{task_id}/status")
-async def update_task_status_endpoint(task_id: int, req: TaskStatusUpdate, authorization: str | None = Header(None)):
+async def update_task_status_endpoint(
+    task_id: int, req: TaskStatusUpdate, authorization: str | None = Header(None)
+):
     """
     Update task status and progress.
     """
-    token = get_token(authorization)
-    res = await evocloud_manager.api.update_task_status(task_id, req.status, req.progress or 0)
+    token = extract_bearer_token(authorization)
+    res = await evocloud_manager.api.update_task_status(
+        task_id, req.status, req.progress or 0
+    )
     if res.get("code") != 0:
-        raise HTTPException(status_code=400, detail=res.get("message", "Failed to update task status"))
+        raise HTTPException(
+            status_code=400, detail=res.get("message", "Failed to update task status")
+        )
 
     return res
 
 
 @router.post("/{task_id}/execute")
-async def execute_task(task_id: int, bg_tasks: BackgroundTasks, authorization: str | None = Header(None)):
+async def execute_task(
+    task_id: int, bg_tasks: BackgroundTasks, authorization: str | None = Header(None)
+):
     """
     Trigger Autonomous Agent to execute the task.
     """
-    token = get_token(authorization)
+    token = extract_bearer_token(authorization)
 
     # 1. Fetch Task Detail
     task_res = await evocloud_manager.api.get_task_detail(task_id)

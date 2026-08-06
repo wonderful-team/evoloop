@@ -28,24 +28,18 @@ import re
 from typing import Any
 
 from app.core.routing.pinyin import to_pinyin
+from app.utils.text import strip_filler_words
 
-_PREFIXES = ("请", "帮我", "麻烦", "帮忙", "把", "给我")
-_SUFFIXES = ("一下", "吧", "呀", "啊", "呗")
-_APP_SUFFIX_NOISE = ("浏览器", "软件", "app", "APP", "App")
+# 口语填充词仅来自路由数据（templates.yaml），无代码侧兜底：未配置即为空。
 
-_AFFIX_RE = re.compile(
-    rf"^(?:{'|'.join(_PREFIXES)})?(?P<body>.+?)(?:{'|'.join(_SUFFIXES)})?$"
-)
+# 口语填充词可叠加：多个前缀连续出现时全部剥离（"帮我把窗口左分屏" → "窗口左分屏"）。
 _SLOT_RE = re.compile(r"\{([a-zA-Z0-9_]+)\}")
 
 # Map-slot containment leaves a remainder; it must be filler characters only,
 # otherwise the utterance is a compound command ("把音量大一点再静音" captures
 # delta="大一点再静音") and must fall through to Layer 1 WHOLE — half-executing
 # one clause is worse than a plain false positive.
-_SLOT_FILLER_CHARS: dict[str, frozenset[str]] = {
-    "delta": frozenset("调给我到一点下把"),
-    "key": frozenset("键一下"),
-}
+# 余料字符表（按 slot 名）来自路由数据 templates.yaml 的 slot_filler_chars。
 
 
 def _edit_distance_le1(a: str, b: str) -> bool:
@@ -87,10 +81,32 @@ class LocalMatcher:
         slot_dictionaries: dict[str, Any] | None = None,
         aliases: dict[str, str] | None = None,
         app_usage_rank: list[str] | None = None,
+        polite_prefixes: list[str] | None = None,
+        polite_suffixes: list[str] | None = None,
+        slot_filler_prefixes: list[str] | None = None,
+        slot_filler_suffixes: list[str] | None = None,
+        app_suffix_noise: list[str] | None = None,
+        free_text_reject_markers: list[str] | None = None,
+        slot_filler_chars: dict[str, str] | None = None,
     ) -> None:
         self._dictionaries = slot_dictionaries or {}
         self._aliases = aliases or {}
         self._usage_rank = app_usage_rank or []
+        # 口语填充词仅取路由数据（templates.yaml）单一来源，无代码兜底默认。
+        self._prefixes: tuple[str, ...] = tuple(polite_prefixes or ())
+        self._suffixes: tuple[str, ...] = tuple(polite_suffixes or ())
+        # 槽位值清洗词（数据化），提取 slot 值后剥离口语填充
+        self._slot_filler_prefixes: tuple[str, ...] = tuple(slot_filler_prefixes or ())
+        self._slot_filler_suffixes: tuple[str, ...] = tuple(slot_filler_suffixes or ())
+        # 应用名后缀噪声 / 自由文本槽位拒绝词 / 槽位余料字符（皆数据化）
+        self._app_suffix_noise: tuple[str, ...] = tuple(app_suffix_noise or ())
+        self._free_text_reject_markers: tuple[str, ...] = tuple(
+            free_text_reject_markers or ()
+        )
+        self._free_text_reject: frozenset[str] = frozenset(
+            free_text_reject_markers or ()
+        )
+        self._slot_filler_chars: dict[str, str] = slot_filler_chars or {}
         self._compiled: list[tuple[re.Pattern[str], dict[str, Any], list[str], int]] = []
         for t in templates:
             for pattern in t.get("patterns", []):
@@ -98,7 +114,7 @@ class LocalMatcher:
                 body = re.escape(pattern)
                 for slot in slots:
                     body = body.replace(r"\{" + slot + r"\}", f"(?P<{slot}>.+?)")
-                anchored = re.compile(rf"^(?:{'|'.join(_PREFIXES)})?{body}(?:{'|'.join(_SUFFIXES)})?$")
+                anchored = re.compile(rf"^(?:{'|'.join(self._prefixes)})?{body}(?:{'|'.join(self._suffixes)})?$")
                 self._compiled.append((anchored, t, slots, _literal_len(pattern)))
         # Rule 2: longest literal first (per PATTERN, not per template — the
         # press_key template's "按下{key}" must outrank its own "按{key}").
@@ -120,7 +136,7 @@ class LocalMatcher:
                 if resolved is None:
                     ok = False
                     break
-                args[slot] = resolved
+                args[slot] = strip_filler_words(resolved, self._slot_filler_prefixes, self._slot_filler_suffixes)
             if ok:
                 return template["action"], args
         return None
@@ -132,11 +148,21 @@ class LocalMatcher:
             return self._verify_app(value)
         if slot in ("delta", "key"):
             return self._verify_from_dictionary(slot, value)
+        # Free-text slots: reject deictic/hedge tokens and any value that names
+        # an app (exact name, alias, or pinyin-homophone).  Such a value almost
+        # always means the app slot template (or the BERT fallback) owns the
+        # utterance, not this free-text slot.
+        if value in self._free_text_reject or any(
+            m in value for m in self._free_text_reject_markers
+        ):
+            return None
+        if self._verify_app(value) is not None:
+            return None
         return value  # free-text slots (e.g. rename.name)
 
     def _verify_app(self, value: str) -> str | None:
         cleaned = value
-        for noise in _APP_SUFFIX_NOISE:
+        for noise in self._app_suffix_noise:
             if cleaned.endswith(noise) and len(cleaned) > len(noise):
                 cleaned = cleaned[: -len(noise)]
         entries: list[dict[str, Any]] = self._dictionaries.get("app") or []
@@ -171,7 +197,10 @@ class LocalMatcher:
             if candidates:
                 best = min(
                     candidates,
-                    key=lambda n: self._usage_rank.index(n) if n in self._usage_rank else len(self._usage_rank),
+                    key=lambda n: (
+                        self._usage_rank.index(n)
+                        if n in self._usage_rank else len(self._usage_rank)
+                    ),
                 )
                 return self._canonical(best)
 
@@ -185,7 +214,7 @@ class LocalMatcher:
         dictionary: dict[str, str] = self._dictionaries.get(slot) or {}
         if value in dictionary:
             return dictionary[value]
-        filler = _SLOT_FILLER_CHARS.get(slot)
+        filler = self._slot_filler_chars.get(slot)
         for key in sorted(dictionary, key=len, reverse=True):
             if key not in value:
                 continue

@@ -189,10 +189,10 @@ class ProjectDomainSubscriber:
 
         await shared_state.set("project_id", str(project_id))
 
-        # Rebuild L0 local matcher so preset + current project macros are available
+        # Rebuild L0 RouteCatalog so preset + current project macros are available
         from app.core.routing.matcher_cache import matcher_cache
 
-        matcher_cache.invalidate_and_schedule_rebuild()
+        await matcher_cache.invalidate_and_schedule_rebuild()
 
         if path:
             if not os.path.isdir(path):

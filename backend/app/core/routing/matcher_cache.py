@@ -1,9 +1,9 @@
-"""Local matcher cache for the L0 routing layer.
+"""RouteCatalog cache for the L0 routing layer.
 
-This module is NOT a router. It builds and caches the deterministic
-:class:`LocalMatcher` compiled from the enriched :class:`RouteCatalog`.  The
-matcher is used by :class:`app.core.routing.command_router.CommandRouter` for
-server-side fallback matching and by clients via the serialized RouteCatalog.
+This module is NOT a router. It builds and caches the enriched
+:class:`RouteCatalog` that is returned by ``/route/init`` and used by BERT macro
+resolution.  The spec contains the current macro templates, aliases, and voice
+local actions.
 """
 
 from __future__ import annotations
@@ -20,16 +20,7 @@ from app.infrastructure.config.service import SystemConfigService
 logger = logging.getLogger(__name__)
 
 SPEC_CACHE_KEY = "l0:init_spec:current"
-
-
-def _matcher_from_spec(spec: RouteCatalog) -> LocalMatcher:
-    """Build a LocalMatcher from an enriched RouteCatalog."""
-    return LocalMatcher(
-        templates=spec.templates,
-        slot_dictionaries=spec.slot_dictionaries,
-        aliases=spec.aliases,
-        app_usage_rank=spec.app_usage_rank,
-    )
+REBUILD_DEBOUNCE_SECONDS = 0.2
 
 
 async def _load_spec_from_cache() -> RouteCatalog | None:
@@ -56,8 +47,12 @@ async def _load_spec_from_cache() -> RouteCatalog | None:
         return None
 
 
-async def _build_and_cache_spec() -> RouteCatalog:
-    """Build the spec from backend sources and mirror it into the cache."""
+async def build_and_cache_spec() -> RouteCatalog:
+    """Build the spec from backend sources and mirror it into the cache.
+
+    Shared by the API process (fallback/rebuild path) and the Huey worker
+    (``tasks.build_l0_init_spec``); the cache write is best-effort.
+    """
     spec = await build_and_enrich_spec()
     try:
         await cache.set(SPEC_CACHE_KEY, spec.model_dump_json())
@@ -66,72 +61,127 @@ async def _build_and_cache_spec() -> RouteCatalog:
     return spec
 
 
-class LocalMatcherCache:
-    """Build and cache the :class:`LocalMatcher` used by L0 routing."""
+class RouteCatalogCache:
+    """Build and cache the enriched :class:`RouteCatalog` used by L0 routing."""
 
     def __init__(self) -> None:
+        self._spec: RouteCatalog | None = None
         self._matcher: LocalMatcher | None = None
         self._lock = asyncio.Lock()
+        self._rebuild_lock = asyncio.Lock()
+        self._rebuild_task: asyncio.Task | None = None
 
-    async def get(self) -> LocalMatcher:
-        """Return the current matcher, lazily building it on the first call.
+    async def get_local_matcher(self) -> LocalMatcher | None:
+        """Return a deterministic template matcher over the current spec.
 
-        Reads are lock-free once a matcher has been built.  Rebuild replaces the
-        reference atomically, so concurrent callers always see either the old or
-        the new matcher, never a half-built one.
-
-        The matcher is built from the shared RouteCatalog cache when available
-        (populated by the Huey worker). If the cache is empty or unreadable we
-        fall back to building from backend sources and writing the result back
-        to the cache.
+        The matcher is rebuilt whenever the spec generation changes.  The
+        in-process spec can drift from the shared cache (rebuilds happen in a
+        debounced background task), so we reconcile against the shared cache
+        version here: a stale in-process spec yields a stale matcher, which
+        would silently miss freshly-created macros.  A spec with no templates
+        yields ``None``.
         """
-        matcher = self._matcher
-        if matcher is not None:
-            return matcher
+        await self.get()
+        try:
+            cached = await _load_spec_from_cache()
+        except Exception:
+            cached = None
+        if (
+            cached is not None
+            and self._spec is not None
+            and cached.version != self._spec.version
+        ):
+            self._spec = cached
+            self._matcher = None
+        if self._matcher is None and self._spec is not None and self._spec.templates:
+            self._matcher = LocalMatcher(
+                templates=self._spec.templates,
+                slot_dictionaries=self._spec.slot_dictionaries,
+                aliases=self._spec.aliases,
+                app_usage_rank=self._spec.app_usage_rank,
+                polite_prefixes=self._spec.polite_prefixes,
+                polite_suffixes=self._spec.polite_suffixes,
+                slot_filler_prefixes=self._spec.slot_filler_prefixes,
+                slot_filler_suffixes=self._spec.slot_filler_suffixes,
+                app_suffix_noise=self._spec.app_suffix_noise,
+                free_text_reject_markers=self._spec.free_text_reject_markers,
+                slot_filler_chars=self._spec.slot_filler_chars,
+            )
+        return self._matcher
+
+    async def get(self) -> RouteCatalog:
+        """Return the current spec, lazily building it on the first call.
+
+        Reads are lock-free once a spec has been built.  Rebuild replaces the
+        reference atomically, so concurrent callers always see either the old or
+        the new spec, never a half-built one.
+
+        The spec is read from the shared cache when available (populated by the
+        Huey worker). If the cache is empty or unreadable we fall back to building
+        from backend sources and writing the result back to the cache.
+        """
+        spec = self._spec
+        if spec is not None:
+            return spec
 
         async with self._lock:
-            if self._matcher is not None:
-                return self._matcher
-
             spec = await _load_spec_from_cache()
             source = "cache"
             if spec is None:
-                spec = await _build_and_cache_spec()
+                spec = await build_and_cache_spec()
                 source = "db"
 
-            self._matcher = _matcher_from_spec(spec)
-            logger.debug("[matcher_cache] local matcher initialized from %s", source)
-            return self._matcher
+            self._spec = spec
+            self._matcher = None
+            logger.debug("[route_catalog_cache] spec initialized from %s", source)
+            return self._spec
 
     async def rebuild(self) -> None:
-        """Rebuild the matcher from sources and refresh the shared cache."""
+        """Rebuild the spec from sources and refresh the shared cache."""
         async with self._lock:
-            spec = await _build_and_cache_spec()
-            self._matcher = _matcher_from_spec(spec)
-        logger.debug("[matcher_cache] local matcher rebuilt")
+            self._spec = await build_and_cache_spec()
+            self._matcher = None
+        logger.debug("[route_catalog_cache] spec rebuilt")
 
     def invalidate(self) -> None:
-        """Mark the cached matcher as stale so the next ``get()`` rebuilds it."""
+        """Mark the in-process cached spec as stale so the next ``get()`` rebuilds it."""
+        self._spec = None
         self._matcher = None
-        logger.debug("[matcher_cache] local matcher invalidated")
+        logger.debug("[route_catalog_cache] in-process spec invalidated")
 
-    def invalidate_and_schedule_rebuild(self) -> None:
-        """Invalidate the local matcher and dispatch a background Huey task to rebuild the shared RouteCatalog."""
+    async def invalidate_and_schedule_rebuild(self, delay: float = REBUILD_DEBOUNCE_SECONDS) -> None:
+        """Invalidate the in-process spec and schedule a debounced rebuild.
+
+        Lifecycle events can arrive in bursts (e.g. macro CREATE + UPDATE + UPDATE,
+        skill mutations, project switches).  Eagerly invalidating the in-process
+        cache makes the next consumer aware that the spec is stale, while the
+        debounced task coalesces the burst into a single shared-cache rebuild.
+        """
         self.invalidate()
-        try:
-            from app.core.routing.tasks import build_l0_init_spec
+        async with self._rebuild_lock:
+            if self._rebuild_task is not None and not self._rebuild_task.done():
+                self._rebuild_task.cancel()
+                try:
+                    await self._rebuild_task
+                except asyncio.CancelledError:
+                    pass
 
-            build_l0_init_spec.delay()
-        except Exception:
-            logger.warning("[matcher_cache] failed to dispatch L0 init spec rebuild", exc_info=True)
+            async def _rebuild_after_delay() -> None:
+                try:
+                    await asyncio.sleep(delay)
+                    await self.rebuild()
+                except asyncio.CancelledError:
+                    pass
+
+            self._rebuild_task = asyncio.create_task(_rebuild_after_delay())
 
 
 # Module singleton.
-matcher_cache = LocalMatcherCache()
+matcher_cache = RouteCatalogCache()
 
 
 async def _on_language_changed(_old_value: str, new_value: str) -> None:
-    """LANGUAGE changes invalidate the local matcher and refresh the shared cache."""
+    """LANGUAGE changes invalidate the spec and refresh the shared cache."""
     if not new_value:
         return
 
@@ -139,17 +189,18 @@ async def _on_language_changed(_old_value: str, new_value: str) -> None:
     from app.core.routing.routing_data import get_store
 
     await get_store().reload(new_value)
-    matcher_cache.invalidate_and_schedule_rebuild()
-    logger.info("[matcher_cache] language changed to %s, matcher invalidated", new_value)
+    await matcher_cache.invalidate_and_schedule_rebuild()
+    logger.info("[route_catalog_cache] language changed to %s, spec invalidated", new_value)
 
 
 try:
     SystemConfigService.register_change_handler("LANGUAGE", _on_language_changed)
 except Exception:
-    logger.debug("[matcher_cache] failed to register LANGUAGE change handler", exc_info=True)
+    logger.debug("[route_catalog_cache] failed to register LANGUAGE change handler", exc_info=True)
 
 
 __all__ = [
-    "LocalMatcherCache",
+    "RouteCatalogCache",
+    "build_and_cache_spec",
     "matcher_cache",
 ]

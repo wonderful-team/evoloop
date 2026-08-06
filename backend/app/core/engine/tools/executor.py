@@ -161,8 +161,6 @@ class AgentToolExecutor:
                 self._current_resolved_paths = resolved_abs_paths
 
             config = {**(self.config or {})}
-            existing_metadata = config.get("metadata") or {}
-            config["metadata"] = {**existing_metadata, "_evoloop_tool_call_id": tool_id}
 
             from uuid import uuid4 as _uuid4
 

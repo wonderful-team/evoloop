@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
 
 from app.core.routing.deps import require_loopback
-from app.core.routing.tasks import SPEC_CACHE_KEY
+from app.core.routing.matcher_cache import SPEC_CACHE_KEY
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

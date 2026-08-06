@@ -16,10 +16,9 @@ from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
 
-import yaml
-
 from app.core.tools.base import EvoLoopTool as BaseTool
 from app.core.tools.schemas import EvoLoopToolConfig
+from app.utils.yaml import load_yaml_file
 
 logger = logging.getLogger(__name__)
 
@@ -248,15 +247,10 @@ def get_tools_by_names(tool_names: list[str], source_role: str | None = None) ->
 def _load_yaml_config(config_path: str | None = None) -> dict:
     """Load and cache the YAML config for tool-role mappings."""
     path = Path(config_path) if config_path else DEFAULT_CONFIG_PATH
-    try:
-        with open(path) as f:
-            return yaml.safe_load(f) or {}
-    except FileNotFoundError:
-        logger.error(f"YAML config not found: {path}")
-        return {}
-    except (TypeError, ValueError, RuntimeError) as e:
-        logger.error(f"Failed to parse YAML config {path}: {e}")
-        return {}
+    data = load_yaml_file(path)
+    if not data:
+        logger.error("Failed to load YAML config %s", path)
+    return data
 
 
 def _report_missing_tools(node_role: str | None, missing_tools: list[str]):

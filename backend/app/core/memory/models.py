@@ -3,13 +3,13 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
-import yaml
 from pydantic import Field, model_validator
 
 from app.core.file import compute_sha256
 from app.core.memory.schemas import MemoryMetadata
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils.id import gen_uuid_hex
+from app.utils.yaml import YAMLError, safe_yaml_dumps, safe_yaml_loads
 
 
 class MemoryType(str, Enum):
@@ -137,7 +137,7 @@ class MemoryEntry(DynamicBaseModel):
         if self.extra:
             frontmatter["extra"] = self.extra.model_dump()
 
-        yaml_content = yaml.safe_dump(frontmatter, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        yaml_content = safe_yaml_dumps(frontmatter)
         return f"---\n{yaml_content}---\n\n{self.content}"
 
     @classmethod
@@ -151,8 +151,8 @@ class MemoryEntry(DynamicBaseModel):
             raise ValueError(f"Invalid frontmatter format in {file_path or 'unknown'}")
 
         try:
-            frontmatter = yaml.safe_load(parts[1])
-        except yaml.YAMLError as e:
+            frontmatter = safe_yaml_loads(parts[1])
+        except YAMLError as e:
             raise ValueError(f"Invalid YAML frontmatter in {file_path or 'unknown'}: {e}")
 
         if not isinstance(frontmatter, dict):

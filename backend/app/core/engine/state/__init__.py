@@ -29,12 +29,4 @@ def ensure_state(state: AgentState | dict) -> AgentState:
             state = {**state, "messages": EvoMessageConverter.repair(state["messages"])}
         return AgentState.model_validate(state)
 
-    if hasattr(state, "model_dump"):
-        data = state.model_dump()
-        if "messages" in data and data["messages"]:
-            from app.core.engine.message.converter import EvoMessageConverter
-
-            data["messages"] = EvoMessageConverter.repair(data["messages"])
-        return AgentState.model_validate(data)
-
-    return state
+    raise TypeError(f"ensure_state expects AgentState or dict, got {type(state).__name__}")

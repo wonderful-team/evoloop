@@ -15,7 +15,6 @@ from __future__ import annotations
 import logging
 from enum import Enum
 
-import yaml
 from pydantic import BaseModel, Field
 
 from app.core.learning.prompts import prompt_builder
@@ -23,6 +22,7 @@ from app.core.learning.schemas import SkillParameter
 from app.core.learning.trace_parser import TraceParser, TraceSequence
 from app.i18n.service import i18n
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.utils.yaml import YAMLError, safe_yaml_dumps, safe_yaml_loads
 
 logger = logging.getLogger(__name__)
 
@@ -55,12 +55,7 @@ class SynthesizedSkill(DynamicBaseModel):
 
     def to_yaml(self) -> str:
         """Convert to YAML for storage/display."""
-        return yaml.dump(
-            self.model_dump(),
-            default_flow_style=False,
-            allow_unicode=True,
-            sort_keys=False,
-        )
+        return safe_yaml_dumps(self.model_dump())
 
 
 class SynthesizedMacro(DynamicBaseModel):
@@ -78,15 +73,6 @@ class SynthesizedMacro(DynamicBaseModel):
     # Metadata
     source_thread_id: str | None = None
     source_session_id: str | None = None
-
-    def to_yaml(self) -> str:
-        """Convert to YAML for storage/display."""
-        return yaml.dump(
-            self.model_dump(),
-            default_flow_style=False,
-            allow_unicode=True,
-            sort_keys=False,
-        )
 
 
 class SynthesisResult(BaseModel):
@@ -163,7 +149,9 @@ class WorkflowSynthesizer:
         from app.infrastructure.config.service import SystemConfigService
 
         lang_code = SystemConfigService.get_value("LANGUAGE", "zh")
-        language_constraint = i18n.get("learning.synthesis_lang_constraint", lang=lang_code)
+        language_constraint = i18n.get(
+            "learning.synthesis_lang_constraint", lang=lang_code
+        )
 
         prompt_vars = {
             "trace_narrative": narrative,
@@ -203,7 +191,9 @@ class WorkflowSynthesizer:
         )
         content = response.content
 
-        logger.info(f"--- [{self.mode.value.title()} Synthesis Response Start] ---\n{content}\n--- [{self.mode.value.title()} Synthesis Response End] ---")
+        logger.info(
+            f"--- [{self.mode.value.title()} Synthesis Response Start] ---\n{content}\n--- [{self.mode.value.title()} Synthesis Response End] ---"
+        )
 
         # Strip markdown fences
         if "```yaml" in content:
@@ -216,9 +206,9 @@ class WorkflowSynthesizer:
     def _load_yaml_data(self, yaml_str: str) -> dict:
         """Parse YAML string into a dict; raise ValueError on failure."""
         try:
-            data = yaml.safe_load(yaml_str)
-        except yaml.YAMLError as e:
-            logger.error(f"Failed to parse synthesis YAML: {e}")
+            data = safe_yaml_loads(yaml_str)
+        except YAMLError as e:
+            logger.error("Failed to parse synthesis YAML: %s", e)
             raise ValueError(f"Failed to parse generated synthesis YAML: {e}") from e
         if not isinstance(data, dict):
             raise ValueError("Generated synthesis YAML is not a mapping")
@@ -253,7 +243,9 @@ class WorkflowSynthesizer:
             source_session_id=self.session_id,
         )
 
-    def _parse_yaml_skill(self, yaml_str: str, sequence: TraceSequence) -> SynthesizedSkill:
+    def _parse_yaml_skill(
+        self, yaml_str: str, sequence: TraceSequence
+    ) -> SynthesizedSkill:
         """Parse YAML string into a SynthesizedSkill."""
         data = self._load_yaml_data(yaml_str)
         parameters = self._extract_parameters(data)
@@ -275,7 +267,9 @@ class WorkflowSynthesizer:
             tools_used=list(set(sequence.tools_used)),
         )
 
-    def _parse_yaml(self, yaml_str: str, sequence: TraceSequence | None) -> SynthesizedSkill | SynthesizedMacro:
+    def _parse_yaml(
+        self, yaml_str: str, sequence: TraceSequence | None
+    ) -> SynthesizedSkill | SynthesizedMacro:
         """Backward-compatible dispatcher; kept for existing unit tests."""
         if self.mode == SynthesisMode.MACRO:
             return self._parse_yaml_macro(yaml_str)

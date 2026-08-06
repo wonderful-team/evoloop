@@ -6,7 +6,7 @@ Extracted from MessageHandler to separate persistence concerns from orchestratio
 
 import logging
 
-from sqlalchemy import desc, func, select, update, or_
+from sqlalchemy import desc, func, or_, select, update
 from sqlalchemy.orm import selectinload
 
 from app.core.engine.message.category import MessageCategory
@@ -68,10 +68,26 @@ class MessageRepository:
         try:
             if session is not None:
                 return await self._persist_with_session(
-                    role, content, thinking, tool_calls, category, action_type, status,
-                    is_visible, tool_call_id, tool_name, content_type, metadata,
-                    parent_id, references, message_id, node_source, source,
-                    executor_device_key, executor_device_name, session,
+                    role,
+                    content,
+                    thinking,
+                    tool_calls,
+                    category,
+                    action_type,
+                    status,
+                    is_visible,
+                    tool_call_id,
+                    tool_name,
+                    content_type,
+                    metadata,
+                    parent_id,
+                    references,
+                    message_id,
+                    node_source,
+                    source,
+                    executor_device_key,
+                    executor_device_name,
+                    session,
                 )
 
             seq = await SequenceService.next_sequence(self.thread_id)
@@ -144,10 +160,26 @@ class MessageRepository:
 
     async def _persist_with_session(
         self,
-        role, content, thinking, tool_calls, category, action_type, status,
-        is_visible, tool_call_id, tool_name, content_type, metadata,
-        parent_id, references, message_id, node_source, source,
-        executor_device_key, executor_device_name, session,
+        role,
+        content,
+        thinking,
+        tool_calls,
+        category,
+        action_type,
+        status,
+        is_visible,
+        tool_call_id,
+        tool_name,
+        content_type,
+        metadata,
+        parent_id,
+        references,
+        message_id,
+        node_source,
+        source,
+        executor_device_key,
+        executor_device_name,
+        session,
     ) -> tuple[str | None, int]:
         seq = await SequenceService.next_sequence(self.thread_id, session=session)
 
@@ -408,6 +440,26 @@ class MessageRepository:
                 return result.rowcount > 0
         except Exception as e:
             logger.error(f"[MessageRepository] Failed to update status by tool_call_id {tool_call_id}: {e}")
+            raise
+
+    async def update_content_by_tool_call_id(self, tool_call_id: str, content: str) -> bool:
+        """
+        Update message content by tool_call_id (used to deliver async callback
+        results, e.g. A2A, back into the tool message the LLM sees).
+        """
+        try:
+            async with session_scope() as session:
+                stmt = (
+                    update(Message)
+                    .where(Message.thread_id == self.thread_id)
+                    .where(Message.tool_call_id == tool_call_id)
+                    .values(content=content)
+                )
+                result = await session.execute(stmt)
+                logger.info(f"[MessageRepository] Updated content for tool_call_id {tool_call_id}")
+                return result.rowcount > 0
+        except Exception as e:
+            logger.error(f"[MessageRepository] Failed to update content by tool_call_id {tool_call_id}: {e}")
             raise
 
     async def get_last_message_id(self, session=None) -> str | None:

@@ -1,0 +1,16 @@
+# Macro and local response strings used by the L0 routing layer (English).
+# Templates use Python `.format()` placeholders.
+
+macro:
+  not_found: Macro not found
+  timeout: Execution timed out
+  success: Done
+  failure: Execution failed
+
+local:
+  success: Okay
+
+# Generic channel confirmations used by both voice and web adapters.
+generic:
+  ok: Okay
+  cancel: Cancelled

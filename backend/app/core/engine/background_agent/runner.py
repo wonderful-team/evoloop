@@ -115,8 +115,7 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
                 from app.core.engine.message.converter import EvoMessageConverter
                 from app.core.engine.state import AgentState
 
-                raw_data = inputs.model_dump(exclude={"blackboard"})
-                current_messages = EvoMessageConverter.repair(raw_data.get("messages", []))
+                current_messages = EvoMessageConverter.repair(inputs.messages or [])
 
                 # Load historical messages from DB for multi-turn context
                 try:
@@ -163,6 +162,8 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
                 except Exception as e:
                     logger.debug("history load skipped: %s", e)
 
+                raw_data = inputs.model_dump(exclude={"blackboard"})
+                raw_data["ticket"] = inputs.ticket
                 raw_data["messages"] = current_messages
                 agent_state = AgentState.model_validate(raw_data)
                 last_human_msg = inputs.session_goal or ""
@@ -192,11 +193,17 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
                         normalized_input = await HITLOrchestrator.handle_resume(
                             thread_id, pending_tool, inputs.hitl_resume_response
                         )
+                        # 授权门控工具：审批后记录授权并重执行，用真实结果持久化
+                        final_result = await HITLOrchestrator.resolve_approved_tool_result(
+                            pending_tool,
+                            config, normalized_input,
+                            state=agent_state
+                        )
                         from app.core.engine.message.repository import MessageRepository
                         repo = MessageRepository(thread_id, project_id, member_id=ctx.member_id)
                         await repo.persist(
                             role="tool",
-                            content=normalized_input,
+                            content=final_result,
                             tool_call_id=pending_tool["id"],
                             tool_name=pending_tool["name"],
                             category="tool",

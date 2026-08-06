@@ -26,6 +26,7 @@ from app.core.context.manager import ContextManager, EvoContext
 from app.core.engine.background_agent import run_agent_background
 from app.core.engine.graph_runner import resume_graph_background
 from app.core.engine.message.native_classes import HumanMessage, ToolMessage
+from app.core.execution.system_tools_formatter import SystemToolsFormatter
 from app.core.monitoring.activity import activity_monitor
 from app.core.routing.dispatch_handler import dispatch_user_message, route_lock_scope
 from app.infrastructure.database import session_scope
@@ -58,8 +59,6 @@ async def chat_endpoint(
 
     await _check_thread_not_running(req.thread_id)
 
-    await activity_monitor._state_service.start_run(req.thread_id, req.message or "")
-
     ctx = EvoContext(
         request_id=f"req-{req.thread_id}-{int(time.time())}",
         thread_id=req.thread_id,
@@ -73,9 +72,8 @@ async def chat_endpoint(
     async with route_lock_scope(req.thread_id, ctx):
         logger.debug("[ChatEndpoint] Run initialized for thread %s", req.thread_id)
 
-        raw = req.__dict__ if hasattr(req, "__dict__") else dict(req)
         outcome = await dispatch_user_message(
-            raw,
+            dict(req),
             source="web",
             input_channel=web_input,
             thread_id=req.thread_id,
@@ -356,11 +354,9 @@ async def resume_chat(
             if isinstance(parsed, dict) and parsed.get("type") == "temp_project":
                 temp_project_id = parsed.get("project_id")
                 thread_context_store.set_temp_project(req.thread_id, temp_project_id)
-                from app.utils.controller_response import SystemToolsFormatter
-
-                sel_msg = SystemToolsFormatter.signals(
-                    [f"Selected project: {parsed.get('project_name', temp_project_id)}"]
-                )
+                sel_msg = SystemToolsFormatter.signals([
+                    f"Selected project: {parsed.get('project_name', temp_project_id)}"
+                ])
                 inputs = {"messages": [HumanMessage(content=sel_msg)]}
             else:
                 inputs = {"messages": [HumanMessage(content=req.user_input)]}
@@ -382,12 +378,19 @@ async def resume_chat(
         )
 
     if pending_tool:
-        normalized_input = await HITLOrchestrator.handle_resume(
-            req.thread_id, pending_tool, req.user_input
+        normalized_input = await HITLOrchestrator.handle_resume(req.thread_id, pending_tool, req.user_input)
+        # 授权门控工具：审批后记录授权并用原始参数重执行，返回真实结果；
+        # confirmation 类工具则直接使用归一化输入（APPROVED）。
+        resume_config = {
+            "configurable": {"thread_id": req.thread_id, "model": active_model},
+            "metadata": {"project_id": req.project_id},
+        }
+        final_result = await HITLOrchestrator.resolve_approved_tool_result(
+            pending_tool,
+            resume_config,
+            normalized_input
         )
-        tool_msg = ToolMessage(
-            tool_call_id=pending_tool["id"], content=normalized_input
-        )
+        tool_msg = ToolMessage(tool_call_id=pending_tool["id"], content=final_result)
         if inputs and "messages" in inputs:
             inputs["messages"] = [tool_msg]
         else:

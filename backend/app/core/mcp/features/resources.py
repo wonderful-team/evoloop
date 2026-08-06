@@ -58,7 +58,7 @@ class McpResourcesFeature(McpFeature):
             templates_count=len(self._resource_templates),
             resources=[
                 {
-                    "uri": r.uri,
+                    "uri": str(r.uri),
                     "name": r.name,
                     "mimeType": r.mimeType,
                     "description": r.description,

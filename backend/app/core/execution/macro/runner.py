@@ -178,6 +178,26 @@ def _collect_sources(steps: list[Any]) -> set[str]:
     return out
 
 
+def _step_requires_ui(step: Any) -> bool:
+    """True if the step needs a non-desktop UI surface (browser/phone).
+
+    Utility and control-flow steps (wait/wait_for, IF/LOOP, native/bash) run
+    without any UI, so their source label (which defaults to DOM) must not gate
+    headless voice execution.
+    """
+    step_type = getattr(step, "type", None)
+    st = str(getattr(step_type, "value", step_type)).lower() if step_type else ""
+    if st in ("native", "bash"):
+        return False
+    if st in ("control", "if", "loop"):
+        return False
+    event = getattr(step, "event_type", None)
+    et = str(getattr(event, "value", event)).lower() if event else ""
+    if et in ("wait", "wait_for"):
+        return False
+    return True
+
+
 def _scan_steps_risk(steps: list[Any], policy: ExecutionPolicy) -> str | None:
     """Recursively scan steps for disallowed families or excessive risk.
 
@@ -218,7 +238,12 @@ async def run_deterministic(
 ) -> ExecutionOutcome:
     """Execute a deterministic macro under the given policy."""
     if policy.allowed_sources is not None:
-        sources = _collect_sources(script.steps)
+        # Only UI-bound steps carry a meaningful execution-source requirement.
+        # Utility/control steps (wait, IF/LOOP, native/bash) are headless-safe
+        # even when their source label defaults to DOM, so they must not be
+        # rejected for voice.
+        ui_steps = [s for s in script.steps if _step_requires_ui(s)]
+        sources = _collect_sources(ui_steps)
         unsupported = sources - policy.allowed_sources
         if sources and unsupported:
             return ExecutionOutcome(
@@ -265,6 +290,10 @@ async def run_deterministic(
         skip_activity_log=skip_activity_log,
         skip_recording=skip_recording,
     )
+    # 失败时把失败步骤信息并入 message，委托 Agent 时传递失败上下文
+    if not ok and _data and _data.get("step_number"):
+        step_note = f"第{_data.get('step_number')}步({_data.get('event_type') or 'action'})失败"
+        msg = f"{step_note}: {msg}" if msg else step_note
     return ExecutionOutcome(ok, msg or "")
 
 
@@ -321,5 +350,7 @@ async def _run_with_self_heal(
         logger.error("[MacroFallback] Dispatch failed: %s", dispatched.error)
         return ExecutionOutcome(False, f"Self-healing dispatch failed: {dispatched.error}")
 
-    await run_agent_background(thread_id, dispatched.inputs)
+    # 后台派发 Agent 恢复：立即返回 fell_back=True，不阻塞 web/chat 的 HTTP 响应
+    #（原实现 await run_agent_background，会把宏失败的自愈拖到几分钟级，导致请求挂死）。
+    asyncio.create_task(run_agent_background(thread_id, dispatched.inputs))
     return ExecutionOutcome(False, result.get("message") or "", fell_back=True)

@@ -22,7 +22,7 @@ from typing import Any
 
 from app.core.channel.base import IncomingMessage, InputChannel
 from app.core.context import EvoContext
-from app.core.routing.actions import ActionOutcome, run_builtin, run_macro
+from app.core.routing.actions import ActionOutcome, run_macro
 from app.core.routing.command_router import CommandRouter
 from app.core.routing.routing_data import get_store
 from app.core.routing.schemas import IntentHint
@@ -119,7 +119,7 @@ async def dispatch_user_message(
         if route is not None:
             local_outcome = ActionOutcome(
                 ok=True,
-                message=_routing_store.builtin_responses["generic"]["ok"],
+                message=_routing_store.responses["generic"]["ok"],
                 action_type="navigate",
                 data={"route": route},
             )
@@ -129,7 +129,7 @@ async def dispatch_user_message(
             if source == "voice":
                 local_outcome = ActionOutcome(
                     ok=True,
-                    message=_routing_store.builtin_responses["local"]["success"],
+                    message=_routing_store.responses["local"]["success"],
                     action_type="local",
                     data={"action": action, "args": args},
                 )
@@ -139,30 +139,6 @@ async def dispatch_user_message(
                 logger.info("[dispatch] web local non-navigate action delegates to agent")
                 inputs = await input_channel.dispatch(msg)
                 return DispatchOutcome(handled=False, msg=msg, inputs=inputs)
-
-    if target_type == "builtin":
-        action = decision.target.get("action", "")
-        args = decision.params
-        outcome = await run_builtin(
-            action,
-            args,
-            thread_id=thread_id,
-            worker_registry=worker_registry,
-        )
-        handled = True
-        if source == "voice" and not outcome.ok:
-            handled = False
-        logger.info(
-            "[dispatch] %s L0 builtin handled=%s for thread %s",
-            source,
-            handled,
-            thread_id,
-        )
-        if handled:
-            return DispatchOutcome(handled=True, local_response=outcome)
-        else:
-            inputs = await input_channel.dispatch(msg)
-            return DispatchOutcome(handled=False, msg=msg, inputs=inputs)
 
     if target_type == "macro":
         macro_id = decision.target.get("id")
@@ -184,6 +160,16 @@ async def dispatch_user_message(
         handled = True
         if source == "voice" and outcome.action_type != "navigate" and not outcome.ok:
             handled = False
+            # 宏执行失败 → 委托 Agent 继续完成，附上失败上下文，
+            # 避免 Agent 不知道宏执行到哪、为什么失败而从头重来。
+            name = outcome.data.get("macro_name") or f"宏#{outcome.data.get('macro_id', '')}"
+            failure = outcome.message or "宏执行失败"
+            if msg.text and failure:
+                msg.text = (
+                    f"{msg.text}\n\n"
+                    f"[宏执行失败] 已尝试执行宏「{name}」但失败：{failure}。"
+                    f"请基于该上下文继续完成用户请求，不要重复用户已失败的尝试。"
+                )
 
         if handled:
             return DispatchOutcome(handled=True, local_response=outcome)

@@ -6,6 +6,24 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+# --- Routing protocol intent/domain labels --------------------------------
+# Single source of truth for the intent domain_v labels that cross the
+# L0/L1 router and the agent engine (context hydrators, domain mapping).
+# The *values* are frozen: the L1 ONNX model emits ``ambiguous`` /
+# ``multi_intent``, ``IntentHint`` values are persisted in message metadata,
+# and E2E tests assert the literals. Only the definition site is centralized
+# here so a future rename is a one-place change instead of a drift-prone
+# hunt across routing + engine.
+INTENT_MACRO_TASK = "macro_task"
+INTENT_WORKER_TASK = "worker_task"
+INTENT_DIRECT_ANSWER = "direct_answer"
+INTENT_MEMORY_QUERY = "memory_query"
+INTENT_ENVIRONMENT_QUERY = "environment_query"
+INTENT_DOMAIN_CLASSIFIED = "domain_classified"
+
+DOMAIN_AMBIGUOUS = "ambiguous"
+DOMAIN_MULTI_INTENT = "multi_intent"
+
 
 class IntentHint(BaseModel):
     """High-level intent classification used to select ContextProviders.
@@ -13,10 +31,10 @@ class IntentHint(BaseModel):
     The routing layer fills ``domain`` for L1 classifier results; the agent
     engine then maps ``domain`` to a concrete ``intent`` and
     ``suggested_modules``.  When ``domain`` is absent the hint is assumed to be
-    fully resolved by the router (L0 / macro / builtin paths).
+    fully resolved by the router (L0 / macro / local paths).
     """
 
-    intent: str = "domain_classified"  # functional intent resolved by the engine; may be the sentinel when domain is present
+    intent: str = INTENT_DOMAIN_CLASSIFIED  # functional intent resolved by the engine; may be the sentinel when domain is present
     domain: str | None = None  # L1 domain label (e.g. coding, environment, ambiguous)
     confidence: float = 0.0
     suggested_modules: list[str] = Field(default_factory=list)
@@ -30,7 +48,7 @@ class RouteDecision(BaseModel):
     """Result of the router: where to dispatch and with what params."""
 
     status: str = "routed"  # routed | delegate
-    target_type: str = "agent"  # local | skill | macro | agent | builtin
+    target_type: str = "agent"  # local | skill | macro | agent
     target: dict[str, Any] = Field(default_factory=dict)
     params: dict[str, Any] = Field(default_factory=dict)
     intent_hint: IntentHint | None = None
@@ -48,6 +66,13 @@ class RouteCatalog(BaseModel):
     templates: list[dict[str, Any]] = Field(default_factory=list)
     slot_dictionaries: dict[str, Any] = Field(default_factory=dict)
     aliases: dict[str, str] = Field(default_factory=dict)
+    polite_prefixes: list[str] = Field(default_factory=list)
+    polite_suffixes: list[str] = Field(default_factory=list)
+    slot_filler_prefixes: list[str] = Field(default_factory=list)
+    slot_filler_suffixes: list[str] = Field(default_factory=list)
+    app_suffix_noise: list[str] = Field(default_factory=list)
+    free_text_reject_markers: list[str] = Field(default_factory=list)
+    slot_filler_chars: dict[str, str] = Field(default_factory=dict)
     default_apps: dict[str, str] = Field(default_factory=dict)
     app_usage_rank: list[str] = Field(default_factory=list)
     capabilities: dict[str, Any] = Field(default_factory=dict)

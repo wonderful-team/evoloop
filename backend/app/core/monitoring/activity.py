@@ -73,33 +73,45 @@ class ActivityMonitor:
 
         run_id = f"run-{gen_uuid()[:8]}"
 
-        # Share one DB session for start (start_run + check_cancellation)
-        async with session_scope() as session:
-            await self._state_service.start_run(thread_id, main_goal, session=session)
-            logger.info(f"[ActivityMonitor] 🚀 Starting lifecycle for thread {thread_id} (Run: {run_id})")
-            await self._publish_session_started(thread_id, project_id)
-            await self.check_cancellation(thread_id, session=session)
+        await self._state_service.start_run(thread_id, main_goal, run_id=run_id)
+        logger.info(f"[ActivityMonitor] 🚀 Starting lifecycle for thread {thread_id} (Run: {run_id})")
+        await self._publish_session_started(thread_id, project_id)
 
         ctx = ContextManager.current()
         if ctx and ctx.thread_id == thread_id:
             ctx.run_id = run_id
 
         try:
+            # Cancellation check before yield so that a stale stop signal does not
+            # silently kill a new run without emitting a run_end event.
+            async with session_scope() as session:
+                await self.check_cancellation(thread_id, session=session)
+
             yield run_id
 
             # End phase: skip if monitoring subscriber already terminated
             async with session_scope() as session:
                 activity = await session.get(AgentActivity, thread_id)
-                if activity and activity.status in ("done", "failed", "cancelled", "quota_exhausted"):
+                if activity and activity.status in (
+                    "done",
+                    "failed",
+                    "cancelled",
+                    "quota_exhausted",
+                ):
                     logger.debug(f"[ActivityMonitor] Skipping end_run for {thread_id}: already {activity.status}")
                 else:
-                    result = await self._state_service.end_run(thread_id, "done", session=session)
+                    result = await self._state_service.end_run(thread_id, "done", run_id=run_id)
                     await self._publish_run_completed(thread_id, result, run_id, task_type)
 
         except AgentCancelledException:
             logger.info(f"[ActivityMonitor] 🛑 Run {run_id} cancelled by user")
-            async with session_scope() as session:
-                result = await self._state_service.end_run(thread_id, "cancelled", session=session)
+            result = await self._state_service.end_run(thread_id, "cancelled", run_id=run_id)
+            await self._publish_run_completed(thread_id, result, run_id, task_type)
+            raise
+
+        except asyncio.CancelledError:
+            logger.info(f"[ActivityMonitor] 🛑 Run {run_id} cancelled by task cancellation")
+            result = await self._state_service.end_run(thread_id, "cancelled", run_id=run_id)
             await self._publish_run_completed(thread_id, result, run_id, task_type)
             raise
 
@@ -109,8 +121,7 @@ class ActivityMonitor:
 
         except Exception as e:
             logger.error(f"[ActivityMonitor] ❌ Run {run_id} failed with error: {e}")
-            async with session_scope() as session:
-                result = await self._state_service.end_run(thread_id, "failed", session=session)
+            result = await self._state_service.end_run(thread_id, "failed", run_id=run_id)
             await self._publish_run_completed(thread_id, result, run_id, task_type)
             raise
 
@@ -140,7 +151,7 @@ class ActivityMonitor:
         project_id: int | None = None,
     ):
         """Initialize activity state for a new run."""
-        await self._state_service.start_run(thread_id, main_goal)
+        await self._state_service.start_run(thread_id, main_goal, run_id=run_id)
 
         # Publish internal AgentSessionStartedEvent (automated bridge will handle UI RunStartEvent)
         from app.core.engine.event.publishers import publish_agent_session_started
@@ -156,7 +167,7 @@ class ActivityMonitor:
         task_type: str = None,
     ):
         """Mark run as ended and publish status change."""
-        result = await self._state_service.end_run(thread_id, status, final_outcome)
+        result = await self._state_service.end_run(thread_id, status, final_outcome, run_id=run_id)
 
         # 1. Publish internal AgentRunCompletedEvent (automated bridge handles UI RunEndEvent)
         from app.core.engine.event.publishers import publish_agent_run_completed

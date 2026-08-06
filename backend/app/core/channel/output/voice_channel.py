@@ -39,6 +39,7 @@ from typing import Any
 
 from app.core.engine.message.schemas import MessageBlock
 from app.core.routing.routing_data import get_store
+from app.core.schemas.canonical import Endpoint, MessageType, create_envelope
 from app.core.voice import executor as voice_executor
 from app.core.voice.state_machine import VoiceSessionState, voice_state_machine
 from app.utils.text import strip_markdown_for_tts
@@ -64,6 +65,7 @@ class VoiceChannel(Channel):
     _filler_texts: dict[str, set[str]] = {}
     _token_buffers: dict[str, str] = {}
     _streamed_texts: dict[str, str] = {}
+    _boundary_index: dict[str, int] = {}
     _SENTENCE_BOUNDARIES = "。！？.!?\n…"
 
     # Streaming TTS state: push to Volcengine progressively
@@ -88,6 +90,21 @@ class VoiceChannel(Channel):
         cls._message_type = message_type
 
     @classmethod
+    def _voice_envelope(cls, msg_type: Any, body: dict) -> dict:
+        """Fallback canonical envelope with voice-chain endpoint identity.
+
+        Used only when ``_envelope_fn``/``_message_type`` were not wired at
+        startup; produces the same 7-field shape (including source/target) as
+        the wired path so the voice WS never receives a bare body dict.
+        """
+        return create_envelope(
+            type=msg_type,
+            body=body,
+            source=Endpoint(kind="backend"),
+            target=Endpoint(kind="voice"),
+        ).model_dump()
+
+    @classmethod
     async def push_voice_result(
         cls,
         thread_id: str,
@@ -104,12 +121,20 @@ class VoiceChannel(Channel):
         if cls._manager is None:
             logger.warning("[VoiceChannel] manager not set, cannot push result")
             return
-        body = {"thread_id": thread_id, "status": status, "summary": summary}
+        body = {
+            "thread_id": thread_id,
+            "status": status,
+            "summary": summary,
+            "skip_tts": skip_tts,
+        }
         if cls._envelope_fn and cls._message_type:
             env = cls._envelope_fn(cls._message_type.VOICE_ROUTE_RESULT, body)
             await cls._manager.push(thread_id, env)
         else:
-            await cls._manager.push(thread_id, body)
+            await cls._manager.push(
+                thread_id,
+                cls._voice_envelope(MessageType.VOICE_ROUTE_RESULT, body),
+            )
 
         if summary and status == "done" and not skip_tts:
             await cls.push_tts_text(thread_id, summary)
@@ -124,7 +149,10 @@ class VoiceChannel(Channel):
             env = cls._envelope_fn(cls._message_type.VOICE_TOKEN, body)
             await cls._manager.push(thread_id, env)
         else:
-            await cls._manager.push(thread_id, body)
+            await cls._manager.push(
+                thread_id,
+                cls._voice_envelope(MessageType.VOICE_TOKEN, body),
+            )
 
     @classmethod
     async def push_voice_tts_boundary(
@@ -138,7 +166,10 @@ class VoiceChannel(Channel):
             env = cls._envelope_fn(cls._message_type.VOICE_TTS_BOUNDARY, body)
             await cls._manager.push(thread_id, env)
         else:
-            await cls._manager.push(thread_id, body)
+            await cls._manager.push(
+                thread_id,
+                cls._voice_envelope(MessageType.VOICE_TTS_BOUNDARY, body),
+            )
 
     @classmethod
     async def push_tts_text(cls, thread_id: str, text: str) -> None:
@@ -180,7 +211,10 @@ class VoiceChannel(Channel):
             env = cls._envelope_fn(cls._message_type.VOICE_ROUTE_RESULT, body)
             await cls._manager.push(thread_id, env)
         else:
-            await cls._manager.push(thread_id, body)
+            await cls._manager.push(
+                thread_id,
+                cls._voice_envelope(MessageType.VOICE_ROUTE_RESULT, body),
+            )
         await cls._set_idle_if_needed(thread_id)
 
     @classmethod
@@ -200,7 +234,10 @@ class VoiceChannel(Channel):
             env = cls._envelope_fn(cls._message_type.VOICE_ROUTE_RESULT, body)
             await cls._manager.push(thread_id, env)
         else:
-            await cls._manager.push(thread_id, body)
+            await cls._manager.push(
+                thread_id,
+                cls._voice_envelope(MessageType.VOICE_ROUTE_RESULT, body),
+            )
         await cls._set_idle_if_needed(thread_id)
 
     @classmethod
@@ -219,16 +256,19 @@ class VoiceChannel(Channel):
             return
         if feedback is None:
             _routing_store = get_store()
-            feedback = _routing_store.builtin_responses.get("generic", {}).get("ok", "")
+            feedback = _routing_store.responses.get("generic", {}).get("ok", "")
         body = {"route": route, "thread_id": thread_id, "feedback": feedback}
         if cls._envelope_fn and cls._message_type:
-            env = cls._envelope_fn("voice.navigate", body)
+            env = cls._envelope_fn(MessageType.VOICE_NAVIGATE, body)
             await cls._manager.push(
                 thread_id,
                 env,
             )
         else:
-            await cls._manager.push(thread_id, body)
+            await cls._manager.push(
+                thread_id,
+                cls._voice_envelope(MessageType.VOICE_NAVIGATE, body),
+            )
         await cls.push_tts_text(thread_id, feedback)
         await cls._set_idle_if_needed(thread_id)
 
@@ -251,6 +291,7 @@ class VoiceChannel(Channel):
         cls._tts_started.pop(thread_id, None)
         cls._token_buffers.pop(thread_id, None)
         cls._streamed_texts.pop(thread_id, None)
+        cls._boundary_index.pop(thread_id, None)
         cls._filler_texts.pop(thread_id, None)
 
     @classmethod
@@ -261,15 +302,22 @@ class VoiceChannel(Channel):
         aborted.
         """
         was_streaming = cls._tts_started.pop(thread_id, False)
+        if not was_streaming:
+            # No active TTS segment to cancel; do not mark the thread as
+            # cancelled so a new turn's result is not suppressed.
+            return False
         cls._tts_accumulator.pop(thread_id, None)
         cls._token_buffers.pop(thread_id, None)
         cls._streamed_texts.pop(thread_id, None)
+        cls._boundary_index.pop(thread_id, None)
         cls._filler_texts.pop(thread_id, None)
         cls._cancelled_threads.add(thread_id)
         return was_streaming
 
     @classmethod
-    async def push_tts_chunk(cls, thread_id: str, text: str, end: bool, *, force_start: bool = False) -> None:
+    async def push_tts_chunk(
+        cls, thread_id: str, text: str, end: bool, *, force_start: bool = False
+    ) -> None:
         """Push a text chunk to Volcengine ChatTTSText with correct start/end.
 
         Args:
@@ -317,7 +365,9 @@ class VoiceChannel(Channel):
         try:
             await client.send_chat_tts_text(start=start, end=end, content=text)
         except Exception as exc:
-            logger.error("[VoiceChannel][tts-chunk] push failed for %s: %s", thread_id, exc)
+            logger.error(
+                "[VoiceChannel][tts-chunk] push failed for %s: %s", thread_id, exc
+            )
 
     async def send(self, payload: Any, ctx: ChannelContext) -> None:
         from app.core.engine.event.schemas import AgentRunCompletedEvent
@@ -329,9 +379,24 @@ class VoiceChannel(Channel):
             token = payload.content or ""
             if not token:
                 return
+            if tid in self.__class__._cancelled_threads:
+                # barge-in 已取消旧流：TTS 已停，也不再推送 token/boundary 事件
+                return
 
             # Accumulate for dedup
             self._streamed_texts[tid] = self._streamed_texts.get(tid, "") + token
+            # Accumulate transcript (used by the final boundary flush)
+            self._token_buffers[tid] = self._token_buffers.get(tid, "") + token
+
+            # Push a streaming token event (实时播报文本，前端可据此显示字幕)
+            try:
+                await VoiceChannel.push_voice_token(
+                    tid, token, len(self._streamed_texts[tid])
+                )
+            except Exception as exc:
+                logger.debug(
+                    "[VoiceChannel] push voice.token failed for %s: %s", tid, exc
+                )
 
             # Accumulate for streaming TTS
             buf = self._tts_accumulator.get(tid, "") + token
@@ -345,6 +410,17 @@ class VoiceChannel(Channel):
                 clean = strip_markdown_for_tts(complete).strip()
                 if clean:
                     await self.__class__.push_tts_chunk(tid, clean, end=False)
+                    # Push a sentence-boundary event (前端可据此做分段/字幕同步)
+                    idx = self._boundary_index.get(tid, 0)
+                    try:
+                        await VoiceChannel.push_voice_tts_boundary(tid, clean, idx)
+                        self._boundary_index[tid] = idx + 1
+                    except Exception as exc:
+                        logger.debug(
+                            "[VoiceChannel] push voice.tts_boundary failed for %s: %s",
+                            tid,
+                            exc,
+                        )
                 buf = remaining
 
             self._tts_accumulator[tid] = buf
@@ -353,7 +429,9 @@ class VoiceChannel(Channel):
         # ── Superviosr 安抚话术：首个回应时推送 ────────────────
         if isinstance(payload, MessageBlock):
             if not payload.is_visible:
-                logger.debug("[VoiceChannel] skip hidden MessageBlock for %s", ctx.thread_id)
+                logger.debug(
+                    "[VoiceChannel] skip hidden MessageBlock for %s", ctx.thread_id
+                )
                 return
             if payload.role == "ai" and payload.content:
                 tid = ctx.thread_id
@@ -364,7 +442,9 @@ class VoiceChannel(Channel):
                 tid_set = self._filler_texts.setdefault(tid, set())
                 clean_summary = summary.replace(" ", "").replace("\n", "")
                 if clean_summary and clean_summary in tid_set:
-                    logger.info("[VoiceChannel] 安抚话术 dedup: already routed for %s", tid)
+                    logger.info(
+                        "[VoiceChannel] 安抚话术 dedup: already routed for %s", tid
+                    )
                     return
                 if clean_summary:
                     tid_set.add(clean_summary)
@@ -374,7 +454,9 @@ class VoiceChannel(Channel):
                     try:
                         await VoiceChannel.push_voice_result(tid, "routed", summary)
                     except Exception as exc:
-                        logger.warning("[VoiceChannel] 安抚话术 push failed for %s: %s", tid, exc)
+                        logger.warning(
+                            "[VoiceChannel] 安抚话术 push failed for %s: %s", tid, exc
+                        )
 
                 asyncio.create_task(_push_routed())
             return
@@ -408,23 +490,35 @@ class VoiceChannel(Channel):
             else:
                 # If accumulator is empty but streaming started, send empty end marker
                 if self._tts_started.get(thread_id, False):
-                    logger.info("[VoiceChannel][tts-chunk] %s end=True (empty flush)", thread_id)
+                    logger.info(
+                        "[VoiceChannel][tts-chunk] %s end=True (empty flush)", thread_id
+                    )
                     try:
                         from app.core.voice.executor import active_volc_clients
 
                         client = active_volc_clients.get(thread_id)
                         if client:
-                            await client.send_chat_tts_text(start=False, end=True, content="")
+                            await client.send_chat_tts_text(
+                                start=False, end=True, content=""
+                            )
                     except Exception as exc:
-                        logger.warning("[VoiceChannel][tts-chunk] empty end failed: %s", exc)
+                        logger.warning(
+                            "[VoiceChannel][tts-chunk] empty end failed: %s", exc
+                        )
 
             self._tts_started.pop(thread_id, None)
 
-            # Flush remaining tokens in buffer
-            remaining_buf = strip_markdown_for_tts(self._token_buffers.pop(thread_id, "").strip())
+            # Flush remaining tokens in buffer (final boundary for the last fragment)
+            remaining_buf = strip_markdown_for_tts(
+                self._token_buffers.pop(thread_id, "").strip()
+            )
             if remaining_buf:
                 try:
-                    await VoiceChannel.push_voice_tts_boundary(thread_id, remaining_buf, 0)
+                    idx = self._boundary_index.get(thread_id, 0)
+                    await VoiceChannel.push_voice_tts_boundary(
+                        thread_id, remaining_buf, idx
+                    )
+                    self._boundary_index.pop(thread_id, None)
                 except Exception as exc:
                     logger.debug("[VoiceChannel] flush tts_boundary failed: %s", exc)
 
@@ -443,7 +537,9 @@ class VoiceChannel(Channel):
             # Send status=done WS message via the shared helper, but skip the
             # confirmation TTS path because streaming TTS is already handled.
             t0 = time.time()
-            await VoiceChannel.push_voice_result(thread_id, "done", final_text, skip_tts=True)
+            await VoiceChannel.push_voice_result(
+                thread_id, "done", final_text, skip_tts=True
+            )
             elapsed = (time.time() - t0) * 1000
             logger.info(
                 "[voice-perf] %s agent_done push=%.0fms agent_duration=%.0fms",
@@ -467,11 +563,15 @@ class VoiceChannel(Channel):
             self._filler_texts.pop(thread_id, None)
             self._tts_accumulator.pop(thread_id, None)
             self._tts_started.pop(thread_id, None)
-            summary = payload.payload.get("summary") or payload.payload.get("outcome") or ""
+            summary = (
+                payload.payload.get("summary") or payload.payload.get("outcome") or ""
+            )
             try:
                 await VoiceChannel.push_voice_result(thread_id, "failed", summary)
             except Exception as exc:
-                logger.warning("[VoiceChannel] failed push failed for %s: %s", thread_id, exc)
+                logger.warning(
+                    "[VoiceChannel] failed push failed for %s: %s", thread_id, exc
+                )
             return
 
     async def send_envelope(

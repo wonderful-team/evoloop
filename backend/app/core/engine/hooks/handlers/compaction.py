@@ -6,11 +6,10 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
-import yaml
-
 from app.core.engine.hooks.core import HookContext, HookResult
 from app.core.engine.message.native_classes import BaseMessage
 from app.core.memory.models import MemoryEntry, MemoryType, PrivacyLevel
+from app.utils.yaml import YAMLError, safe_yaml_dumps, safe_yaml_loads
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +63,7 @@ async def pre_compact_save_state(context: HookContext) -> HookResult:
                 cp_entry = await mm.get_memory(cp_summary.id)
                 if cp_entry:
                     try:
-                        cp_data = yaml.safe_load(cp_entry.content)
+                        cp_data = safe_yaml_loads(cp_entry.content)
                         if cp_data.get("task_progress") == task_progress:
                             # Check if within 5 minutes
                             cp_time = datetime.fromisoformat(cp_data.get("timestamp", "2000-01-01"))
@@ -72,7 +71,7 @@ async def pre_compact_save_state(context: HookContext) -> HookResult:
                                 recent_duplicate = cp_entry
                                 logger.warning(f"[PreCompact] ⚠️ Found duplicate checkpoint from {cp_time.isoformat()}: {cp_entry.id}")
                                 break
-                    except ValueError as e:
+                    except (ValueError, YAMLError) as e:
                         logger.debug(f"[PreCompact] Failed to parse existing checkpoint {cp_summary.id}: {e}")
 
         duplicate_check_elapsed = (datetime.utcnow() - duplicate_check_start).total_seconds()
@@ -117,7 +116,7 @@ async def pre_compact_save_state(context: HookContext) -> HookResult:
             privacy=PrivacyLevel.PRIVATE,
             title=f"Context Checkpoint - {checkpoint['task_progress'][:50]}...",
             description=f"Auto-saved before context compaction ({checkpoint['compact_trigger']})",
-            content=yaml.safe_dump(checkpoint, allow_unicode=True, default_flow_style=False, sort_keys=False),
+            content=safe_yaml_dumps(checkpoint),
             member_id=context.member_id,
             project_id=context.project_id,
             source_message_id=source_message_id,

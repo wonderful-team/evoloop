@@ -27,6 +27,7 @@ _session: Any = None
 _tokenizer: Any = None
 _id2name: dict[str, str] = {}
 _lock = threading.Lock()
+_infer_lock = threading.Lock()
 
 
 def _get_threshold() -> float:
@@ -107,14 +108,15 @@ def predict(text: str) -> tuple[str | None, float]:
                 if not _load():
                     return None, 0.0
 
-    encoding = _tokenizer.encode(text)
-    input_ids = np.array([encoding.ids], dtype=np.int64)
-    attention_mask = np.array([encoding.attention_mask], dtype=np.int64)
-    ort_inputs = {
-        _session.get_inputs()[0].name: input_ids,
-        _session.get_inputs()[1].name: attention_mask,
-    }
-    logits = _session.run(None, ort_inputs)[0]
+    with _infer_lock:
+        encoding = _tokenizer.encode(text)
+        input_ids = np.array([encoding.ids], dtype=np.int64)
+        attention_mask = np.array([encoding.attention_mask], dtype=np.int64)
+        ort_inputs = {
+            _session.get_inputs()[0].name: input_ids,
+            _session.get_inputs()[1].name: attention_mask,
+        }
+        logits = _session.run(None, ort_inputs)[0]
 
     exp = np.exp(logits - np.max(logits, axis=1, keepdims=True))
     probs = exp / exp.sum(axis=1, keepdims=True)
@@ -129,23 +131,5 @@ def predict(text: str) -> tuple[str | None, float]:
     return None, margin
 
 
-def reload():
-    """热重载模型（训练后调用）。"""
-    global _session, _tokenizer, _id2name
-    with _lock:
-        _session = None
-        _tokenizer = None
-        _id2name = {}
-        _load()
-
-
-def initialize() -> bool:
-    """服务启动时主动加载模型，避免首次语音请求时冷加载。"""
-    with _lock:
-        if _session is not None and _tokenizer is not None:
-            return True
-        return _load()
-
-
 # 启动时立即加载（保持低延迟首响应）
-initialize()
+_load()

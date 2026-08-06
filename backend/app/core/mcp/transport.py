@@ -82,6 +82,9 @@ class McpTransport:
         """
         Create and initialize a ClientSession.
 
+        mcp>=1.26 的 BaseSession 只在 `__aenter__` 时启动 `_receive_loop` 任务组；
+        若不进入 session 上下文，服务端响应永远不会被处理，initialize() 将永久挂起。
+
         Args:
             read_stream: Read stream from transport
             write_stream: Write stream from transport
@@ -90,5 +93,6 @@ class McpTransport:
             Initialized ClientSession
         """
         session = ClientSession(read_stream, write_stream)
+        await session.__aenter__()
         await session.initialize()
         return session

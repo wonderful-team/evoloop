@@ -42,6 +42,7 @@ from app.infrastructure.database.vector import get_vector_store
 from app.models import Repository
 
 from ._generations import router as generations_router
+from ._listing import _resolve_project_id
 from ._listing import router as listing_router
 from ._modules import router as modules_router  # noqa: F401 — re-export for main.py
 from ._profiles import router as profiles_router
@@ -57,12 +58,6 @@ router.include_router(generations_router)
 
 
 __all__ = ["router", "modules_router"]
-
-
-def _resolve_project_id(p: dict) -> int | None:
-    raw = p.get("project_id")
-    resolved = raw if raw is not None else p.get("id")
-    return int(resolved) if resolved is not None else None
 
 
 @router.get("/current")
@@ -111,17 +106,23 @@ async def create_project(req: CreateProjectRequest, _token: TokenDep):
         with open(os.path.join(meta_dir, "project.json"), "w", encoding="utf-8") as f:
             json.dump(skeleton, f, indent=2, ensure_ascii=False)
 
-        res = await evocloud_manager.api.create_project(display_name, description, project_path, token=_token)
+        res = await evocloud_manager.api.create_project(
+            display_name, description, project_path, token=_token
+        )
         if res.get("code") != 0:
             logger.warning("Failed to sync project creation to Member Center: %s", res)
-            raise HTTPException(500, f"Failed to create project in cloud: {res.get('message')}")
+            raise HTTPException(
+                500, f"Failed to create project in cloud: {res.get('message')}"
+            )
 
         evocloud_manager.invalidate_projects_cache()
 
         projects = await evocloud_manager.scan_projects()
         new_proj = next((p for p in projects if p["name"] == display_name), None)
         if not new_proj:
-            raise HTTPException(500, "Project created in cloud but ID could not be resolved")
+            raise HTTPException(
+                500, "Project created in cloud but ID could not be resolved"
+            )
 
         project_id = _resolve_project_id(new_proj)
         if project_id is not None:
@@ -173,9 +174,9 @@ async def get_project_status(project_id: int):
 
     if repo_id is None:
         return ProjectStatusResponse(
-            indexing=ProjectStatusActivity.model_validate({"status": "idle"}),
-            summarization=ProjectStatusActivity.model_validate({"status": "idle"}),
-            wiki=ProjectStatusActivity.model_validate({"status": "idle"}),
+            indexing=ProjectStatusActivity(status="idle"),
+            summarization=ProjectStatusActivity(status="idle"),
+            wiki=ProjectStatusActivity(status="idle"),
         )
 
     pipe = cache.pipeline()
@@ -188,15 +189,13 @@ async def get_project_status(project_id: int):
     def parse_act(data):
         if not data:
             return {"status": "idle"}
-        try:
-            return {
-                "status": data.get("status", "idle"),
-                "updated_at": float(data.get("updated_at", 0)),
-                "agent_state": json.loads(data.get("agent_state", "{}")),
-                "steps": json.loads(data.get("steps", "[]")),
-            }
-        except Exception:
-            return {"status": "idle"}
+
+        return {
+            "status": data.get("status", "idle"),
+            "updated_at": float(data.get("updated_at", 0)),
+            "agent_state": json.loads(data.get("agent_state", "{}")),
+            "steps": json.loads(data.get("steps", "[]")),
+        }
 
     return ProjectStatusResponse(
         indexing=ProjectStatusActivity.model_validate(parse_act(results[0])),
@@ -226,7 +225,9 @@ async def delete_project(project_id: int, _token: TokenDep):
             repos = list(result.scalars().all())
 
         if not repos:
-            logger.info("[ProjectsAPI] No local repository found for project %d", project_id)
+            logger.info(
+                "[ProjectsAPI] No local repository found for project %d", project_id
+            )
         else:
             for repo in repos:
                 local_project_path = project_path or repo.local_path
@@ -241,23 +242,40 @@ async def delete_project(project_id: int, _token: TokenDep):
                     pipe.delete(f"indexing:cancel:{repo.id}")
                     await pipe.execute()
                 except Exception as e:
-                    logger.warning("[ProjectsAPI] Failed to clear cache for repo %d: %s", repo.id, e)
+                    logger.warning(
+                        "[ProjectsAPI] Failed to clear cache for repo %d: %s",
+                        repo.id,
+                        e,
+                    )
 
                 try:
                     vector_store = get_vector_store(project_path=local_project_path)
-                    await asyncio.to_thread(vector_store.delete_by_repository, str(repo.id))
+                    await asyncio.to_thread(
+                        vector_store.delete_by_repository, str(repo.id)
+                    )
                 except Exception as e:
-                    logger.warning("[ProjectsAPI] Failed to cleanup vector store for repo %d: %s", repo.id, e)
+                    logger.warning(
+                        "[ProjectsAPI] Failed to cleanup vector store for repo %d: %s",
+                        repo.id,
+                        e,
+                    )
 
             async with session_scope() as session:
                 for repo in repos:
                     repo_to_delete = await session.get(Repository, repo.id)
                     if repo_to_delete:
                         await session.delete(repo_to_delete)
-                        logger.info("[ProjectsAPI] Deleted local repository and all associated data for repo %d", repo.id)
+                        logger.info(
+                            "[ProjectsAPI] Deleted local repository and all associated data for repo %d",
+                            repo.id,
+                        )
 
     except Exception as e:
-        logger.error("[ProjectsAPI] Failed to cleanup local data for project %d: %s", project_id, e)
+        logger.error(
+            "[ProjectsAPI] Failed to cleanup local data for project %d: %s",
+            project_id,
+            e,
+        )
 
     evocloud_manager.invalidate_projects_cache()
     return ProjectDeleteResponse(status="success", id=project_id)

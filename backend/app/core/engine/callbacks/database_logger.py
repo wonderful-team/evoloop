@@ -173,8 +173,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         run_id_str = str(run_id)
 
         # 使用传入的 metadata 参数，而不是从 kwargs 中提取（因为它已被参数捕获）
-        effective_metadata = metadata or {}
-        tool_call_id = effective_metadata.get("_evoloop_tool_call_id") or kwargs.get("tool_call_id")
+        tool_call_id = kwargs.get("tool_call_id")
 
         # Parse input data
         input_data = parse_tool_input(input_str)

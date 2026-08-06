@@ -4,10 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.core.routing.routing_data import get_store
-from app.core.routing.schemas import IntentHint, RouteDecision
-
-_routing_store = get_store()
+from app.core.routing.schemas import INTENT_MACRO_TASK, IntentHint, RouteDecision
 
 
 def build_decision(
@@ -20,8 +17,6 @@ def build_decision(
     session_history: list[str] | None = None,
 ) -> RouteDecision:
     """Turn an L0 action tuple into a channel-independent routing decision."""
-    builtin_actions = _routing_store.builtin_actions
-
     if action.startswith("macro:"):
         macro_id = int(action.split(":", 1)[1])
         return RouteDecision(
@@ -31,28 +26,10 @@ def build_decision(
             params=args,
             confidence=confidence,
             intent_hint=IntentHint(
-                intent="macro_task",
+                intent=INTENT_MACRO_TASK,
                 confidence=confidence,
                 suggested_modules=["Base", "Macro"],
                 reason="L0 macro match",
-                previous_intent=previous_intent,
-                session_history=session_history,
-            ),
-            source=source,
-        )
-
-    if action in builtin_actions:
-        return RouteDecision(
-            status="routed",
-            target_type="builtin",
-            target={"type": "builtin", "action": action},
-            params=args,
-            confidence=confidence,
-            intent_hint=IntentHint(
-                intent="builtin_task",
-                confidence=confidence,
-                suggested_modules=["Base"],
-                reason="L0 builtin match",
                 previous_intent=previous_intent,
                 session_history=session_history,
             ),
@@ -66,7 +43,7 @@ def build_decision(
         params=args,
         confidence=confidence,
         intent_hint=IntentHint(
-            intent="macro_task",
+            intent=INTENT_MACRO_TASK,
             confidence=confidence,
             suggested_modules=["Base"],
             reason="L0 local action match",

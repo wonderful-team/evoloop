@@ -78,21 +78,44 @@ async def get_devices(token: TokenDep):
 async def send_command(device_key: str, req: SendCommandRequest, token: TokenDep):
     """Send remote command."""
     cmd_data = req.model_dump()
-    # 与 Gateway 的 MobileCommandRequest 对齐：业务数据必须放在 content 字段
-    if "content" not in cmd_data:
-        cmd_data["content"] = cmd_data.pop("params", {}) or {}
-    res = await evocloud_manager.api.send_command_to_device(device_key, cmd_data, token=token)
-    if res.get("code") != 0:
-        raise HTTPException(500, res.get("message"))
+
+    # Build canonical command body expected by the Gateway.
+    content = cmd_data.pop("content", None) or cmd_data.pop("params", {}) or {}
+    command_type = cmd_data.pop("command_type", "relay")
+    body = {"action": command_type, "content": content, **cmd_data}
+
+    # Map API command_type to canonical envelope type.
+    # 通用指令统一走 command.relay，由接收端按 body.action 分发（与 Mobile 端
+    # conversations.ts 的 memory_add/update/delete 发送格式一致）。仅 gateway
+    # 有专门 handler 的类型（stop/retry/rewind/hitl.response/hitl.cancel）需要
+    # 显式映射；memory.sync / message.sync 是 Agent 主动推送数据快照的类型，
+    # 不能用作指令（接收端 subscribers 只处理 command.relay/retry/rewind）。
+    envelope_type_map = {
+        "stop": "command.stop",
+        "retry": "command.retry",
+        "rewind": "command.rewind",
+        "hitl_response": "hitl.response",
+        "hitl_cancel": "hitl.cancel",
+    }
+    envelope_type = envelope_type_map.get(command_type, "command.relay")
+
+    res = await evocloud_manager.api.send_command_to_device(device_key, body, token=token, envelope_type=envelope_type)
+    code = res.get("code")
+    message = res.get("message", "")
+    if code != 0:
+        status_code = 500
+        if code == 404 or "device not found" in message.lower():
+            status_code = 404
+        raise HTTPException(status_code, message)
     return res.get("data")
 
 
 @router.get("/{device_key}/logs")
 async def get_recent_logs(
-    device_key: int,
+    device_key: str,
+    _token: TokenDep,
     limit: int = 20,
     project_id: int | None = None,
-    token: TokenDep = None,
 ):
     """Get recent logs from device"""
     res = await evocloud_manager.api.get_device_logs(device_key, limit, project_id)
@@ -104,10 +127,10 @@ async def get_recent_logs(
 @router.get("/{device_key}/logs/search")
 async def search_logs(
     device_key: str,
+    _token: TokenDep,
     query: str,
     limit: int = 20,
     project_id: int | None = None,
-    token: TokenDep = None,
 ):
     """Search logs"""
     res = await evocloud_manager.api.search_device_logs(device_key, query, limit, project_id)
@@ -138,12 +161,12 @@ async def bind_current_device(req: BindClientRequest, _token: TokenDep):
 async def get_debug_status(_token: TokenDep):
     """Debug endpoint to check EvoCloud client state"""
     token = await evocloud_manager.get_token()
+    link = evocloud_manager.link if evocloud_manager else None
     return DebugStatusResponse(
-        token=token,
         is_logged_in=bool(token),
         token_prefix=(token[:10] + "...") if token else None,
-        device_key=evocloud_manager.link.device_key if evocloud_manager.link else None,
-        device_name=evocloud_manager.link.device_name if evocloud_manager.link else "Unknown",
-        is_connected=evocloud_manager.link.is_connected() if evocloud_manager.link else False,
+        device_id=link.device_key if link else None,
+        device_name=link.device_name if link else "Unknown",
+        is_connected=link.is_connected() if link else False,
         api_url=evocloud_manager.api.base_url if evocloud_manager.api else "Unknown",
     )

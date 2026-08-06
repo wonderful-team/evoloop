@@ -19,7 +19,10 @@ logger = logging.getLogger(__name__)
 
 # ========== Cloud Device Authentication ==========
 
-async def verify_device_token(authorization: str = Header(..., description="Bearer {device_token}")) -> str:
+
+async def verify_device_token(
+    authorization: str = Header(..., description="Bearer {device_token}"),
+) -> str:
     """
     Verify device token for cloud API endpoints.
 
@@ -36,9 +39,25 @@ async def verify_device_token(authorization: str = Header(..., description="Bear
     # TODO: Validate token against device registry
     # For now, accept any non-empty token
     if not token:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Empty device token")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Empty device token"
+        )
 
     return token
+
+
+def extract_bearer_token(authorization: str | None) -> str | None:
+    """
+    Extract a bearer token from an Authorization header value.
+
+    Returns ``None`` when the header is absent/empty. A non-bearer value is
+    returned unchanged.
+    """
+    if not authorization:
+        return None
+    if authorization.startswith("Bearer "):
+        return authorization.replace("Bearer ", "")
+    return authorization
 
 
 def get_db() -> Generator[Session, None, None]:
@@ -49,14 +68,20 @@ def get_db() -> Generator[Session, None, None]:
 SessionDep = Annotated[Session, Depends(get_db)]
 
 # Global OAuth2 Scheme
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/login/access-token")
-oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/login/access-token", auto_error=False)
+oauth2_scheme = OAuth2PasswordBearer(
+    tokenUrl=f"{settings.API_V1_STR}/login/access-token"
+)
+oauth2_scheme_optional = OAuth2PasswordBearer(
+    tokenUrl=f"{settings.API_V1_STR}/login/access-token", auto_error=False
+)
 
 TokenDep = Annotated[str, Depends(oauth2_scheme)]
 TokenDepOptional = Annotated[str | None, Depends(oauth2_scheme_optional)]
 
 
-async def _get_authenticated_user(request: Request, token: str | None = None) -> User | None:
+async def _get_authenticated_user(
+    request: Request, token: str | None = None
+) -> User | None:
     """
     Core authentication logic:
     1. Read member_id already resolved by ContextMiddleware from request.state (zero extra I/O).
@@ -106,7 +131,9 @@ async def get_current_user(request: Request, token: TokenDepOptional = None) -> 
 CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
-async def get_current_user_optional(request: Request, token: TokenDepOptional = None) -> User | None:
+async def get_current_user_optional(
+    request: Request, token: TokenDepOptional = None
+) -> User | None:
     """
     Get user if session or token is present, otherwise return None.
     """
@@ -136,7 +163,9 @@ async def check_benefit(benefit_code: str, token: TokenDep) -> bool:
         return False
 
 
-async def check_multiple_benefits(benefit_codes: list[str], token: TokenDep) -> dict[str, bool]:
+async def check_multiple_benefits(
+    benefit_codes: list[str], token: TokenDep
+) -> dict[str, bool]:
     """
     Check multiple benefits in one go (Thin Proxy).
     """
@@ -158,7 +187,11 @@ async def check_multiple_benefits(benefit_codes: list[str], token: TokenDep) -> 
         for code in benefit_codes:
             # Check dict
             val = benefits.get(code, False)
-            result[code] = val if isinstance(val, bool) else (val > 0 if isinstance(val, int | float) else False)
+            result[code] = (
+                val
+                if isinstance(val, bool)
+                else (val > 0 if isinstance(val, int | float) else False)
+            )
         return result
     except Exception as e:
         logger.error(f"Batch benefit check failed: {e}")
@@ -170,7 +203,9 @@ def raise_benefit_required(benefit_code: str, current_level: str | None = None):
     抛出统一的权益不足异常
     """
     detail_model = create_benefit_error_detail(benefit_code, current_level)
-    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail_model.model_dump())
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN, detail=detail_model.model_dump()
+    )
 
 
 def require_benefit(benefit_code: str):
@@ -194,7 +229,9 @@ def require_benefit(benefit_code: str):
             current_level = None
             try:
                 member_id = await identity_service.get_member_id(token)
-                benefits_data = await benefit_service.get_member_entitlements(member_id, token)
+                benefits_data = await benefit_service.get_member_entitlements(
+                    member_id, token
+                )
                 current_level = benefits_data.get("level_name")
             except Exception as e:
                 logger.debug("Suppressed error: %s", e, exc_info=True)
@@ -242,7 +279,9 @@ async def verify_guest_access(
     effective_guest_id = x_guest_id or guest_id
 
     if not effective_guest_id:
-        raise HTTPException(status_code=401, detail="Authentication required (or guest_id)")
+        raise HTTPException(
+            status_code=401, detail="Authentication required (or guest_id)"
+        )
 
     # Check Guest Limits via cache
     try:
@@ -272,4 +311,6 @@ async def verify_guest_access(
     except Exception as e:
         logger.error(f"Cache error during guest check: {e}")
         # Fail-Close: If cache is down, we cannot verify quota, so we must deny to prevent abuse.
-        raise HTTPException(status_code=503, detail="Guest validation service temporary unavailable.")
+        raise HTTPException(
+            status_code=503, detail="Guest validation service temporary unavailable."
+        )

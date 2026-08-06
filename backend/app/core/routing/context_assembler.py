@@ -3,15 +3,15 @@
 from __future__ import annotations
 
 from app.core.routing.conversation_state import _ANAPHORA_RE
+from app.core.routing.schemas import DOMAIN_AMBIGUOUS, INTENT_DIRECT_ANSWER, INTENT_MACRO_TASK
 
 # Non-knowledge L0 labels.  When the immediately preceding turn is one of these,
 # an anaphoric reference is likely pointing to an entity from a turn earlier than
 # the last one, so we include the full rolling history.
 _NON_KNOWLEDGE_PREVIOUS_INTENTS: set[str] = {
-    "macro_task",
-    "builtin_task",
-    "direct_answer",
-    "ambiguous",
+    INTENT_MACRO_TASK,
+    INTENT_DIRECT_ANSWER,
+    DOMAIN_AMBIGUOUS,
 }
 
 

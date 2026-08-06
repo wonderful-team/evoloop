@@ -12,50 +12,61 @@ here, not a model retrain.
 
 from __future__ import annotations
 
+from app.core.routing.schemas import (
+    DOMAIN_AMBIGUOUS,
+    INTENT_DIRECT_ANSWER,
+    INTENT_ENVIRONMENT_QUERY,
+    INTENT_MACRO_TASK,
+    INTENT_MEMORY_QUERY,
+    INTENT_WORKER_TASK,
+)
+
 DOMAIN_TO_INTENT_MODULES: dict[str, tuple[str, list[str]]] = {
     # Knowledge / task domains that delegate to the worker agent
-    "coding_dev": ("worker_task", ["Base", "Skill", "Project"]),
-    "coding_test": ("worker_task", ["Base", "Skill", "Project"]),
-    "coding_ops": ("worker_task", ["Base", "Skill", "Project"]),
-    "business": ("worker_task", ["Base", "Skill", "Project"]),
-    "ecommerce": ("worker_task", ["Base", "Skill", "Project"]),
-    "shopping": ("worker_task", ["Base", "Skill", "Project"]),
-    "legal": ("worker_task", ["Base", "Skill", "Project"]),
-    "medical": ("worker_task", ["Base", "Skill", "Project"]),
-    "marketing": ("worker_task", ["Base", "Skill", "Project"]),
-    "travel": ("worker_task", ["Base", "Skill", "Project"]),
-    "food": ("worker_task", ["Base", "Skill", "Project"]),
-    "sports": ("worker_task", ["Base", "Skill", "Project"]),
-    "entertainment": ("worker_task", ["Base", "Skill", "Project"]),
-    "research": ("worker_task", ["Base", "Skill", "Project"]),
-    "education": ("worker_task", ["Base", "Skill", "Project"]),
-    "industry": ("worker_task", ["Base", "Skill", "Project"]),
-    "finance": ("worker_task", ["Base", "Skill", "Project"]),
-    "daily_life": ("worker_task", ["Base", "Skill", "Project"]),
-    "news": ("worker_task", ["Base", "Skill", "Project"]),
-    "weather": ("worker_task", ["Base", "Skill", "Project"]),
+    "coding_dev": (INTENT_WORKER_TASK, ["Base", "Skill", "Project"]),
+    "coding_test": (INTENT_WORKER_TASK, ["Base", "Skill", "Project"]),
+    "coding_ops": (INTENT_WORKER_TASK, ["Base", "Skill", "Project"]),
+    "business": (INTENT_WORKER_TASK, ["Base", "Skill", "Project"]),
+    "ecommerce": (INTENT_WORKER_TASK, ["Base", "Skill", "Project"]),
+    "shopping": (INTENT_WORKER_TASK, ["Base", "Skill", "Project"]),
+    "legal": (INTENT_WORKER_TASK, ["Base", "Skill", "Project"]),
+    "medical": (INTENT_WORKER_TASK, ["Base", "Skill", "Project"]),
+    "marketing": (INTENT_WORKER_TASK, ["Base", "Skill", "Project"]),
+    "travel": (INTENT_WORKER_TASK, ["Base", "Skill", "Project"]),
+    "food": (INTENT_WORKER_TASK, ["Base", "Skill", "Project"]),
+    "sports": (INTENT_WORKER_TASK, ["Base", "Skill", "Project"]),
+    "entertainment": (INTENT_WORKER_TASK, ["Base", "Skill", "Project"]),
+    "research": (INTENT_WORKER_TASK, ["Base", "Skill", "Project"]),
+    "education": (INTENT_WORKER_TASK, ["Base", "Skill", "Project"]),
+    "industry": (INTENT_WORKER_TASK, ["Base", "Skill", "Project"]),
+    "finance": (INTENT_WORKER_TASK, ["Base", "Skill", "Project"]),
+    "daily_life": (INTENT_WORKER_TASK, ["Base", "Skill", "Project"]),
+    "news": (INTENT_WORKER_TASK, ["Base", "Skill", "Project"]),
+    "weather": (INTENT_WORKER_TASK, ["Base", "Skill", "Project"]),
     # System / host / runtime queries
-    "system_info": ("environment_query", ["Base", "Environment"]),
+    "system_info": (INTENT_ENVIRONMENT_QUERY, ["Base", "Environment"]),
     # Personal memory / recall
-    "memory": ("memory_query", ["Base", "Memory"]),
+    "memory": (INTENT_MEMORY_QUERY, ["Base", "Memory"]),
     # Lightweight conversational turns
-    "greeting": ("direct_answer", ["Base"]),
-    "chitchat": ("direct_answer", ["Base"]),
+    "greeting": (INTENT_DIRECT_ANSWER, ["Base"]),
+    "chitchat": (INTENT_DIRECT_ANSWER, ["Base"]),
+    # Session-level control ("再见/拜拜/退出对话") — resolved by the L1 agent
+    # as a light direct answer; keep it out of the ambiguous full-context bucket.
+    "session_control": (INTENT_DIRECT_ANSWER, ["Base"]),
     # Compound / multi-intent detected by the routing layer
-    "multi_intent": ("worker_task", ["Base", "Skill", "Project"]),
+    "multi_intent": (INTENT_WORKER_TASK, ["Base", "Skill", "Project"]),
     # Local / device / media / conversation actions that L0 usually handles fast.
     # These are included so L1 can catch L0 misses while still mapping to the
     # same functional intent and module set the fast path would have used.
-    "media_control": ("macro_task", ["Base", "Macro"]),
-    "app_control": ("macro_task", ["Base", "Macro"]),
-    "device_control": ("macro_task", ["Base", "Macro"]),
-    "session_control": ("builtin_task", ["Base"]),
+    "media_control": (INTENT_MACRO_TASK, ["Base", "Macro"]),
+    "app_control": (INTENT_MACRO_TASK, ["Base", "Macro"]),
+    "device_control": (INTENT_MACRO_TASK, ["Base", "Macro"]),
     # Fallback when the classifier is uncertain or the domain is unknown
-    "ambiguous": ("ambiguous", ["Base", "Memory", "Environment"]),
+    "ambiguous": (DOMAIN_AMBIGUOUS, ["Base", "Memory", "Environment"]),
 }
 
 DEFAULT_INTENT_MODULES: tuple[str, list[str]] = (
-    "ambiguous",
+    DOMAIN_AMBIGUOUS,
     ["Base", "Memory", "Environment"],
 )
 

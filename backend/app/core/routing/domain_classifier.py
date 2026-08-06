@@ -20,7 +20,11 @@ import numpy as np
 from tokenizers import Tokenizer
 
 from app.core.config import settings
-from app.core.routing.schemas import IntentHint
+from app.core.routing.schemas import (
+    DOMAIN_AMBIGUOUS,
+    INTENT_DOMAIN_CLASSIFIED,
+    IntentHint,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -34,10 +38,6 @@ _MODEL_DIR = Path(settings.MODELS_DIR) / "domain_classifier"
 _MODEL_PATH = _MODEL_DIR / "classifier.onnx"
 _LABEL_PATH = _MODEL_DIR / "labels.json"
 _TOKENIZER_PATH = _MODEL_DIR / "tokenizer.json"
-
-# Sentinel intent used when the router leaves the functional intent/modules
-# resolution to the agent engine.
-_DOMAIN_CLASSIFIED_INTENT = "domain_classified"
 
 _session: Any = None
 _tokenizer: Any = None
@@ -135,9 +135,9 @@ def to_intent_hint(
     placeholders; the agent engine maps ``domain`` to the concrete functional
     intent and module list.
     """
-    domain = label if label else "ambiguous"
+    domain = label if label else DOMAIN_AMBIGUOUS
     return IntentHint(
-        intent=_DOMAIN_CLASSIFIED_INTENT,
+        intent=INTENT_DOMAIN_CLASSIFIED,
         domain=domain,
         confidence=confidence,
         suggested_modules=[],
@@ -147,26 +147,8 @@ def to_intent_hint(
     )
 
 
-def reload() -> None:
-    """Hot-reload the model after retraining."""
-    global _session, _tokenizer, _id2name
-    with _lock:
-        _session = None
-        _tokenizer = None
-        _id2name = {}
-        _load()
-
-
-def initialize() -> bool:
-    """Eagerly load the model at startup to avoid cold-start latency."""
-    with _lock:
-        if _session is not None and _tokenizer is not None:
-            return True
-        return _load()
-
-
 # Eager load at module import time for low-latency first request.
-initialize()
+_load()
 
 
-__all__ = ["predict", "to_intent_hint", "reload", "initialize"]
+__all__ = ["predict", "to_intent_hint"]

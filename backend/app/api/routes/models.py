@@ -9,13 +9,13 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
-from app.infrastructure.voice.model_manager import model_manager
+from app.infrastructure.voice.model_manager import MODEL_DEFS, model_manager
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/models", tags=["models"])
 
-_ALL_MODEL_IDS = ["qwen3_asr"]
+_ALL_MODEL_IDS = list(MODEL_DEFS.keys())
 
 
 class DownloadRequest(BaseModel):

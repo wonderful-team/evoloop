@@ -69,8 +69,8 @@ class MacroExecuteRequest(BaseModel):
     params: dict = {}
 
 
-def _to_dto(m: Macro) -> MacroDTO:
-    return MacroDTO(
+def _to_dto(m: Macro) -> MacroDetailDTO:
+    return MacroDetailDTO(
         id=m.id,
         app_map_id=m.app_map_id,
         entity=m.entity,

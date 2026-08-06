@@ -26,7 +26,6 @@ import tempfile
 import time
 from pathlib import Path
 
-import yaml
 from sqlalchemy import or_, select
 
 from app.constants import DEFAULT_PROJECT_ID
@@ -60,6 +59,7 @@ from app.infrastructure.video.schemas import (
 )
 from app.models import TraceEvent
 from app.utils.template import render_template
+from app.utils.yaml import YAMLError, safe_yaml_dumps, safe_yaml_loads
 
 logger = logging.getLogger(__name__)
 
@@ -230,11 +230,8 @@ class MultimodalSkillSynthesizer:
         macro_script = None
         if final_steps:
             macro_script = await asyncio.to_thread(
-                yaml.dump,
+                safe_yaml_dumps,
                 final_steps,
-                default_flow_style=False,
-                allow_unicode=True,
-                sort_keys=False,
             )
 
         processing_time = time.time() - start_time
@@ -280,11 +277,11 @@ class MultimodalSkillSynthesizer:
         # Defensive: older implementations returned a YAML string
         if isinstance(macro_script, str):
             try:
-                data = yaml.safe_load(macro_script)
+                data = safe_yaml_loads(macro_script)
                 if isinstance(data, dict) and "steps" in data:
                     return data["steps"]
                 return data if isinstance(data, list) else []
-            except (ValueError, TypeError, KeyError):
+            except YAMLError:
                 return []
         return macro_script if isinstance(macro_script, list) else []
 
@@ -740,7 +737,7 @@ class MultimodalSkillSynthesizer:
         instructions = self._extract_instructions(response)
 
         try:
-            metadata = yaml.safe_load(yaml_content) if yaml_content else {}
+            metadata = safe_yaml_loads(yaml_content) if yaml_content else {}
         except Exception as e:
             logger.error(f"Failed to parse LLM YAML metadata: {e}")
             metadata = {}

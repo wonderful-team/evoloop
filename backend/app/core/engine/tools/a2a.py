@@ -164,10 +164,7 @@ async def send_agent_task(
     }
 
     try:
-        await evocloud_manager.api.send_command_to_device(
-            device_key=target_device_key,
-            cmd_data=cmd_data
-        )
+        await evocloud_manager.api.send_command_to_device(device_key=target_device_key, cmd_data=cmd_data)
         logger.info(f"[A2A] Dispatched A2A task {task_id} to device {target_device_key}")
     except Exception as e:
         logger.error(f"[A2A] Failed to dispatch task to gateway: {e}")
@@ -284,10 +281,7 @@ async def complete_task(status: str, summary: str, attachments: list[str] = []) 
     }
 
     try:
-        await evocloud_manager.api.send_command_to_device(
-            device_key=caller_device_key,
-            cmd_data=cmd_data
-        )
+        await evocloud_manager.api.send_command_to_device(device_key=caller_device_key, cmd_data=cmd_data)
         logger.info(f"[A2A] Sent A2A callback result for task {thread_id} to device {caller_device_key}")
     except Exception as e:
         logger.error(f"[A2A] Failed to send callback to caller: {e}")

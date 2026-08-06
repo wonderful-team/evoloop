@@ -60,14 +60,24 @@ ENGINE_ACTIONS = {
     "a2a_callback",
 }
 
+# 信封类型 → 引擎动作。command.relay 的动作在 body.action 中；其余类型
+# 由信封类型本身决定（对应 schemas/types/ 下各自的独立 envelope 类型）。
+_MSG_TYPE_ACTION: dict[str, str] = {
+    "command.retry": "retry",
+    "command.rewind": "rewind",
+    "command.stop": "stop",
+    "hitl.response": "hitl_response",
+    "hitl.cancel": "hitl_cancel",
+}
+
 
 @event_register()
 class EngineCommandSubscriber:
     """
-    处理来自 WebSocket 的远程命令（command.relay）。
+    处理来自 WebSocket 的远程命令（command.relay / command.stop / hitl.response 等）。
 
     职责：
-    1. 订阅通用 WebSocket 消息事件，过滤 command.relay
+    1. 订阅通用 WebSocket 消息事件，过滤引擎域支持的信封类型
     2. 执行保障：semaphore、状态上报、超时控制
     3. 业务处理：HITL 响应、控制命令、普通消息调度
     4. 委托 Memory / A2A 命令到专用 handler
@@ -79,28 +89,29 @@ class EngineCommandSubscriber:
 
     @event_subscribe(SystemEventType.WEBSOCKET_MESSAGE_RECEIVED)
     async def on_ws_message(self, event: WebSocketMessageReceivedEvent) -> None:
-        if event.msg_type not in ("command.relay", "command.retry", "command.rewind"):
+        if event.msg_type == "command.relay":
+            pass
+        elif event.msg_type not in _MSG_TYPE_ACTION:
             return
 
-        raw_cmd = event.payload
-        # command.relay carries the action in body.action; command.retry/rewind
-        # encode the action in the envelope type itself.
+        raw_cmd = dict(event.payload or {})
+        # command.relay carries the action in body.action; the other envelope
+        # types encode the action in the type itself (schemas/types/*.json).
         if event.msg_type == "command.relay":
             action = raw_cmd.get("action") or "chat"
-        elif event.msg_type == "command.retry":
-            action = "retry"
         else:
-            action = "rewind"
+            action = _MSG_TYPE_ACTION[event.msg_type]
+            # hitl.response body.action is the schema enum confirm|choice|text;
+            # preserve it and stamp the engine-domain action for dispatch.
+            if event.msg_type == "hitl.response" and raw_cmd.get("action"):
+                raw_cmd["response_action"] = raw_cmd["action"]
+            raw_cmd["action"] = action
 
         # Normalize payload so downstream handlers can read message_id/revert_files
         if action in ("retry", "rewind") and "content" not in raw_cmd:
-            raw_cmd = {
-                **raw_cmd,
-                "action": action,
-                "content": {
-                    "message_id": raw_cmd.get("message_id"),
-                    "revert_files": raw_cmd.get("revert_files", True),
-                },
+            raw_cmd["content"] = {
+                "message_id": raw_cmd.get("message_id"),
+                "revert_files": raw_cmd.get("revert_files", True),
             }
 
         # Conversation metadata sync (rename, pin, delete) — no engine pipeline needed
@@ -282,12 +293,20 @@ class EngineCommandSubscriber:
         elif action in ("a2a_task", "a2a_callback"):
             await self._a2a_handler.handle(action, command)
         else:
-            logger.debug(f"[EngineCommand] Skipping action {action} in engine domain")
+            logger.warning(
+                "[EngineCommand] Skipping action %r in engine domain — no subscriber "
+                "handles it, message silently dropped",
+                action,
+            )
 
     async def _handle_hitl_response(self, command: RemoteCommand) -> None:
         thread_id = command.get("thread_id")
         payload = command.get_payload()
-        response = payload.get("response")
+        # schema hitl.response body: {request_id, action: confirm|choice|text,
+        # value}.  value 即用户答复。旧版 command.relay 形态把答复放在
+        # content.response。
+        response = command.get("value") or payload.get("value") or payload.get("response")
+        response_action = command.get("response_action") or payload.get("action")
 
         if not thread_id or response is None:
             logger.debug(
@@ -295,7 +314,11 @@ class EngineCommandSubscriber:
             )
             return
 
-        logger.info(f"[EngineCommand] Processing HITL Response for thread {thread_id}")
+        logger.info(
+            "[EngineCommand] Processing HITL Response for thread %s (action=%s)",
+            thread_id,
+            response_action or "unknown",
+        )
 
         # Persist the response message so it appears in history
         from app.core.engine.dispatch import persist_user_message

@@ -165,15 +165,13 @@ async def _validate_graph_reachability(
             if not action.controller or not action.touches_tables:
                 continue
             controller_path = action.controller.replace("\\", "/")
-            start_ids = await _resolve_start_entity_ids(
-                session, project_id, action.name, controller_path
+            start_ids = await _resolve_entity_ids(
+                session, project_id, action.name, path=controller_path
             )
             if not start_ids:
                 continue
             for table in action.touches_tables:
-                target_ids = await _resolve_target_entity_ids(
-                    session, project_id, table
-                )
+                target_ids = await _resolve_entity_ids(session, project_id, table)
                 if not target_ids:
                     continue
                 reachable = await _is_reachable_in_graph(session, start_ids, target_ids)
@@ -187,37 +185,19 @@ async def _validate_graph_reachability(
     return problems
 
 
-async def _resolve_start_entity_ids(
-    session, project_id: int, action_name: str, controller_path: str
+async def _resolve_entity_ids(
+    session, project_id: int, name: str, *, path: str | None = None
 ) -> set[int]:
-    """Find CodeEntity IDs for the action symbol inside its controller file."""
+    """Find CodeEntity IDs matching a symbol name, optionally within a file path."""
     stmt = (
         select(CodeEntity.id)
         .join(SourceFile)
         .join(Repository)
-        .where(
-            Repository.project_id == project_id,
-            SourceFile.path == controller_path,
-            _entity_name_matches(CodeEntity, action_name),
-        )
+        .where(Repository.project_id == project_id)
     )
-    result = await session.execute(stmt)
-    return {row[0] for row in result.all()}
-
-
-async def _resolve_target_entity_ids(
-    session, project_id: int, table_name: str
-) -> set[int]:
-    """Find CodeEntity IDs that likely represent the named DB table/model."""
-    stmt = (
-        select(CodeEntity.id)
-        .join(SourceFile)
-        .join(Repository)
-        .where(
-            Repository.project_id == project_id,
-            _entity_name_matches(CodeEntity, table_name),
-        )
-    )
+    if path is not None:
+        stmt = stmt.where(SourceFile.path == path)
+    stmt = stmt.where(_entity_name_matches(CodeEntity, name))
     result = await session.execute(stmt)
     return {row[0] for row in result.all()}
 

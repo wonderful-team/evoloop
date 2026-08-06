@@ -139,17 +139,25 @@ class MacroL0MatcherSubscriber:
     @event_subscribe(SystemEventType.MACRO_DELETED)
     @event_subscribe(SystemEventType.MACRO_OBSOLETED)
     async def on_macro_lifecycle(self, event) -> None:
-        """Invalidate the L0 matcher and ask the worker to refresh the shared cache.
+        """Invalidate the L0 RouteCatalog and schedule a debounced rebuild; also
+        refresh the navigation macro cache so macro changes are immediately routable.
 
-        The actual rebuild is performed by the Huey ``build_l0_init_spec`` task
-        so that API requests do not block on regex compilation.
+        Macro lifecycle events can arrive in bursts (e.g. CREATE + multiple UPDATE
+        events during synthesis).  A debounced rebuild coalesces the burst into a
+        single catalog rebuild after a short delay, while invalidating caches
+        eagerly keeps the next API request consistent.
         """
         from app.core.execution.macro.runner import invalidate_macro_cache
         from app.core.routing.matcher_cache import matcher_cache
+        from app.core.routing.navigation_macro_cache import get_navigation_macro_cache
 
         macro_id = self._macro_id_from_event(event)
         invalidate_macro_cache(macro_id)
-        matcher_cache.invalidate_and_schedule_rebuild()
+        await matcher_cache.invalidate_and_schedule_rebuild()
+        try:
+            await get_navigation_macro_cache().refresh()
+        except Exception:
+            logger.warning("[L0Matcher] navigation macro cache refresh failed", exc_info=True)
 
         logger.info(
             "[L0Matcher] scheduled debounced rebuild and navigation cache refresh after macro lifecycle event: %s (macro_id=%s)",

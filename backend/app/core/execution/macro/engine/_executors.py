@@ -193,7 +193,7 @@ class ExecutorMixin:
         elif event_type == "applescript":
             handle_res(await DesktopController.execute(action=tool_action, script=payload.get("script"), skip_recording=skip_recording))
         elif event_type == "screenshot":
-            handle_res(await DesktopController.execute(action=tool_action, region=payload.get("region"), skip_recording=skip_recording))
+            handle_res(await DesktopController.execute(action=tool_action, region=payload.get("region"), interactive=payload.get("interactive"), skip_recording=skip_recording))
         elif event_type == "get_active_app":
             handle_res(await DesktopController.execute(action=tool_action, skip_recording=skip_recording))
         elif event_type == "get_info":

@@ -13,21 +13,16 @@ from pathlib import Path
 from sqlalchemy import select
 
 from app.core.config import settings
-from app.core.engine.event.schemas import ConversationDeletedEvent
-from app.core.engine.event.types import ConversationEventType
-from app.core.engine.rewind import REWIND_REQUESTED, RewindRequestedEvent
-from app.core.events import SystemEventType
-from app.core.events.base import AsyncEventBus
-from app.core.events.decorators import (
-    event_register,
-    event_subscribe,
-    register_instance_handlers,
-)
 from app.core.engine.event import (
     ExtractionCompletedEvent,
     ExtractionRequest,
     ExtractionRequestedEvent,
 )
+from app.core.engine.event.schemas import ConversationDeletedEvent
+from app.core.engine.event.types import ConversationEventType
+from app.core.engine.rewind import REWIND_REQUESTED, RewindRequestedEvent
+from app.core.events import SystemEventType
+from app.core.events.decorators import event_register, event_subscribe
 from app.infrastructure.database import session_scope
 from app.models import Message
 
@@ -262,13 +257,17 @@ class MemoryRewind:
             container = MemoryLifespanManager.get_container()
             memory_manager = container.memory_manager
 
-            # Delete by source message ID
+            # Delete by source message ID.
+            # member_id=None: cleanup must not be scoped to member 0 (the
+            # search_memories default); memories are written with the owning
+            # member's id (see remember tool / harvest extraction).
             for msg_id in source_message_ids:
                 try:
                     results = await memory_manager.search_memories(
                         query="",
                         filters={"source_message_id": msg_id},
-                        limit=100
+                        limit=100,
+                        member_id=None,
                     )
 
                     for mem in results:
@@ -278,13 +277,18 @@ class MemoryRewind:
                 except Exception as e:
                     logger.warning(f"[MemoryRewind] Failed to delete memories for msg {msg_id}: {e}")
 
-            # Delete by run_id
+            # Delete by run_id.
+            # NOTE: MemoryIndex has no `run_id` column; the DB column is
+            # `source_run_id`. Passing filters={"run_id": ...} used to be
+            # silently dropped by _db_search, which then returned ALL memories
+            # (limit 100) and deleted unrelated rows. Use the real column.
             for run_id in run_ids:
                 try:
                     results = await memory_manager.search_memories(
                         query="",
-                        filters={"run_id": run_id},
-                        limit=100
+                        filters={"source_run_id": run_id},
+                        limit=100,
+                        member_id=None,
                     )
                     for mem in results:
                         if await memory_manager.delete_memory(mem.id):

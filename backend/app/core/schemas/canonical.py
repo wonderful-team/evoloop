@@ -43,6 +43,11 @@ class MessageType(str, Enum):
     VOICE_TTS_PLAY = "voice.tts_play"
     VOICE_DICTATION_FINALIZE = "voice.dictation.finalize"
     VOICE_DICTATION_POLISHED = "voice.dictation.polished"
+    VOICE_STATE = "voice.state"
+    VOICE_NAVIGATE = "voice.navigate"
+    DICTATION_PASTE = "dictation.paste"
+    SYSTEM_STATE_CHANGED = "system.state_changed"
+    SYSTEM_CONFIG_CHANGED = "system.config_changed"
 
 
 class EndpointKind(str, Enum):
@@ -147,7 +152,9 @@ class CommandRewindBody(BaseModel):
 
 class HITLRequestBody(BaseModel):
     request_id: str
-    request_type: str  # confirmation | choice | text | approval | project_switch | file_select
+    request_type: (
+        str  # confirmation | choice | text | approval | project_switch | file_select
+    )
     prompt: str
     options: list[str] | None = None
     context: str | None = None
@@ -280,4 +287,8 @@ def create_envelope(
 
 def is_canonical_envelope(data: dict) -> bool:
     """Check if a dict is a canonical envelope (has version='2.0' + message_id)."""
-    return isinstance(data, dict) and data.get("version") == "2.0" and isinstance(data.get("message_id"), str)
+    return (
+        isinstance(data, dict)
+        and data.get("version") == "2.0"
+        and isinstance(data.get("message_id"), str)
+    )

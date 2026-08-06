@@ -31,6 +31,13 @@ async def resume_graph_background(
 
     await ContextManager.load(thread_id)
 
+    # Resume may be triggered from a background task where the cached context
+    # did not retain the thread_id (or load failed). Make sure the current
+    # context carries the thread_id before hydration uses it.
+    ctx = ContextManager.current()
+    if ctx.thread_id is None:
+        ctx.thread_id = thread_id
+
     if isinstance(inputs, dict) and "messages" in inputs:
         inputs["messages"] = EvoMessageConverter.repair(inputs["messages"])
     state = AgentState.model_validate(inputs)
@@ -59,7 +66,7 @@ async def resume_graph_background(
         if clear_human_request_flag:
             await activity_monitor.clear_human_request(thread_id)
 
-        await activity_monitor.start_run(thread_id, run_label)
+        await activity_monitor.start_run(thread_id, run_label, run_id=run_id)
 
         resume_config = {**config, "callbacks": [callback, db_callback, trace_callback]}
 
@@ -68,16 +75,16 @@ async def resume_graph_background(
         await run_node_loop(state, resume_config, thread_id, log_prefix="ResumeGraph")
 
         await ContextManager.save(thread_id)
-        await activity_monitor.end_run(thread_id, "done")
+        await activity_monitor.end_run(thread_id, "done", run_id=run_id)
 
     except AgentCancelledException:
-        await activity_monitor.end_run(thread_id, "cancelled")
+        await activity_monitor.end_run(thread_id, "cancelled", run_id=run_id)
     except AgentHumanInterruptException:
         logger.info(f"Resume interrupted for human input: {thread_id}")
-        await activity_monitor.end_run(thread_id, "human_interrupt")
+        await activity_monitor.end_run(thread_id, "human_interrupt", run_id=run_id)
     except Exception as e:
         logger.error(f"Resume error for {thread_id}: {e}")
-        await activity_monitor.end_run(thread_id, "failed")
+        await activity_monitor.end_run(thread_id, "failed", run_id=run_id)
 
 
 async def _restore_resume_context(thread_id: str, state: AgentState, config: dict) -> None:

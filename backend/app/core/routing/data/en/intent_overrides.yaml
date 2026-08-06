@@ -17,13 +17,6 @@ context_map:
     Music: next track
     Spotify: next track
 
-# BERT intent labels that map to built-in L0 actions (ack, cancel, end, clarify, rename).
-builtin_aliases:
-  cancel: cancel
-  end: end
-  clarify: clarify
-  rename: rename
-
 # BERT intent label that is always treated as a complex query and delegated to the agent.
 complex_query_intent: complex_query
 
@@ -41,14 +34,6 @@ device_intent_trigger_intents:
   - disable_WiFi
   - switch_app
 
-# Canonical built-in L0 actions used by the decision builder.
-builtin_actions:
-  - ack
-  - cancel
-  - end
-  - clarify
-  - rename
-
 # Device keyword redirects: when a device keyword is present in the text and
 # the predicted intent is one of the open/switch/close intents, prefer these
 # candidate intent names for macro resolution.
@@ -64,6 +49,12 @@ device_intents:
   bluetooth_device:
     - connect bluetooth device
     - disconnect bluetooth device
+
+# Device-context words for the L0 macro twin layer (see zh intent_overrides).
+device_markers:
+  - phone
+  - Phone
+  - PHONE
 
 # English prefixes that are stripped when extracting a slot value from raw text.
 slot_prefixes:

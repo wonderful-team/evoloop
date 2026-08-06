@@ -50,6 +50,7 @@ async def get_pending_hitl_call(config: dict) -> dict | None:
                     t_call_id = last_hitl.tool_call_id or last_hitl.id
                     t_args = original.get("args") or {}
                     request_id = last_hitl.meta_data.get("hitl_request_id")
+                    authorization = last_hitl.meta_data.get("authorization") or {}
                     if t_name and t_call_id:
                         logger.info(
                             f"[HITL] Located pending authorization request for "
@@ -60,6 +61,9 @@ async def get_pending_hitl_call(config: dict) -> dict | None:
                             "name": t_name,
                             "args": t_args,
                             "request_id": request_id,
+                            # authorization 元数据（resource_path/action）标记这是
+                            # 授权门控工具，审批后应重执行而非仅回显 APPROVED。
+                            "authorization": authorization if authorization else None,
                         }
     except Exception as e:
         logger.warning(f"Failed to find pending HITL call: {e}")
@@ -152,6 +156,63 @@ class HITLOrchestrator:
             except Exception as e:
                 logger.warning(f"[HITL] cancel_request failed for {request_id}: {e}")
         return "CANCELLED"
+
+    @staticmethod
+    async def resolve_approved_tool_result(
+        pending_tool: dict,
+        config: dict,
+        fallback_result: str,
+        state=None,
+    ) -> str:
+        """审批后的工具结果：授权门控工具记录授权并重执行，返回真实结果；否则回退。
+
+        对 confirmation 类工具，``APPROVED`` 就是答案（``fallback_result``）。
+        对 authorization 门控工具（``pending_tool["authorization"]`` 存在），
+        审批后必须用原始参数重执行工具——否则工具会被标记完成但从未执行
+        （副作用缺失，Agent 却报告成功）。
+        """
+        authorization = pending_tool.get("authorization")
+        if not authorization:
+            return fallback_result
+
+        project_id = config.get("metadata", {}).get("project_id") or 0
+        from app.core.hitl.authorization import AuthorizationService
+
+        try:
+            await AuthorizationService(project_id).grant_permission(
+                resource_path=authorization.get("resource_path", ""),
+                action=authorization.get("action", "read"),
+                granted_by="hitl-approval",
+            )
+        except Exception as e:
+            logger.warning(f"[HITL] grant_permission failed for approval: {e}")
+
+        if state is None:
+            from app.core.engine.state import AgentState
+
+            state = AgentState(
+                thread_id=config.get("configurable", {}).get("thread_id"),
+                project_id=project_id,
+            )
+
+        tool_name = pending_tool.get("name")
+        tool_args = pending_tool.get("args") or {}
+        tool_call_id = pending_tool.get("id")
+        try:
+            from app.core.engine.tools.executor import AgentToolExecutor
+            from app.core.tools.manager import tool_manager
+
+            tool_map = {
+                t.name: t for t in await tool_manager.get_node_tools("worker", state)
+            }
+            executor = AgentToolExecutor(
+                tool_map=tool_map, state=state, config=config, name="HITLResume"
+            )
+            result = await executor.execute_tool(tool_name, tool_args, tool_call_id, [])
+            return result.message.content or ""
+        except Exception as e:
+            logger.error(f"[HITL] Re-execution failed for {tool_name}: {e}")
+            return f"[HITL Re-execution Failed] {e}"
 
     @staticmethod
     async def request_authorization(

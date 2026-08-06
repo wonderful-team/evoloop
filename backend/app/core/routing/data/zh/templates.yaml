@@ -3,54 +3,321 @@ voice_local_actions:
   params: {}
 - id: speak
   params: {}
-- id: clarify
-  params: {}
-- id: rename
-  params:
-    name: str
-- id: end
-  params: {}
-- id: ack
-  params: {}
-- id: cancel
-  params: {}
-templates:
-- action: clarify
-  patterns:
-  - 再说一遍
-  - 没听清
-  - 重说
-  slots: {}
-- action: rename
-  patterns:
-  - 你以后叫{name}
-  - 改名{name}
-  - 你的名字是{name}
-  slots:
-    name: str
-- action: end
-  patterns:
-  - 再见
-  - 拜拜
-  - 结束
-  - 退出对话
-  slots: {}
-- action: ack
-  patterns:
-  - 对对对
-  - 没错
-  - 就这个
-  - 可以
-  - 对的
-  - 是的
-  slots: {}
-- action: cancel
-  patterns:
-  - 算了
-  - 不用了
-  - 不要
-  - 取消
-  slots: {}
+templates: []
+# 口语填充词（可叠加剥离）：匹配前从用户语音中去除的礼貌/客套/口语前缀与后缀。
+polite_prefixes: [请, 帮我, 麻烦, 帮忙, 把, 给我, 帮我把, 帮我给, 我想, 我要, 麻烦把, 帮我去]
+polite_suffixes: [一下, 一下下, 一下儿, 吧, 呀, 啊, 呗, 嘛]
+# 槽位值清洗词：从提取出的槽位值中去除的口语填充（动词后的"一下"、指代词等）。
+slot_filler_prefixes: [一下, 一会儿, 这个, 那个, 这些, 那些, 然后, 并且, 再]
+slot_filler_suffixes: [一下, 谢谢, 吧, 啊, 嘛, 呀, 呗]
+# 应用名后缀噪声：匹配到应用名后剥离（"微信浏览器" → "微信"）。
+app_suffix_noise: [浏览器, 软件, app, APP, App]
+# 自由文本槽位拒绝词：防止 打开{dir}/访问{site} 吞掉应用名或指代词。
+free_text_reject_markers: [这个, 那个, 这些, 那些, 什么, 哪里, 哪个, 哪个文件]
+# 指代标记：判断本轮是否依赖前文（L1 指代消解输入）。等价于原代码内
+# 正则（它|它们|它的 / 这[个件] / 那[个件] 等），启动时编译。
+anaphora_markers: [它, 它们, 它的, 他, 他们, 他的, 她, 她们, 她的, 这个, 这件, 那个, 那件, 这些, 那些, 刚才, 之前, 上次, 前面]
+# 槽位余料字符：map-slot 余料仅允许这些填充字符（按 slot 名）。
+slot_filler_chars:
+  delta: 调给我到一点下把
+  key: 键一下
+apps:
+- name: WeChat
+  aliases:
+  - 微信
+  pinyin: weixin
+- name: Apple Music
+  aliases:
+  - 音乐
+  pinyin: yinyue
+- name: Safari
+  aliases:
+  - 浏览器
+  pinyin: liulanqi
+- name: Terminal
+  aliases:
+  - 终端
+  pinyin: zhongduan
+- name: System Settings
+  aliases:
+  - 设置
+  - 系统设置
+  pinyin: shezhi
+- name: Calculator
+  aliases:
+  - 计算器
+  pinyin: jisuanqi
+- name: Maps
+  aliases:
+  - 地图
+  pinyin: ditu
+- name: Finder
+  aliases:
+  - 访达
+  - 文件管理器
+  pinyin: fangda
+- name: Antigravity IDE
+  aliases:
+  - Android开发
+  - 安卓开发
+- name: Apifox
+  aliases:
+  - 接口调试工具
+  - 接口工具
+- name: App Cleaner 9
+  aliases:
+  - 清理工具
+- name: BaiduNetdisk
+  aliases:
+  - 百度网盘
+  - 网盘
+- name: Cap
+  aliases:
+  - 录屏工具
+- name: Charles
+  aliases:
+  - 抓包工具
+- name: Clash Verge
+  aliases:
+  - 代理工具
+  - 科学上网
+- name: Creality Slicer
+  aliases:
+  - 3D打印切片
+  - 切片软件
+- name: DevEco Studio
+  aliases:
+  - 华为开发工具
+  - 鸿蒙开发工具
+- name: Docker
+  aliases:
+  - 容器
+- name: FileZilla
+  aliases:
+  - FTP工具
+  - 文件传输
+- name: Google Chrome
+  aliases:
+  - 谷歌浏览器
+  - Chrome
+- name: HBuilderX
+  aliases:
+  - 前端开发工具
+- name: IntelliJ IDEA
+  aliases:
+  - IDEA
+  - Java编辑器
+  - Java开发工具
+- name: Keka
+  aliases:
+  - 解压工具
+- name: Keynote
+  aliases:
+  - 演示文稿
+- name: LLM Wiki
+  aliases:
+  - 知识库
+- name: LM Studio
+  aliases:
+  - 本地大模型
+- name: Lark
+  aliases:
+  - 飞书
+- name: Navicat Premium
+  aliases:
+  - 数据库工具
+  - Navicat
+- name: Numbers
+  aliases:
+  - 表格
+- name: Pages
+  aliases:
+  - 文稿
+- name: Paw
+  aliases:
+  - 接口测试工具
+- name: PhpStorm
+  aliases:
+  - PHP编辑器
+  - PHP开发工具
+- name: Pikka
+  aliases:
+  - 取色工具
+- name: PyCharm
+  aliases:
+  - Python编辑器
+  - Python开发工具
+- name: Sketch
+  aliases:
+  - 设计工具
+- name: Sublime Text
+  aliases:
+  - 文本编辑器
+  - Sublime
+- name: TencentMeeting
+  aliases:
+  - 腾讯会议
+- name: Termius
+  aliases:
+  - SSH工具
+- name: Typora
+  aliases:
+  - Markdown编辑器
+  - Markdown
+- name: UURemote
+  aliases:
+  - UU远程
+  - 远程控制
+- name: Visual Studio Code
+  aliases:
+  - Code
+  - VSCode
+  - 代码编辑器
+  - 微软代码编辑器
+- name: WireGuard
+  aliases:
+  - VPN
+- name: Xcode
+  aliases:
+  - Xcode
+- name: Microsoft Word
+  aliases:
+  - Word
+  - 微软文档
+- name: Microsoft Excel
+  aliases:
+  - Excel
+  - 微软表格
+- name: Microsoft PowerPoint
+  aliases:
+  - PowerPoint
+  - PPT
+  - 幻灯片
+- name: DingTalk
+  aliases:
+  - 钉钉
+- name: WeCom
+  aliases:
+  - 企业微信
+- name: TencentDocs
+  aliases:
+  - 腾讯文档
+- name: Notion
+  aliases:
+  - Notion
+  - 笔记软件
+- name: Obsidian
+  aliases:
+  - Obsidian
+- name: 石墨文档
+  aliases:
+  - 石墨文档
+- name: 网易邮箱大师
+  aliases:
+  - 邮箱大师
+  - 网易邮箱
+- name: iMovie
+  aliases:
+  - 视频剪辑
+  - 剪辑
+- name: iStat Menus
+  aliases:
+  - 系统监控
+  - 状态栏监控
+- name: iTerm2
+  aliases:
+  - iTerm
+- name: wechatwebdevtools
+  aliases:
+  - 微信开发者工具
+- name: wpsoffice
+  aliases:
+  - WPS
+  - 办公软件
+- name: 火箭TNT加速
+  aliases:
+  - 加速器
 aliases:
   音乐: Apple Music
   浏览器: Safari
+  微信: WeChat
+  Python编辑器: PyCharm
+  Python开发工具: PyCharm
+  代码编辑器: Visual Studio Code
+  微软代码编辑器: Visual Studio Code
+  谷歌浏览器: Google Chrome
+  谷歌: Google Chrome
+  钉钉: DingTalk
+  企业微信: WeCom
+  腾讯文档: TencentDocs
+  石墨文档: 石墨文档
+  邮箱大师: 网易邮箱大师
+  网易邮箱: 网易邮箱大师
+  Word: Microsoft Word
+  Excel: Microsoft Excel
+  PPT: Microsoft PowerPoint
+  PowerPoint: Microsoft PowerPoint
+  幻灯片: Microsoft PowerPoint
+  百度网盘: BaiduNetdisk
+  网盘: BaiduNetdisk
+  飞书: Lark
+  腾讯会议: TencentMeeting
+  微信开发者工具: wechatwebdevtools
+  接口调试工具: Apifox
+  数据库工具: Navicat Premium
+  FTP工具: FileZilla
+  文件传输: FileZilla
+  解压工具: Keka
+  演示文稿: Keynote
+  表格: Numbers
+  文稿: Pages
+  设计工具: Sketch
+  文本编辑器: Sublime Text
+  Markdown编辑器: Typora
+  视频剪辑: iMovie
+  剪辑: iMovie
+  容器: Docker
+  代理工具: Clash Verge
+  科学上网: Clash Verge
+  华为开发工具: DevEco Studio
+  鸿蒙开发工具: DevEco Studio
+  3D打印切片: Creality Slicer
+  切片软件: Creality Slicer
+  前端开发工具: HBuilderX
+  IDEA: IntelliJ IDEA
+  Java编辑器: IntelliJ IDEA
+  Java开发工具: IntelliJ IDEA
+  PHP编辑器: PhpStorm
+  PHP开发工具: PhpStorm
+  录屏工具: Cap
+  抓包工具: Charles
+  取色工具: Pikka
+  接口测试工具: Paw
+  系统监控: iStat Menus
+  状态栏监控: iStat Menus
+  SSH工具: Termius
+  UU远程: UURemote
+  远程控制: UURemote
+  本地大模型: LM Studio
+  知识库: LLM Wiki
+  Android开发: Antigravity IDE
+  安卓开发: Antigravity IDE
+  加速器: 火箭TNT加速
+  办公软件: wpsoffice
+  办公: wpsoffice
+  WPS: wpsoffice
+  iTerm: iTerm2
+  Code: Visual Studio Code
+  VSCode: Visual Studio Code
+  Chrome: Google Chrome
+  Navicat: Navicat Premium
+  Sublime: Sublime Text
+  Markdown: Typora
+  清理工具: App Cleaner 9
+  系统设置: System Settings
+  计算器: Calculator
+  地图: Maps
+  访达: Finder
+  文件管理器: Finder
+  终端: Terminal
+  设置: System Settings

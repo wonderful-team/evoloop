@@ -8,6 +8,12 @@ from app.core.environment.prompt import (
     AppEnvironmentPrompt,
     build_environment_summaries,
 )
+from app.core.routing.schemas import (
+    DOMAIN_AMBIGUOUS,
+    INTENT_ENVIRONMENT_QUERY,
+    INTENT_MACRO_TASK,
+    INTENT_WORKER_TASK,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -20,10 +26,10 @@ class EnvironmentContextPlugin(ContextPlugin):
 
     _LOAD_FOR_INTENTS: frozenset[str | None] = frozenset({
         None,
-        "environment_query",
-        "worker_task",
-        "ambiguous",
-        "macro_task",
+        INTENT_ENVIRONMENT_QUERY,
+        INTENT_WORKER_TASK,
+        DOMAIN_AMBIGUOUS,
+        INTENT_MACRO_TASK,
     })
 
     def is_needed(self, intent: str | None) -> bool:

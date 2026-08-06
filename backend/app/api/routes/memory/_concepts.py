@@ -151,7 +151,7 @@ async def add_concept(
             source_message_id=req.source_message_id,
             source_thread_id=req.source_thread_id,
             created_by_member_id=req.created_by_member_id or (current_user.id if current_user else 0),
-            memory_kind=req.memory_kind,
+            memory_kind=req.memory_kind or "concept",
         )
         return ConceptOperationResponse(status="success", name=req.name)
     except Exception as e:

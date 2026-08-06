@@ -57,7 +57,10 @@ async def publish_session_completed(data) -> None:
     """Publish a session completed event with full SessionCompletedData."""
     from app.core.events.schemas import SessionCompletedEvent
 
-    await system_bus.publish(SessionCompletedEvent(data=data))
+    # Preserve the source from the data payload so downstream channel policy
+    # (e.g. VoiceChannel) can route the event correctly.
+    source = getattr(data, "source", None) or "system"
+    await system_bus.publish(SessionCompletedEvent(data=data, source=source))
 
 
 async def publish_config_changed(key: str, old_value: str, new_value: str) -> None:

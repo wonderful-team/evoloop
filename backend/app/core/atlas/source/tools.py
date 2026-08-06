@@ -9,8 +9,6 @@ from __future__ import annotations
 import logging
 from typing import Annotated
 
-import yaml
-
 from app.core.atlas.source import persistence
 from app.core.atlas.source.event import publish_app_map_generate_completed
 from app.core.atlas.source.schemas import AppMapPayload
@@ -20,6 +18,7 @@ from app.core.engine.message.native_classes import RunnableConfig
 from app.core.tools import evoloop_tool, get_working_directory
 from app.core.tools.base import InjectedToolArg
 from app.utils.controller_response import ControllerResponse
+from app.utils.yaml import safe_yaml_dumps
 
 logger = logging.getLogger(__name__)
 

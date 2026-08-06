@@ -28,6 +28,7 @@ async def get_conversation_messages(
     thread_id: str,
     limit: int = 50,
     before_id: str | None = None,
+    include_tool_calls: bool = False,
 ):
     limit = min(max(limit, 1), 100)
     repo = MessageRepository(thread_id=thread_id)
@@ -51,8 +52,20 @@ async def get_conversation_messages(
 
         final_items = []
         for block in final_blocks:
-            item = MessageItem(**block.model_dump())
-            item.tool_calls = None
+            fields = {f: getattr(block, f) for f in block.model_fields}
+            # MessageItem.references 是 ReferenceItem 列表，与 MessageBlock 的
+            # MessageReference 非同构模型，直接透传对象会校验失败；序列化为 dict 后
+            # ReferenceItem 可正确解析（等价于原 block.model_dump() 行为）。
+            references = fields.get("references")
+            if references:
+                fields["references"] = [
+                    r.model_dump() if hasattr(r, "model_dump") else r
+                    for r in references
+                ]
+            item = MessageItem(**fields)
+            if not include_tool_calls:
+                # 默认不向客户端暴露工具内部调用（工具参数可能含敏感信息）
+                item.tool_calls = None
             if item.role == "tool":
                 item.content = ""
             final_items.append(item)

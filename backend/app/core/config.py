@@ -238,6 +238,11 @@ class Settings(BaseSettings):
     # AI Models Storage Configuration
     MODELS_DIR: Annotated[str | None, BeforeValidator(expand_path)] = None  # Directory for storing AI models (embeddings, etc.)
 
+    # HuggingFace endpoint / mirror. Used by huggingface_hub and the bundled model
+    # download helpers (e.g. bge-base-zh-v1.5 GGUF). Defaults to hf-mirror.com for
+    # better accessibility in mainland China; override via HF_ENDPOINT env var.
+    HF_ENDPOINT: str = Field("https://hf-mirror.com", validation_alias="HF_ENDPOINT")
+
     # Embedding Configuration
     EMBEDDING_DIMENSIONS: int = 768  # Nomic / Local Default
     EMBEDDING_ENABLED: bool = False  # Disable local embeddings by default to avoid CPU overload
@@ -474,6 +479,8 @@ class Settings(BaseSettings):
             gguf_dir = os.path.join(self.MODELS_DIR, "gguf")
             os.makedirs(gguf_dir, exist_ok=True)
             os.environ["LIGHTNING_GGUF_DIR"] = gguf_dir
+        # Ensure huggingface_hub and other download helpers use the configured mirror.
+        os.environ["HF_ENDPOINT"] = self.HF_ENDPOINT.rstrip("/")
         return self
 
     # Logic Limits

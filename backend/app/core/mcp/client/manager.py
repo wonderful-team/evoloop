@@ -250,6 +250,13 @@ class McpClientManager:
 
     async def disconnect(self, server_name: str) -> None:
         """Disconnect a single server."""
+        session = self._sessions.get(server_name)
+        if session is not None:
+            try:
+                await session.__aexit__(None, None, None)
+            except Exception as e:
+                logger.debug(f"Error closing session for '{server_name}': {e}")
+
         if server_name in self._stacks:
             try:
                 await self._stacks[server_name].aclose()
@@ -375,7 +382,7 @@ class McpClientManager:
                 resources = feature.get_resources()
                 return [
                     McpResource(
-                        uri=r.uri,
+                        uri=str(r.uri),
                         name=r.name,
                         mimeType=r.mimeType,
                         description=r.description,

@@ -1,19 +1,9 @@
-# Builtin and macro response strings used by the L0 routing layer.
+# Macro and local response strings used by the L0 routing layer.
 #
 # These were previously hardcoded in app/core/routing/actions.py and
 # app/core/routing/channels/voice.py.  Moving them to a data file makes it easy
-# to adjust copy/TTS without code changes.  Templates use Python `.format()`
+# to adjust copy/TTS without code changes. Templates use Python `.format()`
 # placeholders.
-
-builtin:
-  ack: 好的
-  cancel_success: 已取消
-  cancel_empty: 没有正在执行的任务
-  rename: 好的，以后叫我{name}
-  rename_no_name: 好的
-  end: 再见
-  clarify: 请再说一遍
-  unknown: "unknown builtin action: {action}"
 
 macro:
   not_found: 未找到该宏
@@ -28,3 +18,4 @@ local:
 generic:
   ok: 好的
   cancel: 已取消
+

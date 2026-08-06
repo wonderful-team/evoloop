@@ -14,19 +14,11 @@ from app.infrastructure.queue.factory import periodic_task, shared_task
 
 logger = logging.getLogger(__name__)
 
-SPEC_CACHE_KEY = "l0:init_spec:current"
-
 
 async def _rebuild() -> str:
-    from app.core.routing.init_spec import build_and_enrich_spec
-    from app.infrastructure.cache import cache
+    from app.core.routing.matcher_cache import build_and_cache_spec
 
-    spec = await build_and_enrich_spec()
-    try:
-        await cache.set(SPEC_CACHE_KEY, spec.model_dump_json())
-    except Exception:
-        logger.warning("[voice] cache write failed", exc_info=True)
-
+    spec = await build_and_cache_spec()
     logger.info(
         "[voice] RouteCatalog rebuilt: version=%s actions=%d",
         spec.version,

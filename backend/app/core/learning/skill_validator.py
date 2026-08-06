@@ -2,9 +2,8 @@ import logging
 import re
 from pathlib import Path
 
-import yaml
-
 from app.core.learning.schemas import ValidationResult
+from app.utils.yaml import YAMLError, safe_yaml_loads
 
 logger = logging.getLogger(__name__)
 
@@ -175,7 +174,7 @@ class SkillValidator:
 
             # First attempt: parse as-is
             try:
-                metadata = yaml.safe_load(frontmatter_text)
+                metadata = safe_yaml_loads(frontmatter_text)
                 if isinstance(metadata, dict):
                     # Check if any string values were incorrectly parsed as None
                     # (e.g., unquoted values starting with '#' are treated as comments)
@@ -185,17 +184,17 @@ class SkillValidator:
                     )
                     if not needs_fix:
                         return metadata, instructions
-            except yaml.YAMLError as e:
+            except YAMLError as e:
                 logger.warning(f"[SkillValidator] Initial YAML parse failed for {file_path}: {e}")
 
             # Second attempt: auto-fix common LLM errors and retry
             fixed_frontmatter = SkillValidator._fix_yaml_frontmatter(frontmatter_text)
             try:
-                metadata = yaml.safe_load(fixed_frontmatter)
+                metadata = safe_yaml_loads(fixed_frontmatter)
                 if isinstance(metadata, dict):
                     logger.info(f"[SkillValidator] Auto-fixed YAML frontmatter for {file_path}")
                     return metadata, instructions
-            except yaml.YAMLError as e2:
+            except YAMLError as e2:
                 logger.error(f"[SkillValidator] Auto-fix failed for {file_path}: {e2}")
 
             # Both attempts failed

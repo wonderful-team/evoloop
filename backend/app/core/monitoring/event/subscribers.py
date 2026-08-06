@@ -37,7 +37,8 @@ class MonitoringLifecycleSubscriber:
             await activity_monitor.end_run(
                 thread_id=data.thread_id,
                 status="done",
-                final_outcome=data.outcome
+                final_outcome=data.outcome,
+                run_id=data.run_id,
             )
             logger.debug(f"[Monitoring] ✓ Observability run finalized for {data.thread_id}")
         except Exception as e:

@@ -9,15 +9,16 @@ import logging
 import os
 from typing import Any
 
-import yaml
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 from app.core.config import settings
 from app.core.file import ensure_dir
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.models.learning import LearnedSkill
 from app.utils.extract import extract_section as _extract_section
 from app.utils.extract import extract_yaml_block as _extract_yaml_block
 from app.utils.time import normalize_timestamp_ms_to_sec as _normalize_timestamp
+from app.utils.yaml import safe_yaml_dumps
 
 logger = logging.getLogger(__name__)
 
@@ -32,30 +33,13 @@ class SkillExportModel(DynamicBaseModel):
     instructions: str | None = None
 
 
-def export_skill_to_filesystem(skill_data: Any) -> str | None:
+def export_skill_to_filesystem(skill_data: LearnedSkill | dict[str, Any]) -> str | None:
     """
     导出技能到文件系统 (SKILL.md)
     """
     try:
         # Convert to a standard export model to avoid getattr/Any mess
-        if not isinstance(skill_data, dict):
-            # Try model_dump if it's a Pydantic model
-            if hasattr(skill_data, "model_dump"):
-                data = skill_data.model_dump()
-            else:
-                # Fallback for other objects
-                data = {
-                    "name": skill_data.name,
-                    "namespace": skill_data.namespace or "misc",
-                    "description": skill_data.description,
-                    "trigger_patterns": skill_data.trigger_patterns or [],
-                    "parameters": skill_data.parameters or [],
-                    "preconditions": skill_data.preconditions or [],
-                    "instructions": skill_data.instructions,
-                }
-        else:
-            data = skill_data
-
+        data = skill_data if isinstance(skill_data, dict) else skill_data.model_dump()
         export = SkillExportModel(**data)
 
         base_dir = settings.SKILLS_DIR
@@ -65,13 +49,15 @@ def export_skill_to_filesystem(skill_data: Any) -> str | None:
         skill_md_path = os.path.join(namespace_path, "SKILL.md")
 
         # 构建 frontmatter
-        parameters = []
-        for p in export.parameters:
-            parameters.append(p.model_dump() if hasattr(p, "model_dump") else p)
+        parameters = [
+            p.model_dump() if isinstance(p, BaseModel) else p
+            for p in export.parameters
+        ]
 
-        preconditions = []
-        for p in export.preconditions:
-            preconditions.append(p.model_dump() if hasattr(p, "model_dump") else p)
+        preconditions = [
+            p.model_dump() if isinstance(p, BaseModel) else p
+            for p in export.preconditions
+        ]
 
         frontmatter = {
             "name": export.name,
@@ -83,7 +69,7 @@ def export_skill_to_filesystem(skill_data: Any) -> str | None:
 
         # 生成 Markdown 内容
         content = "---\n"
-        content += yaml.dump(frontmatter, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        content += safe_yaml_dumps(frontmatter)
         content += "---\n\n"
 
         if export.instructions:

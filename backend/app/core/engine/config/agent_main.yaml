@@ -73,6 +73,8 @@ nodes:
       - "ask_human"
       - "list_agents"
       - "send_agent_task"
+      # Session control (rename only; end/cancel are handled by natural agent response)
+      - "set_agent_name"
 
   - id: "worker"
     path: "app.core.engine.nodes.worker.WorkerNode"

@@ -60,9 +60,15 @@ class ActivityStateService:
 
         return session_scope
 
-    async def start_run(self, thread_id: str, main_goal: str = "", session=None) -> bool:
+    async def start_run(
+        self,
+        thread_id: str,
+        main_goal: str = "",
+        session=None,
+        run_id: str | None = None,
+    ) -> bool:
         """Initialize activity state for a new run."""
-        if session:
+        if session is not None:
             return await self._start_run_with_session(thread_id, main_goal, session)
 
         async with self._get_session_scope()() as s:
@@ -81,17 +87,33 @@ class ActivityStateService:
         activity.active_memories_json = json.dumps([])
         activity.human_request_json = None
         activity.final_outcome = ""
+        # 新 run 开始时清空可能的旧取消缓存，避免下一轮 run_scope 读取到 stale 的
+        # _CANCELLATION_CACHE（TTL 0.5s 内上一 run 的 check_cancellation 结果）。
+        _CANCELLATION_CACHE.pop(thread_id, None)
         return True
 
-    async def end_run(self, thread_id: str, status: str = "done", final_outcome: str | None = None, session=None) -> ActivityState:
+    async def end_run(
+        self,
+        thread_id: str,
+        status: str = "done",
+        final_outcome: str | None = None,
+        session=None,
+        run_id: str | None = None,
+    ) -> ActivityState:
         """Mark run as ended and return final state."""
-        if session:
+        if session is not None:
             return await self._end_run_with_session(thread_id, status, final_outcome, session)
 
         async with self._get_session_scope()() as s:
             return await self._end_run_with_session(thread_id, status, final_outcome, s)
 
-    async def _end_run_with_session(self, thread_id: str, status: str, final_outcome: str | None, session) -> ActivityState:
+    async def _end_run_with_session(
+        self,
+        thread_id: str,
+        status: str,
+        final_outcome: str | None,
+        session,
+    ) -> ActivityState:
         activity = await session.get(AgentActivity, thread_id)
         if activity is None:
             return ActivityState(status=status)

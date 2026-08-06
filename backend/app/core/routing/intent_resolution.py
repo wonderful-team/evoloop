@@ -1,7 +1,7 @@
 """Context-aware BERT intent-to-action resolution.
 
 This module takes a BERT intent label, applies context-aware redirects, guards,
-device keyword overrides, and macro/template/builtin resolution, returning an
+device keyword overrides, and macro resolution, returning an
 L0 action tuple (``action, args``) that the ``DecisionBuilder`` can turn into a
 ``RouteDecision``.
 """
@@ -70,8 +70,8 @@ class IntentResolver:
         if macro_match is not None:
             return macro_match
 
-        # 6. Builtin / local template resolution
-        return self._resolve_builtin_or_template(intent_name, text)
+        # 6. No L0 match -> delegate to the agent.
+        return None
 
     async def _redirect_by_context(self, intent_name: str) -> str:
         """Apply the active-app/phone context map to ``intent_name``."""
@@ -99,40 +99,6 @@ class IntentResolver:
             if keyword in text and intent_name in trigger_intents:
                 return targets
         return candidates
-
-    def _resolve_builtin_or_template(
-        self, intent_name: str, text: str
-    ) -> tuple[str, dict[str, Any]] | None:
-        """Fallback resolution against preset templates and builtin aliases."""
-        for template in self._routing_store.templates:
-            if intent_name == template.get("action"):
-                patterns = template.get("patterns", [])
-                if patterns and not any(
-                    re.search(re.escape(pattern).replace(r"\{name\}", r"(.+)"), text)
-                    for pattern in patterns
-                ):
-                    continue
-                return template["action"], {"name": text} if template["action"] == "rename" else {}
-
-        if intent_name in self._routing_store.builtin_aliases:
-            action = self._routing_store.builtin_aliases[intent_name]
-            if action == "rename":
-                rename_templates = [
-                    t
-                    for t in self._routing_store.templates
-                    if t.get("action") == "rename"
-                ]
-                if rename_templates:
-                    rename_patterns = [
-                        p.replace("{name}", ".+")
-                        for p in rename_templates[0].get("patterns", [])
-                    ]
-                    if any(re.search(p, text) for p in rename_patterns):
-                        return action, {"name": text}
-                return None
-            return action, {}
-
-        return None
 
 
 __all__ = ["IntentResolver"]

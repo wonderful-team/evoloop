@@ -10,8 +10,8 @@ presentation/execution.
 The pipeline is:
 
 1. Direct navigation routes (exact phrase match).
-2. BERT intent classification + context/guard/macro resolution.
-3. Deterministic local matcher fallback.
+2. Deterministic template match over RouteCatalog macro trigger patterns.
+3. BERT intent classification + context/guard/macro resolution.
 4. L1 domain classifier for agent delegation.  The agent engine maps the
    domain to a functional intent and module list.
 
@@ -32,20 +32,30 @@ from app.core.routing.action_classifier import predict as classifier_predict
 from app.core.routing.compound_detector import is_compound_intent
 from app.core.routing.context_assembler import build_high_intent_input
 from app.core.routing.conversation_state import (
+    _get_thread_device_context,
     _get_thread_intent_state,
+    _update_thread_device_context,
     _update_thread_intent_state,
 )
 from app.core.routing.decision_builder import build_decision
+from app.core.routing.device_kind import DeviceKind
 from app.core.routing.domain_classifier import CONFIDENCE_THRESHOLD as HIGH_INTENT_THRESHOLD
 from app.core.routing.intent_resolution import IntentResolver
-from app.core.routing.local_matcher import LocalMatcher
+from app.core.routing.macro_device_map import get_macro_device_map
 from app.core.routing.matcher_cache import matcher_cache
 from app.core.routing.navigation_macro_cache import (
     NavigationMacroCache,
     get_navigation_macro_cache,
 )
 from app.core.routing.routing_data import get_store
-from app.core.routing.schemas import IntentHint, RouteDecision
+from app.core.routing.schemas import (
+    DOMAIN_AMBIGUOUS,
+    DOMAIN_MULTI_INTENT,
+    INTENT_DOMAIN_CLASSIFIED,
+    INTENT_MACRO_TASK,
+    IntentHint,
+    RouteDecision,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -57,18 +67,11 @@ class CommandRouter:
 
     def __init__(
         self,
-        local_matcher: LocalMatcher | None = None,
         intent_resolver: IntentResolver | None = None,
         nav_macro_cache: NavigationMacroCache | None = None,
     ) -> None:
-        self._local_matcher = local_matcher
         self._intent_resolver = intent_resolver or IntentResolver()
         self._nav_macro_cache = nav_macro_cache or get_navigation_macro_cache()
-
-    async def _get_local_matcher(self) -> LocalMatcher:
-        if self._local_matcher is not None:
-            return self._local_matcher
-        return await matcher_cache.get()
 
     async def resolve(
         self,
@@ -102,7 +105,7 @@ class CommandRouter:
                 params={"route": nav_macro.route, "feedback": nav_macro.feedback},
                 confidence=1.0,
                 intent_hint=IntentHint(
-                    intent="macro_task",
+                    intent=INTENT_MACRO_TASK,
                     confidence=1.0,
                     suggested_modules=["Base", "Macro"],
                     reason="navigation macro match",
@@ -111,14 +114,36 @@ class CommandRouter:
                 ),
                 source=source,
             )
-            self._record_thread_intent(thread_id, decision, text)
+            await self._record_thread_intent(thread_id, decision, text)
             return decision
+
+        # 2. Template layer: deterministic RouteCatalog macro trigger patterns.
+        #    The anchored LocalMatcher runs before the BERT classifier so literal
+        #    commands ("打开微信", "打开腾讯会议") bind to the matching macro
+        #    regardless of embedding margin.  Anchoring guarantees the whole
+        #    utterance must be the command; anything else falls through to BERT.
+        template_matcher = await matcher_cache.get_local_matcher()
+        if template_matcher is not None:
+            template_hit = template_matcher.match(text)
+            if template_hit is not None:
+                action, args = template_hit
+                action = await self._disambiguate_device_macro(action, thread_id)
+                decision = build_decision(
+                    action,
+                    args,
+                    1.0,
+                    source,
+                    previous_intent=previous_intent,
+                    session_history=session_history,
+                )
+                await self._record_thread_intent(thread_id, decision, text)
+                return decision
 
         # 3. Compound / multi-intent guard: bypass L0 and delegate to agent.
         if is_compound_intent(text):
             intent_hint_obj = IntentHint(
-                intent="domain_classified",
-                domain="multi_intent",
+                intent=INTENT_DOMAIN_CLASSIFIED,
+                domain=DOMAIN_MULTI_INTENT,
                 confidence=1.0,
                 suggested_modules=[],
                 reason="compound_intent",
@@ -133,9 +158,9 @@ class CommandRouter:
                 confidence=1.0,
                 intent_hint=intent_hint_obj,
                 source=source,
-                raw="multi_intent",
+                raw=DOMAIN_MULTI_INTENT,
             )
-            self._record_thread_intent(thread_id, decision, text)
+            await self._record_thread_intent(thread_id, decision, text)
             return decision
 
         # 4. BERT intent classification + intent-specific resolution
@@ -155,23 +180,7 @@ class CommandRouter:
                 previous_intent=previous_intent,
                 session_history=session_history,
             )
-            self._record_thread_intent(thread_id, decision, text)
-            return decision
-
-        # 4. Deterministic local matcher fallback
-        matcher = await self._get_local_matcher()
-        l0_match = matcher.match(text)
-        if l0_match is not None:
-            action, args = l0_match
-            decision = build_decision(
-                action,
-                args,
-                1.0,
-                source,
-                previous_intent=previous_intent,
-                session_history=session_history,
-            )
-            self._record_thread_intent(thread_id, decision, text)
+            await self._record_thread_intent(thread_id, decision, text)
             return decision
 
         # 5. High-level intent classifier (L1) with multi-turn context
@@ -188,43 +197,70 @@ class CommandRouter:
         else:
             # L1 unavailable or low confidence: delegate to agent as ambiguous.
             intent_hint_obj = IntentHint(
-                intent="domain_classified",
-                domain="ambiguous",
+                intent=INTENT_DOMAIN_CLASSIFIED,
+                domain=DOMAIN_AMBIGUOUS,
                 confidence=0.0,
                 suggested_modules=[],
                 reason="L1 classifier unavailable or low confidence",
                 previous_intent=previous_intent,
                 session_history=session_history,
             )
-            raw_label = "ambiguous"
+            raw_label = DOMAIN_AMBIGUOUS
 
         decision = RouteDecision(
             status="delegate",
             target_type="agent",
             target={"type": "agent"},
             params={},
-            confidence=l1_conf if raw_label != "ambiguous" else 0.0,
+            confidence=l1_conf if raw_label != DOMAIN_AMBIGUOUS else 0.0,
             intent_hint=intent_hint_obj,
             source=source,
             raw=raw_label,
         )
-        self._record_thread_intent(thread_id, decision, text)
+        await self._record_thread_intent(thread_id, decision, text)
         return decision
 
     @staticmethod
-    def _record_thread_intent(thread_id: str, decision: RouteDecision, text: str) -> None:
+    async def _disambiguate_device_macro(action: str, thread_id: str) -> str:
+        """Re-target a device-agnostic macro hit to its phone twin.
+
+        When the thread's device context is ``phone`` (the previous turn ran a
+        phone macro, e.g. 手机播放音乐) and the freshly matched template macro
+        is a device-agnostic media macro with a phone counterpart (e.g. 下一曲),
+        the decision is re-targeted to the phone twin (手机切歌).  A no-op for
+        everything else: phone macros, macros without a twin, and threads with
+        no phone context.
+        """
+        if not action.startswith("macro:"):
+            return action
+        macro_id = int(action.split(":", 1)[1])
+        if _get_thread_device_context(thread_id) != DeviceKind.PHONE:
+            return action
+        twin = await get_macro_device_map().phone_twin(macro_id)
+        if twin is None or twin == macro_id:
+            return action
+        logger.info(
+            "[router] device context disambiguation: macro %d -> %d (thread=%s)",
+            macro_id,
+            twin,
+            thread_id,
+        )
+        return f"macro:{twin}"
+
+    @staticmethod
+    async def _record_thread_intent(thread_id: str, decision: RouteDecision, text: str) -> None:
         """Persist the resolved intent label on the per-thread L0 state.
 
-        All five resolve paths funnel through here so a subsequent anaphora turn
+        All resolve paths funnel through here so a subsequent anaphora turn
         can pick up the previous intent/domain regardless of whether the prior turn
-        was a local action, macro, builtin, or agent delegation.
+        was a local action, macro, or agent delegation.
 
         The recorded label is the *most descriptive* key available on the
         decision: when ``intent_hint.domain`` is set (L1 path) we prefer it over
         the ``domain_classified`` sentinel stored in ``intent``, because
         ``domain`` carries the actual functional domain (e.g. ``environment``)
         while ``intent`` is just a placeholder the engine later resolves. For
-        non-L1 paths (L0/macro/builtin/local) ``domain`` is absent and we fall
+        non-L1 paths (L0/macro/local) ``domain`` is absent and we fall
         back to the concrete ``intent`` label (e.g. ``macro_task``). ``raw`` is
         kept on the decision for debugging only and intentionally not used here
         so the recorded key stays consistent whether L1 succeeded or fell back
@@ -234,6 +270,16 @@ class CommandRouter:
         if decision.intent_hint:
             intent = decision.intent_hint.domain or decision.intent_hint.intent
         _update_thread_intent_state(thread_id, intent, text)
+
+        # Device context for the next turn's L0 disambiguation: a macro that
+        # carries the phone marker sets the thread to PHONE, a plain macro
+        # clears it back to DESKTOP so explicit desktop actions win.
+        if decision.target_type == "macro":
+            macro_id = decision.target.get("id")
+            if isinstance(macro_id, int):
+                device = await get_macro_device_map().device_of(macro_id)
+                if device is not None:
+                    _update_thread_device_context(thread_id, device)
 
 
 __all__ = ["CommandRouter"]

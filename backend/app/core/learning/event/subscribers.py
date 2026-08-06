@@ -13,6 +13,7 @@ from sqlalchemy import delete, or_
 from app.core.engine.rewind import REWIND_REQUESTED, RewindRequestedEvent
 from app.core.events.decorators import event_register, event_subscribe
 from app.core.events.registry import SystemEventType
+from app.core.execution.macro.event.schemas import MacroMutatedEvent
 from app.core.learning.event.schemas import SkillMutatedEvent
 from app.core.learning.skill_sync_service import skill_sync_service
 from app.infrastructure.database import session_scope
@@ -34,7 +35,9 @@ class TraceRewindSubscriber:
         run_ids = list(event.affected_run_ids or [])
 
         if not message_ids and not run_ids:
-            logger.debug(f"[TraceRewindSubscriber] No affected message/run IDs for thread {event.thread_id}; skipping.")
+            logger.debug(
+                f"[TraceRewindSubscriber] No affected message/run IDs for thread {event.thread_id}; skipping."
+            )
             return
 
         async with session_scope() as session:
@@ -56,7 +59,9 @@ class TraceRewindSubscriber:
             count = result.rowcount or 0
 
         event.results["trace_events"] = count
-        logger.info(f"[TraceRewindSubscriber] Deleted {count} trace events for thread {event.thread_id}")
+        logger.info(
+            f"[TraceRewindSubscriber] Deleted {count} trace events for thread {event.thread_id}"
+        )
 
 
 @event_register()
@@ -66,12 +71,18 @@ class LearningLifecycleSubscriber:
     @event_subscribe(SystemEventType.SKILL_CREATED)
     async def on_skill_created(self, event: SkillMutatedEvent) -> None:
         """Route-index refresh only; explicit user action exports to SKILL.md."""
-        logger.debug("[LearningLifecycleSubscriber] Skill created: %s", event.data.get("skill_id"))
+        logger.debug(
+            "[LearningLifecycleSubscriber] Skill created: %s",
+            event.data.get("skill_id"),
+        )
 
     @event_subscribe(SystemEventType.SKILL_UPDATED)
     async def on_skill_updated(self, event: SkillMutatedEvent) -> None:
         """Route-index refresh only; explicit user action exports to SKILL.md."""
-        logger.debug("[LearningLifecycleSubscriber] Skill updated: %s", event.data.get("skill_id"))
+        logger.debug(
+            "[LearningLifecycleSubscriber] Skill updated: %s",
+            event.data.get("skill_id"),
+        )
 
     @event_subscribe(SystemEventType.SKILL_DELETED)
     async def on_skill_deleted(self, event: SkillMutatedEvent) -> None:
@@ -90,22 +101,35 @@ class LearningLifecycleSubscriber:
 
 @event_register()
 class InitSpecRefreshSubscriber:
-    """Refresh the shared L0 RouteCatalog cache when skills mutate.
+    """Refresh the shared L0 RouteCatalog cache when skills or macros mutate.
 
-    Skills that become builtin macros affect the voice/chat routing catalog, so
-    we invalidate the in-process matcher and ask the Huey worker to rebuild the
-    shared cache. The next request loads the refreshed catalog.
+    Skills that become builtin macros and verified macros both affect the
+    voice/chat routing catalog, so we invalidate the in-process spec and ask the
+    Huey worker to rebuild the shared cache. The next request loads the
+    refreshed catalog.
     """
 
     @event_subscribe(SystemEventType.SKILL_CREATED)
     @event_subscribe(SystemEventType.SKILL_UPDATED)
     @event_subscribe(SystemEventType.SKILL_DELETED)
     async def on_skill_mutated(self, event: SkillMutatedEvent) -> None:
+        await self._schedule_matcher_rebuild(event, "skill", "skill_id")
+
+    @event_subscribe(SystemEventType.MACRO_CREATED)
+    @event_subscribe(SystemEventType.MACRO_UPDATED)
+    @event_subscribe(SystemEventType.MACRO_DELETED)
+    @event_subscribe(SystemEventType.MACRO_OBSOLETED)
+    async def on_macro_mutated(self, event: MacroMutatedEvent) -> None:
+        await self._schedule_matcher_rebuild(event, "macro", "macro_id")
+
+    async def _schedule_matcher_rebuild(self, event, kind: str, id_key: str) -> None:
         from app.core.routing.matcher_cache import matcher_cache
 
-        matcher_cache.invalidate_and_schedule_rebuild()
+        await matcher_cache.invalidate_and_schedule_rebuild()
         logger.debug(
-            "[InitSpecRefresh] invalidated matcher after skill event: %s (skill_id=%s)",
+            "[InitSpecRefresh] scheduled debounced rebuild after %s event: %s (%s=%s)",
+            kind,
             event.event_type,
-            event.data.get("skill_id") if event.data else None,
+            id_key,
+            event.data.get(id_key) if event.data else None,
         )
