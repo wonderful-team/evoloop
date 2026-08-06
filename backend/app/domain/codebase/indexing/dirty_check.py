@@ -69,8 +69,8 @@ async def is_file_changed_since_last_index(
         file_mtime = datetime.fromtimestamp(mtime_ts, timezone.utc)
         if source_file.last_indexed_at and file_mtime < source_file.last_indexed_at:
             return False
-    except Exception:
-        pass  # Fallback to checksum
+    except (OSError, ValueError, OverflowError):
+        logger.debug("[dirty_check] mtime check failed, falling back to checksum", exc_info=True)
 
     # Checksum comparison – only read & hash when mtime didn't settle it.
     try:

@@ -61,8 +61,8 @@ async def move_file(
         if is_file:
             try:
                 content, _, _ = safe_read_with_hash(source_absolute)
-            except Exception:
-                pass  # Binary files or unreadable files will just have empty diff
+            except OSError:
+                logger.debug("[move_file] read failed (race/permission), empty diff recorded", exc_info=True)
 
         dest_original = None
         if os.path.exists(dest_absolute) and os.path.isfile(dest_absolute) and overwrite:

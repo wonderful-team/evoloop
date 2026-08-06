@@ -130,8 +130,8 @@ async def _run_macro_row(macro_id, macro_name, params, thread_id, macro_service)
                 project_url = pj.get("url")
                 if project_url:
                     execution_params["base_url"] = project_url
-        except Exception:
-            pass
+        except (OSError, ValueError):
+            logger.warning("[Macro] failed to resolve project url for macro %s", macro.project_id, exc_info=True)
 
     # Check required params from macro definition against provided params
     macro_params = macro.parameters or []

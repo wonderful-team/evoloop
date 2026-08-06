@@ -211,8 +211,8 @@ async def _run_appmap(project_id: int) -> None:
                                 entity_candidate.lower() in p.lower() for p in parts
                             ):
                                 changed_entities.add(entity_candidate)
-                except Exception:
-                    pass
+                except OSError:
+                    logger.warning("[AppMap] change-detection scan failed for %s", rel_path, exc_info=True)
 
             if changed_entities:
                 logger.info(
@@ -530,8 +530,8 @@ async def _run_summary(project_id: int) -> None:
     try:
         from app.domain.codebase.generation.module_graph import module_graph_service
         module_graph = await module_graph_service.format_summary(project_id, include_graph=True)
-    except Exception:
-        pass
+    except (OSError, ValueError):
+        logger.warning("[AppMap] module_graph summary failed for project %s", project_id, exc_info=True)
 
     summarize_project_task(project_name, path, module_graph=module_graph)
 

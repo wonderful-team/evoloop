@@ -55,8 +55,8 @@ async def delete_file(
         if is_file:
             try:
                 original_content, _, _ = safe_read_with_hash(absolute_path)
-            except Exception:
-                pass  # Binary or unreadable files
+            except OSError:
+                logger.debug("[delete_file] read failed (race/permission), no rewind content recorded", exc_info=True)
 
         # Perform deletion via the File Center
         if is_file:
