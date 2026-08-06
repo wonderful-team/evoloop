@@ -69,16 +69,24 @@ async fn check_devices(
     last_available: &mut Option<bool>,
     last_names: &mut Option<Vec<String>>,
 ) {
-    let names: Vec<String> = match cpal::default_host().input_devices() {
+    let mut names: Vec<String> = match cpal::default_host().input_devices() {
         Ok(devices) => devices
             .filter_map(|d| d.name().ok())
             .filter(|n| !n.is_empty())
+            // VPAU aggregate devices are created internally by the
+            // VoiceProcessingIO unit itself; a fresh one appears (with a new
+            // address) every time the unit starts, which would otherwise feed
+            // an endless mic-restart loop. They are not real input devices.
+            .filter(|n| !n.contains("VPAUAggregateAudioDevice"))
             .collect(),
         Err(e) => {
             warn!("[device-monitor] enum failed: {}", e);
             Vec::new()
         }
     };
+    // Sort so that CoreAudio's nondeterministic enumeration ORDER does not
+    // produce spurious "device list changed" events every check.
+    names.sort();
 
     let available = !names.is_empty();
     let changed = last_names.as_ref().map(|last| *last != names).unwrap_or(true);

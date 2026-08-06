@@ -314,6 +314,14 @@ fn spawn_voice_manager(app_handle: tauri::AppHandle, model_search_paths: Vec<std
             let mut current_voice = String::new();
             let mut current_speed = 1.0;
             let mut session_active = false;
+            // Debounce for device-event-triggered mic restarts. Starting/
+            // stopping the VoiceProcessingIO unit churns the CoreAudio device
+            // list (Bluetooth HFP aggregate appears/disappears), which would
+            // otherwise trigger an endless restart_mic loop — starving the ASR
+            // stream and tripping the Volcengine 8s packet timeout.
+            let mut last_mic_restart = std::time::Instant::now()
+                .checked_sub(std::time::Duration::from_secs(30))
+                .unwrap_or_else(std::time::Instant::now);
 
             loop {
                 tokio::select! {
@@ -430,8 +438,13 @@ fn spawn_voice_manager(app_handle: tauri::AppHandle, model_search_paths: Vec<std
                             Some(DeviceEvent::Available(names)) | Some(DeviceEvent::Changed(names)) => {
                                 log::info!("[voice-manager] devices available: {:?}", names);
                                 if session_active {
-                                    if let Err(e) = session.restart_mic().await {
-                                        log::warn!("[voice-manager] failed to restart mic after device change: {}", e);
+                                    if last_mic_restart.elapsed() >= std::time::Duration::from_secs(3) {
+                                        last_mic_restart = std::time::Instant::now();
+                                        if let Err(e) = session.restart_mic().await {
+                                            log::warn!("[voice-manager] failed to restart mic after device change: {}", e);
+                                        }
+                                    } else {
+                                        log::info!("[voice-manager] mic restart debounced (device list churn)");
                                     }
                                 } else {
                                     tokio::task::spawn_blocking(move || {
@@ -639,7 +652,7 @@ static TTS_CACHE: LazyLock<Mutex<HashMap<String, Vec<u8>>>> = LazyLock::new(|| M
 
 fn spawn_ffplay() -> Result<(tokio::process::Child, tokio::process::ChildStdin), String> {
     let mut child = tokio::process::Command::new("ffplay")
-        .args(["-f", "f32le", "-ar", "24000", "-nodisp", "-autoexit", "-"])
+        .args(["-nodisp", "-autoexit", "-"])
         .stdin(std::process::Stdio::piped())
         .stderr(std::process::Stdio::null())
         .spawn()
@@ -648,52 +661,61 @@ fn spawn_ffplay() -> Result<(tokio::process::Child, tokio::process::ChildStdin),
     Ok((child, stdin))
 }
 
-pub(crate) async fn speak_direct(text: &str, engine: &str, voice: &str) -> Result<(), String> {
-    // 1. Check cache
-    let pcm = {
-        let cache = TTS_CACHE.lock().unwrap();
-        cache.get(text).cloned()
-    };
-    if let Some(bytes) = pcm {
-        let (mut child, mut stdin) = spawn_ffplay()?;
-        stdin.write_all(&bytes).await.map_err(|e| e.to_string())?;
-        drop(stdin);
-        child.wait().await.map_err(|e| e.to_string())?;
-        return Ok(());
-    }
-
-    // 2. Fetch TTS from backend
-    let backend_port = crate::sidecar::BACKEND_PORT;
-    let url = format!("http://127.0.0.1:{}/api/v1/voice/tts", backend_port);
-    let client = reqwest::Client::builder()
-        .no_proxy()
-        .timeout(Duration::from_secs(30))
-        .build()
-        .map_err(|e| e.to_string())?;
-    let resp = client
-        .post(&url)
-        .json(&serde_json::json!({"text": text, "engine": engine, "voice": voice}))
-        .send()
-        .await
-        .map_err(|e| format!("TTS request failed: {}", e))?;
-    if !resp.status().is_success() {
-        let err_body = resp.text().await.unwrap_or_default();
-        return Err(format!("TTS API error: {}", err_body));
-    }
-    let bytes = resp.bytes().await.map_err(|e| e.to_string())?.to_vec();
-
-    // 3. Cache
-    {
-        let mut cache = TTS_CACHE.lock().unwrap();
-        cache.insert(text.to_string(), bytes.clone());
-    }
-
-    // 4. Play
+async fn play_bytes(bytes: Vec<u8>) -> Result<(), String> {
     let (mut child, mut stdin) = spawn_ffplay()?;
     stdin.write_all(&bytes).await.map_err(|e| e.to_string())?;
     drop(stdin);
     child.wait().await.map_err(|e| e.to_string())?;
     Ok(())
+}
+
+pub(crate) async fn speak_direct(text: &str, engine: &str, voice: &str) -> Result<(), String> {
+    let cache_key = format!("{}|{}|{}", engine, voice, text);
+
+    // 1. Check cache
+    let cached = {
+        let cache = TTS_CACHE.lock().unwrap();
+        cache.get(&cache_key).cloned()
+    };
+    if let Some(bytes) = cached {
+        return play_bytes(bytes).await;
+    }
+
+    // 2. Synthesize
+    let bytes = match engine {
+        "qwen-tts" => crate::voice::tts::fetch_qwen_tts(text, voice).await?,
+        "edge-tts" => crate::voice::tts::speak_edge_tts(text, voice).await?,
+        _ => {
+            // volcengine: backend /voice/tts returns mp3 bytes
+            let backend_port = crate::sidecar::BACKEND_PORT;
+            let url = format!("http://127.0.0.1:{}/api/v1/voice/tts", backend_port);
+            let client = reqwest::Client::builder()
+                .no_proxy()
+                .timeout(Duration::from_secs(30))
+                .build()
+                .map_err(|e| e.to_string())?;
+            let resp = client
+                .post(&url)
+                .json(&serde_json::json!({"text": text, "engine": engine, "voice": voice}))
+                .send()
+                .await
+                .map_err(|e| format!("TTS request failed: {}", e))?;
+            if !resp.status().is_success() {
+                let err_body = resp.text().await.unwrap_or_default();
+                return Err(format!("TTS API error: {}", err_body));
+            }
+            resp.bytes().await.map_err(|e| e.to_string())?.to_vec()
+        }
+    };
+
+    // 3. Cache
+    {
+        let mut cache = TTS_CACHE.lock().unwrap();
+        cache.insert(cache_key, bytes.clone());
+    }
+
+    // 4. Play (edge=mp3, qwen=wav, volc=mp3 — all self-describing, ffplay auto-detects)
+    play_bytes(bytes).await
 }
 
 

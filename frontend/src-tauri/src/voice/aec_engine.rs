@@ -164,6 +164,7 @@ impl AecMicCapture {
 #[cfg(target_os = "macos")]
 mod macos {
     use super::*;
+    use crate::voice::audio_utils::resample_rubato;
     use coreaudio::audio_unit::{
         AudioUnit, Element, IOType, SampleFormat, Scope, StreamFormat,
         audio_format::LinearPcmFlags,
@@ -172,6 +173,28 @@ mod macos {
 
     const BYPASS_VOICE_PROCESSING: u32 = 2100; // kAUVoiceIOProperty_BypassVoiceProcessing
     const VOICE_PROCESSING_AGC: u32 = 2101;    // kAUVoiceIOProperty_VoiceProcessingEnableAGC
+
+    /// Pull the next TTS source sample from the ring buffer, refilling the
+    /// small stack buffer when exhausted. Returns 0.0 (silence) when the
+    /// queue is empty. Real-time safe: no locks, no heap allocation.
+    fn next_src_sample(
+        consumer: &mut HeapCons<f32>,
+        buf: &mut [f32; 16],
+        len: &mut usize,
+        idx: &mut usize,
+    ) -> f32 {
+        if *idx >= *len {
+            *len = consumer.pop_slice(buf);
+            *idx = 0;
+        }
+        if *len == 0 {
+            0.0
+        } else {
+            let s = buf[*idx];
+            *idx += 1;
+            s
+        }
+    }
 
     pub struct MacAecCapture {
         audio_unit: AudioUnit,
@@ -191,12 +214,17 @@ mod macos {
             };
 
             // Input stream: output scope, input element (bus 1).
-            audio_unit.set_stream_format(format, Scope::Output, Element::Input)
-                .map_err(|e| format!("failed to set input stream format: {:?}", e))?;
+            // Bluetooth HFP devices lock their stream format, so this is
+            // best-effort: the unit falls back to the device's native format
+            // and the input callback resamples to 16kHz if needed.
+            if let Err(e) = audio_unit.set_stream_format(format, Scope::Output, Element::Input) {
+                warn!("[aec] input stream format not writable ({}), using device default", e);
+            }
 
             // Output stream: input scope, output element (bus 0).
-            audio_unit.set_stream_format(format, Scope::Input, Element::Output)
-                .map_err(|e| format!("failed to set output stream format: {:?}", e))?;
+            if let Err(e) = audio_unit.set_stream_format(format, Scope::Input, Element::Output) {
+                warn!("[aec] output stream format not writable ({}), using device default", e);
+            }
 
             // Enable AEC: do not bypass voice processing.
             let bypass: u32 = 0;
@@ -209,12 +237,14 @@ mod macos {
 
             // Enable automatic gain control.
             let agc: u32 = 1;
-            audio_unit.set_property(
+            if let Err(e) = audio_unit.set_property(
                 VOICE_PROCESSING_AGC,
                 Scope::Global,
                 Element::Output,
                 Some(&agc),
-            ).map_err(|e| format!("failed to enable AGC: {:?}", e))?;
+            ) {
+                warn!("[aec] failed to enable AGC ({}), continuing without", e);
+            }
 
             Ok(Self {
                 audio_unit,
@@ -235,9 +265,47 @@ mod macos {
             let mut consumer = tts_source.consumer;
             let clear_flag = tts_source.clear_flag;
 
-            // Output render callback: play TTS audio from the queue, or silence.
+            // Query the actual stream formats FIRST. Bluetooth aggregate
+            // devices lock their formats (the earlier best-effort 16k set is
+            // ignored), so we must adapt to whatever the unit really delivers.
+            let input_format = self.audio_unit.input_stream_format().ok();
+            let output_format = self.audio_unit.output_stream_format().ok();
+            let input_rate = input_format.as_ref().map(|f| f.sample_rate).unwrap_or(TARGET_SAMPLE_RATE as f64);
+            let output_rate = output_format.as_ref().map(|f| f.sample_rate).unwrap_or(TARGET_SAMPLE_RATE as f64);
+            let input_non_interleaved = input_format
+                .as_ref()
+                .map(|f| f.flags.contains(LinearPcmFlags::IS_NON_INTERLEAVED))
+                .unwrap_or(true);
+            let input_is_float = input_format
+                .as_ref()
+                .map(|f| f.flags.contains(LinearPcmFlags::IS_FLOAT))
+                .unwrap_or(true);
+            let input_channels = input_format.as_ref().map(|f| f.channels as usize).unwrap_or(1);
+            info!(
+                "[aec] VPIO formats: in={:.0}Hz/{}ch/{}interleaved/{}float out={:.0}Hz",
+                input_rate,
+                input_channels,
+                if input_non_interleaved { "non-" } else { "" },
+                input_is_float,
+                output_rate,
+            );
+            let input_needs_resample = (input_rate - TARGET_SAMPLE_RATE as f64).abs() > 1.0;
+            let output_needs_resample = (output_rate - TARGET_SAMPLE_RATE as f64).abs() > 1.0;
+
+            // Output render callback: play TTS from the ring buffer, or silence.
             // This is a real-time audio thread: no locks, no allocation.
+            // When the device runs at a different rate than the 16k TTS
+            // reference, a stateful linear-interpolation SRC keeps playback
+            // speed correct.
             let running = self.running.clone();
+            let mut src_buf = [0.0f32; 16];
+            let mut src_len = 0usize;
+            let mut src_idx = 0usize;
+            let mut src_pos = 0.0f64;
+            let mut src_cur = 0.0f32;
+            let mut src_nxt = 0.0f32;
+            let mut src_primed = false;
+            let src_ratio = TARGET_SAMPLE_RATE as f64 / output_rate;
             self.audio_unit.set_render_callback(
                 move |mut args: render_callback::Args<data::NonInterleaved<f32>>| {
                     if !running.load(Ordering::SeqCst) {
@@ -248,32 +316,147 @@ mod macos {
                         let _ = consumer.clear();
                         clear_flag.store(false, Ordering::SeqCst);
                     }
-                    for channel in args.data.channels_mut() {
-                        let filled = consumer.pop_slice(channel);
-                        for sample in &mut channel[filled..] {
-                            *sample = 0.0;
+                    // The TTS reference is mono: run the SRC only on the first
+                    // channel (advancing src_pos once per output FRAME, not per
+                    // channel), then broadcast the result to the remaining
+                    // channels. Advancing per channel would consume the queue at
+                    // channels-per-frame times the real rate (2x on stereo output).
+                    let mut channel_iter = args.data.channels_mut();
+                    if let Some(first) = channel_iter.next() {
+                        if output_needs_resample {
+                            if !src_primed {
+                                src_cur = next_src_sample(&mut consumer, &mut src_buf, &mut src_len, &mut src_idx);
+                                src_nxt = next_src_sample(&mut consumer, &mut src_buf, &mut src_len, &mut src_idx);
+                                src_primed = true;
+                            }
+                            for sample in first.iter_mut() {
+                                while src_pos >= 1.0 {
+                                    src_pos -= 1.0;
+                                    src_cur = src_nxt;
+                                    src_nxt = next_src_sample(&mut consumer, &mut src_buf, &mut src_len, &mut src_idx);
+                                }
+                                *sample = src_cur + (src_nxt - src_cur) * src_pos as f32;
+                                src_pos += src_ratio;
+                            }
+                        } else {
+                            let filled = consumer.pop_slice(first);
+                            for sample in &mut first[filled..] {
+                                *sample = 0.0;
+                            }
+                        }
+                        for channel in channel_iter {
+                            for (dst, src) in channel.iter_mut().zip(first.iter()) {
+                                *dst = *src;
+                            }
                         }
                     }
                     Ok(())
                 }
             ).map_err(|e| format!("failed to set output render callback: {:?}", e))?;
 
-            // Input callback: forward captured samples to the user callback.
-            let running = self.running.clone();
-            self.audio_unit.set_input_callback(
-                move |args: render_callback::Args<data::NonInterleaved<f32>>| {
-                    if !running.load(Ordering::SeqCst) {
-                        return Ok(());
-                    }
-                    let mut channels = args.data.channels();
-                    if let Some(samples) = channels.next() {
-                        if let Ok(mut cb) = callback.lock() {
-                            cb(samples);
+            // Input callback: normalize whatever the device delivers (float or
+            // integer, interleaved or not, any rate) to 16k mono f32 for the
+            // upstream voice session.
+            let input_rate_u32 = input_rate as u32;
+            let set_input: Result<(), coreaudio::error::Error> = {
+                if input_non_interleaved && input_is_float {
+                    let running = self.running.clone();
+                    let callback = callback.clone();
+                    self.audio_unit.set_input_callback(
+                        move |args: render_callback::Args<data::NonInterleaved<f32>>| {
+                            if !running.load(Ordering::SeqCst) {
+                                return Ok(());
+                            }
+                            if let Some(samples) = args.data.channels().next() {
+                                if let Ok(mut cb) = callback.lock() {
+                                    let out = if input_needs_resample {
+                                        resample_rubato(samples, input_rate_u32, TARGET_SAMPLE_RATE)
+                                    } else {
+                                        samples.to_vec()
+                                    };
+                                    cb(&out);
+                                }
+                            }
+                            Ok(())
                         }
-                    }
-                    Ok(())
+                    )
+                } else if input_non_interleaved {
+                    let running = self.running.clone();
+                    let callback = callback.clone();
+                    self.audio_unit.set_input_callback(
+                        move |args: render_callback::Args<data::NonInterleaved<i16>>| {
+                            if !running.load(Ordering::SeqCst) {
+                                return Ok(());
+                            }
+                            if let Some(samples) = args.data.channels().next() {
+                                let samples: Vec<f32> = samples.iter().map(|&s| s as f32 / 32768.0).collect();
+                                if let Ok(mut cb) = callback.lock() {
+                                    let out = if input_needs_resample {
+                                        resample_rubato(&samples, input_rate_u32, TARGET_SAMPLE_RATE)
+                                    } else {
+                                        samples
+                                    };
+                                    cb(&out);
+                                }
+                            }
+                            Ok(())
+                        }
+                    )
+                } else if input_is_float {
+                    let running = self.running.clone();
+                    let callback = callback.clone();
+                    self.audio_unit.set_input_callback(
+                        move |args: render_callback::Args<data::Interleaved<f32>>| {
+                            if !running.load(Ordering::SeqCst) {
+                                return Ok(());
+                            }
+                            let channels = args.data.channels.max(1);
+                            let samples: Vec<f32> = args.data.buffer
+                                .chunks_exact(channels)
+                                .map(|frame| frame.iter().sum::<f32>() / channels as f32)
+                                .collect();
+                            if !samples.is_empty() {
+                                if let Ok(mut cb) = callback.lock() {
+                                    let out = if input_needs_resample {
+                                        resample_rubato(&samples, input_rate_u32, TARGET_SAMPLE_RATE)
+                                    } else {
+                                        samples
+                                    };
+                                    cb(&out);
+                                }
+                            }
+                            Ok(())
+                        }
+                    )
+                } else {
+                    let running = self.running.clone();
+                    let callback = callback.clone();
+                    self.audio_unit.set_input_callback(
+                        move |args: render_callback::Args<data::Interleaved<i16>>| {
+                            if !running.load(Ordering::SeqCst) {
+                                return Ok(());
+                            }
+                            let channels = args.data.channels.max(1);
+                            let samples: Vec<f32> = args.data.buffer
+                                .chunks_exact(channels)
+                                .map(|frame| frame.iter().map(|&s| s as f32 / 32768.0).sum::<f32>() / channels as f32)
+                                .collect();
+                            if !samples.is_empty() {
+                                if let Ok(mut cb) = callback.lock() {
+                                    let out = if input_needs_resample {
+                                        resample_rubato(&samples, input_rate_u32, TARGET_SAMPLE_RATE)
+                                    } else {
+                                        samples
+                                    };
+                                    cb(&out);
+                                }
+                            }
+                            Ok(())
+                        }
+                    )
                 }
-            ).map_err(|e| format!("failed to set input callback: {:?}", e))?;
+            };
+            set_input.map_err(|e| format!("failed to set input callback: {:?}", e))?;
 
             self.audio_unit.start()
                 .map_err(|e| format!("failed to start VoiceProcessingIO: {:?}", e))?;

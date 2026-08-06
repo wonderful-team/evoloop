@@ -1,4 +1,5 @@
 pub mod audio_utils;
+pub mod tts;
 pub mod wake_word;
 pub mod ws_client;
 pub mod tts_engine;

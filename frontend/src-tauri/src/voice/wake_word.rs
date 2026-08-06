@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -16,8 +17,22 @@ use sherpa_onnx::{KeywordSpotter, KeywordSpotterConfig};
 pub(crate) static RETRY_NOW: AtomicBool = AtomicBool::new(false);
 
 const SAMPLE_RATE: u32 = 16000;
-const MODEL_DIR: &str = ".evoloop/models/kws";
 const WAKE_REPLIES: [&str; 4] = ["我在", "嗯哼", "请说", "你说"];
+
+/// Resolve the KWS model directory.
+/// In production the sidecar sets `MODELS_DIR` to the Tauri app bundle's
+/// `Resources/models/` directory. Fall back to `~/.evoloop/models/kws` for
+/// development / manual installs.
+fn kws_model_dir() -> PathBuf {
+    std::env::var("MODELS_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| {
+            dirs::home_dir()
+                .unwrap_or_default()
+                .join(".evoloop/models")
+        })
+        .join("kws")
+}
 
 async fn play_wake_reply(text: &str) {
     let pcm_path = dirs::home_dir()
@@ -98,8 +113,7 @@ struct KwsPaths {
 }
 
 fn kws_paths() -> Option<KwsPaths> {
-    let home = dirs::home_dir()?;
-    let base = home.join(MODEL_DIR);
+    let base = kws_model_dir();
 
     let (enc, dec, join) = if base.join("encoder-epoch-99-avg-1-chunk-16-left-64.int8.onnx").exists() {
         (

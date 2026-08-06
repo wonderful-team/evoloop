@@ -196,6 +196,12 @@ impl SidecarClient {
             let workspace_dir = app_data_dir.join("workspace");
             let db_path = app_data_dir.join("database").join("backend.db");
 
+            // Bundled core models (action_classifier, domain_classifier, KWS) live inside
+            // the Tauri app bundle under Resources/models/.
+            let resource_dir = app.path().resource_dir()
+                .map_err(|e| format!("Failed to get resource dir: {}", e))?;
+            let bundled_models_dir = resource_dir.join("models");
+
             std::fs::create_dir_all(&workspace_dir).ok();
             std::fs::create_dir_all(app_data_dir.join("database")).ok();
 
@@ -205,6 +211,7 @@ impl SidecarClient {
                 .env("WORKSPACE_ROOT", &workspace_dir)
                 .env("SQLITE_DB_PATH", &db_path)
                 .env("PROJECT_NAME", "EvoLoop")
+                .env("MODELS_DIR", &bundled_models_dir)
                 .stdin(Stdio::piped())
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())

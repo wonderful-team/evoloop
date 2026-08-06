@@ -2,6 +2,7 @@
 pub enum TtsEngineKind {
     EdgeTts,
     QwenTts,
+    VolcEngine,
 }
 
 impl TtsEngineKind {
@@ -9,6 +10,7 @@ impl TtsEngineKind {
         match s.to_lowercase().as_str() {
             "edge" | "edge-tts" | "edgetts" => TtsEngineKind::EdgeTts,
             "qwen" | "qwen-tts" | "qwents" => TtsEngineKind::QwenTts,
+            "volc" | "volcengine" | "volc-engine" => TtsEngineKind::VolcEngine,
             _ => TtsEngineKind::EdgeTts,
         }
     }
@@ -17,6 +19,7 @@ impl TtsEngineKind {
         match self {
             TtsEngineKind::EdgeTts => "edge-tts",
             TtsEngineKind::QwenTts => "qwen-tts",
+            TtsEngineKind::VolcEngine => "volcengine",
         }
     }
 }

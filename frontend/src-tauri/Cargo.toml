@@ -47,7 +47,7 @@ reqwest = { version = "0.12", features = ["json", "stream"] }
 # Full-duplex voice
 tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
 futures-util = "0.3"
-sherpa-onnx = { path = "../../../sherpa-onnx/sherpa-onnx/rust/sherpa-onnx", default-features = false }
+sherpa-onnx = { path = "../../sherpa-onnx/sherpa-onnx/rust/sherpa-onnx", default-features = false }
 cpal = "0.16"
 rubato = "0.16"
 hound = "3.5"

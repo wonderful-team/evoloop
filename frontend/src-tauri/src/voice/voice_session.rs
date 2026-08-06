@@ -9,6 +9,11 @@ use tokio::sync::RwLock;
 use log::{info, warn};
 use std::path::PathBuf;
 
+/// DC-blocking high-pass filter cutoff for the uploaded mic stream.
+/// Removes low-frequency ambient noise (fan/AC hum) below ~100Hz.
+/// Speech fundamental energy is mostly mid-band, so recognition impact is negligible.
+const AUDIO_HPF_CUTOFF_HZ: f32 = 100.0;
+
 use std::io::Write;
 use std::process::{Command, Stdio, Child, ChildStdin};
 
@@ -486,6 +491,11 @@ impl VoiceSession {
         let running = self.running.clone();
         let rt_handle = tokio::runtime::Handle::current();
 
+        // Single-pole DC-blocking HPF state (prev_in, prev_out), kept across
+        // audio callbacks. y[n] = x[n] - x[n-1] + a*y[n-1], a = exp(-2π*fc/fs).
+        let hpf_state = std::cell::Cell::new((0.0f32, 0.0f32));
+        let hpf_a = (-2.0 * std::f32::consts::PI * AUDIO_HPF_CUTOFF_HZ / 16_000.0).exp();
+
         let send_audio = move |samples: &[f32]| {
             if !running.load(Ordering::SeqCst) {
                 return;
@@ -495,20 +505,35 @@ impl VoiceSession {
                 return;
             }
 
-            // Convert f32 samples to 16kHz i16 PCM bytes
+            // Convert f32 samples to 16kHz i16 PCM bytes, applying the HPF
+            // inline so low-frequency ambient noise never reaches the backend.
+            let (mut x1, mut y1) = hpf_state.get();
             let mut pcm = Vec::with_capacity(sample_count * 2);
-            for s in samples {
-                let clamped = s.clamp(-1.0, 1.0);
+            for &s in samples {
+                let y = s - x1 + hpf_a * y1;
+                x1 = s;
+                y1 = y;
+                let clamped = y.clamp(-1.0, 1.0);
                 let sample = (clamped * i16::MAX as f32) as i16;
                 pcm.extend_from_slice(&sample.to_le_bytes());
             }
+            hpf_state.set((x1, y1));
 
             let ws_clone = ws.clone();
-            let running_clone = running.clone();
             rt_handle.spawn(async move {
+                // Backend unreachable — drop the frame instead of blocking on
+                // send_binary's 3s wait loop. No task pile-up during outages,
+                // and the session stays alive: reconnect_monitor re-sends
+                // voice.start once the WebSocket reconnects (backend restart
+                // under 60s is recovered without user action).
+                if !ws_clone.is_connected().await {
+                    return;
+                }
                 if let Err(e) = ws_clone.send_binary(pcm).await {
-                    warn!("[voice-session] failed to send audio: {} — stopping session", e);
-                    running_clone.store(false, Ordering::SeqCst);
+                    warn!(
+                        "[voice-session] failed to send audio: {} (session kept alive)",
+                        e
+                    );
                 }
             });
         };
@@ -737,6 +762,29 @@ impl VoiceSession {
                 *self.tts_clear_flag.lock().unwrap() = None;
             }
             return Err(e);
+        }
+
+        // Surface which audio path is active so echo protection status is
+        // visible (frontend toast / voice:log).
+        #[cfg(target_os = "macos")]
+        {
+            let aec_active = self.mic.read().await.is_aec_active();
+            if aec_active {
+                self.emit_log("AEC active (VoiceProcessingIO): 回声由系统消除");
+            } else {
+                self.emit_log("AEC inactive (fallback MicCapture): 回声未被消除，建议使用内置麦克风");
+            }
+            self.emit_event(
+                "voice:aec_state",
+                serde_json::json!({"active": aec_active, "thread_id": thread_id}),
+            );
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            self.emit_event(
+                "voice:aec_state",
+                serde_json::json!({"active": false, "thread_id": thread_id}),
+            );
         }
 
         // Notify Python backend to start session
