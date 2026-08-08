@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 class ScreenshotMixin:
     @staticmethod
-    def screenshot(region=None, purpose="temp", bundle_id=None, suffix=None):
+    def screenshot(region=None, purpose="temp", bundle_id=None, suffix=None, interactive=False):
         from app.infrastructure.vision.storage import screenshot_storage
 
         filepath = screenshot_storage.get_path(
@@ -17,6 +17,23 @@ class ScreenshotMixin:
             bundle_id=bundle_id,
             suffix=suffix,
         )
+
+        if interactive:
+            # 交互式区域截图：用户在屏幕上用鼠标拖拽框选区域。
+            # `screencapture -i` 由 Python 原生执行（不经 AppleScript
+            # `do shell script`），因此不触发 script_gate 的 shell 逃逸审查。
+            # 用户按 Esc 取消时 returncode 非 0，且不会生成文件。
+            cmd = ["screencapture", "-i", filepath]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+            if result.returncode != 0:
+                raise RuntimeError(
+                    "Interactive screenshot cancelled or failed "
+                    f"(returncode={result.returncode}): {result.stderr.strip()}"
+                )
+            if not os.path.exists(filepath):
+                raise RuntimeError("Screenshot file was not created")
+            logger.info(f"Interactive screenshot saved: {filepath}")
+            return filepath
 
         cmd = ["screencapture", "-x"]
 

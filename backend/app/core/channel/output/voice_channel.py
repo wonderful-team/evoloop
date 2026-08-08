@@ -314,9 +314,22 @@ class VoiceChannel(Channel):
         return was_streaming
 
     @classmethod
-    async def push_tts_chunk(
-        cls, thread_id: str, text: str, end: bool, *, force_start: bool = False
-    ) -> None:
+    async def _push_speaking_state(cls, thread_id: str) -> None:
+        """Notify the client that TTS playback started (HUD switches to speaking view)."""
+        if cls._manager is None:
+            return
+        body = {"state": "speaking", "thread_id": thread_id}
+        if cls._envelope_fn and cls._message_type:
+            env = cls._envelope_fn(cls._message_type.VOICE_STATE, body)
+            await cls._manager.push(thread_id, env)
+        else:
+            await cls._manager.push(
+                thread_id,
+                cls._voice_envelope(MessageType.VOICE_STATE, body)
+            )
+
+    @classmethod
+    async def push_tts_chunk(cls, thread_id: str, text: str, end: bool, *, force_start: bool = False) -> None:
         """Push a text chunk to Volcengine ChatTTSText with correct start/end.
 
         Args:
@@ -344,6 +357,7 @@ class VoiceChannel(Channel):
         if start:
             if not force_start:
                 await voice_state_machine.set(thread_id, VoiceSessionState.SPEAKING)
+                await cls._push_speaking_state(thread_id)
             # flag 在 voice_receive_loop 的 Event 350 中清，这里不清
 
         logger.info(
@@ -431,8 +445,12 @@ class VoiceChannel(Channel):
                 if clean_summary and clean_summary in tid_set:
                     logger.info("[VoiceChannel] 安抚话术 dedup: already routed for %s", tid)
                     return
-                if clean_summary:
-                    tid_set.add(clean_summary)
+                if not clean_summary:
+                    # token 已流式播报（summary 为空）时不再推送空的 routed 结果，
+                    # 否则会在最终 done 前产生冗余的空 route_result（测试/前端
+                    # 取到它会误以为中间态，且 UI 收到空文案）。
+                    return
+                tid_set.add(clean_summary)
 
                 # Fire-and-forget: don't block callback chain if WS send is congested
                 async def _push_routed():

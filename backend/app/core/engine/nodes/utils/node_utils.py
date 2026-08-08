@@ -12,6 +12,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from app.core.config import settings
+from app.core.project.utils import get_workspace_root
 from app.infrastructure.config.service import SystemConfigService
 
 logger = logging.getLogger(__name__)
@@ -49,7 +50,7 @@ def get_mapped_cwd(ctx_cwd: str) -> str:
     actual_cwd = ctx_cwd or ""
 
     if str(mode).lower() == "docker":
-        workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
+        workspace_root = get_workspace_root()
         if workspace_root:
             workspace_root = os.path.normpath(workspace_root)
             actual_cwd = os.path.normpath(actual_cwd)

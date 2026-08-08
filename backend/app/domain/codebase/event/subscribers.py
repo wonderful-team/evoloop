@@ -42,7 +42,6 @@ class IndexingLifecycleSubscriber:
             from app.core.context import thread_context_store
             from app.domain.codebase.indexing.manager import indexing_manager
             from app.domain.codebase.indexing.service import IndexingService
-            from app.infrastructure.config import SystemConfigService
 
             default_path = thread_context_store.get_working_directory("default")
 
@@ -56,7 +55,9 @@ class IndexingLifecycleSubscriber:
                     default_path = resolved_path
 
             # Get workspace root to avoid indexing the entire root as one repo
-            root_projects_dir = SystemConfigService.get_value("WORKSPACE_ROOT")
+            from app.core.project.utils import get_workspace_root
+
+            root_projects_dir = get_workspace_root()
 
             if default_path and os.path.exists(default_path):
                 # Ensure it's not the root itself

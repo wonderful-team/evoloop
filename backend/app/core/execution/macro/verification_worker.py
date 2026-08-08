@@ -26,12 +26,7 @@ class VerificationWorker:
     4. Provide unified interface regardless of platform
     """
 
-    def __init__(
-        self,
-        environment_config: EnvironmentConfig,
-        agent_config: AgentConfig,
-        thread_id: str | None = None,
-    ):
+    def __init__(self, environment_config: EnvironmentConfig, agent_config: AgentConfig, thread_id: str | None = None):
         self.config = environment_config
         self.agent_config = agent_config
         self.thread_id = thread_id or f"verify_{id(self)}"
@@ -80,9 +75,7 @@ class VerificationWorker:
     async def _init_mobile(self) -> None:
         """Initialize mobile controller"""
         try:
-            from app.core.environment.controllers.mobile import (
-                MobileController,
-            )
+            from app.core.environment.controllers.mobile import MobileController
 
             self._mobile_controller = MobileController()
             # MobileController uses classmethods, no connect needed
@@ -140,9 +133,7 @@ class VerificationWorker:
             elif source == "desktop" or self._current_platform == "desktop":
                 return await self._execute_desktop_step(step_type, event_type, payload)
             else:
-                raise ValueError(
-                    f"Unknown source/platform: {source}/{self._current_platform}"
-                )
+                raise ValueError(f"Unknown source/platform: {source}/{self._current_platform}")
 
         except Exception as e:
             logger.error(f"[Worker] Step execution failed: {e}")
@@ -549,7 +540,7 @@ class VerificationWorker:
         """
         Execute an extract step (GUI data extraction)
 
-        Reuses MacroEngine._handle_extraction for consistent extraction logic.
+        Reuses MacroEngine.handle_extraction for consistent extraction logic.
 
         Args:
             step: Extract step dictionary with 'key', 'extract_type', 'payload'
@@ -594,7 +585,7 @@ class VerificationWorker:
 
         try:
             # Reuse MacroEngine's extraction logic
-            await MacroEngine._handle_extraction(
+            await MacroEngine.handle_extraction(
                 thread_id=thread_id,
                 step=macro_step,
                 selector=selector,
@@ -649,9 +640,7 @@ class VerificationWorker:
                     state["screenshot"] = await self._browser_controller.screenshot()
 
             elif self._current_platform == "android":
-                from app.core.environment.controllers.mobile import (
-                    MobileController,
-                )
+                from app.core.environment.controllers.mobile import MobileController
 
                 # Get current app/activity
                 current_app = await MobileController.get_current_app_cached(self.config.device_id)
@@ -665,9 +654,7 @@ class VerificationWorker:
 
                 # Screenshot if enabled
                 if self.agent_config.enable_screenshot_analysis:
-                    result = await MobileController.execute(
-                        action="screenshot", device_id=self.config.device_id
-                    )
+                    result = await MobileController.execute(action="screenshot", device_id=self.config.device_id)
                     # Parse screenshot path from result message
                     if isinstance(result, str) and result.startswith("Screenshot: "):
                         screenshot_path = result.replace("Screenshot: ", "").strip()
@@ -676,10 +663,12 @@ class VerificationWorker:
                         state["screenshot"] = result["screenshot"]
 
             elif self._current_platform == "desktop" and self._desktop_controller:
-                # Get active window info
-                window_info = await self._desktop_controller.get_active_window()
-                state["current_activity"] = window_info.get("app_name")
-                state["window_title"] = window_info.get("title")
+                # Get active window info via the unified current-app outlet
+                from app.core.environment import get_current_app_context
+
+                window_info = await asyncio.to_thread(get_current_app_context)
+                state["current_activity"] = window_info.name
+                state["window_title"] = window_info.title
 
                 # Screenshot if enabled
                 if self.agent_config.enable_screenshot_analysis:

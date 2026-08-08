@@ -12,13 +12,13 @@ logger = logging.getLogger(__name__)
 async def resolve_context() -> dict[str, Any]:
     """Fetch current environment context: active app, phone connection."""
     try:
-        from app.infrastructure.drivers.macos import macos_driver
+        from app.core.environment import get_current_app_context
 
-        app_info = await asyncio.to_thread(macos_driver.get_current_app)
+        app_info = await asyncio.to_thread(get_current_app_context)
     except Exception as exc:  # noqa: BLE001
         logger.debug("[context_probe] get_current_app failed: %s", exc)
         app_info = None
-    active_app = app_info.get("name", "") if app_info else ""
+    active_app = app_info.name if app_info else ""
 
     try:
         from app.core.environment.state import get_awakened_state

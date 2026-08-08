@@ -6,12 +6,15 @@ import threading
 from sqlalchemy import delete, select
 
 from app.core.file import read_file
-from app.core.project.utils import get_project_path, resolve_project_to_repo
+from app.core.project.utils import (
+    get_project_path,
+    get_workspace_root,
+    resolve_project_to_repo,
+)
 from app.domain.codebase.indexing.service import IndexingService
 from app.domain.codebase.security import scan_file
 from app.domain.watchers import RepoWatcher
 from app.infrastructure.cache import cache
-from app.infrastructure.config.service import SystemConfigService
 from app.infrastructure.database import session_scope
 from app.models import CodeChunk, Repository, SecurityFinding, SourceFile
 
@@ -144,7 +147,7 @@ class IndexingManager:
         """
         with self._lock:
             # Check if WORKSPACE_ROOT is configured
-            workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
+            workspace_root = get_workspace_root()
             if not workspace_root:
                 logger.warning(
                     f"[IndexingManager] WORKSPACE_ROOT not configured. Skipping watch for: {path}"

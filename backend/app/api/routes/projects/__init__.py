@@ -31,12 +31,12 @@ from app.core.evocloud import evocloud_manager
 from app.core.hitl.policies import DEFAULT_SENSITIVE_PATTERNS
 from app.core.project.utils import (
     get_project_path,
+    get_workspace_root,
     resolve_project_to_repo,
     write_project_json,
 )
 from app.domain.codebase.indexing.manager import indexing_manager
 from app.infrastructure.cache import cache
-from app.infrastructure.config.service import SystemConfigService
 from app.infrastructure.database import session_scope
 from app.infrastructure.database.vector import get_vector_store
 from app.models import Repository
@@ -74,7 +74,7 @@ async def create_project(req: CreateProjectRequest, _token: TokenDep):
     """
     from app.core.project.path_validator import validate_project_path
 
-    root_dir = SystemConfigService.get_value("WORKSPACE_ROOT")
+    root_dir = get_workspace_root()
     if not root_dir:
         raise HTTPException(500, "WORKSPACE_ROOT not configured")
 
@@ -144,7 +144,7 @@ async def import_project_by_path(req: ImportProjectByPathRequest, _token: TokenD
     """
     from app.core.project.sync_service import project_sync_service
 
-    root_dir = SystemConfigService.get_value("WORKSPACE_ROOT")
+    root_dir = get_workspace_root()
     if not root_dir:
         raise HTTPException(500, "WORKSPACE_ROOT not configured")
 

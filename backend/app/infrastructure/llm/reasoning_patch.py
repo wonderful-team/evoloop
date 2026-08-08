@@ -31,25 +31,59 @@ def _apply_reasoning_patch() -> None:
                 content = request.read()
                 body = json.loads(content)
 
-                is_kimi = "kimi" in url_str.lower() or "moonshot" in url_str.lower()
                 model_name = body.get("model", "").lower()
-                is_deepseek = "deepseek" in url_str.lower() or "thinking" in url_str.lower() or "deepseek" in model_name
+                is_deepseek = (
+                    "deepseek" in url_str.lower()
+                    or "thinking" in url_str.lower()
+                    or "deepseek" in model_name
+                )
 
                 if "messages" in body:
+                    # If any assistant message already carries native reasoning_content,
+                    # this is a reasoning-model conversation and the provider expects every
+                    # assistant message to have reasoning_content passed back. Fill missing
+                    # entries from visible content (e.g., synthetic orphaned-tool placeholders)
+                    # instead of fabricating a meaningless placeholder.
+                    assistant_msgs = [
+                        msg
+                        for msg in body["messages"]
+                        if msg.get("role") == "assistant"
+                    ]
+                    conversation_has_reasoning = any(
+                        msg.get("reasoning_content") for msg in assistant_msgs
+                    )
+                    reasoning_required = is_deepseek or conversation_has_reasoning
+
                     modified = False
                     for i, msg in enumerate(body["messages"]):
                         role = msg.get("role")
 
                         if role == "assistant":
-                            if is_kimi or is_deepseek:
+                            if reasoning_required:
                                 val = msg.get("reasoning_content")
+                                content = msg.get("content")
+                                if not val and content:
+                                    val = content
+                                    logger.debug(
+                                        "[ReasoningPatch] Falling back to visible content as "
+                                        f"reasoning_content for assistant message #{i}"
+                                    )
                                 if not val:
-                                    val = " " if is_kimi else "...."
+                                    continue
 
-                                new_msg = {"role": "assistant", "reasoning_content": val}
+                                new_msg = {
+                                    "role": "assistant",
+                                    "reasoning_content": val,
+                                }
                                 for k, v in msg.items():
-                                    if k not in ["role", "reasoning_content"]:
-                                        new_msg[k] = v
+                                    if k in ["role", "reasoning_content"]:
+                                        continue
+                                    # When we fell back to content-as-reasoning, avoid
+                                    # duplicating it as visible content.
+                                    if k == "content" and not msg.get("reasoning_content"):
+                                        new_msg[k] = ""
+                                        continue
+                                    new_msg[k] = v
 
                                 body["messages"][i] = new_msg
                                 modified = True
@@ -76,7 +110,7 @@ def _apply_reasoning_patch() -> None:
 
     httpx.AsyncClient.send = _patched_httpx_send  # type: ignore[method-assign]
 
-    logger.info("[Reasoning] Applied Kimi reasoning_content safety patches")
+    logger.info("[Reasoning] Applied reasoning_content safety patches")
 
 
 # Auto-apply on module import

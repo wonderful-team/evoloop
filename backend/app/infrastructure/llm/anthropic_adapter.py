@@ -1,5 +1,6 @@
 import logging
-from typing import Any, AsyncGenerator
+from collections.abc import AsyncGenerator
+from typing import Any
 
 import anthropic
 
@@ -60,8 +61,12 @@ class CompatibleChatAnthropic:
 
     async def astream(self, messages: list[Any], config: dict = None, **kwargs: Any) -> AsyncGenerator[AIMessageChunk, None]:
         from app.core.engine.callbacks.bridge import (
-            _get_callbacks, _get_run_id, _get_metadata,
-            emit_llm_start, emit_llm_new_token, emit_llm_end,
+            _get_callbacks,
+            _get_metadata,
+            _get_run_id,
+            emit_llm_end,
+            emit_llm_new_token,
+            emit_llm_start,
         )
         from app.core.engine.message.native_classes import AIMessage
 

@@ -5,17 +5,25 @@ Environment Discovery - Probes for collecting environment information.
 import asyncio
 import logging
 import os
-import platform
 import socket
-
-import psutil
 
 from app.core.config import settings
 from app.core.environment.explorers.dynamic_apps import DynamicAppTriage
 from app.core.environment.models import (
     AndroidDevice,
+    BluetoothDevice,
     HostEnvironment,
+    LanDevice,
     NetworkStatus,
+)
+from app.core.environment.utils import collect_cpu_mem
+from app.infrastructure.drivers.system import (
+    get_disk_usage,
+    get_freedesktop_release,
+    get_macos_version,
+    get_os_name,
+    get_os_release,
+    get_processor,
 )
 
 logger = logging.getLogger(__name__)
@@ -54,6 +62,20 @@ class EnvironmentProbe:
     """Collects environment information from various sources."""
 
     @staticmethod
+    async def probe_lan_devices(timeout: float = 3.0) -> list[LanDevice]:
+        """Probe the local network for mDNS-advertising devices."""
+        from app.core.environment.lan_discovery import probe_lan_devices
+
+        return await probe_lan_devices(timeout=timeout)
+
+    @staticmethod
+    async def probe_bluetooth_devices() -> list[BluetoothDevice]:
+        """Probe paired/connected Bluetooth devices (macOS)."""
+        from app.core.environment.bluetooth_discovery import probe_bluetooth_devices
+
+        return await asyncio.to_thread(probe_bluetooth_devices)
+
+    @staticmethod
     def get_inferred_device_type() -> str:
         """
         根据唤醒状态和系统/硬件特征动态推导设备类型（限制在 20 字符以内）。
@@ -86,7 +108,7 @@ class EnvironmentProbe:
             return "desktop"
 
         # 5. 动态检测 macOS (Darwin)
-        if platform.system() == "Darwin":
+        if get_os_name() == "Darwin":
             return "desktop"
 
         # 6. 使用 AwakenedState 进行进一步检测 (如果有)
@@ -103,22 +125,19 @@ class EnvironmentProbe:
     @staticmethod
     async def probe_host() -> HostEnvironment | None:
         """Probe host environment (macOS, Linux, Windows)."""
-        os_name = platform.system()
+        os_name = get_os_name()
 
         if not settings.ENABLE_ENVIRONMENT_CONTROLS:
             # If environment controls are disabled, return a basic host profile (safe and read-only)
             # This ensures the Agent knows the target OS even on headless servers/sandboxes.
-            try:
-                ram_gb = int(psutil.virtual_memory().total / (1024**3))
-            except Exception as e:
-                logger.debug(f"Failed to get RAM info: {e}")
-                ram_gb = 0
+            metrics = collect_cpu_mem()
+            ram_gb = (metrics["mem_total"] // (1024**3)) if metrics else 0
 
             return HostEnvironment(
                 os_name="macOS" if os_name == "Darwin" else os_name,
-                os_version=platform.release() if os_name != "Darwin" else (platform.mac_ver()[0] or "Unknown"),
+                os_version=get_os_release() if os_name != "Darwin" else get_macos_version(),
                 model="Mac" if os_name == "Darwin" else f"{os_name} Host",
-                cpu=platform.processor() or "Unknown",
+                cpu=get_processor(),
                 ram_gb=ram_gb,
                 installed_apps=[],
                 app_usage_stats=[],
@@ -132,30 +151,26 @@ class EnvironmentProbe:
     @staticmethod
     async def _probe_standard_os_impl(os_name: str) -> HostEnvironment | None:
         """Standard host probe for Linux and Windows."""
-        try:
-            ram_gb = int(psutil.virtual_memory().total / (1024**3))
-        except Exception as e:
-            logger.debug(f"Failed to get RAM info: {e}")
-            ram_gb = 0
+        metrics = collect_cpu_mem()
+        ram_gb = (metrics["mem_total"] // (1024**3)) if metrics else 0
 
         host_env = HostEnvironment(
             os_name=os_name,
-            os_version=platform.release(),
+            os_version=get_os_release(),
             model=f"{os_name} Host",
-            cpu=platform.processor() or "Unknown",
+            cpu=get_processor(),
             ram_gb=ram_gb,
             installed_apps=[],
             app_usage_stats=[],
         )
 
         if os_name == "Linux":
-            import shutil
             import subprocess
 
             # 1. Distro Details
             distro = "Linux"
             try:
-                info = platform.freedesktop_os_release()
+                info = get_freedesktop_release()
                 distro = f"{info.get('NAME', 'Linux')} {info.get('VERSION_ID', '')}"
             except Exception:
                 try:
@@ -180,19 +195,7 @@ class EnvironmentProbe:
             host_env.sudo_available = await asyncio.to_thread(_check_sudo)
 
             # 3. Disk Space in current directory
-            def _get_disk_space():
-                try:
-                    total, used, free = shutil.disk_usage(".")
-                    return {
-                        "total_gb": round(total / (2**30), 1),
-                        "free_gb": round(free / (2**30), 1),
-                        "percent_used": round((used / total) * 100, 1),
-                    }
-                except Exception as e:
-                    logger.debug("Suppressed error: %s", e, exc_info=True)
-                    return None
-
-            host_env.disk_space = await asyncio.to_thread(_get_disk_space)
+            host_env.disk_space = await asyncio.to_thread(get_disk_usage, ".")
 
             # 4. Active Systemd Services
             def _get_systemd_services():
@@ -329,21 +332,14 @@ class EnvironmentProbe:
 
                 # Get device info
                 try:
-                    info = await asyncio.to_thread(
-                        adb_driver.get_system_info, device_id
-                    )
-                    packages = await asyncio.to_thread(
-                        adb_driver.list_installed_apps, device_id
-                    )
+                    info = await asyncio.to_thread(adb_driver.get_system_info, device_id)
+                    packages = await asyncio.to_thread(adb_driver.list_installed_apps, device_id)
 
                     # Fallback for battery since get_system_info handles it as string
                     # But we want int for models
                     battery_percent = 0
                     if "battery" in info and "%" in info["battery"]:
-                        try:
-                            battery_percent = int(info["battery"].replace("%", ""))
-                        except ValueError:
-                            pass
+                        battery_percent = int(info["battery"].replace("%", ""))
 
                     devices.append(
                         AndroidDevice(
@@ -390,17 +386,28 @@ class EnvironmentProbe:
         internet_connected = False
         local_ips = []
 
-        # Check internet connectivity
+        # Check internet connectivity (parallel candidates, bounded latency)
         try:
-            # Socket connection is blocking, use to_thread
-            def _check_internet():
-                try:
-                    with socket.create_connection(("8.8.8.8", 53), timeout=3) as _:
-                        return True
-                except OSError:
-                    return False
+            async def _check_internet() -> bool:
+                candidates = [
+                    ("8.8.8.8", 53),
+                    ("1.1.1.1", 53),
+                    ("114.114.114.114", 53),
+                ]
 
-            internet_connected = await asyncio.to_thread(_check_internet)
+                def _try(candidate: tuple[str, int]) -> bool:
+                    try:
+                        with socket.create_connection(candidate, timeout=1.5):
+                            return True
+                    except OSError:
+                        return False
+
+                results = await asyncio.gather(
+                    *(asyncio.to_thread(_try, c) for c in candidates)
+                )
+                return any(results)
+
+            internet_connected = await _check_internet()
         except Exception as e:
             logger.debug("Suppressed error: %s", e, exc_info=True)
 
@@ -424,9 +431,35 @@ class EnvironmentProbe:
 
     @staticmethod
     async def probe_docker_containers() -> list[dict]:
-        """Probe running Docker containers."""
+        """Probe running Docker containers (with bridge-network IPs)."""
         try:
             import subprocess
+
+            def _fetch_container_ips(ids: list[str]) -> dict[str, str | None]:
+                try:
+                    res = subprocess.run(
+                        [
+                            "docker",
+                            "inspect",
+                            "--format",
+                            "{{.Id}} {{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}",
+                            *ids,
+                        ],
+                        capture_output=True,
+                        text=True,
+                        timeout=5.0,
+                    )
+                    if res.returncode != 0:
+                        return {}
+                    ips: dict[str, str | None] = {}
+                    for line in res.stdout.splitlines():
+                        parts = line.split()
+                        if parts:
+                            ip = parts[1] if len(parts) > 1 else ""
+                            ips[parts[0][:12]] = ip or None
+                    return ips
+                except Exception:
+                    return {}
 
             def _run_docker_ps():
                 try:
@@ -457,6 +490,9 @@ class EnvironmentProbe:
                                 "status": parts[3],
                                 "ports": parts[4]
                             })
+                    ips = _fetch_container_ips([c["id"] for c in containers])
+                    for c in containers:
+                        c["ip"] = ips.get(c["id"])
                     return containers
                 except Exception:
                     return []

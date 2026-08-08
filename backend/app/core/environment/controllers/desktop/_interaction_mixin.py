@@ -5,7 +5,7 @@ Desktop controller mixin — interaction actions (click, type, scroll, drag_drop
 import asyncio
 import logging
 
-from app.core.shortcuts import get_shortcut
+from app.core.environment.controllers.desktop._shortcuts import get_shortcut
 from app.infrastructure.drivers.macos import macos_driver
 from app.utils.controller_response import ControllerResponse
 from app.utils.geometry import normalize_coordinates

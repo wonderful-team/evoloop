@@ -9,6 +9,7 @@ import asyncio
 import logging
 from typing import Literal
 
+from app.core.environment import get_current_app_context
 from app.core.tools import evoloop_tool
 from app.infrastructure.drivers.adb import ADBError, adb_driver
 from app.infrastructure.drivers.macos import macos_driver
@@ -74,14 +75,9 @@ async def find_element(
 
         # Fire UI_TREE_OBSERVED event for spatial mapping (Background)
         try:
-            if platform == "android":
-                app_info = adb_driver.get_current_app(device_id=device_id)
-                bundle_id = app_info.get("package", "unknown")
-                window_title = app_info.get("activity", "unknown")
-            else:
-                app_info = macos_driver.get_current_app()
-                bundle_id = app_info.get("bundle_id", "unknown")
-                window_title = app_info.get("title", "unknown")
+            app_info = get_current_app_context(device_id)
+            bundle_id = app_info.bundle_id or app_info.package or "unknown"
+            window_title = app_info.title or app_info.activity or "unknown"
 
             from app.core.environment.event.publishers import publish_ui_tree_observed
 

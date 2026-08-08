@@ -22,10 +22,5 @@ class EventType(str, Enum):
     DEVICE_CONNECTED = "environment.device_connected"
     DEVICE_DISCONNECTED = "environment.device_disconnected"
 
-    # Capability & Skill Evolution
-    SKILL_EXECUTED = "skill.executed"
-    SKILL_PROMOTED = "skill.promoted"
-    SKILL_DEPRECATED = "skill.deprecated"
-
     # Perception
     UI_TREE_OBSERVED = "ui.tree_observed"

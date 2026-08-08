@@ -6,7 +6,6 @@ import json
 import logging
 import re
 import time
-from typing import Any
 
 from pydantic import Field
 
@@ -20,7 +19,7 @@ from app.core.engine.message.native_classes import (
 from app.core.engine.message.reasoning import extract_tool_calls
 from app.core.engine.state import AgentState
 from app.core.engine.state.sub_schemas import VerificationStatus
-from app.core.environment import get_awakened_state
+from app.core.environment import get_telemetry_dict
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
@@ -142,15 +141,7 @@ class AuditService:
             else (state.project_id if state.project_id is not None else DEFAULT_PROJECT_ID)
         )
 
-        awakened_state = get_awakened_state()
-        telemetry: dict[str, Any] = {}
-        if awakened_state:
-            try:
-                snapshot = awakened_state.get_telemetry_snapshot()
-                if snapshot:
-                    telemetry = snapshot.model_dump()
-            except (AttributeError, ValueError, TypeError) as e:
-                logger.warning(f"[AuditService] Telemetry snapshot failed: {e}")
+        telemetry = get_telemetry_dict()
 
         builder = FinishPromptBuilder(
             current_plan=current_plan,

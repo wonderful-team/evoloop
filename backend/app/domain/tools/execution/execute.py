@@ -6,11 +6,11 @@ from typing import Annotated
 
 from app.core.context import ContextManager
 from app.core.engine.message.native_classes import RunnableConfig
+from app.core.project.utils import get_workspace_root
 from app.core.tools import evoloop_tool, get_working_directory
 from app.core.tools.base import InjectedToolArg
 from app.domain.tools.execution.background import execute_in_background, execute_smart
 from app.domain.tools.execution.security import is_dangerous_command
-from app.infrastructure.config import SystemConfigService
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ async def _execute_command(
         working_dir = get_working_directory(config)
 
         if ctx.project_id == 0 or (ctx.project_id is None and working_dir == "."):
-            workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
+            workspace_root = get_workspace_root()
             if workspace_root:
                 working_dir = workspace_root
                 logger.info(f"Global mode: Using WORKSPACE_ROOT as working directory: {working_dir}")

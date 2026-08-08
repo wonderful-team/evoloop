@@ -2,8 +2,6 @@
 Shared message utilities for agent nodes.
 """
 
-import ast
-import json
 import logging
 from typing import Any
 
@@ -14,6 +12,7 @@ from app.core.engine.message.native_classes import (
     SystemMessage,
     ToolMessage,
 )
+from app.utils.extract import safe_parse_json, safe_parse_json_value
 from app.utils.token import estimate_tokens
 
 logger = logging.getLogger(__name__)
@@ -26,27 +25,19 @@ def parse_tool_input(input_str: str | None) -> dict:
     if not input_str or not input_str.strip():
         return {}
 
-    input_str = input_str.strip()
-    if not input_str.startswith("{"):
-        return {}
-
-    try:
-        return json.loads(input_str)
-    except (json.JSONDecodeError, ValueError):
-        pass
-
-    try:
-        result = ast.literal_eval(input_str)
-        if isinstance(result, dict):
-            return result
-    except (ValueError, SyntaxError):
-        pass
-
-    return {}
+    parsed = safe_parse_json(input_str)
+    return parsed or {}
 
 
 def _msg_field(msg, key, default=None):
     return msg.get(key) if isinstance(msg, dict) else getattr(msg, key, default)
+
+
+def _coerce_args(raw: Any) -> dict:
+    """Coerce a tool-call args value (str/dict/None) into a dict."""
+    if isinstance(raw, str):
+        return safe_parse_json(raw) or {}
+    return raw or {}
 
 
 def to_base_message(msg: Any) -> BaseMessage | None:
@@ -146,25 +137,15 @@ def normalize_tool_call(tc: Any) -> dict[str, Any]:
                     res_name = fn_info.get("name") or ""
                 if not res_args:
                     args_raw = fn_info.get("arguments")
-                    if isinstance(args_raw, str):
-                        try:
-                            res_args = json.loads(args_raw)
-                        except (json.JSONDecodeError, ValueError):
-                            res_args = {}
-                    elif isinstance(args_raw, dict):
-                        res_args = args_raw
+                    if isinstance(args_raw, str) or isinstance(args_raw, dict):
+                        res_args = _coerce_args(args_raw)
             elif fn_info is not None:
                 if not res_name:
                     res_name = getattr(fn_info, "name", "") or ""
                 if not res_args:
                     args_raw = getattr(fn_info, "arguments", "")
-                    if isinstance(args_raw, str):
-                        try:
-                            res_args = json.loads(args_raw)
-                        except (json.JSONDecodeError, ValueError):
-                            res_args = {}
-                    elif isinstance(args_raw, dict):
-                        res_args = args_raw
+                    if isinstance(args_raw, str) or isinstance(args_raw, dict):
+                        res_args = _coerce_args(args_raw)
     else:
         res_id = getattr(tc, "id", None) or getattr(tc, "tool_call_id", None) or ""
         res_name = getattr(tc, "name", None) or getattr(tc, "tool_name", None) or ""
@@ -176,31 +157,18 @@ def normalize_tool_call(tc: Any) -> dict[str, Any]:
                     res_name = fn_info.get("name") or ""
                 if not res_args:
                     args_raw = fn_info.get("arguments")
-                    if isinstance(args_raw, str):
-                        try:
-                            res_args = json.loads(args_raw)
-                        except (json.JSONDecodeError, ValueError):
-                            res_args = {}
-                    elif isinstance(args_raw, dict):
-                        res_args = args_raw
+                    if isinstance(args_raw, str) or isinstance(args_raw, dict):
+                        res_args = _coerce_args(args_raw)
             elif fn_info is not None:
                 if not res_name:
                     res_name = getattr(fn_info, "name", "") or ""
                 if not res_args:
                     args_raw = getattr(fn_info, "arguments", "")
-                    if isinstance(args_raw, str):
-                        try:
-                            res_args = json.loads(args_raw)
-                        except (json.JSONDecodeError, ValueError):
-                            res_args = {}
-                    elif isinstance(args_raw, dict):
-                        res_args = args_raw
+                    if isinstance(args_raw, str) or isinstance(args_raw, dict):
+                        res_args = _coerce_args(args_raw)
 
     if isinstance(res_args, str):
-        try:
-            res_args = json.loads(res_args) if res_args.strip() else {}
-        except (json.JSONDecodeError, ValueError):
-            res_args = {}
+        res_args = _coerce_args(res_args)
 
     result = {"id": res_id, "name": res_name, "args": res_args}
 
@@ -224,10 +192,10 @@ def normalize_tool_calls(tool_calls: Any) -> list[dict[str, Any]]:
         return []
 
     if isinstance(tool_calls, str):
-        try:
-            tool_calls = json.loads(tool_calls)
-        except (json.JSONDecodeError, ValueError):
+        parsed = safe_parse_json_value(tool_calls)
+        if not isinstance(parsed, list):
             return []
+        tool_calls = parsed
 
     if not isinstance(tool_calls, list):
         return []

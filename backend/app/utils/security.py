@@ -1,6 +1,7 @@
 import hmac
 import os
 import re
+from collections.abc import Sequence
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -254,6 +255,36 @@ def mask_sensitive_data(data: str, visible_chars: int = 4) -> str:
         return "*" * len(data)
 
     return "*" * (len(data) - visible_chars) + data[-visible_chars:]
+
+
+# ============================================================================
+# Secret Redaction
+# ============================================================================
+
+
+_REDACTED = "******"
+
+
+def redact_secrets(value: Any, secrets: Sequence[str]) -> Any:
+    """Replace every occurrence of ``secrets`` inside ``value`` with ``******``.
+
+    Recursively handles strings, dicts and lists; any other type is returned
+    unchanged. Empty secrets are skipped. Non-string containers are never
+    mutated in place — a sanitized copy is returned.
+    """
+    if not secrets:
+        return value
+    if isinstance(value, str):
+        sanitized = value
+        for secret in secrets:
+            if secret and secret in sanitized:
+                sanitized = sanitized.replace(secret, _REDACTED)
+        return sanitized
+    if isinstance(value, dict):
+        return {k: redact_secrets(v, secrets) for k, v in value.items()}
+    if isinstance(value, list):
+        return [redact_secrets(x, secrets) for x in value]
+    return value
 
 
 # ============================================================================

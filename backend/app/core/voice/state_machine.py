@@ -30,6 +30,7 @@ _VALID_TRANSITIONS: dict[VoiceSessionState, set[VoiceSessionState]] = {
     # 进入 PROCESSING（否则 SPEAKING 不可达，本地 VAD 打断失效）。
     VoiceSessionState.IDLE: {
         VoiceSessionState.LISTENING,
+        VoiceSessionState.PROCESSING,
     },
     VoiceSessionState.LISTENING: {
         VoiceSessionState.PROCESSING,

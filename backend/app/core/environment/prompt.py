@@ -8,16 +8,15 @@ This ensures both the Supervisor and Skills share the same understanding of the 
 import asyncio
 import logging
 import re
-import shutil
 from datetime import datetime
-
-import psutil
 
 from app.core.context.manager import ContextManager
 from app.core.context.plugins import plugin_registry
+from app.core.environment.utils import collect_cpu_mem
 from app.core.tools.manager import tool_manager
 from app.infrastructure.config.service import SystemConfigService
 from app.infrastructure.drivers.browser import browser_manager
+from app.infrastructure.drivers.system import get_disk_usage, get_listening_ports
 from app.utils.template import render_template
 
 logger = logging.getLogger(__name__)
@@ -97,40 +96,14 @@ def _get_active_background_tasks() -> list[dict]:
 
 def _get_listening_local_ports() -> list[dict]:
     try:
-        import warnings
-        from collections import defaultdict
-
-        ports = []
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            for p in psutil.process_iter(["pid", "name"]):
-                try:
-                    for conn in p.connections(kind="inet"):
-                        if conn.status == "LISTEN":
-                            ports.append({
-                                "port": conn.laddr.port,
-                                "pid": p.info["pid"],
-                                "process": p.info["name"] or "Unknown",
-                            })
-                except (psutil.AccessDenied, psutil.NoSuchProcess):
-                    continue
-        # Deduplicate by port
+        ports = get_listening_ports()
+        # Deduplicate by port (prefer entries with a pid)
         seen_ports = {}
         for p in ports:
             port = p["port"]
             if port not in seen_ports or (p["pid"] and not seen_ports[port]["pid"]):
                 seen_ports[port] = p
-        # Aggregate by process name
-        by_process = defaultdict(list)
-        for p in seen_ports.values():
-            by_process[p["process"]].append(p["port"])
-        return sorted(
-            [
-                {"name": name, "ports": sorted(ports), "port_count": len(ports)}
-                for name, ports in by_process.items()
-            ],
-            key=lambda x: x["name"],
-        )
+        return sorted(seen_ports.values(), key=lambda x: x["port"])
     except Exception:
         logger.exception("Failed to enumerate listening local ports")
         return []
@@ -150,27 +123,71 @@ def _parse_docker_host_ports(docker_containers: list[dict]) -> set[int]:
     return host_ports
 
 
+def _docker_host_endpoints(ports_str: str) -> list[str]:
+    """Extract host-side endpoints from a Docker ports mapping.
+
+    ``0.0.0.0:18080->80/tcp, [::]:18080->80/tcp`` -> ``['0.0.0.0:18080']``.
+    Deduplicates the IPv4/IPv6 bindings of the same port.
+    """
+    endpoints: dict[int, str] = {}
+    for mapping in ports_str.split(","):
+        arrow = mapping.find("->")
+        if arrow < 0:
+            continue
+        host_side = mapping[:arrow].strip()
+        m = re.search(r":(\d+)$", host_side)
+        if not m:
+            continue
+        endpoints.setdefault(int(m.group(1)), host_side)
+    return [endpoints[p] for p in sorted(endpoints)]
+
+
+def _docker_label(c: dict) -> str:
+    """Compact per-container label: bridge IP + container ports, falling back
+    to the host-published binding when the bridge IP is unavailable."""
+    name = c["name"]
+    ports_str = c.get("ports", "")
+    ip = c.get("ip")
+    if ip:
+        container_ports = sorted(
+            {int(m) for m in re.findall(r"->(\d+)/", ports_str)}
+        )
+        if container_ports:
+            return f"{name}: {ip}:{','.join(map(str, container_ports))}"
+        return f"{name}: {ip}"
+    host_endpoints = _docker_host_endpoints(ports_str)
+    if host_endpoints:
+        return f"{name}: {', '.join(host_endpoints)}"
+    return f"{name}: (无外部端口)"
+
+
+def _normalize_app_name(name: str) -> str:
+    """Normalize a process/app name for cross-source matching."""
+    return re.sub(r"[\s\-_]+", "", name).lower()
+
+
 def _get_active_window() -> str | None:
     """Best-effort fetch of the current foreground window/app name."""
     try:
-        from app.infrastructure.drivers.macos import macos_driver
+        from app.core.environment import get_current_app_context
 
-        info = macos_driver.get_current_app()
-        if isinstance(info, dict):
-            return info.get("name") or info.get("title")
-        return str(info) if info else None
+        ctx = get_current_app_context()
+        return ctx.name or ctx.title or None
     except Exception:
         logger.debug("Could not fetch active window", exc_info=True)
         return None
 
 
-def build_environment_summaries(relevance: str = "auto") -> dict:
+def build_environment_summaries(relevance: str = "auto", include_full_apps: bool = False) -> dict:
     """
     Build environment awareness data from awakened state.
     Returns a dictionary suitable for templates.
 
     Args:
         relevance: "android", "macos", "both", or "auto"
+        include_full_apps: include the full installed-app list and detailed
+            app usage stats (with priority scores). Default False keeps the
+            context compact (count + top apps only).
     """
     try:
         from app.core.environment import get_awakened_state
@@ -179,7 +196,7 @@ def build_environment_summaries(relevance: str = "auto") -> dict:
         if not state:
             return {}
 
-        data = {"macos": None, "android_devices": [], "network": None}
+        data = {"android_devices": [], "network": None}
 
         # 1. Host (macOS) Info
         if state.host:
@@ -188,15 +205,42 @@ def build_environment_summaries(relevance: str = "auto") -> dict:
                 "model": state.host.model,
                 "cpu": state.host.cpu,
                 "os_version": state.host.os_version,
-                "top_apps": [],
                 "running_apps": [],
+                "top_apps": [],
+                "recently_used_closed": [],
                 "app_count": 0,
             }
             if relevance in ["macos", "both", "auto"]:
                 if state.host.app_usage_stats:
-                    host_info["running_apps"] = [s.app_name for s in state.host.app_usage_stats if s.is_running][:20]
-                if state.host.installed_apps:
-                    host_info["app_count"] = len(state.host.installed_apps)
+                    ranked = sorted(
+                        state.host.app_usage_stats,
+                        key=lambda s: s.priority_score,
+                        reverse=True,
+                    )
+                    host_info["running_apps"] = [s.app_name for s in ranked if s.is_running][:20]
+                    host_info["top_apps"] = [s.app_name for s in ranked][:10]
+                    host_info["recently_used_closed"] = [
+                        a for a in host_info["top_apps"]
+                        if a not in host_info["running_apps"]
+                    ]
+                    if include_full_apps:
+                        host_info["app_usage_stats"] = [
+                            {
+                                "app_name": s.app_name,
+                                "priority_score": s.priority_score,
+                                "is_running": s.is_running,
+                                "total_foreground_ms": s.total_foreground_ms,
+                            }
+                            for s in ranked
+                        ]
+                if include_full_apps:
+                    running_norm = {
+                        _normalize_app_name(a) for a in host_info["running_apps"]
+                    }
+                    host_info["installed_apps"] = [
+                        a for a in (state.host.installed_apps or [])
+                        if _normalize_app_name(a) not in running_norm
+                    ]
                 if state.host.os_name == "macOS":
                     host_info["active_window"] = _get_active_window()
             # Linux specific details
@@ -208,16 +252,14 @@ def build_environment_summaries(relevance: str = "auto") -> dict:
 
             # Real-time telemetry for all platforms (lightweight only)
             try:
-                host_info["cpu_percent"] = psutil.cpu_percent(interval=None)
-                mem = psutil.virtual_memory()
-                host_info["memory_percent"] = mem.percent
-                host_info["memory_available_gb"] = round(mem.available / (1024**3), 1)
-                disk = shutil.disk_usage("/")
-                host_info["disk_space"] = {
-                    "total_gb": round(disk.total / (2**30), 1),
-                    "free_gb": round(disk.free / (2**30), 1),
-                    "percent_used": round((disk.used / disk.total) * 100, 1),
-                }
+                metrics = collect_cpu_mem()
+                if metrics:
+                    host_info["cpu_percent"] = metrics["cpu_percent"]
+                    host_info["memory_percent"] = metrics["mem_percent"]
+                    host_info["memory_available_gb"] = round(metrics["mem_available"] / (1024**3), 1)
+                disk = get_disk_usage("/")
+                if disk:
+                    host_info["disk_space"] = disk
             except Exception:
                 logger.debug("Failed to collect real-time host telemetry", exc_info=True)
 
@@ -247,29 +289,65 @@ def build_environment_summaries(relevance: str = "auto") -> dict:
         if state.network:
             data["network"] = {"internet_connected": state.network.internet_connected}
 
+        # 3b. LAN devices discovered via mDNS + ARP, enriched by Bluetooth
+        bt_mobiles = [
+            b for b in (state.bluetooth_devices or []) if b.device_type == "mobile"
+        ]
+        _bt_idx = 0
+        lan_list = []
+        for d in (state.lan_devices or []):
+            item = {
+                "ip": d.ip,
+                "name": d.name,
+                "device_type": d.device_type,
+                "manufacturer": d.manufacturer,
+                "model": d.model,
+                "services": d.services,
+            }
+            # A LAN "mobile" without a name can be cross-referenced with a
+            # paired Bluetooth phone to attach its name/vendor.
+            if item["device_type"] == "mobile" and not item["name"] and _bt_idx < len(bt_mobiles):
+                btd = bt_mobiles[_bt_idx]
+                item["name"] = btd.name
+                if not item["manufacturer"]:
+                    item["manufacturer"] = btd.vendor
+                _bt_idx += 1
+            lan_list.append(item)
+        data["lan_devices"] = lan_list
+
         # 4. Background Services, Listening Ports, and Docker
         data["running_services"] = _get_active_background_tasks()
         data["docker_containers"] = state.docker_containers
+        data["docker_labels"] = []
+        for c in state.docker_containers:
+            data["docker_labels"].append(_docker_label(c))
         data["active_ports"] = _get_listening_local_ports()
         # Filter Docker container host ports from local service list
         docker_host_ports = _parse_docker_host_ports(state.docker_containers)
         if docker_host_ports:
-            filtered = []
-            for svc in data["active_ports"]:
-                non_docker_ports = [
-                    p for p in svc["ports"] if p not in docker_host_ports
-                ]
-                if non_docker_ports:
-                    filtered.append({
-                        "name": svc["name"],
-                        "ports": non_docker_ports,
-                        "port_count": len(non_docker_ports),
-                    })
-            data["active_ports"] = filtered
-        # Build compact service labels for template
+            data["active_ports"] = [
+                svc for svc in data["active_ports"]
+                if svc["port"] not in docker_host_ports
+            ]
+        # Exclude foreground applications (already surfaced via Running Applications)
+        running_apps = {
+            s.app_name for s in (state.host.app_usage_stats or []) if s.is_running
+        }
+        if running_apps:
+            running_normalized = {_normalize_app_name(n) for n in running_apps}
+            data["active_ports"] = [
+                svc for svc in data["active_ports"]
+                if _normalize_app_name(svc["process"]) not in running_normalized
+            ]
+        # Group ports per process instance for compact rendering (one line per service)
+        by_process: dict[tuple[str, int | None], list[int]] = {}
+        for svc in data["active_ports"]:
+            key = (svc["process"], svc.get("pid"))
+            by_process.setdefault(key, []).append(svc["port"])
         data["service_labels"] = [
-            f"{svc['name']} ({svc['port_count']})" if svc["port_count"] > 1 else svc["name"]
-            for svc in data["active_ports"]
+            f"{process} (PID {pid}): {', '.join(map(str, sorted(ports)))}"
+            if pid else f"{process}: {', '.join(map(str, sorted(ports)))}"
+            for (process, pid), ports in sorted(by_process.items(), key=lambda x: (x[0][0], x[0][1] or 0))
         ]
 
         return data
@@ -277,29 +355,6 @@ def build_environment_summaries(relevance: str = "auto") -> dict:
     except Exception:
         logger.exception("Failed to build environment summaries")
         return {}
-
-
-def get_capability_boundaries() -> list[str]:
-    """
-    Get all capability boundaries including dynamically learned ones.
-
-    Returns combined static and dynamic boundaries from the boundary manager.
-    """
-    try:
-        from app.core.environment.boundaries import boundary_manager
-
-        return boundary_manager.get_all_boundaries()
-    except Exception:
-        logger.exception("Failed to load boundaries from boundary_manager")
-        # Fallback to state boundaries if manager unavailable
-        try:
-            from app.core.environment import get_awakened_state
-
-            state = get_awakened_state()
-            return state.capability_boundaries if state else []
-        except Exception:
-            logger.exception("Failed to load boundaries from awakened state")
-            return []
 
 
 def _get_browser_status() -> dict | None:

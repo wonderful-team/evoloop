@@ -6,18 +6,20 @@ import time
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-import psutil
 from pydantic import PrivateAttr
 
 from app.core.environment.schemas import (
     AndroidDevice,
     AndroidTelemetry,
+    BluetoothDevice,
     ConceptSummary,
     EpisodeSummary,
     HostEnvironment,
+    LanDevice,
     NetworkStatus,
     TelemetrySnapshot,
 )
+from app.core.environment.utils import collect_cpu_mem
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 if TYPE_CHECKING:
@@ -36,6 +38,8 @@ class AwakenedState(DynamicBaseModel):
     android_devices: list[AndroidDevice] = []
     network: NetworkStatus = NetworkStatus()
     docker_containers: list[dict] = []
+    lan_devices: list[LanDevice] = []
+    bluetooth_devices: list[BluetoothDevice] = []
 
     # == Memory Layer ==
     recent_episodes: list[EpisodeSummary] = []
@@ -63,6 +67,22 @@ class AwakenedState(DynamicBaseModel):
             platforms.append("android")
         return platforms
 
+    def _get_active_window_snapshot(self) -> dict | None:
+        """Best-effort snapshot of the frontmost window (macOS only)."""
+        if not self.host or self.host.os_name != "macOS":
+            return None
+        try:
+            from app.core.environment import get_current_app_context
+
+            ctx = get_current_app_context()
+            return {
+                "app_name": ctx.name,
+                "window_title": ctx.title,
+                "bounds": ctx.bounds,
+            }
+        except Exception:
+            return None
+
     def get_telemetry_snapshot(self) -> TelemetrySnapshot:
         """
         Get telemetry snapshot with caching.
@@ -74,20 +94,22 @@ class AwakenedState(DynamicBaseModel):
             dict with keys: "android", "macos", "network"
         """
         now = time.time()
-
         # Return cached value if still valid
         if (self._telemetry_cache is not None and now - self._telemetry_cache_time) < self._telemetry_cache_ttl:
             return self._telemetry_cache
 
         # Compute fresh snapshot
-        try:
+        metrics = collect_cpu_mem()
+        if metrics:
             cpu_data = {
-                "usage_percent": psutil.cpu_percent(interval=None),
-                "load_avg": psutil.getloadavg() if hasattr(psutil, "getloadavg") else [],
+                "usage_percent": metrics["cpu_percent"],
+                "load_avg": metrics["load_avg"],
             }
-            mem = psutil.virtual_memory()
-            mem_data = {"percent": mem.percent, "available": mem.available}
-        except Exception:
+            mem_data = {
+                "percent": metrics["mem_percent"],
+                "available": metrics["mem_available"],
+            }
+        else:
             cpu_data = {}
             mem_data = {}
 
@@ -100,6 +122,7 @@ class AwakenedState(DynamicBaseModel):
             network=self.network.internet_connected if self.network else False,
             cpu=cpu_data,
             memory=mem_data,
+            active_window=self._get_active_window_snapshot(),
             context_usage_percent=0,  # Filled dynamically by context_hydrator later if possible
         )
         self._telemetry_cache_time = now

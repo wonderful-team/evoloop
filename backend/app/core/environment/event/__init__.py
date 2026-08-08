@@ -15,7 +15,6 @@ from .schemas import (
 from .subscribers import (
     DeviceEventSubscriber,
     EnvironmentLifecycleSubscriber,
-    SkillEventSubscriber,
     SystemEventSubscriber,
 )
 from .types import EventType
@@ -28,7 +27,6 @@ __all__ = [
     "DeviceEventSubscriber",
     "EnvironmentLifecycleSubscriber",
     "EventType",
-    "SkillEventSubscriber",
     "SystemEventSubscriber",
     "UiTreeObservedEvent",
 ]

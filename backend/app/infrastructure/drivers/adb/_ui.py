@@ -92,7 +92,7 @@ class UIMixin:
                     logger.info(f"Dumped UI hierarchy in {(time.time() - start) * 1000:.0f}ms (uiautomator2, auto-detected)")
                     return xml_content
             except Exception:
-                pass
+                logger.debug("[ADB] uiautomator2 dump failed, trying native", exc_info=True)
 
             logger.debug("[ADB] uiautomator2 not available, trying native...")
             try:

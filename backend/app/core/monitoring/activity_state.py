@@ -69,18 +69,29 @@ class ActivityStateService:
     ) -> bool:
         """Initialize activity state for a new run."""
         if session is not None:
-            return await self._start_run_with_session(thread_id, main_goal, session)
+            return await self._start_run_with_session(
+                thread_id, main_goal, session, run_id
+            )
 
         async with self._get_session_scope()() as s:
-            return await self._start_run_with_session(thread_id, main_goal, s)
+            return await self._start_run_with_session(thread_id, main_goal, s, run_id)
 
-    async def _start_run_with_session(self, thread_id: str, main_goal: str, session) -> bool:
+    async def _start_run_with_session(
+        self,
+        thread_id: str,
+        main_goal: str,
+        session,
+        run_id: str | None = None,
+    ) -> bool:
         activity = await session.get(AgentActivity, thread_id)
         if activity is None:
             activity = AgentActivity(thread_id=thread_id)
             session.add(activity)
 
         activity.status = "running"
+        # 记录当前 run，使 end_run 能校验 run_id 隔离，避免旧 run 的取消/结束
+        # 覆盖新 run 的活动状态。
+        activity.run_id = run_id
         activity.main_goal = main_goal
         activity.artifacts_json = json.dumps([])
         activity.agent_state_json = json.dumps({})
@@ -102,10 +113,10 @@ class ActivityStateService:
     ) -> ActivityState:
         """Mark run as ended and return final state."""
         if session is not None:
-            return await self._end_run_with_session(thread_id, status, final_outcome, session)
+            return await self._end_run_with_session(thread_id, status, final_outcome, session, run_id)
 
         async with self._get_session_scope()() as s:
-            return await self._end_run_with_session(thread_id, status, final_outcome, s)
+            return await self._end_run_with_session(thread_id, status, final_outcome, s, run_id)
 
     async def _end_run_with_session(
         self,
@@ -113,9 +124,28 @@ class ActivityStateService:
         status: str,
         final_outcome: str | None,
         session,
+        run_id: str | None = None,
     ) -> ActivityState:
         activity = await session.get(AgentActivity, thread_id)
         if activity is None:
+            return ActivityState(status=status)
+
+        # run_id 隔离：带 run_id 的结束调用必须匹配当前 run。若传入的 run_id
+        # 与表内（当前 run）不一致，说明是旧 run 的迟到取消/结束。DB 状态保持
+        # 新 run 不变，但向调用方返回本次请求的真实终态（旧 run 的 run_end
+        # 事件正确上报，而非当前新 run 的状态）。
+        # 未传 run_id 的外部终结（如错误处理、A2A 回调）视为对当前 run 生效，放行。
+        if (
+            run_id is not None
+            and activity.run_id is not None
+            and activity.run_id != run_id
+        ):
+            logger.warning(
+                "[activity] end_run(run_id=%s) mismatches current run_id=%s for thread %s; skipping state update",
+                run_id,
+                activity.run_id,
+                thread_id,
+            )
             return ActivityState(status=status)
 
         # Idempotent: skip if already in a terminal state
@@ -170,7 +200,7 @@ class ActivityStateService:
     async def update_field(self, thread_id: str, field: str, value: Any) -> bool:
         """Update a single field in the activity state."""
         if not isinstance(value, str):
-            value = json.dumps(value) if isinstance(value, (dict, list)) else str(value)
+            value = json.dumps(value) if isinstance(value, dict | list) else str(value)
 
         field_map = {
             "status": "status",

@@ -14,13 +14,13 @@ Flow:
 import asyncio
 import json
 import logging
-import platform
 from typing import Any
 
 import websockets
 from websockets.exceptions import ConnectionClosed
 
 from app.core.config import settings
+from app.core.device import get_hostname
 from app.infrastructure.schemas import ToolRequest
 
 try:
@@ -114,7 +114,7 @@ class ClientWebSocketManager:
 
                 self._service_info = ServiceInfo(
                     "_evoloop._tcp.local.",
-                    f"{settings.EVOCLOUD_DEVICE_NAME or platform.node()}._evoloop._tcp.local.",
+                    f"{settings.EVOCLOUD_DEVICE_NAME or get_hostname()}._evoloop._tcp.local.",
                     addresses=[socket.inet_aton(local_ip)],
                     port=port,
                     properties=desc,

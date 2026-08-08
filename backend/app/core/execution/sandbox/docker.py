@@ -4,7 +4,7 @@ import docker
 from docker.errors import NotFound
 
 from app.core.execution.sandbox.base import Sandbox
-from app.infrastructure.config.service import SystemConfigService
+from app.core.project.utils import get_workspace_root
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ class DockerSandbox(Sandbox):
                 # Create and start
                 # Mount WORKSPACE_ROOT to /workspace
                 # Priority: Database > Settings (consistent with other components)
-                workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
+                workspace_root = get_workspace_root()
                 if not workspace_root:
                     raise RuntimeError(
                         "WORKSPACE_ROOT not configured. "

@@ -30,6 +30,8 @@ async def awaken(project_id: int | None = None) -> AwakenedState:
     probe_android_task = EnvironmentProbe.probe_android_devices()
     probe_network_task = EnvironmentProbe.probe_network()
     probe_docker_task = EnvironmentProbe.probe_docker_containers()
+    probe_lan_task = EnvironmentProbe.probe_lan_devices()
+    probe_bluetooth_task = EnvironmentProbe.probe_bluetooth_devices()
     memory_task = replay_memory(project_id)
     pref_task = prime_preferences(project_id)
 
@@ -38,6 +40,8 @@ async def awaken(project_id: int | None = None) -> AwakenedState:
         probe_android_task,
         probe_network_task,
         probe_docker_task,
+        probe_lan_task,
+        probe_bluetooth_task,
         memory_task,
         pref_task,
         return_exceptions=True,
@@ -51,23 +55,17 @@ async def awaken(project_id: int | None = None) -> AwakenedState:
         PreferenceContext,
     )
 
-    defaults = [None, [], NetworkStatus(), [], MemoryContext(), PreferenceContext()]
-    names = ["host", "android", "network", "docker", "memory", "preferences"]
+    defaults = [None, [], NetworkStatus(), [], [], [], MemoryContext(), PreferenceContext()]
+    names = ["host", "android", "network", "docker", "lan", "bluetooth", "memory", "preferences"]
     for i, result in enumerate(results):
         if isinstance(result, BaseException):
             logger.warning(f"🌅 Awakening: {names[i]} probe failed (degraded): {result}")
             results[i] = defaults[i]
 
-    host, android_devices, network, docker_containers, memory_context, pref_context = results
+    host, android_devices, network, docker_containers, lan_devices, bluetooth_devices, memory_context, pref_context = results
 
     boundaries = _compute_capability_boundaries(host, android_devices, network)
     boundary_manager.set_static_boundaries(boundaries)
-
-    platforms = []
-    if host:
-        platforms.append(host.os_name.lower())
-    if android_devices:
-        platforms.append("android")
 
     state = AwakenedState(
         timestamp=datetime.now(),
@@ -75,15 +73,19 @@ async def awaken(project_id: int | None = None) -> AwakenedState:
         android_devices=android_devices,
         network=network,
         docker_containers=docker_containers,
+        lan_devices=lan_devices,
+        bluetooth_devices=bluetooth_devices,
         recent_episodes=memory_context.episodes,
         relevant_concepts=memory_context.concepts,
         journal_highlights=memory_context.journal_highlights,
         user_preferences=pref_context.preferences,
-        available_platforms=platforms,
+        available_platforms=[],
         capability_boundaries=boundaries,
     )
+    state.available_platforms = state.compute_platforms()
     set_awakened_state(state)
 
+    platforms = state.available_platforms
     logger.info(f"🧠 Agent awakened. Platforms: {platforms}")
 
     from app.core.environment.event.publishers import publish_awakening_complete

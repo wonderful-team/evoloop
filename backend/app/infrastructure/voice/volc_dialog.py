@@ -1,8 +1,10 @@
 import gzip
 import json
-import uuid
 import logging
-from typing import Dict, Any, Optional
+import ssl
+import uuid
+from typing import Any
+
 import websockets
 
 from app.infrastructure.voice import volc_protocol as protocol
@@ -16,11 +18,19 @@ class VolcDialogClient:
         self.access_key = access_key
         self.session_id = session_id
         self.base_url = "wss://openspeech.bytedance.com/api/v3/realtime/dialogue"
-        self.ws: Optional[websockets.WebSocketClientProtocol] = None
+        self.ws: websockets.WebSocketClientProtocol | None = None
         self.logid = ""
 
-    async def connect(self) -> None:
-        """Establish WebSocket connection to Volcengine."""
+    async def connect(self, mode: str = "audio", recv_timeout: int = 60) -> None:
+        """Establish WebSocket connection to Volcengine.
+
+        Args:
+            mode: Session input mode passed to the realtime dialogue service.
+                Use "audio" for the full-duplex voice path; use "text" for
+                text-only / TTS-only sessions.
+            recv_timeout: Server-side receive timeout in seconds, used mainly
+                for text mode. Range [10, 120].
+        """
         headers = {
             "X-Api-App-ID": self.app_id,
             "X-Api-Access-Key": self.access_key,
@@ -68,9 +78,9 @@ class VolcDialogClient:
                 "dialog_id": "",
                 "extra": {
                     "strict_audit": False,
-                    "recv_timeout": 60,
-                    "input_mod": "audio",
-                }
+                    "recv_timeout": recv_timeout,
+                    "input_mod": mode,
+                },
             },
             "tts": {
                 "audio_config": {

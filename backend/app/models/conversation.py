@@ -208,6 +208,7 @@ class AgentActivity(Base):
 
     thread_id: Mapped[str] = mapped_column(String(255), primary_key=True, autoincrement=False)
     status: Mapped[str] = mapped_column(String(50), default="idle")
+    run_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     main_goal: Mapped[str] = mapped_column(Text, default="")
     artifacts_json: Mapped[str] = mapped_column(Text, default="[]")
     agent_state_json: Mapped[str] = mapped_column(Text, default="{}")

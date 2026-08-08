@@ -49,8 +49,7 @@ class LLMConfigService:
                 temperature=0,
                 max_tokens=5,
                 streaming=False,
-                # Auto-detect fixes based on URL similar to factory.py
-                fix_tool_args_list="bigmodel.cn" in (base_url or ""),
+                fix_tool_args_list=False,
             )
         else:
             # We assume OpenAI compatible for now (provider check can expand later)

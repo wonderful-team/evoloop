@@ -16,9 +16,6 @@ InternalLLMService - 内部 LLM 调用服务
 
 使用示例：
     from app.infrastructure.llm import InternalLLMService
-    from app.infrastructure.config.service import SystemConfigService
-
-    model_name = SystemConfigService.get_value("LLM_MODEL")
 
     response = await InternalLLMService.invoke(
         messages=[
@@ -28,7 +25,7 @@ InternalLLMService - 内部 LLM 调用服务
         purpose="memory_selection",  # 用于调试和追踪
         temperature=0.3,
         max_tokens=500,
-        model_name=model_name,  # 必须显式传入，禁止隐式 fallback
+        # model_name 可选；不指定时由 LLMFactory.create_llm 统一解析默认模型
     )
 
     content = response.content
@@ -82,9 +79,6 @@ class InternalLLMService:
             - 记录调用日志（仅用于调试，不存储消息）
         """
         from app.infrastructure.llm.factory import get_default_llm
-        from app.infrastructure.config.service import SystemConfigService
-
-        model_name = model_name or SystemConfigService.get_value("LLM_MODEL") or ""
 
         # 获取 LLM 实例
         llm = await get_default_llm(
@@ -137,9 +131,6 @@ class InternalLLMService:
         使用结构化输出模式调用 LLM
         """
         from app.infrastructure.llm.factory import get_default_llm
-        from app.infrastructure.config.service import SystemConfigService
-
-        model_name = model_name or SystemConfigService.get_value("LLM_MODEL") or ""
 
         llm = await get_default_llm(
             temperature=temperature,
@@ -194,7 +185,10 @@ class InternalLLMService:
                 try:
                     logger.info(f"[InternalLLM] Re-invoking LLM as fallback for '{purpose}'...")
                     fallback_response = await llm.ainvoke(messages, config=config)
-                    raw_content = fallback_response.content if hasattr(fallback_response, "content") else str(fallback_response)
+                    raw_content = (
+                        fallback_response.content
+                        if hasattr(fallback_response, "content") else str(fallback_response)
+                    )
                 except Exception as fallback_err:
                     logger.error(f"[InternalLLM] Fallback LLM re-invocation also failed for '{purpose}': {fallback_err}")
                     raise e

@@ -8,7 +8,11 @@ from app.core.evocloud import evocloud_manager
 from app.core.file import is_ignored_path
 from app.core.hitl.policies import DEFAULT_SENSITIVE_PATTERNS
 from app.core.project import cache as project_cache
-from app.core.project.utils import read_project_json, write_project_json
+from app.core.project.utils import (
+    get_workspace_root,
+    read_project_json,
+    write_project_json,
+)
 from app.domain.codebase.indexing.service import IndexingService
 from app.infrastructure.database import session_scope
 from app.models.codebase import Repository
@@ -46,9 +50,8 @@ class ProjectSyncService:
             from app.core.context import thread_context_store
             from app.core.project.local_index import local_project_index
             from app.domain.codebase.indexing.manager import indexing_manager
-            from app.infrastructure.config.service import SystemConfigService
 
-            workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
+            workspace_root = get_workspace_root()
             logger.info(f"[ProjectSync] sync_cloud_project started. WORKSPACE_ROOT={workspace_root}")
             if not workspace_root:
                 logger.info("[ProjectSync] WORKSPACE_ROOT not configured. Skipping cloud project sync.")

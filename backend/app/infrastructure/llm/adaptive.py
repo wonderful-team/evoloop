@@ -49,7 +49,7 @@ def _to_openai_tool_call(tc: dict) -> dict:
     Native shape (used across the engine): ``{"index", "id", "name", "args"}``.
     The EvoLoop gateway's OpenAI→anthropic translation requires the standard
     function-wrapped shape; passing the native shape through verbatim makes
-    the upstream kimi endpoint answer 400 "tokenization failed" on any
+    some upstream endpoints answer 400 on any
     multi-step tool loop.
     """
     if "function" in tc:
@@ -113,7 +113,7 @@ class AdaptiveChatOpenAI:
         http_async_client: Any = None,
         extra_body: dict | None = None,
         default_headers: dict | None = None,
-        **kwargs: Any
+        **kwargs: Any,
     ):
         self.model = model
         self.temperature = temperature
@@ -198,16 +198,34 @@ class AdaptiveChatOpenAI:
             if isinstance(m, dict):
                 # model_dump() from BaseMessage subclasses includes "type" but not "role"
                 if "role" not in m:
-                    role_map = {"ai": "assistant", "human": "user", "system": "system", "tool": "tool"}
+                    role_map = {
+                        "ai": "assistant",
+                        "human": "user",
+                        "system": "system",
+                        "tool": "tool",
+                    }
                     m = {**m, "role": role_map.get(m.get("type", ""), "user")}
-                # Extract reasoning_content from additional_kwargs/thinking, defaulting to '....' for assistant
+                # Extract reasoning_content from additional_kwargs/thinking.
+                # Only add the field when real reasoning content exists; do not
+                # fabricate a placeholder so reasoning-model providers can accept
+                # messages that did not emit reasoning tokens.
                 if m.get("role") == "assistant":
                     akw = m.get("additional_kwargs") or {}
-                    rc = akw.get("reasoning_content") or akw.get("thinking") or "...."
-                    m["reasoning_content"] = rc
+                    rc = akw.get("reasoning_content") or akw.get("thinking")
+                    if rc:
+                        m = {**m, "reasoning_content": rc}
+                    # Dict messages may carry native tool_calls; normalize them
+                    # to the OpenAI wire format before sending upstream.
+                    if m.get("tool_calls"):
+                        calls = [_to_openai_tool_call(tc) for tc in m["tool_calls"]]
+                        m = {**m, "tool_calls": [c for c in calls if c is not None]}
                 api_messages.append(m)
             else:
-                role = "assistant" if m.type == "ai" else (m.type if m.type in ("system", "tool") else "user")
+                role = (
+                    "assistant"
+                    if m.type == "ai"
+                    else (m.type if m.type in ("system", "tool") else "user")
+                )
                 msg_dict = {"role": role, "content": m.content}
                 if role == "tool" and m.tool_call_id:
                     msg_dict["tool_call_id"] = m.tool_call_id
@@ -215,8 +233,11 @@ class AdaptiveChatOpenAI:
                     if m.tool_calls:
                         calls = [_to_openai_tool_call(tc) for tc in m.tool_calls]
                         msg_dict["tool_calls"] = [c for c in calls if c is not None]
-                    rc = (m.additional_kwargs or {}).get("reasoning_content") or (m.additional_kwargs or {}).get("thinking") or "...."
-                    msg_dict["reasoning_content"] = rc
+                    rc = (m.additional_kwargs or {}).get("reasoning_content") or (
+                        m.additional_kwargs or {}
+                    ).get("thinking")
+                    if rc:
+                        msg_dict["reasoning_content"] = rc
                 api_messages.append(msg_dict)
 
         if callbacks:
@@ -232,8 +253,8 @@ class AdaptiveChatOpenAI:
                     "stream": True,
                     "extra_body": self.extra_body,
                 }
-                if self.model:
-                    req_params["model"] = self.model
+                # Always pass model key to satisfy openai SDK (can be empty string for cloud default routing)
+                req_params["model"] = self.model or ""
                 if state.current_max_tokens:
                     req_params["max_tokens"] = state.current_max_tokens
                 if self._tools:
@@ -260,7 +281,12 @@ class AdaptiveChatOpenAI:
                     if not chunk.choices:
                         continue
                     delta = chunk.choices[0].delta
-                    content = (getattr(delta, "content", None) or "").replace("</s>", "").replace("<|im_end|>", "").replace("<|endoftext|>", "")
+                    content = (
+                        (getattr(delta, "content", None) or "")
+                        .replace("</s>", "")
+                        .replace("<|im_end|>", "")
+                        .replace("<|endoftext|>", "")
+                    )
                     reasoning = getattr(delta, "reasoning_content", None) or ""
 
                     additional_kwargs = {}
@@ -313,11 +339,34 @@ class AdaptiveChatOpenAI:
             except openai.APIError as e:
                 error_str = str(e).lower()
                 if "reasoning_content" in error_str and not reasoning_degraded:
-                    reasoning_degraded = True
-                    for msg in api_messages:
-                        msg.pop("reasoning_content", None)
-                    logger.warning(f"⚠️ Reasoning Content Error. Stripping and retrying.")
-                    continue
+                    # Only strip reasoning_content from the retry if the provider explicitly
+                    # says it is not allowed.
+                    disallow_reasoning_keywords = (
+                        "is not allowed",
+                        "not permitted",
+                        "not supported",
+                        "cannot be used",
+                        "cannot pass",
+                        "is not valid",
+                        "reasoning model is not supported",
+                        "unsupported",
+                    )
+                    if any(kw in error_str for kw in disallow_reasoning_keywords):
+                        reasoning_degraded = True
+                        for msg in api_messages:
+                            msg.pop("reasoning_content", None)
+                        logger.warning("⚠️ Reasoning Content Error. Stripping and retrying.")
+                        continue
+                    # A reasoning_content error that is NOT an "not allowed" rejection
+                    # cannot be fixed by retrying identical messages — stripping is
+                    # disallowed and the payload is unchanged, so the next attempt
+                    # fails identically. Surface the error directly instead of
+                    # burning a guaranteed-fail retry.
+                    logger.warning(
+                        "⚠️ Reasoning Content Error not resolvable by retry: %s",
+                        error_str[:200],
+                    )
+                    raise e
                 if state.can_retry and self._is_retryable_error(e):
                     old_state = state
                     state = state.next_state()
@@ -327,7 +376,12 @@ class AdaptiveChatOpenAI:
 
     def _is_retryable_error(self, e: Exception) -> bool:
         error_str = str(e).lower()
-        retryable_keywords = ("context_length_exceeded", "maximum context length", "prompt is too long", "too many tokens")
+        retryable_keywords = (
+            "context_length_exceeded",
+            "maximum context length",
+            "prompt is too long",
+            "too many tokens",
+        )
         return any(kw in error_str for kw in retryable_keywords)
 
     async def ainvoke(self, messages: list[Any], config: dict = None, **kwargs: Any) -> Any:
@@ -404,7 +458,7 @@ def _inline_json_schema_refs(schema: dict) -> dict:
     """Resolve ``#/$defs/*`` references inline and drop ``$defs``.
 
     Pydantic v2 emits nested models as ``$ref`` + ``$defs``; some providers
-    (Kimi / moonshot) do not resolve ``$defs`` and return 400 ("$defs not found
+    do not resolve ``$defs`` and return 400 ("$defs not found
     for reference"). Inline every reference so the schema is self-contained.
     Cyclic references degrade to ``{}`` to avoid infinite recursion.
     """

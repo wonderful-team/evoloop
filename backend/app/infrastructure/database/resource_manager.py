@@ -22,7 +22,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import NullPool, text
+from sqlalchemy import NullPool, event, inspect, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlmodel import SQLModel
 from sqlmodel import create_engine as create_sync_engine
@@ -63,6 +63,21 @@ class DatabaseResourceManager:
             return id(asyncio.get_running_loop())
         except RuntimeError:
             return -1
+
+    @staticmethod
+    def _setup_sqlite_pragmas(engine):
+        """Enable SQLite WAL mode and a longer busy timeout on every new connection."""
+        # async engines expose the underlying sync engine via .sync_engine;
+        # the sync engine itself can be used directly.
+        target_engine = getattr(engine, "sync_engine", engine)
+
+        @event.listens_for(target_engine, "connect")
+        def _on_connect(dbapi_conn, _):
+            try:
+                dbapi_conn.execute("PRAGMA journal_mode=WAL")
+                dbapi_conn.execute("PRAGMA busy_timeout=30000")
+            except Exception as e:
+                logger.warning(f"[ResourceManager] SQLite pragma setup failed: {e}")
 
     @property
     def engine(self):
@@ -124,18 +139,20 @@ class DatabaseResourceManager:
                     poolclass=NullPool,
                     connect_args={
                         "check_same_thread": False,
-                        "timeout": 5,
+                        "timeout": 30,
                     },
                 )
+                self._setup_sqlite_pragmas(engine)
                 if self._sync_engine is None:
                     self._sync_engine = create_sync_engine(
                         sync_db_uri,
                         poolclass=NullPool,
                         connect_args={
                             "check_same_thread": False,
-                            "timeout": 5,
+                            "timeout": 30,
                         },
                     )
+                    self._setup_sqlite_pragmas(self._sync_engine)
             else:
                 engine = create_async_engine(
                     db_uri,
@@ -192,6 +209,26 @@ class DatabaseResourceManager:
 
             await conn.run_sync(Base.metadata.create_all)
             await conn.run_sync(SQLModel.metadata.create_all)
+
+        # create_all 对已存在的表不加新列。旧库补 agent_activities.run_id
+        # （run_id 隔离修复所需），幂等；新库 create_all 已含该列。
+        try:
+            async with engine.connect() as conn:
+                cols = await conn.run_sync(
+                    lambda c: {col["name"] for col in inspect(c).get_columns("agent_activities")}
+                )
+                if "run_id" not in cols:
+                    async with engine.begin() as conn2:
+                        await conn2.execute(
+                            text("ALTER TABLE agent_activities ADD COLUMN run_id VARCHAR(100)")
+                        )
+                        logger.info(
+                            "[ResourceManager] Added agent_activities.run_id column (schema fallback)"
+                        )
+        except Exception as e:  # noqa: BLE001
+            logger.warning(
+                "[ResourceManager] Failed to ensure agent_activities.run_id: %s", e
+            )
 
         logger.info("[ResourceManager] Tables and extensions verified")
 

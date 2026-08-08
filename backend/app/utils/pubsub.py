@@ -54,7 +54,7 @@ class SimplePubSubBus:
                 try:
                     queue.get_nowait()
                     queue.put_nowait(message)
-                except (TypeError, ValueError, RuntimeError):
+                except Full:
                     pass
 
 

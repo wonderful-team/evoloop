@@ -22,6 +22,7 @@ from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket, Ti
 from app.infrastructure.database import session_scope
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models.learning import LearnedSkill
+from app.utils.extract import safe_parse_json
 
 logger = logging.getLogger(__name__)
 
@@ -98,10 +99,7 @@ async def intercept_route_to(tool_call: dict, config: dict) -> RouteToSignal | N
     tc_id = tool_call["id"]
     args = tool_call.get("args", {}) or {}
     if isinstance(args, str):
-        try:
-            args = json.loads(args)
-        except (json.JSONDecodeError, TypeError, ValueError):
-            args = {}
+        args = safe_parse_json(args) or {}
 
     await _emit_tool_event("start", "route_to", args, tc_id, config)
 
@@ -109,10 +107,7 @@ async def intercept_route_to(tool_call: dict, config: dict) -> RouteToSignal | N
     reason = args.get("reason", "")
     context_data = args.get("context", {})
     if isinstance(context_data, str):
-        try:
-            context_data = json.loads(context_data)
-        except (json.JSONDecodeError, TypeError, ValueError):
-            context_data = {}
+        context_data = safe_parse_json(context_data) or {}
 
     if isinstance(context_data, dict):
         for field in ["skill_ids", "workflow_mode"]:

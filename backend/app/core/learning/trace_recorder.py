@@ -11,6 +11,7 @@ from app.core.engine.callbacks.base import AsyncCallbackHandler, LLMResult
 from app.core.file import ensure_dir
 from app.core.learning.schemas import ActionTrace
 from app.infrastructure.database import session_scope
+from app.utils.extract import safe_parse_json
 
 logger = logging.getLogger(__name__)
 
@@ -137,23 +138,9 @@ class TraceCallbackHandler(AsyncCallbackHandler):
         # Bridge passes str(dict) (Python repr), so JSON parsing usually fails
         # on single quotes — fall back to literal_eval before giving up.
         args: dict = {"raw": input_str}
-        for loader in (json.loads,):
-            try:
-                parsed = loader(input_str)
-                if isinstance(parsed, dict):
-                    args = parsed
-                break
-            except (json.JSONDecodeError, TypeError, ValueError):
-                continue
-        else:
-            import ast
-
-            try:
-                parsed = ast.literal_eval(input_str)
-                if isinstance(parsed, dict):
-                    args = parsed
-            except (ValueError, SyntaxError):
-                pass
+        parsed = safe_parse_json(input_str)
+        if parsed is not None:
+            args = parsed
 
         await self._save_event(
             action_type="tool_call",

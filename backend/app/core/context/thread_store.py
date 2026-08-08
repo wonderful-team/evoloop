@@ -2,8 +2,6 @@ import logging
 import os
 from threading import Lock
 
-from app.infrastructure.config.service import SystemConfigService
-
 logger = logging.getLogger(__name__)
 
 
@@ -45,8 +43,12 @@ class ThreadContextStore:
         Get the default root directory.
         Lazily attempts to load from DB, falling back to settings or home dir.
         """
-        # 优先从数据库获取（通过 SystemConfigService）
-        db_root = SystemConfigService.get_value("WORKSPACE_ROOT")
+        # 优先从数据库获取（通过 get_workspace_root）。
+        # 惰性导入：app.core.project.tools 会触发 evocloud_manager，顶层导入会造成
+        # app.core.evocloud 初始化期的循环导入，导致服务无法启动。
+        from app.core.project.utils import get_workspace_root
+
+        db_root = get_workspace_root()
         if db_root:
             return os.path.abspath(db_root)
 

@@ -11,7 +11,7 @@ from sqlalchemy import select
 from app.core.config import settings
 from app.core.events import SystemEventType
 from app.core.events.decorators import event_register, event_subscribe
-from app.infrastructure.config import SystemConfigService
+from app.core.project.utils import get_workspace_root
 from app.infrastructure.database import session_scope
 from app.models import McpServer
 
@@ -103,7 +103,7 @@ async def init_mcp(force_update: bool = False) -> dict[str, str]:
         results["local-postgres"] = "skipped"
 
     # 2. Filesystem (Critical for Coder)
-    workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
+    workspace_root = get_workspace_root()
     if workspace_root:
         needs_update = force_update
         needs_add = "filesystem" not in existing_db_servers

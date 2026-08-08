@@ -9,15 +9,10 @@ import httpx
 from app.core.file import compute_md5
 from app.infrastructure.config import SystemConfigService
 from app.infrastructure.llm.adaptive import AdaptiveChatOpenAI
-from app.infrastructure.llm.platform_service import llm_platform_service
 from app.infrastructure.llm.thinking_adapter import (
     build_anthropic_thinking_kwargs,
-    build_gemini_thinking_extra,
-    build_minimax_thinking_extra,
     build_openai_reasoning_extra,
-    build_zhipu_thinking_extra,
     detect_model_family,
-    get_kimi_min_max_tokens,
 )
 from app.infrastructure.schemas import LLMCacheStats, LLMConfig, ThinkingConfig
 from app.utils.async_utils import LoopBoundResource
@@ -34,18 +29,14 @@ except ImportError as e:
 # --- Thinking-config extra_body builder, shared by platform and direct modes ---
 _FAMILY_EXTRA_BUILDERS: dict[str, Any] = {
     "openai_reasoning": build_openai_reasoning_extra,
-    "zhipu": build_zhipu_thinking_extra,
-    "minimax": build_minimax_thinking_extra,
-    "gemini": build_gemini_thinking_extra,
 }
 
 
 def _build_family_extra(family: str, cfg: ThinkingConfig, caller_extra: dict[str, Any] | None) -> dict[str, Any]:
     """Merge provider-specific thinking params with caller-supplied extra_body.
 
-    For known reasoning families (openai_reasoning/zhipu/minimax/gemini) the
-    family-specific builder takes priority.  For all other families (kimi,
-    deepseek, openai_compat, …) we fall back to ``cfg.to_extra_body()`` which
+    family-specific builder takes priority.  For all other families (deepseek,
+    openai_compat, …) we fall back to ``cfg.to_extra_body()`` which
     injects ``enable_thinking`` / ``return_reasoning`` style flags.
     """
     builder = _FAMILY_EXTRA_BUILDERS.get(family)
@@ -185,29 +176,6 @@ class LLMFactory:
         return compute_md5(key_data)[:16]
 
     @staticmethod
-    async def _resolve_default_platform_model() -> str:
-        """Return the platform default model_id when no explicit model is given.
-
-        Uses the cached model list if available; otherwise fetches it from the
-        EvoLoop Gateway. The first available LLM model sorted by gateway order
-        is used as the default.
-        """
-        cached = llm_platform_service.get_cached_models()
-        models = cached or await llm_platform_service.fetch_platform_models()
-        candidates = [
-            m for m in models
-            if m.model_type == "llm" and m.available
-        ]
-        if not candidates:
-            return ""
-        candidates.sort(key=lambda m: m.sort_order)
-        default_model = candidates[0].model_id
-        logger.info(
-            f"[LLMFactory] Resolved platform default model: {default_model}"
-        )
-        return default_model
-
-    @staticmethod
     async def create_llm(config: LLMConfig | str | None = None, **kwargs) -> Any:
         """
         Create a standard LLM instance using structured configuration.
@@ -245,9 +213,13 @@ class LLMFactory:
         else:
             # Check if this model is a lightning (local) model
             lightning_mode = SystemConfigService.get_value("LIGHTNING_MODE", "none")
-            if lightning_mode not in ("none", "") and SystemConfigService.get_value("LIGHTNING_LLM_MODEL", ""):
+            if lightning_mode not in ("none", "") and SystemConfigService.get_value("LIGHTNING_LLM_MODEL"):
                 lightning_base = SystemConfigService.get_value("LIGHTNING_BASE_URL", "")
-                use_lightning = lightning_mode == "llama.cpp" or (lightning_base and config.model_name == SystemConfigService.get_value("LIGHTNING_LLM_MODEL", ""))
+                use_lightning = lightning_mode == "llama.cpp" or (
+                    lightning_base
+                    and config.model_name
+                    == SystemConfigService.get_value("LIGHTNING_LLM_MODEL", "")
+                )
                 if use_lightning:
                     if lightning_mode == "llama.cpp":
                         # llama.cpp mode: use LlamaCppChatModel directly
@@ -283,14 +255,6 @@ class LLMFactory:
                     config.base_url = db_base_url
                     config.api_key = config.api_key or db_api_key
                     config.provider_type = db_provider_type
-
-        # If no model is specified for the standard platform path, ask the gateway
-        # for the default model from its available platform model list.
-        if config_type == "standard" and not config.model_name:
-            default_model = await LLMFactory._resolve_default_platform_model()
-            if not default_model:
-                raise ValueError("[LLMFactory] No model_name provided and no platform default model available.")
-            config.model_name = default_model
 
         # Generate cache key
         cache_key = LLMFactory._generate_cache_key(
@@ -357,9 +321,6 @@ class LLMFactory:
         extra_body = _build_family_extra(family, cfg, config.extra_body)
 
         effective_max_tokens = config.max_tokens
-        if family == "kimi":
-            kimi_min = get_kimi_min_max_tokens(cfg)
-            effective_max_tokens = max(config.max_tokens or 0, kimi_min)
 
         # Use the current token for initialization.
         # Note: EvoCloudPlatformAuth will automatically replace it with
@@ -446,19 +407,11 @@ class LLMFactory:
         cfg = ThinkingConfig()
         family = detect_model_family(model_name, base_url)
 
-        # Kimi coding endpoint (api.kimi.com/coding) only accepts temperature=1
-        if family == "kimi" and "api.kimi.com" in base_url.lower():
-            if temperature != 1.0:
-                logger.info(f"[LLMFactory] Kimi endpoint requires temperature=1; clamping from {temperature}")
-                temperature = 1.0
-
         # --- Anthropic branch: different SDK + URL normalization ---
         if family == "anthropic":
             from app.infrastructure.llm.anthropic_adapter import CompatibleChatAnthropic
 
             # Anthropic SDK automatically appends /v1/messages to the base_url.
-            # If the user's URL already contains /v1 (e.g. https://api.kimi.com/coding/v1),
-            # the SDK would produce https://api.kimi.com/coding/v1/v1/messages → 404.
             # Strip trailing /v1 or /v1/ so the SDK constructs the correct path.
             normalized = base_url.rstrip("/")
             if normalized.endswith("/v1"):
@@ -485,11 +438,7 @@ class LLMFactory:
 
         merged_extra = _build_family_extra(family, cfg, extra_body)
 
-        # Kimi 额外保证 max_tokens 足够大
         effective_max_tokens = max_tokens
-        if family == "kimi":
-            kimi_min = get_kimi_min_max_tokens(cfg)
-            effective_max_tokens = max(max_tokens or 0, kimi_min)
 
         return AdaptiveChatOpenAI(
             api_key=api_key,

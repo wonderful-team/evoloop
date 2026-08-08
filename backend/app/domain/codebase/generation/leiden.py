@@ -6,9 +6,7 @@ Separated from ``module_graph.py`` so the heavy dependencies
 
 from __future__ import annotations
 
-import json
 import logging
-import os
 import re
 
 logger = logging.getLogger(__name__)
@@ -79,15 +77,13 @@ async def name_clusters_with_llm(
 
     project_summary = ""
     try:
-        from app.domain.codebase.generation.runner import get_project_path
+        from app.core.project.utils import get_project_path, read_project_json
 
         path = await get_project_path(project_id)
-        meta = os.path.join(path, ".evoloop", "project.json") if path else None
-        if meta and os.path.isfile(meta):
-            with open(meta, encoding="utf-8") as f:
-                data = json.load(f)
-            project_summary = data.get("description", "")
-            fp = data.get("framework_profile") or {}
+        if path:
+            pj = read_project_json(path)
+            project_summary = pj.get("description", "")
+            fp = pj.get("framework_profile") or {}
             domain_vocab = fp.get("domain_vocabulary") or []
     except (OSError, ValueError):
         logger.warning("Failed to read .evoloop/project.json for domain vocabulary", exc_info=True)

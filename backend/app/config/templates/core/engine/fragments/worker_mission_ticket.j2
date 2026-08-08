@@ -135,7 +135,7 @@ The following critical notes were left by previous workers/subtasks for you to c
 - CPU: {{ telemetry.cpu.usage_percent }}% | Load: {{ telemetry.cpu.load_avg|join(', ') }}
 - Memory: {{ telemetry.memory.percent }}% ({{ (telemetry.memory.available / 1024**2)|round }}MB available)
 {%- if telemetry.active_window %}
-- Active Window: {{ telemetry.active_window.title }} ({{ telemetry.active_window.app_name }})
+- Active Window: {{ telemetry.active_window.window_title }} ({{ telemetry.active_window.app_name }})
 {%- endif %}
 {%- endif %}
 

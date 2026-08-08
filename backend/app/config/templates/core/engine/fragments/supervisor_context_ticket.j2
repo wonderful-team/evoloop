@@ -55,7 +55,7 @@
 {%- if plan %}
 ## Active Plan: {{ plan.title }} ({{ 'APPROVED' if plan_approved else 'PENDING' }})
   {% for s in plan.steps[:10] -%}
-  {{ loop.index }}. {{ '[DONE]' if s.status == 'done' else '[TODO]' }} {{ s.title or s.action or 'Step ' ~ loop.index }}
+  {{ loop.index }}. {{ '[DONE]' if s.status == 'completed' else '[TODO]' }} {{ s.title or s.action or 'Step ' ~ loop.index }}
   {% endfor %}
   {%- if plan.steps|length > 10 %}
   … and {{ plan.steps|length - 10 }} more step(s)

@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 class BrowserExtractionMixin:
     @classmethod
-    async def _handle_extraction(cls, action: str, **ctx) -> str | None:
+    async def handle_extraction(cls, action: str, **ctx) -> str | None:
         page = ctx["page"]
         selector = ctx.get("selector")
         text = ctx.get("text")

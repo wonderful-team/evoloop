@@ -2,7 +2,6 @@ import json
 import logging
 import time
 
-import psutil
 from fastapi import APIRouter, Depends
 
 from app.api.deps import get_current_user
@@ -28,6 +27,7 @@ from app.api.schemas.system import (
     SystemStatusResponse,
 )
 from app.core.config import settings
+from app.core.environment import collect_cpu_mem
 from app.infrastructure.config import EmbeddingConfigService
 from app.infrastructure.config.service import SystemConfigService
 from app.infrastructure.embeddings.factory import EmbedderFactory
@@ -48,14 +48,13 @@ def get_system_status() -> SystemStatusResponse:
     """
     Get real-time system CPU and RAM usage.
     """
-    cpu_percent = psutil.cpu_percent(interval=None)
-    ram = psutil.virtual_memory()
+    metrics = collect_cpu_mem()
 
     return SystemStatusResponse(
-        cpu_percent=cpu_percent,
-        ram_percent=ram.percent,
-        ram_used_gb=round(ram.used / (1024**3), 2),
-        ram_total_gb=round(ram.total / (1024**3), 2),
+        cpu_percent=metrics["cpu_percent"] if metrics else 0.0,
+        ram_percent=metrics["mem_percent"] if metrics else 0,
+        ram_used_gb=round(metrics["mem_used"] / (1024**3), 2) if metrics else 0.0,
+        ram_total_gb=round(metrics["mem_total"] / (1024**3), 2) if metrics else 0.0,
         status="ok",
         enable_macro_self_healing=settings.ENABLE_MACRO_SELF_HEALING,
     )

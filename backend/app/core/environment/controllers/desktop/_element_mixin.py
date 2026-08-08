@@ -7,6 +7,7 @@ import logging
 import time
 
 from app.core.atlas import atlas_engine
+from app.core.environment import get_current_app_context
 from app.core.environment.schemas import ElementResolutionResult
 from app.core.file import cleanup_file
 from app.infrastructure.drivers.macos import macos_driver
@@ -71,8 +72,8 @@ class DesktopElementMixin:
     @classmethod
     async def _try_atlas(cls, name: str) -> ElementResolutionResult | None:
         try:
-            app_info = await asyncio.to_thread(macos_driver.get_current_app)
-            bundle_id = app_info.get("bundle_id")
+            app_info = await asyncio.to_thread(get_current_app_context)
+            bundle_id = app_info.bundle_id
             if not bundle_id:
                 return None
 
@@ -105,8 +106,8 @@ class DesktopElementMixin:
             win_x, win_y = 0, 0
             # 重试最多 8 次，应对应用刚启动窗口未就绪
             for _ in range(8):
-                app_info = await asyncio.to_thread(macos_driver.get_current_app)
-                bounds_str = app_info.get("bounds")
+                app_info = await asyncio.to_thread(get_current_app_context)
+                bounds_str = app_info.bounds
                 if bounds_str:
                     parts = bounds_str.split(",")
                     if len(parts) == 4:

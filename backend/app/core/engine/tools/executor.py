@@ -17,6 +17,7 @@ from app.core.engine.state import AgentState, RunnableConfigMetadata
 from app.core.exceptions import AgentHumanInterruptException
 from app.core.tools import get_working_directory
 from app.infrastructure.queue.factory import get_scheduler
+from app.utils.extract import safe_parse_json
 from app.utils.diff import diff_tracker
 from app.utils.id import gen_uuid
 
@@ -65,10 +66,7 @@ class AgentToolExecutor:
         local_tool_history: list[str],
     ) -> ToolExecutionResult:
         if isinstance(tool_args, str):
-            try:
-                tool_args = json.loads(tool_args) if tool_args.strip() else {}
-            except (json.JSONDecodeError, ValueError):
-                tool_args = {}
+            tool_args = safe_parse_json(tool_args) or {}
         if not isinstance(tool_args, dict):
             tool_args = {}
 

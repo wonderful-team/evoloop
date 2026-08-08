@@ -213,18 +213,11 @@ class EntityGrouper:
         """Load framework_profile.role_classifiers from project.json if available."""
         if not self._project_path:
             return
-        pj_path = os.path.join(self._project_path, ".evoloop", "project.json")
-        if not os.path.isfile(pj_path):
-            return
-        try:
-            with open(pj_path, encoding="utf-8") as f:
-                import json
+        from app.core.project.utils import read_project_json
 
-                data = json.load(f)
-            fp = data.get("framework_profile", {})
-            self._role_classifiers = fp.get("role_classifiers")
-        except (OSError, ValueError):
-            logger.warning("Failed to read .evoloop/project.json role_classifiers", exc_info=True)
+        pj = read_project_json(self._project_path)
+        fp = pj.get("framework_profile", {})
+        self._role_classifiers = fp.get("role_classifiers")
 
     async def get_entity_groups(
         self, repo_id: int, session: AsyncSession

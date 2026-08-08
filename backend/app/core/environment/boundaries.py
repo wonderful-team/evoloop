@@ -234,21 +234,12 @@ class AdaptiveBoundaryManager:
         dynamic_descriptions = [b.description for b in self._boundaries.values()]
         return self._static_boundaries + dynamic_descriptions
 
-    def get_dynamic_boundaries(self) -> list[DynamicBoundary]:
-        """Get only the dynamic (learned) boundaries."""
-        self._prune_expired()
-        return list(self._boundaries.values())
-
     def _prune_expired(self) -> None:
         """Remove expired boundaries."""
         expired_keys = [k for k, v in self._boundaries.items() if v.is_expired]
         for key in expired_keys:
             del self._boundaries[key]
             logger.debug(f"Pruned expired boundary: {key}")
-
-    def clear_dynamic(self) -> None:
-        """Clear all dynamic boundaries (for testing)."""
-        self._boundaries.clear()
 
     def get_stats(self) -> dict:
         """Get statistics about current boundaries."""

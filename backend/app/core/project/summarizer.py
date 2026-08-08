@@ -6,7 +6,7 @@ from app.constants import DEFAULT_PROJECT_ID
 from app.core.evocloud import evocloud_manager
 from app.core.monitoring.activity import activity_monitor
 from app.core.project.service import project_context_manager
-from app.core.project.utils import write_project_json
+from app.core.project.utils import read_project_json, write_project_json
 from app.infrastructure.queue.factory import get_scheduler, shared_task
 from app.utils.async_utils import flush_loop_bound_resources
 
@@ -50,16 +50,10 @@ async def _summarize_project_logic(name: str, path: str, module_graph: str = "")
     try:
         arch_summary = "Not available yet."
         # Prefer framework_profile from project.json, fallback to DirectorySummarizer
-        try:
-            pj_path = os.path.join(path, ".evoloop", "project.json")
-            if os.path.isfile(pj_path):
-                with open(pj_path, encoding="utf-8") as f:
-                    pj = json.load(f)
-                fp = pj.get("framework_profile", {})
-                parts = [fp.get(k, "") for k in ("language", "framework", "architecture")]
-                arch_summary = " / ".join(p for p in parts if p)
-        except (OSError, ValueError):
-            logger.warning("Failed to read .evoloop/project.json for %s", path, exc_info=True)
+        pj = read_project_json(path)
+        fp = pj.get("framework_profile", {})
+        parts = [fp.get(k, "") for k in ("language", "framework", "architecture")]
+        arch_summary = " / ".join(p for p in parts if p)
 
         if arch_summary in ("", "Not available yet.", " / "):
             from app.domain.codebase.indexing.directory_summarizer import DirectorySummarizer

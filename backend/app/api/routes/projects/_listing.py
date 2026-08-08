@@ -12,9 +12,9 @@ from app.api.deps import TokenDepOptional
 from app.core.evocloud import evocloud_manager
 from app.core.file import FileTraverser
 from app.core.project.local_index import local_project_index
+from app.core.project.utils import get_workspace_root
 from app.domain.wiki.service import wiki_service
 from app.infrastructure.cache import cache
-from app.infrastructure.config.service import SystemConfigService
 from app.infrastructure.database import session_scope as session_scope
 from app.models import Repository
 from app.utils.time import utcnow
@@ -42,7 +42,7 @@ def _extract_projects(response: dict | list) -> tuple[list, dict | None]:
 
 
 def _scan_workspace_projects() -> dict[str, str]:
-    workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
+    workspace_root = get_workspace_root()
     if not workspace_root or not os.path.isdir(workspace_root):
         return {}
 
@@ -92,7 +92,7 @@ async def get_projects(
             matched_count = 0
 
             if projects:
-                workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
+                workspace_root = get_workspace_root()
                 local_index = local_project_index.refresh(workspace_root) if workspace_root else {}
                 repo_by_project_id = {repo.project_id: repo for repo in repos if repo.project_id}
 

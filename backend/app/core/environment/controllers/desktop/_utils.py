@@ -9,6 +9,7 @@ import logging
 from typing import Any
 
 from app.core.atlas import atlas_engine
+from app.core.environment import get_current_app_context
 from app.infrastructure.drivers.macos import macos_driver
 
 logger = logging.getLogger(__name__)
@@ -16,8 +17,8 @@ logger = logging.getLogger(__name__)
 
 async def _trigger_atlas_harvest_macos(bundle_id: str):
     try:
-        app_info = macos_driver.get_current_app()
-        if app_info.get("bundle_id") != bundle_id:
+        app_info = get_current_app_context()
+        if app_info.bundle_id != bundle_id:
             logger.debug(f"[AtlasHarvest] App mismatch, skipping harvest for {bundle_id}")
             return
         ax_output = macos_driver.dump_ax_tree()
@@ -32,7 +33,7 @@ async def _trigger_atlas_harvest_macos(bundle_id: str):
         event = type('Event', (), {
             'data': {
                 'bundle_id': bundle_id,
-                'window_title': app_info.get('title', 'Unknown'),
+                'window_title': app_info.title or 'Unknown',
                 'platform': 'macos',
                 'screenshot_hash': '',
                 'version_hash': ''

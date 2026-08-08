@@ -73,7 +73,10 @@ async def _handle_barge_in(thread_id: str) -> None:
     VoiceChannel.cancel_thread(thread_id)
     _is_sending_chat_tts_text[thread_id] = True
     await voice_state_machine.force_set(thread_id, VoiceSessionState.INTERRUPTED)
-    await manager.push(thread_id, _envelope("voice.barge_in", {"thread_id": thread_id}))
+    await manager.push(
+        thread_id,
+        _envelope(MessageType.VOICE_BARGE_IN, {"thread_id": thread_id})
+    )
     logger.info("[voice] barge_in mute-only for thread %s", thread_id)
 
 
@@ -143,7 +146,7 @@ async def _handle_route(body: dict[str, Any], conn_id: str) -> None:
     t_total_start = time.time()
 
     from app.core.identity import identity_service
-    from app.core.shared_state import shared_state
+    from app.core.state import shared_state
 
     project_id = int(body.get("project_id", 0)) or int(
         await shared_state.get("project_id", "0")
@@ -506,6 +509,7 @@ class VoiceTtsBridge:
                 t0 = time.monotonic()
                 sent_audio_s = 0.0
                 _TTS_BUDGET_S = 1.2
+                barge_in_break = False
                 async for chunk in client.receive_audio_stream(session_id=session_id):
                     # barge-in: user spoke over the TTS — drop the rest of this
                     # sentence instead of refilling the client's playout queue.
@@ -514,6 +518,7 @@ class VoiceTtsBridge:
                             "[voice-ws] bridge TTS muted by barge-in for %s",
                             self.thread_id,
                         )
+                        barge_in_break = True
                         break
                     if chunk and self._send_audio_cb is not None:
                         await self._send_audio_cb(s16le_to_f32le(chunk))
@@ -521,6 +526,19 @@ class VoiceTtsBridge:
                         ahead = sent_audio_s - (time.monotonic() - t0)
                         if ahead > _TTS_BUDGET_S:
                             await asyncio.sleep(ahead - _TTS_BUDGET_S)
+                if barge_in_break:
+                    # barge-in 中断时服务端仍在合成该句剩余文本，旧会话的 352 音频帧
+                    # 会残留在 WS 缓冲。关闭连接让下一句重建，避免残留帧被误播或
+                    # 污染下一句的 start_session 握手响应。
+                    try:
+                        await client.close()
+                    except Exception:
+                        logger.debug(
+                            "[voice-ws] bridge TTS close after barge-in failed for %s",
+                            self.conn_id,
+                            exc_info=True,
+                        )
+                    self._client = None
             except Exception:
                 logger.exception(
                     "[voice-ws] bridge TTS failed for %s, will reconnect", self.conn_id
@@ -602,6 +620,10 @@ def _pcm_frame_ms(pcm_bytes: bytes, rate: int = 16000) -> float:
 
 
 def _pcm_rms(pcm_bytes: bytes) -> float:
+    # 空帧或奇数长度帧（16bit 采样不允许奇数）直接按静音处理，避免
+    # array("h") 抛 ValueError 冒泡到主循环断掉整个语音连接。
+    if not pcm_bytes or len(pcm_bytes) % 2:
+        return 0.0
     samples = array.array("h", pcm_bytes)
     if not samples:
         return 0.0
@@ -680,7 +702,7 @@ async def voice_receive_loop(
                             try:
                                 await websocket.send_json(
                                     _envelope(
-                                        "voice.partial",
+                                        MessageType.VOICE_PARTIAL,
                                         {"thread_id": thread_id, "text": asr_text},
                                     )
                                 )
@@ -691,26 +713,8 @@ async def voice_receive_loop(
                                     exc_info=True,
                                 )
 
-                # --- Shared: event 450 barge-in ---
-                if event == 450:
-                    if mode == "dialogue":
-                        await _handle_barge_in(thread_id)
-                    else:
-                        try:
-                            await websocket.send_json(
-                                _envelope(
-                                    MessageType.VOICE_BARGE_IN, {"thread_id": thread_id}
-                                )
-                            )
-                        except Exception:
-                            logger.debug(
-                                "[voice-ws] failed to forward barge_in for %s",
-                                thread_id,
-                                exc_info=True,
-                            )
-
                 # --- Fork: event 459 ASR done ---
-                elif event == 459:
+                if event == 459:
                     asr_text = _last_asr_text.pop(thread_id, None) or ""
                     if not asr_text and isinstance(payload, dict):
                         extra = payload.get("extra") or {}
@@ -990,7 +994,7 @@ async def run_agent_pipeline(websocket: WebSocket, thread_id: str, text: str) ->
     await _ensure_voice_input()
 
     from app.core.identity import identity_service
-    from app.core.shared_state import shared_state
+    from app.core.state import shared_state
 
     project_id = int(await shared_state.get("project_id", "0"))
     member_id = await identity_service.get_member_id() or 0
@@ -1068,7 +1072,7 @@ async def voice_ws(websocket: WebSocket) -> None:
     await manager.register(conn_id, websocket)
 
     configs = {cfg.key: cfg.value for cfg in SystemConfigService.get_all()}
-    from app.core.shared_state import shared_state
+    from app.core.state import shared_state
 
     state = await shared_state.get_all()
     await websocket.send_json(
@@ -1206,20 +1210,13 @@ async def voice_ws(websocket: WebSocket) -> None:
                             )
                             silence_ms = _dict_silence_ms.get(conn_id, 0.0)
                             if rms >= _DICT_SILENCE_RMS:
-                                # Local barge-in fallback: the user started
-                                # speaking while the agent's TTS is still
-                                # playing. Idempotent with the server-side
-                                # event 450 (cancel_thread is a no-op when no
-                                # TTS segment is active).
-                                if (
-                                    seg_mode == "dialogue"
-                                    and await voice_state_machine.get(thread_id)
-                                    == VoiceSessionState.SPEAKING
-                                ):
-                                    logger.info(
-                                        "[voice-ws] local barge-in for %s (speech during SPEAKING)",
-                                        thread_id,
-                                    )
+                                # Local barge-in: the user started speaking
+                                # while the agent's TTS is still playing.
+                                # (Volc ASR has no barge-in event; this is the
+                                # app-side detection — cancel_thread is a no-op
+                                # when no TTS segment is active.)
+                                if seg_mode == "dialogue" and await voice_state_machine.get(thread_id) == VoiceSessionState.SPEAKING:
+                                    logger.info("[voice-ws] local barge-in for %s (speech during SPEAKING)", thread_id)
                                     await _handle_barge_in(thread_id)
                                 # Speech onset: flush the pre-roll + this frame.
                                 audio_log_bytes = _asr_audio_log.get(conn_id, 0)

@@ -28,7 +28,7 @@ def _unwrap_controller_value(res):
 
 class ExtractionMixin:
     @classmethod
-    async def _handle_extraction(cls, thread_id, step, selector, payload, params, extracted_data):
+    async def handle_extraction(cls, thread_id, step, selector, payload, params, extracted_data):
         from app.core.environment.controllers.browser import BrowserController
         from app.core.environment.controllers.desktop import DesktopController
         from app.core.environment.controllers.mobile import MobileController

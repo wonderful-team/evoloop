@@ -1,5 +1,6 @@
 import json
 import re
+from collections.abc import Sequence
 
 
 def convert_ipynb_to_text(ipynb_content: str) -> str:

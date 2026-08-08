@@ -2,7 +2,6 @@ import asyncio
 import json
 import logging
 import os
-import platform
 import ssl
 import time
 from collections import deque
@@ -13,13 +12,18 @@ import certifi
 import websockets
 from websockets.client import ClientConnection
 
-from app.core.config import settings
+from app.core.device import (
+    get_device_description,
+    get_device_name,
+    get_hardware_fingerprint,
+    get_hostname,
+    get_os_info,
+)
 from app.core.evocloud.interfaces.client import EvoCloudClientProtocol
 from app.core.evocloud.interfaces.link import DeviceLinkProtocol
 from app.core.evocloud.schemas import (
     EvoCloudConfig,
 )
-from app.core.fingerprint import get_hardware_fingerprint
 from app.core.identity import identity_service
 from app.core.schemas.canonical import (
     MessageType,
@@ -74,26 +78,13 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
 
     @property
     def device_name(self) -> str:
-        """Resolve device name dynamically from runtime config store."""
-        from app.infrastructure.config.service import SystemConfigService
-
-        return (
-            SystemConfigService.get_value("EVOCLOUD_DEVICE_NAME")
-            or self.config.device_name
-            or platform.node()
-            or "EvoLoop-Desktop"
-        )
+        """Resolve device name dynamically from the device identity outlet."""
+        return get_device_name()
 
     @property
     def device_description(self) -> str:
-        """Resolve device description dynamically from runtime config store."""
-        from app.infrastructure.config.service import SystemConfigService
-
-        return (
-            SystemConfigService.get_value("EVOCLOUD_DEVICE_DESCRIPTION")
-            or settings.EVOCLOUD_DEVICE_DESCRIPTION
-            or ""
-        )
+        """Resolve device description dynamically from the device identity outlet."""
+        return get_device_description()
 
     async def ensure_device_key(self) -> str:
         """Async initialization of device_key. Must be called before using device_key in async context."""
@@ -117,8 +108,8 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
 
         # 2. Claim device from server (server-issued device_key)
         fingerprint = get_hardware_fingerprint()
-        device_name = self.device_name or f"{platform.node()}"
-        os_info = platform.platform()
+        device_name = self.device_name or get_hostname()
+        os_info = get_os_info()
 
         logger.info(f"[EvoCloud] Claiming device from server (fingerprint={fingerprint[:16]}...)")
 
@@ -360,7 +351,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                         "device_key": self.device_key,
                         "device_name": self.device_name,
                         "description": self.device_description,
-                        "os_info": platform.platform(),
+                        "os_info": get_os_info(),
                     }
                     connect_env = create_envelope(
                         type="connect",

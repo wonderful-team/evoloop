@@ -117,11 +117,6 @@ class VisionLLMFactory:
 
         db_vision_model = SystemConfigService.get_value("VISION_MODEL")
         final_model = model_name or db_vision_model
-        if not final_model:
-            raise ValueError(
-                "No vision model configured. Set VISION_MODEL in system config "
-                "or pass model_name explicitly."
-            )
 
         vision_base_url = base_url or SystemConfigService.get_value("VISION_BASE_URL")
         vision_api_key = api_key or SystemConfigService.get_value("VISION_API_KEY")

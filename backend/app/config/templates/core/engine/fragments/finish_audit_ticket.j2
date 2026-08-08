@@ -31,7 +31,7 @@
 {%- if plan_obj.steps %}
 - **Steps**:
   {% for s in plan_obj.steps -%}
-  {{ loop.index }}. {{ '[DONE]' if s.status == 'done' else '[TODO]' }} {{ s.title or s.action or 'Step ' ~ loop.index }}
+  {{ loop.index }}. {{ '[DONE]' if s.status == 'completed' else '[TODO]' }} {{ s.title or s.action or 'Step ' ~ loop.index }}
   {% endfor %}
 {%- endif %}
 {%- endif %}

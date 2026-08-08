@@ -136,7 +136,11 @@ class ActivityMonitor:
         await publish_agent_run_completed(
             thread_id=thread_id,
             status=result.status,
-            payload={"run_id": run_id, "task_type": task_type},
+            payload={
+                "run_id": run_id,
+                "task_type": task_type,
+                "outcome": result.status,
+            },
         )
         from app.core.events.publishers import system_bus
         from app.core.monitoring.event import SystemStatusEvent

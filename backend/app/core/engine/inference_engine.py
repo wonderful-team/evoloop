@@ -2,7 +2,6 @@
 InferenceEngine - Pure LLM execution logic.
 """
 
-import json
 import logging
 import time
 from collections.abc import Callable
@@ -27,6 +26,7 @@ from app.core.exceptions import InferenceError
 from app.core.file import compute_md5
 from app.infrastructure.llm.factory import LLMConfig, LLMFactory
 from app.infrastructure.llm.thinking_adapter import detect_model_family
+from app.utils.extract import safe_parse_json
 
 logger = logging.getLogger(__name__)
 
@@ -340,10 +340,7 @@ class InferenceEngine:
         for tc in tool_calls:
             raw_args = tc.get("args") if isinstance(tc, dict) else None
             if isinstance(raw_args, str):
-                try:
-                    tc["args"] = json.loads(raw_args)
-                except (json.JSONDecodeError, TypeError, ValueError):
-                    tc["args"] = {}
+                tc["args"] = safe_parse_json(raw_args) or {}
             interceptor = (interceptors or {}).get(tc.get("name", ""))
             if interceptor:
                 sig = await interceptor(tc, config)

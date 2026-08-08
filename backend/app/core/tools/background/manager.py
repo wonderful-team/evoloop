@@ -507,7 +507,11 @@ class BackgroundTaskManager:
                     )
                 )
             except (TypeError, ValueError, RuntimeError, OSError):
-                pass  # Output events are best-effort
+                logger.warning(
+                    "[background] output event publish failed for task %s",
+                    task.task_id,
+                    exc_info=True,
+                )
 
     # ==================== Stats ====================
 

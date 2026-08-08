@@ -1,8 +1,8 @@
-import json
 import logging
 from typing import Any
 
 from app.core.engine.state.config import ExecutionTicket
+from app.utils.extract import safe_parse_json
 from app.utils.template import render_template
 
 from .base_builder import BasePromptBuilder
@@ -86,11 +86,9 @@ class FinishPromptBuilder(BasePromptBuilder):
         """Builds the DYNAMIC audit ticket to be injected as a HumanMessage."""
         plan_data = self.current_plan
         if isinstance(plan_data, str) and plan_data.strip():
-            try:
-                plan_data = json.loads(plan_data)
-            except (json.JSONDecodeError, TypeError):
-                # Fallback to original string if not valid JSON
-                pass
+            parsed = safe_parse_json(plan_data)
+            if parsed is not None:
+                plan_data = parsed
 
         template_vars = {
             "iteration_count": self.iteration_count,

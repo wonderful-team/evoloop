@@ -154,7 +154,7 @@ async def enrich_spec_with_macro_triggers(spec: RouteCatalog) -> RouteCatalog:
     冲突去重：preset 优先于用户；同级别下最新确认的宏优先（created_at desc），
     与 ``MacroResolver`` 的运行时选择保持一致 —— 用户新确认的宏立即生效。
     """
-    from app.core.shared_state import shared_state
+    from app.core.state import shared_state
     from app.infrastructure.database import session_scope
     from app.models.macro import Macro
 

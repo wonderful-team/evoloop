@@ -172,7 +172,7 @@ class MacroEngine(
 
             if step.type == MacroStepType.EXTRACT:
                 try:
-                    await cls._handle_extraction(
+                    await cls.handle_extraction(
                         thread_id,
                         step,
                         target_selector,
@@ -194,6 +194,7 @@ class MacroEngine(
                         False,
                         error_msg,
                         {
+                            "failed_step": step.model_dump(),
                             "screenshot_path": screenshot_path,
                             "step_number": step_num,
                             "event_type": step.event_type or "extract",
@@ -228,6 +229,7 @@ class MacroEngine(
                         False,
                         error_msg,
                         {
+                            "failed_step": step.model_dump(),
                             "step_number": step_num,
                             "event_type": "bash",
                         },
@@ -253,7 +255,11 @@ class MacroEngine(
                         return (
                             False,
                             unresolved,
-                            {"step_number": step_num, "event_type": event_type},
+                            {
+                                "failed_step": step.model_dump(),
+                                "step_number": step_num,
+                                "event_type": event_type,
+                            },
                         )
 
                 if event_type == "open_app":
@@ -295,9 +301,9 @@ class MacroEngine(
                         False,
                         error_msg,
                         {
+                            "failed_step": step.model_dump(),
                             "screenshot_path": screenshot_path,
                             "step_number": step_num,
-                            "event_type": event_type,
                         },
                     )
 

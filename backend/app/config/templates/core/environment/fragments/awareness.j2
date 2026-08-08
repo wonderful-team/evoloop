@@ -1,10 +1,9 @@
 {% if environment -%}
 ## ENVIRONMENT AWARENESS
-- **Current Time**: {{ current_datetime }}
-
+- Current Time: {{ current_datetime }}
 {% if environment.host -%}
 - Host: {{ environment.host.model }} ({{ environment.host.cpu }}), {{ environment.host.os_name }} {{ environment.host.os_version }}
-{% if environment.host.os_name == 'Linux' -%}
+{%- if environment.host.os_name == 'Linux' %}
   - **Linux Distro**: {{ environment.host.distro or 'Unknown' }}
   - **User Privileges**: {{ 'Sudo (Passwordless)' if environment.host.sudo_available else 'Standard User (No Passwordless Sudo)' }}
   {% if environment.host.disk_space -%}
@@ -17,9 +16,6 @@
   - **GPU Hardware**: {{ environment.host.gpus | join(', ') }}
   {%- endif %}
 {%- endif %}
-{%- if environment.host.os_name == 'macOS' %}
-  Use `list_app_atlas()` to see apps with structural UI maps.
-{%- endif %}
 {%- endif %}
 {%- if environment.android_devices %}
 {%- for dev in environment.android_devices %}
@@ -29,9 +25,8 @@
 {%- endif %}
 {%- if environment.network %}
 - Network: {{ 'Online' if environment.network.internet_connected else 'Offline' }}
-{%- endif %}
-{% if browser_status -%}
-
+{% endif -%}
+{%- if browser_status %}
 ### Browser Status
 - **Mode**: {{ browser_status.mode }}
 - **CDP Endpoint**: {{ browser_status.cdp_url }}
@@ -41,10 +36,10 @@
 {% if browser_status.tab_count -%}
 - **Open Tabs**: {{ browser_status.tab_count }}
 {%- endif %}
-{%- endif %}
+{% endif -%}
 {%- endif %}
 
-{% if memory_replay -%}
+{%- if memory_replay %}
 {% set has_content = memory_replay.episodes or memory_replay.concepts or memory_replay.highlights or memory_replay.insights -%}
 {% if has_content -%}
 
@@ -82,41 +77,58 @@
 {% endif %}
 {% endif %}
 
-{%- endif %}
+{% endif -%}
 
 {%- if boundaries %}
-
 ### Constraints
 {% for b in boundaries -%}
 - {{ b }}
 {% endfor -%}
-{%- endif %}
+{% endif -%}
 
-{% if environment.running_services -%}
-
+{%- if environment.running_services %}
 ### Active Background Services / Tasks
 {% for svc in environment.running_services -%}
 - **Task ID**: `{{ svc.task_id }}` | **Command**: `{{ svc.title }}` | **Status**: `{{ svc.status }}` | **Elapsed**: {{ svc.elapsed_seconds }}s
 {% endfor -%}
-{%- endif %}
+{% endif -%}
 
-{% if environment.service_labels or environment.docker_containers -%}
-
-### Active Services
 {%- if environment.service_labels %}
-  {{ environment.service_labels | join(', ') }}
-{%- endif %}
-{%- if environment.docker_containers %}
-  Docker: {{ environment.docker_containers | map(attribute='name') | join(', ') }}
-{%- endif %}
-{%- endif %}
+### Active Local Services (Listening Ports)
+{% for s in environment.service_labels -%}
+- {{ s }}
+{% endfor -%}
+{% endif -%}
 
-{% if environment.host and environment.host.running_apps -%}
+{%- if environment.docker_labels %}
+### Active Docker Containers
+{% for d in environment.docker_labels -%}
+- {{ d }}
+{% endfor -%}
+{% endif -%}
 
-### Running Applications
-  {{ environment.host.running_apps | join(', ') }} ({{ environment.host.app_count }} apps installed)
-{%- endif %}
+{%- if environment.host and environment.host.running_apps %}
+### Running Applications ({{ environment.host.running_apps|length }})
+  {{ environment.host.running_apps | join(', ') }}
+{% endif -%}
 
-{% if mcp_inventory -%}
+{%- if environment.host and environment.host.recently_used_closed %}
+### Recently Used (not open)
+  {{ environment.host.recently_used_closed | join(', ') }}
+{% endif -%}
+
+{%- if environment.host and environment.host.installed_apps %}
+### Installed Applications ({{ environment.host.installed_apps|length }})
+  {{ environment.host.installed_apps | join(', ') }}
+{% endif -%}
+
+{%- if mcp_inventory %}
 {{ mcp_inventory }}
-{%- endif %}
+{% endif -%}
+
+{%- if environment.lan_devices %}
+### LAN Devices
+{% for dev in environment.lan_devices -%}
+- {{ dev.name or dev.ip }} ({{ dev.device_type }}){% if dev.manufacturer %} — {{ dev.manufacturer }}{% endif %}{% if dev.model %} ({{ dev.model }}){% endif %} @ {{ dev.ip }}
+{% endfor -%}
+{% endif -%}

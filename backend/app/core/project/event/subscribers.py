@@ -14,8 +14,7 @@ from app.core.engine.event.schemas import WebSocketMessageReceivedEvent
 from app.core.events.decorators import event_register, event_subscribe
 from app.core.events.registry import SystemEventType
 from app.core.project.sync_service import ProjectSyncService
-from app.core.project.utils import get_project_path
-from app.infrastructure.config import SystemConfigService
+from app.core.project.utils import get_project_path, get_workspace_root
 
 from .schemas import (
     ProjectCreatedEvent,
@@ -185,7 +184,7 @@ class ProjectDomainSubscriber:
         path = event.path
 
         # Update SharedState so voice.route picks up the new project_id
-        from app.core.shared_state import shared_state
+        from app.core.state import shared_state
 
         await shared_state.set("project_id", str(project_id))
 
@@ -221,7 +220,7 @@ class ProjectLifecycleSubscriber:
         """
         Handle APP_STARTED: Reconcile project state with filesystem.
         """
-        root_projects_dir = SystemConfigService.get_value("WORKSPACE_ROOT")
+        root_projects_dir = get_workspace_root()
         if not root_projects_dir:
             logger.warning("[Project] WORKSPACE_ROOT not configured. Skipping reconciliation.")
             return
@@ -299,7 +298,7 @@ class ProjectContextHydratorSubscriber:
 
         # Only overwrite the working directory when it is missing or still points
         # to the workspace root. If dispatch already resolved a project path, keep it.
-        workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT", "")
+        workspace_root = get_workspace_root()
         current_cwd = ctx.working_directory
         if current_cwd and current_cwd != workspace_root and os.path.isdir(current_cwd):
             logger.debug(

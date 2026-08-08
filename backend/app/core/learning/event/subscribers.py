@@ -11,10 +11,12 @@ from typing import Any
 from sqlalchemy import delete, or_
 
 from app.core.engine.rewind import REWIND_REQUESTED, RewindRequestedEvent
+from app.core.events.base import BaseEvent
 from app.core.events.decorators import event_register, event_subscribe
 from app.core.events.registry import SystemEventType
 from app.core.execution.macro.event.schemas import MacroMutatedEvent
 from app.core.learning.event.schemas import SkillMutatedEvent
+from app.core.learning.event.types import SkillEventType
 from app.core.learning.skill_sync_service import skill_sync_service
 from app.infrastructure.database import session_scope
 from app.models import TraceEvent
@@ -133,3 +135,43 @@ class InitSpecRefreshSubscriber:
             id_key,
             event.data.get(id_key) if event.data else None,
         )
+
+
+@event_register()
+class SkillEventSubscriber:
+    """Handles skill execution events for skill evolution."""
+
+    @event_subscribe(SkillEventType.SKILL_EXECUTED)
+    async def on_skill_executed(self, event: BaseEvent) -> None:
+        """
+        Log skill execution for monitoring and analytics.
+
+        This handler can be extended for analytics, dashboards, etc.
+        """
+        skill_name = event.data.get("skill_name")
+        thread_id = event.data.get("thread_id")
+
+        logger.debug(f"🎯 Skill executed: {skill_name} in thread {thread_id}")
+
+    @event_subscribe(SkillEventType.SKILL_PROMOTED)
+    async def on_skill_promoted(self, event: BaseEvent) -> None:
+        """
+        Handle skill promotion to built-in status.
+
+        Triggered when a learned skill is promoted to built-in.
+        """
+        skill_name = event.data.get("skill_name")
+
+        logger.info(f"⭐ Skill promoted to built-in: {skill_name}")
+
+    @event_subscribe(SkillEventType.SKILL_DEPRECATED)
+    async def on_skill_deprecated(self, event: BaseEvent) -> None:
+        """
+        Handle skill deprecation.
+
+        Triggered when a skill is deprecated (replaced or outdated).
+        """
+        skill_name = event.data.get("skill_name")
+        reason = event.data.get("reason", "No reason provided")
+
+        logger.info(f"🗑️ Skill deprecated: {skill_name} - {reason}")

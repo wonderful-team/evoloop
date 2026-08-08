@@ -1,6 +1,6 @@
 """Session control tools — replaces L0 builtin actions for natural-language interaction."""
 
-from app.core.shared_state import shared_state
+from app.core.state import shared_state
 from app.core.tools import evoloop_tool
 
 

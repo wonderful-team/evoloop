@@ -8,6 +8,7 @@ import signal
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.context import ContextManager
 from app.core.engine.message.native_classes import RunnableConfig
+from app.core.project.utils import get_workspace_root
 from app.core.tools import get_working_directory
 from app.core.tools.background import (
     CreateBackgroundTaskRequest,
@@ -16,7 +17,6 @@ from app.core.tools.background import (
 )
 from app.domain.tools.execution._utils import format_command_result, get_thread_id
 from app.domain.tools.execution.security import is_dangerous_command
-from app.infrastructure.config import SystemConfigService
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +73,7 @@ async def run_command_background(
         if ctx.project_id == DEFAULT_PROJECT_ID or (
             ctx.project_id is None and working_dir == "."
         ):
-            workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
+            workspace_root = get_workspace_root()
             if workspace_root:
                 working_dir = workspace_root
 
@@ -164,7 +164,7 @@ async def execute_smart(
     if ctx.project_id == DEFAULT_PROJECT_ID or (
         ctx.project_id is None and working_dir == "."
     ):
-        workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
+        workspace_root = get_workspace_root()
         if workspace_root:
             working_dir = workspace_root
 

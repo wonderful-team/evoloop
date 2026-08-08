@@ -49,9 +49,9 @@ def get_working_directory(config: dict | None = None) -> str:
             logger.warning(f"Failed to fetch working directory from thread_context_store: {e}")
 
     try:
-        from app.infrastructure.config.service import SystemConfigService
+        from app.core.project.utils import get_workspace_root
 
-        workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
+        workspace_root = get_workspace_root()
         if workspace_root:
             return workspace_root
     except (OSError, RuntimeError, TypeError, ValueError) as e:

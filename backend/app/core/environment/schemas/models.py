@@ -77,9 +77,40 @@ class MirrorSessionStopResult(DynamicBaseModel):
 
 
 class AppInfo(DynamicBaseModel):
+    """Android (ADB) current-app model used by the **mobile controller**.
+
+    Use this only for Android/mobile device current-app handling (see
+    ``app.core.environment.controllers.mobile``). For a platform-agnostic
+    current-app contract consumed by application-layer modules, prefer
+    :class:`CurrentApp` via ``app.core.environment.get_current_app_context``.
+    """
+
     package: str
     activity: str = ""
     confidence: float = 1.0
+
+
+class CurrentApp(DynamicBaseModel):
+    """Typed contract for the frontmost application, platform-agnostic.
+
+    This is the canonical current-app outlet for application-layer consumers
+    (engine / vision / tools / routing), obtained via
+    ``app.core.environment.get_current_app_context``.
+
+    - macOS populates ``name``/``pid``/``bounds``/``bundle_id``/``title``
+    - Android (ADB) populates ``package``/``activity``
+
+    Do NOT use :class:`AppInfo` for cross-platform code — it is Android-only.
+    """
+
+    name: str = "unknown"
+    pid: int = -1
+    bounds: str = "0,0,0,0"
+    bundle_id: str | None = None
+    title: str | None = None
+    package: str | None = None
+    activity: str | None = None
+    platform: str = "unknown"
 
 
 class BatchStepResult(DynamicBaseModel):
@@ -137,17 +168,35 @@ class AndroidDevice(DynamicBaseModel):
     # usage statistics keyed by app (populated by UsageRanker)
     app_usage_stats: list[AppUsageRecord] = Field(default_factory=list)
 
-    @property
-    def serial(self) -> str:
-        """Alias for device_id (compatibility with ADB terminology)."""
-        return self.device_id
-
 
 class NetworkStatus(DynamicBaseModel):
     """Network connectivity status."""
 
     internet_connected: bool = False
     local_ips: list[str] = []
+
+
+class LanDevice(DynamicBaseModel):
+    """A device discovered on the local network via mDNS/DNS-SD + ARP."""
+
+    ip: str
+    mac: str = ""
+    name: str = ""
+    device_type: str = "unknown"
+    manufacturer: str = ""
+    model: str = ""
+    services: list[str] = Field(default_factory=list)
+    port: int | None = None
+
+
+class BluetoothDevice(DynamicBaseModel):
+    """A paired/connected Bluetooth device discovered on macOS."""
+
+    name: str = ""
+    address: str = ""
+    device_type: str = "unknown"
+    vendor: str = ""
+    product_id: str = ""
 
 
 class EpisodeSummary(DynamicBaseModel):

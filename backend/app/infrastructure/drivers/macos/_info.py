@@ -57,21 +57,26 @@ class InfoMixin:
             build = result.stdout.strip()
 
             model = platform.processor() or "Unknown"
+            cpu = model
 
             ram = "Unknown"
+            ram_gb = 0
             try:
                 result = subprocess.run(
                     ["sysctl", "-n", "hw.memsize"], capture_output=True, text=True, timeout=5
                 )
                 ram_bytes = int(result.stdout.strip())
-                ram = f"{ram_bytes // (1024**3)} GB"
-            except Exception:
-                pass
+                ram_gb = ram_bytes // (1024**3)
+                ram = f"{ram_gb} GB"
+            except (OSError, ValueError, subprocess.TimeoutExpired):
+                logger.debug("[macOS] sysctl hw.memsize failed", exc_info=True)
 
             return {
                 "model": model,
+                "cpu": cpu,
                 "os_version": f"{product_name} {version} ({build})",
                 "memory": ram,
+                "ram_gb": ram_gb,
                 "platform": "macos",
             }
         except Exception as e:

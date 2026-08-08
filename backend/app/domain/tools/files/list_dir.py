@@ -14,9 +14,9 @@ from app.core.engine.message.native_classes import RunnableConfig
 from app.core.file import generate_tree as core_generate_tree
 from app.core.file import get_file_info
 from app.core.file import list_directory as core_list_directory
+from app.core.project.utils import get_workspace_root
 from app.core.tools import evoloop_tool
 from app.core.tools.base import InjectedToolArg
-from app.infrastructure.config import SystemConfigService
 
 from .utils import resolve_and_validate_path
 
@@ -90,7 +90,7 @@ async def handle_list(
         # 【虚拟注入】在根目录列表中注入 uploads/ 条目
         # 无论全局模式还是项目模式，uploads/ 都指向 CHAT_UPLOAD_DIR (~/.evoloop/uploads/)
         # 让 Agent 在任何模式下都能清楚地"看到"聊天附件的存放位置
-        workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
+        workspace_root = get_workspace_root()
         is_root_listing = (
             path in (".", "")
             or (workspace_root and target_path == workspace_root)

@@ -14,10 +14,9 @@ from functools import wraps
 from pathlib import Path
 from typing import Any
 
-import yaml
-
 from app.core.config import settings
 from app.infrastructure.client.http import ToolExecutionError, get_client_executor
+from app.utils.yaml import load_yaml_file
 
 logger = logging.getLogger(__name__)
 

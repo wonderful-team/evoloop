@@ -106,10 +106,10 @@ async def find_files_internal(
 
     # 【全局搜索扩展】如果在工作区根目录没搜到，且是全局模式，自动去 uploads 目录搜一下
     from app.core.context import ContextManager
-    from app.infrastructure.config.service import SystemConfigService
+    from app.core.project.utils import get_workspace_root
 
     ctx = ContextManager.current()
-    is_global_root = (ctx.project_id == DEFAULT_PROJECT_ID or ctx.project_id is None) and (path == "." or path == "" or target_path == SystemConfigService.get_value("WORKSPACE_ROOT"))
+    is_global_root = (ctx.project_id == DEFAULT_PROJECT_ID or ctx.project_id is None) and (path == "." or path == "" or target_path == get_workspace_root())
 
     if is_global_root:
         if res_meta.get("count", 0) < max_files:

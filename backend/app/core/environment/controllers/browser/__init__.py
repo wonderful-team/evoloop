@@ -190,7 +190,7 @@ class BrowserController(
                 "find_element",
                 "get_elements",
             ):
-                result = await cls._handle_extraction(action, **ctx)
+                result = await cls.handle_extraction(action, **ctx)
                 if result is not None:
                     return result
 

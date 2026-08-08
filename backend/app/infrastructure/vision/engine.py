@@ -1,7 +1,7 @@
 import logging
 import time
 
-from app.infrastructure.drivers.macos import macos_driver
+from app.core.environment import get_current_app_context
 from app.infrastructure.vision.router import get_vision_router
 from app.infrastructure.vision.types import VisionResult, VisionTask
 
@@ -46,19 +46,19 @@ class VisionEngine:
             # --- Passive Atlas Learning ---
             try:
                 # 1. Get current context for metadata
-                app_info = macos_driver.get_current_app()
+                app_info = get_current_app_context()
 
                 # 2. Publish to Awakening Event Bus for AppAtlasService to consume
                 from app.core.environment.event.publishers import publish_ui_tree_observed
 
                 await publish_ui_tree_observed(
                     platform="macos",
-                    bundle_id=app_info.get("bundle_id", "unknown"),
-                    window_title=app_info.get("title", "unknown"),
+                    bundle_id=app_info.bundle_id or "unknown",
+                    window_title=app_info.title or "unknown",
                     elements=[e.model_dump() for e in elements],
                     screenshot_hash="",
                 )
-                logger.debug(f"[VisionEngine] Emitted UiTreeObservedEvent for {app_info.get('bundle_id')}")
+                logger.debug(f"[VisionEngine] Emitted UiTreeObservedEvent for {app_info.bundle_id}")
             except Exception as e:
                 logger.warning(f"[VisionEngine] Failed to emit Atlas event: {e}")
         else:

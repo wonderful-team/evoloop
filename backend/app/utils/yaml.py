@@ -37,6 +37,37 @@ def safe_yaml_loads(content: str) -> Any:
         raise YAMLError(f"YAML parse error at line {e.problem_mark.line}: {e.problem}")
 
 
+def load_yaml_file(path: Path, *, strict: bool = False) -> dict[str, Any]:
+    """
+    Read and parse a YAML file into a mapping.
+
+    Args:
+        path: Path to the YAML file
+        strict: When True, raise on unreadable/invalid files or a non-mapping
+            root; when False (default), return ``{}`` instead.
+
+    Returns:
+        Parsed mapping
+
+    Raises:
+        OSError: If the file cannot be read (only when ``strict=True``)
+        YAMLError: If the content is invalid YAML or the root is not a mapping
+            (only when ``strict=True``)
+    """
+    try:
+        content = path.read_text(encoding="utf-8")
+        data = safe_yaml_loads(content)
+    except (OSError, YAMLError):
+        if strict:
+            raise
+        return {}
+    if not isinstance(data, dict):
+        if strict:
+            raise YAMLError(f"YAML root must be a mapping: {path}")
+        return {}
+    return data
+
+
 def safe_yaml_dumps(obj: Any, indent: int = 2) -> str:
     """
     Safely serialize object to YAML.

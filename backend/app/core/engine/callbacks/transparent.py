@@ -6,8 +6,6 @@ Unified callback handler with structured stream events.
 Eliminates separate EnhancedStreamManager module by integrating its capabilities directly.
 """
 
-import ast
-import json
 import logging
 import time
 from typing import Any
@@ -22,6 +20,7 @@ from app.core.tools.registry import (
     is_state_mutating_tool,
 )
 from app.i18n.service import i18n
+from app.utils.extract import safe_parse_json
 
 logger = logging.getLogger(__name__)
 
@@ -276,22 +275,12 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         is_hidden = metadata.get("is_hidden", False)
 
         # Parse input data first (fixes pre-existing use-before-assign bug)
-        data = None
-        if input_str.strip().startswith("{"):
-            try:
-                data = json.loads(input_str)
-            except (json.JSONDecodeError, ValueError):
-                pass
-        if data is None and input_str.strip().startswith("{"):
-            try:
-                data = ast.literal_eval(input_str)
-            except (ValueError, SyntaxError):
-                pass
+        data = safe_parse_json(input_str)
 
         # Phase 2-3: Step tracking and StreamEvent removed — StepEvent now driven by MessageHandler
         # Extract path info
         current_tool_path = None
-        if data and isinstance(data, dict):
+        if data:
             affected_paths = get_tool_affected_paths(tool_name, data)
             if affected_paths:
                 current_tool_path = affected_paths[0]

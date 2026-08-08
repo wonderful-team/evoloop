@@ -34,7 +34,7 @@ from app.core.file import (
     resolve_path,
 )
 from app.core.file.traverser import TraverseOptions
-from app.core.project.utils import get_project_path
+from app.core.project.utils import get_project_path, get_workspace_root
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["files"])
@@ -69,9 +69,7 @@ async def list_files(
     If path is None, returns root.
     """
     if project_id == DEFAULT_PROJECT_ID:
-        from app.infrastructure.config.service import SystemConfigService
-
-        root_path = SystemConfigService.get_value("WORKSPACE_ROOT")
+        root_path = get_workspace_root()
         if not root_path:
             raise HTTPException(status_code=404, detail="WORKSPACE_ROOT not configured")
     else:

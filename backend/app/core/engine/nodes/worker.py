@@ -105,14 +105,9 @@ class WorkerNode(BaseAgentNode):
         from app.core.engine.nodes.utils.node_utils import get_mapped_cwd
         actual_cwd = get_mapped_cwd(ctx.working_directory or ctx.metadata.get("cwd", ""))
 
-        from app.core.environment import get_awakened_state
+        from app.core.environment import get_telemetry_dict
 
-        telemetry: dict[str, Any] = {}
-        awakened_state = get_awakened_state()
-        if awakened_state:
-            telemetry_snapshot = awakened_state.get_telemetry_snapshot()
-            if telemetry_snapshot:
-                telemetry = telemetry_snapshot.model_dump()
+        telemetry = get_telemetry_dict()
 
         mission_msg = prompt_builder.build_mission_message(
             environment_block=ctx.environment_block or "",

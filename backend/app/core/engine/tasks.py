@@ -51,7 +51,7 @@ async def _notify_file_operation(
     logger.debug(f"[Task] Published file operation event for {file_path}")
 
 
-async def persist_file_operation_task(
+async def _persist_file_operation(
     thread_id: str,
     message_id: str,
     file_path: str,
@@ -122,7 +122,7 @@ async def persist_file_operation_task(
     from app.core.engine.message.mapper import BlockMapper
     from app.core.engine.message.publisher import MessagePublisher
 
-    await persist_file_operation_task(
+    await _persist_file_operation(
         thread_id=thread_id,
         message_id=message_id,
         file_path=file_path,

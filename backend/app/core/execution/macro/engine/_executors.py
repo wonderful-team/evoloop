@@ -178,8 +178,10 @@ class ExecutorMixin:
             win_ox = payload.get("win_offset_x")
             win_oy = payload.get("win_offset_y")
             if win_ox is not None and win_oy is not None:
-                app_info = await asyncio.to_thread(macos_driver.get_current_app)
-                bounds_str = app_info.get("bounds")
+                from app.core.environment import get_current_app_context
+
+                app_info = await asyncio.to_thread(get_current_app_context)
+                bounds_str = app_info.bounds
                 if bounds_str:
                     wx, wy, _, _ = map(int, bounds_str.split(","))
                     x = wx + int(win_ox)

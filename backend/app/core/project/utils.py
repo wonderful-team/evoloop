@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 
-def _get_workspace_root() -> str:
+def get_workspace_root() -> str:
     """Return WORKSPACE_ROOT from SystemConfigService, or empty string."""
     from app.infrastructure.config.service import SystemConfigService
 
@@ -108,9 +108,9 @@ async def get_project_path(project_id: int) -> str:
     # 全局模式特判：返回 WORKSPACE_ROOT 作为文件读/搜索的基准目录
     # 注意：上传写入不走此函数，由 API 层直接路由至 settings.CHAT_UPLOAD_DIR
     if project_id == DEFAULT_PROJECT_ID:
-        return _get_workspace_root()
+        return get_workspace_root()
 
-    workspace_root = _get_workspace_root()
+    workspace_root = get_workspace_root()
 
     # 1. Local project.json scan (authoritative)
     local_entry = local_project_index.get_entry(project_id, workspace_root)
@@ -156,7 +156,7 @@ async def resolve_project_to_repo(project_id: int) -> Repository | None:
     if project_id == DEFAULT_PROJECT_ID:
         return None
 
-    workspace_root = _get_workspace_root()
+    workspace_root = get_workspace_root()
     local_entry = local_project_index.get_entry(project_id, workspace_root)
 
     try:

@@ -377,7 +377,11 @@ def get_tool_affected_paths(tool_name: str, tool_args: dict) -> list[str]:
             try:
                 return custom_extractor(tool_args)
             except (TypeError, ValueError, RuntimeError):
-                pass
+                logger.warning(
+                    "[registry] custom get_affected_paths failed for %s, using generic",
+                    tool_name,
+                    exc_info=True,
+                )
 
         metadata = tool.metadata
         path_keys = metadata.get("affected_path_keys", [])

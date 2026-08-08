@@ -75,6 +75,14 @@ SHORTCUTS = {
     },
 }
 
+# System-wide shortcuts (OS level, active app independent)
+SYSTEM_SHORTCUTS = {
+    "切换应用": "cmd+tab",
+    "switch_app": "cmd+tab",
+    "Spotlight": "cmd+space",
+    "spotlight": "cmd+space",
+}
+
 # Generic shortcuts that work in most apps
 GENERIC_SHORTCUTS = {
     "复制": "cmd+c",
@@ -117,9 +125,9 @@ def get_shortcut(bundle_id: str, element_name: str) -> str | None:
 
     Examples:
         >>> get_shortcut("com.tencent.xinWeChat", "发送")
-        "cmd+return"
+        'return'
         >>> get_shortcut("com.google.Chrome", "新标签")
-        "cmd+t"
+        'cmd+t'
     """
     # Normalize input
     element_key = element_name.lower().replace(" ", "_")
@@ -138,15 +146,10 @@ def get_shortcut(bundle_id: str, element_name: str) -> str | None:
     if shortcut := GENERIC_SHORTCUTS.get(element_key):
         return shortcut
 
+    # 3. Check system-wide shortcuts (OS level, active app independent)
+    if shortcut := SYSTEM_SHORTCUTS.get(element_name):
+        return shortcut
+    if shortcut := SYSTEM_SHORTCUTS.get(element_key):
+        return shortcut
+
     return None
-
-
-def has_shortcut(bundle_id: str, element_name: str) -> bool:
-    """Check if an element has a known shortcut."""
-    return get_shortcut(bundle_id, element_name) is not None
-
-
-def list_app_shortcuts(bundle_id: str) -> dict:
-    """List all known shortcuts for an app."""
-    app_specific = SHORTCUTS.get(bundle_id, {})
-    return {**GENERIC_SHORTCUTS, **app_specific}

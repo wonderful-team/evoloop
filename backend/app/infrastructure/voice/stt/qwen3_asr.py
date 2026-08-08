@@ -87,34 +87,60 @@ except ImportError:
     SHERPA_ONNX_AVAILABLE = False
 
 
-def _get_bundled_qwen3_models_path() -> Path | None:
-    """获取应用 bundle 或本地存储中的 Qwen3-ASR 模型路径"""
-    models_dir = getattr(settings, "MODELS_DIR", None) or os.path.expanduser("~/.evoloop/models")
-    base_path = Path(models_dir)
+def _get_qwen3_search_dirs() -> list[Path]:
+    """Return directories to search for the Qwen3-ASR model.
 
-    # 1. 尝试 ~/.evoloop/models/qwen3-asr
-    qwen3_dir = base_path / "qwen3-asr"
-    if qwen3_dir.exists() and (qwen3_dir / "encoder.int8.onnx").exists():
-        return qwen3_dir
+    Order: bundled models (via MODELS_DIR env) → user downloads → legacy paths.
+    """
+    dirs: list[Path] = []
 
-    # 2. 尝试匹配 ~/.evoloop/models/ 目录下的 sherpa-onnx-qwen3-asr-* 子路径
-    if base_path.exists():
-        for sub in base_path.iterdir():
-            if sub.is_dir() and "qwen3" in sub.name.lower():
-                if (sub / "encoder.int8.onnx").exists() or (sub / "encoder.onnx").exists():
-                    return sub
+    models_dir = getattr(settings, "MODELS_DIR", None)
+    if models_dir:
+        dirs.append(Path(models_dir))
+
+    dirs.append(Path(os.path.expanduser("~/.evoloop/models")))
 
     tauri_dir = getattr(settings, "TAURI_RESOURCE_DIR", None)
     if tauri_dir:
-        bundle_models = Path(tauri_dir) / "models" / "qwen3-asr"
-        if bundle_models.exists():
-            return bundle_models
+        dirs.append(Path(tauri_dir) / "models")
 
-    cwd_models = Path.cwd() / "models" / "qwen3-asr"
-    if cwd_models.exists():
-        return cwd_models
+    cwd_models = Path.cwd() / "models"
+    if cwd_models not in dirs:
+        dirs.append(cwd_models)
+
+    return dirs
+
+
+def _find_qwen3_model_dir() -> Path | None:
+    """Search known locations for a Qwen3-ASR model directory."""
+    for base_path in _get_qwen3_search_dirs():
+        # 1. Direct qwen3-asr subdirectory
+        qwen3_dir = base_path / "qwen3-asr"
+        if qwen3_dir.exists() and (qwen3_dir / "encoder.int8.onnx").exists():
+            return qwen3_dir
+
+        # 2. Any sherpa-onnx-qwen3-asr-* subdirectory
+        if base_path.exists():
+            for sub in base_path.iterdir():
+                if sub.is_dir() and "qwen3" in sub.name.lower():
+                    if (sub / "encoder.int8.onnx").exists() or (sub / "encoder.onnx").exists():
+                        return sub
 
     return None
+
+
+def _get_default_qwen3_dir() -> Path:
+    """Default directory to use when no Qwen3-ASR model has been found yet.
+
+    We prefer the user-writable location so that a model downloaded later via
+    the frontend becomes available without recreating the provider.
+    """
+    return Path(os.path.expanduser("~/.evoloop/models")) / "qwen3-asr"
+
+
+def _get_bundled_qwen3_models_path() -> Path | None:
+    """Backwards-compatible alias for finding the Qwen3-ASR model directory."""
+    return _find_qwen3_model_dir()
 
 
 def _load_audio_samples_16k(file_path: str) -> list[float]:
@@ -142,7 +168,7 @@ def _load_audio_samples_16k(file_path: str) -> list[float]:
             "ffmpeg", "-loglevel", "quiet", "-y", "-i", file_path,
             "-f", "s16le", "-ac", "1", "-ar", "16000", "-",
         ]
-        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+        res = subprocess.run(cmd, capture_output=True, check=True)
         raw_int16 = array.array("h", res.stdout)
         return [s / 32768.0 for s in raw_int16]
     except Exception as e:
@@ -163,26 +189,33 @@ class Qwen3ASRProvider(BaseSTTProvider):
 
     def __init__(self, model_dir: str | None = None):
         from app.infrastructure.config.service import SystemConfigService
-        db_model_dir = SystemConfigService.get_value("QWEN3_ASR_MODEL_DIR")
-        models_dir = getattr(settings, "MODELS_DIR", None) or os.path.expanduser("~/.evoloop/models")
-        
-        if model_dir:
-            self.model_dir = Path(model_dir)
-        elif db_model_dir:
-            self.model_dir = Path(db_model_dir)
-        else:
-            bundled = _get_bundled_qwen3_models_path()
-            self.model_dir = bundled if bundled else Path(models_dir) / "qwen3-asr"
 
+        self._explicit_model_dir: Path | None = None
+        if model_dir:
+            self._explicit_model_dir = Path(model_dir)
+        else:
+            db_model_dir = SystemConfigService.get_value("QWEN3_ASR_MODEL_DIR")
+            if db_model_dir:
+                self._explicit_model_dir = Path(db_model_dir)
+
+        self.model_dir: Path = self._resolve_model_dir()
         self._recognizer = None
         self._load_lock = asyncio.Lock()
+
+    def _resolve_model_dir(self) -> Path:
+        """Return the effective model directory, scanning all known locations."""
+        if self._explicit_model_dir:
+            return self._explicit_model_dir
+        found = _find_qwen3_model_dir()
+        return found if found else _get_default_qwen3_dir()
 
     def is_available(self) -> bool:
         """检查 sherpa-onnx 依赖及 Qwen3-ASR 模型文件"""
         if not SHERPA_ONNX_AVAILABLE:
             return False
-        encoder_int8 = self.model_dir / "encoder.int8.onnx"
-        encoder_fp32 = self.model_dir / "encoder.onnx"
+        model_dir = self._resolve_model_dir()
+        encoder_int8 = model_dir / "encoder.int8.onnx"
+        encoder_fp32 = model_dir / "encoder.onnx"
         return encoder_int8.exists() or encoder_fp32.exists()
 
     async def _load_recognizer(self):
@@ -197,17 +230,20 @@ class Qwen3ASRProvider(BaseSTTProvider):
             if not SHERPA_ONNX_AVAILABLE:
                 raise RuntimeError("sherpa-onnx dependency missing. Please install sherpa-onnx.")
 
-            conv_frontend = str(self.model_dir / "conv_frontend.onnx")
-            encoder_int8 = self.model_dir / "encoder.int8.onnx"
-            encoder = str(encoder_int8 if encoder_int8.exists() else self.model_dir / "encoder.onnx")
-            decoder_int8 = self.model_dir / "decoder.int8.onnx"
-            decoder = str(decoder_int8 if decoder_int8.exists() else self.model_dir / "decoder.onnx")
-            tokenizer = str(self.model_dir / "tokenizer")
+            model_dir = self._resolve_model_dir()
+            self.model_dir = model_dir
+
+            conv_frontend = str(model_dir / "conv_frontend.onnx")
+            encoder_int8 = model_dir / "encoder.int8.onnx"
+            encoder = str(encoder_int8 if encoder_int8.exists() else model_dir / "encoder.onnx")
+            decoder_int8 = model_dir / "decoder.int8.onnx"
+            decoder = str(decoder_int8 if decoder_int8.exists() else model_dir / "decoder.onnx")
+            tokenizer = str(model_dir / "tokenizer")
 
             if not os.path.exists(encoder):
-                raise RuntimeError(f"Qwen3-ASR model not found at {self.model_dir}")
+                raise RuntimeError(f"Qwen3-ASR model not found at {model_dir}")
 
-            logger.info(f"[Qwen3ASR] Loading model from {self.model_dir}...")
+            logger.info(f"[Qwen3ASR] Loading model from {model_dir}...")
             loop = asyncio.get_running_loop()
 
             def _create():
@@ -223,7 +259,7 @@ class Qwen3ASRProvider(BaseSTTProvider):
                 return recognizer
 
             self._recognizer = await loop.run_in_executor(None, _create)
-            logger.info(f"[Qwen3ASR] Model loaded successfully from {self.model_dir}")
+            logger.info(f"[Qwen3ASR] Model loaded successfully from {model_dir}")
 
     def list_models(self, language: VoiceLocale | None = None) -> list[str]:
         return ["qwen3-asr-int8"]

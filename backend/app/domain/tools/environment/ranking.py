@@ -6,8 +6,8 @@ import asyncio
 import logging
 from typing import Literal
 
-from app.core.environment.formatting import format_app_rankings
 from app.core.environment.usage.ranker import UsageRanker
+from app.core.environment.utils import format_app_rankings
 from app.core.tools import evoloop_tool
 
 logger = logging.getLogger(__name__)

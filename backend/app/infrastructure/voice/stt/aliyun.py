@@ -35,8 +35,14 @@ class AliyunProvider(BaseSTTProvider):
 
     # 支持的模型
     MODELS = {
-        "qwen-audio-turbo": {"description": "通义千问语音大模型，中英混杂极佳", "language": "multilingual"},
-        "paraformer-v1": {"description": "高精度中文语音识别", "language": "zh"},
+        "qwen-audio-turbo": {
+            "description": "通义千问语音大模型，中英混杂极佳",
+            "language": "multilingual",
+        },
+        "paraformer-v1": {
+            "description": "高精度中文语音识别",
+            "language": "zh"
+        },
     }
 
     def __init__(self):

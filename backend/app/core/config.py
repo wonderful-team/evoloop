@@ -1,5 +1,4 @@
 import os
-import platform
 import secrets
 import sys
 import warnings
@@ -68,6 +67,13 @@ def _default_chrome_automation_data() -> str:
     elif sys.platform == "win32":
         return os.path.expanduser("~\\AppData\\Local\\Google\\Chrome\\Chrome-Automation")
     return os.path.expanduser("~/.config/google-chrome-automation")
+
+
+def _default_device_name() -> str:
+    """Default EvoLoop device name: hostname, falling back to a fixed label."""
+    from app.core.device import get_hostname
+
+    return get_hostname() or "EvoLoop-Desktop"
 
 
 class Settings(BaseSettings):
@@ -329,7 +335,7 @@ class Settings(BaseSettings):
 
     # Client / Device Info
     EVOCLOUD_ACCESS_TOKEN: str | None = Field(None, validation_alias="EVOCLOUD_ACCESS_TOKEN")
-    EVOCLOUD_DEVICE_NAME: str | None = Field(default_factory=lambda: platform.node() or "EvoLoop-Desktop", validation_alias="EVOCLOUD_DEVICE_NAME")
+    EVOCLOUD_DEVICE_NAME: str | None = Field(default_factory=_default_device_name, validation_alias="EVOCLOUD_DEVICE_NAME")
     EVOCLOUD_DEVICE_TYPE: str = Field("desktop", validation_alias="EVOCLOUD_DEVICE_TYPE")
     EVOCLOUD_DEVICE_DESCRIPTION: str = Field("", validation_alias="EVOCLOUD_DEVICE_DESCRIPTION")
     EVOCLOUD_SSL_VERIFY: bool = Field(True, validation_alias="EVOCLOUD_SSL_VERIFY")

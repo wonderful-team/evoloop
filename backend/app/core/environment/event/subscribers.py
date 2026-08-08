@@ -149,47 +149,7 @@ class DeviceEventSubscriber:
         await _refresh_state()
 
 
-@event_register()
-class SkillEventSubscriber:
-    """Handles skill execution events for skill evolution"""
 
-    @event_subscribe(EventType.SKILL_EXECUTED)
-    async def on_skill_executed(self, event: AwakenEvent) -> None:
-        """
-        Log skill execution for monitoring and analytics.
-
-        This handler can be extended for analytics, dashboards, etc.
-        """
-        skill_name = event.data.get("skill_name")
-        thread_id = event.data.get("thread_id")
-
-        logger.debug(f"🎯 Skill executed: {skill_name} in thread {thread_id}")
-
-    @event_subscribe(EventType.SKILL_PROMOTED)
-    async def on_skill_promoted(self, event: AwakenEvent) -> None:
-        """
-        Handle skill promotion to built-in status.
-
-        Triggered when a learned skill is promoted to built-in.
-        """
-        skill_name = event.data.get("skill_name")
-
-        logger.info(f"⭐ Skill promoted to built-in: {skill_name}")
-
-    @event_subscribe(EventType.SKILL_DEPRECATED)
-    async def on_skill_deprecated(self, event: AwakenEvent) -> None:
-        """
-        Handle skill deprecation.
-
-        Triggered when a skill is deprecated (replaced or outdated).
-        """
-        skill_name = event.data.get("skill_name")
-        reason = event.data.get("reason", "No reason provided")
-
-        logger.info(f"🗑️ Skill deprecated: {skill_name} - {reason}")
-
-
-@event_register()
 class SystemEventSubscriber:
     """Handles system-level awakening events"""
 
@@ -201,7 +161,7 @@ class SystemEventSubscriber:
         Triggered when the agent awakening process is complete.
         """
         platforms = event.data.get("platforms", [])
-        project = event.data.get("project")
+        project = event.data.get("project_id")
 
         logger.info(
             f"🧠 Awakening complete. Platforms: {platforms}, Project: {project}"
@@ -223,7 +183,8 @@ class SystemEventSubscriber:
 
         Triggered when the agent learns a new platform boundary (e.g., auth wall).
         """
-        platform = event.data.get("platform")
-        boundary_type = event.data.get("boundary_type")
+        tool_name = event.data.get("tool_name")
+        category = event.data.get("category")
+        description = event.data.get("description")
 
-        logger.info(f"🚧 Learned boundary: {boundary_type} on {platform}")
+        logger.info(f"🚧 Learned boundary: {category} for tool {tool_name}: {description}")

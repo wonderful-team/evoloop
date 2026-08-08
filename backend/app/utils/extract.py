@@ -9,6 +9,7 @@ import ast
 import json
 import logging
 import re
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -205,9 +206,9 @@ def _repair_json(text: str) -> str | None:
     return text
 
 
-def safe_parse_json(text: str) -> dict | None:
+def safe_parse_json_value(text: str) -> Any | None:
     """
-    Safely parse JSON with multiple fallback strategies.
+    Safely parse JSON with multiple fallback strategies, returning any JSON value.
 
     Order:
       1. Fast path: json.loads
@@ -219,7 +220,7 @@ def safe_parse_json(text: str) -> dict | None:
         text: JSON string or Python dict literal
 
     Returns:
-        Parsed dict, or None if all methods fail
+        Parsed value (dict/list/str/int/...), or None if all methods fail
     """
     if not text or not isinstance(text, str):
         return None
@@ -259,6 +260,23 @@ def safe_parse_json(text: str) -> dict | None:
             logger.debug(f"Failed to parse as Python literal: {e}")
 
     return None
+
+
+def safe_parse_json(text: str) -> dict | None:
+    """
+    Safely parse JSON into a dict with multiple fallback strategies.
+
+    Unlike :func:`safe_parse_json_value`, this is strict: only dict results
+    are returned, so the return type is guaranteed to be ``dict | None``.
+
+    Args:
+        text: JSON object string or Python dict literal
+
+    Returns:
+        Parsed dict, or None if all methods fail or the result is not a dict
+    """
+    value = safe_parse_json_value(text)
+    return value if isinstance(value, dict) else None
 
 
 def strip_markdown_code_markers(text: str) -> str:
