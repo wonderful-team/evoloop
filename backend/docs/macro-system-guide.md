@@ -37,7 +37,7 @@ run_deterministic() 执行
   │     ├── 参数注入 {{param}}
   │     ├── 按 type 分发至:
   │     │   ├── ACTION   → _execute_browser / mobile / desktop_step()
-  │     │   ├── EXTRACT  → _handle_extraction()
+  │     │   ├── EXTRACT  → handle_extraction()
   │     │   ├── IF       → evaluate_condition → 分支执行
   │     │   ├── LOOP     → _handle_collect_loop() / _handle_loop()
   │     │   ├── DUMP     → file / MCP / webhook

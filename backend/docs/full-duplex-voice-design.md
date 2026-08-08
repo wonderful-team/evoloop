@@ -2255,7 +2255,7 @@ async def enrich_spec_with_macro_triggers(spec: RouteCatalog) -> RouteCatalog:
     作用域：全局（project_id IS NULL）+ 当前项目（shared_state.project_id）。
     冲突去重：preset 优先于用户，同 pattern 只保留第一条。
     """
-    from app.core.shared_state import shared_state
+    from app.core.state import shared_state
     from app.infrastructure.database import session_scope
     from app.models.macro import Macro
     from sqlmodel import select, case

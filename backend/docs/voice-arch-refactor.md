@@ -249,7 +249,7 @@ Rust → Python WS:
 
 | 优先级 | 文件 | 改动内容 |
 |--------|------|---------|
-| **关键** | `hooks/useVoiceEvents.ts` | `start_voice_session` / `stop_voice_session` / `switch_voice_mode` 等 ~15 个 Tauri invoke 改为发 Python 指令；事件监听接口不变（`voice:state` 等仍通过 Tauri event 到达） |
+| **关键** | `hooks/useVoiceEvents.ts` | `start_voice_session` / `stop_voice_session` / `switch_voice_mode` 等 ~15 个 Tauri invoke 改为发 Python 指令；事件监听接口不变（`voice.state` 等仍通过 Tauri event 到达） |
 | **关键** | `hooks/useTTS.ts` | `speak()` / `stop()` 从 Rust invoke 改为 Python TTS 调用；voice 定义和选择 UI 保留为 Python TTS 的配置 |
 | **重要** | `hooks/useWakeWord.ts` | 唤醒词监听从 Rust 移到 Python |
 | **重要** | `hooks/useTauriVoiceShortcut.ts` | 快捷键注册保留 Rust，但 `onPress` 回调改为触发 Python |
@@ -362,7 +362,7 @@ Rust → Python WS:
 │  dialogue_receive_loop: Volcengine 事件循环               │
 │    Event 451 (ASR partial) → voice.partial → Rust HUD   │
 │    Event 450 (barge-in)    → voice.barge_in → Rust      │
-│    Event 459 (ASR done)    → _run_agent_pipeline         │
+│    Event 459 (ASR done)    → run_agent_pipeline         │
 │    Event 359 (TTS ended)   → state → LISTENING          │
 │    Event 350 (injected TTS)→ voice.barge_in → Rust      │
 │    SERVER_ACK(bytes)       → websocket.send_bytes → Rust │
@@ -524,7 +524,7 @@ if event == 459:
     discard_tts = True
     volc_client.send_chat_tts_text(start=True, end=False, content="让我查一下。")
     volc_client.send_chat_tts_text(start=False, end=True, content="")
-    asyncio.create_task(_run_agent_pipeline(websocket, thread_id, asr_text))
+    asyncio.create_task(run_agent_pipeline(websocket, thread_id, asr_text))
 
 # 2. Agent 完成 → push_tts_text → ChatTTSText(start=True, end=True)
 #    在 executor.py 中完成，无需改动
