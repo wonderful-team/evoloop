@@ -9,10 +9,9 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
-# Default models to download (embedding only — required for all deployments)
-# Speech models (paraformer-*) only needed for Tauri desktop client builds
-DEFAULT_MODELS="nomic-embed"
-ALL_MODELS="paraformer-zh paraformer-zh-en paraformer-zh-plus paraformer-zh-streaming nomic-embed"
+# Default models to download (optional local embedding, can also be downloaded from the UI)
+DEFAULT_MODELS="bge-base-zh-v1.5"
+ALL_MODELS="bge-base-zh-v1.5"
 
 # Parse arguments
 MODELS_TO_DOWNLOAD=""
@@ -46,11 +45,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --help, -h         Show this help"
             echo ""
             echo "Available models:"
-            echo "  nomic-embed                (default, text embeddings — required for all deployments)"
-            echo "  paraformer-zh              (Chinese + English ASR — for desktop client only)"
-            echo "  paraformer-zh-en           (Chinese + English mixed)"
-            echo "  paraformer-zh-plus         (with VAD & punctuation)"
-            echo "  paraformer-zh-streaming    (streaming recognition)"
+            echo "  bge-base-zh-v1.5    (local text embedding, optional)"
             exit 0
             ;;
         *)
@@ -254,10 +249,9 @@ for model_name in $MODELS_TO_DOWNLOAD; do
         paraformer-zh-streaming)
             model_id="damo/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-online"
             ;;
-        nomic-embed)
-            echo -e "${YELLOW}📦 Installing sentence-transformers if needed...${NC}"
-            pip_install sentence-transformers 2>/dev/null || true
-            $PYTHON_CMD backend/scripts/download_models.py
+        bge-base-zh-v1.5)
+            echo -e "${YELLOW}📦 Downloading local embedding model (bge-base-zh-v1.5)...${NC}"
+            $PYTHON_CMD backend/bin/scripts/download_models.py bge-base-zh-v1.5 --output-dir "$MODEL_DIR/gguf"
             if [ $? -eq 0 ]; then
                 echo -e "${GREEN}✅ $model_name downloaded successfully${NC}"
             else

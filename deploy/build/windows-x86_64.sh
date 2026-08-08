@@ -6,9 +6,9 @@ source "$SCRIPT_DIR/common.sh"
 source "$SCRIPT_DIR/config.sh"
 
 DEV_MODE=false
-WITH_MODELS=false
+WITH_MODELS=true
 DOWNLOAD_MODELS=false
-MODELS_LIST="paraformer-zh"
+MODELS_LIST=""
 ARCH="x86_64-pc-windows-msvc"
 ENVIRONMENT="production"
 ENV_FILE=""
@@ -26,6 +26,7 @@ while [[ $# -gt 0 ]]; do
     --env-file) ENV_FILE="$2"; shift 2 ;;
     --env-file=*) ENV_FILE="${1#*=}"; shift ;;
     --with-models|-m) WITH_MODELS=true; shift ;;
+    --without-models) WITH_MODELS=false; shift ;;
     --download-models)
       DOWNLOAD_MODELS=true
       if [[ $2 != --* ]] && [[ -n $2 ]]; then MODELS_LIST="$2"; shift 2; else shift; fi
@@ -34,8 +35,9 @@ while [[ $# -gt 0 ]]; do
     --help|-h)
       echo "Usage: $0 [options]"
       echo "  --dev, -d                 Development mode"
-      echo "  --with-models, -m         Bundle pre-downloaded models"
-      echo "  --download-models [LIST]  Download models before build"
+      echo "  --with-models, -m         Bundle core models (classifiers + KWS). Default: true"
+      echo "  --without-models          Skip bundling core models"
+      echo "  --download-models [LIST]  Download optional speech models (not usually needed)"
       echo "  --clean, -c               Clean artifacts before build"
       exit 0
       ;;
@@ -62,11 +64,13 @@ echo "  Dev Mode:   ${DEV_MODE}"
 echo "  With Models: ${WITH_MODELS}"
 echo ""
 
-step "Step 0: Ensuring embedding model (required)"
-ensure_embedding
+if [ "$WITH_MODELS" = true ]; then
+  step "Step 0: Preparing bundled core models (classifiers + KWS)"
+  bash "$PROJECT_ROOT/deploy/prepare_bundled_models.sh"
+fi
 
-if [ "$DOWNLOAD_MODELS" = true ]; then
-  step "Step 0b: Downloading speech models (for desktop client)"
+if [ "$DOWNLOAD_MODELS" = true ] && [ -n "$MODELS_LIST" ]; then
+  step "Step 0b: Downloading optional speech models"
   download_speech_models "$MODELS_LIST"
 fi
 
@@ -80,7 +84,6 @@ cd "$PROJECT_ROOT/frontend"
 
 if [ "$WITH_MODELS" = true ]; then
   step "Step 3: Bundling Models"
-  bundle_models "$APP_DATA_DIR/models" "src-tauri/models"
   patch_tauri_config_for_models
 fi
 

@@ -56,26 +56,27 @@ ensure_embedding() {
     APP_DATA_DIR="${EVOLOOP_APP_DATA_DIR:-$HOME/.evoloop}"
   fi
   local model_dir="$APP_DATA_DIR/models"
-  if [ -d "$model_dir/sentence_transformers" ] || [ -d "$model_dir/huggingface" ]; then
-    local found
-    found=$(find "$model_dir" -name "*nomic-embed*" -maxdepth 4 2>/dev/null | head -1)
-    if [ -n "$found" ]; then
-      ok "Embedding model already cached locally"
-      return 0
-    fi
+  local gguf_dir="$model_dir/gguf"
+  local target_file="$gguf_dir/bge-base-zh-v1.5-q4_k_m.gguf"
+  if [ -f "$target_file" ]; then
+    ok "Embedding model (bge-base-zh-v1.5) already cached locally"
+    return 0
   fi
-  info "Embedding model (nomic-embed) not found locally, downloading..."
-  if [ -f "$PROJECT_ROOT/deploy/download_models.sh" ]; then
-    chmod +x "$PROJECT_ROOT/deploy/download_models.sh"
-    "$PROJECT_ROOT/deploy/download_models.sh" --models "nomic-embed" --skip-funasr-check
+  info "Embedding model (bge-base-zh-v1.5) not found locally, downloading..."
+  if [ -f "$PROJECT_ROOT/backend/.venv/bin/python" ]; then
+    "$PROJECT_ROOT/backend/.venv/bin/python" "$PROJECT_ROOT/backend/bin/scripts/download_models.py" bge-base-zh-v1.5 --output-dir "$gguf_dir"
     ok "Embedding model ready"
   else
-    warn "download_models.sh not found, cannot download embedding model"
+    warn "backend venv not found, cannot download embedding model"
   fi
 }
 
 download_speech_models() {
-  local models_list="${1:-paraformer-zh}"
+  local models_list="${1:-}"
+  if [ -z "$models_list" ]; then
+    warn "No speech models requested, skipping download"
+    return 0
+  fi
   if [ -f "$PROJECT_ROOT/deploy/download_models.sh" ]; then
     chmod +x "$PROJECT_ROOT/deploy/download_models.sh"
     "$PROJECT_ROOT/deploy/download_models.sh" --models "$models_list" --skip-funasr-check

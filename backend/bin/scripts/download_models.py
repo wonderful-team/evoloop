@@ -6,24 +6,30 @@ Usage:
     python scripts/download_models.py <name> [--output-dir PATH]
 
 Examples:
-    python scripts/download_models.py qwen3-4b-instruct-2507
+    python scripts/download_models.py bge-base-zh-v1.5
     python scripts/download_models.py bge-base-zh-v1.5 --output-dir /path/to/gguf
 """
 
 import argparse
 import os
 import sys
-from pathlib import Path
 
 import requests
 
+# Use the configured HuggingFace endpoint / mirror. When run outside the backend
+# process (e.g. via deploy/download_models.sh), the shell should set HF_ENDPOINT
+# from the .env file. Fallback to hf-mirror.com for mainland China access.
+_HF_ENDPOINT = os.environ.get("HF_ENDPOINT", "https://hf-mirror.com").rstrip("/")
+
+
 GGUF_REGISTRY: dict[str, str] = {
-    "qwen3-4b-instruct-2507": (
-        "https://huggingface.co/Qwen/Qwen3-4B-Instruct-GGUF/resolve/main/"
-        "qwen3-4b-instruct-2507-q4_k_m.gguf"
-    ),
     "bge-base-zh-v1.5": (
-        "https://huggingface.co/ChristianAzinn/bge-base-zh-v1.5-GGUF/resolve/main/"
+        f"{_HF_ENDPOINT}/CompendiumLabs/bge-base-zh-v1.5-gguf/resolve/main/"
+        "bge-base-zh-v1.5-q4_k_m.gguf"
+    ),
+    # Backward-compatible alias for the legacy model name
+    "nomic-embed": (
+        f"{_HF_ENDPOINT}/CompendiumLabs/bge-base-zh-v1.5-gguf/resolve/main/"
         "bge-base-zh-v1.5-q4_k_m.gguf"
     ),
 }

@@ -228,6 +228,11 @@ check_uv() {
     fi
 }
 
+# 检测是否安装了 Celery（full 模式依赖），嵌入式模式无需 beat
+_is_celery_available() {
+    [ -f ".venv/bin/celery" ]
+}
+
 # ==================== 清理环境辅助函数 ====================
 # 清理卡死的外部进程 (如 adb)，防止启动时端口冲突
 # 仅在 dev / start 前调用
@@ -288,6 +293,11 @@ case "${1:-help}" in
         ;;
 
     beat)
+        if ! _is_celery_available; then
+            info "当前为嵌入式模式或未安装 Celery，beat 定时调度无需启动。"
+            info "如需使用 Celery beat，请先运行：evo install full"
+            exit 0
+        fi
         info "启动 Celery Beat（定时任务调度）..."
         echo " Beat 用于周期性任务调度（如定时清理、检查）"
         echo " 注意：Beat 只负责调度，任务执行仍需 Worker"
@@ -331,18 +341,22 @@ case "${1:-help}" in
             fi
         fi
 
-        if pgrep -f "celery.*beat" > /dev/null; then
-            warning "Beat 服务已在运行"
-        else
-            info "启动 Beat 服务..."
-            ENVIRONMENT=local nohup .venv/bin/celery -A app.infrastructure.queue.celery_app beat -l info > "$LOG_DIR/beat.log" 2>&1 &
-            echo $! > "$LOG_DIR/beat.pid"
-            sleep 2
+        if _is_celery_available; then
             if pgrep -f "celery.*beat" > /dev/null; then
-                success "Beat 服务启动成功 (PID: $(cat $LOG_DIR/beat.pid))"
+                warning "Beat 服务已在运行"
             else
-                error "Beat 服务启动失败，查看日志: $LOG_DIR/beat.log"
+                info "启动 Beat 服务..."
+                ENVIRONMENT=local nohup .venv/bin/celery -A app.infrastructure.queue.celery_app beat -l info > "$LOG_DIR/beat.log" 2>&1 &
+                echo $! > "$LOG_DIR/beat.pid"
+                sleep 2
+                if pgrep -f "celery.*beat" > /dev/null; then
+                    success "Beat 服务启动成功 (PID: $(cat $LOG_DIR/beat.pid))"
+                else
+                    error "Beat 服务启动失败，查看日志: $LOG_DIR/beat.log"
+                fi
             fi
+        else
+            info "未检测到 Celery，跳过 Beat 服务（嵌入式模式）"
         fi
 
         echo ""
@@ -471,28 +485,36 @@ case "${1:-help}" in
     # ==================== 代码质量 ====================
     lint)
         info "运行代码检查..."
-        .venv/bin/ruff check app scripts
+        .venv/bin/ruff check app tests
         ;;
 
     format)
         info "格式化代码..."
-        .venv/bin/ruff check app scripts --fix
-        .venv/bin/ruff format app scripts
+        .venv/bin/ruff check app tests --fix
+        .venv/bin/ruff format app tests
         success "格式化完成"
         ;;
 
     check)
         info "运行全面代码检查..."
+        set +e
         echo "🔍 Running Ruff check..."
-        .venv/bin/ruff check app
+        .venv/bin/ruff check app tests
+        RUFF_EXIT=$?
         echo "✨ Running Pyright analysis..."
         .venv/bin/pyright app
+        PYRIGHT_EXIT=$?
+        set -e
+        if [ $RUFF_EXIT -ne 0 ] || [ $PYRIGHT_EXIT -ne 0 ]; then
+            error "检查未通过 (ruff=$RUFF_EXIT, pyright=$PYRIGHT_EXIT)"
+            exit 1
+        fi
         success "所有检查通过"
         ;;
 
     fix)
         info "自动修复代码问题..."
-        .venv/bin/ruff check app scripts --fix
+        .venv/bin/ruff check app tests --fix
         success "修复完成"
         ;;
 
@@ -537,7 +559,6 @@ case "${1:-help}" in
                 ;;
             reset)
                 info "重置数据库..."
-                .venv/bin/python scripts/seed_system_config.py
                 .venv/bin/alembic upgrade head
                 .venv/bin/python scripts/seed_system_config.py
                 ;;
@@ -853,11 +874,11 @@ case "${1:-help}" in
                 ;;
             *)
                 error "未知模型命令: ${2:-}"
-                echo "可用命令: download [model_name] [--endpoint URL]"
+                echo "可用命令: download [model_name] [--output-dir PATH]"
                 echo "示例:"
                 echo "  evo model download                                    # 下载默认模型"
-                echo "  evo model download nomic-ai/nomic-embed-text-v1.5    # 下载指定模型"
-                echo "  evo model download --endpoint https://hf-mirror.com  # 使用镜像下载"
+                echo "  evo model download bge-base-zh-v1.5                  # 下载指定模型"
+                echo "  evo model download --output-dir /path/to/models        # 指定输出目录"
                 exit 1
                 ;;
         esac

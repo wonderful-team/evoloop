@@ -6,9 +6,9 @@ source "$SCRIPT_DIR/common.sh"
 source "$SCRIPT_DIR/config.sh"
 
 DEV_MODE=false
-WITH_MODELS=false
+WITH_MODELS=true
 DOWNLOAD_MODELS=false
-MODELS_LIST="paraformer-zh"
+MODELS_LIST=""
 ENVIRONMENT="production"
 ENV_FILE=""
 TARGET_ARCH=""  # arm64 or x86_64
@@ -21,6 +21,7 @@ while [[ $# -gt 0 ]]; do
     --env-file) ENV_FILE="$2"; shift 2 ;;
     --env-file=*) ENV_FILE="${1#*=}"; shift ;;
     --with-models|-m) WITH_MODELS=true; shift ;;
+    --without-models) WITH_MODELS=false; shift ;;
     --download-models)
       DOWNLOAD_MODELS=true
       if [[ $2 != --* ]] && [[ -n $2 ]]; then MODELS_LIST="$2"; shift 2; else shift; fi
@@ -32,8 +33,9 @@ while [[ $# -gt 0 ]]; do
       echo "  --arch ARCH           Target architecture: arm64 or x86_64"
       echo "  --dev, -d             Development mode"
       echo "  --env ENV             Build environment: development|production"
-      echo "  --with-models, -m     Bundle pre-downloaded models"
-      echo "  --download-models [LIST]  Download models before build"
+      echo "  --with-models, -m     Bundle core models (classifiers + KWS). Default: true"
+      echo "  --without-models      Skip bundling core models"
+      echo "  --download-models [LIST]  Download optional speech models (not usually needed)"
       echo "  --clean, -c           Clean artifacts before build"
       echo "  --help, -h            Show this help"
       exit 0
@@ -124,11 +126,13 @@ check_numpy "python3"
 # =============================================================================
 header "Phase 2: Model Download / Preparation"
 
-step "Step 1: Ensuring embedding model (required)"
-ensure_embedding
+if [ "$WITH_MODELS" = true ]; then
+  step "Step 1: Preparing bundled core models (classifiers + KWS)"
+  bash "$PROJECT_ROOT/deploy/prepare_bundled_models.sh"
+fi
 
-if [ "$DOWNLOAD_MODELS" = true ]; then
-  step "Step 2: Downloading speech models (for desktop client)"
+if [ "$DOWNLOAD_MODELS" = true ] && [ -n "$MODELS_LIST" ]; then
+  step "Step 2: Downloading optional speech models"
   download_speech_models "$MODELS_LIST"
 fi
 
@@ -158,7 +162,6 @@ info "前端环境: $ENVIRONMENT (VITE_API_URL=${VITE_API_URL})"
 
 if [ "$WITH_MODELS" = true ]; then
   step "Bundling Models"
-  bundle_models "$APP_DATA_DIR/models" "src-tauri/models"
   patch_tauri_config_for_models
 fi
 
