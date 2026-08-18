@@ -10,7 +10,6 @@ from typing import Any
 
 import openai
 
-from app.core.config import settings
 from app.infrastructure.config.service import SystemConfigService
 from app.infrastructure.voice.stt.base import (
     BaseSTTProvider,
@@ -131,7 +130,7 @@ class AliyunProvider(BaseSTTProvider):
             )
 
         except Exception as e:
-            logger.error(f"Aliyun transcription failed: {e}")
+            logger.exception(f"Aliyun transcription failed: {e}")
             raise RuntimeError(f"Transcription failed: {e}")
 
     def transcribe_stream(self, options: STTOptions) -> AsyncIterator[STTResult]:

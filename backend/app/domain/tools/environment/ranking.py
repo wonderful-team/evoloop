@@ -52,9 +52,9 @@ async def get_app_usage_ranker(platform: Literal["macos", "android"] = "macos", 
         try:
             return format_app_rankings(records, platform)
         except Exception as e:
-            logger.error(f"Failed to render ranking list: {e}")
+            logger.exception(f"Failed to render ranking list: {e}")
             return f"Found {len(records)} apps."
 
     except Exception as e:
-        logger.error(f"[RankingTool] Failed to rank apps: {e}")
+        logger.exception(f"[RankingTool] Failed to rank apps: {e}")
         return f"Error: Unable to rank apps. Details: {str(e)}"

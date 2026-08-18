@@ -115,7 +115,7 @@ def to_base_message(msg: Any) -> BaseMessage | None:
                 message.metadata["is_error"] = True
             return message
     except (ValueError, TypeError, AttributeError) as e:
-        logger.warning(f"[to_base_message] Failed to convert msg role={role}: {e}")
+        logger.warning(f"[to_base_message] Failed to convert msg role={role}: {e}", exc_info=True)
         return None
 
     return None

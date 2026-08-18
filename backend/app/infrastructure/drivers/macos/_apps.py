@@ -214,7 +214,7 @@ class AppMixin:
             return {"name": app_name, "pid": pid, "bounds": bounds, "bundle_id": bundle_id, "title": title}
 
         except Exception as e:
-            logger.debug(f"Native get_current_app failed: {e}")
+            logger.debug(f"Native get_current_app failed: {e}", exc_info=True)
 
         try:
             script = (
@@ -243,7 +243,7 @@ class AppMixin:
                     "title": parts[3] if len(parts) > 3 and parts[3] else None,
                 }
         except Exception as e:
-            logger.debug(f"AppleScript get_current_app failed: {e}")
+            logger.debug(f"AppleScript get_current_app failed: {e}", exc_info=True)
 
         return {"name": "unknown", "pid": -1, "bounds": "0,0,0,0", "bundle_id": None, "title": None}
 
@@ -294,7 +294,7 @@ class AppMixin:
 
             return {"app_name": app_name, "window_title": title, "bounds": bounds}
         except Exception as e:
-            logger.debug(f"Native get_active_window failed: {e}")
+            logger.debug(f"Native get_active_window failed: {e}", exc_info=True)
 
         try:
             script = (
@@ -320,7 +320,7 @@ class AppMixin:
                     "bounds": parts[2] if len(parts) > 2 else "0,0,0,0",
                 }
         except Exception as e:
-            logger.debug(f"AppleScript get_active_window failed: {e}")
+            logger.debug(f"AppleScript get_active_window failed: {e}", exc_info=True)
 
         current_app = AppMixin.get_current_app()
         return {

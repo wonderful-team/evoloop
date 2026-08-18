@@ -6,7 +6,6 @@ from sqlalchemy import select
 from app.core.execution.system_tools_formatter import SystemToolsFormatter
 from app.core.tools import evoloop_tool
 from app.infrastructure.database import session_scope
-from app.models.learning import LearnedSkill
 from app.models.scheduler import AutonomousTask
 from app.utils.controller_response import ControllerResponse
 
@@ -37,32 +36,29 @@ async def schedule_periodic_task(
         A success message with the assigned Task ID, or an error message.
     """
     try:
+        from app.core.learning.skills.repository import skill_repository
         from app.infrastructure.scheduler.service import SchedulerService
 
-        async with session_scope() as session:
-            # Resolve skill name to ID
-            stmt = select(LearnedSkill).where(LearnedSkill.name == skill_name)
-            result = await session.execute(stmt)
-            skill = result.scalar_one_or_none()
+        skill = await skill_repository.get_by_name(skill_name, visible_only=False)
 
-            if not skill:
-                return ControllerResponse.not_found(skill_name, item_type="Skill")
+        if not skill:
+            return ControllerResponse.not_found(skill_name, item_type="Skill")
 
-            task_id = await SchedulerService.register_task(
-                intent_description=intent,
-                skill_id=skill.id,
-                trigger_spec=trigger,
-                params=params,
-                project_id=project_id,
-            )
+        task_id = await SchedulerService.register_task(
+            intent_description=intent,
+            skill_ids=[skill.id],
+            trigger_spec=trigger,
+            params=params,
+            project_id=project_id,
+        )
 
-            return ControllerResponse.success(
-                f"Delegated periodic intent: {intent}",
-                details=f"Task ID: {task_id}",
-                note=f"Trigger: {trigger}",
-            )
+        return ControllerResponse.success(
+            f"Delegated periodic intent: {intent}",
+            details=f"Task ID: {task_id}",
+            note=f"Trigger: {trigger}",
+        )
     except Exception as e:
-        logger.error(f"Error in schedule_periodic_task: {e}")
+        logger.exception(f"Error in schedule_periodic_task: {e}")
         return ControllerResponse.error("Failed to delegate intent", details=str(e))
 
 
@@ -89,10 +85,10 @@ async def inspect_task_health(task_id: int) -> str:
             try:
                 return SystemToolsFormatter.task_health(task)
             except Exception as e:
-                logger.error(f"Failed to render task health: {e}")
+                logger.exception(f"Failed to render task health: {e}")
                 return f"Task {task_id} health: {status}"
     except Exception as e:
-        logger.error(f"Error in inspect_task_health: {e}")
+        logger.exception(f"Error in inspect_task_health: {e}")
         return f"Error: Failed to inspect task health. {str(e)}"
 
 
@@ -122,8 +118,8 @@ async def list_scheduled_tasks(project_id: int | None = None) -> str:
             try:
                 return SystemToolsFormatter.autonomous_tasks(tasks), {"count": len(tasks)}
             except Exception as e:
-                logger.error(f"Failed to render task list: {e}")
+                logger.exception(f"Failed to render task list: {e}")
                 return f"Found {len(tasks)} tasks.", {"count": len(tasks)}
     except Exception as e:
-        logger.error(f"Error in list_scheduled_tasks: {e}")
+        logger.exception(f"Error in list_scheduled_tasks: {e}")
         return f"Error: Failed to list tasks. {str(e)}"

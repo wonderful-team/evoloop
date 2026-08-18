@@ -51,21 +51,21 @@ class STTFactory:
                 if provider.is_available():
                     return provider
             except Exception as e:
-                logger.warning(f"Configured STT provider '{provider_name}' not available: {e}, falling back...")
+                logger.warning(f"Configured STT provider '{provider_name}' not available: {e}, falling back...", exc_info=True)
         elif provider_name == "aliyun-sensevoice":
             try:
                 provider = cls.get_aliyun_provider()
                 if provider.is_available():
                     return provider
             except Exception as e:
-                logger.warning(f"Configured STT provider '{provider_name}' not available: {e}, falling back...")
+                logger.warning(f"Configured STT provider '{provider_name}' not available: {e}, falling back...", exc_info=True)
         elif provider_name in ("openai-whisper", "whisper"):
             try:
                 provider = cls.get_whisper_provider()
                 if provider.is_available():
                     return provider
             except Exception as e:
-                logger.warning(f"Configured STT provider '{provider_name}' not available: {e}, falling back...")
+                logger.warning(f"Configured STT provider '{provider_name}' not available: {e}, falling back...", exc_info=True)
 
         # 2. 备选方案：无配置或配置的 Provider 不可用时，优先回退到 Qwen3-ASR 本地模型
         if prefer_local:
@@ -74,7 +74,7 @@ class STTFactory:
                 if provider.is_available():
                     return provider
             except Exception as e:
-                logger.warning(f"Qwen3-ASR fallback not available: {e}")
+                logger.warning(f"Qwen3-ASR fallback not available: {e}", exc_info=True)
 
         # 3. 最终回退到阿里云/Whisper
         provider = cls.get_aliyun_provider()
@@ -273,4 +273,4 @@ try:
     SystemConfigService.register_change_handler("STT_API_KEY", _on_stt_config_changed)
     SystemConfigService.register_change_handler("QWEN3_ASR_MODEL_DIR", _on_stt_config_changed)
 except Exception as e:
-    logger.error(f"Failed to register STT config change handlers: {e}")
+    logger.exception(f"Failed to register STT config change handlers: {e}")

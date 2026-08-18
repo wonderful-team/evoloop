@@ -205,7 +205,7 @@ class FileEditorService:
             }
 
         except Exception as e:
-            logger.error(f"Failed to apply edits to {absolute_path}: {e}")
+            logger.exception(f"Failed to apply edits to {absolute_path}: {e}")
             return {
                 "success": False,
                 "message": "An unexpected error occurred while editing file.",

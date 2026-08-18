@@ -15,8 +15,6 @@ import logging
 import time
 from dataclasses import dataclass
 
-from sqlalchemy import select
-
 logger = logging.getLogger(__name__)
 
 
@@ -82,30 +80,15 @@ class NavigationMacroCache:
 
     async def _load(self) -> dict[str, NavigationMacroInfo]:
         """Query DB for active preset navigation macros."""
-        from app.core.execution.macro.runner import is_navigation_macro
-        from app.infrastructure.database import session_scope
-        from app.models.macro import Macro
+        from app.core.execution.macro import list_macros
 
-        async with session_scope() as session:
-            stmt = (
-                select(Macro)
-                .where(
-                    Macro.is_active.is_(True),
-                    Macro.status == "verified",
-                    Macro.namespace == "preset",
-                )
-                .order_by(Macro.id.asc())
-            )
-            result = await session.execute(stmt)
-            scalars = result.scalars()
-            if asyncio.iscoroutine(scalars):
-                scalars = await scalars
-            macros = scalars.all()
-            if asyncio.iscoroutine(macros):
-                macros = await macros
+        macros = await list_macros(status="verified", is_active=True, namespace="preset")
+        macros.sort(key=lambda m: m.id)
 
         data: dict[str, NavigationMacroInfo] = {}
         for macro in macros:
+            from app.core.execution.macro import is_navigation_macro
+
             route = is_navigation_macro(macro)
             if route is None:
                 continue

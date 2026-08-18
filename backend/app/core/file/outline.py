@@ -111,7 +111,7 @@ def get_file_outline(file_path: str, max_entries: int = 100) -> list[OutlineEntr
                         break
 
     except Exception as e:
-        logger.debug(f"Failed to extract outline from {file_path}: {e}")
+        logger.debug(f"Failed to extract outline from {file_path}: {e}", exc_info=True)
 
     return outline
 
@@ -205,7 +205,7 @@ def _get_python_outline_ast(file_path: str, max_entries: int = 100) -> list[dict
         # File has syntax errors
         pass
     except Exception as e:
-        logger.debug(f"Failed to parse Python AST for {file_path}: {e}")
+        logger.debug(f"Failed to parse Python AST for {file_path}: {e}", exc_info=True)
 
     return outline
 

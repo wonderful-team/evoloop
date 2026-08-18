@@ -23,7 +23,7 @@ class DumpMixin:
                         data_to_dump["batch_items"] = state_data.get("items", [])
                         logger.info(f"[{thread_id}] Enriched dump with {len(data_to_dump['batch_items'])} items from state file")
                 except Exception as e:
-                    logger.warning(f"[{thread_id}] Failed to load state file for enriched dump: {e}")
+                    logger.warning(f"[{thread_id}] Failed to load state file for enriched dump: {e}", exc_info=True)
 
         if sink_type == "file":
             await cls._dump_to_file(thread_id, payload, data_to_dump)
@@ -44,7 +44,7 @@ class DumpMixin:
                 json.dump(extracted_data, f, ensure_ascii=False, indent=2)
             logger.info(f"[MacroEngine] Data dumped to file: {sink_path}")
         except Exception as e:
-            logger.warning(f"Failed to dump data to file: {e}")
+            logger.warning(f"Failed to dump data to file: {e}", exc_info=True)
 
     @classmethod
     async def _dump_to_mcp(cls, thread_id, payload, extracted_data):

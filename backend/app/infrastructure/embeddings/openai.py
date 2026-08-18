@@ -31,7 +31,7 @@ class GenericOpenAIEmbedder(BaseEmbedder):
             response = await self.client.embeddings.create(**kwargs)
             return [data.embedding for data in response.data]
         except Exception as e:
-            logger.error(f"Embedding Error (Docs): {e}")
+            logger.exception(f"Embedding Error (Docs): {e}")
             raise e
 
     async def embed_query(self, query: str) -> list[float]:
@@ -49,7 +49,7 @@ class GenericOpenAIEmbedder(BaseEmbedder):
             return response.data[0].embedding
         except Exception as e:
             # Log full stack if needed, but for now specific error message
-            logger.error(f"Embedding Error (Query): {e}\nParams: {kwargs}")
+            logger.exception(f"Embedding Error (Query): {e}\nParams: {kwargs}")
             raise e
 
     # Compatibility aliases

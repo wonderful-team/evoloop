@@ -282,7 +282,7 @@ class EnvironmentProbe:
                             f"{usage_stats[0].app_name!r} (score={usage_stats[0].priority_score})"
                             if usage_stats else "[EnvironmentProbe] UsageRanker: no usage data")
             except Exception as e:
-                logger.warning(f"[EnvironmentProbe] UsageRanker failed (non-fatal): {e}")
+                logger.warning(f"[EnvironmentProbe] UsageRanker failed (non-fatal): {e}", exc_info=True)
 
             # Autonomous triage for discovered apps (run in background to avoid blocking startup)
             try:
@@ -295,7 +295,7 @@ class EnvironmentProbe:
                     logger.info("[EnvironmentProbe] macOS dynamic app triage scheduled (first time)")
                     _logged_macos_triage = True
             except Exception as triage_e:
-                logger.warning(f"[EnvironmentProbe] macOS dynamic app triage failed: {triage_e}")
+                logger.warning(f"[EnvironmentProbe] macOS dynamic app triage failed: {triage_e}", exc_info=True)
 
             return HostEnvironment(
                 os_name="macOS",
@@ -363,7 +363,7 @@ class EnvironmentProbe:
                         _logged_device_ids.add(device_id)
 
                 except Exception as e:
-                    logger.warning(f"Failed to get info for device {device_id}: {e}")
+                    logger.warning(f"Failed to get info for device {device_id}: {e}", exc_info=True)
                     devices.append(
                         AndroidDevice(
                             device_id=device_id,
@@ -376,7 +376,7 @@ class EnvironmentProbe:
                     )
 
         except Exception as e:
-            logger.warning(f"Failed to probe Android devices: {e}")
+            logger.warning(f"Failed to probe Android devices: {e}", exc_info=True)
 
         return devices
 

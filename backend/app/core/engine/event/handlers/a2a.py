@@ -52,7 +52,7 @@ class A2ACommandHandler:
         try:
             task = AgentTask.model_validate(payload)
         except Exception as e:
-            logger.error(f"[A2A] Invalid AgentTask payload: {payload}, error={e}")
+            logger.exception(f"[A2A] Invalid AgentTask payload: {payload}, error={e}")
             return
 
         thread_id = task.task_id
@@ -93,7 +93,7 @@ class A2ACommandHandler:
 
                         local_attachment_paths.append(dest_path)
                     except Exception as ex:
-                        logger.error(f"[A2A] Failed to download/verify attachment {att.filename}: {ex}")
+                        logger.exception(f"[A2A] Failed to download/verify attachment {att.filename}: {ex}")
                         await self._send_a2a_error(task, f"Failed to download attachment {att.filename}: {ex}")
                         return
 
@@ -186,7 +186,7 @@ class A2ACommandHandler:
             await evocloud_manager.api.send_command_to_device(device_key=task.caller_device_key, cmd_data=cmd_data)
             logger.info(f"[A2A] Error callback sent to caller {task.caller_device_key} for task {task.task_id}")
         except Exception as e:
-            logger.error(f"[A2A] Failed to send error callback to caller {task.caller_device_key}: {e}")
+            logger.exception(f"[A2A] Failed to send error callback to caller {task.caller_device_key}: {e}")
 
     async def _handle_a2a_callback(self, command: RemoteCommand) -> None:
         payload = command.get_payload()
@@ -195,7 +195,7 @@ class A2ACommandHandler:
         try:
             result = AgentTaskResult.model_validate(payload)
         except Exception as e:
-            logger.error(f"[A2A] Invalid AgentTaskResult: {payload}, error={e}")
+            logger.exception(f"[A2A] Invalid AgentTaskResult: {payload}, error={e}")
             return
 
         task_id = result.task_id
@@ -251,20 +251,29 @@ class A2ACommandHandler:
             # 而 send_agent_task 的 hitl_request 消息默认 status="completed"，
             # 因此 hitl_resume_response 不会被消费——必须在此处把结果写进工具消息。
             from app.core.engine.message.repository import MessageRepository
-            from app.core.hitl.orchestrator import close_hitl_interaction
+            from app.core.hitl.orchestrator import close_hitl_message
 
             repo = MessageRepository(caller_thread_id)
             await repo.update_content_by_tool_call_id(tool_call_id, result_content)
-            await close_hitl_interaction(caller_thread_id, tool_call_id, "completed")
+            await close_hitl_message(caller_thread_id, tool_call_id, "completed")
         else:
             logger.warning(f"[A2A] Could not find matching pending tool call for task_id {task_id}")
 
         # Resume Caller Agent
+        # 会话模式（§4.6）：有活会话 → gate 注入 a2a_result（重建 state reload 被改写消息续跑）；
+        # 无活会话 → 回落 run_agent_background 单发入口（兜底）。
         from app.core.context.manager import ContextManager
         from app.core.engine.background_agent import BackgroundAgentInputs
+        from app.core.session.manager import session_manager
 
         loaded_ctx = await ContextManager.load(caller_thread_id)
         model = loaded_ctx.active_model if loaded_ctx else None
+
+        session = session_manager.get(caller_thread_id)
+        if session is not None and session.lifecycle == "running":
+            logger.info(f"[A2A] Resuming caller session on thread {caller_thread_id}")
+            session.inject_resume(result_content, kind="a2a_result")
+            return
 
         inputs = BackgroundAgentInputs(
             hitl_resume_response=result_content,

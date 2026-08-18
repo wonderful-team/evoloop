@@ -105,19 +105,6 @@ class AuditEntry(DynamicBaseModel):
     details: str = ""
 
 
-class SectionBudget(DynamicBaseModel):
-    """Budget allocation for a MEMORY.md section."""
-
-    name: str
-    lines: int
-    used: int = 0
-    overflow: bool = False
-
-    @property
-    def remaining(self) -> int:
-        return self.lines - self.used
-
-
 class MemorySectionEntry(DynamicBaseModel):
     """A single entry in a MEMORY.md section."""
 

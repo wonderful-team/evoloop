@@ -134,7 +134,7 @@ class MacOSVisionOCRProvider(VisionProvider):
             return result
 
         except Exception as e:
-            logger.error(f"{self.name} failed: {e}")
+            logger.exception(f"{self.name} failed: {e}")
             return VisionResult(task=task, success=False, metadata={"error": str(e)})
 
     def _get_ui_scale_factor(self, image_source: str) -> float:

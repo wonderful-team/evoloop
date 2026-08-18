@@ -79,7 +79,7 @@ class UsageRanker:
                 if record:
                     records.append(record)
         except (ValueError, OSError, RuntimeError, TypeError, KeyError, subprocess.TimeoutExpired) as e:
-            logger.debug(f"[UsageRanker] Bulk macOS probe failed: {e}")
+            logger.debug(f"[UsageRanker] Bulk macOS probe failed: {e}", exc_info=True)
 
         # 2. Ensure all running apps and provided app_names are considered
         existing_bundle_ids = {r.bundle_id for r in records}
@@ -129,7 +129,7 @@ class UsageRanker:
             if output:
                 return {name.strip() for name in output.split(",")}
         except Exception as e:
-            logger.debug(f"[UsageRanker] Failed to get running apps: {e}")
+            logger.debug(f"[UsageRanker] Failed to get running apps: {e}", exc_info=True)
         return set()
 
     @classmethod
@@ -192,7 +192,7 @@ class UsageRanker:
                     last_used_str.strip(), "%Y-%m-%d %H:%M:%S %z"
                 )
             except ValueError:
-                logger.debug(f"[UsageRanker] Cannot parse date: {last_used_str!r}")
+                logger.debug(f"[UsageRanker] Cannot parse date: {last_used_str!r}", exc_info=True)
 
         return AppUsageRecord(
             app_name=app_name,
@@ -303,9 +303,9 @@ class UsageRanker:
                         except (ValueError, IndexError):
                             pass
         except asyncio.TimeoutError:
-            logger.warning(f"[UsageRanker] ADB usagestats timed out for device {device_id}")
+            logger.warning(f"[UsageRanker] ADB usagestats timed out for device {device_id}", exc_info=True)
         except Exception as e:
-            logger.warning(f"[UsageRanker] ADB usagestats failed: {e}")
+            logger.warning(f"[UsageRanker] ADB usagestats failed: {e}", exc_info=True)
 
         return raw
 

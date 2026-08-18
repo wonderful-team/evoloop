@@ -113,7 +113,7 @@ I've set this as your current active task.""", {"id": task.id, "count": subtask_
     except json.JSONDecodeError:
         return 'Error: subtasks_json is not valid JSON. Format: [{"title": "...", "estimated_hours": n}]'
     except Exception as e:
-        logger.error(f"[SubtaskTool] Failed to create task: {e}")
+        logger.exception(f"[SubtaskTool] Failed to create task: {e}")
         return f"Error creating task: {str(e)}"
 
 
@@ -178,7 +178,7 @@ Status: {tree["status"]}
         return summary
 
     except Exception as e:
-        logger.error(f"[SubtaskTool] Failed to get task tree: {e}")
+        logger.exception(f"[SubtaskTool] Failed to get task tree: {e}")
         return f"Error getting task tree: {str(e)}"
 
 
@@ -267,7 +267,7 @@ async def update_task_completion(
             return f"Updated task to {status} ({progress}%)"
 
     except Exception as e:
-        logger.error(f"[SubtaskTool] Failed to update task: {e}")
+        logger.exception(f"[SubtaskTool] Failed to update task: {e}")
         return f"Error updating task: {str(e)}"
 
 
@@ -307,7 +307,7 @@ Description: {task["description"] or "No description"}{parent_info}
 I've set this as your current task. You can use update_task_completion without an ID."""
 
     except Exception as e:
-        logger.error(f"[SubtaskTool] Failed to get next task: {e}")
+        logger.exception(f"[SubtaskTool] Failed to get next task: {e}")
         return f"Error getting next task: {str(e)}"
 
 
@@ -356,5 +356,5 @@ async def list_project_tasks(status_filter: str = "all", limit: int = 20) -> str
         return "\n".join(lines), {"count": len(tasks)}
 
     except Exception as e:
-        logger.error(f"[SubtaskTool] Failed to list tasks: {e}")
+        logger.exception(f"[SubtaskTool] Failed to list tasks: {e}")
         return f"Error listing tasks: {str(e)}"

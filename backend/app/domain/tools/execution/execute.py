@@ -10,7 +10,10 @@ from app.core.project.utils import get_workspace_root
 from app.core.tools import evoloop_tool, get_working_directory
 from app.core.tools.base import InjectedToolArg
 from app.domain.tools.execution.background import execute_in_background, execute_smart
-from app.domain.tools.execution.security import is_dangerous_command
+from app.domain.tools.execution.security import (
+    has_workspace_escape,
+    is_dangerous_command,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +43,19 @@ async def _execute_command(
         sandbox = SandboxFactory.get_sandbox()
 
         if working_dir and working_dir != ".":
+            escape = has_workspace_escape(command)
+            if escape is not None:
+                logger.warning(
+                    "[execute] blocked workspace escape via cd: %r (working_dir=%s)",
+                    escape,
+                    working_dir,
+                )
+                return (
+                    "",
+                    "Security Error: 命令尝试 cd 到工作目录之外（含 cd .. / cd / cd ~/ 绝对路径），"
+                    "已在沙箱内阻止。请只在工作目录内操作。",
+                    1,
+                )
             wrapped_command = f"cd {working_dir} && {command}"
         else:
             wrapped_command = command
@@ -49,7 +65,7 @@ async def _execute_command(
         return stdout, stderr, returncode
 
     except Exception as e:
-        logger.error(f"Command execution error: {e}")
+        logger.exception(f"Command execution error: {e}")
         return "", str(e), -1
 
 

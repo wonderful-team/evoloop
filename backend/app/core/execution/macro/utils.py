@@ -7,6 +7,7 @@ from typing import Any, cast
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.execution.macro.schemas import MacroVerificationResult
+from app.core.execution.macro.service import MacroService
 from app.utils.yaml import macro_from_yaml
 
 logger = logging.getLogger(__name__)
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 async def verify_macro_script(
     macro_script: list[dict[str, Any]] | str,
     thread_id: str = "verifier",
-    project_id: int = DEFAULT_PROJECT_ID,
+    _project_id: int = DEFAULT_PROJECT_ID,
     params: dict[str, Any] | None = None,
 ) -> MacroVerificationResult:
     """
@@ -32,8 +33,6 @@ async def verify_macro_script(
     Returns:
         MacroVerificationResult: 验证结果
     """
-    from app.core.execution.macro.service import MacroService
-
     logger.info(f"[{thread_id}] 🔍 Starting macro verification dry-run...")
 
     try:
@@ -81,9 +80,9 @@ async def verify_macro_script(
             extracted_count=len(extracted_data),
             error=result.get("error"),
         )
-    except Exception as e:
-        logger.error(f"[{thread_id}] Macro verification crashed: {e}")
-        return MacroVerificationResult(status="error", success=False, error=str(e))
+    except Exception:
+        logger.exception("[%s] Macro verification crashed", thread_id)
+        return MacroVerificationResult(status="error", success=False, error="verification crashed")
 
 
 def cleanup_macro_steps(

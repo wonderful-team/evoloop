@@ -7,7 +7,7 @@ Note: Module-specific events should be imported directly from their modules:
   - from app.core.engine.event.types import AgentEventType
   - from app.core.engine.event.schemas import AgentRunCompletedEvent
   - from app.core.engine.rewind.event import RewindEventType, RewindRequestedEvent
-  - from app.core.execution.macro.event import MacroEventType
+  - from app.core.execution.macro import MacroEventType
   - from app.core.environment.event.types import EventType as AwakeningEventType
   - from app.core.project.event import ProjectEventType
   - from app.domain.codebase.event import IndexingEventType

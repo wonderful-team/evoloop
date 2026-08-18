@@ -91,7 +91,7 @@ class EvoCloudHTTPClient(
             try:
                 callback(token)
             except (TypeError, ValueError) as e:
-                logger.warning(f"Token change callback error: {e}")
+                logger.warning(f"Token change callback error: {e}", exc_info=True)
 
     async def get_token(self) -> str | None:
         return await identity_service.get_access_token()
@@ -251,9 +251,9 @@ class EvoCloudHTTPClient(
                 return {"code": -1, "message": f"Invalid JSON: {resp.text[:100]}"}
 
         except httpx.RequestError as e:
-            logger.error(f"Request connection error to {url}: {type(e).__name__}: {e} (repr: {repr(e)}, cause: {repr(e.__cause__)})")
+            logger.exception(f"Request connection error to {url}: {type(e).__name__}: {e} (repr: {repr(e)}, cause: {repr(e.__cause__)})")
             if _retry_count < 1:
-                logger.debug(f"[EvoCloud] Recreating HTTP client and retrying {endpoint}...")
+                logger.debug(f"[EvoCloud] Recreating HTTP client and retrying {endpoint}...", exc_info=True)
                 await self.close()
                 return await self.request(
                     method=method,
@@ -266,5 +266,5 @@ class EvoCloudHTTPClient(
                 )
             return {"code": -1, "message": str(e)}
         except OSError as e:
-            logger.error(f"Request failed: {e}")
+            logger.exception(f"Request failed: {e}")
             return {"code": -1, "message": str(e)}

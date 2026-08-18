@@ -31,7 +31,7 @@ async def index_file_task(file_path: str, repo_id: int) -> None:
     except asyncio.TimeoutError:
         logger.warning(
             f"[Task] index_file timed out after {_INDEX_TIMEOUT}s: {file_path}"
-        )
+        , exc_info=True)
     except Exception:
         logger.exception(f"[Task] index_file failed: {file_path}")
 
@@ -50,7 +50,7 @@ async def remove_file_task(file_path: str, repo_id: int) -> None:
     except asyncio.TimeoutError:
         logger.warning(
             f"[Task] remove_file timed out after {_INDEX_TIMEOUT}s: {file_path}"
-        )
+        , exc_info=True)
     except Exception:
         logger.exception(f"[Task] remove_file failed: {file_path}")
 
@@ -69,7 +69,7 @@ async def move_file_task(src_path: str, dest_path: str, repo_id: int) -> None:
     except asyncio.TimeoutError:
         logger.warning(
             f"[Task] move_file timed out after {_INDEX_TIMEOUT}s: {src_path} -> {dest_path}"
-        )
+        , exc_info=True)
     except Exception:
         logger.exception(f"[Task] move_file failed: {src_path} -> {dest_path}")
 
@@ -96,9 +96,9 @@ async def run_full_indexing_task(repo_id: int, rebuild: bool = False) -> None:
         logger.info(f"[Task] Full Indexing Completed for Repo {repo_id}")
 
     except asyncio.CancelledError:
-        logger.warning(f"[Task] Full indexing cancelled for Repo {repo_id}")
+        logger.warning(f"[Task] Full indexing cancelled for Repo {repo_id}", exc_info=True)
         await activity_monitor.end_run(sys_tid, "cancelled")
         raise
     except Exception as e:
-        logger.error(f"[Task] Indexing Task Failed: {e}")
+        logger.exception(f"[Task] Indexing Task Failed: {e}")
         await activity_monitor.end_run(sys_tid, "failed")

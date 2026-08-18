@@ -63,9 +63,13 @@ def _default_chrome_user_data() -> str:
 
 def _default_chrome_automation_data() -> str:
     if sys.platform == "darwin":
-        return os.path.expanduser("~/Library/Application Support/Google/Chrome-Automation")
+        return os.path.expanduser(
+            "~/Library/Application Support/Google/Chrome-Automation"
+        )
     elif sys.platform == "win32":
-        return os.path.expanduser("~\\AppData\\Local\\Google\\Chrome\\Chrome-Automation")
+        return os.path.expanduser(
+            "~\\AppData\\Local\\Google\\Chrome\\Chrome-Automation"
+        )
     return os.path.expanduser("~/.config/google-chrome-automation")
 
 
@@ -94,7 +98,9 @@ class Settings(BaseSettings):
     SANDBOX_IMAGE: str = "evoloop-sandbox"
 
     # Embedded Mode (No external dependencies)
-    EMBEDDED_MODE: bool = False  # True: Use SQLite + LanceDB + Huey, False: Use Postgres + Neo4j + Celery
+    EMBEDDED_MODE: bool = (
+        False  # True: Use SQLite + LanceDB + Huey, False: Use Postgres + Neo4j + Celery
+    )
 
     # Guest Access Limits
     GUEST_DAILY_LIMIT: int = 10  # Max daily messages for unauthenticated guest users
@@ -106,26 +112,40 @@ class Settings(BaseSettings):
     EVOLOOP_APP_DATA_DIR: str = "~/.evoloop"
 
     # Memory System Settings
-    AUTO_MEMORY_EXTRACTION: bool = True  # Enable automatic memory extraction at conversation end
-    AUTO_MEMORY_EXTRACTION_INTERVAL: int = 1  # Extract every N turns (1 = every turn, 2 = every other turn, etc.)
+    # 记忆总开关：关闭时记忆系统整体停用（不读取、不写入、不暴露工具）。
+    ENABLE_MEMORY: bool = False
+    AUTO_MEMORY_EXTRACTION: bool = (
+        False  # Enable automatic memory extraction at conversation end
+    )
+    AUTO_MEMORY_EXTRACTION_INTERVAL: int = (
+        1  # Extract every N turns (1 = every turn, 2 = every other turn, etc.)
+    )
 
-    # Macro Sedimentation Settings
-    AUTO_MACRO_CREATION_ENABLED: bool = True  # Enable automatic macro creation after successful sessions
+    # Macro Sedimentation Settings (auto-creation mechanism removed, kept for future redesign)
+    AUTO_MACRO_CREATION_ENABLED: bool = (
+        False  # Enable automatic macro creation after successful sessions
+    )
 
-    BACKEND_CORS_ORIGINS: Annotated[list[AnyUrl] | str, BeforeValidator(parse_cors)] = []
+    BACKEND_CORS_ORIGINS: Annotated[
+        list[AnyUrl] | str, BeforeValidator(parse_cors)
+    ] = []
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def all_cors_origins(self) -> list[str]:
-        origins = [str(origin).rstrip("/") for origin in self.BACKEND_CORS_ORIGINS] + [self.FRONTEND_HOST]
+        origins = [str(origin).rstrip("/") for origin in self.BACKEND_CORS_ORIGINS] + [
+            self.FRONTEND_HOST
+        ]
         # Add Tauri desktop app origins for embedded mode
         if self.EMBEDDED_MODE:
-            origins.extend([
-                "tauri://localhost",
-                "https://tauri.localhost",
-                "http://localhost",
-                "http://127.0.0.1",
-            ])
+            origins.extend(
+                [
+                    "tauri://localhost",
+                    "https://tauri.localhost",
+                    "http://localhost",
+                    "http://127.0.0.1",
+                ]
+            )
         return origins
 
     SERVICE_NAME: str = "EvoLoop"
@@ -242,7 +262,9 @@ class Settings(BaseSettings):
     REDIS_MAX_CONNECTIONS: int = Field(120, validation_alias="REDIS_MAX_CONNECTIONS")
 
     # AI Models Storage Configuration
-    MODELS_DIR: Annotated[str | None, BeforeValidator(expand_path)] = None  # Directory for storing AI models (embeddings, etc.)
+    MODELS_DIR: Annotated[str | None, BeforeValidator(expand_path)] = (
+        None  # Directory for storing AI models (embeddings, etc.)
+    )
 
     # HuggingFace endpoint / mirror. Used by huggingface_hub and the bundled model
     # download helpers (e.g. bge-base-zh-v1.5 GGUF). Defaults to hf-mirror.com for
@@ -251,18 +273,23 @@ class Settings(BaseSettings):
 
     # Embedding Configuration
     EMBEDDING_DIMENSIONS: int = 768  # Nomic / Local Default
-    EMBEDDING_ENABLED: bool = False  # Disable local embeddings by default to avoid CPU overload
+    EMBEDDING_ENABLED: bool = (
+        False  # Disable local embeddings by default to avoid CPU overload
+    )
     # Lightning Channel default GGUF directory
     LIGHTNING_GGUF_DIR: str = Field(default="")
 
     # Wiki Generation
-    WIKI_EXTRACT_CONCEPTS: bool = True  # Extract and store concepts from Wiki pages to Agent memory
+    WIKI_EXTRACT_CONCEPTS: bool = (
+        True  # Extract and store concepts from Wiki pages to Agent memory
+    )
 
     # Search Optimization
     ENABLE_QUERY_REWRITING: bool = True  # P1: Cross-Lingual Query Rewriting
 
     ENABLE_VISION_OCR: bool = True
-    ENABLE_MACRO_SELF_HEALING: bool = True
+    ENABLE_MACRO_SELF_HEALING: bool = False
+    ENABLE_WIKI_TOOLS: bool = False
     ROUTE_INDEX_REQUIRE_VERIFIED: bool = True
 
     # 是否启用本地环境控制工具（浏览器、桌面、手机）。可以根据实际需要开启或关闭。
@@ -270,7 +297,9 @@ class Settings(BaseSettings):
     ENABLE_ENVIRONMENT_CONTROLS: bool = False
 
     # Screenshot Configuration
-    ENABLE_PARTIAL_SCREENSHOT: bool = True  # True: Auto-capture current window region, False: Full screen only
+    ENABLE_PARTIAL_SCREENSHOT: bool = (
+        True  # True: Auto-capture current window region, False: Full screen only
+    )
 
     # --- Learning / Skill Synthesis Configuration ---
     # Maximum keyframes to extract for skill synthesis (multimodal learning)
@@ -281,10 +310,7 @@ class Settings(BaseSettings):
     BRAVE_API_KEY: str | None = None
 
     # Path Security
-    ALLOWED_PATH_PREFIXES: list[str] = [
-        "/tmp/dataset",
-        "/tmp/evoloop"
-    ]
+    ALLOWED_PATH_PREFIXES: list[str] = ["/tmp/dataset", "/tmp/evoloop"]
 
     # --- Cognitive Brain Configuration ---
     # Memory Architecture Toggle (Phase 4 Autonomy)
@@ -311,7 +337,9 @@ class Settings(BaseSettings):
     REFLECTIVE_DRIVER_TYPE: str = "active"
 
     # Browser Control (Native CDP)
-    CHROME_CDP_URL: str = Field("http://localhost:9222", validation_alias="EVOLOOP_CHROME_CDP_URL")
+    CHROME_CDP_URL: str = Field(
+        "http://localhost:9222", validation_alias="EVOLOOP_CHROME_CDP_URL"
+    )
     CHROME_EXECUTABLE: str = Field(
         default_factory=_default_chrome_executable,
         validation_alias="EVOLOOP_CHROME_EXECUTABLE",
@@ -325,19 +353,35 @@ class Settings(BaseSettings):
         validation_alias="EVOLOOP_CHROME_AUTOMATION_USER_DATA",
     )
     CHROME_PROFILE: str = Field("Default", validation_alias="EVOLOOP_CHROME_PROFILE")
-    CHROME_STARTUP_TIMEOUT: int = Field(5, validation_alias="EVOLOOP_CHROME_STARTUP_TIMEOUT")
+    CHROME_STARTUP_TIMEOUT: int = Field(
+        5, validation_alias="EVOLOOP_CHROME_STARTUP_TIMEOUT"
+    )
 
     # EvoCloud API
-    EVOCLOUD_API_URL: str = Field("http://127.0.0.1", validation_alias="EVOCLOUD_API_URL")
-    EVOCLOUD_WS_URL: str = Field("ws://127.0.0.1/ws", validation_alias="EVOCLOUD_WS_URL")
+    EVOCLOUD_API_URL: str = Field(
+        "http://127.0.0.1", validation_alias="EVOCLOUD_API_URL"
+    )
+    EVOCLOUD_WS_URL: str = Field(
+        "ws://127.0.0.1/ws", validation_alias="EVOCLOUD_WS_URL"
+    )
     EVOCLOUD_API_KEY: str | None = Field(None, validation_alias="EVOCLOUD_API_KEY")
-    EVOCLOUD_API_SECRET: str | None = Field(None, validation_alias="EVOCLOUD_API_SECRET")
+    EVOCLOUD_API_SECRET: str | None = Field(
+        None, validation_alias="EVOCLOUD_API_SECRET"
+    )
 
     # Client / Device Info
-    EVOCLOUD_ACCESS_TOKEN: str | None = Field(None, validation_alias="EVOCLOUD_ACCESS_TOKEN")
-    EVOCLOUD_DEVICE_NAME: str | None = Field(default_factory=_default_device_name, validation_alias="EVOCLOUD_DEVICE_NAME")
-    EVOCLOUD_DEVICE_TYPE: str = Field("desktop", validation_alias="EVOCLOUD_DEVICE_TYPE")
-    EVOCLOUD_DEVICE_DESCRIPTION: str = Field("", validation_alias="EVOCLOUD_DEVICE_DESCRIPTION")
+    EVOCLOUD_ACCESS_TOKEN: str | None = Field(
+        None, validation_alias="EVOCLOUD_ACCESS_TOKEN"
+    )
+    EVOCLOUD_DEVICE_NAME: str | None = Field(
+        default_factory=_default_device_name, validation_alias="EVOCLOUD_DEVICE_NAME"
+    )
+    EVOCLOUD_DEVICE_TYPE: str = Field(
+        "desktop", validation_alias="EVOCLOUD_DEVICE_TYPE"
+    )
+    EVOCLOUD_DEVICE_DESCRIPTION: str = Field(
+        "", validation_alias="EVOCLOUD_DEVICE_DESCRIPTION"
+    )
     EVOCLOUD_SSL_VERIFY: bool = Field(True, validation_alias="EVOCLOUD_SSL_VERIFY")
 
     # Mobile Sync
@@ -351,9 +395,15 @@ class Settings(BaseSettings):
     MOBILE_SYNC_ENABLED: bool = Field(True, validation_alias="MOBILE_SYNC_ENABLED")
 
     # --- Deprecated Configuration (Phase 4 Cleanup) ---
-    USE_CLIENT_FOR_TOOLS: bool = False  # @deprecated: Will be replaced by dynamic transport selection
-    CLOUD_ONLY_MODE: bool = False       # @deprecated: Will be replaced by hybrid execution mode
-    CLIENT_CALLBACK_URL: str | None = None  # @deprecated: Managed by WebSocket handshake
+    USE_CLIENT_FOR_TOOLS: bool = (
+        False  # @deprecated: Will be replaced by dynamic transport selection
+    )
+    CLOUD_ONLY_MODE: bool = (
+        False  # @deprecated: Will be replaced by hybrid execution mode
+    )
+    CLIENT_CALLBACK_URL: str | None = (
+        None  # @deprecated: Managed by WebSocket handshake
+    )
     CLIENT_TOOL_TIMEOUT: float = 300.0  # Default timeout for client tool execution
 
     # Project Management
@@ -450,9 +500,9 @@ class Settings(BaseSettings):
 
     # Screen recording retention policy
     SCREEN_RECORDING_RETENTION_DAYS: int = 30  # 保留30天
-    SCREEN_RECORDING_MAX_SIZE_GB: int = 10     # 总容量限制10GB
+    SCREEN_RECORDING_MAX_SIZE_GB: int = 10  # 总容量限制10GB
     SCREEN_RECORDING_MAX_DURATION_MIN: int = 10  # 单次录制最大10分钟
-    SCREEN_RECORDING_MAX_SIZE_MB: int = 500    # 单次录制最大500MB
+    SCREEN_RECORDING_MAX_SIZE_MB: int = 500  # 单次录制最大500MB
 
     @model_validator(mode="after")
     def _set_default_paths(self) -> Self:
@@ -463,13 +513,17 @@ class Settings(BaseSettings):
             self.SEARCH_DB_PATH = os.path.join(base_dir, "database/search.db")
 
         if not self.SQLITE_PATH:
-            self.SQLITE_PATH = self.SQLITE_DB_PATH or os.path.join(base_dir, "database/backend.db")
+            self.SQLITE_PATH = self.SQLITE_DB_PATH or os.path.join(
+                base_dir, "database/backend.db"
+            )
 
         if not self.LANCEDB_PATH:
             self.LANCEDB_PATH = os.path.join(base_dir, "database/lancedb")
 
         if not self.CELERY_SCHEDULE_DB_PATH:
-            self.CELERY_SCHEDULE_DB_PATH = os.path.join(base_dir, "database/celerybeat-schedule.db")
+            self.CELERY_SCHEDULE_DB_PATH = os.path.join(
+                base_dir, "database/celerybeat-schedule.db"
+            )
 
         if not self.MODELS_DIR:
             self.MODELS_DIR = os.path.join(base_dir, "models")
@@ -481,7 +535,9 @@ class Settings(BaseSettings):
         """Set environment variables for external libraries (ModelScope, HuggingFace)."""
         if self.MODELS_DIR:
             os.environ["MODELSCOPE_CACHE"] = self.MODELS_DIR
-            os.environ["HF_HOME"] = os.path.join(self.MODELS_DIR, ".cache", "huggingface")
+            os.environ["HF_HOME"] = os.path.join(
+                self.MODELS_DIR, ".cache", "huggingface"
+            )
             gguf_dir = os.path.join(self.MODELS_DIR, "gguf")
             os.makedirs(gguf_dir, exist_ok=True)
             os.environ["LIGHTNING_GGUF_DIR"] = gguf_dir
@@ -507,6 +563,7 @@ class Settings(BaseSettings):
 
     # Memory
     MAX_SESSION_HISTORY: int = 20
+    SESSION_IDLE_TIMEOUT: int = 1800  # 语音会话空闲超时（秒），超时自动关闭
     MEMORY_RELEVANCE_THRESHOLD: float = 0.75
     MAX_MEMORY_ITEMS: int = 1000
     MIN_MESSAGES_FOR_EXTRACTION: int = 4

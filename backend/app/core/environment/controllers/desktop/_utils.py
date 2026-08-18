@@ -28,7 +28,7 @@ async def _trigger_atlas_harvest_macos(bundle_id: str):
         try:
             elements_data = await _async_literal_eval(ax_output.replace("missing value", "None"))
         except Exception:
-            logger.debug(f"[AtlasHarvest] Failed to parse AX tree for {bundle_id}")
+            logger.debug(f"[AtlasHarvest] Failed to parse AX tree for {bundle_id}", exc_info=True)
             return
         event = type('Event', (), {
             'data': {
@@ -43,7 +43,7 @@ async def _trigger_atlas_harvest_macos(bundle_id: str):
         await atlas_engine.on_ui_tree_observed(event)
         logger.info(f"[AtlasHarvest] Completed harvest for static app: {bundle_id}")
     except Exception as e:
-        logger.warning(f"[AtlasHarvest] Failed to harvest for {bundle_id}: {e}")
+        logger.warning(f"[AtlasHarvest] Failed to harvest for {bundle_id}: {e}", exc_info=True)
 
 
 async def _async_literal_eval(data: str) -> Any:

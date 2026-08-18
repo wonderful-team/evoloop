@@ -38,9 +38,20 @@ def export_skill_to_filesystem(skill_data: LearnedSkill | dict[str, Any]) -> str
     导出技能到文件系统 (SKILL.md)
     """
     try:
-        # Convert to a standard export model to avoid getattr/Any mess
-        data = skill_data if isinstance(skill_data, dict) else skill_data.model_dump()
-        export = SkillExportModel(**data)
+        if isinstance(skill_data, dict):
+            export = SkillExportModel(**skill_data)
+        else:
+            # LearnedSkill is a plain SQLAlchemy model (no model_dump); build
+            # the export model from its columns explicitly.
+            export = SkillExportModel(
+                name=skill_data.name,
+                namespace=skill_data.namespace or "misc",
+                description=skill_data.description or "",
+                trigger_patterns=skill_data.trigger_patterns or [],
+                parameters=skill_data.parameters or [],
+                preconditions=skill_data.preconditions or [],
+                instructions=skill_data.instructions,
+            )
 
         base_dir = settings.SKILLS_DIR
         namespace_path = os.path.join(base_dir, export.namespace, export.name)
@@ -82,7 +93,7 @@ def export_skill_to_filesystem(skill_data: LearnedSkill | dict[str, Any]) -> str
         return skill_md_path
 
     except Exception as e:
-        logger.error(f"Failed to export physical skill file: {e}")
+        logger.exception(f"Failed to export physical skill file: {e}")
         return None
 
 

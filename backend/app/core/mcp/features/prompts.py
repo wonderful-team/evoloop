@@ -35,7 +35,7 @@ class McpPromptsFeature(McpFeature):
             self._prompts = result.prompts
             logger.info(f"Loaded {len(self._prompts)} prompts from {server_name}")
         except Exception as e:
-            logger.debug(f"Prompts not supported by {server_name}: {e}")
+            logger.debug(f"Prompts not supported by {server_name}: {e}", exc_info=True)
             self._prompts = []
 
     async def get_capabilities(self) -> McpFeatureCapabilities:
@@ -122,7 +122,7 @@ class McpPromptsFeature(McpFeature):
             )
 
         except Exception as e:
-            logger.error(f"Failed to get prompt '{name}': {e}")
+            logger.exception(f"Failed to get prompt '{name}': {e}")
             raise
 
     def reset(self) -> None:

@@ -84,6 +84,10 @@ class WorkerMcpSession:
                     self._transport.create_transport(config)
                 )
                 session = await self._transport.create_session(read, write)
+                # Push session exit onto the same stack so teardown order is
+                # guaranteed: session (stops receive loop) closes BEFORE the
+                # transport's streams.
+                stack.push_async_exit(session.__aexit__)
 
                 self._stacks[server_name] = stack
                 self._sessions[server_name] = session
@@ -114,7 +118,7 @@ class WorkerMcpSession:
             return True
 
         except Exception as e:
-            logger.error(f"[WorkerMcp] {self.worker_name} failed to connect to {server_name}: {e}")
+            logger.exception(f"[WorkerMcp] {self.worker_name} failed to connect to {server_name}: {e}")
             if "stack" in locals():
                 await stack.aclose()
             return False
@@ -137,18 +141,13 @@ class WorkerMcpSession:
 
     async def disconnect_server(self, server_name: str) -> None:
         """Disconnect a single server."""
-        session = self._sessions.get(server_name)
-        if session is not None:
-            try:
-                await session.__aexit__(None, None, None)
-            except Exception as e:
-                logger.debug(f"[WorkerMcp] Error closing session for '{server_name}': {e}")
-
         if server_name in self._stacks:
             try:
+                # The stack owns both the session and the transport, closing
+                # them in registration order (session first, transport second).
                 await self._stacks[server_name].aclose()
             except Exception as e:
-                logger.debug(f"[WorkerMcp] Error closing stack for '{server_name}': {e}")
+                logger.debug(f"[WorkerMcp] Error closing stack for '{server_name}': {e}", exc_info=True)
             del self._stacks[server_name]
 
         self._sessions.pop(server_name, None)

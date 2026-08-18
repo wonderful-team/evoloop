@@ -33,7 +33,7 @@ class BaseNode(ABC):
                 try:
                     await handler.handle_error(error)
                 except (RuntimeError, OSError, ValueError) as report_err:
-                    logger.error(f"[{self.node_name}] Failed to report error via handler: {report_err}")
+                    logger.exception(f"[{self.node_name}] Failed to report error via handler: {report_err}")
 
         logger.error(f"[{self.node_name}] 🛑 Execution failed: {error}")
         raise error
@@ -116,7 +116,7 @@ class BaseAgentNode(BaseNode, ABC):
             return outcome
 
         except Exception as e:
-            logger.error(f"[{self.node_name}] Execution failed: {e}")
+            logger.exception(f"[{self.node_name}] Execution failed: {e}")
             return await self.handle_error(state, e, config=config)
 
     async def prepare_state(self, state: AgentState, config: dict) -> StateUpdate | None:

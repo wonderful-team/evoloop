@@ -194,11 +194,11 @@ class FileUtils:
                 if match:
                     log.warning(
                         f"Could not decode {file_path} with encoding='{encoding}'; using best match '{match.encoding}' instead",
-                    )
+                        exc_info=True)
                     return match.raw.decode(match.encoding)
                 raise ude
         except Exception as exc:
-            log.error(f"Failed to read '{file_path}' with encoding '{encoding}': {exc}")
+            log.exception(f"Failed to read '{file_path}' with encoding '{encoding}': {exc}")
             raise exc
 
     @staticmethod
@@ -215,7 +215,7 @@ class FileUtils:
             with open(target_path, "wb") as f:
                 shutil.copyfileobj(response.raw, f)
         except Exception as exc:
-            log.error(f"Error downloading file '{url}': {exc}")
+            log.exception(f"Error downloading file '{url}': {exc}")
             raise SolidLSPException("Error downloading file.") from None
 
     @staticmethod
@@ -262,7 +262,7 @@ class FileUtils:
                 log.error(f"Unknown archive type '{archive_type}' for extraction")
                 raise SolidLSPException(f"Unknown archive type '{archive_type}'")
         except Exception as exc:
-            log.error(f"Error extracting archive '{tmp_file_name}' obtained from '{url}': {exc}")
+            log.exception(f"Error extracting archive '{tmp_file_name}' obtained from '{url}': {exc}")
             raise SolidLSPException("Error extracting archive.") from exc
         finally:
             for tmp_file_name in tmp_files:

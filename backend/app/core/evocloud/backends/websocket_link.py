@@ -218,7 +218,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
             except asyncio.TimeoutError:
                 logger.debug("[EvoCloud] WS close timed out, forcing disconnect")
             except Exception as e:
-                logger.debug(f"[EvoCloud] Error closing WS: {e}")
+                logger.debug(f"[EvoCloud] Error closing WS: {e}", exc_info=True)
             finally:
                 self.ws = None
 
@@ -244,7 +244,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                     logger.info(f"[EvoCloud] WS SEND RETRY: {payload[:200]}")
                     self._send_queue.task_done()
                 except Exception as e:
-                    logger.warning(f"[EvoCloud] WS retry send failed: {e}, re-enqueueing")
+                    logger.warning(f"[EvoCloud] WS retry send failed: {e}, re-enqueueing", exc_info=True)
                     # Re-enqueue at the front for next retry
                     try:
                         # Put back at front using a temporary list (Queue doesn't support put_front)
@@ -256,7 +256,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.warning(f"[EvoCloud] Send queue loop error: {e}")
+                logger.warning(f"[EvoCloud] Send queue loop error: {e}", exc_info=True)
                 await asyncio.sleep(1)
 
     async def _heartbeat_loop(self):
@@ -284,7 +284,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                 except asyncio.TimeoutError:
                     logger.debug("[EvoCloud] WebSocket ping timed out, will reconnect")
                 except Exception as e:
-                    logger.debug(f"[EvoCloud] WebSocket ping failed: {e}")
+                    logger.debug(f"[EvoCloud] WebSocket ping failed: {e}", exc_info=True)
 
                 try:
                     # Also send JSON text ping to refresh deviceMgr heartbeat,
@@ -295,7 +295,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                         ping_env = create_envelope(type="ping", body={"timestamp": int(time.time())})
                         await self.send_message(ping_env.model_dump())
                 except Exception as e:
-                    logger.debug(f"[EvoCloud] JSON text ping failed: {e}")
+                    logger.debug(f"[EvoCloud] JSON text ping failed: {e}", exc_info=True)
             await asyncio.sleep(30)
 
     async def _ws_connect_loop(self):
@@ -363,11 +363,11 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                     async for message in ws:
                         await self._handle_ws_message(str(message))
             except ssl.SSLError as e:
-                logger.error(f"[EvoCloud] SSL Certificate Error: {e}")
+                logger.exception(f"[EvoCloud] SSL Certificate Error: {e}")
             except asyncio.CancelledError:
                 raise  # Let cancellation propagate cleanly
             except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError, websockets.WebSocketException) as e:
-                logger.warning(f"[EvoCloud] WS Connection Error: {e}")
+                logger.warning(f"[EvoCloud] WS Connection Error: {e}", exc_info=True)
                 if not self._handshake_completed and self.device_key:
                     logger.warning("[EvoCloud] Connection closed before handshake completed. Cached device key might be invalid. Clearing device key to force sync...")
                     await identity_service.store.delete_device_key()
@@ -419,11 +419,38 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
         return True
 
     async def _on_init_protocol(self, payload: dict) -> bool:
-        """Update client_id from init handshake."""
+        """Update client_id from init handshake.
+
+        移动端 Gateway WS 握手时，把当前活跃项目（SharedState.project_id，
+        后端 SSOT，持久化于 DB）推给移动端 —— 移动端据此知道"当前在哪个项目"，
+        无需各自本地存储真数据源。
+        """
         client_id = payload.get("client_id")
         if client_id:
             self.client_id = client_id
         self._handshake_completed = True
+
+        # 推送当前项目状态给移动端（Fire-and-forget；失败不阻断握手）
+        try:
+            from app.core.state import shared_state
+
+            project_id = await shared_state.get("project_id", "0")
+            state_env = create_envelope(
+                type="system.state_changed",
+                body={
+                    "key": "project_id",
+                    "value": str(project_id),
+                },
+            )
+            await self.send_message(state_env.model_dump())
+            logger.info(
+                f"[EvoCloud] Pushed project_id={project_id} to mobile on system.init"
+            )
+        except Exception as e:
+            logger.warning(
+                f"[EvoCloud] Failed to push project_id on system.init: {e}",
+                exc_info=True,
+            )
         return True
 
     async def _on_error_protocol(self, payload: dict) -> bool:
@@ -502,7 +529,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
             )
 
         except (json.JSONDecodeError, ConnectionError, TimeoutError, OSError) as e:
-            logger.error(f"[EvoCloud] WS Handle Error: {e}")
+            logger.exception(f"[EvoCloud] WS Handle Error: {e}")
 
     def _on_token_changed(self, token: str | None):
         """Callback invoked when the access token changes. Triggers reconnect
@@ -525,5 +552,5 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
             try:
                 await self.ws.close()
             except Exception as e:
-                logger.debug(f"[EvoCloud] Error during force reconnect close: {e}")
+                logger.debug(f"[EvoCloud] Error during force reconnect close: {e}", exc_info=True)
         self.ws = None

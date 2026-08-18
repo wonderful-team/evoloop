@@ -21,8 +21,6 @@ import re
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import case, select
-
 from app.core.routing.pinyin import to_pinyin
 from app.core.routing.routing_data import get_store
 from app.core.routing.schemas import RouteCatalog
@@ -150,42 +148,44 @@ async def enrich_spec_with_atlas_aliases(spec: RouteCatalog) -> RouteCatalog:
 async def enrich_spec_with_macro_triggers(spec: RouteCatalog) -> RouteCatalog:
     """从 DB 加载 routable Macro 的 trigger_patterns，注入为 L0 templates。
 
-    作用域：全局（project_id IS NULL）+ 当前项目（shared_state.project_id）。
+    作用域：**全部已确认宏**（全局 + 所有项目）。L0 spec 是全局共享的
+    路由表（客户端 GET /route/init 拉取，worker 后台构建），不应依赖运行时
+    的"当前活跃项目"——否则 worker 构建（project_id=0）会漏掉项目级宏
+    （如 mall-backend 的 #958 登录后台），导致语音"登录后台"无法在 L0
+    命中而错误下沉到 Agent。
+
     冲突去重：preset 优先于用户；同级别下最新确认的宏优先（created_at desc），
     与 ``MacroResolver`` 的运行时选择保持一致 —— 用户新确认的宏立即生效。
     """
-    from app.core.state import shared_state
-    from app.infrastructure.database import session_scope
-    from app.models.macro import Macro
-
-    current_project_id = int(await shared_state.get("project_id", "0"))
+    from app.core.execution.macro import list_macros
 
     try:
-        async with session_scope() as session:
-            stmt = select(Macro).where(
-                Macro.is_active.is_(True),
-                Macro.status == "verified",
-                (Macro.project_id.is_(None)) | (Macro.project_id == current_project_id),
-            ).order_by(
-                case((Macro.namespace == "preset", 0), else_=1),
-                Macro.created_at.desc(),
+        macros = await list_macros(status="verified", is_active=True)
+        macros.sort(
+            key=lambda m: (
+                m.namespace != "preset",
+                -(m.created_at.timestamp() if m.created_at else 0),
             )
-            macros = (await session.execute(stmt)).scalars().all()
+        )
     except Exception:
         logger.debug("[init_spec] macro trigger load skipped", exc_info=True)
         return spec
 
-    seen_patterns: set[str] = set()
+    seen_patterns: set[tuple[int | None, str]] = set()
     added = 0
     for macro in macros:
         triggers = macro.trigger_patterns or []
         deduped: list[str] = []
         for trigger in triggers:
             pattern = trigger.replace("{{", "{").replace("}}", "}")
-            if pattern in seen_patterns:
+            # Dedupe per project (global None is its own scope): a project macro
+            # and a global macro may share a trigger; the matcher picks the
+            # current project's first, global as fallback.
+            key = (macro.project_id, pattern)
+            if key in seen_patterns:
                 logger.debug("[init_spec] trigger '%s' skipped (macro %d, already bound)", pattern, macro.id)
                 continue
-            seen_patterns.add(pattern)
+            seen_patterns.add(key)
             deduped.append(pattern)
         if not deduped:
             continue
@@ -196,6 +196,7 @@ async def enrich_spec_with_macro_triggers(spec: RouteCatalog) -> RouteCatalog:
             "patterns": deduped,
             "slots": slots,
             "args": {},
+            "project_id": macro.project_id,
         })
         added += 1
     logger.info(

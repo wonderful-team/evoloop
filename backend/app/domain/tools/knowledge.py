@@ -2,6 +2,7 @@ import logging
 from typing import Annotated
 
 from app.constants import DEFAULT_PROJECT_ID
+from app.core.config import settings
 from app.core.context.manager import ContextManager
 from app.core.engine.message.native_classes import RunnableConfig
 from app.core.engine.tasks import harvest_concepts_task
@@ -53,3 +54,11 @@ async def save_concepts(
     except Exception:
         logger.exception("Failed to harvest knowledge")
         return "Error harvesting knowledge"
+
+
+# 门控：ENABLE_MEMORY 关闭时禁用知识/概念工具。
+if not settings.ENABLE_MEMORY:
+    for _tool in (save_concepts,):
+        _wrapped = getattr(_tool, "func", None)
+        if _wrapped is not None:
+            _wrapped.is_evoloop_active = False

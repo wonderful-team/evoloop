@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 @router.post("/hitl/cancel")
 async def cancel_hitl_request(req: CancelHITLRequest, bg_tasks: BackgroundTasks):
     from app.core.hitl.orchestrator import HITLOrchestrator
+    from app.core.session.manager import session_manager
 
     active_model = req.model
     if not active_model:
@@ -27,9 +28,29 @@ async def cancel_hitl_request(req: CancelHITLRequest, bg_tasks: BackgroundTasks)
 
     pending_tool = await HITLOrchestrator.get_pending_request(req.thread_id, active_model)
 
-    await activity_monitor.clear_human_request(req.thread_id)
+    # 会话模式（§4.5）：活 session → 注入取消事件，由 session 主循环经 resume 链路
+    # 统一处理（关闭 DB 双轨 + persist 拒绝结果 + Agent 继续），避免与单发
+    # resume_graph_background 双执行。
+    session = session_manager.get(req.thread_id)
+    if session is not None and session.lifecycle == "running":
+        if pending_tool:
+            logger.info(
+                "[HitlCancel] Live session %s, cancelling pending tool %s",
+                req.thread_id, pending_tool["name"],
+            )
+        else:
+            # 无 DB 请求但 activity 可能残留 → 手动清理状态
+            await activity_monitor.clear_human_request(req.thread_id)
+        session.inject_resume("CANCELLED", is_cancel=True)
+        return CancelHITLResponse(
+            status="cancelled",
+            thread_id=req.thread_id,
+            request_id=pending_tool["id"] if pending_tool else None,
+        )
 
+    # 单发（无活会话）路径
     if not pending_tool:
+        await activity_monitor.clear_human_request(req.thread_id)
         return CancelHITLResponse(status="cancelled", thread_id=req.thread_id, request_id=None)
 
     logger.info(f"Auto-cancelling tool call {pending_tool['name']} on cancel")

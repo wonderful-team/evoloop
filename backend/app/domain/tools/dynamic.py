@@ -145,5 +145,5 @@ def create_python_tool(name: str, description: str, code: str, version: str = "1
         return f"Success: Tool '{name}' created and registered. You can now use it."
 
     except Exception as e:
-        logger.error(f"Failed to load dynamic tool {name}: {e}")
+        logger.exception(f"Failed to load dynamic tool {name}: {e}")
         return f"Error loading tool: {e}"

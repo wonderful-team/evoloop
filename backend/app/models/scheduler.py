@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.infrastructure.database.sql.database import Base
@@ -28,7 +28,9 @@ class AutonomousTask(Base):
     member_id: Mapped[int] = mapped_column(Integer, default=0, index=True)
 
     # Execution Blueprint
-    skill_id: Mapped[int] = mapped_column(Integer, ForeignKey("learned_skills.id"), index=True)
+    # skill_ids：任务可关联多个 skill（列表）；默认 [] = 无 skill 依赖
+    # （值守任务 duty_channel 标记不依赖 skill，走独立轮巡路径）
+    skill_ids: Mapped[list[int]] = mapped_column(JSON, default=list)
     params_template: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)  # Template with placeholders
 
     # Trigger Configuration

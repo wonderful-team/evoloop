@@ -171,7 +171,7 @@ class ReferenceService:
                             "image_url": {"url": f"data:image/jpeg;base64,{b64}"}
                         })
                 except Exception as e:
-                    logger.warning(f"[ReferenceService] Video keyframe extraction failed for {att_id}: {e}")
+                    logger.warning(f"[ReferenceService] Video keyframe extraction failed for {att_id}: {e}", exc_info=True)
                 content_blocks.append({
                     "type": "text",
                     "text": f"[Video: {att_name}]({att_id})"
@@ -246,7 +246,7 @@ class ReferenceService:
                     snippet += "..."
                 return snippet, f"Quoted Message: {name}"
         except Exception as e:
-            logger.error(f"Error fetching message reference {msg_id_str}: {e}")
+            logger.exception(f"Error fetching message reference {msg_id_str}: {e}")
 
         return None, f"Quoted Message (Fetch Failed): {name}"
 
@@ -269,7 +269,7 @@ class ReferenceService:
                 snippet += "\n\n... (Content truncated for length)"
             return snippet, f"Referencing File: {name} (Path: {file_path})"
         except Exception as e:
-            logger.warning(f"Failed to read quoted file {target_path}: {e}")
+            logger.warning(f"Failed to read quoted file {target_path}: {e}", exc_info=True)
             return None, f"Referencing File (Read Failed): {name} (Path: {file_path})"
 
     async def _handle_directory_reference(
@@ -311,7 +311,7 @@ class ReferenceService:
                     snippets.append(f"--- File: {rel_to_dir} ---\n{snippet}")
                     file_count += 1
                 except Exception as e:
-                    logger.debug(f"Skipping directory-ref file read error for {full_path}: {e}")
+                    logger.debug(f"Skipping directory-ref file read error for {full_path}: {e}", exc_info=True)
 
             sections = [
                 f"Directory Tree layout:\n{text_tree}",
@@ -323,7 +323,7 @@ class ReferenceService:
             return combined_content, f"Referencing Directory: {name} (Path: {dir_path})"
 
         except Exception as e:
-            logger.error(f"Error resolving directory reference {target_path}: {e}")
+            logger.exception(f"Error resolving directory reference {target_path}: {e}")
             return None, f"Referencing Directory (Read Failed): {name} (Path: {dir_path})"
 
     def _resolve_local_path(self, file_path: str, root_path: str | None) -> str:
@@ -365,7 +365,7 @@ class ReferenceService:
                     logger.warning(f"Path traversal blocked! Root={abs_root}, Path={abs_resolved}")
                     return "/dev/null"
             except Exception as e:
-                logger.error(f"Error validating path isolation: {e}")
+                logger.exception(f"Error validating path isolation: {e}")
                 return "/dev/null"
 
         return resolved_path or file_path

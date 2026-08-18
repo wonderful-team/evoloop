@@ -457,7 +457,7 @@ class SolidLanguageServer(ABC):
                 process.stdin.close()
             log.debug("Stage 1 shutdown complete.")
         except Exception as e:
-            log.debug(f"Exception during graceful shutdown: {e}")
+            log.debug(f"Exception during graceful shutdown: {e}", exc_info=True)
             # Ignore errors here, we are proceeding to terminate anyway.
 
         # Stage 2: Terminate and Wait for Process to Exit
@@ -471,15 +471,15 @@ class SolidLanguageServer(ABC):
             log.info(f"Language server process terminated successfully with exit code {exit_code}.")
         except subprocess.TimeoutExpired:
             # If termination failed, forcefully kill the process
-            log.warning(f"Process {process.pid} termination timed out, killing process forcefully...")
+            log.warning(f"Process {process.pid} termination timed out, killing process forcefully...", exc_info=True)
             process.kill()
             try:
                 exit_code = process.wait(timeout=2.0)
-                log.info(f"Language server process killed successfully with exit code {exit_code}.")
+                log.info(f"Language server process killed successfully with exit code {exit_code}.", exc_info=True)
             except subprocess.TimeoutExpired:
-                log.error(f"Process {process.pid} could not be killed within timeout.")
+                log.exception(f"Process {process.pid} could not be killed within timeout.")
         except Exception as e:
-            log.error(f"Error during process shutdown: {e}")
+            log.exception(f"Error during process shutdown: {e}")
 
     @contextmanager
     def start_server(self) -> Iterator["SolidLanguageServer"]:
@@ -1906,7 +1906,7 @@ class SolidLanguageServer(ABC):
         try:
             self._shutdown(timeout=shutdown_timeout)
         except Exception as e:
-            log.warning(f"Exception while shutting down language server: {e}")
+            log.warning(f"Exception while shutting down language server: {e}", exc_info=True)
 
     @property
     def language_server(self) -> Self:

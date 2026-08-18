@@ -136,6 +136,6 @@ async def handle_benefits_update_webhook(payload: BenefitsUpdateWebhook):
                 event=payload.event,
             )
         except Exception as e:
-            logger.warning(f"[Webhook] Failed to publish subscription changed event: {e}")
+            logger.warning(f"[Webhook] Failed to publish subscription changed event: {e}", exc_info=True)
 
     return SubscriptionWebhookResponse(code=0, message="Webhook processed successfully")

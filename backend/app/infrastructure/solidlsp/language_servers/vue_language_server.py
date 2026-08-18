@@ -176,7 +176,7 @@ class VueLanguageServer(SolidLanguageServer):
                 if "node_modules" not in relative_path and not relative_path.startswith("."):
                     vue_files.append(relative_path)
             except Exception as e:
-                log.debug(f"Error processing Vue file {vue_file}: {e}")
+                log.debug(f"Error processing Vue file {vue_file}: {e}", exc_info=True)
 
         return vue_files
 
@@ -195,7 +195,7 @@ class VueLanguageServer(SolidLanguageServer):
                     file_buffer.ref_count += 1
                     self._indexed_vue_file_uris.append(file_buffer.uri)
             except Exception as e:
-                log.debug(f"Failed to open {vue_file} on TS server: {e}")
+                log.debug(f"Failed to open {vue_file} on TS server: {e}", exc_info=True)
 
         self._vue_files_indexed = True
         log.info("Vue file indexing on TypeScript server complete")
@@ -310,7 +310,7 @@ class VueLanguageServer(SolidLanguageServer):
             return ret
 
         except Exception as e:
-            log.warning(f"Error requesting file references for {relative_file_path}: {e}")
+            log.warning(f"Error requesting file references for {relative_file_path}: {e}", exc_info=True)
             return []
 
     def request_references(self, relative_file_path: str, line: int, column: int) -> list[ls_types.Location]:
@@ -537,7 +537,7 @@ class VueLanguageServer(SolidLanguageServer):
             self._ts_server_started = True
             log.info("Companion TypeScript server ready")
         except Exception as e:
-            log.error(f"Error starting TypeScript server: {e}")
+            log.exception(f"Error starting TypeScript server: {e}")
             self._ts_server = None
             self._ts_server_started = False
             raise
@@ -559,7 +559,7 @@ class VueLanguageServer(SolidLanguageServer):
                 return result["body"]
             return result
         except Exception as e:
-            log.error(f"Error forwarding tsserver request {method}: {e}")
+            log.exception(f"Error forwarding tsserver request {method}: {e}")
             return None
 
     def _cleanup_indexed_vue_files(self) -> None:
@@ -578,7 +578,7 @@ class VueLanguageServer(SolidLanguageServer):
                         del self._ts_server.open_file_buffers[uri]
                         log.debug(f"Closed indexed Vue file: {uri}")
             except Exception as e:
-                log.debug(f"Error closing indexed Vue file {uri}: {e}")
+                log.debug(f"Error closing indexed Vue file {uri}: {e}", exc_info=True)
 
         self._indexed_vue_file_uris.clear()
 
@@ -588,7 +588,7 @@ class VueLanguageServer(SolidLanguageServer):
                 log.info("Stopping companion TypeScript server")
                 self._ts_server.stop()
             except Exception as e:
-                log.warning(f"Error stopping TypeScript server: {e}")
+                log.warning(f"Error stopping TypeScript server: {e}", exc_info=True)
             finally:
                 self._ts_server = None
                 self._ts_server_started = False
@@ -641,7 +641,7 @@ class VueLanguageServer(SolidLanguageServer):
                 else:
                     log.warning(f"Unexpected tsserver/request params format: {params}")
             except Exception as e:
-                log.error(f"Error handling tsserver/request: {e}")
+                log.exception(f"Error handling tsserver/request: {e}")
 
         self.server.on_request("client/registerCapability", register_capability_handler)
         self.server.on_request("workspace/configuration", configuration_handler)

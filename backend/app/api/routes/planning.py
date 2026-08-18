@@ -59,5 +59,5 @@ async def get_plan(thread_id: str):
             )
 
     except Exception as e:
-        logger.error(f"Failed to get plan for {thread_id}: {e}")
+        logger.exception(f"Failed to get plan for {thread_id}: {e}")
         return PlanResponse(status="error", error=str(e))

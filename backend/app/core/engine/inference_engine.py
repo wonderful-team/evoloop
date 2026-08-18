@@ -21,27 +21,16 @@ from app.core.engine.message.native_classes import (
     HumanMessage,
     SystemMessage,
 )
-from app.core.engine.message.reasoning import extract_reasoning_from_message
+from app.core.engine.message.reasoning import (
+    extract_reasoning_from_kwargs,
+    extract_reasoning_from_message,
+)
 from app.core.exceptions import InferenceError
-from app.core.file import compute_md5
 from app.infrastructure.llm.factory import LLMConfig, LLMFactory
-from app.infrastructure.llm.thinking_adapter import detect_model_family
+from app.infrastructure.llm.thinking_adapter import is_reasoning_model
 from app.utils.extract import safe_parse_json
 
 logger = logging.getLogger(__name__)
-
-
-def _is_reasoning_model(model_name: str) -> bool:
-    """保守判定模型是否为推理模型。
-
-    仅对已知的推理模型家族/命名标记启用 content→reasoning 迁移，避免普通
-    Chat 模型的开场白（如 "Let me search for that..."）被误存为 reasoning_content，
-    回传给下一轮请求时被 Provider 拒绝。
-    """
-    n = (model_name or "").lower()
-    if detect_model_family(n) == "openai_reasoning":
-        return True
-    return any(m in n for m in ("r1", "reasoner", "reasoning", "thinking", "think", "qwq"))
 
 
 class InferenceEngine:
@@ -57,18 +46,16 @@ class InferenceEngine:
 
     async def create_llm(self, model: str | None, temperature: float, streaming: bool = True):
         llm = await self._llm_factory.create_llm(model_name=model, temperature=temperature, streaming=streaming)
-        provider = self._detect_provider(llm)
+        provider = getattr(llm, "provider", "openai")
         return llm, provider
-
-    def _detect_provider(self, llm) -> str:
-        class_name = llm.__class__.__name__
-        if "Anthropic" in class_name:
-            return "anthropic"
-        return "openai"
 
     def bind_tools(self, llm, tools: list[Any]):
         if tools:
             return llm.bind_tools(tools), {t.name: t for t in tools}
+        logger.warning(
+            "bind_tools: empty tools list — running bare LLM without tool binding "
+            "and empty tool_map; tool execution will be unavailable."
+        )
         return llm, {}
 
     @staticmethod
@@ -88,7 +75,7 @@ class InferenceEngine:
                 response = response + chunk
 
             if chunk.additional_kwargs:
-                reasoning = chunk.additional_kwargs.get("reasoning_content") or chunk.additional_kwargs.get("thinking")
+                reasoning = extract_reasoning_from_kwargs(chunk.additional_kwargs)
                 if reasoning:
                     accumulated_reasoning.append(reasoning)
 
@@ -124,7 +111,7 @@ class InferenceEngine:
             and response.content
             and not response.additional_kwargs.get("reasoning_content")
             and not response.additional_kwargs.get("thinking")
-            and _is_reasoning_model(getattr(llm_with_tools, "model", "") or "")
+            and is_reasoning_model(getattr(llm_with_tools, "model", "") or "")
         ):
             reasoning_from_content = response.content
             response.additional_kwargs["reasoning_content"] = reasoning_from_content
@@ -133,21 +120,9 @@ class InferenceEngine:
 
         return response
 
-    def build_system_messages(
-        self, system_prompt: str, provider: str
-    ) -> list[BaseMessage]:
-        if provider == "anthropic":
-            return [
-                SystemMessage(
-                    content=[
-                        {
-                            "type": "text",
-                            "text": system_prompt,
-                            "cache_control": {"type": "ephemeral"},
-                        }
-                    ]
-                )
-            ]
+    def build_system_messages(self, system_prompt: str) -> list[BaseMessage]:
+        # Provider-specific formatting (e.g. Anthropic content-block + cache_control)
+        # is applied by the LLM adapter at serialization time, not in the engine.
         return [SystemMessage(content=system_prompt)]
 
     async def _prepare_turn_context(
@@ -371,7 +346,6 @@ class InferenceEngine:
         llm_with_tools,
         messages: list[BaseMessage],
         system_prompt: str,
-        provider: str,
         config: dict,
         name: str,
         max_steps: int = 5,
@@ -383,7 +357,7 @@ class InferenceEngine:
     ) -> dict:
         from app.core.monitoring.activity import activity_monitor
 
-        system_messages = self.build_system_messages(system_prompt, provider)
+        system_messages = self.build_system_messages(system_prompt)
         history_messages = [m for m in messages if m.role != "system"]
         loop_messages: list[BaseMessage] = system_messages + history_messages
 
@@ -488,65 +462,4 @@ class InferenceEngine:
             "last_response": last_response,
             "is_truncated": is_truncated,
             "signal": None,
-        }
-
-    async def run_single_shot(
-        self,
-        llm_with_tools,
-        messages: list[BaseMessage],
-        system_prompt: str,
-        provider: str,
-        config: dict,
-        name: str,
-        tool_executor: Any | None = None,
-        interceptors: dict[str, Callable] | None = None,
-    ) -> dict:
-        system_messages = self.build_system_messages(system_prompt, provider)
-        history_messages = [m for m in messages if m.role != "system"]
-        loop_messages = system_messages + history_messages
-
-        if not history_messages:
-            logger.error(f"[{name}] No history messages! Returning empty.")
-            return {
-                "messages": [],
-                "tool_history": [],
-                "last_response": None,
-                "is_truncated": False,
-            }
-
-        response = await self._execute_llm_call(
-            llm_with_tools=llm_with_tools,
-            loop_messages=loop_messages,
-            config=config,
-            name=name,
-            system_prompt=system_prompt,
-            history_messages=history_messages,
-            turn_id=0,
-            is_single_shot=True,
-            sys_hash=compute_md5(system_prompt),
-        )
-
-        new_messages: list[BaseMessage] = [response]
-        local_tool_history = []
-
-        if response.tool_calls:
-            tool_results, batch_signal, _ = await self._process_tool_executions(
-                response=response,
-                name=name,
-                config=config,
-                interceptors=interceptors,
-                tool_executor=tool_executor,
-                local_tool_history=local_tool_history,
-            )
-            for tool_msg in tool_results:
-                new_messages.append(tool_msg)
-        else:
-            batch_signal = None
-
-        return {
-            "messages": new_messages,
-            "tool_history": local_tool_history,
-            "last_response": response,
-            "is_truncated": False,
-            "signal": batch_signal,
         }

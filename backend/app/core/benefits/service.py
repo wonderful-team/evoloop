@@ -84,7 +84,7 @@ class BenefitService:
                 logger.warning(f"Failed to fetch benefits for {member_id}: {res.get('message')}")
                 return {}
             except Exception as e:
-                logger.error(f"Benefit Service error for {member_id}: {e}")
+                logger.exception(f"Benefit Service error for {member_id}: {e}")
                 return {}
 
         task = asyncio.create_task(_fetch())
@@ -138,7 +138,7 @@ class BenefitService:
                 result[code] = val if isinstance(val, bool) else (val > 0 if isinstance(val, int | float) else False)
             return result
         except Exception as e:
-            logger.error(f"Batch benefit check failed: {e}")
+            logger.exception(f"Batch benefit check failed: {e}")
             return dict.fromkeys(benefit_codes, False)
 
 

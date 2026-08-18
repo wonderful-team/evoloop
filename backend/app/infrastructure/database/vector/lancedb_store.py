@@ -68,27 +68,27 @@ class LanceVectorStore(BaseVectorStore):
         try:
             self.doc_table = self.client.open_table("doc_chunks")
         except Exception as e:
-            logger.warning(f"Init failed: {e}")
+            logger.warning(f"Init failed: {e}", exc_info=True)
             self.doc_table = self._create_doc_chunks_table()
 
         # Memories table
         try:
             self.memory_table = self.client.open_table("memories")
         except Exception as e:
-            logger.warning(f"Init failed: {e}")
+            logger.warning(f"Init failed: {e}", exc_info=True)
             self.memory_table = self._create_memories_table()
         # Skills table
         try:
             self.skills_table = self.client.open_table("skills")
         except Exception as e:
-            logger.warning(f"Init failed: {e}")
+            logger.warning(f"Init failed: {e}", exc_info=True)
             self.skills_table = self._create_skills_table()
 
         # Concepts table
         try:
             self.concepts_table = self.client.open_table("concepts")
         except Exception as e:
-            logger.warning(f"Init failed: {e}")
+            logger.warning(f"Init failed: {e}", exc_info=True)
             self.concepts_table = self._create_concepts_table()
 
     def _create_code_chunks_table(self):
@@ -293,7 +293,7 @@ class LanceVectorStore(BaseVectorStore):
                 logger.info(f"[LanceVectorStore] Deleted chunks for repo {repository_id}")
             return 1
         except Exception as e:
-            logger.warning(f"[LanceVectorStore] Failed to delete repo {repository_id}: {e}")
+            logger.warning(f"[LanceVectorStore] Failed to delete repo {repository_id}: {e}", exc_info=True)
             return 0
 
     # -- memories -----------------------------------------------------------
@@ -493,5 +493,5 @@ class LanceVectorStore(BaseVectorStore):
                     table = self.client.open_table(table_name)
                     table.delete("true")
                 except Exception as e:
-                    logger.warning(f"[LanceVectorStore] Failed to truncate {table_name}: {e}")
+                    logger.warning(f"[LanceVectorStore] Failed to truncate {table_name}: {e}", exc_info=True)
         logger.info("[LanceVectorStore] All tables truncated")

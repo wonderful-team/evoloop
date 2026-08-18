@@ -50,7 +50,7 @@ def list_directory(
                 size=stat.st_size if entry.is_file() else 0,
             )
     except Exception as e:
-        logger.warning(f"Cannot list directory {path}: {e}")
+        logger.warning(f"Cannot list directory {path}: {e}", exc_info=True)
 
 
 def generate_tree(

@@ -1,4 +1,15 @@
-"""Standard API response envelopes — shared across core and api layers."""
+"""Standard API response envelopes — shared across core and api layers.
+
+Envelope contract (see ``docs/api-response-envelope.md``):
+
+- Success (single object) -> ``DataResponse[T]``
+- Success (list / paginated) -> ``ListResponse[T]``
+- Error -> ``ErrorResponse``, produced automatically by the global handlers in
+  ``app/api/errors.py`` (never construct error JSON by hand).
+
+Backward-compat: error ``detail`` keeps its original value so legacy clients
+that read ``body.detail`` keep working.
+"""
 
 from typing import Any, Generic, TypeVar
 

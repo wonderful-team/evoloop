@@ -148,9 +148,13 @@ async def _handle_route(body: dict[str, Any], conn_id: str) -> None:
     from app.core.identity import identity_service
     from app.core.state import shared_state
 
-    project_id = int(body.get("project_id", 0)) or int(
-        await shared_state.get("project_id", "0")
-    )
+    # SSOT：项目上下文以 shared_state 为准；body 显式指定非 0 时视为切换并同步。
+    req_project_id = int(body.get("project_id", 0))
+    if req_project_id:
+        await shared_state.set_active_project_id(req_project_id)
+        project_id = req_project_id
+    else:
+        project_id = await shared_state.get_active_project_id()
     member_id = await identity_service.get_member_id() or 0
 
     ctx = EvoContext(
@@ -196,6 +200,12 @@ async def _handle_route(body: dict[str, Any], conn_id: str) -> None:
                 )
             return
 
+        # receive() 从 body 读 project_id（voice_input.receive: raw.get("project_id", DEFAULT)），
+        # body 未带 project_id 时落到 DEFAULT_PROJECT_ID=0。这里显式回填，确保
+        # msg.project_id 与路由层一致（路由层 project_id 来自 body 或 shared_state）。
+        if not body.get("project_id"):
+            body["project_id"] = project_id
+
         outcome = await dispatch_user_message(
             body,
             source="voice",
@@ -212,6 +222,26 @@ async def _handle_route(body: dict[str, Any], conn_id: str) -> None:
             if outcome.local_response:
                 await _present_voice_outcome(thread_id, outcome.local_response)
             _is_sending_chat_tts_text.pop(thread_id, None)
+            # L0 命中并完成动作后，状态机可能已被 _set_idle_if_needed 置为 IDLE，
+            # 且从未 push 任何 VOICE_STATE 事件 → 前端 HUD 会一直停在 "processing"
+            # （"思考中"）。这里显式回到 LISTENING 并通知前端。
+            if await voice_state_machine.set(
+                thread_id, VoiceSessionState.LISTENING
+            ):
+                try:
+                    await manager.push(
+                        thread_id,
+                        _envelope(
+                            MessageType.VOICE_STATE,
+                            {"state": "listening", "thread_id": thread_id},
+                        ),
+                    )
+                except Exception:
+                    logger.debug(
+                        "[voice-ws] failed to send listening state after L0 hit for %s",
+                        thread_id,
+                        exc_info=True,
+                    )
             return
 
         if outcome.msg is None:
@@ -222,21 +252,22 @@ async def _handle_route(body: dict[str, Any], conn_id: str) -> None:
         # L0 miss → dispatch to agent
         logger.info("[voice-perf] %s L0 miss → agent dispatch", thread_id)
 
-        post = await voice_input.post_dispatch(outcome.msg, outcome.inputs)
-        if post is None:
+        dispatch_result = outcome.inputs
+        if dispatch_result is None or dispatch_result.status == "failed":
+            if dispatch_result is not None:
+                await voice_executor.push_voice_result(
+                    thread_id, "failed", getattr(dispatch_result, "error", "")
+                )
+            _is_sending_chat_tts_text.pop(thread_id, None)
             return
 
-    # Lock released — await Worker outside lock
-    running = await worker_registry.get_worker(thread_id)
-    desc = running.description if running else ""
-    await voice_input.await_and_finalize(
-        thread_id,
-        post.get("task"),
-        post.get("old_worker_task"),
-        worker_desc=desc,
-    )
-    total_ms = (time.time() - t_total_start) * 1000
-    logger.info("[voice-perf] %s agent complete total=%.0fms", thread_id, total_ms)
+        # 会话模式（voice 先行）：统一走 session_manager.submit 注入会话主循环
+        from app.core.session.manager import session_manager
+
+        await session_manager.submit(thread_id, dispatch_result.inputs)
+        _is_sending_chat_tts_text.pop(thread_id, None)
+        total_ms = (time.time() - t_total_start) * 1000
+        logger.info("[voice-perf] %s injected into session total=%.0fms", thread_id, total_ms)
 
 
 async def _handle_dictation_finalize(body: dict[str, Any], conn_id: str) -> None:
@@ -656,7 +687,7 @@ async def voice_receive_loop(
             except websockets.exceptions.ConnectionClosed:
                 logger.info(
                     f"[voice-ws] Volcengine connection closed for thread {thread_id} ({mode})"
-                )
+                , exc_info=True)
                 await volc_client.close()
                 break
 
@@ -684,7 +715,7 @@ async def voice_receive_loop(
                         except Exception as e:
                             logger.warning(
                                 f"[voice-ws] Failed to send audio bytes to Rust: {e}"
-                            )
+                            , exc_info=True)
             elif mtype == "SERVER_FULL_RESPONSE":
                 # --- Shared: event 451 ASR partial ---
                 if event == 451 and isinstance(payload, dict):
@@ -1027,7 +1058,7 @@ async def run_agent_pipeline(websocket: WebSocket, thread_id: str, text: str) ->
                 )
 
             outcome = await dispatch_user_message(
-                {"thread_id": thread_id, "text": text},
+                {"thread_id": thread_id, "text": text, "project_id": project_id},
                 source="voice",
                 input_channel=voice_input,
                 thread_id=thread_id,
@@ -1045,19 +1076,18 @@ async def run_agent_pipeline(websocket: WebSocket, thread_id: str, text: str) ->
                 return
 
             logger.info("[voice-perf] %s L0 miss → agent dispatch", thread_id)
-            post = await voice_input.post_dispatch(outcome.msg, outcome.inputs)
-            if post is None:
+            dispatch_result = outcome.inputs
+            if dispatch_result is None or dispatch_result.status == "failed":
+                if dispatch_result is not None:
+                    await voice_executor.push_voice_result(
+                        thread_id, "failed", getattr(dispatch_result, "error", "")
+                    )
                 return
 
-        # Lock released — await Worker outside lock
-        running = await worker_registry.get_worker(thread_id)
-        desc = running.description if running else ""
-        await voice_input.await_and_finalize(
-            thread_id,
-            post.get("task"),
-            post.get("old_worker_task"),
-            worker_desc=desc,
-        )
+            # 会话模式（voice 先行）：统一走 session_manager.submit 注入会话主循环
+            from app.core.session.manager import session_manager
+
+            await session_manager.submit(thread_id, dispatch_result.inputs)
     except Exception as e:
         logger.error("[voice-ws] Agent pipeline failed: %s", e, exc_info=e)
 
@@ -1346,7 +1376,14 @@ async def voice_ws(websocket: WebSocket) -> None:
             elif mtype in (MessageType.VOICE_CANCEL, "voice.cancel"):
                 thread_id = str(body.get("thread_id", "")).strip()
                 if thread_id:
-                    await voice_executor.cancel_voice_task(thread_id)
+                    # 统一走 session_manager.stop_agent（有会话 → session.stop；无会话 → 双兜底）
+                    from app.core.session.manager import session_manager
+
+                    await session_manager.stop_agent(thread_id, "voice_cancel")
+                    # 原 voice_input.handle_cancelled 负责的 cancelled route_result 推送：
+                    # 会话模式下在 cancel 请求后立即推送（VoiceChannel 用 _cancelled_threads
+                    # 抑制后续迟到 done/failed）。
+                    await voice_executor.push_voice_result(thread_id, "cancelled", "")
                     await voice_state_machine.force_set(
                         thread_id, VoiceSessionState.IDLE
                     )

@@ -79,7 +79,7 @@ class DiffTracker:
             # File might mean to be created
             self._snapshots[key] = ""
         except (OSError, TypeError, ValueError) as e:
-            logger.warning(f"Failed to capture snapshot for {path} (thread {thread_id}): {e}")
+            logger.warning(f"Failed to capture snapshot for {path} (thread {thread_id}): {e}", exc_info=True)
 
     def compute_diff(
         self, path: str, thread_id: str = "default", context_lines: int = 2

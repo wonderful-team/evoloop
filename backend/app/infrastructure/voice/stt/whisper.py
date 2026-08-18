@@ -134,7 +134,7 @@ class WhisperProvider(BaseSTTProvider):
             )
 
         except Exception as e:
-            logger.error(f"Whisper transcription failed: {e}")
+            logger.exception(f"Whisper transcription failed: {e}")
             raise RuntimeError(f"Transcription failed: {e}")
 
     def transcribe_stream(self, options: STTOptions) -> AsyncIterator[STTResult]:

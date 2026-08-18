@@ -73,9 +73,10 @@ class MacroCreatorService:
                 msg_result = await session.execute(msg_stmt)
                 existing_message_ids = set(msg_result.scalars().all())
 
-                stmt = select(TraceEvent).where(TraceEvent.thread_id == thread_id)
-                result = await session.execute(stmt)
-                for event in result.scalars().all():
+                from app.core.learning.trace.repository import trace_repository
+
+                events = await trace_repository.get_by_thread(thread_id, db=session)
+                for event in events:
                     if MacroCreatorService._is_replayable(event, existing_message_ids):
                         return True
                 return False
@@ -164,7 +165,7 @@ class MacroCreatorService:
         try:
             from app.core.execution.macro.compiler import MacroScriptCompiler
             from app.core.execution.macro.lifecycle import create_macro_from_synthesis
-            from app.core.learning.trace_parser import TraceParser
+            from app.core.learning.trace.parser import TraceParser
             from app.core.learning.workflow_synthesizer import WorkflowSynthesizer
             from app.utils.parameters import normalize_parameters
 

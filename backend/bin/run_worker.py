@@ -41,10 +41,11 @@ def setup_signal_handlers(consumer):
     signal.signal(signal.SIGTERM, signal_handler)
 
 
-def run_huey_worker(workers: int = 2, verbose: bool = False):
+def run_huey_worker(workers: int = 1, verbose: bool = False):
     """Run Huey worker as standalone process."""
-    from app.infrastructure.queue.huey_queue import get_huey_scheduler
     from huey.consumer import Consumer
+
+    from app.infrastructure.queue.huey_queue import get_huey_scheduler
 
     if verbose:
         logging.getLogger().setLevel(logging.DEBUG)
@@ -59,9 +60,9 @@ def run_huey_worker(workers: int = 2, verbose: bool = False):
     logger.info("=" * 60)
     logger.info("EvoLoop Task Queue Worker")
     logger.info("=" * 60)
-    logger.info(f"Backend: huey (embedded mode)")
+    logger.info("Backend: huey (embedded mode)")
     logger.info(f"Workers: {workers}")
-    logger.info(f"Worker Type: thread (SQLite compatible)")
+    logger.info("Worker Type: thread (SQLite compatible)")
     logger.info("=" * 60)
 
     # Get Huey scheduler
@@ -86,9 +87,74 @@ def run_huey_worker(workers: int = 2, verbose: bool = False):
     except Exception as e:
         logger.warning(f"[Worker] Failed to pre-load embedding model: {e}")
 
+    # Pre-register native tools at startup (matching API process behavior via
+    # APP_STARTED → ToolsLifecycleSubscriber). Worker does not publish
+    # APP_STARTED, so tools would otherwise be lazily scanned on the first
+    # Agent run, mixing registration cost into the duty poll path.
+    logger.info("[Worker] Pre-registering tools...")
+    try:
+        from app.core.tools.registry import _ensure_scanned
+
+        _ensure_scanned()
+        logger.info("[Worker] Tools pre-registered")
+    except Exception as e:
+        logger.warning(f"[Worker] Failed to pre-register tools: {e}")
+
+    # Register the WeCom duty channel as an OUTPUT channel (reusing the voice
+    # MessageBlock → output-channel pipeline so Supervisor can send a brief
+    # reassurance reply before routing a task to Worker). The duty poll path
+    # instantiates WeComDutyChannel lazily; the output-channel registration must
+    # exist in the worker process where duty runs (worker does not publish
+    # APP_STARTED, so register_default_channels() in main.py never runs here).
+    logger.info("[Worker] Registering wecom_duty output channel...")
+    try:
+        from app.core.channel import channel_registry
+        from app.core.channel.duty.wecom.channel import WeComDutyChannel
+
+        channel_registry.register(WeComDutyChannel())
+        logger.info("[Worker] wecom_duty output channel registered")
+    except Exception as e:
+        logger.warning(f"[Worker] Failed to register wecom_duty output channel: {e}")
+
+    # Pre-load MCP servers inside the Huey worker thread (not the main thread).
+    # huey's on_startup hooks run in each worker thread's initialize(), so the
+    # event loop created here is the SAME loop that _run_async_task reuses for
+    # tasks. MCP sessions bound here are therefore used in-loop by Agent runs
+    # (no cross-loop AsyncExitStack hangs).
     huey = scheduler.get_huey()
 
-    logger.info(f"[Worker] Initializing Huey Consumer...")
+    @huey.on_startup(name="preload_mcp_servers")
+    def _preload_mcp():
+        import asyncio as _asyncio
+
+        logger.info("[Worker] Pre-loading MCP servers (worker thread)...")
+        try:
+            from app.core.mcp import mcp_client_manager
+
+            loop = _asyncio.new_event_loop()
+            _asyncio.set_event_loop(loop)
+
+            async def _connect_mcp():
+                from app.infrastructure.database.resource_manager import (
+                    db_resource_manager,
+                )
+
+                await db_resource_manager.initialize(create_tables=False,
+                                                     seed_data=False)
+                # 恢复持久化的 SharedState project_id（SSOT：后端重启后仍用上次选择）
+                from app.core.state import shared_state
+
+                await shared_state.reload_persisted()
+                if not mcp_client_manager._configs:
+                    results = await mcp_client_manager.connect_all()
+                    ok = sum(1 for r in results if r.success)
+                    logger.info(f"[Worker] MCP servers connected: {ok}/{len(results)}")
+
+            loop.run_until_complete(_connect_mcp())
+        except Exception as e:
+            logger.warning(f"[Worker] Failed to pre-load MCP servers: {e}")
+
+    logger.info("[Worker] Initializing Huey Consumer...")
 
     # Create consumer
     consumer = Consumer(

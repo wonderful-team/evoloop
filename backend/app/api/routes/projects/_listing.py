@@ -4,6 +4,7 @@ Projects listing endpoint — get_projects with status enrichment.
 
 import logging
 import os
+from typing import Any
 
 from fastapi import APIRouter
 from sqlalchemy import select
@@ -28,6 +29,97 @@ def _resolve_project_id(p: dict) -> int | None:
     raw = p.get("project_id")
     resolved = raw if raw is not None else p.get("id")
     return int(resolved) if resolved is not None else None
+
+
+async def _read_duty_status(
+    project_id: int, local_path: str, task_or_tasks: Any = None
+) -> dict:
+    """读项目值守状态：参与开关 + 调度运行信息。
+
+    Args:
+        task_or_tasks: 预加载的 AutonomousTask（单条，兼容旧调用）或
+            {"wecom": task, "business_poll": task} 字典（None = 未查）。
+
+    Returns:
+        {
+            "enabled": bool,
+            "active": bool,
+            "last_run_at": str|None,
+            "next_run_at": str|None,
+            "interval": int,
+            "business_poll_interval": int,
+            "business_last_run_at": str|None,
+            "business_next_run_at": str|None,
+            "last_failure": str|None,
+            "global_enabled": bool,
+        }
+    """
+    from app.core.channel.duty.config import (
+        BUSINESS_POLL_INTERVAL,
+        clamp_business_poll_interval,
+        clamp_duty_interval,
+        load_global_duty_config,
+    )
+
+    result = {
+        "enabled": False,
+        "active": False,
+        "last_run_at": None,
+        "next_run_at": None,
+        "interval": 60,
+        "business_poll_interval": BUSINESS_POLL_INTERVAL,
+        "business_last_run_at": None,
+        "business_next_run_at": None,
+        "last_failure": None,
+        "global_enabled": False,
+    }
+    if not local_path or not project_id:
+        return result
+    try:
+        from app.core.project.utils import read_project_json
+
+        duty = read_project_json(local_path).get("customer_service_duty") or {}
+        result["enabled"] = bool(duty.get("enabled", False))
+        result["interval"] = clamp_duty_interval(duty.get("interval"))
+        result["business_poll_interval"] = clamp_business_poll_interval(
+            duty.get("business_poll_interval")
+        )
+
+        global_cfg = load_global_duty_config()
+        result["global_enabled"] = bool(global_cfg.get("enabled", False))
+        result["active"] = result["enabled"] and result["global_enabled"]
+
+        wecom_task: Any = None
+        business_task: Any = None
+        if isinstance(task_or_tasks, dict):
+            wecom_task = task_or_tasks.get("wecom")
+            business_task = task_or_tasks.get("business_poll")
+        elif task_or_tasks is not None:
+            wecom_task = task_or_tasks
+
+        if wecom_task is not None:
+            result["active"] = bool(wecom_task.is_active)
+            result["last_run_at"] = (
+                wecom_task.last_run_at.isoformat() if wecom_task.last_run_at else None
+            )
+            result["next_run_at"] = (
+                wecom_task.next_run_at.isoformat() if wecom_task.next_run_at else None
+            )
+            result["last_failure"] = wecom_task.last_failure_reason
+        if business_task is not None:
+            result["business_last_run_at"] = (
+                business_task.last_run_at.isoformat()
+                if business_task.last_run_at
+                else None
+            )
+            result["business_next_run_at"] = (
+                business_task.next_run_at.isoformat()
+                if business_task.next_run_at
+                else None
+            )
+    except Exception as e:
+        logger.warning("[ProjectsAPI] 读取值守状态失败 %s: %s", local_path, e)
+    return result
 
 
 def _extract_projects(response: dict | list) -> tuple[list, dict | None]:
@@ -82,12 +174,28 @@ async def get_projects(
 
     local_status_map = {}
     ignored_project_ids = set()
+    duty_task_by_project: dict[int, dict[str, Any]] = {}
 
     try:
         async with session_scope() as session:
             stmt = select(Repository).where(Repository.sync_status != "IGNORED")
             result = await session.execute(stmt)
             repos = result.scalars().all()
+
+            # 批量预加载值守任务（供项目列表注入运行状态，避免逐个开 session）
+            try:
+                from app.models.scheduler import AutonomousTask
+
+                task_stmt = select(AutonomousTask).where(AutonomousTask.project_id.isnot(None))
+                duty_tasks = (await session.execute(task_stmt)).scalars().all()
+                for t in duty_tasks:
+                    if t.project_id is None:
+                        continue
+                    kind = (t.params_template or {}).get("kind")
+                    if kind in ("wecom", "business_poll"):
+                        duty_task_by_project.setdefault(t.project_id, {})[kind] = t
+            except Exception as e:
+                logger.warning("[ProjectsAPI] 加载值守任务失败: %s", e)
 
             matched_count = 0
 
@@ -230,12 +338,20 @@ async def get_projects(
             p["local_path"] = local_info.get("local_path", "")
             p["db_indexing_status"] = local_info.get("indexing_status", "pending")
             p["last_indexed_at"] = local_info.get("last_indexed_at")
+            # 值守运行状态（参与开关 + 调度信息）
+            p["duty"] = await _read_duty_status(pid, local_info.get("local_path", ""), duty_task_by_project.get(pid))
+            p["duty_enabled"] = p["duty"]["enabled"]
         else:
             p["local_status"] = None
             p["exists_locally"] = False
             p["local_path"] = ""
             p["db_indexing_status"] = "not_linked"
             p["last_indexed_at"] = None
+            p["duty"] = {"enabled": False, "active": False, "last_run_at": None,
+                         "next_run_at": None, "interval": 300, "last_failure": None,
+                         "global_enabled": False}
+            p["duty_enabled"] = False
+            p["duty_enabled"] = False
 
     original_count = len(projects)
     projects = [p for p in projects if (_resolve_project_id(p)) not in ignored_project_ids]

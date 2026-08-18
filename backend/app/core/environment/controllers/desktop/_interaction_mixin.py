@@ -44,7 +44,7 @@ class DesktopInteractionMixin:
                         await recording_func("key_press", {"key": shortcut, "converted_from_click": element_name})
                         return f"Pressed shortcut '{shortcut}' (converted from click on '{element_name}') - Faster!"
                 except Exception as e:
-                    logger.debug(f"[Desktop] Shortcut conversion failed: {e}, falling back to click")
+                    logger.debug(f"[Desktop] Shortcut conversion failed: {e}, falling back to click", exc_info=True)
 
             target_x, target_y = x, y
             element_path = None

@@ -63,7 +63,7 @@ def resolve_path(file_path: str, base_path: str | None = None) -> str | None:
         try:
             return ensure_local_path(file_path)
         except Exception as e:
-            logger.error(f"Failed to resolve URL {file_path}: {e}")
+            logger.exception(f"Failed to resolve URL {file_path}: {e}")
             return None
 
     # 2. Expand user

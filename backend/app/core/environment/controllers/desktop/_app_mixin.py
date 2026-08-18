@@ -65,7 +65,7 @@ class DesktopAppMixin:
             try:
                 review_applescript(script)
             except ScriptGateError as e:
-                logger.warning(f"[Desktop] applescript rejected by gate: {e}")
+                logger.warning(f"[Desktop] applescript rejected by gate: {e}", exc_info=True)
                 return ControllerResponse.error(str(e))
             output = await asyncio.to_thread(macos_driver.run_applescript, script)
             if output:
@@ -75,7 +75,7 @@ class DesktopAppMixin:
                         if md_output.strip():
                             output = f"[Converted from HTML to Markdown]\n{md_output}"
                     except Exception as e:
-                        logger.warning(f"Markdown conversion failed: {e}")
+                        logger.warning(f"Markdown conversion failed: {e}", exc_info=True)
                 output = truncate_output(output, MAX_OUTPUT_LENGTH)
             if output:
                 return ControllerResponse.success("AppleScript executed.", details=f"Output: {output}")

@@ -21,6 +21,8 @@ def _unwrap_controller_value(res):
         return res
     if res.startswith("❌"):
         return None
+    if res.startswith("JS result: "):
+        return res[len("JS result: "):]
     if res.startswith("✅"):
         return res.split("\n\n", 1)[1].strip() if "\n\n" in res else ""
     return res
@@ -125,7 +127,7 @@ class ExtractionMixin:
             else:
                 extracted_data[key] = None
         except Exception as e:
-            logger.error(f"GUI Extract OCR failed: {e}")
+            logger.exception(f"GUI Extract OCR failed: {e}")
             extracted_data[key] = None
 
     @classmethod
@@ -153,5 +155,5 @@ class ExtractionMixin:
                             os.remove(filepath)
                             return new_path
         except Exception as e:
-            logger.warning(f"MacroEngine cropping failed: {e}")
+            logger.warning(f"MacroEngine cropping failed: {e}", exc_info=True)
         return filepath

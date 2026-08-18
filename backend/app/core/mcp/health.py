@@ -55,7 +55,7 @@ class McpHealthChecker:
 
         except Exception as e:
             response_time = (time.time() - start_time) * 1000
-            logger.warning(f"Health check failed for MCP server '{server_name}': {e}")
+            logger.warning(f"Health check failed for MCP server '{server_name}': {e}", exc_info=True)
 
             return HealthStatus(
                 is_healthy=False,

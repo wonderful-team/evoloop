@@ -23,7 +23,6 @@ from app.core.channel.input.web_input import web_input
 from app.core.config import settings
 from app.core.context import thread_context_store
 from app.core.context.manager import ContextManager, EvoContext
-from app.core.engine.background_agent import run_agent_background
 from app.core.engine.graph_runner import resume_graph_background
 from app.core.engine.message.native_classes import HumanMessage, ToolMessage
 from app.core.execution.system_tools_formatter import SystemToolsFormatter
@@ -50,19 +49,26 @@ async def _check_thread_not_running(thread_id: str) -> None:
 @router.post("/chat", dependencies=[Depends(verify_guest_access)])
 async def chat_endpoint(
     req: ChatRequest,
-    bg_tasks: BackgroundTasks,
     _current_user: CurrentUserOptional,
     token: TokenDepOptional = None,
 ):
     if not req.thread_id:
         req.thread_id = gen_uuid()
 
-    await _check_thread_not_running(req.thread_id)
+    # SSOT：项目上下文以 shared_state 为准。请求体显式指定非 0 project_id
+    # 时视为切换意图，同步更新 shared_state（持久化）；否则用权威值。
+    from app.core.state import shared_state
+
+    project_id = int(req.project_id) if req.project_id else 0
+    if project_id:
+        await shared_state.set_active_project_id(project_id)
+    else:
+        project_id = await shared_state.get_active_project_id()
 
     ctx = EvoContext(
         request_id=f"req-{req.thread_id}-{int(time.time())}",
         thread_id=req.thread_id,
-        project_id=req.project_id,
+        project_id=project_id,
         command_id=req.command_id,
         active_model=req.model,
         token=token,
@@ -73,11 +79,11 @@ async def chat_endpoint(
         logger.debug("[ChatEndpoint] Run initialized for thread %s", req.thread_id)
 
         outcome = await dispatch_user_message(
-            dict(req),
+            {**dict(req), "project_id": project_id},
             source="web",
             input_channel=web_input,
             thread_id=req.thread_id,
-            project_id=req.project_id or 0,
+            project_id=project_id,
             member_id=member_id,
             context=ctx,
         )
@@ -116,7 +122,10 @@ async def chat_endpoint(
         if dispatch_result.status == "failed":
             raise HTTPException(status_code=500, detail=dispatch_result.error)
 
-        bg_tasks.add_task(run_agent_background, req.thread_id, dispatch_result.inputs)
+        # 会话模式：统一走 session_manager.submit 注入会话主循环
+        from app.core.session.manager import session_manager
+
+        await session_manager.submit(req.thread_id, dispatch_result.inputs)
 
     return {
         "status": "queued",
@@ -154,14 +163,69 @@ async def mock_chat(req: ChatRequest):
 async def stop_chat(req: ChatRequest):
     if not req.thread_id:
         raise HTTPException(status_code=400, detail="thread_id is required")
-    await activity_monitor.stop_run(req.thread_id)
+    # 统一走 session_manager.stop_agent（有会话 → session.stop；无会话 → stop_run + cancel_worker 双兜底）
+    from app.core.session.manager import session_manager
+
+    await session_manager.stop_agent(req.thread_id, "web_stop")
     return StopChatResponse(status="stopping", thread_id=req.thread_id)
+
+
+@router.post("/agent/stop", response_model=StopChatResponse)
+async def stop_all_agent(
+    _token: TokenDepOptional = None,
+    project_id: int | None = None,
+    thread_id: str | None = None,
+):
+    """统一停止 Agent 活动（Esc ×2 触发），停止范围按上下文分级：
+
+    1. ``thread_id``（优先）：只停该线程的活跃会话/宏任务（Web 窗口 Esc×2）。
+    2. ``project_id``（无 thread）：停该项目的活跃会话/宏任务/值守。
+    3. 无参数：全停（值守模式 Esc×2，停所有会话 + 宏 + 值守）。
+
+    member_id 从 token 解析，用于按用户过滤会话（web/voice/mobile 共用）。
+    """
+    from app.core.channel.duty import provision
+    from app.core.engine.worker_registry import worker_registry
+    from app.core.identity import identity_service
+    from app.core.session.manager import session_manager
+
+    # 从 token 解析当前用户 member_id（用于按用户过滤会话）
+    member_id = None
+    if _token:
+        try:
+            member_id = await identity_service.resolve_member_id_from_token(_token)
+        except Exception:
+            logger.warning("[agent-stop] resolve member_id failed, stop without member filter", exc_info=True)
+
+    if thread_id:
+        # 只停当前线程（Web 窗口 Esc×2）
+        await session_manager.stop_agent(thread_id, "esc_stop_thread")
+    elif project_id is not None:
+        # 停指定项目：session + 宏 + 值守
+        await session_manager.stop_all(
+            "esc_stop_project",
+            project_id=project_id,
+            member_id=member_id,
+        )
+        await worker_registry.cancel_all(project_id=project_id)
+        try:
+            await provision.stop_project(project_id)
+        except Exception as e:
+            logger.warning(f"[agent-stop] duty stop(project={project_id}) skipped: {e}", exc_info=True)
+    else:
+        # 全停（值守模式 Esc×2）
+        await session_manager.stop_all("esc_stop", member_id=member_id)
+        await worker_registry.cancel_all()
+        try:
+            await provision.stop_global()
+        except Exception as e:
+            logger.warning(f"[agent-stop] duty stop_global skipped: {e}", exc_info=True)
+    return StopChatResponse(status="stopping", thread_id=thread_id or "")
 
 
 @router.post("/chat/retry", dependencies=[Depends(verify_guest_access)])
 async def retry_chat(
     req: ChatRequest,
-    bg_tasks: BackgroundTasks,
     _request: Request = None,
     _current_user: CurrentUserOptional = None,
     token: TokenDepOptional = None,
@@ -272,15 +336,23 @@ async def retry_chat(
     except NoHumanMessageError:
         raise HTTPException(status_code=404, detail="No human message found to retry")
     except RewindError as e:
-        logger.error(f"[Retry] Rewind failed: {e}")
+        logger.exception(f"[Retry] Rewind failed: {e}")
         raise HTTPException(500, f"Rewind failed: {e}")
     except Exception as e:
-        logger.error(f"[Retry] Unexpected error during rewind: {e}")
+        logger.exception(f"[Retry] Unexpected error during rewind: {e}")
         raise HTTPException(500, f"Retry failed: {e}")
+
+    from app.core.state import shared_state
+
+    project_id = int(req.project_id) if req.project_id else 0
+    if project_id:
+        await shared_state.set_active_project_id(project_id)
+    else:
+        project_id = await shared_state.get_active_project_id()
 
     ctx = EvoContext(
         thread_id=req.thread_id,
-        project_id=req.project_id,
+        project_id=project_id,
         active_model=req.model,
         token=token,
     )
@@ -290,7 +362,7 @@ async def retry_chat(
         {
             "thread_id": req.thread_id,
             "message": retry_message_content,
-            "project_id": req.project_id,
+            "project_id": project_id,
             "references": references,
             "command_id": req.command_id,
             "checkpoint_id": checkpoint_id,
@@ -307,7 +379,10 @@ async def retry_chat(
     if result.status == "failed":
         raise HTTPException(status_code=500, detail=result.error)
 
-    bg_tasks.add_task(run_agent_background, req.thread_id, result.inputs)
+    # 会话模式：统一走 session_manager.submit（有活会话注入，无活会话创建并启动）
+    from app.core.session.manager import session_manager
+
+    await session_manager.submit(req.thread_id, result.inputs)
 
     return {
         "status": "queued",
@@ -331,6 +406,37 @@ async def resume_chat(
         if loaded_ctx:
             active_model = loaded_ctx.active_model
 
+    # 会话模式（§4.5）：有活会话 → 注入恢复/新输入，会话主循环处理；无活会话 → 原单发路径
+    from app.core.session.manager import session_manager
+
+    session = session_manager.get(req.thread_id)
+    if session is not None and session.lifecycle == "running":
+        from app.core.hitl.orchestrator import HITLOrchestrator
+
+        pending = await HITLOrchestrator.get_pending_request(req.thread_id, active_model)
+        if pending:
+            logger.info("[Chat] Resume into live session (HITL) %s", req.thread_id)
+            session.inject_resume(req.user_input or "")
+        else:
+            logger.info("[Chat] Resume as new message into live session %s", req.thread_id)
+            from app.core.engine.dispatch import persist_user_message
+
+            await persist_user_message(
+                thread_id=req.thread_id,
+                content=req.user_input or "",
+                project_id=req.project_id,
+                member_id=_current_user.id if _current_user else 0,
+            )
+            session.inject_user_message(
+                {
+                    "goal": req.user_input or "",
+                    "project_id": req.project_id,
+                    "model": active_model,
+                    "metadata": {"token": token} if token else {},
+                }
+            )
+        return ResumeChatResponse(status="resuming", thread_id=req.thread_id)
+
     from app.core.hitl.orchestrator import HITLOrchestrator
 
     pending_tool = await HITLOrchestrator.get_pending_request(
@@ -338,17 +444,8 @@ async def resume_chat(
     )
 
     inputs = None
-    if pending_tool:
-        logger.info(f"Auto-completing tool call {pending_tool['name']} on resume")
-        normalized_input = await HITLOrchestrator.handle_resume(
-            req.thread_id, pending_tool, req.user_input
-        )
-        tool_msg = ToolMessage(
-            tool_call_id=pending_tool["id"], content=normalized_input
-        )
-        inputs = {"messages": [tool_msg]}
 
-    elif req.user_input:
+    if req.user_input and not pending_tool:
         try:
             parsed = json.loads(req.user_input)
             if isinstance(parsed, dict) and parsed.get("type") == "temp_project":
@@ -391,9 +488,24 @@ async def resume_chat(
             normalized_input
         )
         tool_msg = ToolMessage(tool_call_id=pending_tool["id"], content=final_result)
-        if inputs and "messages" in inputs:
-            inputs["messages"] = [tool_msg]
-        else:
+
+        # 恢复完整会话历史（含 assistant 的 tool_calls 声明与 tool 结果配对），
+        # 再追加本次批准后的重执行结果。仅注入单条 tool_msg 会导致 repair 把
+        # 它当作 orphaned tool（填充 "[Tool execution context missing]"），
+        # Supervisor 看不到自己 run_macro 的完整上下文，进而反复重试同一宏。
+        try:
+            from app.core.engine.message.repository import MessageRepository
+            from app.core.engine.message.utils import to_base_message
+
+            repo = MessageRepository(req.thread_id, project_id=req.project_id, member_id=_current_user.id if _current_user else 0)
+            db_history, _, _ = await repo.get_full_history(limit=20)
+            history_messages = [
+                bm for bm in (to_base_message(m) for m in db_history) if bm is not None
+            ]
+            history_messages.append(tool_msg)
+            inputs = {"messages": history_messages}
+        except Exception as e:
+            logger.warning(f"[Chat] Resume history restore failed, falling back to single tool_msg: {e}")
             inputs = {"messages": [tool_msg]}
 
     config = {

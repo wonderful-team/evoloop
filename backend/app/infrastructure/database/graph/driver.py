@@ -179,7 +179,7 @@ class GraphManager:
             try:
                 await driver.close()
             except Exception as e:
-                logger.warning(f"Error closing Graph driver for {cache_key}: {e}")
+                logger.warning(f"Error closing Graph driver for {cache_key}: {e}", exc_info=True)
 
     @classmethod
     def is_enabled(cls) -> bool:

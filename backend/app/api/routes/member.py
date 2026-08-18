@@ -137,7 +137,7 @@ async def read_user_me(current_user: CurrentUser, token: TokenDepOptional = None
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error fetching user info from MC: {e}")
+        logger.exception(f"Error fetching user info from MC: {e}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Session expired",

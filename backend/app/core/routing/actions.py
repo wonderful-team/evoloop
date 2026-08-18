@@ -14,15 +14,14 @@ from typing import Any
 
 from app.core.engine.worker_registry import WorkerRegistry
 from app.core.engine.worker_registry import worker_registry as _worker_registry
-from app.core.execution.macro.runner import (
+from app.core.execution.macro import (
     VOICE_POLICY,
     WEB_POLICY,
-    ExecutionOutcome,
-    MacroGateError,
+    MacroEngine,
+    MacroRunResult,
     get_navigation_info,
     load_macro,
-    preflight,
-    run_deterministic,
+    resolve_project_base_url,
 )
 from app.core.routing.routing_data import get_store
 
@@ -65,20 +64,22 @@ async def run_macro(
         route, feedback = nav_info
         return ActionOutcome(True, feedback, "navigate", {"route": route, "feedback": feedback})
 
-    try:
-        script = preflight(macro, args)
-    except MacroGateError as exc:
-        return ActionOutcome(False, exc.message, "macro", {})
+    # Inject project url as base_url for {{base_url}} substitutions (L0 path
+    # runs run_deterministic directly; base_url must be resolved here).
+    if "base_url" not in args:
+
+        base_url = await resolve_project_base_url(macro.project_id)
+        if base_url:
+            args["base_url"] = base_url
 
     policy = VOICE_POLICY if source == "voice" else WEB_POLICY
 
-    async def _run() -> ExecutionOutcome:
-        return await run_deterministic(
+    async def _run() -> MacroRunResult:
+        return await MacroEngine.run(
+            thread_id,
             macro,
-            thread_id=thread_id,
             params=args,
             project_id=project_id,
-            script=script,
             policy=policy,
             skip_activity_log=True,
             skip_recording=True,
@@ -89,9 +90,9 @@ async def run_macro(
 
     try:
         if timeout is not None:
-            outcome = await asyncio.wait_for(task, timeout=timeout)
+            result = await asyncio.wait_for(task, timeout=timeout)
         else:
-            outcome = await task
+            result = await task
     except asyncio.TimeoutError:
         return ActionOutcome(False, responses["macro"]["timeout"], "macro", {})
     except asyncio.CancelledError:
@@ -99,13 +100,13 @@ async def run_macro(
         raise
 
     return ActionOutcome(
-        bool(outcome.ok),
-        outcome.message or (responses["macro"]["success"] if outcome.ok else responses["macro"]["failure"]),
+        bool(result.success),
+        result.message or (responses["macro"]["success"] if result.success else responses["macro"]["failure"]),
         "macro",
         {
-            "fell_back": outcome.fell_back,
+            "fell_back": result.status == "fallback_required",
             "macro_id": macro_id,
             "macro_name": macro.name,
-            "failure": outcome.message if not outcome.ok else "",
+            "failure": result.message if not result.success else "",
         },
     )

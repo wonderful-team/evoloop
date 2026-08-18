@@ -12,21 +12,11 @@ abstraction.
 import logging
 from typing import Any
 
-from app.core.engine.worker_registry import worker_registry
-
 logger = logging.getLogger(__name__)
 
 # Active Volcengine Dialogue WS Clients (keyed by thread_id).
 # Managed by app.api.routes.voice_ws; VoiceChannel reads this registry for TTS.
 active_volc_clients: dict[str, Any] = {}
-
-
-async def cancel_voice_task(thread_id: str) -> bool:
-    """Cancel the current voice task for a thread via worker_registry.
-
-    Returns True if a task was found and cancelled, False otherwise.
-    """
-    return await worker_registry.cancel_worker(thread_id)
 
 
 async def push_voice_result(

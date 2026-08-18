@@ -59,7 +59,7 @@ class ProjectClassifier:
             return ProjectType.CONTENT
 
         except Exception as e:
-            logger.error(f"Classification failed: {e}")
+            logger.exception(f"Classification failed: {e}")
             return ProjectType.UNKNOWN
 
 

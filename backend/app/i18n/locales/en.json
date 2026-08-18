@@ -144,7 +144,7 @@
       "ask_user": "Ask user: {prompt}",
       "bash": "Run command '{command}'",
       "task_boundary": "Task status update: {TaskName}",
-      "run_macro": "Executing macro: {skill_name}",
+      "run_macro": "Executing macro[[: {macro_name}]]",
       "manage_git": "Git Operation: {action}",
       "manage_memory": "Memory Management: {action}",
       "use_mcp": "Enabling MCP server: {server_name}",
@@ -155,13 +155,14 @@
       "forget_tool_outputs": "Clear tool outputs",
       "recall_tool_output": "Recall output '{tool_call_id}'",
       "list_forgotten_outputs": "List forgotten outputs",
-      "synthesize_skill": "Synthesize skill: {reason}",
       "route_to": "Route to '{target}'",
       "analyze_image": "Analyze image '{image_source}'",
       "search_web": "Search web '{query}'",
+      "search_result": "Search completed[[, {count} results found]][[ ({pattern}) ]]",
       "list_wiki_pages": "List wiki pages",
       "read_wiki_page": "Read wiki page '{slug}'",
       "write_wiki_page": "Write wiki page '{title}'",
+      "write_handover_notes": "Write handover notes (key: {key})",
       "edit_wiki_page": "Edit wiki page '{title}'",
       "create_python_tool": "Creating Python tool '{name}'",
       "create_project_task": "Creating project task",
@@ -181,6 +182,7 @@
       "learn_from_trace": "Learning from trace (Thread: {thread_id})",
       "reconcile_skill": "Reconciling skill {skill_id}",
       "list_skills": "Listing skills",
+      "list_macros": "Listing macros[[ (query: {query}) ]]",
       "create_task_with_subtasks": "Creating hierarchical task '{title}'",
       "get_task_tree_summary": "Getting task tree (ID: {task_id})",
       "update_task_completion": "Updating task '{task_id}' → {status}",
@@ -205,7 +207,32 @@
       "list_todos": "Listing todos",
       "query_command_status": "Querying command status '{task_id}'",
       "read_mcp_resource": "Reading MCP resource '{uri}'",
-      "default": "Running {tool}"
+      "default": "Running {tool}",
+      "clear_app_atlas": "Clear app atlas '{app_name}'",
+      "create_macro": "Create macro '{name}'",
+      "create_project_tasks": "Create project tasks",
+      "delete_file": "Delete file '{path}'",
+      "generate_macros": "Generate macros",
+      "list_app_maps": "List app maps",
+      "list_operation_paths": "List operation paths",
+      "list_scheduled_tasks": "List scheduled tasks",
+      "list_vault_credentials": "List vault credentials",
+      "move_file": "Move file '{path}'",
+      "navigate_operation": "Navigate operation: {operation}",
+      "query_code_chunks": "Query code chunks[[ (query: {query}) ]]",
+      "query_code_relations": "Query code relations[[ (query: {query}) ]]",
+      "query_security_findings": "Query security findings[[ (query: {query}) ]]",
+      "query_source_files": "Query source files[[ (query: {query}) ]]",
+      "read_app_map": "Read app atlas '{app_name}'",
+      "request_secure_credential": "Request secure credential (key: {key})",
+      "schedule_periodic_task": "Schedule periodic task '{task_name}'",
+      "set_agent_name": "Set agent name '{name}'",
+      "update_blackboard": "Update blackboard",
+      "write_app_map": "Write app atlas '{app_name}'",
+      "get_skill": "Read skill[[ (id: {skill_id}) ]][[ (name: {skill_name}) ]]",
+      "create_skill_from_session": "Synthesize skill: {reason}",
+      "update_skill": "Update skill '{name}'[[ (id: {skill_id}) ]]",
+      "delete_skill": "Delete skill {skill_id}"
     }
   },
   "database_logger": {
@@ -373,7 +400,11 @@
       "authorization": {
         "resource": "**Resource**: `{path}`",
         "action": "**Action**: {action}"
-      }
+      },
+      "macro_action": "Execute high-risk macro: {name} (id={id})",
+      "macro_confirmation": "This macro is marked as a high-risk operation requiring human confirmation.",
+      "macro_params": "Parameters: {params}",
+      "macro_confirm_prompt": "Please confirm whether to execute."
     },
     "manage_todo": {
       "error_title": "Error: 'title' is required for adding a todo.",
@@ -494,6 +525,13 @@
       "MISSION END",
       "Final Summary"
     ]
+  },
+  "a2a": {
+    "tool_summary": {
+      "list_agents": "List online agent devices",
+      "send_agent_task": "Delegate task to agent '{target_device_key}'",
+      "complete_task": "Complete task and send result '{status}'"
+    }
   },
   "icons": {
     "success": "✅",

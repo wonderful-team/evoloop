@@ -24,12 +24,12 @@ logger = logging.getLogger(__name__)
 
 
 async def process_worker_result(
-    node_name: str,
+    node_name: str,  # noqa: ARG001
     state: AgentState,
     engine_result: EngineResult,
     execution_ticket: ExecutionTicket,
     role_name: str,
-    config: RunnableConfig = None,
+    config: RunnableConfig = None,  # noqa: ARG001
 ) -> StateUpdate:
     if not engine_result.messages:
         content = ""
@@ -107,56 +107,9 @@ async def process_worker_result(
                     updated_execution_ticket.mcp_servers_required = list(req_servers)
                     logger.info(f"[Worker] 🔌 Appended MCP server '{server_name}' to execution_ticket.")
             except (TypeError, ValueError, json.JSONDecodeError) as e:
-                logger.error(f"[Worker] Failed to parse use_mcp_server arguments: {e}")
+                logger.exception(f"[Worker] Failed to parse use_mcp_server arguments: {e}")
 
     verification_summary = VerificationStatus(status="unverified", signals=verification_signals)
-
-    trace_lines = []
-    if tool_history:
-        tool_counts = {}
-        for t_sig in tool_history:
-            t_name = t_sig.split(":")[0] if ":" in t_sig else t_sig
-            tool_counts[t_name] = tool_counts.get(t_name, 0) + 1
-
-        touched_files = set()
-        if engine_result.messages:
-            for msg in engine_result.messages:
-                if msg.role not in ("assistant", "ai"):
-                    continue
-                msg_tcs = msg.tool_calls
-                if msg_tcs:
-                    for tc in msg_tcs:
-                        tc_name = tc.get("name")
-                        if tc_name in (
-                            "edit_file",
-                            "write_file",
-                            "replace_file_content",
-                            "multi_replace_file_content",
-                            "write_to_file",
-                            "replace_content",
-                        ):
-                            tc_args = tc.get("args", {})
-                            path = tc_args.get("path", "") or tc_args.get("TargetFile", "")
-                            if path:
-                                touched_files.add(path)
-
-        trace_lines.append("\n\n--- 🛠️ Technical Execution Trace ---")
-        trace_lines.append(
-            f"Tools executed ({len(tool_history)} total): "
-            + ", ".join([f"{k} ({v})" for k, v in tool_counts.items()])
-        )
-        if touched_files:
-            trace_lines.append(f"Files modified: {', '.join(list(touched_files)[:5])}")
-            if len(touched_files) > 5:
-                trace_lines[-1] += f" (+{len(touched_files) - 5} more)"
-
-        if worker_outcome == "truncated":
-            trace_lines.append("⚠️ Execution was forcefully TRUNCATED due to max_steps timeout.")
-        elif worker_outcome == "failed":
-            trace_lines.append("❌ Execution FAILED. Check recent tool errors.")
-
-    technical_trace = "\n".join(trace_lines) if trace_lines else ""
-    worker_content = worker_content + technical_trace
 
     preserved_messages = list(engine_result.messages or [])
     if preserved_messages:
@@ -182,4 +135,5 @@ async def process_worker_result(
         ticket=updated_execution_ticket,
         verification=verification_summary,
         tool_history=tool_history,
+        shared_context=state.shared_context,
     )

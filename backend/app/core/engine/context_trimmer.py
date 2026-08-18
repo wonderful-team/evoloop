@@ -152,7 +152,7 @@ class ContextTrimmer:
             try:
                 working = apply_forgotten_status(working, tool_memory)
             except Exception as e:
-                logger.warning(f"[ContextTrimmer] apply_forgotten_status failed: {e}")
+                logger.warning(f"[ContextTrimmer] apply_forgotten_status failed: {e}", exc_info=True)
             stage_log.append({
                 "stage": "forgetting",
                 "before": count_before,

@@ -26,5 +26,5 @@ async def reconcile_skill(skill_id: int, thread_id: str) -> str:
         reconcile_skill_macro_task.delay(skill_id=skill_id, thread_id=thread_id)
         return f"Successfully triggered self-healing for Skill {skill_id} using trace from thread {thread_id}."
     except Exception as e:
-        logger.error(f"Error triggering reconcile_skill: {e}")
+        logger.exception(f"Error triggering reconcile_skill: {e}")
         return f"Error: Failed to trigger self-healing. {str(e)}"

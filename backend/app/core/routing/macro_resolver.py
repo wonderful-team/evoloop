@@ -11,11 +11,7 @@ import logging
 import re
 from typing import Any
 
-from sqlalchemy import case
-from sqlmodel import select
-
 from app.core.routing.routing_data import RoutingLanguageStore, get_store
-from app.infrastructure.database import session_scope
 from app.models.macro import Macro
 from app.utils.text import strip_filler_words
 
@@ -59,22 +55,25 @@ class MacroResolver:
         consistent with the Init Spec (which also keeps the newest macro for a
         repeated pattern).
         """
-        async with session_scope() as session:
-            stmt = (
-                select(Macro)
-                .where(
-                    Macro.name == name,
-                    Macro.is_active.is_(True),
-                    Macro.status == "verified",
-                    (Macro.project_id.is_(None)) | (Macro.project_id == project_id),
-                )
-                .order_by(
-                    case((Macro.namespace == "preset", 0), else_=1),
-                    Macro.created_at.desc(),
-                )
+        from app.core.execution.macro import list_macros
+
+        macros = await list_macros(status="verified", is_active=True)
+        macros = [
+            m
+            for m in macros
+            if m.name == name
+            and (m.project_id is None or m.project_id == project_id)
+        ]
+        # Project-first, then preset, then newest: while operating inside a
+        # project, that project's macros win over global/system macros.
+        macros.sort(
+            key=lambda m: (
+                m.project_id != project_id,
+                m.namespace != "preset",
+                -(m.created_at.timestamp() if m.created_at else 0),
             )
-            result = await session.execute(stmt)
-            return list(result.scalars().all())
+        )
+        return macros
 
     def _extract_slot_name(self, macro: Macro) -> str | None:
         """Return the first slot name declared by the macro, if any."""
@@ -173,7 +172,9 @@ class MacroResolver:
                         match = re.fullmatch(regex_str, text_variant, re.IGNORECASE)
                         if match:
                             matched = True
-                            slot_val = match.group(1) if slot_name else ""
+                            # pattern 可能未含 {slot} 占位符（宏声明了参数但触发词
+                            # 未引用它）→ 正则无捕获组，group(1) 会 IndexError。
+                            slot_val = match.group(1) if match.groups() else ""
                             break
                     if matched:
                         if slot_val:

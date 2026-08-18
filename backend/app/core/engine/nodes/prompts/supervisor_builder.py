@@ -5,7 +5,7 @@ Constructs the system prompt for the Supervisor ReAct Agent.
 Allows for dynamic context injection and potential LLM-specific adaptations.
 
 The Supervisor owns skill ROUTING — it sees a lightweight skill index (name + desc)
-in its static system prompt and uses read_skill_sop / route_to to dispatch the
+in its static system prompt and uses get_skill / route_to to dispatch the
 selected skill_ids to Workers. Workers receive the full skill content downstream.
 """
 
@@ -40,7 +40,7 @@ class SupervisorPromptBuilder(BasePromptBuilder):
         The Jinja2 template renders the static role/protocol.
         PromptAssemblyBuilder appends a lightweight skills index so the Supervisor
         can route tasks to the right skill without loading full SKILL.md content —
-        it uses read_skill_sop to inspect details only when needed (NLP Skill Loading).
+        it uses get_skill to inspect details only when needed (NLP Skill Loading).
         """
         from app.core.context import ContextManager, plugin_registry
 
@@ -56,8 +56,24 @@ class SupervisorPromptBuilder(BasePromptBuilder):
 
         # 3. Prepare Template Variables (STATIC only — no blackboard/memory/telemetry)
         is_voice = ctx.metadata.get("source") == "voice"
-        has_running_worker = ctx.metadata.get("has_running_worker") == "true"
-        running_worker_desc = ctx.metadata.get("running_worker_desc", "")
+        from app.core.channel.duty import is_duty_source
+
+        is_duty = is_duty_source(ctx.metadata.get("source"))
+        # has_running_worker 数据源：优先会话状态（session.worker），fallback 到 metadata 标记
+        has_running_worker = False
+        running_worker_desc = ""
+        try:
+            from app.core.session.manager import session_manager
+
+            session = session_manager.get(ctx.thread_id) if ctx.thread_id else None
+            if session is not None and session.worker is not None and not session.worker.done:
+                has_running_worker = True
+                running_worker_desc = session.worker.description
+        except Exception:
+            logger.warning("[SupervisorBuilder] session lookup failed", exc_info=True)
+        if not has_running_worker:
+            has_running_worker = ctx.metadata.get("has_running_worker") == "true"
+            running_worker_desc = ctx.metadata.get("running_worker_desc", "")
         lightning_mode = SystemConfigService.get_value("LIGHTNING_MODE", "none")
         is_lightning = lightning_mode not in ("none", "")
         template_vars = {
@@ -73,6 +89,7 @@ class SupervisorPromptBuilder(BasePromptBuilder):
             "project_concepts": ctx.metadata.get("project_concepts", ""),
             "is_supervisor": True,
             "is_voice": is_voice,
+            "is_duty": is_duty,
             "is_lightning": is_lightning,
             "has_running_worker": has_running_worker,
             "running_worker_desc": running_worker_desc,
@@ -117,6 +134,8 @@ class SupervisorPromptBuilder(BasePromptBuilder):
         run_metadata = config.get("metadata", {}) if config else {}
         explicit_skills = run_metadata.get("explicit_skills")
 
+        from app.core.channel.duty import is_duty_source
+
         template_vars = {
             "iteration_count": self.iteration_count,
             "environment_summaries": env_summaries,
@@ -124,6 +143,7 @@ class SupervisorPromptBuilder(BasePromptBuilder):
             "active_skills": active_skills,
             "active_macros": active_macros,
             "explicit_skills": explicit_skills,
+            "is_duty": is_duty_source(ctx.metadata.get("source")),
             "memory": {
                 "episodic_raw": ctx.metadata.get("episodic_memory_raw", ""),
                 "core_raw": ctx.metadata.get("core_memory_raw", ""),
@@ -132,6 +152,7 @@ class SupervisorPromptBuilder(BasePromptBuilder):
             "verification": state.verification,
             "plan": active_plan_data,
             "plan_approved": state.plan_approved,
+            "shared_context": state.shared_context or {},
         }
 
         rendered = render_template("core/engine/fragments/supervisor_context_ticket.j2", **template_vars)

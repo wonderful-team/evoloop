@@ -88,7 +88,7 @@ class _FileEngine:
                 except Exception as exc:
                     logger.debug(
                         f"[FileEngine] Skipping corrupted file {path.name}: {exc}"
-                    )
+                    , exc_info=True)
                     continue
 
         def _scan():
@@ -117,7 +117,7 @@ class _FileEngine:
                 entry = MemoryEntry.from_frontmatter(text, str(path))
                 await self._db_upsert(entry, str(path))
             except Exception as exc:
-                logger.warning(f"[FileEngine] Failed to index {path}: {exc}")
+                logger.warning(f"[FileEngine] Failed to index {path}: {exc}", exc_info=True)
 
     def _determine_category(self, entry: MemoryEntry) -> MemoryCategory:
         tag_set = {t.lower() for t in entry.tags}

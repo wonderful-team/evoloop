@@ -48,7 +48,7 @@ class DockerSandbox(Sandbox):
                     }
                 }
 
-                logger.info(f"Starting Docker Sandbox with image {self.image_name}...")
+                logger.info(f"Starting Docker Sandbox with image {self.image_name}...", exc_info=True)
                 self.container = self.client.containers.run(
                     self.image_name,
                     command="tail -f /dev/null",  # Keep alive
@@ -62,7 +62,7 @@ class DockerSandbox(Sandbox):
                 )
 
         except Exception as e:
-            logger.error(f"Failed to initialize Docker Sandbox: {e}")
+            logger.exception(f"Failed to initialize Docker Sandbox: {e}")
             raise
 
     def run_command(self, command: str, timeout: int = 120) -> tuple[str, str, int]:
@@ -115,7 +115,7 @@ class DockerSandbox(Sandbox):
             return stdout, stderr, exit_code
 
         except Exception as e:
-            logger.error(f"Docker Exec Failed: {e}")
+            logger.exception(f"Docker Exec Failed: {e}")
             return "", str(e), 1
 
     def upload_file(self, local_path: str, remote_path: str) -> None:
@@ -134,4 +134,4 @@ class DockerSandbox(Sandbox):
                 self.container.stop()
                 self.container.remove()
             except Exception as e:
-                logger.warning(f"Error tearing down sandbox: {e}")
+                logger.warning(f"Error tearing down sandbox: {e}", exc_info=True)

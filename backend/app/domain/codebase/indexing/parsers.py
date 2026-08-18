@@ -178,7 +178,7 @@ class ParserRegistry:
                 self.parsers[lang_name] = (parser, LANG)
                 return True
             except Exception as e:
-                logger.error(f"Failed to dynamic load {lang_name}: {e}")
+                logger.exception(f"Failed to dynamic load {lang_name}: {e}")
         return False
 
     def get_parser(self, extension: str) -> tuple[Parser, Language] | None:

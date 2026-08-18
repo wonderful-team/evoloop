@@ -59,5 +59,5 @@ class BaseExplorer(ABC):
             data = json.loads(content)
             return data.get("selected", {})
         except Exception as e:
-            logger.warning(f"Intelligent Triage failed for {platform}: {e}")
+            logger.warning(f"Intelligent Triage failed for {platform}: {e}", exc_info=True)
             return {}

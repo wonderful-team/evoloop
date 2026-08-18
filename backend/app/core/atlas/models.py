@@ -109,12 +109,6 @@ class AtlasApp(DynamicBaseModel):
                 return elem
         return None
 
-    def get_state_elements(self, state_id: str) -> list[AtlasElement]:
-        """Get elements for a specific state."""
-        if state := self.states.get(state_id):
-            return state.elements
-        return []
-
     def compute_version_hash(self, version_name: str | None = None, update_time: str | None = None) -> str:
         """
         Compute a hash representing the current state of the app map.
@@ -123,37 +117,6 @@ class AtlasApp(DynamicBaseModel):
 
         content = f"{self.bundle_id}:{version_name or ''}:{update_time or ''}:{len(self.states)}:{len(self.transitions)}"
         return _compute_version_hash(content)
-
-    def get_infrastructure_only(self) -> AtlasApp:
-        """
-        Return a copy with only infrastructure (static) elements.
-        """
-        filtered_states = {}
-        for state_id, state in self.states.items():
-            infra_elements = [e for e in state.elements if e.is_infrastructure]
-            if infra_elements:
-                filtered_state = AtlasState(
-                    state_id=state.state_id,
-                    window_title=state.window_title,
-                    elements=infra_elements,
-                    screenshot_hash=state.screenshot_hash,
-                    metadata=state.metadata,
-                    is_infrastructure_only=True,
-                )
-                filtered_states[state_id] = filtered_state
-
-        return AtlasApp(
-            app_name=self.app_name,
-            bundle_id=self.bundle_id,
-            platform=self.platform,
-            states=filtered_states,
-            transitions=[],
-            menu_tree=self.menu_tree,
-            version_hash=self.version_hash,
-            explored_at=self.explored_at,
-            exploration_depth=self.exploration_depth,
-            is_dynamic=True,
-        )
 
     def get_element_by_label(self, label: str) -> AtlasElement | None:
         """Search for an element by label across all states."""

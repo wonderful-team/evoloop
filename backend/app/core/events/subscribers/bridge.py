@@ -58,4 +58,4 @@ class UniversalBridgeSubscriber:
                 await ch.send(event, ctx)
 
         except Exception as e:
-            logger.warning(f"[UniversalBridge] Failed to bridge event {event_type}: {e}")
+            logger.warning(f"[UniversalBridge] Failed to bridge event {event_type}: {e}", exc_info=True)

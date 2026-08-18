@@ -55,10 +55,10 @@ class LocalProjectIndex:
         try:
             return json.loads(result.content) or None
         except json.JSONDecodeError as e:
-            logger.warning(f"[LocalProjectIndex] Invalid JSON at {meta_path}: {e}")
+            logger.warning(f"[LocalProjectIndex] Invalid JSON at {meta_path}: {e}", exc_info=True)
             return None
         except Exception as e:
-            logger.warning(f"[LocalProjectIndex] Failed to read {meta_path}: {e}")
+            logger.warning(f"[LocalProjectIndex] Failed to read {meta_path}: {e}", exc_info=True)
             return None
 
     def _coerce_repo_id(self, value: Any) -> int | None:
@@ -122,7 +122,7 @@ class LocalProjectIndex:
             try:
                 entries = list(FileTraverser.list_entries(current_dir))
             except Exception as e:
-                logger.warning(f"[LocalProjectIndex] Failed to list {current_dir}: {e}")
+                logger.warning(f"[LocalProjectIndex] Failed to list {current_dir}: {e}", exc_info=True)
                 return
 
             for entry in entries:

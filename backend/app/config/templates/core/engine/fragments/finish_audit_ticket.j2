@@ -54,7 +54,4 @@
 {%- endif %}
 {%- endif %}
 
-{%- if telemetry %}
-### Environment Telemetry
-{{ telemetry }}
-{%- endif %}
+{% if not is_duty %}{% include 'core/engine/fragments/system_telemetry.j2' %}{% endif %}

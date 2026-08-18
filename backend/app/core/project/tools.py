@@ -100,5 +100,5 @@ async def create_project_task(project_id: int | None = None, task_data: str = ""
         else:
             return f"Failed: {response.get('message')}"
     except Exception as e:
-        logger.error(f"Task creation failed: {e}")
+        logger.exception(f"Task creation failed: {e}")
         return f"Error: {str(e)}"

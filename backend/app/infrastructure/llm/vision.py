@@ -148,7 +148,7 @@ class VisionLLMFactory:
             with open(path, "rb") as f:
                 return base64.b64encode(f.read()).decode("utf-8")
         except OSError as e:
-            logger.error(f"Failed to encode image {image_path}: {e}")
+            logger.exception(f"Failed to encode image {image_path}: {e}")
             raise
 
     @staticmethod

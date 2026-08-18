@@ -155,7 +155,7 @@ class MessageRepository:
             return log.id, seq
 
         except Exception as e:
-            logger.error(f"[MessageRepository] Failed to persist message: {e}")
+            logger.exception(f"[MessageRepository] Failed to persist message: {e}")
             raise
 
     async def _persist_with_session(
@@ -280,7 +280,7 @@ class MessageRepository:
                 return msg.id
 
         except Exception as e:
-            logger.error(f"[MessageRepository] Failed to update message: {e}")
+            logger.exception(f"[MessageRepository] Failed to update message: {e}")
             raise
 
     async def sync_changeset_reference(
@@ -363,7 +363,7 @@ class MessageRepository:
                 await session.flush()
                 return True
         except Exception as e:
-            logger.error(f"[MessageRepository] Failed to sync changeset reference: {e}")
+            logger.exception(f"[MessageRepository] Failed to sync changeset reference: {e}")
             return False
 
     async def resolve_tool_input(self, tool_call_id: str | None, tool_name: str | None = None) -> dict:
@@ -417,7 +417,7 @@ class MessageRepository:
                         return tc.get("args") or {}
 
         except Exception as e:
-            logger.error(f"[MessageRepository] resolve_tool_input failed: {e}")
+            logger.exception(f"[MessageRepository] resolve_tool_input failed: {e}")
             raise
         return {}
 
@@ -439,7 +439,7 @@ class MessageRepository:
                 logger.info(f"[MessageRepository] Updated status to {status} for tool_call_id {tool_call_id}")
                 return result.rowcount > 0
         except Exception as e:
-            logger.error(f"[MessageRepository] Failed to update status by tool_call_id {tool_call_id}: {e}")
+            logger.exception(f"[MessageRepository] Failed to update status by tool_call_id {tool_call_id}: {e}")
             raise
 
     async def update_content_by_tool_call_id(self, tool_call_id: str, content: str) -> bool:
@@ -459,7 +459,7 @@ class MessageRepository:
                 logger.info(f"[MessageRepository] Updated content for tool_call_id {tool_call_id}")
                 return result.rowcount > 0
         except Exception as e:
-            logger.error(f"[MessageRepository] Failed to update content by tool_call_id {tool_call_id}: {e}")
+            logger.exception(f"[MessageRepository] Failed to update content by tool_call_id {tool_call_id}: {e}")
             raise
 
     async def get_last_message_id(self, session=None) -> str | None:
@@ -470,7 +470,7 @@ class MessageRepository:
                     return await self._get_last_message_id(s)
             return await self._get_last_message_id(session)
         except Exception as e:
-            logger.error(f"[MessageRepository] Failed to get last message id: {e}")
+            logger.exception(f"[MessageRepository] Failed to get last message id: {e}")
             return None
 
     async def _get_last_message_id(self, session) -> str | None:

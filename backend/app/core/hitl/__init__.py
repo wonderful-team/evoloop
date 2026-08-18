@@ -4,15 +4,13 @@ from app.core.hitl.authorization import AuthorizationDecision, AuthorizationServ
 from app.core.hitl.core import (
     HumanInputRequest,
     cancel_request,
-    cleanup_old_requests,
-    complete_request,
     create_request,
-    get_all_pending_requests,
-    get_pending_request,
+    finalize_request,
     get_pending_requests_for_thread,
     push_hitl_notification,
     raise_hitl_interrupt,
 )
+from app.core.hitl.mcp_confirmation import maybe_gate_mcp_tool
 from app.core.hitl.orchestrator import HITLOrchestrator
 from app.core.hitl.policies import (
     DEFAULT_SENSITIVE_PATTERNS,
@@ -20,19 +18,20 @@ from app.core.hitl.policies import (
     GrantedPermission,
     PolicyLoader,
 )
+from app.core.hitl.prompts import build_approval_context, format_risk_header
 
 __all__ = [
     "HumanInputRequest",
     "create_request",
-    "complete_request",
     "cancel_request",
-    "get_pending_request",
+    "finalize_request",
     "get_pending_requests_for_thread",
-    "get_all_pending_requests",
-    "cleanup_old_requests",
     "push_hitl_notification",
     "raise_hitl_interrupt",
     "HITLOrchestrator",
+    "maybe_gate_mcp_tool",
+    "build_approval_context",
+    "format_risk_header",
     "AuthorizationPolicy",
     "GrantedPermission",
     "PolicyLoader",

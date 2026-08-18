@@ -9,14 +9,14 @@ logger = logging.getLogger(__name__)
 @evoloop_tool(summary_template="evoloop.tool_summary.list_skills")
 async def list_skills(namespace: str | None = None, query: str | None = None) -> str:
     """
-    List available SOPs (Standard Operating Procedures) in the skill library.
+    List available skills in the skill library.
     Use this to browse available skills to accomplish your task.
 
     Args:
         namespace: Optional namespace prefix filter (e.g., 'domain/browser', 'os/android').
         query: Optional search term to filter the list by keyword.
     """
-    from app.core.learning.discovery import skill_discovery
+    from app.core.learning.skills.discovery import skill_discovery
 
     index = await skill_discovery.get_skills_catalog(namespace=namespace, query=query)
     count = len(index)

@@ -8,7 +8,6 @@ from app.infrastructure.database.resource_manager import db_resource_manager
 from app.models.system import SystemConfig
 
 logger = logging.getLogger(__name__)
-_cache: dict[str, str] = {}
 _change_handlers: dict[str, list[Callable[[str, str], Awaitable[None]]]] = {}
 
 
@@ -40,8 +39,6 @@ class SystemConfigService:
             session.commit()
             session.refresh(config)
 
-            # Update cache
-            _cache[key] = value
             return config
 
     @staticmethod

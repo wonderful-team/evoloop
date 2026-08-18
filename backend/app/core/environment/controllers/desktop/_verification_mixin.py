@@ -134,7 +134,7 @@ class DesktopVerificationMixin:
                             )
                 await asyncio.sleep(0.5)
             except Exception as e:
-                logger.debug(f"[QuickCheck] Error: {e}")
+                logger.debug(f"[QuickCheck] Error: {e}", exc_info=True)
                 await asyncio.sleep(0.5)
         elapsed = time.time() - start_time
         if check_type == "is_loaded":

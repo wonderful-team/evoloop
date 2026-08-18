@@ -42,12 +42,10 @@ There is currently a Worker running for this conversation:
 
 The user has sent a new message. Determine whether:
 1. **QUERY** — The user is asking about the running Worker's progress or result.
-   → Respond with current status. DO NOT cancel the running Worker.
+   → Respond with current status. DO NOT route to a Worker.
 2. **NEW COMMAND** — The user wants to cancel and start something new.
-   → The running Worker will be cancelled automatically after this response.
+   → The running Worker will be cancelled automatically when you route to a new Worker.
    → Route to a new Worker if needed.
-
-Respond with [QUERY] or [NEW_COMMAND] first, then your message.
 {% endif %}
 
 {% include 'core/engine/fragments/user_preferences.j2' %}

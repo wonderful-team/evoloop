@@ -82,7 +82,7 @@ class ProjectSyncService:
                         else:
                             logger.info(f"[ProjectSync] Aligned project {pid} source to {device_key} in cloud")
             except Exception as e:
-                logger.warning(f"[ProjectSync] Failed to run local project source alignment: {e}")
+                logger.warning(f"[ProjectSync] Failed to run local project source alignment: {e}", exc_info=True)
 
             # Prefer the persisted active project (user's last explicit choice)
             active_project_id = thread_context_store.get_active_project("default")
@@ -251,7 +251,7 @@ class ProjectSyncService:
                         await self._trigger_auto_indexing(repo, path)
                         return
             except Exception as e:
-                logger.warning(f"[ProjectSync] Failed to recover project from project.json: {e}")
+                logger.warning(f"[ProjectSync] Failed to recover project from project.json: {e}", exc_info=True)
 
     async def import_project_by_path(self, path: str, workspace_root: str, name: str | None = None) -> Repository:
         """
@@ -337,7 +337,7 @@ class ProjectSyncService:
             else:
                 logger.warning(f"[ProjectSync] Cloud sync failed: {res.get('message')}")
         except Exception as e:
-            logger.error(f"[ProjectSync] Cloud sync failed: {e}")
+            logger.exception(f"[ProjectSync] Cloud sync failed: {e}")
 
         # Update metadata file
         write_project_json(abs_path, {
@@ -356,7 +356,7 @@ class ProjectSyncService:
                 project_name=repo_name,
             )
         except Exception as e:
-            logger.error(f"[ProjectSync] Failed to publish ProjectCreatedEvent: {e}")
+            logger.exception(f"[ProjectSync] Failed to publish ProjectCreatedEvent: {e}")
 
         # Start watching
         from app.domain.codebase.indexing.manager import indexing_manager
@@ -380,7 +380,7 @@ class ProjectSyncService:
                     f"[ProjectSync] Updated cloud project {project_id} source after path move to {new_path}"
                 )
         except Exception as e:
-            logger.warning(f"[ProjectSync] Failed to update cloud path for project {project_id}: {e}")
+            logger.warning(f"[ProjectSync] Failed to update cloud path for project {project_id}: {e}", exc_info=True)
 
     async def _find_matching_cloud_project(self, repo_name: str, local_path: str) -> dict | None:
         """
@@ -399,7 +399,7 @@ class ProjectSyncService:
             logger.info(f"[ProjectSync] No cloud project matched local path: {abs_local_path}")
             return None
         except Exception as e:
-            logger.warning(f"[ProjectSync] Failed to scan cloud projects: {e}. Treating as new project.")
+            logger.warning(f"[ProjectSync] Failed to scan cloud projects: {e}. Treating as new project.", exc_info=True)
             return None
 
     async def _trigger_auto_indexing(self, repo: Repository, path: str):
@@ -424,7 +424,7 @@ class ProjectSyncService:
             await indexing_manager.start_watching(path, repo.id)
 
         except Exception as e:
-            logger.error(f"[ProjectSync] Failed to auto-trigger indexing for '{repo.name}': {e}")
+            logger.exception(f"[ProjectSync] Failed to auto-trigger indexing for '{repo.name}': {e}")
 
     async def handle_project_deleted(self, path: str):
         """
@@ -457,7 +457,7 @@ class ProjectSyncService:
                 logger.info(f"[ProjectSync] Project {repo_name} marked as DISCONNECTED.")
 
         except Exception as e:
-            logger.error(f"[ProjectSync] Error updating disconnect status for {path}: {e}")
+            logger.exception(f"[ProjectSync] Error updating disconnect status for {path}: {e}")
             return
 
         try:
@@ -469,7 +469,7 @@ class ProjectSyncService:
                 project_id=project_id
             )
         except Exception as e:
-            logger.error(f"[ProjectSync] Failed to publish ProjectDeletedEvent for {path}: {e}")
+            logger.exception(f"[ProjectSync] Failed to publish ProjectDeletedEvent for {path}: {e}")
 
     async def handle_project_moved(self, src_path: str, dest_path: str):
         """
@@ -499,7 +499,7 @@ class ProjectSyncService:
                 logger.info("[ProjectSync] Cloud Project Updated.")
                 evocloud_manager.invalidate_projects_cache()
             except Exception as e:
-                logger.error(f"[ProjectSync] Cloud Update Failed: {e}")
+                logger.exception(f"[ProjectSync] Cloud Update Failed: {e}")
 
         # Update Local Record
         async with self._indexing_service.session_factory() as session:
@@ -549,7 +549,7 @@ class ProjectSyncService:
                     abs_p = os.path.realpath(r.local_path)
                     known_projects_map[abs_p] = r
         except Exception as e:
-            logger.error(f"[ProjectSync] DB Scan failed: {e}")
+            logger.exception(f"[ProjectSync] DB Scan failed: {e}")
             return
 
         known_paths = set(known_projects_map.keys())
@@ -572,7 +572,7 @@ class ProjectSyncService:
                             session.add(r)
                             repo.sync_status = r.sync_status
                 except Exception as e:
-                    logger.error(f"[ProjectSync] Failed to restore project {p}: {e}")
+                    logger.exception(f"[ProjectSync] Failed to restore project {p}: {e}")
 
         # B. Retry Pending Cloud Sync for Syncing Projects
         for p in fs_paths:
@@ -584,7 +584,7 @@ class ProjectSyncService:
 
                     sync_project_to_cloud_task.delay(repo.id)
                 except Exception as e:
-                    logger.error(f"[ProjectSync] Failed to queue retry: {e}")
+                    logger.exception(f"[ProjectSync] Failed to queue retry: {e}")
 
         # C. Restart watching for imported projects (SYNCED or PENDING_CREATION)
         imported_statuses = {"SYNCED", "PENDING_CREATION"}
@@ -603,7 +603,7 @@ class ProjectSyncService:
                         logger.info(f"[ProjectSync] Project {repo.name} indexing is incomplete, triggering background indexing")
                         asyncio.create_task(indexing_manager.run_indexing_background(repo.id))
                 except Exception as e:
-                    logger.error(f"[ProjectSync] Failed to restart watcher for {p}: {e}")
+                    logger.exception(f"[ProjectSync] Failed to restart watcher for {p}: {e}")
 
         # D. Deleted Projects (In DB, Not in FS)
         abs_root = os.path.realpath(root_path)

@@ -83,7 +83,7 @@ async def search_codebase(
                     if usages:
                         graph_data["incoming"] = [f"{u['source']} (references)" for u in usages]
         except Exception as e:
-            logger.error(f"Symbol lookup failed: {e}")
+            logger.exception(f"Symbol lookup failed: {e}")
 
     rag_results = []
     try:
@@ -91,7 +91,7 @@ async def search_codebase(
         if results:
             rag_results = results
     except Exception as e:
-        logger.error(f"RAG search failed: {e}")
+        logger.exception(f"RAG search failed: {e}")
 
     count = len(rag_results)
     if graph_data:
@@ -105,7 +105,7 @@ async def search_codebase(
         )
         return content, {"count": count, "pattern": query}
     except Exception as e:
-        logger.error(f"Failed to render Codebase Retrieval template: {e}")
+        logger.exception(f"Failed to render Codebase Retrieval template: {e}")
         return "Search results processing error.", {"count": 0}
 
 

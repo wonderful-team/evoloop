@@ -74,7 +74,7 @@ async def create_task_with_subtasks(
         )
 
     except Exception as e:
-        logger.error(f"[SubtasksAPI] Failed to create task: {e}")
+        logger.exception(f"[SubtasksAPI] Failed to create task: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

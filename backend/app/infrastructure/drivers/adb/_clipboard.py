@@ -25,7 +25,7 @@ class ClipboardMixin:
                         return match.group(1).strip()
             return ""
         except Exception as e:
-            logger.warning(f"[ADB] Clipboard read failed: {e}")
+            logger.warning(f"[ADB] Clipboard read failed: {e}", exc_info=True)
             return ""
 
     def set_clipboard(self, text, device_id=None):
@@ -45,5 +45,5 @@ class ClipboardMixin:
             )
             return True
         except Exception as e:
-            logger.warning(f"[ADB] Clipboard write failed: {e}")
+            logger.warning(f"[ADB] Clipboard write failed: {e}", exc_info=True)
             return False

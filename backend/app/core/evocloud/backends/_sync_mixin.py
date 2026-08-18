@@ -167,7 +167,7 @@ class SyncMixin:
                 "filename": filename,
             }
         except Exception as e:
-            logger.warning(f"[EvoCloud] Upload failed: {e}, using local fallback")
+            logger.warning(f"[EvoCloud] Upload failed: {e}, using local fallback", exc_info=True)
             return {
                 "download_url": f"{self.base_url}/api/v1/files/raw?path=uploads/{filename}",
                 "md5": md5_val,

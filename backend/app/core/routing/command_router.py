@@ -39,7 +39,9 @@ from app.core.routing.conversation_state import (
 )
 from app.core.routing.decision_builder import build_decision
 from app.core.routing.device_kind import DeviceKind
-from app.core.routing.domain_classifier import CONFIDENCE_THRESHOLD as HIGH_INTENT_THRESHOLD
+from app.core.routing.domain_classifier import (
+    CONFIDENCE_THRESHOLD as HIGH_INTENT_THRESHOLD,
+)
 from app.core.routing.intent_resolution import IntentResolver
 from app.core.routing.macro_device_map import get_macro_device_map
 from app.core.routing.matcher_cache import matcher_cache
@@ -81,6 +83,7 @@ class CommandRouter:
         project_id: int = 0,
         source: str = "voice",
         context: dict[str, Any] | None = None,
+        skip_l0: bool = False,
     ) -> RouteDecision:
         """Classify ``text`` and return a channel-independent routing decision.
 
@@ -89,11 +92,27 @@ class CommandRouter:
         subsequent turn carrying an anaphora (它/这个/刚才) can fall back to
         semantic recall even when it routes to a non-agent path.
 
+        When ``skip_l0`` is True (text ``web`` channel), the L0 layer is
+        bypassed entirely: L0 only serves voice shortcut commands (navigation /
+        macros / local actions) that must resolve locally in milliseconds. A
+        text chat turn is always an agent conversation, so the decision jumps
+        straight to the L1 domain classifier and delegates to the agent.
+
         ``context`` is accepted for interface compatibility but is currently
         unused; context probing is performed internally by ``IntentResolver``.
         """
         del context  # reserved for future source/channel context
         previous_intent, session_history = _get_thread_intent_state(thread_id)
+
+        if skip_l0:
+            decision = await self._l1_delegate(
+                text,
+                session_history,
+                previous_intent=previous_intent,
+                source=source,
+            )
+            await self._record_thread_intent(thread_id, decision, text)
+            return decision
 
         # 1. Direct navigation macros (exact phrase match against DB presets).
         nav_macro = await self._nav_macro_cache.get(text)
@@ -124,7 +143,7 @@ class CommandRouter:
         #    utterance must be the command; anything else falls through to BERT.
         template_matcher = await matcher_cache.get_local_matcher()
         if template_matcher is not None:
-            template_hit = template_matcher.match(text)
+            template_hit = template_matcher.match(text, project_id=project_id)
             if template_hit is not None:
                 action, args = template_hit
                 action = await self._disambiguate_device_macro(action, thread_id)
@@ -184,6 +203,28 @@ class CommandRouter:
             return decision
 
         # 5. High-level intent classifier (L1) with multi-turn context
+        decision = await self._l1_delegate(
+            text,
+            session_history,
+            previous_intent=previous_intent,
+            source=source,
+        )
+        await self._record_thread_intent(thread_id, decision, text)
+        return decision
+
+    async def _l1_delegate(
+        self,
+        text: str,
+        session_history: list[str],
+        *,
+        previous_intent: str | None,
+        source: str,
+    ) -> RouteDecision:
+        """Run the L1 domain classifier and build an agent-delegation decision.
+
+        Shared by the L0-miss path and the ``skip_l0`` (text) path so both
+        produce the same ``IntentHint`` + ``RouteDecision`` shape.
+        """
         l1_input = build_high_intent_input(text, session_history, previous_intent=previous_intent)
         l1_label, l1_conf = await asyncio.to_thread(domain_classifier.predict, l1_input)
         if l1_label and l1_conf >= HIGH_INTENT_THRESHOLD:
@@ -207,7 +248,7 @@ class CommandRouter:
             )
             raw_label = DOMAIN_AMBIGUOUS
 
-        decision = RouteDecision(
+        return RouteDecision(
             status="delegate",
             target_type="agent",
             target={"type": "agent"},
@@ -217,8 +258,6 @@ class CommandRouter:
             source=source,
             raw=raw_label,
         )
-        await self._record_thread_intent(thread_id, decision, text)
-        return decision
 
     @staticmethod
     async def _disambiguate_device_macro(action: str, thread_id: str) -> str:

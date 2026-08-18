@@ -11,6 +11,7 @@ import time
 from app.constants import DEFAULT_MAX_CONTEXT_TOKENS
 from app.core.evocloud import evocloud_manager
 from app.infrastructure.config.service import SystemConfigService
+from app.infrastructure.llm.thinking_adapter import detect_model_family
 from app.infrastructure.schemas import (
     AvailableEmbeddingModel,
     AvailableLLMModel,
@@ -30,7 +31,13 @@ _PROVIDER_GUESSES: list[tuple[tuple[str, ...], tuple[str, str]]] = [
 
 
 def _guess_provider(model_name: str) -> tuple[str, str]:
-    """根据模型名推断 provider_name 与 provider_type（fallback 用）。"""
+    """根据模型名推断 provider_name 与 provider_type（fallback 用）。
+
+    anthropic 家族判定复用 detect_model_family，避免模型知识散落；
+    其余厂商（deepseek/gpt 等）按关键词匹配。
+    """
+    if detect_model_family(model_name) == "anthropic":
+        return "Anthropic", "anthropic"
     n = model_name.lower()
     for keywords, (provider_name, provider_type) in _PROVIDER_GUESSES:
         if any(k in n for k in keywords):

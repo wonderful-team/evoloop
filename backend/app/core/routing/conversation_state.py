@@ -85,6 +85,10 @@ class ConversationState:
         self._state: dict[str, tuple[str | None, list[str]]] = {}
         # Keys are thread_id; values are the resolved device kind (DeviceKind).
         self._device: dict[str, DeviceKind] = {}
+        # Keys are thread_id; values are the most recent L0 macro execution
+        # result summary (e.g. "已跳转到商城后台添加商品页"), used to give the
+        # Agent context about what an L0 macro just did on the next turn.
+        self._last_macro_result: dict[str, str] = {}
 
     def get(self, thread_id: str) -> tuple[str | None, list[str]]:
         """Return ``(previous_intent, session_history)`` for the thread."""
@@ -113,14 +117,26 @@ class ConversationState:
         """Return the device context for the thread, or ``None`` when absent."""
         return self._device.get(thread_id) if thread_id else None
 
+    def set_last_macro_result(self, thread_id: str, summary: str) -> None:
+        """Remember the summary of the most recent L0 macro execution."""
+        if not thread_id:
+            return
+        self._last_macro_result[thread_id] = summary
+
+    def get_last_macro_result(self, thread_id: str) -> str | None:
+        """Return the most recent L0 macro result summary, or ``None``."""
+        return self._last_macro_result.get(thread_id) if thread_id else None
+
     def clear(self, thread_id: str | None = None) -> None:
         """Clear a single thread, or all threads when ``thread_id`` is None."""
         if thread_id is None:
             self._state.clear()
             self._device.clear()
+            self._last_macro_result.clear()
         else:
             self._state.pop(thread_id, None)
             self._device.pop(thread_id, None)
+            self._last_macro_result.pop(thread_id, None)
 
     @staticmethod
     def has_anaphora(text: str) -> bool:
@@ -186,6 +202,16 @@ def _update_thread_device_context(thread_id: str, device: DeviceKind | None) -> 
     conversation_state.set_device(thread_id, device)
 
 
+def _get_thread_last_macro_result(thread_id: str) -> str | None:
+    """Return the most recent L0 macro result summary for the thread."""
+    return conversation_state.get_last_macro_result(thread_id)
+
+
+def _set_thread_last_macro_result(thread_id: str, summary: str) -> None:
+    """Record the summary of the most recent L0 macro execution for the thread."""
+    conversation_state.set_last_macro_result(thread_id, summary)
+
+
 def clear_thread_intent_state_for_threads(thread_ids: list[str]) -> None:
     """Clear multi-turn L0 state for all threads in ``thread_ids``.
 
@@ -205,5 +231,7 @@ __all__ = [
     "ConversationState",
     "_get_thread_intent_state",
     "_update_thread_intent_state",
+    "_get_thread_last_macro_result",
+    "_set_thread_last_macro_result",
     "clear_thread_intent_state_for_threads",
 ]

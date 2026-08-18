@@ -24,5 +24,5 @@ class AndroidExplorer(BaseExplorer):
 
             return packages
         except Exception as e:
-            logger.error(f"Android scan failed for {device_id}: {e}")
+            logger.exception(f"Android scan failed for {device_id}: {e}")
             return []

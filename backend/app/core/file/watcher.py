@@ -92,7 +92,7 @@ class _EventBusHandler(FileSystemEventHandler):
                     self._event_loop,
                 )
             except Exception as e:
-                logger.error(f"Failed to schedule event publish: {e}")
+                logger.exception(f"Failed to schedule event publish: {e}")
         else:
             logger.debug(f"Event loop not available, skipping event: {event_type}")
 
@@ -113,7 +113,7 @@ class _EventBusHandler(FileSystemEventHandler):
                         )
                         self._pending_tasks[path] = task
                     except Exception as e:
-                        logger.error(f"Failed to schedule debounced publish: {e}")
+                        logger.exception(f"Failed to schedule debounced publish: {e}")
                         # Fallback to immediate publish
                         self._publish_event(event_type, path, **extra_data)
                 else:
@@ -256,7 +256,7 @@ class FileWatcher:
             logger.info(f"Started file watcher: {self.path}")
 
         except Exception as e:
-            logger.error(f"Failed to start watcher for {self.path}: {e}")
+            logger.exception(f"Failed to start watcher for {self.path}: {e}")
             self._cleanup()
             raise
 
@@ -292,7 +292,7 @@ class FileWatcher:
                 self._observer.stop()
                 self._observer.join(timeout=2.0)
             except Exception as e:
-                logger.error(f"Error cleaning up watcher: {e}")
+                logger.exception(f"Error cleaning up watcher: {e}")
             finally:
                 self._observer = None
                 self._handler = None

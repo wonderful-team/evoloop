@@ -72,7 +72,7 @@ async def pre_compact_save_state(context: HookContext) -> HookResult:
                                 logger.warning(f"[PreCompact] ⚠️ Found duplicate checkpoint from {cp_time.isoformat()}: {cp_entry.id}")
                                 break
                     except (ValueError, YAMLError) as e:
-                        logger.debug(f"[PreCompact] Failed to parse existing checkpoint {cp_summary.id}: {e}")
+                        logger.debug(f"[PreCompact] Failed to parse existing checkpoint {cp_summary.id}: {e}", exc_info=True)
 
         duplicate_check_elapsed = (datetime.utcnow() - duplicate_check_start).total_seconds()
         logger.debug(f"[PreCompact] Duplicate check: scanned {len(existing_checkpoints)} entries in {duplicate_check_elapsed:.3f}s")

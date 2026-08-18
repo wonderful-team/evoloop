@@ -18,7 +18,6 @@ from sqlalchemy.orm import selectinload
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.channel.input.mobile_input import mobile_input
-from app.core.engine.background_agent import run_agent_background
 from app.core.engine.dispatch import dispatch_agent_run
 from app.core.engine.event import ConversationEventType
 from app.core.engine.event.handlers import A2ACommandHandler, MemoryCommandHandler
@@ -139,7 +138,7 @@ class EngineCommandSubscriber:
                 )
                 await manager.incremental_sync()
             except (ConnectionError, TimeoutError, OSError) as e:
-                logger.warning(f"[EngineCommand] Failed to trigger conversation sync: {e}")
+                logger.warning(f"[EngineCommand] Failed to trigger conversation sync: {e}", exc_info=True)
 
         if action == "conversation_update":
             # Mobile sends metadata inside the payload/content field.
@@ -191,7 +190,7 @@ class EngineCommandSubscriber:
             except (ConnectionError, TimeoutError, OSError) as e:
                 logger.warning(
                     f"[EngineCommand] Failed to sync conversation_delete to MC: thread_id={thread_id}, error={e}"
-                )
+                , exc_info=True)
 
             # Delete the Conversation row itself (ORM cascade covers messages, plan, etc.)
             async with session_scope() as session:
@@ -237,7 +236,7 @@ class EngineCommandSubscriber:
         try:
             await asyncio.wait_for(_run(), timeout=30.0)
         except asyncio.TimeoutError:
-            logger.error(f"[EngineCommand] Command execution TIMEOUT: cmd_id={cmd_id}")
+            logger.exception(f"[EngineCommand] Command execution TIMEOUT: cmd_id={cmd_id}")
             if link:
                 await link._force_reconnect()
 
@@ -329,19 +328,11 @@ class EngineCommandSubscriber:
             project_id=command.get("project_id"),
         )
 
-        # Resolve model: prefer existing session model, fallback to system default
-        from app.core.context.manager import ContextManager
-        from app.core.engine.background_agent import BackgroundAgentInputs
+        # 会话模式：统一走 session_manager.submit（is_resume）—— 有活会话注入
+        # gate 恢复，无活会话创建并启动；不再回落到 run_agent_background。
+        from app.core.session.manager import session_manager
 
-        loaded_ctx = await ContextManager.load(thread_id)
-        model = loaded_ctx.active_model if loaded_ctx else None
-
-        inputs = BackgroundAgentInputs(
-            hitl_resume_response=response,
-            command_id=command.get("command_id"),
-            model=model,
-        )
-        asyncio.create_task(run_agent_background(thread_id, inputs))
+        await session_manager.submit(thread_id, response, is_resume=True)
 
     async def _handle_hitl_cancel(self, command: RemoteCommand) -> None:
         """
@@ -359,20 +350,15 @@ class EngineCommandSubscriber:
 
         await activity_monitor.clear_human_request(thread_id)
 
-        # Resolve model: prefer existing session model, fallback to system default
-        from app.core.context.manager import ContextManager
-        from app.core.engine.background_agent import BackgroundAgentInputs
+        # 会话模式：统一走 session_manager.submit（is_resume + is_cancel）
+        from app.core.session.manager import session_manager
 
-        loaded_ctx = await ContextManager.load(thread_id)
-        model = loaded_ctx.active_model if loaded_ctx else None
-
-        inputs = BackgroundAgentInputs(
-            hitl_resume_response="CANCELLED",
-            command_id=command.get("command_id"),
-            model=model,
-            is_hitl_cancel=True,
+        await session_manager.submit(
+            thread_id,
+            "CANCELLED",
+            is_resume=True,
+            is_cancel=True,
         )
-        asyncio.create_task(run_agent_background(thread_id, inputs))
 
     async def _handle_chat_message(self, command: RemoteCommand) -> None:
         #         Mobile sends chat content inside the command.relay body's `content` field,
@@ -387,23 +373,73 @@ class EngineCommandSubscriber:
 
         member_id = await identity_service.get_member_id() or 0
 
-        msg = await mobile_input.receive(
-            payload if isinstance(payload, dict) else {"text": str(payload)},
-            member_id=member_id,
+        # 移动端与 web 文字链路对齐：跳过 L0、先走 L1 领域分类再进 Agent。
+        # 统一经 dispatch_user_message → command_router.resolve(skip_l0=True)。
+        from app.constants import DEFAULT_PROJECT_ID
+        from app.core.context import EvoContext
+        from app.core.routing.dispatch_handler import dispatch_user_message
+        from app.core.routing.thread_locks import route_lock_scope
+        from app.core.state import shared_state
+        from app.utils.id import gen_uuid
+
+        raw_payload = payload if isinstance(payload, dict) else {"text": str(payload)}
+        req_pid = int(raw_payload.get("project_id", 0))
+        if req_pid:
+            await shared_state.set_active_project_id(req_pid)
+            pid = req_pid
+        else:
+            pid = await shared_state.get_active_project_id() or DEFAULT_PROJECT_ID
+
+        ctx = EvoContext(
+            request_id=command.get("message_id") or gen_uuid(),
             thread_id=thread_id,
+            project_id=pid,
+            member_id=member_id,
             command_id=command.get("command_id"),
-            message_id=command.get("message_id"),
         )
-        if msg is None:
-            return
-        result = await mobile_input.dispatch(msg)
 
-        if result.status == "failed":
-            logger.error(f"[EngineCommand] Dispatch failed: {result.error}")
-            raise RuntimeError(f"Agent dispatch failed: {result.error}")
+        raw = {
+            **raw_payload,
+            "thread_id": thread_id,
+            "project_id": pid,
+            "command_id": command.get("command_id"),
+            "message_id": command.get("message_id"),
+        }
 
-        # Start agent in background
-        asyncio.create_task(run_agent_background(thread_id, result.inputs))
+        async with route_lock_scope(thread_id, ctx):
+            outcome = await dispatch_user_message(
+                raw,
+                source="mobile",
+                input_channel=mobile_input,
+                thread_id=thread_id,
+                project_id=pid,
+                member_id=member_id,
+                context=ctx,
+            )
+
+            if outcome.msg is None:
+                return
+
+            if outcome.handled:
+                # skip_l0 下移动端不会命中 L0 宏/导航/本地动作，此处防御性兜底。
+                logger.info(
+                    "[EngineCommand] mobile L0 handled (unexpected): %s",
+                    outcome.local_response,
+                )
+                return
+
+            inputs = outcome.inputs
+            if inputs is None or inputs.status == "failed":
+                if inputs is not None:
+                    logger.error(f"[EngineCommand] Dispatch failed: {inputs.error}")
+                    raise RuntimeError(f"Agent dispatch failed: {inputs.error}")
+                return
+
+            # 会话模式：统一走 session_manager.submit —— 有活会话注入，
+            # 无活会话创建并启动；不再回落到 run_agent_background。
+            from app.core.session.manager import session_manager
+
+            await session_manager.submit(thread_id, inputs.inputs)
 
     async def _handle_stop(self, command: RemoteCommand) -> None:
         """Handle stop command from Mobile."""
@@ -412,9 +448,11 @@ class EngineCommandSubscriber:
             logger.warning("[EngineCommand] Stop command missing thread_id, skipping")
             return
         logger.info(f"[EngineCommand] Stopping run for thread {thread_id}")
-        from app.core.monitoring.activity import activity_monitor
+        # 会话模式：统一走 session_manager.stop_agent（有会话 → session.stop；
+        # 无会话 → stop_run + cancel_worker 双兜底）
+        from app.core.session.manager import session_manager
 
-        await activity_monitor.stop_run(thread_id)
+        await session_manager.stop_agent(thread_id, "mobile_stop")
 
     async def _handle_retry(self, command: RemoteCommand) -> None:
         """Handle retry command from Mobile (rewind + re-dispatch)."""
@@ -539,7 +577,11 @@ class EngineCommandSubscriber:
             logger.error(f"[EngineCommand] Retry dispatch failed: {result.error}")
             return
 
-        asyncio.create_task(run_agent_background(thread_id, result.inputs))
+        # 会话模式：统一走 session_manager.submit —— 有活会话注入（会话重建 state
+        # 反映 rewind 后的 DB）；无活会话创建并启动，不再回落到 run_agent_background。
+        from app.core.session.manager import session_manager
+
+        await session_manager.submit(thread_id, result.inputs)
 
 
 @event_register()

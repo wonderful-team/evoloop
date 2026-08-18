@@ -39,7 +39,7 @@ class UserCacheService:
             try:
                 return json.loads(data)
             except json.JSONDecodeError:
-                logger.warning(f"Invalid user cache data for {member_id}")
+                logger.warning(f"Invalid user cache data for {member_id}", exc_info=True)
                 return None
         return data if isinstance(data, dict) else None
 

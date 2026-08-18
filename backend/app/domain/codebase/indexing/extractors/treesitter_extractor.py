@@ -96,7 +96,7 @@ class TreeSitterExtractor(BaseExtractor):
         try:
             tree = await asyncio.to_thread(parser.parse, bytes(content, "utf8"))
         except Exception as e:
-            logger.warning(f"TreeSitter binary parse failed: {e}")
+            logger.warning(f"TreeSitter binary parse failed: {e}", exc_info=True)
             return ExtractionResult(documents=[], entities=[], relations=[])
 
         lang_key = parser_registry.get_language_key(extension)
@@ -118,7 +118,7 @@ class TreeSitterExtractor(BaseExtractor):
                 imp_cursor = tree_sitter.QueryCursor(imp_query)
                 matches.extend(list(imp_cursor.matches(tree.root_node)))
         except Exception as e:
-            logger.warning(f"TreeSitter query failed: {e}")
+            logger.warning(f"TreeSitter query failed: {e}", exc_info=True)
             # Continue with whatever matches we might have (or empty matches)
 
         # logger.debug(f"TreeSitter matches: {len(matches)}")
@@ -360,7 +360,7 @@ class TreeSitterExtractor(BaseExtractor):
 
         except Exception as e:
             # Fallback to first 200 chars or summary
-            logger.warning(f"Skeleton extraction failed: {e}")
+            logger.warning(f"Skeleton extraction failed: {e}", exc_info=True)
             return node.text.decode("utf8")[:200]
 
     def _is_likely_local_import(self, import_path: str) -> bool:

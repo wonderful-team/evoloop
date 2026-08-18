@@ -642,7 +642,7 @@ class CSharpLanguageServer(SolidLanguageServer):
         try:
             self.server.start()
         except Exception as e:
-            log.info(f"Failed to start language server process: {e}", logging.ERROR)
+            log.info(f"Failed to start language server process: {e}", logging.ERROR, exc_info=True)
             raise SolidLSPException(f"Failed to start C# language server: {e}")
 
         # Send initialization

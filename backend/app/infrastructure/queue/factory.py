@@ -142,7 +142,7 @@ def shared_task(
 
                         loop.run_until_complete(flush_loop_bound_resources())
                     except Exception as e:
-                        logger.warning(f"[Task] Failed to flush resources in task {f.__name__}: {e}")
+                        logger.warning(f"[Task] Failed to flush resources in task {f.__name__}: {e}", exc_info=True)
 
             target_f = _celery_async_wrapper
 

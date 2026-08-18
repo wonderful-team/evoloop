@@ -141,7 +141,7 @@ class BrowserExtractionMixin:
                         })
                         return json.dumps(batch_results)
                     except Exception as js_e:
-                        logger.debug(f"[Browser] Batch JS failed, falling back: {js_e}")
+                        logger.debug(f"[Browser] Batch JS failed, falling back: {js_e}", exc_info=True)
 
                 results = []
                 for i in range(max_elements):
@@ -159,7 +159,7 @@ class BrowserExtractionMixin:
                     })
                 return json.dumps(results)
             except Exception as e:
-                logger.error(f"[Browser] get_elements failed: {e}")
+                logger.exception(f"[Browser] get_elements failed: {e}")
                 return "[]"
 
         return None

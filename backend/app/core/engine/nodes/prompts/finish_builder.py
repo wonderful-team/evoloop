@@ -53,6 +53,7 @@ class FinishPromptBuilder(BasePromptBuilder):
             }
 
             is_voice = ctx.metadata.get("source") == "voice"
+            is_duty = self._is_duty_context()
             has_skill_used = self._has_skill_used()
 
             template_vars = {
@@ -63,12 +64,13 @@ class FinishPromptBuilder(BasePromptBuilder):
                 "sys_info": sys_info,
                 "sandbox_mode": mode,
                 "is_voice": is_voice,
+                "is_duty": is_duty,
                 "has_skill_used": has_skill_used,
             }
 
             return render_template("core/engine/finish.prompt.j2", **template_vars)
         except (TypeError, ValueError, RuntimeError) as e:
-            logger.error(f"[FinishPromptBuilder] Template render failed: {e}")
+            logger.exception(f"[FinishPromptBuilder] Template render failed: {e}")
             return (
                 "You are the Session Reviewer. Please review the session and provide "
                 "a concise summary of what was accomplished."
@@ -99,5 +101,15 @@ class FinishPromptBuilder(BasePromptBuilder):
             "metadata": self.metadata,
             "audit_context": self.action_context,
             "telemetry": self.telemetry,
+            "is_duty": self._is_duty_context(),
         }
         return render_template("core/engine/fragments/finish_audit_ticket.j2", **template_vars)
+
+    @staticmethod
+    def _is_duty_context() -> bool:
+        """值守渠道判定：当前上下文 source 是否为值守渠道（统一场景编码）。"""
+        from app.core.channel.duty import is_duty_source
+        from app.core.context.manager import ContextManager
+
+        ctx = ContextManager.current()
+        return is_duty_source(ctx.metadata.get("source"))

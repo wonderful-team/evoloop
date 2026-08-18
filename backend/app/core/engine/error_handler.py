@@ -207,13 +207,13 @@ def with_llm_retry(max_attempts: int = 3, base_delay: float = 2.0, backoff: floa
                     classification = LLMErrorHandler.classify_exception(e)
 
                     if classification.is_terminal or attempt == max_attempts:
-                        logger.error(f"[LLMRetry] Terminal error or max attempts reached ({attempt}/{max_attempts}): {classification.error_type}")
+                        logger.exception(f"[LLMRetry] Terminal error or max attempts reached ({attempt}/{max_attempts}): {classification.error_type}")
                         raise
 
                     logger.warning(
                         f"[LLMRetry] Attempt {attempt}/{max_attempts} failed: {classification.error_type}. "
                         f"Retrying in {delay}s..."
-                    )
+                    , exc_info=True)
                     await asyncio.sleep(delay)
                     delay *= backoff
 

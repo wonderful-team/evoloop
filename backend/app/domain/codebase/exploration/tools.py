@@ -123,5 +123,5 @@ async def ask_codebase(
         return f"Relevant concepts for '{question}':\n" + "\n".join(lines), {"count": len(results)}
         
     except Exception as e:
-        logger.error(f"Ask codebase failed: {e}")
+        logger.exception(f"Ask codebase failed: {e}")
         return f"Error searching codebase: {e}"

@@ -26,7 +26,14 @@ class SkillResponse:
         """Render a skill success response."""
         details = None
         if extracted_data:
-            details = render_template("core/vision/perceptions.prompt.j2", extracted_data=extracted_data)
+            # If the caller already provided a structured perceptions payload
+            # (with 'type'), render via the dedicated template. Otherwise treat
+            # the whole dict as extracted key/value pairs so the agent can see
+            # actionable IDs downstream (e.g. goods_id from a search macro).
+            if isinstance(extracted_data, dict) and "type" in extracted_data:
+                details = render_template("core/vision/perceptions.prompt.j2", extracted_data=extracted_data)
+            else:
+                details = "### Extracted Data\n" + "\n".join(f"- **{k}**: {v}" for k, v in extracted_data.items())
 
         return ControllerResponse.success(message=f"Skill '{skill_name}' completed", details=details)
 

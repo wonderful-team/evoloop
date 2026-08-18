@@ -2,8 +2,8 @@ import logging
 from typing import Any
 
 from app.core.execution.macro.engine import MacroEngine
+from app.core.execution.macro.event.publishers import publish_macro_execution_failed
 from app.core.execution.macro.healing_policy import SelfHealingPolicy
-from app.core.execution.macro.optimizer import MacroOptimizer
 from app.core.execution.macro.schemas import MacroRunResult, MacroScript
 from app.core.monitoring.activity import activity_monitor
 from app.models.macro import Macro
@@ -41,9 +41,9 @@ class MacroService:
                 script = MacroScript(steps=script_input)
             else:
                 script = script_input
-        except Exception as e:
-            logger.error(f"[{thread_id}] Macro validation failed: {e}")
-            return MacroRunResult(success=False, message=f"Invalid macro format: {e}")
+        except Exception:
+            logger.exception("[%s] Macro validation failed", thread_id)
+            return MacroRunResult(success=False, message="Invalid macro format")
 
         if not script.steps:
             logger.warning(f"[{thread_id}] Macro execution skipped: script is empty.")
@@ -52,6 +52,17 @@ class MacroService:
         logger.info(f"[{thread_id}] Starting Standardized Macro Execution ({len(script.steps)} steps)")
         if params is None:
             params = {}
+
+        # 集中解析 {{base_url}}（MacroService 直连路径：自愈重试/工具调用）。
+        # MacroEngine.run 已做同样注入，但自愈重试（runner._run_with_self_heal）
+        # 与直接调用方绕过 run()，直接进 execute_steps，故此处必须兜底。
+        # 仅在成功解析时注入；macro 为 None（如纯脚本验证）时无法定位项目，跳过。
+        if macro is not None and "base_url" not in params:
+            from app.core.execution.macro.runner import resolve_project_base_url
+
+            base_url = await resolve_project_base_url(macro.project_id)
+            if base_url:
+                params["base_url"] = base_url
 
         # 2. Activity Monitoring
         await activity_monitor.start_run(thread_id)
@@ -64,14 +75,14 @@ class MacroService:
             )
 
             if not success:
-                logger.error(f"[{thread_id}] Macro execution failed: {msg}")
+                logger.error("[%s] Macro execution failed: %s", thread_id, msg)
                 await activity_monitor.end_run(thread_id, "failed")
 
                 # --- Unified Self-Healing Decision ---
                 decision = SelfHealingPolicy.check(macro=macro, execution_params=params)
 
                 if not decision.allowed:
-                    logger.warning(f"[{thread_id}] Self-healing disabled: {decision.reason}")
+                    logger.warning("[%s] Self-healing disabled: %s", thread_id, decision.reason)
                     return MacroRunResult(
                         success=False,
                         message=msg,
@@ -81,21 +92,6 @@ class MacroService:
                     )
 
                 # Self-healing is allowed - trigger fallback via event system
-                from app.core.execution.macro.event import MacroExecutionFailedEvent
-
-                event = MacroExecutionFailedEvent(
-                    skill_id=params.get("_skill_id") if params else None,
-                    skill_name=params.get("_skill_name") if params else "manual_macro",
-                    error_message=msg,
-                    fallback_context=fallback_ctx,
-                    thread_id=thread_id,
-                )
-
-                # Publish event for listeners (advisor will add suggestions)
-                from app.core.execution.macro.event.publishers import (
-                    publish_macro_execution_failed,
-                )
-
                 event = await publish_macro_execution_failed(
                     skill_id=params.get("_skill_id") if params else None,
                     skill_name=params.get("_skill_name") if params else "manual_macro",
@@ -130,34 +126,3 @@ class MacroService:
             logger.error(f"[{thread_id}] Macro service crash: {e}", exc_info=True)
             await activity_monitor.end_run(thread_id, "failed")
             return MacroRunResult(success=False, message=f"System error during macro execution: {str(e)}")
-
-    @classmethod
-    def optimize(cls, script_input: MacroScript | list[dict]) -> MacroScript:
-        """
-        Utility to optimize a macro script.
-        """
-        if isinstance(script_input, list):
-            script = MacroScript(steps=script_input)
-        else:
-            script = script_input
-
-        optimizer = MacroOptimizer()
-        optimized_script, stats = optimizer.optimize(script)
-
-        if stats.reduction_ratio > 0:
-            logger.info(f"Macro optimized via Service: {stats}")
-
-        return optimized_script
-
-    @classmethod
-    def validate(cls, raw_data: Any) -> MacroScript:
-        """
-        Strict validation of macro data.
-        """
-        if isinstance(raw_data, list):
-            return MacroScript(steps=raw_data)
-        elif isinstance(raw_data, dict):
-            return MacroScript.parse_obj(raw_data)
-        elif isinstance(raw_data, MacroScript):
-            return raw_data
-        raise ValueError("Unsupported macro data type for validation")

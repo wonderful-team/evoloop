@@ -51,5 +51,5 @@ class OllamaEmbedder(BaseEmbedder):
         except Exception as e:
             # Fallback for newer /api/embed API?
             # Or handle error
-            logger.error(f"Ollama Embedding Error: {e}")
+            logger.exception(f"Ollama Embedding Error: {e}")
             raise e

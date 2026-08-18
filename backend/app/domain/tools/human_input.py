@@ -9,14 +9,12 @@ live there so they can also be used by the authorization framework.
 import logging
 from typing import Literal
 
-from app.core.context.manager import ContextManager
 from app.core.hitl import (
     create_request,
     push_hitl_notification,
     raise_hitl_interrupt,
 )
-from app.core.monitoring.activity import activity_monitor
-from app.core.monitoring.ui_actions import HumanRequestType
+from app.core.hitl.prompts import build_approval_context, resolve_tool_context
 from app.core.tools import evoloop_tool
 from app.domain.tools.schemas import RequestApprovalArgs, RequestHumanInputArgs
 from app.i18n.service import i18n
@@ -54,25 +52,15 @@ async def ask_human(
 
     Returns the user's response as a string.
     """
-    ctx = ContextManager.current()
-    if not ctx.thread_id:
-        raise ValueError("ask_human requires a thread_id in the current EvoContext")
-    thread_id = ctx.thread_id
-    project_id = ctx.project_id
-    command_id = ctx.command_id
-    current_tool_call_id = ctx.current_tool_call_id
-    last_ai_message_id = ctx.last_ai_message_id
+    ctx_fields = resolve_tool_context()
+    thread_id = ctx_fields["thread_id"]
+    project_id = ctx_fields["project_id"]
+    command_id = ctx_fields["command_id"]
+    current_tool_call_id = ctx_fields["tool_call_id"]
+    last_ai_message_id = ctx_fields["parent_id"]
 
-    # Map internal type to standardized HumanRequestType
-    type_map = {
-        "text": HumanRequestType.TEXT,
-        "choice": HumanRequestType.CHOICE,
-        "confirmation": HumanRequestType.CONFIRMATION,
-        "approval": HumanRequestType.APPROVAL,
-        "project_switch": HumanRequestType.PROJECT_SWITCH,
-        "file_select": HumanRequestType.FILE_SELECT,
-    }
-    request_type = type_map.get(input_type, HumanRequestType.TEXT)
+    # input_type 是 Literal 受限字符串，其值即标准 request_type
+    #（与 HumanRequestType 枚举值一致），直接透传给 create_request 校验。
 
     # Validate choice options
     if input_type == "choice" and not options:
@@ -115,26 +103,14 @@ async def ask_human(
 
     logger.info(f"Human input requested: {prompt[:50]}...")
 
-    # Notify Activity Monitor with Structured Data
-    await activity_monitor.set_human_request(
-        thread_id=thread_id,
-        request_data={
-            "id": request.id,
-            "type": request_type,
-            "prompt": prompt,
-            "options": options,
-            "context": context,
-            "default_value": default_value,
-        },
-    )
-
-    # Push HITL request via MessageHandler
+    # Push HITL request via MessageHandler (push_hitl_notification 内部会
+    # 同步调用 activity_monitor.set_human_request，此处不再重复通知)。
     await push_hitl_notification(
         thread_id=thread_id,
         request=request,
         request_data={
             "id": request.id,
-            "type": request_type,
+            "type": input_type,
             "prompt": prompt,
             "options": options,
             "context": context,
@@ -177,85 +153,38 @@ async def ask_confirm(
 
     Returns "APPROVED" or "REJECTED" based on user decision.
     """
-    ctx = ContextManager.current()
-    if not ctx.thread_id:
-        raise ValueError("ask_confirm requires a thread_id in the current EvoContext")
-    thread_id = ctx.thread_id
-    project_id = ctx.project_id
-    command_id = ctx.command_id
-    current_tool_call_id = ctx.current_tool_call_id
-    last_ai_message_id = ctx.last_ai_message_id
+    ctx_fields = resolve_tool_context()
+    thread_id = ctx_fields["thread_id"]
+    project_id = ctx_fields["project_id"]
+    command_id = ctx_fields["command_id"]
+    current_tool_call_id = ctx_fields["tool_call_id"]
+    last_ai_message_id = ctx_fields["parent_id"]
 
-    # Build approval context
-    risk_emoji = {
-        "low": "🟢",
-        "medium": "🟡",
-        "high": "🟠",
-        "critical": "🔴",
-    }
-
-    localized_risk = i18n.get(f"common.risk_levels.{risk_level}", default=risk_level.upper())
-
-    approval_context = f"""
-{risk_emoji.get(risk_level, "⚪")} {i18n.get("domain_tools.human_input.risk_level", level=localized_risk)}
-
-{i18n.get("domain_tools.human_input.action", action=action_description)}
-"""
-
-    if details:
-        approval_context += f"\n{i18n.get('domain_tools.human_input.details', details=details)}\n"
-
-    if consequences:
-        approval_context += f"\n{i18n.get('domain_tools.human_input.consequences', conseq=consequences)}\n"
-
-    # Create the request
-    request = await create_request(
-        thread_id=thread_id,
-        request_type="approval",
-        prompt=action_description,
-        context=approval_context,
-        default_value="REJECTED",  # Default to safe option
-    )
-
-    response_text = i18n.get(
-        "domain_tools.human_input.approval_template",
-        id=request.id,
-        approval_context=approval_context,
+    approval_context = build_approval_context(
+        action_description=action_description,
+        risk_level=risk_level,
+        details=details,
+        consequences=consequences,
     )
 
     logger.info(f"Approval requested for: {action_description[:50]}... (Risk: {risk_level})")
 
-    # Notify Activity Monitor with Structured Data
-    await activity_monitor.set_human_request(
-        thread_id=thread_id,
-        request_data={
-            "id": request.id,
-            "type": HumanRequestType.APPROVAL,
-            "prompt": action_description,
-            "context": approval_context,
-            "default_value": "REJECTED",
-            "risk_level": risk_level,
-        },
-    )
+    # 统一发起 approval（create + push + raise），用 i18n 模板生成响应文本
+    from app.core.hitl.orchestrator import HITLOrchestrator
 
-    # Push HITL approval via MessageHandler
-    await push_hitl_notification(
+    return await HITLOrchestrator.raise_approval(
         thread_id=thread_id,
-        request=request,
-        request_data={
-            "id": request.id,
-            "type": HumanRequestType.APPROVAL,
-            "prompt": action_description,
-            "context": approval_context,
-            "default_value": "REJECTED",
-            "risk_level": risk_level,
-        },
-        project_id=project_id,
-        run_id=str(command_id) if command_id else None,
+        prompt=action_description,
+        context=approval_context,
         tool_name="ask_confirm",
+        risk_level=risk_level,
         tool_call_id=current_tool_call_id,
         parent_id=last_ai_message_id,
+        project_id=project_id,
+        run_id=str(command_id) if command_id else None,
+        response_text_factory=lambda req: i18n.get(
+            "domain_tools.human_input.approval_template",
+            id=req.id,
+            approval_context=approval_context,
+        ),
     )
-
-    # Raise Interrupt Exception to pause execution
-    raise_hitl_interrupt(request.id, response_text)

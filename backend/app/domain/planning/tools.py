@@ -168,12 +168,12 @@ async def create_plan(
 
             await system_bus.publish(PlanUpdatedEvent(thread_id=thread_id, plan_id=plan_id))
         except Exception as e:
-            logger.warning(f"[create_plan] Failed to publish plan updated event: {e}")
+            logger.warning(f"[create_plan] Failed to publish plan updated event: {e}", exc_info=True)
 
         return return_text, meta
 
     except Exception as e:
-        logger.error(f"Failed to create plan in DB: {e}")
+        logger.exception(f"Failed to create plan in DB: {e}")
         return f"Error: {str(e)}", {"status": "error"}
 
 
@@ -255,7 +255,7 @@ async def update_step_status(
                     )
                 )
         except Exception as e:
-            logger.warning(f"[update_step_status] Failed to publish plan updated event: {e}")
+            logger.warning(f"[update_step_status] Failed to publish plan updated event: {e}", exc_info=True)
 
         return msg, meta
     except Exception as e:
@@ -314,5 +314,5 @@ async def analyze_feasibility(proposed_plan: str, config: RunnableConfig) -> str
         return report
 
     except Exception as e:
-        logger.error(f"Feasibility analysis failed: {e}")
+        logger.exception(f"Feasibility analysis failed: {e}")
         return f"Analysis Failed: {str(e)}"

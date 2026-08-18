@@ -64,7 +64,7 @@ async def emit_llm_start(callbacks: list, run_id: str, metadata: dict | None = N
                 metadata=metadata or {},
             )
         except _CALLBACK_EXCEPTIONS as e:
-            logger.debug(f"[CallbackBridge] on_llm_start failed: {e}")
+            logger.debug(f"[CallbackBridge] on_llm_start failed: {e}", exc_info=True)
 
 
 async def emit_llm_new_token(
@@ -81,7 +81,7 @@ async def emit_llm_new_token(
                 run_id=run_id,
             )
         except _CALLBACK_EXCEPTIONS as e:
-            logger.debug(f"[CallbackBridge] on_llm_new_token failed: {e}")
+            logger.debug(f"[CallbackBridge] on_llm_new_token failed: {e}", exc_info=True)
 
 
 async def emit_llm_end(
@@ -98,7 +98,7 @@ async def emit_llm_end(
             result = SimpleNamespace(generations=[[msg]])
             await cb.on_llm_end(response=result, run_id=run_id)
         except _CALLBACK_EXCEPTIONS as e:
-            logger.debug(f"[CallbackBridge] on_llm_end failed: {e}")
+            logger.debug(f"[CallbackBridge] on_llm_end failed: {e}", exc_info=True)
 
 
 async def emit_tool_start(
@@ -119,7 +119,7 @@ async def emit_tool_start(
                 tool_call_id=tool_call_id,
             )
         except _CALLBACK_EXCEPTIONS as e:
-            logger.debug(f"[CallbackBridge] on_tool_start failed: {e}")
+            logger.debug(f"[CallbackBridge] on_tool_start failed: {e}", exc_info=True)
 
 
 async def emit_tool_end(
@@ -138,7 +138,7 @@ async def emit_tool_end(
                 parent_run_id=parent_run_id,
             )
         except _CALLBACK_EXCEPTIONS as e:
-            logger.debug(f"[CallbackBridge] on_tool_end failed: {e}")
+            logger.debug(f"[CallbackBridge] on_tool_end failed: {e}", exc_info=True)
 
 
 async def emit_tool_error(
@@ -156,4 +156,4 @@ async def emit_tool_error(
                 parent_run_id=parent_run_id,
             )
         except _CALLBACK_EXCEPTIONS as e:
-            logger.debug(f"[CallbackBridge] on_tool_error failed: {e}")
+            logger.debug(f"[CallbackBridge] on_tool_error failed: {e}", exc_info=True)

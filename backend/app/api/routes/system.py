@@ -203,6 +203,56 @@ async def update_system_config(config: SystemConfig) -> SystemConfig:
     """Update system configuration and trigger side effects if needed."""
     return await SystemConfigService.set_value_async(config.key, config.value, config.description)
 
+# --- Customer Service Duty (global config) ---
+
+
+@router.get("/customer_service_duty", dependencies=[Depends(get_current_user)])
+async def get_customer_service_duty() -> dict:
+    """读取全局客服值守配置（总开关 + 渠道选择 + MCP 预加载）。"""
+    from app.core.channel.duty.config import load_global_duty_config
+
+    return load_global_duty_config()
+
+
+@router.post("/customer_service_duty/validate", dependencies=[Depends(get_current_user)])
+async def validate_customer_service_duty() -> dict:
+    """校验全局值守开启条件（企业微信客户端就绪）。返回 {ok, errors}。"""
+    from app.core.channel.duty import provision
+
+    errors = await provision.validate_global_duty()
+    return {"ok": len(errors) == 0, "errors": errors}
+
+
+@router.put("/customer_service_duty", dependencies=[Depends(get_current_user)])
+async def update_customer_service_duty(cfg: dict) -> dict:
+    """更新全局客服值守配置。渠道启用/启停时联动（§8.5.6 全局停止）。"""
+    from fastapi import HTTPException
+
+    from app.core.channel.duty import provision
+    from app.core.channel.duty.config import save_global_duty_config
+
+    enabled = bool(cfg.get("enabled", False))
+    old = await get_customer_service_duty()
+    old_channels = old.get("channels") or []
+    new_channels = cfg.get("channels") or []
+
+    # 启用企微渠道（wecom 从无到有）时校验企业微信就绪（防御：防绕过前端）
+    if "wecom" in new_channels and "wecom" not in old_channels:
+        errors = await provision.validate_global_duty()
+        if errors:
+            raise HTTPException(400, detail={"message": "企微渠道启用失败", "errors": errors})
+
+    save_global_duty_config(cfg)
+
+    # 全局关 → 停所有项目调度 + 协作式切断（托盘"停止值守"语义）
+    if not enabled and old.get("enabled"):
+        await provision.stop_global()
+    # 全局开 → 恢复所有保留 enabled 的项目的调度（总闸打开，分闸按项目意愿恢复）
+    elif enabled and not old.get("enabled"):
+        await provision.resume_global()
+    return cfg
+
+
 # --- Embedding Channel (independent tier chain) ---
 
 

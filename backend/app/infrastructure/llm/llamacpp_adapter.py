@@ -24,6 +24,7 @@ class LlamaCppChatModel:
     """
 
     model: str = "llama.cpp"
+    provider = "openai"
 
     def __init__(self, model_path: str, n_ctx: int = 8192, n_threads: int = 8):
         self._model_path = os.path.expanduser(model_path)

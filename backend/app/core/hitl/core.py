@@ -16,7 +16,9 @@ from sqlalchemy import select, update
 
 from app.core.exceptions import AgentHumanInterruptException
 from app.core.monitoring.activity import activity_monitor
+from app.core.monitoring.schemas import HumanRequestType
 from app.infrastructure.database import session_scope
+from app.models import Message
 from app.models.conversation import HumanRequest
 from app.utils.id import gen_uuid
 
@@ -81,6 +83,14 @@ async def create_request(
     default_value: str | None = None,
 ) -> HumanInputRequest:
     """Create and store a human input request in the database."""
+    # Fail-fast: validate request_type against the canonical enum (fail-fast
+    # per AGENTS.md; an invalid type would otherwise be silently persisted).
+    valid_types = {t.value for t in HumanRequestType}
+    if request_type not in valid_types:
+        raise ValueError(
+            f"Invalid request_type {request_type!r}; expected one of {sorted(valid_types)}"
+        )
+
     request_id = gen_uuid()
     async with session_scope() as session:
         db_request = HumanRequest(
@@ -101,15 +111,6 @@ async def create_request(
         return pydantic_req
 
 
-async def get_pending_request(request_id: str) -> HumanInputRequest | None:
-    """Get a pending request by ID from the database."""
-    async with session_scope() as session:
-        db_request = await session.get(HumanRequest, request_id)
-        if db_request:
-            return HumanInputRequest.from_db(db_request)
-    return None
-
-
 async def get_pending_requests_for_thread(thread_id: str) -> list[HumanInputRequest]:
     """Get all pending requests for a specific thread from the database."""
     async with session_scope() as session:
@@ -122,26 +123,6 @@ async def get_pending_requests_for_thread(thread_id: str) -> list[HumanInputRequ
         )
         result = await session.execute(stmt)
         return [HumanInputRequest.from_db(req) for req in result.scalars().all()]
-
-
-async def complete_request(request_id: str, response: Any) -> bool:
-    """Complete a pending request with user's response in the database."""
-    async with session_scope() as session:
-        stmt = (
-            update(HumanRequest)
-            .where(
-                HumanRequest.id == request_id,
-                HumanRequest.status == "pending",
-            )
-            .values(status="completed", result=str(response))
-        )
-        result = await session.execute(stmt)
-        success = result.rowcount > 0
-        if success:
-            logger.info(
-                f"Completed human input request {request_id} in DB with response: {response}"
-            )
-        return success
 
 
 async def cancel_request(request_id: str) -> bool:
@@ -162,44 +143,123 @@ async def cancel_request(request_id: str) -> bool:
         return success
 
 
-async def get_all_pending_requests() -> list[dict]:
-    """Get all pending requests from database as dictionaries (for API responses)."""
+async def finalize_request(
+    thread_id: str,
+    request_id: str | None,
+    tool_call_id: str | None,
+    status: Literal["completed", "cancelled"],
+    response: Any | None = None,
+    sibling_key: dict | None = None,
+) -> bool:
+    """Atomically finalize a HITL request across BOTH the human_requests table
+    and the messages (hitl_request) table in a single transaction.
+
+    This replaces the previous two-step close-then-update sequence, which ran
+    in separate transactions and could leave the two state tracks (A:
+    human_requests, B: messages) out of sync on partial failure.
+
+    ``tool_call_id`` may be ``None`` when the request was created outside a
+    tool execution context; in that case only the human_requests track is
+    updated (there is no corresponding message to close).
+
+    ``sibling_key``（``{"name": ..., "args": ...}``，由调用方从 pending_tool 传入）
+    用于关闭同线程下同工具+同参数的兄弟 pending 请求——Agent 重试可能为同一
+    工具创建多条 approval 请求，运营批准一条后其余残留 pending（见 handoff
+    mcp-confirm-gap §3.4）。未传则跳过（无额外查询开销）。
+    """
     async with session_scope() as session:
-        stmt = select(HumanRequest).where(HumanRequest.status == "pending")
-        result = await session.execute(stmt)
-        return [
-            {
-                "id": req.id,
-                "thread_id": req.thread_id,
-                "request_type": req.type,
-                "prompt": req.description,
-                "options": req.options,
-                "context": req.context,
-                "default_value": req.default_value,
-                "created_at": req.created_at.isoformat(),
-                "status": req.status,
-            }
-            for req in result.scalars().all()
-        ]
+        updated_request = False
+        if request_id:
+            req_stmt = (
+                update(HumanRequest)
+                .where(
+                    HumanRequest.id == request_id,
+                    HumanRequest.status == "pending",
+                )
+                .values(status=status, result=str(response) if response is not None else None)
+            )
+            updated_request = (await session.execute(req_stmt)).rowcount > 0
 
+        updated_message = False
+        if tool_call_id:
+            msg_stmt = (
+                update(Message)
+                .where(Message.thread_id == thread_id)
+                .where(Message.tool_call_id == tool_call_id)
+                .values(status=status)
+            )
+            updated_message = (await session.execute(msg_stmt)).rowcount > 0
 
-async def cleanup_old_requests(max_age_hours: int = 24) -> int:
-    """Remove old completed/cancelled requests from database."""
-    from datetime import timedelta
+        if tool_call_id and status == "completed" and sibling_key:
+            await _close_sibling_requests(session, thread_id, tool_call_id, status, sibling_key)
 
-    from sqlalchemy import delete
-
-    cutoff = datetime.utcnow() - timedelta(hours=max_age_hours)
-    async with session_scope() as session:
-        stmt = delete(HumanRequest).where(
-            HumanRequest.status.in_(["completed", "cancelled", "timeout"]),
-            HumanRequest.created_at < cutoff,
+        logger.info(
+            "[HITL] finalized request=%s tool=%s status=%s (human_requests=%s, messages=%s)",
+            request_id, tool_call_id, status, updated_request, updated_message,
         )
-        result = await session.execute(stmt)
-        count = result.rowcount
-        if count > 0:
-            logger.info(f"Cleaned up {count} old human input requests from DB")
-        return count
+        return updated_request or updated_message
+
+
+async def _close_sibling_requests(
+    session, thread_id: str, tool_call_id: str, status: str, sibling_key: dict
+) -> None:
+    """关闭同线程下与 ``sibling_key`` 同工具+同参数的兄弟 pending 请求（双轨）。
+
+    仅在调用方传入 ``sibling_key`` 时执行（含 ``original_tool`` 元数据的门控
+    请求）；普通 HITL 工具（ask_confirm/ask_human 等）不传，不会被误匹配。
+    """
+    try:
+        name = sibling_key.get("name")
+        args = sibling_key.get("args") or {}
+        if not name:
+            return
+
+        # 查同线程其他 waiting_human 的 hitl_request 消息（同 original_tool）
+        siblings = await session.execute(
+            select(Message)
+            .where(
+                Message.thread_id == thread_id,
+                Message.role == "system",
+                Message.category == "hitl_request",
+                Message.status == "waiting_human",
+                Message.tool_call_id != tool_call_id,
+            )
+        )
+        closed = 0
+        for sibling in siblings.scalars().all():
+            smeta = sibling.meta_data or {}
+            s_tool = smeta.get("original_tool") or {}
+            if s_tool.get("name") != name:
+                continue
+            if (s_tool.get("args") or {}) != args:
+                continue
+            # 关闭 messages 轨
+            await session.execute(
+                update(Message)
+                .where(Message.id == sibling.id)
+                .values(status=status)
+            )
+            # 关闭 human_requests 轨（meta_data.hitl_request_id）
+            s_req_id = smeta.get("hitl_request_id")
+            if s_req_id:
+                await session.execute(
+                    update(HumanRequest)
+                    .where(
+                        HumanRequest.id == s_req_id,
+                        HumanRequest.status == "pending",
+                    )
+                    .values(status=status)
+                )
+            closed += 1
+
+        if closed:
+            logger.info(
+                "[HITL] Closed %d sibling request(s) matching %s %s (thread=%s)",
+                closed, name, args, thread_id,
+            )
+    except Exception as e:
+        # 批量关闭是优化非关键路径，失败不应阻断主流程 finalize。
+        logger.warning(f"[HITL] Failed to close sibling requests: {e}", exc_info=True)
 
 
 # ============ Notification & Interrupt ============
@@ -218,6 +278,7 @@ async def push_hitl_notification(
     original_tool_args: dict | None = None,
     resource_path: str | None = None,
     action: str | None = None,
+    skip_grant: bool = False,
 ) -> None:
     """
     Push a HITL request to the activity monitor and the message handler.
@@ -252,6 +313,9 @@ async def push_hitl_notification(
                 "action": action,
                 "project_id": project_id,
             }
+        if skip_grant:
+            metadata["authorization"] = metadata.get("authorization") or {}
+            metadata["authorization"]["skip_grant"] = True
         asyncio.create_task(
             handler.handle_hitl_request(
                 request_type=request.request_type,
@@ -267,7 +331,7 @@ async def push_hitl_notification(
             )
         )
     except Exception as e:
-        logger.warning(f"Failed to push HITL request via MessageHandler: {e}")
+        logger.warning(f"Failed to push HITL request via MessageHandler: {e}", exc_info=True)
 
 
 def raise_hitl_interrupt(request_id: str, response_text: str) -> None:

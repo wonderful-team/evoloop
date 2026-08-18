@@ -47,7 +47,7 @@ class QueryRewriter:
             return rewritten
 
         except Exception as e:
-            logger.warning(f"Query rewriting failed: {e}. Using original query.")
+            logger.warning(f"Query rewriting failed: {e}. Using original query.", exc_info=True)
             return query
 
 

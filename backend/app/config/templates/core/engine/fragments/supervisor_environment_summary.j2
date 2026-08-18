@@ -1,4 +1,4 @@
-{%- if environment_summaries -%}
+## Environment
 - Host: {{ environment_summaries.host.model or 'unknown' }} ({{ environment_summaries.host.cpu or 'unknown' }}), {{ environment_summaries.host.os_name or 'unknown' }} {{ environment_summaries.host.os_version or '' }}{% if environment_summaries.host.current_time %} — Current time: {{ environment_summaries.host.current_time }}{% endif %}
 {%- if environment_summaries.host.cpu_percent is not none or environment_summaries.host.memory_percent is not none %}
 - Real-time telemetry: CPU {{ environment_summaries.host.cpu_percent or '?' }}%, Memory {{ environment_summaries.host.memory_percent or '?' }}% ({{ environment_summaries.host.memory_available_gb or '?' }} GB available), Disk {{ environment_summaries.host.disk_space.percent_used or '?' }}% used ({{ environment_summaries.host.disk_space.free_gb or '?' }} GB free)
@@ -23,4 +23,3 @@
 {%- if environment_summaries.service_labels or environment_summaries.docker_containers %}
 - Active services: {{ environment_summaries.service_labels|join(', ') if environment_summaries.service_labels else 'none' }}; Docker: {{ environment_summaries.docker_containers|map(attribute='name')|join(', ') if environment_summaries.docker_containers else 'none' }}
 {%- endif %}
-{%- endif -%}

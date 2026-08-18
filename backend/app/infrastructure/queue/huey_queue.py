@@ -240,17 +240,25 @@ class HueyTaskScheduler(TaskScheduler, SyncTaskMixin):
         return decorator
 
     def _run_async_task(self, func: Callable, bind: bool, *args, **kwargs):
-        """Run async function in Huey worker with enhanced error handling."""
+        """Run async function in Huey worker with enhanced error handling.
+
+        Event loop strategy: reuse the thread's existing loop if one is set
+        (set_event_loop by worker startup / a previous task), instead of
+        creating a fresh loop per task. Per-task loops caused cross-loop usage
+        of loop-bound resources (MCP sessions, evocloud clients) which hung on
+        health checks (AsyncExitStack bound to a different task/loop).
+        """
         import traceback
 
-        # Determine if we are already in an event loop (common in tests or embedded mode)
+        # Reuse the thread's event loop when one is already set (persistent
+        # loop from worker startup), otherwise create and set one.
         try:
             loop = asyncio.get_running_loop()
             is_running = True
         except RuntimeError:
             is_running = False
             try:
-                loop = asyncio.get_running_loop()
+                loop = asyncio.get_event_loop()
             except RuntimeError:
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
@@ -285,17 +293,14 @@ class HueyTaskScheduler(TaskScheduler, SyncTaskMixin):
             # Log the full exception for debugging
             error_msg = f"[Huey] Task execution failed: {func.__name__}: {type(e).__name__}: {e}"
             logger.error(error_msg)
-            logger.error(f"[Huey] Full traceback:\n{traceback.format_exc()}")
+            logger.exception(f"[Huey] Full traceback:\n{traceback.format_exc()}")
             # Re-raise to let Huey handle retries
             raise
         finally:
-            # Clean up resources in this loop
-            try:
-                from app.utils.async_utils import flush_loop_bound_resources
-
-                loop.run_until_complete(flush_loop_bound_resources())
-            except Exception as e:
-                logger.warning(f"[Huey] Failed to flush resources in task {func.__name__}: {e}")
+            # Do NOT flush loop-bound resources here: with a persistent/reused
+            # loop, flushing would tear down MCP/evocloud sessions that the
+            # next task relies on (causing reconnect churn or cross-loop hangs).
+            pass
 
     def _create_result(self, huey_task: Task) -> HueyTaskResult:
         """Create a result wrapper for a Huey task."""
@@ -348,7 +353,7 @@ class HueyTaskScheduler(TaskScheduler, SyncTaskMixin):
 
         except Exception as e:
             # If execution fails, log and re-raise
-            logger.error(f"[Huey] Task {name} execution failed: {e}")
+            logger.exception(f"[Huey] Task {name} execution failed: {e}")
             raise
 
     def _load_task_module(self, task_name: str) -> bool:
@@ -359,6 +364,9 @@ class HueyTaskScheduler(TaskScheduler, SyncTaskMixin):
             try:
                 __import__(module_path)
             except Exception:
+                logger.warning(
+                    "[Huey] Failed to import task module %s", module_path, exc_info=True
+                )
                 continue
             # Check if the task name is now registered
             if task_name in self._tasks:
@@ -418,7 +426,7 @@ class HueyTaskScheduler(TaskScheduler, SyncTaskMixin):
                 loaded_count += 1
                 logger.debug(f"[Huey] Loaded module: {module_path}")
             except Exception as e:
-                logger.warning(f"[Huey] Failed to load {module_path}: {e}")
+                logger.warning(f"[Huey] Failed to load {module_path}: {e}", exc_info=True)
 
         logger.info(f"[Huey] Pre-loaded {loaded_count} task modules")
 
@@ -437,10 +445,19 @@ class HueyTaskScheduler(TaskScheduler, SyncTaskMixin):
         """
         from huey import crontab
 
+        # huey 的 crontab() 期待 5 个位置参数（minute hour day month dow），
+        # 不是单个 cron 字符串。拆解字符串避免整个串被当成 minute 导致永不匹配。
+        fields = cron.split()
+        if len(fields) != 5:
+            raise ValueError(f"Invalid cron expression: {cron!r} (expected 5 fields)")
+        minute, hour, day, month, day_of_week = fields
+
         def decorator(f: Callable):
             task_name = name or f"{f.__module__}.{f.__name__}"
 
-            @self._huey.periodic_task(crontab(cron), name=task_name, **kwargs)
+            @self._huey.periodic_task(
+                crontab(minute, hour, day, month, day_of_week), name=task_name, **kwargs
+            )
             def periodic_wrapper():
                 if asyncio.iscoroutinefunction(f):
                     return self._run_async_task(f, False)

@@ -233,7 +233,7 @@ class MatlabLanguageServer(SolidLanguageServer):
             return True
 
         except Exception as e:
-            log.error(f"Error downloading/extracting MATLAB extension: {e}")
+            log.exception(f"Error downloading/extracting MATLAB extension: {e}")
             return False
 
     @classmethod

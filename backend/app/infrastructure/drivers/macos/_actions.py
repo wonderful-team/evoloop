@@ -35,9 +35,9 @@ class ActionsMixin:
             logger.info(f"Clicked at ({x}, {y}) via CGEvent")
             return
         except (ImportError, AttributeError) as e:
-            logger.debug(f"Quartz not available or failed: {e}, trying cliclick")
+            logger.debug(f"Quartz not available or failed: {e}, trying cliclick", exc_info=True)
         except Exception as e:
-            logger.warning(f"CGEvent click failed: {e}, trying fallback")
+            logger.warning(f"CGEvent click failed: {e}, trying fallback", exc_info=True)
 
         cliclick_paths = ["/opt/homebrew/bin/cliclick", "/usr/local/bin/cliclick"]
         for cliclick_path in cliclick_paths:
@@ -48,7 +48,7 @@ class ActionsMixin:
                         logger.info(f"Clicked at ({x}, {y}) via cliclick")
                         return
                 except Exception as e:
-                    logger.warning(f"cliclick failed: {e}")
+                    logger.warning(f"cliclick failed: {e}", exc_info=True)
 
         raise RuntimeError(
             f"Cannot click at ({x}, {y}). "
@@ -98,7 +98,7 @@ class ActionsMixin:
             logger.info(f"Double-clicked at ({x}, {y}) via CGEvent")
             return
         except (ImportError, AttributeError) as e:
-            logger.debug(f"Quartz double-click failed: {e}")
+            logger.debug(f"Quartz double-click failed: {e}", exc_info=True)
 
         cliclick_paths = ["/opt/homebrew/bin/cliclick", "/usr/local/bin/cliclick"]
         for path in cliclick_paths:
@@ -128,7 +128,7 @@ class ActionsMixin:
                 logger.info(f"Typed text via clipboard: {text[:20]}...")
                 return
             except Exception as e:
-                logger.warning(f"Clipboard injection failed: {e}. Falling back to keystroke.")
+                logger.warning(f"Clipboard injection failed: {e}. Falling back to keystroke.", exc_info=True)
 
         escaped_text = text.replace("\\", "\\\\").replace('"', '\\"')
 

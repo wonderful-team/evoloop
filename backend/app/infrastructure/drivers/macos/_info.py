@@ -33,6 +33,7 @@ class InfoMixin:
             logger.info(f"[MacOSDriver] UI scale factor detected and cached: {scale}x")
             return scale
         except Exception as e:
+            # 预期降级：scale factor 不可用时回退 1.0（非 Retina），非错误，不打印 Traceback。
             logger.debug(f"[MacOSDriver] Failed to calculate scale factor: {e}")
             return 1.0
 

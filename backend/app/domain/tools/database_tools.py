@@ -91,5 +91,5 @@ def sql_query(db_uri: str, sql: str) -> str:
             return json.dumps(response, ensure_ascii=False)
 
     except Exception as e:
-        logger.error(f"Failed to execute SQL: {e}")
+        logger.exception(f"Failed to execute SQL: {e}")
         return json.dumps({"status": "error", "message": str(e)})

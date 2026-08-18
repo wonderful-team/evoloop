@@ -121,7 +121,7 @@ async def search_memory_vector(
         )
 
     except Exception as e:
-        logger.error(f"Vector search failed: {e}")
+        logger.exception(f"Vector search failed: {e}")
         raise HTTPException(status_code=500, detail=f"Vector search failed: {str(e)}")
 
 
@@ -190,7 +190,7 @@ async def search_memory_hybrid(
         )
 
     except Exception as e:
-        logger.error(f"Hybrid search failed: {e}")
+        logger.exception(f"Hybrid search failed: {e}")
         text_results = await manager.search_concepts_data(
             q,
             project_id,

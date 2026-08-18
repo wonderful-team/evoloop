@@ -122,7 +122,7 @@ class MemoryPruningService:
                             })
                             logger.info(f"[Pruning] Silently deleted fulfilled task memory {mem.id}")
         except Exception as e:
-            logger.warning(f"[Pruning] Failed to check fulfilled tasks: {e}")
+            logger.warning(f"[Pruning] Failed to check fulfilled tasks: {e}", exc_info=True)
 
         return logs
 
@@ -150,7 +150,7 @@ class MemoryPruningService:
                 else ""
             )
         except Exception as e:
-            logger.warning(f"[Pruning] Failed to gather project context for semantic pruning: {e}")
+            logger.warning(f"[Pruning] Failed to gather project context for semantic pruning: {e}", exc_info=True)
             return []
 
         # Batch evaluation
@@ -194,7 +194,7 @@ class MemoryPruningService:
                         })
             return logs
         except Exception as e:
-            logger.error(f"[Pruning] Semantic pruning failed: {e}")
+            logger.exception(f"[Pruning] Semantic pruning failed: {e}")
             return []
 
     def _format_memories_for_eval(self, memories: list[MemoryEntry]) -> str:
@@ -267,7 +267,7 @@ class MemoryConsolidator:
                     })
             return logs
         except Exception as e:
-            logger.warning(f"[Consolidation] Failed: {e}")
+            logger.warning(f"[Consolidation] Failed: {e}", exc_info=True)
             return []
 
     def _format_memories(self, memories: list[MemoryEntry]) -> str:

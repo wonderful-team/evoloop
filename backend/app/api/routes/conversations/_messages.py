@@ -168,7 +168,7 @@ async def rewind_conversation(
             removed_count=0
         )
     except Exception as e:
-        logger.error(f"Rewind failed: {e}")
+        logger.exception(f"Rewind failed: {e}")
         raise HTTPException(500, str(e))
 
 

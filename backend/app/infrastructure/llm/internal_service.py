@@ -113,7 +113,7 @@ class InternalLLMService:
             return response
 
         except Exception as e:
-            logger.error(f"[InternalLLM] Failed for purpose '{purpose}': {e}")
+            logger.exception(f"[InternalLLM] Failed for purpose '{purpose}': {e}")
             raise
 
     @staticmethod
@@ -161,7 +161,7 @@ class InternalLLMService:
             logger.warning(
                 f"[InternalLLM] Structured call failed for '{purpose}': {e}. "
                 "Attempting fallback to clean text generation and custom parsing."
-            )
+            , exc_info=True)
 
             # 1. 尝试直接从 ValidationError 中提取原始 LLM 返回的文本（零延迟，避免重新请求网络）
             raw_content = None
@@ -171,26 +171,26 @@ class InternalLLMService:
                     # 仅当 JSON 反序列化失败且输入为字符串时，将输入拿出来
                     if errors and errors[0].get("type") == "json_invalid" and isinstance(errors[0].get("input"), str):
                         raw_content = errors[0]["input"]
-                        logger.info(f"[InternalLLM] Extracted raw content directly from ValidationError for '{purpose}'.")
+                        logger.info(f"[InternalLLM] Extracted raw content directly from ValidationError for '{purpose}'.", exc_info=True)
                 except Exception as extract_err:
-                    logger.warning(f"[InternalLLM] Failed to extract input from ValidationError: {extract_err}")
+                    logger.warning(f"[InternalLLM] Failed to extract input from ValidationError: {extract_err}", exc_info=True)
 
             # 2. 尝试从 OutputParserException.llm_output 提取（若适用）
             if not raw_content and hasattr(e, "llm_output") and isinstance(e.llm_output, str):
                 raw_content = e.llm_output
-                logger.info(f"[InternalLLM] Extracted raw content from OutputParserException.llm_output for '{purpose}'.")
+                logger.info(f"[InternalLLM] Extracted raw content from OutputParserException.llm_output for '{purpose}'.", exc_info=True)
 
             # 3. 只有实在拿不到原始响应时，才作为终极手段重新调用一次 llm.ainvoke
             if not raw_content:
                 try:
-                    logger.info(f"[InternalLLM] Re-invoking LLM as fallback for '{purpose}'...")
+                    logger.info(f"[InternalLLM] Re-invoking LLM as fallback for '{purpose}'...", exc_info=True)
                     fallback_response = await llm.ainvoke(messages, config=config)
                     raw_content = (
                         fallback_response.content
                         if hasattr(fallback_response, "content") else str(fallback_response)
                     )
                 except Exception as fallback_err:
-                    logger.error(f"[InternalLLM] Fallback LLM re-invocation also failed for '{purpose}': {fallback_err}")
+                    logger.exception(f"[InternalLLM] Fallback LLM re-invocation also failed for '{purpose}': {fallback_err}")
                     raise e
 
             # 4. 复用系统已有的 utils/extract 进行解析与验证；model_validate 前先做通用兼容修复
@@ -203,10 +203,10 @@ class InternalLLMService:
 
                 parsed_data = InternalLLMService._coerce_data_to_schema(parsed_data, output_schema)
                 result = output_schema.model_validate(parsed_data)
-                logger.info(f"[InternalLLM] Fallback parsing succeeded for '{purpose}'.")
+                logger.info(f"[InternalLLM] Fallback parsing succeeded for '{purpose}'.", exc_info=True)
                 return result
             except Exception as parse_err:
-                logger.error(
+                logger.exception(
                     f"[InternalLLM] Fallback parsing failed to parse/validate JSON for '{purpose}': {parse_err}. "
                     f"Raw content preview: {repr(raw_content[:200]) if raw_content else 'None'}"
                 )

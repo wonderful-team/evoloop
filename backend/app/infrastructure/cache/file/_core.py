@@ -46,7 +46,7 @@ class _FileCacheCore:
             with open(path, encoding="utf-8") as f:
                 return json.load(f)
         except (OSError, json.JSONDecodeError) as e:
-            logger.debug(f"Cache read error for {category}/{name}: {e}")
+            logger.debug(f"Cache read error for {category}/{name}: {e}", exc_info=True)
             return None
 
     def _read(self, category: str, name: str) -> Any:
@@ -67,7 +67,7 @@ class _FileCacheCore:
                 json.dump(data, f, ensure_ascii=False, indent=2)
             return True
         except OSError as e:
-            logger.debug(f"Cache write error for {category}/{name}: {e}")
+            logger.debug(f"Cache write error for {category}/{name}: {e}", exc_info=True)
             return False
 
     def _delete(self, category: str, name: str) -> bool:
@@ -77,7 +77,7 @@ class _FileCacheCore:
                 path.unlink()
             return True
         except OSError as e:
-            logger.debug(f"Cache delete error for {category}/{name}: {e}")
+            logger.debug(f"Cache delete error for {category}/{name}: {e}", exc_info=True)
             return False
 
     async def get(self, key: str) -> Any | None:

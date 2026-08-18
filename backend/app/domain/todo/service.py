@@ -65,7 +65,7 @@ class TodoService:
             from app.domain.todo.event.publishers import publish_todo_updated
             await publish_todo_updated(todo_id=todo_id, action=action, project_id=project_id)
         except Exception as e:
-            logger.warning(f"[TodoService] Failed to publish todo updated event: {e}")
+            logger.warning(f"[TodoService] Failed to publish todo updated event: {e}", exc_info=True)
 
     # ============== Creation ==============
 
@@ -374,9 +374,9 @@ class TodoServiceSync:
         Raises:
             TodoNotFoundError: If todo not found
         """
-        from app.infrastructure.database import session_scope
+        from app.infrastructure.database import sync_session_scope
 
-        with session_scope() as session:
+        with sync_session_scope() as session:
             # Re-query within session context
             result = session.execute(select(TodoItem).where(TodoItem.id == todo_id))
             todo = result.scalar_one_or_none()
@@ -407,9 +407,9 @@ class TodoServiceSync:
         Raises:
             TodoNotFoundError: If todo not found
         """
-        from app.infrastructure.database import session_scope
+        from app.infrastructure.database import sync_session_scope
 
-        with session_scope() as session:
+        with sync_session_scope() as session:
             result = session.execute(select(TodoItem).where(TodoItem.id == todo_id))
             todo = result.scalar_one_or_none()
 

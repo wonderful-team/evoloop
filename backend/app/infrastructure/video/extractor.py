@@ -32,7 +32,7 @@ class FrameExtractor:
             except (ImportError, OSError, ValueError, RuntimeError) as e:
                 logger.warning(
                     f"[FrameExtractor] Failed to use hierarchical storage: {e}, using fallback"
-                )
+                , exc_info=True)
         video_name = Path(self.video_path).stem
         output_dir = Path(self.video_path).parent / f"{video_name}_frames"
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -75,7 +75,7 @@ class FrameExtractor:
                         f"Failed to extract frame at {ts_sec}s: {result.stderr[:200]}"
                     )
             except subprocess.TimeoutExpired:
-                logger.error(f"ffmpeg timed out extracting frame at {ts_sec}s")
+                logger.exception(f"ffmpeg timed out extracting frame at {ts_sec}s")
             except FileNotFoundError:
                 logger.error("ffmpeg not found. Install it with: brew install ffmpeg")
                 break
@@ -117,7 +117,7 @@ class FrameExtractor:
                         for el in vision_result.elements
                     ]
             except (OSError, RuntimeError, ValueError, TypeError) as e:
-                logger.warning(f"Vision analysis skipped for {frame_path}: {e}")
+                logger.warning(f"Vision analysis skipped for {frame_path}: {e}", exc_info=True)
             results.append(result)
         return results
 

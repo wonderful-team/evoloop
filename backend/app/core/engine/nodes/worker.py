@@ -77,7 +77,7 @@ class WorkerNode(BaseAgentNode):
                             f"[Worker] Loaded plan from DB: {plan_dict['title']} ({len(plan_dict['steps'])} steps)"
                         )
                 except (ImportError, SQLAlchemyError) as e:
-                    logger.warning(f"[Worker] Failed to load plan from DB: {e}")
+                    logger.warning(f"[Worker] Failed to load plan from DB: {e}", exc_info=True)
 
         return None
 

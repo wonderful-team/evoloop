@@ -72,7 +72,7 @@ async def handle_multi_edit(
             repo_path = get_working_directory(config)
             diagnostics = await engine.check_types(target_path, repo_path)
         except Exception as e:
-            logger.debug(f"[Type Check] Failed: {e}")
+            logger.debug(f"[Type Check] Failed: {e}", exc_info=True)
         template_context["diagnostics"] = diagnostics
 
     # Record Rewind operation
@@ -101,7 +101,7 @@ async def handle_multi_edit(
                 tool_call_id=ctx.current_tool_call_id,
             )
         except Exception as e:
-            logger.error(f"Failed to persist file operation: {e}")
+            logger.exception(f"Failed to persist file operation: {e}")
 
     return render_template("domain/tools/multi_edit_success.prompt.j2", **template_context), {"count": result["applied_edits"]}
 
@@ -158,7 +158,7 @@ async def handle_edit(request: EditFileRequest) -> str:
             repo_path = get_working_directory(request.config)
             diagnostics = await engine.check_types(target_path, repo_path)
         except Exception as e:
-            logger.debug(f"[Type Check] Failed: {e}")
+            logger.debug(f"[Type Check] Failed: {e}", exc_info=True)
         template_context["diagnostics"] = diagnostics
 
     if result["success"]:
@@ -188,7 +188,7 @@ async def handle_edit(request: EditFileRequest) -> str:
                     tool_call_id=ctx.current_tool_call_id,
                 )
             except Exception as e:
-                logger.error(f"Failed to persist file operation: {e}")
+                logger.exception(f"Failed to persist file operation: {e}")
 
     return render_template("domain/tools/edit_result.prompt.j2", **template_context)
 

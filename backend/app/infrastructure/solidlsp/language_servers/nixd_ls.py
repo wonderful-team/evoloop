@@ -202,7 +202,7 @@ class NixLanguageServer(SolidLanguageServer):
         except subprocess.TimeoutExpired:
             log.warning("Nix install timed out after 10 minutes")
         except Exception as e:
-            log.error(f"Error installing nixd with nix: {e}")
+            log.exception(f"Error installing nixd with nix: {e}")
 
         return None
 

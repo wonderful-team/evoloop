@@ -99,6 +99,7 @@ class AdaptiveChatOpenAI:
     A robust, native, SDK-free ChatOpenAI wrapper that implements DeepCode's 'Adaptive Token Strategy'.
     """
 
+    provider = "openai"
     retry_max_tokens_base: int = 32000
     adaptive_retries: int = 3
 

@@ -10,6 +10,14 @@ from typing import Any
 from pydantic import Field
 
 from app.core.events.base import BaseEvent
+from app.core.events.registry import SystemEventType
+
+_EVENT_TYPE_MAP = {
+    "create": SystemEventType.MACRO_CREATED,
+    "update": SystemEventType.MACRO_UPDATED,
+    "delete": SystemEventType.MACRO_DELETED,
+    "obsolete": SystemEventType.MACRO_OBSOLETED,
+}
 
 
 class MacroEvent(BaseEvent):
@@ -54,15 +62,7 @@ class MacroMutatedEvent(MacroEvent):
     name: str | None = None
 
     def model_post_init(self, __context: Any) -> None:
-        from app.core.events.registry import SystemEventType
-
-        event_type_map = {
-            "create": SystemEventType.MACRO_CREATED,
-            "update": SystemEventType.MACRO_UPDATED,
-            "delete": SystemEventType.MACRO_DELETED,
-            "obsolete": SystemEventType.MACRO_OBSOLETED,
-        }
-        self.event_type = event_type_map.get(self.action) or ""
+        self.event_type = _EVENT_TYPE_MAP.get(self.action) or ""
         self.data = {
             "macro_id": self.macro_id,
             "action": self.action,

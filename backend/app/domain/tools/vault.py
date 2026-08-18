@@ -50,7 +50,7 @@ async def list_vault_credentials(
                 output.append(f"  *Description*: {c['description']}")
         return "\n".join(output)
     except Exception as e:
-        logger.error(f"Failed to list credentials: {e}")
+        logger.exception(f"Failed to list credentials: {e}")
         return f"Error listing credentials: {str(e)}"
 
 
@@ -125,5 +125,5 @@ async def request_secure_credential(
             f"You can now use it in tools using the placeholder: `{{{{vault.{identifier}.<field>}}}}`"
         )
     except Exception as e:
-        logger.error(f"Failed to save credential: {e}")
+        logger.exception(f"Failed to save credential: {e}")
         return f"Error: Failed to save credential: {str(e)}"

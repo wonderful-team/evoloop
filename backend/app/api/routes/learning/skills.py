@@ -12,23 +12,21 @@ from fastapi import (
     Query,
     Response,
 )
-from sqlalchemy import func, or_, select
 
 from app.api.deps import CurrentUserOptional, require_benefit
 from app.api.responses import BaseAPIResponse
 from app.constants import DEFAULT_PROJECT_ID
-from app.core.engine.background_agent import run_agent_background
 from app.core.engine.dispatch import dispatch_agent_run
-from app.core.events.publishers import publish_skill_mutated
-from app.core.execution.macro.compiler import MacroScriptCompiler
-from app.core.execution.macro.lifecycle import create_macro_from_synthesis
-from app.core.execution.macro.runner import (
+from app.core.events.publishers import publish_macro_mutated, publish_skill_mutated
+from app.core.execution.macro import (
     WEB_POLICY,
-    MacroGateError,
-    preflight,
-    run_deterministic,
+    MacroEngine,
+    MacroScriptCompiler,
+    confirm_macro,
+    create_macro_from_synthesis,
+    load_macro,
+    update_macro,
 )
-from app.core.learning.discovery import skill_discovery
 from app.core.learning.schemas import (
     CreateSkillFromYamlRequest,
     CreateSkillFromYamlResponse,
@@ -48,17 +46,27 @@ from app.core.learning.schemas import (
     ValidateYamlRequest,
     ValidateYamlResponse,
 )
-from app.core.learning.skill_importer import SkillImporter
-from app.core.learning.skill_lifecycle import (
+from app.core.learning.skills.discovery import skill_discovery
+from app.core.learning.skills.importer import SkillImporter
+from app.core.learning.skills.lifecycle import (
+    SkillConflictError,
+    SkillNotFoundError,
+    apply_validation_result,
+    confirm_skill,
     create_from_synthesis,
     deduplicate_name,
 )
-from app.core.learning.skill_validator import SkillValidator
-from app.core.learning.skill_visibility import visible_filter
-from app.core.learning.trace_parser import TraceParser
+from app.core.learning.skills.lifecycle import (
+    delete_skill as delete_skill_record,
+)
+from app.core.learning.skills.lifecycle import (
+    update_skill as update_skill_record,
+)
+from app.core.learning.skills.repository import skill_repository
+from app.core.learning.skills.validator import SkillValidator
+from app.core.learning.trace.parser import TraceParser
 from app.core.learning.workflow_synthesizer import WorkflowSynthesizer
 from app.infrastructure.database import session_scope
-from app.models import LearnedSkill
 from app.utils.parameters import (
     derive_parameters_from_macro,
     missing_required_params,
@@ -85,7 +93,9 @@ async def synthesize_skill(
     try:
         parser = TraceParser(body.thread_id, body.session_id)
         sequence = await parser.parse()
-        synthesizer = WorkflowSynthesizer(body.thread_id, body.session_id, sequence=sequence)
+        synthesizer = WorkflowSynthesizer(
+            body.thread_id, body.session_id, sequence=sequence
+        )
         result = await synthesizer.synthesize()
         skill = result.skill
         if skill is None:
@@ -121,6 +131,7 @@ async def synthesize_skill(
             db_skill.macro_id = new_macro.id
 
         await publish_skill_mutated(skill_id=db_skill.id, action="create")
+        await publish_macro_mutated(new_macro.id, action="create")
 
         return SynthesizeSkillResponse(
             success=True,
@@ -164,147 +175,100 @@ async def list_skills(
     try:
         await skill_discovery.ensure_system_skills_synced()
     except Exception as e:
-        logger.warning(f"Background skill sync failed during list: {e}")
+        logger.warning(f"Background skill sync failed during list: {e}", exc_info=True)
 
-    async with session_scope() as db:
-        stmt = select(LearnedSkill).where(
-            or_(
-                LearnedSkill.member_id == 0,
-                LearnedSkill.member_id == (_member_id(current_user)),
+    skills, total = await skill_repository.list_page(
+        page=page,
+        page_size=page_size,
+        member_id=_member_id(current_user),
+        active_only=active_only,
+    )
+
+    return PaginatedSkillsResponse(
+        data=[
+            SkillDTO(
+                id=s.id,
+                name=s.name,
+                description=s.description,
+                namespace=s.namespace,
+                trigger_patterns=_normalize_json_list(s.trigger_patterns),
+                parameters=_normalize_skill_params(s.parameters),
+                tools_used=_normalize_json_list(s.tools_used),
+                success_count=s.success_count,
+                failure_count=s.failure_count,
+                is_active=s.is_active,
+                status=s.status,
+                macro_id=s.macro_id,
+                validation_report=s.validation_report,
+                instructions=s.instructions,
+                created_at=s.created_at,
+                updated_at=s.updated_at,
             )
-        )
-        if active_only:
-            stmt = stmt.where(visible_filter())
-
-        count_stmt = select(func.count()).select_from(stmt.subquery())
-        total = (await db.execute(count_stmt)).scalar() or 0
-
-        stmt = stmt.order_by(LearnedSkill.created_at.desc())
-        stmt = stmt.offset((page - 1) * page_size).limit(page_size)
-
-        result = await db.execute(stmt)
-        skills = result.scalars().all()
-
-        return PaginatedSkillsResponse(
-            data=[
-                SkillDTO(
-                    id=s.id,
-                    name=s.name,
-                    description=s.description,
-                    namespace=s.namespace,
-                    trigger_patterns=_normalize_json_list(s.trigger_patterns),
-                    parameters=_normalize_skill_params(s.parameters),
-                    tools_used=_normalize_json_list(s.tools_used),
-                    success_count=s.success_count,
-                    failure_count=s.failure_count,
-                    is_active=s.is_active,
-                    status=s.status,
-                    macro_id=s.macro_id,
-                    validation_report=s.validation_report,
-                    instructions=s.instructions,
-                    created_at=s.created_at,
-                    updated_at=s.updated_at,
-                )
-                for s in skills
-            ],
-            total=total,
-            page=page,
-            page_size=page_size,
-        )
+            for s in skills
+        ],
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
 
 
 @router.get("/skills/{skill_id}", response_model=SkillDetailResponse)
 async def get_skill(skill_id: int, current_user: CurrentUserOptional = None):
     """Get full details of a specific skill."""
-    async with session_scope() as db:
-        stmt = (
-            select(LearnedSkill)
-            .where(
-                or_(
-                    LearnedSkill.member_id == 0,
-                    LearnedSkill.member_id == (_member_id(current_user)),
-                )
-            )
-            .where(LearnedSkill.id == skill_id)
-        )
-        result = await db.execute(stmt)
-        skill = result.scalar_one_or_none()
+    skill = await skill_repository.get_by_id(
+        skill_id, member_id=_member_id(current_user)
+    )
+    if not skill:
+        raise HTTPException(status_code=404, detail="Skill not found")
 
-        if not skill:
-            raise HTTPException(status_code=404, detail="Skill not found")
+    macro = None
+    if skill.macro_id:
+        async with session_scope() as db:
+            macro = await load_macro(skill.macro_id, db=db)
 
-        macro = None
-        if skill.macro_id:
-            from app.models.macro import Macro
-
-            macro = await db.get(Macro, skill.macro_id)
-
-        return SkillDetailResponse(
-            id=skill.id,
-            name=skill.name,
-            description=skill.description,
-            namespace=skill.namespace,
-            trigger_patterns=_normalize_json_list(skill.trigger_patterns),
-            parameters=_normalize_skill_params(skill.parameters),
-            preconditions=_normalize_json_list(skill.preconditions),
-            tools_used=_normalize_json_list(skill.tools_used),
-            source_thread_id=skill.source_thread_id,
-            source_session_id=skill.source_session_id,
-            success_count=skill.success_count,
-            failure_count=skill.failure_count,
-            is_active=skill.is_active,
-            status=skill.status,
-            macro_id=skill.macro_id,
-            macro_script=macro.macro_script if macro else "",
-            allow_self_healing=macro.allow_self_healing if macro else True,
-            validation_report=skill.validation_report,
-            instructions=skill.instructions,
-            resource_path=skill.resource_path,
-            created_at=skill.created_at,
-            updated_at=skill.updated_at,
-        )
+    return SkillDetailResponse(
+        id=skill.id,
+        name=skill.name,
+        description=skill.description,
+        namespace=skill.namespace,
+        trigger_patterns=_normalize_json_list(skill.trigger_patterns),
+        parameters=_normalize_skill_params(skill.parameters),
+        preconditions=_normalize_json_list(skill.preconditions),
+        tools_used=_normalize_json_list(skill.tools_used),
+        source_thread_id=skill.source_thread_id,
+        source_session_id=skill.source_session_id,
+        success_count=skill.success_count,
+        failure_count=skill.failure_count,
+        is_active=skill.is_active,
+        status=skill.status,
+        macro_id=skill.macro_id,
+        macro_script=macro.macro_script if macro else "",
+        allow_self_healing=macro.allow_self_healing if macro else True,
+        validation_report=skill.validation_report,
+        instructions=skill.instructions,
+        resource_path=skill.resource_path,
+        created_at=skill.created_at,
+        updated_at=skill.updated_at,
+    )
 
 
 @router.delete("/skills/{skill_id}", response_model=BaseAPIResponse)
 async def delete_skill(skill_id: int, current_user: CurrentUserOptional = None):
     """Physically delete a skill and its resources."""
-    import shutil
-
     try:
         async with session_scope() as db:
-            stmt = (
-                select(LearnedSkill)
-                .where(LearnedSkill.member_id == (_member_id(current_user)))
-                .where(LearnedSkill.id == skill_id)
-            )
-            result = await db.execute(stmt)
-            skill = result.scalar_one_or_none()
-
-            if not skill:
-                raise HTTPException(status_code=404, detail="Skill not found")
-
-            if skill.resource_path:
-                try:
-                    path = Path(skill.resource_path)
-                    if path.exists() and path.is_dir():
-                        shutil.rmtree(path)
-                        logger.info(f"Deleted skill resources at: {path}")
-                except Exception as e:
-                    logger.error(
-                        f"Failed to delete skill resources at {skill.resource_path}: {e}"
-                    )
-
-            await db.delete(skill)
-            await db.flush()
-
-            _deleted_namespace = skill.namespace
-            _deleted_name = skill.name
+            try:
+                skill = await delete_skill_record(
+                    db, skill_id, _member_id(current_user)
+                )
+            except SkillNotFoundError as e:
+                raise HTTPException(status_code=404, detail=str(e))
 
         await publish_skill_mutated(
             skill_id=skill_id,
             action="delete",
-            namespace=_deleted_namespace,
-            name=_deleted_name,
+            namespace=skill.namespace,
+            name=skill.name,
         )
 
         return BaseAPIResponse(
@@ -321,60 +285,30 @@ async def update_skill(
     """Update a learned skill."""
     try:
         async with session_scope() as db:
-            stmt = (
-                select(LearnedSkill)
-                .where(LearnedSkill.member_id == (_member_id(current_user)))
-                .where(LearnedSkill.id == skill_id)
-            )
-            result = await db.execute(stmt)
-            skill = result.scalar_one_or_none()
-
-            if not skill:
-                raise HTTPException(status_code=404, detail="Skill not found")
-
-            if body.name:
-                if body.name != skill.name:
-                    stmt_check = (
-                        select(LearnedSkill)
-                        .where(
-                            or_(
-                                LearnedSkill.member_id == 0,
-                                LearnedSkill.member_id == (_member_id(current_user)),
-                            )
-                        )
-                        .where(LearnedSkill.name == body.name)
-                    )
-                    existing = (await db.execute(stmt_check)).scalar_one_or_none()
-                    if existing:
-                        raise HTTPException(
-                            status_code=400,
-                            detail=f"Skill name '{body.name}' already exists",
-                        )
-                skill.name = body.name
-
-            if body.description:
-                skill.description = body.description
-            if body.namespace:
-                skill.namespace = body.namespace
-            if body.instructions is not None:
-                skill.instructions = body.instructions
-            if body.trigger_patterns is not None:
-                skill.trigger_patterns = body.trigger_patterns
-            if body.parameters is not None:
-                skill.parameters = body.parameters
-            if body.preconditions is not None:
-                skill.preconditions = body.preconditions
-
-            await db.flush()
+            try:
+                skill = await update_skill_record(
+                    db,
+                    skill_id,
+                    _member_id(current_user),
+                    name=body.name,
+                    description=body.description,
+                    namespace=body.namespace,
+                    instructions=body.instructions,
+                    trigger_patterns=body.trigger_patterns,
+                    parameters=body.parameters,
+                    preconditions=body.preconditions,
+                )
+            except SkillNotFoundError as e:
+                raise HTTPException(status_code=404, detail=str(e))
+            except SkillConflictError as e:
+                raise HTTPException(status_code=400, detail=str(e))
 
         await publish_skill_mutated(skill_id=skill_id, action="update")
 
         macro = None
         if skill.macro_id:
-            from app.models.macro import Macro
-
             async with session_scope() as db:
-                macro = await db.get(Macro, skill.macro_id)
+                macro = await load_macro(skill.macro_id, db=db)
 
         return UpdateSkillResponse(
             success=True,
@@ -409,57 +343,52 @@ async def update_skill(
 
 
 @router.post("/skills/{skill_id}/execute", response_model=ExecuteSkillResponse)
-async def execute_skill(
+async def run_skill(
     skill_id: int,
     body: ExecuteSkillRequest,
-    bg_tasks: BackgroundTasks,
     current_user: CurrentUserOptional = None,  # noqa: ARG001
 ):
     """Execute a skill by injecting a directive into the agent's conversation."""
     async with session_scope() as db:
-        skill = await db.get(LearnedSkill, skill_id)
+        skill = await skill_repository.get_by_id(skill_id, db=db)
         if not skill:
             raise HTTPException(status_code=404, detail="Skill not found")
 
         macro = None
         if skill.macro_id:
-            from app.models.macro import Macro
-
-            macro = await db.get(Macro, skill.macro_id)
+            macro = await load_macro(skill.macro_id, db=db)
 
     params = body.params.model_dump()
     if macro is not None:
-        try:
-            script = preflight(macro, params)
-        except MacroGateError as e:
-            status = {"not_routable": 403, "missing_params": 400, "bad_macro": 500}.get(
-                e.code, 400
-            )
-            raise HTTPException(status_code=status, detail=e.message) from e
-
-        outcome = await run_deterministic(
+        result = await MacroEngine.run(
+            body.thread_id,
             macro,
-            thread_id=body.thread_id,
             params=params,
             project_id=body.project_id
             if body.project_id is not None
             else DEFAULT_PROJECT_ID,
-            script=script,
             policy=WEB_POLICY,
             skill_name=skill.name,
         )
-        if outcome.fell_back:
+        if result.status in ("not_routable", "missing_params", "bad_macro"):
+            status = {
+                "not_routable": 403,
+                "missing_params": 400,
+                "bad_macro": 500,
+            }.get(result.status, 400)
+            raise HTTPException(status_code=status, detail=result.message)
+        if result.status == "fallback_required":
             return ExecuteSkillResponse(
                 success=True,
-                message=outcome.message
+                message=result.message
                 or f"Macro failed; self-healing queued for '{skill.name}'",
                 execution_mode="deterministic",
             )
-        if not outcome.ok:
-            raise HTTPException(status_code=500, detail=outcome.message)
+        if not result.success:
+            raise HTTPException(status_code=500, detail=result.message)
         return ExecuteSkillResponse(
             success=True,
-            message=outcome.message or f"Executed '{skill.name}'",
+            message=result.message or f"Executed '{skill.name}'",
             execution_mode="deterministic",
         )
 
@@ -490,7 +419,11 @@ async def execute_skill(
     if result.inputs is None:
         raise HTTPException(status_code=500, detail="Failed to prepare agent inputs")
 
-    bg_tasks.add_task(run_agent_background, body.thread_id, result.inputs)
+    # 用用户线程执行技能 → 统一走 session_manager.submit（进会话主循环，
+    # 享受统一生命周期），与 voice/web/mobile 主交互路径一致。
+    from app.core.session.manager import session_manager
+
+    await session_manager.submit(body.thread_id, result.inputs)
 
     return ExecuteSkillResponse(
         success=True,
@@ -503,7 +436,7 @@ async def execute_skill(
 async def validate_skill(skill_id: int, current_user: CurrentUserOptional = None):  # noqa: ARG001
     """Run the validator on a skill and return its health status."""
     async with session_scope() as db:
-        skill = await db.get(LearnedSkill, skill_id)
+        skill = await skill_repository.get_by_id(skill_id, db=db)
         if not skill:
             raise HTTPException(status_code=404, detail="Skill not found")
 
@@ -513,9 +446,7 @@ async def validate_skill(skill_id: int, current_user: CurrentUserOptional = None
             )
 
         validation = SkillValidator.validate_folder(Path(skill.resource_path))
-        skill.validation_report = validation.model_dump()
-        skill.status = "verified" if validation.status == "healthy" else "candidate"
-        skill.is_active = True
+        await apply_validation_result(skill, validation)
 
         return ValidateSkillResponse(success=True, validation=validation.model_dump())
 
@@ -526,32 +457,15 @@ async def confirm_learned_skill(
 ):
     """User confirms a synthesized skill. Updates status from pending_review to verified."""
     async with session_scope() as db:
-        stmt = (
-            select(LearnedSkill)
-            .where(LearnedSkill.member_id == (_member_id(current_user)))
-            .where(LearnedSkill.id == skill_id)
-        )
-        skill = (await db.execute(stmt)).scalar_one_or_none()
-
-        if not skill:
-            raise HTTPException(status_code=404, detail="Skill not found")
-
-        if skill.status != "pending_review":
-            raise HTTPException(
-                status_code=400,
-                detail=f"Skill is not in pending_review status (current: {skill.status})",
-            )
-
-        skill.status = "verified"
-        skill.is_active = True
+        try:
+            skill = await confirm_skill(db, skill_id, _member_id(current_user))
+        except SkillNotFoundError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+        except SkillConflictError as e:
+            raise HTTPException(status_code=400, detail=str(e))
 
         if skill.macro_id:
-            from app.models.macro import Macro
-
-            macro = await db.get(Macro, skill.macro_id)
-            if macro is not None:
-                macro.status = "verified"
-                macro.is_active = True
+            await confirm_macro(skill.macro_id, db=db)
 
         logger.info(f"Skill {skill.id} ({skill.name}) confirmed by user.")
 
@@ -611,6 +525,7 @@ async def create_skill_from_yaml(
             skill.macro_id = macro.id
 
         await publish_skill_mutated(skill_id=skill.id, action="create")
+        await publish_macro_mutated(macro.id, action="create")
 
         return CreateSkillFromYamlResponse(
             success=True,
@@ -649,7 +564,7 @@ async def validate_skill_yaml(
 async def get_skill_yaml(skill_id: int, current_user: CurrentUserOptional = None):  # noqa: ARG001
     """Get skill macro as YAML format."""
     async with session_scope() as db:
-        skill = await db.get(LearnedSkill, skill_id)
+        skill = await skill_repository.get_by_id(skill_id, db=db)
         if not skill:
             raise HTTPException(status_code=404, detail="Skill not found")
 
@@ -659,9 +574,7 @@ async def get_skill_yaml(skill_id: int, current_user: CurrentUserOptional = None
                 media_type="text/yaml",
             )
 
-        from app.models.macro import Macro
-
-        macro = await db.get(Macro, skill.macro_id)
+        macro = await load_macro(skill.macro_id, db=db)
         if not macro or not macro.macro_script:
             return Response(
                 content="# No macro script defined for this skill\n",
@@ -686,16 +599,14 @@ async def update_skill_yaml(
             )
 
         async with session_scope() as db:
-            skill = await db.get(LearnedSkill, skill_id)
+            skill = await skill_repository.get_by_id(skill_id, db=db)
             if not skill:
                 raise HTTPException(status_code=404, detail="Skill not found")
 
-            from app.models.macro import Macro
-
             if skill.macro_id:
-                macro = await db.get(Macro, skill.macro_id)
+                macro = await load_macro(skill.macro_id, db=db)
                 if macro is not None:
-                    macro.macro_script = yaml_content
+                    await update_macro(macro.id, {"macro_script": yaml_content}, db=db)
             else:
                 macro = await create_macro_from_synthesis(
                     db,

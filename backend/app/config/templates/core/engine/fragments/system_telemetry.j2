@@ -1,0 +1,12 @@
+{%- if telemetry %}
+## System Telemetry
+{%- if telemetry.cpu %}
+- CPU: {{ telemetry.cpu.usage_percent }}% | Load: {{ telemetry.cpu.load_avg|join(', ') }}
+{%- endif %}
+{%- if telemetry.memory %}
+- Memory: {{ telemetry.memory.percent }}% ({{ (telemetry.memory.available / 1024**2)|round }}MB available)
+{%- endif %}
+{%- if telemetry.active_window %}
+- Active Window: {{ telemetry.active_window.window_title }} ({{ telemetry.active_window.app_name }})
+{%- endif %}
+{%- endif %}

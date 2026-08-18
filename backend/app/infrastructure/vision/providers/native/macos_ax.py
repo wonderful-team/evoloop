@@ -100,7 +100,7 @@ class MacOSAxProvider(VisionProvider):
             cleaned_output = ax_output.replace("missing value", "None")
             raw_elements = ast.literal_eval(cleaned_output)
         except Exception as e:
-            logger.error(f"Failed to parse MacOS AX output: {e}\nOutput: {ax_output[:200]}")
+            logger.exception(f"Failed to parse MacOS AX output: {e}\nOutput: {ax_output[:200]}")
             return []
 
         for i, raw in enumerate(raw_elements):

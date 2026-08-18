@@ -175,7 +175,9 @@ async def authorization_gate(context: HookContext) -> HookResult:
                         break
 
             if not is_already_granted:
-                # Trigger HITL instead of hard blocking
+                # 值守模式（thread_id 以 duty_ 前缀）同样走 HITL：授权请求推送到
+                # 操作台，由运营人员远程批准/拒绝（默认 REJECTED，不会永久挂起）。
+                # 资金/敏感操作在值守下必须由人工确认，直接拒绝会静默放弃操作。
                 policy = AuthorizationPolicy(
                     resource_type="file",
                     action=action,

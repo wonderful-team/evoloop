@@ -77,7 +77,7 @@ class DatabaseResourceManager:
                 dbapi_conn.execute("PRAGMA journal_mode=WAL")
                 dbapi_conn.execute("PRAGMA busy_timeout=30000")
             except Exception as e:
-                logger.warning(f"[ResourceManager] SQLite pragma setup failed: {e}")
+                logger.warning(f"[ResourceManager] SQLite pragma setup failed: {e}", exc_info=True)
 
     @property
     def engine(self):

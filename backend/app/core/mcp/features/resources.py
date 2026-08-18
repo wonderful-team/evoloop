@@ -47,7 +47,7 @@ class McpResourcesFeature(McpFeature):
                 f"{len(self._resource_templates)} templates from {server_name}"
             )
         except Exception as e:
-            logger.debug(f"Resources not supported by {server_name}: {e}")
+            logger.debug(f"Resources not supported by {server_name}: {e}", exc_info=True)
             self._resources = []
             self._resource_templates = []
 
@@ -142,7 +142,7 @@ class McpResourcesFeature(McpFeature):
             )
 
         except Exception as e:
-            logger.error(f"Failed to read resource {uri}: {e}")
+            logger.exception(f"Failed to read resource {uri}: {e}")
             raise
 
     def reset(self) -> None:

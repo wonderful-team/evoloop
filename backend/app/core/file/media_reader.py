@@ -29,7 +29,7 @@ class MediaReaderService:
             return f"### Multimedia Transcription ({os.path.basename(path)})\n\n{result.text}"
 
         except Exception as e:
-            logger.error(f"Media transcription failed for {path}: {e}")
+            logger.exception(f"Media transcription failed for {path}: {e}")
             return f"[Multimedia Asset: {os.path.basename(path)} - Transcription Error: {str(e)}]"
 
 

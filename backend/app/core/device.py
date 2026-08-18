@@ -71,7 +71,7 @@ def get_hardware_fingerprint() -> str:
     try:
         raw = get_machine_id()
     except Exception as e:
-        logger.warning(f"Failed to get hardware fingerprint: {e}")
+        logger.warning(f"Failed to get hardware fingerprint: {e}", exc_info=True)
         raw = ""
 
     normalized = raw.strip().lower()

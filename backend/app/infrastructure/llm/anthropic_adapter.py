@@ -14,6 +14,8 @@ class CompatibleChatAnthropic:
     A robust, native, SDK-free ChatAnthropic wrapper that connects directly to the Anthropic Messages API.
     """
 
+    provider = "anthropic"
+
     def __init__(
         self,
         api_key: str,
@@ -59,6 +61,18 @@ class CompatibleChatAnthropic:
             self._tools.append(t_schema)
         return self
 
+    @staticmethod
+    def _format_system_content(content: Any) -> Any:
+        """Wrap plain-text system prompts in content blocks with prompt caching.
+
+        Anthropic 的 system 参数支持 content-block 列表，可附带 cache_control
+        实现 prompt caching。引擎层只构造普通字符串 SystemMessage，此处由
+        adapter 负责 provider 专属格式；已显式构造为 block 列表时原样透传。
+        """
+        if isinstance(content, str):
+            return [{"type": "text", "text": content, "cache_control": {"type": "ephemeral"}}]
+        return content
+
     async def astream(self, messages: list[Any], config: dict = None, **kwargs: Any) -> AsyncGenerator[AIMessageChunk, None]:
         from app.core.engine.callbacks.bridge import (
             _get_callbacks,
@@ -83,7 +97,7 @@ class CompatibleChatAnthropic:
             content = m.get("content") if isinstance(m, dict) else m.content
 
             if role == "system":
-                system_content = content
+                system_content = self._format_system_content(content)
                 continue
 
             if role in ("user", "human"):

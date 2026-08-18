@@ -41,7 +41,7 @@ class MessageNormalizer:
                 block = MessageBlockFactory.from_orm(msg)
                 result.append(block)
             except (ValueError, TypeError, AttributeError) as e:
-                logger.error(f"[MessageNormalizer] Failed to normalize message: {e}")
+                logger.exception(f"[MessageNormalizer] Failed to normalize message: {e}")
                 # Skip invalid messages to prevent breaking the whole list
                 continue
 

@@ -12,11 +12,13 @@ import logging
 import time
 from typing import Any
 
+from app.core.config import settings
 from app.core.context import EvoContext
 from app.core.context.cache import LayeredContextCache
 from app.core.engine.domain_mapping import resolve_domain
 from app.core.engine.hooks import HookContext, HookEvent, hook_system
 from app.core.engine.message.native_classes import RunnableConfig
+from app.core.execution.macro import list_active_macro_index
 from app.core.routing.conversation_state import ConversationState
 from app.core.routing.schemas import (
     DOMAIN_AMBIGUOUS,
@@ -238,8 +240,7 @@ class AgentContextHydrator:
         async def _load_static_data() -> dict[str, Any]:
             data = dict(memory_data)
             from app.core.atlas.source.persistence import operation_map_summary
-            from app.core.execution.macro.lifecycle import list_active_macro_index
-            from app.core.learning.discovery import skill_discovery
+            from app.core.learning.skills.discovery import skill_discovery
 
             needs_skills = intent is None or intent in _INTENTS_NEEDING_ACTIVE_SKILLS
             needs_macros = intent is None or intent in _INTENTS_NEEDING_ACTIVE_MACROS
@@ -293,8 +294,9 @@ class AgentContextHydrator:
         ctx.metadata.operation_map = static_layer.operation_map
 
         # Memory pipeline — forward cached memory data into context metadata
-        ctx.metadata.core_memory_raw = static_layer.hot_memory
-        ctx.metadata.episodic_memory_raw = static_layer.episodes
+        if settings.ENABLE_MEMORY:
+            ctx.metadata.core_memory_raw = static_layer.hot_memory
+            ctx.metadata.episodic_memory_raw = static_layer.episodes
 
         # 6. Dynamic Layer & Plugins
         # Populate context metadata from flat state fields

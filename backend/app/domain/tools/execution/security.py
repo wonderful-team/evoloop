@@ -39,3 +39,17 @@ def is_dangerous_command(command: str) -> tuple[bool, str]:
             return True, "Path access blocked: System directories cannot be accessed in Multi-Tenant mode."
 
     return False, ""
+
+
+# 命令内显式 cd / pushd 越出工作目录的检测：
+# 工具会把命令包装为 "cd {working_dir} && {command}"，命令自身再 cd 到绝对
+# 路径（含 ~/xxx）或 cd .. 会覆盖前缀从而逃出沙箱。工作目录是项目根，
+# 任何 cd .. / cd ~/绝对路径 都视为越界。
+_ESCAPE_CD_RE = re.compile(r"(?<![\w-])(?:cd|pushd)\s+(?:~?/|\.\.(?=/|\s|$))")
+
+
+def has_workspace_escape(command: str) -> str | None:
+    """Return the offending ``cd`` fragment when ``command`` tries to escape the workspace."""
+    for match in _ESCAPE_CD_RE.finditer(command):
+        return match.group(0)
+    return None

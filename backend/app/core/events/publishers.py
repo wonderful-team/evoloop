@@ -17,6 +17,11 @@ from app.core.events.schemas import (
     UserLoggedOutEvent,
 )
 
+# Event model comes from the lightweight macro-event submodule (this module is a
+# low-level producer imported by embedding/config infra; importing the full macro
+# facade here would pull the whole execution engine into infra load and cycle).
+from app.core.execution.macro.event import MacroMutatedEvent
+
 
 async def publish_app_started(startup_time: float) -> None:
     """Publish the application started event."""
@@ -146,7 +151,6 @@ async def publish_macro_mutated(
     Unknown actions are dropped: an event with an empty event_type would be
     unroutable noise on the bus.
     """
-    from app.core.execution.macro.event.schemas import MacroMutatedEvent
 
     if action not in ("create", "update", "delete", "obsolete"):
         return

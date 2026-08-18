@@ -37,6 +37,19 @@ def get_working_directory(config: dict | None = None) -> str:
         wd = config["configurable"].get("working_directory")
         if wd:
             return wd
+        # 工具执行时 config 一定带 thread_id；用它查 thread_store 的
+        # working_directory（project 级路径），避免 ctx.thread_id 为 None
+        # 时误 fallback 到 WORKSPACE_ROOT，导致 Agent 探索范围越出项目。
+        tid = config["configurable"].get("thread_id")
+        if tid:
+            try:
+                from app.core.context import thread_context_store
+
+                managed_cwd = thread_context_store.get_working_directory(tid)
+                if managed_cwd:
+                    return managed_cwd
+            except Exception as e:
+                logger.warning(f"Failed to fetch working directory from thread_context_store: {e}", exc_info=True)
 
     if ctx.thread_id:
         try:
@@ -46,7 +59,7 @@ def get_working_directory(config: dict | None = None) -> str:
             if managed_cwd:
                 return managed_cwd
         except Exception as e:
-            logger.warning(f"Failed to fetch working directory from thread_context_store: {e}")
+            logger.warning(f"Failed to fetch working directory from thread_context_store: {e}", exc_info=True)
 
     try:
         from app.core.project.utils import get_workspace_root
@@ -55,7 +68,7 @@ def get_working_directory(config: dict | None = None) -> str:
         if workspace_root:
             return workspace_root
     except (OSError, RuntimeError, TypeError, ValueError) as e:
-        logger.warning(f"Failed to fetch WORKSPACE_ROOT for tool fallback: {e}")
+        logger.warning(f"Failed to fetch WORKSPACE_ROOT for tool fallback: {e}", exc_info=True)
 
     return os.getcwd()
 
@@ -161,7 +174,10 @@ def evoloop_tool(
     def decorator(func):
         async def _check_permission(func_name, input_data):
             if config.required_benefit:
-                from app.core.benefits import create_benefit_error_detail, benefit_service
+                from app.core.benefits import (
+                    benefit_service,
+                    create_benefit_error_detail,
+                )
                 from app.core.config import settings
                 from app.core.context.manager import ContextManager
 

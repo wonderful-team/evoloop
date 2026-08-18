@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import re
 from typing import Any
@@ -10,7 +11,12 @@ from app.core.execution.macro.engine._executors import ExecutorMixin
 from app.core.execution.macro.engine._extraction import ExtractionMixin
 from app.core.execution.macro.engine._loops import LoopMixin
 from app.core.execution.macro.engine._native import NativeMixin
-from app.core.execution.macro.schemas import MacroSource, MacroStepType
+from app.core.execution.macro.schemas import (
+    MacroRunResult,
+    MacroScript,
+    MacroSource,
+    MacroStepType,
+)
 from app.core.monitoring.activity import activity_monitor
 from app.utils.id import gen_uuid
 
@@ -43,6 +49,110 @@ class MacroEngine(
     BashMixin,
     ExecutorMixin,
 ):
+    # ------------------------------------------------------------------
+    # 统一生命周期接口：validate → run → stop
+    # 对外标准入口。run 内部委托 runner.run_deterministic（policy 感知，
+    # 含自愈），validate 委托 runner.preflight，stop 委托 activity_monitor。
+    # 采用函数体内 import 规避 engine↔runner 的循环依赖。
+    # ------------------------------------------------------------------
+
+    @classmethod
+    async def validate(cls, macro, params: dict | None = None) -> MacroScript:
+        """运行前门禁：状态/参数/解析检查。返回可执行脚本，失败抛 MacroGateError。"""
+        from app.core.execution.macro.runner import preflight
+
+        return preflight(macro, params)
+
+    @classmethod
+    async def run(
+        cls,
+        thread_id: str,
+        macro,
+        *,
+        params: dict[str, Any] | None = None,
+        project_id: int = 0,
+        policy=None,
+        skill_name: str | None = None,
+        skip_activity_log: bool = False,
+        skip_recording: bool = False,
+    ) -> MacroRunResult:
+        """统一执行宏：门禁 → policy 检查 → 步骤执行 → 自愈（按 policy）。
+
+        返回统一 ``MacroRunResult``；``status`` 区分结果语义：
+        - ``gate_rejected``：未通过门禁（未激活/缺参/脚本损坏）
+        - ``cancelled``：被 stop() 中断
+        - ``fallback_required``：失败后已转入 agentic 自愈
+        - None：正常成功/失败
+        """
+        from app.core.exceptions import AgentCancelledException
+        from app.core.execution.macro.runner import (
+            WEB_POLICY,
+            MacroGateError,
+            preflight,
+            resolve_project_base_url,
+            run_deterministic,
+        )
+
+        policy = policy or (WEB_POLICY if macro.is_routable() else None)
+        if policy is None:
+            return MacroRunResult(
+                success=False,
+                message=f"Macro is not routable (status: {macro.status})",
+                status="not_routable",
+            )
+
+        # 统一解析 {{base_url}}（集中注入）：所有经 MacroEngine.run 的入口
+        # （REST /api/macros/{id}/execute、skills 执行、domain tool、L0 路由）
+        # 都在此从项目配置解析后台站点地址，避免 navigate 步骤的 {{base_url}}
+        # 占位符未被替换而触发引擎 URL 守卫（报「未解析 URL」）。
+        # 仅在成功解析时注入：None 会静默保留占位符，由引擎守卫给出用户提示。
+        if params is None:
+            params = {}
+        else:
+            params = dict(params)
+        if "base_url" not in params:
+            base_url = await resolve_project_base_url(macro.project_id)
+            if base_url:
+                params["base_url"] = base_url
+
+        try:
+            script = preflight(macro, params)
+        except MacroGateError as e:
+            return MacroRunResult(success=False, message=e.message, status=e.code)
+
+        try:
+            outcome = await run_deterministic(
+                macro,
+                thread_id=thread_id,
+                params=params,
+                project_id=project_id,
+                script=script,
+                policy=policy,
+                skill_name=skill_name,
+                skip_activity_log=skip_activity_log,
+                skip_recording=skip_recording,
+            )
+        except AgentCancelledException:
+            return MacroRunResult(
+                success=False,
+                message="宏已停止",
+                status="cancelled",
+                extracted_data={},
+            )
+
+        status = "fallback_required" if (not outcome.ok and outcome.fell_back) else None
+        return MacroRunResult(
+            success=outcome.ok,
+            message=outcome.message,
+            status=status,
+            extracted_data=outcome.extracted_data,
+        )
+
+    @classmethod
+    async def stop(cls, thread_id: str) -> None:
+        """停止宏运行：写停止标志，引擎下个步骤前感知并返回 ``cancelled``。"""
+        await activity_monitor.stop_run(thread_id)
+
     @classmethod
     async def execute(
         cls,
@@ -60,7 +170,9 @@ class MacroEngine(
             params=params,
             extracted_data=extracted_data,
             disable_ocr=disable_ocr,
-            active_bundle_id=params.get("package_name") or params.get("bundle_id") if params else None,
+            active_bundle_id=params.get("package_name") or params.get("bundle_id")
+            if params
+            else None,
             skip_activity_log=skip_activity_log,
             skip_recording=skip_recording,
         )
@@ -121,9 +233,17 @@ class MacroEngine(
         skip_activity_log: bool = False,
         skip_recording: bool = False,
     ) -> tuple[bool, str, dict[str, Any] | None]:
-
         for step in steps:
             step_num = step.step_number
+
+            # 每步前检查跨进程停止标志（DB stopping）：统一停止机制
+            # （Esc×2 / 值守停止）写入的 stop_run 标志需在此感知，
+            # 否则宏会一直跑完，值守场景无法及时中断抢鼠标的宏。
+            # 抛 AgentCancelledException（由调用方捕获 → 宏停止）。
+            try:
+                await activity_monitor.check_cancellation(thread_id)
+            except Exception:
+                raise
 
             target_selector = cls._inject_params(step.target_selector, params)
             payload = cls._inject_payload_params(step.payload, params)
@@ -149,7 +269,9 @@ class MacroEngine(
                 desc += f"(command='{str(payload.get('command', ''))[:60]}')"
 
             if not skip_activity_log:
-                await activity_monitor.log_event("macro_thought", {"text": desc}, thread_id)
+                await activity_monitor.log_event(
+                    "macro_thought", {"text": desc}, thread_id
+                )
             logger.info(f"[{thread_id}] {desc}")
 
             if step.type in (
@@ -214,7 +336,22 @@ class MacroEngine(
                 continue
 
             if step.type == MacroStepType.NATIVE:
-                await cls._handle_native(thread_id, payload, extracted_data)
+                try:
+                    await cls._handle_native(thread_id, payload, extracted_data)
+                except _STEP_EXCEPTIONS as e:
+                    error_msg = str(e)
+                    await cls._handle_action_error(
+                        thread_id, step_num, step.event_type or "native", error_msg
+                    )
+                    return (
+                        False,
+                        error_msg,
+                        {
+                            "failed_step": step.model_dump(),
+                            "step_number": step_num,
+                            "event_type": step.event_type or "native",
+                        },
+                    )
                 continue
 
             if step.type == MacroStepType.BASH:
@@ -251,7 +388,9 @@ class MacroEngine(
                             )
                         else:
                             unresolved = f"导航 URL 含未解析参数: {nav_url}"
-                        await cls._handle_action_error(thread_id, step_num, event_type, unresolved)
+                        await cls._handle_action_error(
+                            thread_id, step_num, event_type, unresolved
+                        )
                         return (
                             False,
                             unresolved,
@@ -271,41 +410,67 @@ class MacroEngine(
                     )
                     if new_pkg:
                         active_bundle_id = new_pkg
-                        logger.info(f"[{thread_id}] Active package updated to: {active_bundle_id}")
+                        logger.info(
+                            f"[{thread_id}] Active package updated to: {active_bundle_id}"
+                        )
 
-                try:
-                    if source == MacroSource.DOM:
-                        await cls._execute_browser_step(event_type, target_selector, payload)
-                    elif source == MacroSource.MOBILE:
-                        await cls._execute_mobile_step(
-                            event_type,
-                            target_selector,
-                            payload,
-                            disable_ocr,
-                            expected_pkg=active_bundle_id,
+                retry = int(payload.get("retry") or 0)
+                retry_interval_ms = int(payload.get("retry_interval") or 1000)
+                attempt = 0
+                while True:
+                    try:
+                        if source == MacroSource.DOM:
+                            await cls._execute_browser_step(
+                                event_type, target_selector, payload
+                            )
+                        elif source == MacroSource.MOBILE:
+                            await cls._execute_mobile_step(
+                                event_type,
+                                target_selector,
+                                payload,
+                                disable_ocr,
+                                expected_pkg=active_bundle_id,
+                            )
+                        elif source == MacroSource.DESKTOP:
+                            await cls._execute_desktop_step(
+                                event_type,
+                                target_selector,
+                                payload,
+                                skip_recording=skip_recording,
+                            )
+                        else:
+                            logger.warning(f"Unknown macro source: {source}")
+                        break
+                    except _STEP_EXCEPTIONS as e:
+                        if attempt < retry:
+                            attempt += 1
+                            logger.warning(
+                                "[%s] step %s (%s) failed attempt %d/%d, retrying in %dms: %s",
+                                thread_id,
+                                step_num,
+                                event_type,
+                                attempt,
+                                retry,
+                                retry_interval_ms,
+                                str(e)[:120],
+                            )
+                            await asyncio.sleep(retry_interval_ms / 1000.0)
+                            continue
+                        # 重试耗尽 → 停止并携带失败上下文
+                        error_msg = str(e)
+                        screenshot_path = await cls._debug_screenshot(source)
+                        await cls._handle_action_error(
+                            thread_id, step_num, event_type, error_msg, screenshot_path
                         )
-                    elif source == MacroSource.DESKTOP:
-                        await cls._execute_desktop_step(
-                            event_type,
-                            target_selector,
-                            payload,
-                            skip_recording=skip_recording,
+                        return (
+                            False,
+                            error_msg,
+                            {
+                                "failed_step": step.model_dump(),
+                                "screenshot_path": screenshot_path,
+                                "step_number": step_num,
+                            },
                         )
-                    else:
-                        logger.warning(f"Unknown macro source: {source}")
-                except _STEP_EXCEPTIONS as e:
-                    error_msg = str(e)
-                    screenshot_path = await cls._debug_screenshot(source)
-                    await cls._handle_action_error(thread_id, step_num, event_type, error_msg, screenshot_path)
-                    return (
-                        False,
-                        error_msg,
-                        {
-                            "failed_step": step.model_dump(),
-                            "screenshot_path": screenshot_path,
-                            "step_number": step_num,
-                        },
-                    )
 
         return True, "", None
 
@@ -323,8 +488,12 @@ class MacroEngine(
             return None
 
     @classmethod
-    async def _handle_action_error(cls, thread_id, step_num, event_type, error_msg, screenshot_path=None):
-        logger.error(f"[{thread_id}] Step {step_num} ({event_type}) failed: {error_msg}")
+    async def _handle_action_error(
+        cls, thread_id, step_num, event_type, error_msg, screenshot_path=None
+    ):
+        logger.error(
+            f"[{thread_id}] Step {step_num} ({event_type}) failed: {error_msg}"
+        )
         await activity_monitor.log_event(
             "macro_thought",
             {"text": f"Step {step_num} failed: {error_msg[:200]}"},
@@ -375,7 +544,9 @@ class MacroEngine(
         if isinstance(payload, BaseModel):
             payload = payload.model_dump()
         if isinstance(payload, dict):
-            return {k: cls._inject_payload_params(v, params) for k, v in payload.items()}
+            return {
+                k: cls._inject_payload_params(v, params) for k, v in payload.items()
+            }
         elif isinstance(payload, list):
             return [cls._inject_payload_params(item, params) for item in payload]
         return payload

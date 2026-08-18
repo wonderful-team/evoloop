@@ -4,12 +4,18 @@ WorkerRegistry — tracks running Worker tasks for both voice and text channels.
 Allows new requests to check if a Worker is currently running for a thread,
 and query its status without canceling it. Used by Supervisor to decide
 whether the user is asking about progress (query) or issuing a new command.
+
+2026-08 (parent-run-liveness): the ``_previous_tasks`` replacement model is
+removed — worker replacement is now handled by the session main loop
+(AgentSession + structured NEW_COMMAND detection), so there is no "previous
+task" concept anymore. Registry keeps register/get/cancel lifecycle only.
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -23,6 +29,7 @@ class WorkerRecord:
     description: str = ""
     started_at: float = 0.0
     result: str | None = None
+    project_id: int | None = None
 
 
 class WorkerRegistry:
@@ -30,32 +37,21 @@ class WorkerRegistry:
 
     def __init__(self):
         self._records: dict[str, WorkerRecord] = {}
-        self._previous_tasks: dict[str, asyncio.Task[Any]] = {}
         self._lock = asyncio.Lock()
 
     async def register_worker(
         self, thread_id: str, task: asyncio.Task[Any], description: str = ""
     ) -> None:
         async with self._lock:
-            old_record = self._records.get(thread_id)
-            if (
-                old_record
-                and old_record.status == "running"
-                and old_record.task is not None
-                and not old_record.task.done()
-                and old_record.task != task
-            ):
-                self._previous_tasks[thread_id] = old_record.task
+            from app.core.context.thread_store import thread_context_store
+
             self._records[thread_id] = WorkerRecord(
                 task=task,
                 status="running",
                 description=description,
-                started_at=__import__("time").time(),
+                started_at=time.time(),
+                project_id=thread_context_store.get_active_project(thread_id),
             )
-
-    async def pop_previous_task(self, thread_id: str) -> asyncio.Task[Any] | None:
-        async with self._lock:
-            return self._previous_tasks.pop(thread_id, None)
 
     async def complete_worker(self, thread_id: str, result: str | None = None) -> None:
         async with self._lock:
@@ -73,12 +69,33 @@ class WorkerRegistry:
 
     async def cancel_worker(self, thread_id: str) -> bool:
         async with self._lock:
-            self._previous_tasks.pop(thread_id, None)
             record = self._records.pop(thread_id, None)
         if record is not None and record.task is not None and not record.task.done():
             record.task.cancel()
             return True
         return False
+
+    async def cancel_all(self, project_id: int | None = None) -> int:
+        """取消所有注册的运行中任务（L0 宏等独立执行），返回取消数。
+
+        ``project_id`` 给定则只取消该项目的任务（Esc×2 按项目停止时，
+        宏任务与 session 同步过滤）；None = 取消全部。
+
+        Esc×2 统一停止时，除了 session_manager 的活跃会话，还需覆盖
+        worker_registry 里独立注册的任务（如 L0 路由宏）。
+        """
+        async with self._lock:
+            tids = list(self._records.keys())
+            cancelled = 0
+            for tid in tids:
+                record = self._records.get(tid)
+                if project_id is not None and record is not None and record.project_id != project_id:
+                    continue
+                record = self._records.pop(tid, None)
+                if record is not None and record.task is not None and not record.task.done():
+                    record.task.cancel()
+                    cancelled += 1
+        return cancelled
 
     async def get_worker(self, thread_id: str) -> WorkerRecord | None:
         async with self._lock:

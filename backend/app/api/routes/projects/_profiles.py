@@ -9,22 +9,25 @@ import os
 import time
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
-from sqlalchemy import select
 
 from app.api.deps import TokenDep, TokenDepOptional, require_benefit
 from app.api.schemas.projects._profiles import (
     DiscoverRequest,
     DiscoverResponse,
     ProfileContentResponse,
+    ProjectSettings,
     UpdateProfileRequest,
 )
 from app.core import file as file_utils
 from app.core.engine.background_agent import run_agent_background
 from app.core.engine.dispatch import dispatch_agent_run
 from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket
-from app.core.project.utils import get_project_path, read_project_json, write_project_json
+from app.core.project.utils import (
+    get_project_path,
+    read_project_json,
+    write_project_json,
+)
 from app.infrastructure.config.service import SystemConfigService
-from app.infrastructure.database import session_scope
 from app.models.learning import LearnedSkill
 
 logger = logging.getLogger(__name__)
@@ -33,27 +36,11 @@ router = APIRouter(tags=["project-profiles"])
 
 
 async def _ensure_project_discovery_skill() -> LearnedSkill | None:
-    async with session_scope() as session:
-        stmt = select(LearnedSkill).where(
-            LearnedSkill.name == "Project Discovery",
-            LearnedSkill.is_active,
-        )
-        result = await session.execute(stmt)
-        skill = result.scalar_one_or_none()
-        if skill:
-            return skill
+    from app.core.learning.skills.repository import skill_repository
 
-    try:
-        async with session_scope() as session:
-            stmt = select(LearnedSkill).where(
-                LearnedSkill.name == "Project Discovery",
-                LearnedSkill.is_active,
-            )
-            result = await session.execute(stmt)
-            return result.scalar_one_or_none()
-    except Exception as e:
-        logger.warning("[ProjectProfiles] Failed to import Project Discovery skill: %s", e)
-        return None
+    return await skill_repository.get_by_name(
+        "Project Discovery", visible_only=True
+    )
 
 
 @router.post("/{project_id}/profile/discover", response_model=DiscoverResponse, dependencies=[Depends(require_benefit("project_profile"))])
@@ -257,4 +244,51 @@ async def update_profile(
         url=url,
         name=name,
         framework_profile=framework_profile,
+    )
+
+
+@router.get("/{project_id}/settings", response_model=ProjectSettings)
+async def get_project_settings(
+    project_id: int,
+    _token: TokenDepOptional = None,
+):
+    """读取项目设置（name/url）。"""
+    path = await get_project_path(project_id)
+    if not path:
+        raise HTTPException(404, "Project not found or has no local path")
+    pj = read_project_json(path)
+    return ProjectSettings(
+        name=pj.get("name"),
+        url=pj.get("url"),
+    )
+
+
+@router.patch("/{project_id}/settings", response_model=ProjectSettings)
+async def update_project_settings(
+    project_id: int,
+    req: ProjectSettings,
+    _token: TokenDepOptional = None,
+):
+    """更新项目设置（name/url）。
+
+    值守配置（enabled/interval/business_poll_interval/notify/channels）走
+    独立端点 PUT /projects/{id}/duty（v7 拆分，含校验与启停语义）。
+    """
+    path = await get_project_path(project_id)
+    if not path:
+        raise HTTPException(404, "Project not found or has no local path")
+
+    pj_update: dict = {}
+    if req.name is not None:
+        pj_update["name"] = req.name
+    if req.url is not None:
+        pj_update["url"] = req.url
+
+    if pj_update:
+        write_project_json(path, pj_update)
+
+    pj = read_project_json(path)
+    return ProjectSettings(
+        name=pj.get("name"),
+        url=pj.get("url"),
     )

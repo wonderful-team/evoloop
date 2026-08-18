@@ -39,8 +39,10 @@ def on_worker_init(*args, **kwargs):
     try:
         auto_discover_handlers()
         logger.info("[Task] All event handlers auto-discovered and registered in worker process.")
-    except (ImportError, ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
-        logger.error(f"[Task] Failed to auto-discover event handlers in worker: {e}")
+    except (ImportError, ValueError) as e:
+        logger.error(
+            "[Task] Failed to auto-discover event handlers in worker: %s", e, exc_info=True
+        )
 
 
 def create_celery_app():

@@ -7,11 +7,13 @@ import time
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException
-from sqlalchemy import delete, or_, select
 
 from app.api.deps import CurrentUserOptional
-from app.core.events.publishers import publish_skill_mutated
-from app.core.execution.macro.lifecycle import create_macro_from_synthesis
+from app.core.events.publishers import publish_macro_mutated, publish_skill_mutated
+from app.core.execution.macro import (
+    MacroScript,
+    create_macro_from_synthesis,
+)
 from app.core.learning.multimodal_synthesizer import (
     MultimodalSkillSynthesizer,
     RecordingSession,
@@ -26,9 +28,8 @@ from app.core.learning.schemas import (
     SynthesizeFromRecordingRequest,
     SynthesizeFromRecordingResponse,
 )
-from app.core.learning.skill_lifecycle import create_from_synthesis
+from app.core.learning.skills.lifecycle import create_from_synthesis
 from app.infrastructure.database import session_scope
-from app.models import TraceEvent
 from app.utils.parameters import normalize_parameters
 from app.utils.yaml import YAMLError, macro_from_yaml
 
@@ -105,7 +106,6 @@ async def synthesize_from_recording(
 
                 # Structural validation only — never execute the macro here
                 try:
-                    from app.core.execution.macro.schemas import MacroScript
 
                     steps = macro_from_yaml(macro_script)
                     MacroScript(steps=steps)
@@ -118,10 +118,14 @@ async def synthesize_from_recording(
                         "status": "structure_invalid",
                         "error_message": str(e),
                     }
-                db_skill.validation_report = verification
+                from app.core.learning.skills.lifecycle import patch_skill
+
+                await patch_skill(db_skill, validation_report=verification)
                 await db.flush()
 
         await publish_skill_mutated(skill_id=db_skill.id, action="create")
+        if macro_script:
+            await publish_macro_mutated(macro.id, action="create")
 
         skill_yaml = f"""---
 name: {skill_data["name"]}
@@ -222,19 +226,15 @@ async def preview_recording_data(
 )
 async def list_annotations(session_id: str, current_user: CurrentUserOptional = None):
     """Get all annotations (region_extract events from TraceEvent)."""
-    async with session_scope() as db:
-        stmt = (
-            select(TraceEvent)
-            .where(TraceEvent.member_id == (current_user.id if current_user else 0))
-            .where(
-                TraceEvent.recording_session_id == session_id,
-                TraceEvent.action_type == "region_extract",
-            )
-            .order_by(TraceEvent.timestamp)
-        )
+    from app.core.learning.trace.repository import trace_repository
 
-        result = await db.execute(stmt)
-        events = result.scalars().all()
+    async with session_scope() as db:
+        events = await trace_repository.get_by_session(
+            session_id,
+            member_id=current_user.id if current_user else 0,
+            action_type="region_extract",
+            db=db,
+        )
 
         annotations = []
         for e in events:
@@ -271,19 +271,14 @@ async def cleanup_recording_session(
     deleted_counts = {"events": 0, "video_file": False}
 
     try:
+        from app.core.learning.trace.repository import trace_repository
+
         async with session_scope() as db:
-            stmt = (
-                delete(TraceEvent)
-                .where(TraceEvent.member_id == (current_user.id if current_user else 0))
-                .where(
-                    or_(
-                        TraceEvent.recording_session_id == session_id,
-                        TraceEvent.session_id == session_id,
-                    )
-                )
+            deleted_counts["events"] = await trace_repository.delete_by_session(
+                session_id,
+                member_id=current_user.id if current_user else 0,
+                db=db,
             )
-            result = await db.execute(stmt)
-            deleted_counts["events"] = getattr(result, "rowcount", 0)
 
         if video_path and os.path.exists(video_path):
             try:
@@ -291,7 +286,7 @@ async def cleanup_recording_session(
                 deleted_counts["video_file"] = True
                 logger.info(f"[Cleanup] Deleted video file: {video_path}")
             except Exception as e:
-                logger.error(f"[Cleanup] Failed to delete video file {video_path}: {e}")
+                logger.exception(f"[Cleanup] Failed to delete video file {video_path}: {e}")
 
         logger.info(f"[Cleanup] Session {session_id} cleaned up: {deleted_counts}")
 

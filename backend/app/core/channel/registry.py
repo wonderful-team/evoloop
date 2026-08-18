@@ -63,8 +63,11 @@ class ChannelRegistry:
         """
         result: list[Channel] = []
         for ch in self._channels.values():
-            if names is not None and ch.name not in names:
-                continue
+            if names is not None:
+                # 按渠道名精确匹配，或按场景标识匹配（渠道声明了 scenes）。
+                # 如请求 "duty" 场景 → 匹配 scenes={"duty"} 的渠道。
+                if ch.name not in names and not (ch.scenes & names):
+                    continue
             if payload_is_block and not ch.accepts_blocks:
                 continue
             if not payload_is_block and not ch.accepts_stream_events:

@@ -104,7 +104,7 @@ class DeviceWatcher:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.error(f"DeviceWatcher error: {e}")
+                logger.exception(f"DeviceWatcher error: {e}")
                 await asyncio.sleep(5)
 
     async def _handle_event(self, serial: str, status: str):
@@ -125,7 +125,7 @@ class DeviceWatcher:
                 )
                 logger.info(f"✅ Device {serial} capabilities: {capabilities}")
             except Exception as e:
-                logger.warning(f"⚠️ Failed to detect capabilities for {serial}: {e}")
+                logger.warning(f"⚠️ Failed to detect capabilities for {serial}: {e}", exc_info=True)
 
             await mirror_manager.on_device_connected(serial)
             from app.core.environment.event.publishers import publish_device_connected

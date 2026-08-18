@@ -145,4 +145,4 @@ class FileTraverser:
                             continue
                     yield entry
         except (PermissionError, OSError) as e:
-            logger.warning(f"Failed to list directory {path}: {e}")
+            logger.warning(f"Failed to list directory {path}: {e}", exc_info=True)

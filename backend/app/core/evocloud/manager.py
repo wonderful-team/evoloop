@@ -126,7 +126,7 @@ class EvoCloudManager:
             )
             logger.debug("[EvoCloud] Conversation sync started via bridge")
         except (ConnectionError, TimeoutError, OSError) as e:
-            logger.error(f"[EvoCloud] Failed to start conversation sync: {e}")
+            logger.exception(f"[EvoCloud] Failed to start conversation sync: {e}")
 
     async def _stop_conversation_sync(self):
         """Stop conversation history sync"""
@@ -138,7 +138,7 @@ class EvoCloudManager:
             await stop_conversation_sync()
             logger.debug("[EvoCloud] Conversation sync stopped via bridge")
         except (ConnectionError, TimeoutError, OSError) as e:
-            logger.error(f"[EvoCloud] Error stopping conversation sync: {e}")
+            logger.exception(f"[EvoCloud] Error stopping conversation sync: {e}")
 
     # --- Cache Management ---
 
@@ -252,7 +252,7 @@ class EvoCloudManager:
             return list(projects)
 
         except Exception as e:
-            logger.error(f"scan_projects failed: {e}")
+            logger.exception(f"scan_projects failed: {e}")
             # Return stale cache if available, otherwise empty list
             if self._projects_cache is not None:
                 logger.warning("[EvoCloud] Returning stale cache due to API error")

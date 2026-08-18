@@ -39,7 +39,7 @@ class BrowserPerceptionMixin:
                         timeout=timeout_ms,
                     )
             except Exception as e:
-                logger.error(f"[Browser] Screenshot action failed: {e}")
+                logger.exception(f"[Browser] Screenshot action failed: {e}")
                 return ControllerResponse.error(
                     f"Screenshot failed (timeout={timeout_ms}ms).", details=str(e))
 

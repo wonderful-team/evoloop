@@ -9,4 +9,7 @@ New code should import directly from the sub-modules.
 from app.core.engine.tools.orchestration.blackboard import (
     update_blackboard,  # noqa: F401
 )
+from app.core.engine.tools.orchestration.report_outcome import (
+    report_outcome,  # noqa: F401
+)
 from app.core.engine.tools.orchestration.routing import route_to  # noqa: F401

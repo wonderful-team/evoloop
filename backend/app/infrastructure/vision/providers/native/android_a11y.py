@@ -106,7 +106,7 @@ class AndroidA11yProvider(VisionProvider):
             compressed = kwargs.get("compressed", True)
             xml_content = adb_driver.dump_ui(device_id=device_id, compressed=compressed)
         except ADBError as e:
-            logger.error(f"UI dump failed: {e}")
+            logger.exception(f"UI dump failed: {e}")
             return VisionResult(task=task, success=False, metadata={"error": str(e)})
 
         elements = self._parse_xml(xml_content)
@@ -146,7 +146,7 @@ class AndroidA11yProvider(VisionProvider):
         try:
             root = ET.fromstring(xml_content.strip())
         except ET.ParseError as e:
-            logger.error(f"XML parse error (content preview: {xml_content[:100]}...): {e}")
+            logger.exception(f"XML parse error (content preview: {xml_content[:100]}...): {e}")
             return []
 
         for node in root.iter():

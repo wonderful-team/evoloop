@@ -8,10 +8,8 @@ import logging
 
 from sqlalchemy import select
 
-from app.core.config import settings
 from app.core.events import SystemEventType
 from app.core.events.decorators import event_register, event_subscribe
-from app.core.project.utils import get_workspace_root
 from app.infrastructure.database import session_scope
 from app.models import McpServer
 
@@ -27,11 +25,22 @@ class McpLifecycleSubscriber:
     @event_subscribe(SystemEventType.APP_STARTED)
     async def on_application_started(self, event):
         """
-        Handle APP_STARTED: Initialize/Register configured MCP servers.
+        Handle APP_STARTED: Initialize/Register configured MCP servers, then
+        connect to all enabled ones so their tools are injected into Agent runs.
         """
         logger.info("[MCP] 🔌 Initializing MCP Servers...")
         mcp_results = await init_mcp()
-        logger.info(f"[MCP] ✓ Servers initialized: {len(mcp_results)}")
+
+        from app.core.mcp import mcp_client_manager
+
+        connect_results = await mcp_client_manager.connect_all()
+        connected = sum(1 for r in connect_results if r.success)
+        logger.info(
+            "[MCP] ✓ Servers initialized: %d, connected: %d/%d",
+            len(mcp_results),
+            connected,
+            len(connect_results),
+        )
 
     @event_subscribe(SystemEventType.APP_STOPPING)
     async def on_application_stopping(self, event):
@@ -44,7 +53,7 @@ class McpLifecycleSubscriber:
             await mcp_client_manager.disconnect_all()
             logger.info("[MCP] All clients disconnected")
         except Exception as e:
-            logger.warning(f"[MCP] Cleanup failed: {e}")
+            logger.warning(f"[MCP] Cleanup failed: {e}", exc_info=True)
 
     @event_subscribe(SystemEventType.CONFIG_CHANGED)
     async def on_config_changed(self, event):
@@ -67,12 +76,12 @@ async def init_mcp(force_update: bool = False) -> dict[str, str]:
     Connection happens later via mcp_client_manager.connect_all().
 
     Args:
-        force_update: If True, reconfigure filesystem even if already configured
-                     (useful when WORKSPACE_ROOT changes)
+        force_update: Deprecated; kept for signature compatibility.
 
     Returns:
-        Dict of configured server names and their status ("added", "skipped", "error")
+        Dict of configured server names and their status.
     """
+    del force_update  # 默认 server 已移除，该参数不再影响行为（兼容旧调用方）
     logger.info("Initializing MCP configuration...")
     results = {}
 
@@ -81,107 +90,12 @@ async def init_mcp(force_update: bool = False) -> dict[str, str]:
         result = await session.execute(select(McpServer.name))
         existing_db_servers = {row[0] for row in result.all()}
 
-    # Use the SQLAlchemy URI from settings
-    db_url = str(settings.SQLALCHEMY_DATABASE_URI)
-
-    # 1. Local Postgres (System Default)
-    if "local-postgres" not in existing_db_servers:
-        details_pg = {
-            "command": "npx",
-            "args": ["-y", "@modelcontextprotocol/server-postgres", db_url],
-            "env": {},
-        }
-        try:
-            await _add_mcp_server_to_db("local-postgres", details_pg)
-            logger.info("MCP 'local-postgres' added to DB.")
-            results["local-postgres"] = "added"
-        except Exception as e:
-            logger.error(f"Failed to add local-postgres to DB: {e}")
-            results["local-postgres"] = "error"
-    else:
-        logger.debug("MCP 'local-postgres' already in DB, skipping.")
-        results["local-postgres"] = "skipped"
-
-    # 2. Filesystem (Critical for Coder)
-    workspace_root = get_workspace_root()
-    if workspace_root:
-        needs_update = force_update
-        needs_add = "filesystem" not in existing_db_servers
-
-        # Check for path mismatch to trigger update automatically
-        if not needs_add and not needs_update:
-            async with session_scope() as session:
-                result = await session.execute(
-                    select(McpServer).where(McpServer.name == "filesystem")
-                )
-                fs_server = result.scalars().first()
-                if fs_server:
-                    current_args = json.loads(fs_server.args)
-                    # MCP args usually look like ["-y", "@...", "/path"] or just ["/path"]
-                    # We just check if workspace_root is present in any of the args
-                    if workspace_root not in current_args:
-                        logger.info(f"Path mismatch detected for filesystem MCP: {workspace_root} not in {current_args}")
-                        needs_update = True
-
-        if needs_update:
-            # Remove from DB first, will be re-added with new config
-            logger.info("Updating filesystem MCP in DB due to WORKSPACE_ROOT change...")
-            try:
-                async with session_scope() as session:
-                    result = await session.execute(
-                        select(McpServer).where(McpServer.name == "filesystem")
-                    )
-                    server = result.scalars().first()
-                    if server:
-                        await session.delete(server)
-                existing_db_servers.discard("filesystem")
-                needs_add = True
-            except Exception as e:
-                logger.warning(f"Error removing existing filesystem MCP from DB: {e}")
-
-        if needs_add:
-            fs_args = [workspace_root]
-            details_fs = {
-                "command": "npx",
-                "args": ["-y", "@modelcontextprotocol/server-filesystem", *fs_args],
-                "env": {},
-            }
-            try:
-                await _add_mcp_server_to_db("filesystem", details_fs)
-                logger.info(f"MCP 'filesystem' added to DB for {workspace_root}.")
-                results["filesystem"] = "added"
-            except Exception as e:
-                logger.error(f"Failed to add filesystem to DB: {e}")
-                results["filesystem"] = "error"
-        else:
-            logger.debug("MCP 'filesystem' already in DB, skipping.")
-            results["filesystem"] = "skipped"
-    else:
-        logger.warning("WORKSPACE_ROOT not configured. Skipping MCP 'filesystem'.")
-        results["filesystem"] = "skipped_no_workspace"
-
-    # 3. Brave Search (Network Capability)
-    brave_key = settings.BRAVE_API_KEY
-    if brave_key:
-        if "brave-search" not in existing_db_servers:
-            details_brave = {
-                "command": "npx",
-                "args": ["-y", "@modelcontextprotocol/server-brave-search"],
-                "env": {"BRAVE_API_KEY": brave_key},
-            }
-            try:
-                await _add_mcp_server_to_db("brave-search", details_brave)
-                logger.info("MCP 'brave-search' added to DB.")
-                results["brave-search"] = "added"
-            except Exception as e:
-                logger.error(f"Failed to add brave-search to DB: {e}")
-                results["brave-search"] = "error"
-        else:
-            logger.debug("MCP 'brave-search' already in DB, skipping.")
-            results["brave-search"] = "skipped"
-    else:
-        logger.debug("BRAVE_API_KEY not found. Skipping 'brave-search'.")
-        results["brave-search"] = "skipped_no_key"
+    # MCP servers are now managed exclusively via DB configuration
+    # (McpServer table, e.g. mall-backend-ops). Default npx-based servers
+    # (local-postgres / filesystem / brave-search) are no longer auto-seeded;
+    # they caused npx download stalls and polluted Agent tool lists.
+    for name in existing_db_servers:
+        results[name] = "skipped_existing"
 
     return results
 
@@ -221,7 +135,7 @@ async def reload_mcp_for_workspace_change() -> dict[str, str]:
         results["reconnect"] = "success" if connected else "failed"
 
     except Exception as e:
-        logger.error(f"Failed to reload MCP for workspace change: {e}")
+        logger.exception(f"Failed to reload MCP for workspace change: {e}")
         results["error"] = str(e)
 
     return results

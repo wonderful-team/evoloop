@@ -159,7 +159,7 @@ async def check_benefit(benefit_code: str, token: TokenDep) -> bool:
 
         return await benefit_service.has_benefit(member_id, benefit_code)
     except Exception as e:
-        logger.error(f"Benefit check failed [{benefit_code}]: {e}")
+        logger.exception(f"Benefit check failed [{benefit_code}]: {e}")
         return False
 
 
@@ -194,7 +194,7 @@ async def check_multiple_benefits(
             )
         return result
     except Exception as e:
-        logger.error(f"Batch benefit check failed: {e}")
+        logger.exception(f"Batch benefit check failed: {e}")
         return dict.fromkeys(benefit_codes, False)
 
 
@@ -269,7 +269,7 @@ async def verify_guest_access(
             if member_id is not None:
                 return
         except Exception as e:
-            logger.debug(f"Query token validation failed: {e}")
+            logger.debug(f"Query token validation failed: {e}", exc_info=True)
             pass
 
     if current_user:
@@ -309,7 +309,7 @@ async def verify_guest_access(
     except HTTPException as he:
         raise he
     except Exception as e:
-        logger.error(f"Cache error during guest check: {e}")
+        logger.exception(f"Cache error during guest check: {e}")
         # Fail-Close: If cache is down, we cannot verify quota, so we must deny to prevent abuse.
         raise HTTPException(
             status_code=503, detail="Guest validation service temporary unavailable."

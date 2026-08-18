@@ -24,6 +24,10 @@ from app.core.channel.base import IncomingMessage, InputChannel
 from app.core.context import EvoContext
 from app.core.routing.actions import ActionOutcome, run_macro
 from app.core.routing.command_router import CommandRouter
+from app.core.routing.conversation_state import (
+    _get_thread_last_macro_result,
+    _set_thread_last_macro_result,
+)
 from app.core.routing.routing_data import get_store
 from app.core.routing.schemas import IntentHint
 from app.core.routing.thread_locks import route_lock_scope
@@ -84,6 +88,7 @@ async def dispatch_user_message(
         thread_id=thread_id,
         project_id=project_id,
         source=source,
+        skip_l0=(source in ("web", "mobile")),
     )
 
     if decision.intent_hint:
@@ -105,6 +110,27 @@ async def dispatch_user_message(
             thread_id,
             decision.intent_hint,
         )
+        # [前置上下文] 注入只服务 voice：L0 宏/导航的执行结果摘要（last_macro_result）
+        # 与滚动语音指令历史（session_history）只存在路由层内存、不落库，Agent 需要
+        # 靠注入才能得知"上一轮语音指令做了什么"。web 文字消息跳过 L0，不执行任何
+        # 宏/导航，注入反而会把同一线程内其他订单/会话的语音指令历史泄漏进当前消息
+        # （实测串单：390 的 human 消息被注入 389 的退款上下文），因此 web 直接入 Agent。
+        if source == "voice":
+            parts: list[str] = []
+            macro_result = _get_thread_last_macro_result(thread_id)
+            if macro_result:
+                parts.append(macro_result)
+            session_history = (
+                decision.intent_hint.session_history
+                if decision.intent_hint
+                else None
+            )
+            if session_history:
+                previous = [h for h in session_history if h and h.strip()]
+                if previous:
+                    parts.append("刚执行过的语音指令：" + "；".join(previous))
+            if parts:
+                msg.text = "[前置上下文] " + "。".join(parts) + "\n" + msg.text
         inputs = await input_channel.dispatch(msg)
         return DispatchOutcome(handled=False, msg=msg, inputs=inputs)
 
@@ -147,7 +173,9 @@ async def dispatch_user_message(
             inputs = await input_channel.dispatch(msg)
             return DispatchOutcome(handled=False, msg=msg, inputs=inputs)
 
-        macro_timeout = 10.0 if source == "voice" else None
+        # 语音宏超时设 30s：登录/复杂宏（navigate + wait + 表单填充）常需 10-20s，
+        # 10s 会误判超时下沉 Agent（宏仍在后台执行，登录实际成功），造成错乱。
+        macro_timeout = 30.0 if source == "voice" else None
         outcome = await run_macro(
             macro_id,
             decision.params,
@@ -172,6 +200,12 @@ async def dispatch_user_message(
                 )
 
         if handled:
+            # L0 宏执行成功不持久化到 DB，Agent 无从得知。记录结果摘要到
+            # per-thread L0 上下文，供下一轮 L0 miss → agent 时注入。
+            if outcome.ok:
+                summary = _summarize_macro_success(outcome)
+                if summary:
+                    _set_thread_last_macro_result(thread_id, summary)
             return DispatchOutcome(handled=True, local_response=outcome)
         else:
             inputs = await input_channel.dispatch(msg)
@@ -180,6 +214,27 @@ async def dispatch_user_message(
     logger.warning("[dispatch] unknown target_type: %s", target_type)
     inputs = await input_channel.dispatch(msg)
     return DispatchOutcome(handled=False, msg=msg, inputs=inputs)
+
+
+def _summarize_macro_success(outcome: ActionOutcome) -> str:
+    """Build a short summary of a successful L0 macro execution for Agent context.
+
+    Navigation-type outcomes (e.g. "跳转到添加商品页") carry the route in
+    ``data``; regular macro outcomes carry ``macro_name`` + the response message.
+    Falls back to the macro name when the response text is uninformative.
+    """
+    data = outcome.data or {}
+    if outcome.action_type == "navigate":
+        route = data.get("route") or ""
+        feedback = data.get("feedback") or ""
+        return f"已跳转导航：{feedback or route or '目标页面'}"
+    macro_name = data.get("macro_name") or "宏"
+    message = (outcome.message or "").strip()
+    store = _routing_store
+    success_resp = (store.responses.get("macro", {}).get("success", "") if store else "") or ""
+    if not message or message == success_resp:
+        return f"已执行宏「{macro_name}」"
+    return f"已执行宏「{macro_name}」：{message}"
 
 
 __all__ = [

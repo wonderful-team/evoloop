@@ -1,5 +1,14 @@
 [CONTEXT UPDATE — Turn {{ iteration_count }}]
 
+{%- if shared_context and shared_context.get('verification_impossible') %}
+{%- set blocked_topics = shared_context.get('verification_blocked_topics') or [shared_context.get('verification_blocked_topic', '')] %}
+> **Anti-Loop Instruction**: Previous Workers have already reported that the following topics are **unverifiable** in the current environment:
+{%- for t in blocked_topics %}
+> - `{{ t }}`
+{%- endfor %}
+> If the user's current request is to verify or confirm one of those *same* topics, do NOT call `route_to` to dispatch another Worker. Respond directly to the user with the known limitation.
+{%- endif %}
+
 {%- if explicit_skills %}
 ## Explicitly Attached Skills
 {%- for skill in explicit_skills %}
@@ -21,11 +30,6 @@
 {%- if total_active_skills > 20 %}
 - … and {{ total_active_skills - 20 }} more skill(s)
 {%- endif %}
-{%- endif %}
-
-{%- if active_macros %}
-## Available Macros
-{{ active_macros|length }} active macro(s). Use `list_macros(query="...")` to find relevant scripts; prefer `run_macro(macro_id, params)` over manual tool sequences when one matches.
 {%- endif %}
 
 {% if session_goal %}
@@ -62,6 +66,13 @@
   {%- endif %}
 {%- endif %}
 
+{%- if shared_context and shared_context|length > 0 %}
+## Shared Blackboard Notes (from previous Workers)
+{% for key, notes in shared_context.items() -%}
+- **{{ key }}**: {{ notes }}
+{% endfor %}
+{%- endif %}
+
 {%- if verification %}
 ## Verification: {{ verification.status|upper }}
 {%- endif %}
@@ -75,7 +86,6 @@
 {{ memory.episodic_raw | truncate(1000, True, "... [recent episodes truncated; use search_history for more]") }}
 {%- endif %}
 
-{%- if environment_summaries %}
-## Environment
+{%- if environment_summaries and not is_duty %}
 {% include 'core/engine/fragments/supervisor_environment_summary.j2' %}
 {%- endif %}

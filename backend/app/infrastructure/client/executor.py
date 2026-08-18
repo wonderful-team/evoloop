@@ -104,10 +104,10 @@ async def execute_via_client(
         )
         return result
     except ToolExecutionError as e:
-        logger.error(f"[ClientExecutor] Tool execution failed: {e}")
+        logger.exception(f"[ClientExecutor] Tool execution failed: {e}")
         raise
     except Exception as e:
-        logger.error(f"[ClientExecutor] Unexpected error: {e}")
+        logger.exception(f"[ClientExecutor] Unexpected error: {e}")
         raise ToolExecutionError(f"Failed to execute {tool_name}: {e}")
 
 

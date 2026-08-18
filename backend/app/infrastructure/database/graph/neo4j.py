@@ -28,7 +28,7 @@ class Neo4jDriver(IGraphDriver):
             await self._driver.verify_connectivity()
             return True
         except Exception as e:
-            logger.error(f"Neo4j connectivity check failed: {e}")
+            logger.exception(f"Neo4j connectivity check failed: {e}")
             return False
 
     async def close(self) -> None:

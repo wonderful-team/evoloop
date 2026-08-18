@@ -61,5 +61,5 @@ async def use_mcp_server(server_name: str) -> str:
             "Do NOT attempt to use the new tools in this exact message."
         )
     except Exception as e:
-        logger.error(f"Error in use_mcp_server: {e}")
+        logger.exception(f"Error in use_mcp_server: {e}")
         return f"Error activating MCP server: {str(e)}"

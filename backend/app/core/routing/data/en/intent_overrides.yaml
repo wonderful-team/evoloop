@@ -31,7 +31,6 @@ device_intent_trigger_intents:
   - enable_WiFi
   - open_messages
   - close_app
-  - disable_WiFi
   - switch_app
 
 # Device keyword redirects: when a device keyword is present in the text and
@@ -40,9 +39,7 @@ device_intent_trigger_intents:
 device_intents:
   WiFi:
     - turn on WiFi
-    - turn off WiFi
     - enable WiFi
-    - disable WiFi
   bluetooth:
     - turn on bluetooth
     - turn off bluetooth

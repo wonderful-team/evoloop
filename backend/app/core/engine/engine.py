@@ -63,7 +63,7 @@ class AgentEngine:
         if not model:
             logger.info(f"[{name}] No model provided for node execution; relying on cloud gateway default model routing.")
 
-        llm, provider = await self._inference_engine.create_llm(
+        llm, _provider = await self._inference_engine.create_llm(
             model=model,
             temperature=temperature,
         )
@@ -79,7 +79,7 @@ class AgentEngine:
         )
         repaired_messages = trim_result.messages
 
-        tool_executor = _ToolExecutorAdapter(
+        tool_executor = ToolExecutorAdapter(
             tool_executor_class=self._tool_executor_class,
             tool_map=tool_map,
             state=state,
@@ -101,7 +101,6 @@ class AgentEngine:
             llm_with_tools=llm_with_tools,
             messages=repaired_messages,
             system_prompt=system_prompt,
-            provider=provider,
             config=config,
             name=name,
             max_steps=max_steps,
@@ -140,7 +139,7 @@ class AgentEngine:
         return result
 
 
-class _ToolExecutorAdapter:
+class ToolExecutorAdapter:
     """
     Adapts AgentToolExecutor to the batch interface expected by InferenceEngine.
     """

@@ -86,7 +86,7 @@ def safe_parse_xml(xml_content: str) -> ET.Element | None:
     try:
         return ET.fromstring(cleaned)
     except ET.ParseError as e:
-        logger.warning(f"XML parse error: {e}")
+        logger.warning(f"XML parse error: {e}", exc_info=True)
         return None
 
 

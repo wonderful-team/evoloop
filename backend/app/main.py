@@ -9,11 +9,15 @@ from fastapi.routing import APIRoute
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.cors import CORSMiddleware
 
+from app.api.errors import register_exception_handlers
 from app.api.main import api_router
 from app.core.config import settings
 from app.core.context.middleware import ContextMiddleware
 from app.core.routing.deps import is_loopback_host
 from app.infrastructure.database.resource_manager import db_resource_manager
+from app.core.execution.macro import (
+    migrate_deterministic_skills,
+)
 
 logging.basicConfig(level=logging.INFO)
 logging.getLogger("sqlalchemy.engine.Engine").setLevel(logging.WARNING)
@@ -42,6 +46,15 @@ async def lifespan(app: FastAPI):
 
     await db_resource_manager.initialize(create_tables=True)
 
+    # Restore persisted SharedState (active project_id) so voice / duty chains
+    # get the correct project context even after a backend restart.
+    try:
+        from app.core.state import shared_state
+
+        await shared_state.reload_persisted()
+    except Exception as e:
+        logger.warning(f"Failed to reload SharedState persisted project: {e}", exc_info=True)
+
     # Channel Registry - register built-in transports (SSE + Mobile)
     try:
         from app.core.channel import register_default_channels
@@ -49,7 +62,7 @@ async def lifespan(app: FastAPI):
         register_default_channels()
         logger.info("Channel registry initialized (SSE + Mobile).")
     except Exception as e:
-        logger.warning(f"Failed to initialize Channel registry: {e}")
+        logger.warning(f"Failed to initialize Channel registry: {e}", exc_info=True)
 
     # Memory System Init
     try:
@@ -59,7 +72,7 @@ async def lifespan(app: FastAPI):
         _app.state.memory_container = memory_container
         logger.info("Memory Service initialized via MemoryLifespanManager.")
     except Exception as e:
-        logger.warning(f"Failed to initialize Memory Service: {e}")
+        logger.warning(f"Failed to initialize Memory Service: {e}", exc_info=True)
 
     # Agent Awakening - Discovery & Lifecycle Handlers
     try:
@@ -68,7 +81,7 @@ async def lifespan(app: FastAPI):
         auto_discover_handlers()
         logger.info("Discovery and registration of all domain lifecycle handlers complete.")
     except Exception as e:
-        logger.warning(f"Agent Awakening/Discovery failed (non-critical): {e}")
+        logger.warning(f"Agent Awakening/Discovery failed (non-critical): {e}", exc_info=True)
 
     # Publish Application Started Event
     from app.core.events.publishers import publish_app_started
@@ -86,7 +99,7 @@ async def lifespan(app: FastAPI):
         routing_tasks.build_l0_init_spec.delay()
         logger.info("[Startup] L0 Init Spec build dispatched")
     except Exception as e:
-        logger.warning(f"[Startup] L0 Init Spec dispatch failed (non-critical): {e}")
+        logger.warning(f"[Startup] L0 Init Spec dispatch failed (non-critical): {e}", exc_info=True)
 
     # Wire voice WebSocket transport at startup so VoiceChannel (Agent TTS
     # streaming and macro presenters) can push to WS regardless of which code
@@ -103,14 +116,15 @@ async def lifespan(app: FastAPI):
             message_type=_MsgType,
         )
         logger.info("[Startup] VoiceChannel WS transport wired")
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, ImportError) as e:
-        logger.warning(f"[Startup] VoiceChannel wiring failed (non-critical): {e}")
+    except (ImportError, TypeError) as e:
+        logger.warning(
+            "[Startup] VoiceChannel wiring failed (non-critical): %s", e, exc_info=True
+        )
 
     # Migrate legacy deterministic LearnedSkill rows -> macros table (idempotent).
     # Runs after DB init so the macros table exists. Non-fatal: migration errors
     # are logged but do not prevent the server from starting.
     try:
-        from app.core.execution.macro.migration import migrate_deterministic_skills
 
         stats = await migrate_deterministic_skills()
         logger.info(
@@ -120,7 +134,7 @@ async def lifespan(app: FastAPI):
             stats.get("failed", 0),
         )
     except Exception as e:
-        logger.warning(f"[Startup] Macro migration failed (non-critical): {e}")
+        logger.warning(f"[Startup] Macro migration failed (non-critical): {e}", exc_info=True)
 
     yield
 
@@ -135,7 +149,7 @@ async def lifespan(app: FastAPI):
         await publish_app_stopping()
         logger.info("[Shutdown] APP_STOPPING event published")
     except Exception as e:
-        logger.error(f"[Shutdown] Failed to publish APP_STOPPING event: {e}")
+        logger.exception(f"[Shutdown] Failed to publish APP_STOPPING event: {e}")
 
     # 2. Cleanup Core Infrastructure (Infrastructure MUST be last)
     from app.infrastructure.llm.factory import shutdown_http_pool
@@ -173,6 +187,8 @@ if settings.all_cors_origins:
 
 app.add_middleware(ContextMiddleware)
 app.include_router(api_router, prefix=settings.API_V1_STR)
+
+register_exception_handlers(app)
 
 # Mount static files
 os.makedirs(settings.BROWSER_ARTIFACTS_DIR, exist_ok=True)

@@ -138,7 +138,7 @@ async def get_wechat_config() -> WeChatConfigResponse:
 
         return WeChatConfigResponse(enabled=is_configured, app_id=None)
     except Exception as e:
-        logger.warning(f"Failed to check WeChat config: {e}")
+        logger.warning(f"Failed to check WeChat config: {e}", exc_info=True)
         return WeChatConfigResponse(enabled=False, app_id=None)
 
 
@@ -167,7 +167,7 @@ async def generate_qr_code() -> WeChatQRResponse:
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to generate QR code: {e}")
+        logger.exception(f"Failed to generate QR code: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to generate QR code",
@@ -208,7 +208,7 @@ async def check_wechat_login_status(
                 message="Waiting for scan",
             )
     except Exception as e:
-        logger.error(f"Failed to check login status: {e}")
+        logger.exception(f"Failed to check login status: {e}")
         return WeChatStatusResponse(status="error", message="Failed to check status")
 
 
@@ -260,7 +260,7 @@ async def wechat_direct_login(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"WeChat login failed: {e}")
+        logger.exception(f"WeChat login failed: {e}")
         raise HTTPException(status_code=500, detail=f"Login failed: {str(e)}")
 
 
@@ -284,7 +284,7 @@ async def wechat_callback(
         )
         return result
     except Exception as e:
-        logger.error(f"Failed to forward callback: {e}")
+        logger.exception(f"Failed to forward callback: {e}")
         return {"message": "OK"}
 
 

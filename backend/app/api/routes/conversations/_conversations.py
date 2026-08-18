@@ -3,7 +3,7 @@ import logging
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import func, select
 
-from app.api.deps import CurrentUserOptional
+from app.api.deps import CurrentUser
 from app.api.schemas.conversations import (
     ConversationDeleteResponse,
     ConversationListItem,
@@ -25,14 +25,13 @@ async def list_conversations(
     project_id: int | None = None,
     page: int = 1,
     page_size: int = 20,
-    current_user: CurrentUserOptional = None,
+    current_user: CurrentUser = None,
 ):
     async with session_scope() as session:
         count_stmt = select(func.count(Conversation.id)).where(Conversation.parent_thread_id.is_(None))
         if project_id is not None:
             count_stmt = count_stmt.where(Conversation.project_id == project_id)
-        if current_user is not None:
-            count_stmt = count_stmt.where(Conversation.member_id == current_user.id)
+        count_stmt = count_stmt.where(Conversation.member_id == current_user.id)
         total_count_result = await session.execute(count_stmt)
         total_count = total_count_result.scalar() or 0
 
@@ -43,8 +42,7 @@ async def list_conversations(
         )
         if project_id is not None:
             stmt = stmt.where(Conversation.project_id == project_id)
-        if current_user is not None:
-            stmt = stmt.where(Conversation.member_id == current_user.id)
+        stmt = stmt.where(Conversation.member_id == current_user.id)
 
         stmt = stmt.offset((page - 1) * page_size).limit(page_size)
 
@@ -85,14 +83,14 @@ async def list_conversations(
 async def update_conversation(
     thread_id: str,
     req: ConversationUpdateRequest,
-    current_user: CurrentUserOptional = None,
+    current_user: CurrentUser = None,
 ):
     async with session_scope() as session:
         conversation = await session.get(Conversation, thread_id)
         if not conversation:
             raise HTTPException(404, "Conversation not found")
 
-        if current_user is not None and conversation.member_id != 0 and conversation.member_id != current_user.id:
+        if conversation.member_id != 0 and conversation.member_id != current_user.id:
             raise HTTPException(403, "Access denied")
 
         if req.title is not None:
@@ -112,21 +110,23 @@ async def update_conversation(
 
 
 @router.get("/{thread_id}/activity")
-async def get_thread_activity(thread_id: str):
+async def get_thread_activity(
+    thread_id: str,
+    current_user: CurrentUser = None,  # noqa: ARG001
+):
     return await activity_monitor.get_activity(thread_id)
 
 
 @router.delete("/{thread_id}")
 async def delete_conversation(
     thread_id: str,
-    current_user: CurrentUserOptional = None,
+    current_user: CurrentUser = None,
 ):
     try:
-        if current_user is not None:
-            async with session_scope() as session:
-                conversation = await session.get(Conversation, thread_id)
-                if conversation and conversation.member_id != 0 and conversation.member_id != current_user.id:
-                    raise HTTPException(403, "Access denied")
+        async with session_scope() as session:
+            conversation = await session.get(Conversation, thread_id)
+            if conversation and conversation.member_id != 0 and conversation.member_id != current_user.id:
+                raise HTTPException(403, "Access denied")
 
         from app.core.engine.event.publishers import publish_conversation_deleted
 
@@ -141,5 +141,5 @@ async def delete_conversation(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to delete conversation: {e}")
+        logger.exception(f"Failed to delete conversation: {e}")
         raise HTTPException(500, str(e))

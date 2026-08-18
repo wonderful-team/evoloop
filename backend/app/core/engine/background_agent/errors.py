@@ -53,7 +53,7 @@ async def handle_task_exception(thread_id: str, project_id: int, e: Exception, h
             try:
                 await MobileErrorNotifier(handler).push(classification_obj)
             except (TypeError, ValueError, RuntimeError, OSError) as push_e:
-                logger.warning(f"[ErrorHandler] Mobile push failed: {push_e}")
+                logger.warning(f"[ErrorHandler] Mobile push failed: {push_e}", exc_info=True)
 
     if error_type == "auth_expired":
         logger.warning(f"[EvoLoopAuth] Thread {thread_id} platform auth expired")
@@ -152,7 +152,7 @@ async def handle_task_exception(thread_id: str, project_id: int, e: Exception, h
                 message_id=gen_uuid(),
             )
         except Exception as sse_err:
-            logger.warning(f"[ErrorHandler] SSE push failed: {sse_err}")
+            logger.warning(f"[ErrorHandler] SSE push failed: {sse_err}", exc_info=True)
 
     return False
 

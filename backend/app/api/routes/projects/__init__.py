@@ -42,9 +42,10 @@ from app.infrastructure.database.vector import get_vector_store
 from app.models import Repository
 
 from ._generations import router as generations_router
+from ._duty import router as duty_router
 from ._listing import _resolve_project_id
 from ._listing import router as listing_router
-from ._modules import router as modules_router  # noqa: F401 — re-export for main.py
+from ._modules import router as modules_router
 from ._profiles import router as profiles_router
 
 logger = logging.getLogger(__name__)
@@ -54,6 +55,7 @@ router = APIRouter()
 router.include_router(listing_router)
 router.include_router(profiles_router)
 router.include_router(generations_router)
+router.include_router(duty_router)
 # fmt: on
 
 
@@ -62,7 +64,29 @@ __all__ = ["router", "modules_router"]
 
 @router.get("/current")
 async def get_current_project(_token: TokenDep):
+    """返回当前活跃项目。
+
+    真数据源为后端 SharedState.project_id（本地，持久化于 DB，SSOT）——
+    语音/值守链路读它，前端/移动端初始化也应从后端读它而非本地各自存储。
+    云数据仅作补充（project_name/external_path 等），project_id 以本地为准。
+    """
+    from app.core.state import shared_state
+
+    local_project_id = int(await shared_state.get("project_id", "0") or 0)
     cloud_res = await evocloud_manager.api.get_current_project(token=_token)
+
+    # 兼容云返回结构：若本地有权威 project_id，则覆盖/补充
+    if isinstance(cloud_res, dict) and cloud_res.get("code") == 0:
+        data = cloud_res.get("data") or {}
+        if isinstance(data, dict):
+            data["project_id"] = local_project_id
+            cloud_res["data"] = data
+    else:
+        cloud_res = {"code": 0, "data": {"project_id": local_project_id}, "message": "ok"}
+
+    logger.info(
+        f"[Projects] get_current_project -> project_id={local_project_id}"
+    )
     return cloud_res
 
 

@@ -40,7 +40,7 @@ class BrowserInteractionMixin:
                         await page.locator(loc).first.wait_for(state="visible", timeout=3000)
                         target = page.locator(loc).filter(visible=True).first
                 except Exception as ve:
-                    logger.debug(f"[Browser] Visibility wait failed: {ve}")
+                    logger.debug(f"[Browser] Visibility wait failed: {ve}", exc_info=True)
                     target = page.locator(loc).first
 
                 logger.debug(f"[Browser] Clicking locator: {loc} (target={target})")
@@ -87,7 +87,7 @@ class BrowserInteractionMixin:
                     await page.locator(loc).first.wait_for(state="visible", timeout=3000)
                     target = page.locator(loc).filter(visible=True).first
             except Exception as ve:
-                logger.debug(f"[Browser] Visibility wait failed for type_text: {ve}")
+                logger.debug(f"[Browser] Visibility wait failed for type_text: {ve}", exc_info=True)
 
             try:
                 tag_name = await target.evaluate("node => node.tagName.toLowerCase()")
@@ -98,7 +98,7 @@ class BrowserInteractionMixin:
                         target = child_input
                         logger.debug(f"[Browser] Found child input: {target}")
             except Exception as ee:
-                logger.debug(f"[Browser] Failed to check/find child input: {ee}")
+                logger.debug(f"[Browser] Failed to check/find child input: {ee}", exc_info=True)
 
             logger.debug(f"[Browser] Typing into locator: {loc} (target={target})")
             val_display = str(value)[:50] + ("..." if len(str(value)) > 50 else "")

@@ -189,7 +189,7 @@ def _get_macos_uuid() -> str:
                 if len(parts) >= 4:
                     return parts[-2]
     except Exception as e:
-        logger.debug(f"ioreg failed: {e}")
+        logger.debug(f"ioreg failed: {e}", exc_info=True)
 
     try:
         result = subprocess.run(
@@ -206,7 +206,7 @@ def _get_macos_uuid() -> str:
         if match:
             return match.group(1)
     except Exception as e:
-        logger.debug(f"system_profiler failed: {e}")
+        logger.debug(f"system_profiler failed: {e}", exc_info=True)
 
     return _fallback_identity()
 
@@ -223,7 +223,7 @@ def _get_windows_machine_guid() -> str:
             value, _ = winreg.QueryValueEx(key, "MachineGuid")
             return str(value)
     except Exception as e:
-        logger.debug(f"Windows registry read failed: {e}")
+        logger.debug(f"Windows registry read failed: {e}", exc_info=True)
 
     try:
         result = subprocess.run(
@@ -236,7 +236,7 @@ def _get_windows_machine_guid() -> str:
         if len(lines) >= 2 and lines[1].lower() != "ffffffff-ffff-ffff-ffff-ffffffffffff":
             return lines[1]
     except Exception as e:
-        logger.debug(f"wmic failed: {e}")
+        logger.debug(f"wmic failed: {e}", exc_info=True)
 
     return _fallback_identity()
 
@@ -263,7 +263,7 @@ def _get_linux_machine_id() -> str:
         if uuid and uuid.lower() != "not settable":
             return uuid
     except Exception as e:
-        logger.debug(f"dmidecode failed: {e}")
+        logger.debug(f"dmidecode failed: {e}", exc_info=True)
 
     return _fallback_identity()
 

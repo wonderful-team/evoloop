@@ -69,7 +69,7 @@ async def handle_read(
             import logging
 
             logger = logging.getLogger(__name__)
-            logger.error(f"Extraction failed for {path}: {e}")
+            logger.exception(f"Extraction failed for {path}: {e}")
             return i18n.get("domain_tools.files.read_error", error=str(e))
 
     # 2. Standard Logic for Plain Text / Code

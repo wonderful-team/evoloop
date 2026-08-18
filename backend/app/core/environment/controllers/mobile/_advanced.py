@@ -72,7 +72,7 @@ class MobileAdvancedMixin:
                             cropped.save(filepath)
                             logger.info(f"[Mobile] Screenshot cropped to region: {region}")
                 except Exception as e:
-                    logger.warning(f"[Mobile] Region cropping failed: {e}")
+                    logger.warning(f"[Mobile] Region cropping failed: {e}", exc_info=True)
 
             result_msg = ControllerResponse.screenshot_result(success=True, filename=filepath)
             if ocr:

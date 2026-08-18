@@ -14,6 +14,9 @@ from dataclasses import dataclass, field
 
 from app.core.atlas.source.macro_factory import templates
 from app.core.atlas.source.macro_factory.templates import MacroCandidate
+from app.core.execution.macro import (
+    MacroScript,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -31,9 +34,25 @@ def pick_templates(action: dict) -> list:
     Money writes get two: the write macro itself and a sibling field-read
     macro ('查{query}商品价格') so multi-intent chains have a pure numeric
     `value` key for resolver expressions.
+
+    Row-action writes (上架/下架/删除) use ``row_action``; stock/price edits
+    (改库存/改价) use ``edit_stock`` — both are list-page inline operations
+    (v3.1), falling back to the two-stage GET-page flow when not applicable.
     """
     kind = action.get("kind")
     risk = action.get("risk_tier")
+    name = action.get("name", "")
+
+    # Row inline operations: on/off goods, delete — no GET edit page.
+    if _is_row_action(name):
+        return [templates.row_action]
+    # Stock/price inline edits (editGoodsStock / editStock / adjustPrice).
+    if _is_stock_edit(name):
+        return [templates.edit_stock]
+    # Detail-page actions (after-sales / approval): agree/refuse/close/receive.
+    if _is_detail_action(name):
+        return [templates.detail_action]
+
     if kind == "read" and risk == "ui":
         return [templates.list_view, templates.list_open]
     if kind == "read" and risk == "data":
@@ -45,6 +64,59 @@ def pick_templates(action: dict) -> list:
     if kind == "write" and risk == "ui":
         return [templates.basic_navigate]
     return []
+
+
+_ROW_ACTION_NAMES = frozenset({
+    "onGoods", "offGoods", "on_goods", "off_goods",
+    "deleteGoods", "delete",
+})
+# Row-dialog writes (stock/price/balance/point/integral/growth edits).
+_STOCK_EDIT_NAMES = frozenset({
+    "editGoodsStock", "editStock", "adjustPrice",
+    "edit_goods_stock", "edit_stock", "adjust_price",
+    "modifyBalance", "modifyBalanceMoney", "adjustBalance",
+    "modifyPoint", "modifyIntegral", "modifyGrowth",
+})
+
+
+def _is_row_action(name: str) -> bool:
+    if name in _ROW_ACTION_NAMES:
+        return True
+    # Delete/state-toggle actions are list-row operations in CRUD backends
+    # (deleteLevel / deleteLabel / deleteBrand / onGoods…).
+    lower = name.lower()
+    if lower.startswith("delete") or lower.startswith("del_"):
+        return True
+    if lower in ("del", "off", "on"):
+        return True
+    return False
+
+
+def _is_stock_edit(name: str) -> bool:
+    if name in _STOCK_EDIT_NAMES:
+        return True
+    # Name-based fallback for row-dialog edits (balance/point/integral/growth).
+    lower = name.lower()
+    return any(
+        kw in lower
+        for kw in ("balance", "point", "integral", "growth", "adjustprice", "editstock", "edit_goods_stock")
+    )
+
+
+# Detail-page actions (after-sales / approval flows): agree/refuse/close/
+# receive/complete/activeRefund. These live on a detail page, not the list row.
+_DETAIL_ACTION_NAMES = frozenset({
+    "agree", "refuse", "close", "receive", "complete",
+    "activeRefund", "shopActiveRefund",
+})
+
+
+def _is_detail_action(name: str) -> bool:
+    if name in _DETAIL_ACTION_NAMES:
+        return True
+    lower = name.lower()
+    return lower in ("agree", "refuse", "receive", "complete")
+
 
 
 def pick_template(action: dict):
@@ -131,19 +203,38 @@ def _check_candidate(candidate: MacroCandidate, entity_map: dict) -> list[str]:
             else None
         )
         if url:
-            # Strip the base ({{base_url}} placeholder or scheme+host) and the
-            # query string; the remaining path must resolve to a route entry.
+            # Runtime-filled placeholders ({{detail_url}} from a prior extract
+            # step) cannot be grounded statically — skip route validation.
+            if "{{" in url and "base_url" not in url:
+                selector = step.get("target_selector")
+                if selector and not _selector_grounded(selector):
+                    problems.append(
+                        f"{candidate.name}: selector '{selector}' 不在 AppMap elements 中"
+                    )
+                continue
+            # Strip the base ({{base_url}} placeholder or scheme+host), the
+            # query string, and any hash-route prefix (shop.html#url=shop/goods/lists
+            # -> /shop/goods/lists, module prefix tolerated) so the remaining
+            # path matches a route entry.
             path = url.replace("{{base_url}}", "")
             path = re.sub(r"^https?://[^/]+", "", path).split("?")[0]
+            hash_m = re.search(r"#url=(.+)$", path)
+            if hash_m:
+                path = "/" + hash_m.group(1).lstrip("/")
             if path and path not in known_paths:
-                problems.append(f"{candidate.name}: url '{path}' 不在 AppMap routes 中")
+                # Hash routes may carry a module prefix (shop/goods/lists) that
+                # the AppMap route stores without it (/goods/lists). Accept a
+                # suffix match when the hash path ends with a known route.
+                if not any(path.endswith(p) for p in known_paths if p and p != "/"):
+                    problems.append(
+                        f"{candidate.name}: url '{path}' 不在 AppMap routes 中"
+                    )
         selector = step.get("target_selector")
         if selector and not _selector_grounded(selector):
             problems.append(
                 f"{candidate.name}: selector '{selector}' 不在 AppMap elements 中"
             )
 
-    from app.core.execution.macro.schemas import MacroScript
 
     try:
         MacroScript(steps=candidate.macro_script)

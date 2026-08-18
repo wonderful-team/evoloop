@@ -89,7 +89,7 @@ class FileGraphDriver:
             logger.warning("[FileGraph] networkx not installed, graph features disabled")
             self._graph = None
         except Exception as e:
-            logger.error(f"[FileGraph] Failed to load graph: {e}")
+            logger.exception(f"[FileGraph] Failed to load graph: {e}")
             self._graph = None
 
     def _save_graph(self):
@@ -110,7 +110,7 @@ class FileGraphDriver:
                 json.dump(data, f, ensure_ascii=False, indent=2)
             logger.debug(f"[FileGraph] Saved graph to {self.graph_file}")
         except Exception as e:
-            logger.error(f"[FileGraph] Failed to save graph: {e}")
+            logger.exception(f"[FileGraph] Failed to save graph: {e}")
 
     def session(self):
         """Return a session context manager."""
@@ -379,7 +379,7 @@ class FileGraphDriver:
                         "vector": properties["embedding"],
                     }])
                 except Exception as ve:
-                    logger.warning(f"[FileGraph] Failed to sync Concept vector to store: {ve}")
+                    logger.warning(f"[FileGraph] Failed to sync Concept vector to store: {ve}", exc_info=True)
 
             self._save_graph()
             return dict(self._graph.nodes[internal_id])

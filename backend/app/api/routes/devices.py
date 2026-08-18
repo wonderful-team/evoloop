@@ -69,7 +69,7 @@ async def get_devices(token: TokenDep):
                     "battery_percent": ld.battery_percent
                 })
     except Exception as e:
-        logger.warning(f"Failed to merge local devices: {e}")
+        logger.warning(f"Failed to merge local devices: {e}", exc_info=True)
 
     return devices
 

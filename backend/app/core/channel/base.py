@@ -42,6 +42,11 @@ class Channel(ABC):
     accepts_blocks: bool = True
     accepts_stream_events: bool = False
 
+    # 该渠道所属场景（source 场景标识，如 voice/web/mobile/duty）。
+    # 空集合 = 不声明场景（按 name 精确匹配）。声明后 OutputChannelPolicy
+    # 可用场景名（如 "duty"）路由到本渠道，实现「场景标识」与「渠道实现」解耦。
+    scenes: set[str] = set()
+
     @abstractmethod
     async def send(
         self,
@@ -73,7 +78,18 @@ class Channel(ABC):
         tool_name: str | None = None,
         metadata: dict | None = None,
     ) -> None:
-        """Deliver a HITL request."""
+        """Deliver a HITL request (default no-op, override per channel).
+
+        Implementation matrix:
+        - ``WebChannel`` (``sse``): intentionally NOT implemented — the web UI
+          receives HITL requests via the SSE activity snapshot
+          (``/stream`` → ``human_request`` event) + MessageBroker events, not
+          through this channel push.
+        - ``VoiceChannel``: intentionally NOT implemented — voice has no
+          interactive HITL UI; HITL in voice mode surfaces as a status change.
+        - ``MobileChannel``: implemented — pushes ``hitl.request`` via the
+          Gateway HTTP API.
+        """
         return
 
     async def start(self) -> None:

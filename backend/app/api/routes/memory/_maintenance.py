@@ -17,5 +17,5 @@ async def deduplicate_checkpoints(
         result = await manager.deduplicate_checkpoints(dry_run=dry_run)
         return result
     except Exception as e:
-        logger.error(f"Failed to deduplicate checkpoints: {e}")
+        logger.exception(f"Failed to deduplicate checkpoints: {e}")
         raise HTTPException(status_code=500, detail=f"Deduplication failed: {str(e)}")

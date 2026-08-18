@@ -22,12 +22,19 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
+from app.core.execution.macro.engine import MacroEngine
+from app.core.execution.macro.lifecycle import (
+    invalidate_macro_cache as _invalidate_lifecycle_cache,
+)
+from app.core.execution.macro.lifecycle import load_macro as _load_macro
 from app.core.execution.macro.schemas import (
     RISK_TIER_ORDER,
     MacroScript,
     action_family,
     action_risk,
 )
+from app.core.project.utils import get_project_path, read_project_json
+from app.infrastructure.config.vault import SecureVaultService
 from app.models.macro import Macro
 from app.utils.parameters import missing_required_params
 from app.utils.yaml import YAMLError, macro_from_yaml
@@ -36,50 +43,23 @@ logger = logging.getLogger(__name__)
 
 _PARSE_ERRORS = (ValueError, OSError, RuntimeError, TypeError, KeyError, YAMLError)
 
-# MacroScript 内存缓存：{macro_id: (updated_at_iso, MacroScript)}
-_SCRIPT_CACHE: dict[int, tuple[str, MacroScript]] = {}
-_MACRO_CACHE: dict[int, tuple[str, Macro]] = {}
-
-
 def invalidate_macro_cache(macro_id: int | None = None) -> None:
-    """清除 Macro 缓存。macro_id=None 时清除全部。"""
-    if macro_id is not None:
-        _SCRIPT_CACHE.pop(macro_id, None)
-        _MACRO_CACHE.pop(macro_id, None)
-    else:
-        _SCRIPT_CACHE.clear()
-        _MACRO_CACHE.clear()
+    """No-op cache invalidation（宏缓存已移除，见 lifecycle.invalidate_macro_cache）。"""
+    _invalidate_lifecycle_cache(macro_id)
 
 
 def _get_cached_script(macro: Macro) -> MacroScript:
-    """缓存解析后的 MacroScript，updated_at 变化时自动失效。"""
-    cached = _SCRIPT_CACHE.get(macro.id)
-    updated = macro.updated_at.isoformat() if macro.updated_at else ""
-    if cached and cached[0] == updated:
-        return cached[1]
-    script = MacroScript.from_yaml(macro.macro_script)
-    _SCRIPT_CACHE[macro.id] = (updated, script)
-    if len(_SCRIPT_CACHE) > 500:
-        _SCRIPT_CACHE.clear()
-    return script
+    """解析宏脚本为 MacroScript（无缓存：每次执行读最新脚本）。
 
-
-# load_macro 进程内缓存：{macro_id: (updated_at_iso, Macro)}
-_MACRO_CACHE: dict[int, tuple[str, Macro]] = {}
+    历史实现有进程内缓存（_SCRIPT_CACHE），因 update_macro 未失效缓存导致
+    "DB 已更新但执行旧脚本" 问题，已移除。宏脚本每次执行直接解析。
+    """
+    return MacroScript.from_yaml(macro.macro_script)
 
 
 async def load_macro(macro_id: int) -> Macro | None:
-    cached = _MACRO_CACHE.get(macro_id)
-    if cached is not None:
-        return cached[1]
-    from app.infrastructure.database import session_scope
-
-    async with session_scope() as session:
-        macro = await session.get(Macro, macro_id)
-    if macro is not None:
-        updated = macro.updated_at.isoformat() if macro.updated_at else ""
-        _MACRO_CACHE[macro_id] = (updated, macro)
-    return macro
+    """加载 Macro（带进程内缓存，实现在 lifecycle）。"""
+    return await _load_macro(macro_id)
 
 
 class MacroGateError(Exception):
@@ -100,10 +80,13 @@ class ExecutionPolicy:
 
 
 WEB_POLICY = ExecutionPolicy(allow_self_heal=True)
+# 语音策略：快速失败（不自动恢复，语音用户不能等静默的 agentic 重试）。
+# allowed_sources 放开 desktop + dom（浏览器宏，如登录后台 #958）；dom
+# 宏含 run_js（escape 风险）为高，但不设 max_risk_tier —— 保持与 web 一致，
+# 语音宏的安全性由宏的 requires_confirmation 字段 + 审核流程保证。
 VOICE_POLICY = ExecutionPolicy(
     allow_self_heal=False,
-    allowed_sources=frozenset({"desktop"}),
-    # allowed_families 和 max_risk_tier 不限制 — 先跑通，后续迭代加安全
+    allowed_sources=frozenset({"desktop", "dom"}),
 )
 
 
@@ -112,6 +95,7 @@ class ExecutionOutcome:
     ok: bool
     message: str
     fell_back: bool = False  # macro failed and an agentic recovery run took over
+    extracted_data: dict[str, Any] | None = None  # data captured by EXTRACT steps
 
 
 def is_navigation_macro(macro: Macro) -> str | None:
@@ -155,15 +139,67 @@ def preflight(macro: Macro, params: dict[str, Any] | None) -> MacroScript:
             "not_routable",
             f"Macro is not active (status: {macro.status}); confirm it before executing",
         )
-    missing = missing_required_params(macro.parameters, params or {})
+    params = params or {}
+    missing = missing_required_params(macro.parameters, params)
     if missing:
-        raise MacroGateError(
-            "missing_params", f"Missing required parameters: {', '.join(missing)}"
-        )
+        # 缺参时尝试从 Secure Vault 自动补参：按参数名匹配当前项目凭据字段。
+        # 例：宏缺 username/password → 从凭据 payload 的 username/password 字段填充，
+        # 避免 L0 命中后因缺参失败下沉 Agent、或向用户索要已录入密码箱的账号。
+        vault_fill_params(macro, missing, params)
+        still_missing = missing_required_params(macro.parameters, params)
+        if still_missing:
+            raise MacroGateError(
+                "missing_params",
+                f"Missing required parameters: {', '.join(still_missing)}",
+            )
     try:
         return _get_cached_script(macro)
     except _PARSE_ERRORS as e:
         raise MacroGateError("bad_macro", f"Failed to parse macro YAML: {e}") from e
+
+
+async def resolve_project_base_url(project_id: int | None) -> str | None:
+    """从项目配置（project.json 的 url 字段）解析宏的 {{base_url}} 注入值。
+
+    L0（routing/actions.py）和引擎侧（domain/tools/execution/macro.py）都依赖
+    {{base_url}} 导航到项目后台页面；统一在此解析，避免两处重复实现漂移。
+    """
+    if not project_id:
+        return None
+    try:
+        proj_path = await get_project_path(project_id)
+        if proj_path:
+            pj = read_project_json(proj_path)
+            return pj.get("url")
+    except (OSError, ValueError):
+        logger.warning("[Macro] failed to resolve project url for project %s", project_id, exc_info=True)
+    return None
+
+
+def vault_fill_params(macro: Macro, missing: list[str], params: dict[str, Any]) -> int:
+    """尝试从 Secure Vault 按参数名补全缺失参数，返回补全数量。"""
+    filled = 0
+    try:
+        credentials = SecureVaultService.list_credentials(project_id=macro.project_id)
+        for name in list(missing):
+            if name in params:
+                continue
+            for cred in credentials:
+                if cred.get("project_id") not in (None, macro.project_id):
+                    continue
+                try:
+                    payload = SecureVaultService.get_credential_payload(
+                        cred["identifier"], project_id=macro.project_id
+                    )
+                except (KeyError, PermissionError):
+                    continue
+                if name in payload:
+                    params[name] = str(payload[name])
+                    filled += 1
+                    break
+    except Exception:
+        logger.warning("[Macro] vault auto-fill failed for %s", macro.name, exc_info=True)
+    return filled
 
 
 def _collect_sources(steps: list[Any]) -> set[str]:
@@ -224,6 +260,27 @@ def _scan_steps_risk(steps: list[Any], policy: ExecutionPolicy) -> str | None:
     return None
 
 
+async def _execute_engine(
+    thread_id: str,
+    script: MacroScript,
+    params: dict[str, Any] | None,
+    *,
+    skip_activity_log: bool,
+    skip_recording: bool,
+) -> tuple[bool, str, dict[str, Any] | None, dict[str, Any]]:
+    """Run the MacroEngine once; shared by all policy branches."""
+    extracted_data: dict[str, Any] = {}
+    ok, msg, data = await MacroEngine.execute(
+        thread_id,
+        script,
+        params=params or {},
+        extracted_data=extracted_data,
+        skip_activity_log=skip_activity_log,
+        skip_recording=skip_recording,
+    )
+    return ok, msg, data, extracted_data
+
+
 async def run_deterministic(
     macro: Macro,
     *,
@@ -255,23 +312,19 @@ async def run_deterministic(
         if reason:
             return ExecutionOutcome(False, f"policy gate rejected: {reason}")
 
-    if policy.allow_self_heal:
-        # Fast path: try optimized execution first (skip_activity_log + skip_recording).
+    ok, msg, data, extracted_data = await _execute_engine(
+        thread_id,
+        script,
+        params,
+        skip_activity_log=skip_activity_log,
+        skip_recording=skip_recording,
+    )
+
+    if not ok and policy.allow_self_heal:
+        # Fast path: optimized execution first (skip_activity_log + skip_recording).
         # Only fall back to self-healing (MacroService.run) on failure — the slow
         # self-heal path (activity log + recording + Agent recovery) is acceptable
         # for the error case, but must not penalize the success case.
-        from app.core.execution.macro.engine import MacroEngine
-
-        ok, msg, _data = await MacroEngine.execute(
-            thread_id,
-            script,
-            params=params or {},
-            skip_activity_log=skip_activity_log,
-            skip_recording=skip_recording,
-        )
-        if ok:
-            return ExecutionOutcome(True, msg or "")
-        # Failure: trigger self-healing via MacroService (full overhead, acceptable on error)
         return await _run_with_self_heal(
             macro,
             thread_id=thread_id,
@@ -281,20 +334,11 @@ async def run_deterministic(
             skill_name=skill_name,
         )
 
-    from app.core.execution.macro.engine import MacroEngine
-
-    ok, msg, _data = await MacroEngine.execute(
-        thread_id,
-        script,
-        params=params or {},
-        skip_activity_log=skip_activity_log,
-        skip_recording=skip_recording,
-    )
     # 失败时把失败步骤信息并入 message，委托 Agent 时传递失败上下文
-    if not ok and _data and _data.get("step_number"):
-        step_note = f"第{_data.get('step_number')}步({_data.get('event_type') or 'action'})失败"
+    if not ok and data and data.get("step_number"):
+        step_note = f"第{data.get('step_number')}步({data.get('event_type') or 'action'})失败"
         msg = f"{step_note}: {msg}" if msg else step_note
-    return ExecutionOutcome(ok, msg or "")
+    return ExecutionOutcome(ok, msg or "", extracted_data=extracted_data)
 
 
 async def _run_with_self_heal(
@@ -320,7 +364,11 @@ async def _run_with_self_heal(
     result = await MacroService.run(thread_id=thread_id, script_input=script, params=exec_params, macro=macro)
 
     if result.get("status") != "fallback_required":
-        return ExecutionOutcome(bool(result.get("success")), result.get("message") or "")
+        return ExecutionOutcome(
+            bool(result.get("success")),
+            result.get("message") or "",
+            extracted_data=result.get("extracted_data") or {},
+        )
 
     if not result.get("allow_self_healing", True):
         logger.warning(

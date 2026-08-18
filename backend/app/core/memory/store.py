@@ -38,6 +38,8 @@ class MemoryStore:
         await self._engine.close()
 
     async def save(self, entry: MemoryEntry) -> None:
+        if not settings.ENABLE_MEMORY:
+            return
         await self._engine.save(entry)
 
     async def get(self, entry_id: str) -> MemoryEntry | None:

@@ -497,14 +497,7 @@ class MemoryManager:
                 if project_path:
                     memory_root = get_memory_path(project_path)
                     self._storage.project_roots[project_id] = str(memory_root)
-            except (
-                ValueError,
-                OSError,
-                RuntimeError,
-                TypeError,
-                KeyError,
-                AttributeError,
-            ) as e:
+            except (OSError, ValueError) as e:
                 logger.debug("Suppressed error: %s", e, exc_info=True)
 
         from app.core.memory.two_tier import TwoTierMemoryManager

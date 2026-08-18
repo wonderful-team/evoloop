@@ -128,5 +128,5 @@ class LSPManager:
                 server.shutdown()  # Sends exit notification
                 server.stop()  # Kills process
             except Exception as e:
-                log.error(f"Error shutting down LSP server {key}: {e}")
+                log.exception(f"Error shutting down LSP server {key}: {e}")
         self.servers.clear()

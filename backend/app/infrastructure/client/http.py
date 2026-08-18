@@ -127,7 +127,7 @@ class ToolRequestManager:
             await asyncio.wait_for(request.event.wait(), timeout=timeout)
             return request
         except asyncio.TimeoutError:
-            logger.error(f"[Client] Timeout waiting for request {request_id}")
+            logger.exception(f"[Client] Timeout waiting for request {request_id}")
             request.status = "failed"
             request.error = "Timeout waiting for tool execution"
             return request
@@ -153,7 +153,7 @@ class ToolRequestManager:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.error(f"[Client] Cleanup error: {e}")
+                logger.exception(f"[Client] Cleanup error: {e}")
 
     async def _cleanup_old_requests(self):
         """Remove completed requests older than 1 hour."""

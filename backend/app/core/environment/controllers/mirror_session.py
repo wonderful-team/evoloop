@@ -107,7 +107,7 @@ class MirrorSession:
 
                 self._event_queue.task_done()
             except Exception as e:
-                logger.error(f"[MirrorSession] Failed to persist event: {e}")
+                logger.exception(f"[MirrorSession] Failed to persist event: {e}")
                 await asyncio.sleep(1)
 
         # Final flush
@@ -116,10 +116,8 @@ class MirrorSession:
 
     async def _persist_event_batch(self, events: list[AndroidTraceEvent]):
         """Persist a batch of events to database."""
-        import json
-
+        from app.core.learning.trace.repository import trace_repository
         from app.infrastructure.database import session_scope
-        from app.models import TraceEvent
 
         if not events:
             return
@@ -128,9 +126,9 @@ class MirrorSession:
             async with session_scope() as db:
                 for event_data in events:
                     payload = event_data.get("payload", {})
-                    trace_event = TraceEvent(
+                    trace_event = trace_repository.build_event(
+                        member_id=0,
                         session_id=self.session_id,
-                        recording_session_id=self.session_id,
                         thread_id="global",  # Mirror sessions use global thread
                         step_number=self._step_counter - len(events) + events.index(event_data) + 1,
                         node_name=payload.get("node_name", self.device_id),
@@ -144,13 +142,13 @@ class MirrorSession:
                         mouse_y=payload.get("y"),
                         source="mobile",
                         app_name=payload.get("package_name"),
-                        state_snapshot={"context": "android_mirror"},
-                        action_payload=json.dumps(payload),
+                        state_context={"context": "android_mirror"},
+                        is_human_action=False,
                     )
-                    db.add(trace_event)
+                    await trace_repository.add(db, trace_event)
             logger.debug(f"[MirrorSession] Persisted {len(events)} events to DB")
         except Exception as e:
-            logger.error(f"[MirrorSession] Failed to persist batch: {e}")
+            logger.exception(f"[MirrorSession] Failed to persist batch: {e}")
             raise
 
     async def start(self, bitrate: str = "2M", max_fps: int = 30, record_video: bool = True) -> bool:
@@ -242,7 +240,7 @@ class MirrorSession:
 
         except Exception as e:
             self.error = str(e)
-            logger.error(f"Failed to start scrcpy: {e}")
+            logger.exception(f"Failed to start scrcpy: {e}")
             return False
 
     def start_recording(self) -> bool:
@@ -277,7 +275,7 @@ class MirrorSession:
             return True
 
         except Exception as e:
-            logger.error(f"[MirrorSession] Failed to start recording: {e}")
+            logger.exception(f"[MirrorSession] Failed to start recording: {e}")
             return False
 
     def get_current_package(self) -> str | None:

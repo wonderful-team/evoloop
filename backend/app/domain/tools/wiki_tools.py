@@ -7,6 +7,7 @@ from typing import Annotated
 
 from sqlmodel import Session, select
 
+from app.core.config import settings
 from app.core.context.manager import ContextManager
 from app.core.engine.message.native_classes import RunnableConfig
 from app.core.file import (
@@ -116,7 +117,7 @@ def _read_page_content(project_path: str, slug: str) -> str | None:
         content, _, _ = safe_read_with_hash(file_path)
         return content
     except Exception as e:
-        logger.warning(f"[Wiki] Failed to read file {file_path}: {e}")
+        logger.warning(f"[Wiki] Failed to read file {file_path}: {e}", exc_info=True)
         return None
 
 
@@ -231,7 +232,7 @@ async def list_wiki_pages(config: Annotated[RunnableConfig, InjectedToolArg] = N
                             )
                         )
                 except Exception as e:
-                    logger.warning(f"[Wiki] Failed to sync file {file_path}: {e}")
+                    logger.warning(f"[Wiki] Failed to sync file {file_path}: {e}", exc_info=True)
             session.commit()
 
     pages = wiki_service.get_pages(project_id)
@@ -445,3 +446,11 @@ async def edit_wiki_page(
         details=f"Changed: {old_string[:50]}{'...' if len(old_string) > 50 else ''}",
         note=f"Title: {page_title}",
     )
+
+
+# 门控：ENABLE_WIKI_TOOLS 关闭时禁用全部 wiki 工具（agent 不再暴露 wiki 能力）。
+if not settings.ENABLE_WIKI_TOOLS:
+    for _tool in (list_wiki_pages, read_wiki_page, write_wiki_page, edit_wiki_page):
+        _wrapped = getattr(_tool, "func", None)
+        if _wrapped is not None:
+            _wrapped.is_evoloop_active = False

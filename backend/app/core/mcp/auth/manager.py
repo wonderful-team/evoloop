@@ -93,7 +93,7 @@ class McpAuthManager:
             self._tokens[server_name] = token
             return token
         except Exception as e:
-            logger.error(f"Authentication failed for {server_name}: {e}")
+            logger.exception(f"Authentication failed for {server_name}: {e}")
             raise
 
     async def get_token(self, server_name: str) -> AuthToken | None:

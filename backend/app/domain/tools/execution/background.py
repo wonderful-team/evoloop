@@ -16,7 +16,10 @@ from app.core.tools.background import (
     task_manager,
 )
 from app.domain.tools.execution._utils import format_command_result, get_thread_id
-from app.domain.tools.execution.security import is_dangerous_command
+from app.domain.tools.execution.security import (
+    has_workspace_escape,
+    is_dangerous_command,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +81,16 @@ async def run_command_background(
                 working_dir = workspace_root
 
         if working_dir and working_dir != ".":
+            escape = has_workspace_escape(command)
+            if escape is not None:
+                logger.warning(
+                    "[execute] blocked workspace escape via cd: %r (working_dir=%s)",
+                    escape,
+                    working_dir,
+                )
+                task.output_lines = ["Security Error: 命令尝试 cd 到工作目录之外，已阻止。"]
+                task.status = "failed"
+                return
             wrapped_command = f"cd {working_dir} && {command}"
         else:
             wrapped_command = command
@@ -169,6 +182,14 @@ async def execute_smart(
             working_dir = workspace_root
 
     if working_dir and working_dir != ".":
+        escape = has_workspace_escape(command)
+        if escape is not None:
+            logger.warning(
+                "[execute] blocked workspace escape via cd: %r (working_dir=%s)",
+                escape,
+                working_dir,
+            )
+            return "Security Error: 命令尝试 cd 到工作目录之外，已阻止。请只在工作目录内操作。"
         wrapped_command = f"cd {working_dir} && {command}"
     else:
         wrapped_command = command

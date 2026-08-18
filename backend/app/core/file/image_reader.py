@@ -25,7 +25,7 @@ class ImageReaderService:
                 
             return f"### OCR Results ({os.path.basename(path)})\n\n" + "\n".join(texts)
         except Exception as e:
-            logger.error(f"OCR failed for {path}: {e}")
+            logger.exception(f"OCR failed for {path}: {e}")
             return f"[OCR Error: {str(e)}]"
 
 

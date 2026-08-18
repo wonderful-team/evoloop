@@ -89,7 +89,7 @@ class CoreMixin:
             output = (stdout + stderr).decode().lower()
             return "success" in output
         except Exception as e:
-            logger.warning(f"uiautomator2 install failed: {e}")
+            logger.warning(f"uiautomator2 install failed: {e}", exc_info=True)
             return False
 
     def ensure_uiautomator2(self, device_id=None, auto_install=True):
@@ -117,7 +117,7 @@ class CoreMixin:
                 logger.info(f"[ADB] Device {device_id}: Native uiautomator OK")
         except Exception as e:
             capabilities["native_uiautomator"] = False
-            logger.info(f"[ADB] Device {device_id}: Native uiautomator NOT working ({e})")
+            logger.info(f"[ADB] Device {device_id}: Native uiautomator NOT working ({e})", exc_info=True)
 
         if self.check_uiautomator2_available(device_id):
             capabilities["uiautomator2"] = True

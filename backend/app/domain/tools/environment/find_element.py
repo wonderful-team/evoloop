@@ -91,7 +91,7 @@ async def find_element(
                 )
             )
         except Exception as e:
-            logger.warning(f"Failed to publish UI_TREE_OBSERVED: {e}")
+            logger.warning(f"Failed to publish UI_TREE_OBSERVED: {e}", exc_info=True)
 
         if return_all or not target:
             formatted = pipeline_manager.format_for_prompt(elements)
@@ -173,5 +173,5 @@ async def find_element(
         return result_msg, {"count": 1, "target": target}
 
     except Exception as e:
-        logger.error(f"find_element error: {e}")
+        logger.exception(f"find_element error: {e}")
         return f"Error: {str(e)}"

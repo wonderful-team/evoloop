@@ -29,8 +29,15 @@ def format_event_for_frontend(event: Any) -> dict:
     from app.core.events.base import BaseEvent
     from app.core.events.schemas import SessionCompletedEvent
     from app.core.file.event.schemas import ChangesetUpdatedEvent
-    from app.core.monitoring.event import ActivityStateRefreshedEvent, SystemLogEvent, SystemStatusEvent
-    from app.core.tools.event.schemas import BackgroundTaskEvent, BackgroundTaskOutputEvent
+    from app.core.monitoring.event import (
+        ActivityStateRefreshedEvent,
+        SystemLogEvent,
+        SystemStatusEvent,
+    )
+    from app.core.tools.event.schemas import (
+        BackgroundTaskEvent,
+        BackgroundTaskOutputEvent,
+    )
     from app.domain.planning.event.schemas import PlanUpdatedEvent
 
     # Specific overrides matching historical to_frontend_payload outputs
@@ -116,13 +123,17 @@ def format_event_for_frontend(event: Any) -> dict:
         }
     elif isinstance(event, BaseEvent):
         event_str = event.event_type.value if hasattr(event.event_type, "value") else str(event.event_type)
+        # data 可能是 Pydantic 模型（EventData）或 dict（如 StateChangedEvent 直接赋值 dict）
+        event_data = event.data
+        if hasattr(event_data, "model_dump"):
+            event_data = event_data.model_dump()
         return {
             "type": "system_event",
             "event": event_str,
             "thread_id": event.thread_id,
             "timestamp": event.timestamp.isoformat(),
             "source": event.source,
-            "data": event.data.model_dump()
+            "data": event_data,
         }
 
     # Fallback

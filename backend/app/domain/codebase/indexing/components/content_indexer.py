@@ -110,7 +110,7 @@ class ContentIndexer:
                 logger.warning(
                     f"Embedding generation failed for {rel_path}: {e}. "
                     "Continuing indexing without embeddings."
-                )
+                , exc_info=True)
                 embeddings = [[] for _ in texts]
 
         return IndexedContent(

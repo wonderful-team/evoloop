@@ -39,7 +39,7 @@ async def _summarize_project_logic(name: str, path: str, module_graph: str = "")
         if matched:
             project_id = matched.get("id")
     except Exception as e:
-        logger.warning(f"Early project ID resolution failed: {e}")
+        logger.warning(f"Early project ID resolution failed: {e}", exc_info=True)
 
     # Start Activity
     sys_tid = f"sys:{project_id}:summarization"
@@ -79,7 +79,7 @@ async def _summarize_project_logic(name: str, path: str, module_graph: str = "")
                 if entry.is_file():
                     files.append(entry.name)
         except Exception as e:
-            logger.debug(f"[ProjectSummarizer] Directory scan failed for {path}: {e}")
+            logger.debug(f"[ProjectSummarizer] Directory scan failed for {path}: {e}", exc_info=True)
 
         readme_content = project_context_manager.extract_description_from_readme(path)
 
@@ -169,7 +169,7 @@ async def _summarize_project_logic(name: str, path: str, module_graph: str = "")
                     # Invalidate cache to reflect updated description
                     evocloud_manager.invalidate_projects_cache()
                 except Exception as up_e:
-                    logger.error(f"Failed to upload summary: {up_e}")
+                    logger.exception(f"Failed to upload summary: {up_e}")
         else:
             logger.warning(f"[ProjectSummarizer] Could not resolve Project ID for {name}, using default 1")
 
@@ -198,7 +198,7 @@ async def _summarize_project_logic(name: str, path: str, module_graph: str = "")
         await activity_monitor.end_run(sys_tid, "done")
 
     except Exception as e:
-        logger.error(f"[ProjectSummarizer] Failed to summarize {name}: {e}")
+        logger.exception(f"[ProjectSummarizer] Failed to summarize {name}: {e}")
         await activity_monitor.end_run(sys_tid, "failed")
         # Re-raise to let Celery know it failed (triggering retries if configured)
         raise e

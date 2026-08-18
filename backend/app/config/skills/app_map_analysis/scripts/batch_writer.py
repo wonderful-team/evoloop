@@ -32,7 +32,7 @@ import json
 import logging
 
 from app.core.atlas.source.persistence import save_app_map
-from app.core.execution.macro.tasks import synthesize_macros_task as _wrapped_task
+from app.core.execution.macro import synthesize_macros_task as _wrapped_task
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("batch_writer")

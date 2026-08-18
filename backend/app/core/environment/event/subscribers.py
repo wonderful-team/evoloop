@@ -94,7 +94,7 @@ class EnvironmentLifecycleSubscriber:
             _background_tasks.clear()
             logger.info("[Environment] Background tasks cancelled")
         except Exception as e:
-            logger.warning(f"[Environment] Cleanup errors during shutdown: {e}")
+            logger.warning(f"[Environment] Cleanup errors during shutdown: {e}", exc_info=True)
 
 
 @event_register()
@@ -132,7 +132,7 @@ class DeviceEventSubscriber:
                         explorer = AndroidExplorer()
                         await explorer.scan(device_id)
                     except Exception as e:
-                        logger.warning(f"Failed to probe device {device_id}: {e}")
+                        logger.warning(f"Failed to probe device {device_id}: {e}", exc_info=True)
 
     @event_subscribe(EventType.DEVICE_DISCONNECTED)
     async def on_device_disconnected(self, event: "DeviceDisconnectedEvent") -> None:

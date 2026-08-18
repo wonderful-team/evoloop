@@ -85,7 +85,7 @@ class IndexingService:
                             resolved_pid = p.get("id")
                             break
                 except Exception as e:
-                    logger.warning(f"Failed to resolve project_id for {path}: {e}")
+                    logger.warning(f"Failed to resolve project_id for {path}: {e}", exc_info=True)
 
             if not resolved_pid:
                 sync_status = "PENDING_CREATION"
@@ -237,7 +237,7 @@ class IndexingService:
                     logger.debug(f"Skipping vector upsert for {prepared.rel_path}: embeddings disabled or not generated.")
 
             except Exception as e:
-                logger.error(f"Error indexing file {file_path}: {e}")
+                logger.exception(f"Error indexing file {file_path}: {e}")
                 if prepared is not None:
                     try:
                         await self.file_preparer.mark_source_file_failed(
@@ -245,7 +245,7 @@ class IndexingService:
                         )
                         await session.commit()
                     except Exception as mark_err:
-                        logger.error(f"Failed to mark source_file as failed: {mark_err}")
+                        logger.exception(f"Failed to mark source_file as failed: {mark_err}")
                         await session.rollback()
                 else:
                     await session.rollback()
@@ -291,7 +291,7 @@ class IndexingService:
                 )
                 return prepared, indexed
             except Exception as e:
-                logger.error(f"Error preparing/extracting {file_path}: {e}")
+                logger.exception(f"Error preparing/extracting {file_path}: {e}")
                 await session.rollback()
                 return None
 
@@ -373,7 +373,7 @@ class IndexingService:
                     logger.info(f"Removed {rel_path} from SQL Index")
 
             except Exception as e:
-                logger.error(f"Error removing file {file_path}: {e}")
+                logger.exception(f"Error removing file {file_path}: {e}")
                 await session.rollback()
 
     async def move_file(self, src_path: str, dest_path: str, repo_id: int):
@@ -503,7 +503,7 @@ class IndexingService:
                     logger.warning(
                         f"[_embed_window] Window embedding failed: {e}. "
                         "Falling back to persisting files without embeddings."
-                    )
+                    , exc_info=True)
                     embeddings = [[] for _ in window_texts]
 
                 offset = 0
@@ -573,7 +573,7 @@ class IndexingService:
                     all_window_vectors.extend(vector_collector)
 
             except Exception as e:
-                logger.error(f"Window persist failed: {e}")
+                logger.exception(f"Window persist failed: {e}")
                 window_ok = False
 
             if not window_ok:
@@ -618,7 +618,7 @@ class IndexingService:
                     f"Vector upsert complete: {len(all_chunks)} chunks"
                 )
             except Exception as e:
-                logger.error(f"Final vector upsert failed: {e}")
+                logger.exception(f"Final vector upsert failed: {e}")
 
         error_count = extract_error_count + persist_error_count
         logger.info(f"Full indexing complete. Indexed: {indexed_count}, Errors: {error_count}")

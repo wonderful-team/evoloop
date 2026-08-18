@@ -13,6 +13,27 @@ from app.infrastructure.drivers.macos._workspace import (
 logger = logging.getLogger(__name__)
 
 
+def _ax_value_to_str(value: Any) -> str:
+    """Convert an AX attribute value to a safe string.
+
+    AXValue may be a CFString, NSNumber, CGPoint/Size, or other scalar;
+    only string-like values are useful as element text.
+    """
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (int, float, bool)):
+        return str(value)
+    try:
+        s = str(value)
+        if s and s != "missing value":
+            return s
+    except Exception:
+        pass
+    return ""
+
+
 class AXMixin:
     @classmethod
     def dump_ax_tree(cls, pid: int | None = None):
@@ -43,6 +64,8 @@ class AXMixin:
             kAXRoleAttribute = "AXRole"
             kAXSizeAttribute = "AXSize"
             kAXWindowsAttribute = "AXWindows"
+            kAXValueAttribute = "AXValue"
+            kAXTitleAttribute = "AXTitle"
 
             if pid is None:
                 active_app = frontmost_application()
@@ -57,7 +80,7 @@ class AXMixin:
 
             front_window = windows[0]
 
-            def get_element_data(element, depth=0, max_depth=8):
+            def get_element_data(element, depth=0, max_depth=20):
                 if depth > max_depth:
                     return None
 
@@ -70,6 +93,12 @@ class AXMixin:
                     _, name = AXUIElementCopyAttributeValue(element, kAXDescriptionAttribute, None)
                 data["name"] = str(name) if name else ""
 
+                # 通用性修复：同时读 AXValue / AXTitle（企微会话等文本常在 value/title 而非 name）
+                value_ref = ax_copy_attribute(element, kAXValueAttribute)
+                data["value"] = _ax_value_to_str(value_ref)
+                title_ref = ax_copy_attribute(element, kAXTitleAttribute)
+                data["title"] = str(title_ref) if title_ref else ""
+
                 pos = ax_copy_attribute(element, kAXPositionAttribute)
                 size = ax_copy_attribute(element, kAXSizeAttribute)
                 point = ax_value_point(pos)
@@ -79,8 +108,13 @@ class AXMixin:
                 else:
                     data["bounds"] = [0, 0, 0, 0]
 
+                # 剪枝：只对无文本且已深的非叶子角色做截断；
+                # AXStaticText 含文本（name/value/title）时保留，避免丢失会话等深层文本。
+                has_text = bool(data["name"] or data["value"] or data["title"])
                 if depth < max_depth:
-                    if depth > 4 and data["role"] in ["AXStaticText", "AXImage"]:
+                    if depth > 6 and data["role"] == "AXImage":
+                        return data
+                    if depth > 6 and not has_text and data["role"] in ("AXStaticText", "AXUnknown"):
                         return data
 
                     _, children = AXUIElementCopyAttributeValue(element, kAXChildrenAttribute, None)
@@ -95,25 +129,27 @@ class AXMixin:
 
                 return data
 
-            tree = get_element_data(front_window)
-            if not tree:
-                return "[]"
-
             flattened = []
 
-            def flatten(node, path="window 1"):
+            def flatten(node, path="window"):
                 item = {
                     "name": node["name"],
                     "role": node["role"],
                     "path": path,
                     "bounds": node["bounds"],
+                    "value": node.get("value", ""),
+                    "title": node.get("title", ""),
                 }
                 flattened.append(item)
                 if "children" in node:
                     for i, child in enumerate(node["children"]):
                         flatten(child, path=f"{path} > {child['role']} {i + 1}")
 
-            flatten(tree)
+            # 遍历所有窗口（不只 windows[0]），合并各窗口的元素树
+            for win_idx, win in enumerate(windows):
+                tree = get_element_data(win)
+                if tree:
+                    flatten(tree, path=f"window {win_idx + 1}")
             return json.dumps(flattened)
 
         except Exception as e:

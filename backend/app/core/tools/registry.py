@@ -60,7 +60,7 @@ class AutoDiscoveryRegistry:
         try:
             package = importlib.import_module(package_name)
         except ImportError as e:
-            logger.error(f"Failed to import package {package_name}: {e}")
+            logger.exception(f"Failed to import package {package_name}: {e}")
             return
 
         self._scanned_packages.add(package_name)
@@ -74,7 +74,7 @@ class AutoDiscoveryRegistry:
                     self._register_tools_from_module(module)
                 except (ImportError, TypeError, ValueError, RuntimeError) as e:
                     # WARNING level so failures are visible in production
-                    logger.warning(f"[Registry] Skipping module {name} during scan: {e}")
+                    logger.warning(f"[Registry] Skipping module {name} during scan: {e}", exc_info=True)
         else:
             # It's a single module
             self._register_tools_from_module(package)
@@ -95,7 +95,7 @@ class AutoDiscoveryRegistry:
                             new_tools.append(obj.name)
                             logger.debug(f"Registered tool: {obj.name} from {module.__name__}")
                 except (TypeError, ValueError, AttributeError, RuntimeError) as e:
-                    logger.warning(f"Failed to inspect tool {name} in {module.__name__}: {e}")
+                    logger.warning(f"Failed to inspect tool {name} in {module.__name__}: {e}", exc_info=True)
         if new_tools:
             _invalidate_caches()
 

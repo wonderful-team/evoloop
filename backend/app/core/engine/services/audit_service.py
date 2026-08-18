@@ -134,6 +134,21 @@ class AuditService:
         execution_ticket = state.ticket
         verification_status = state.verification or VerificationStatus(status="unverified")
         action_context = _extract_tool_usage(messages)
+
+        # 无 SKILL 不审计：只有会话实际使用了 LearnedSkill 才执行完整审计；
+        # 否则直接用 Agent 的最终回复作为 summary，跳过审计 LLM。
+        # 判定依据：relevant_sops（Worker 实际加载的 skill SOP）非空，
+        # 或 metadata 显式携带 original_skill_id，或调用过 run_skill。
+        has_skill_used = bool(
+            getattr(state, "relevant_sops", None)
+            or (state.metadata or {}).get("original_skill_id")
+            or "run_skill" in action_context
+        )
+        if not has_skill_used:
+            logger.info("[AuditService] 无 SKILL 使用，跳过完整审计")
+            summary = _extract_final_summary(messages)
+            return AuditResult(summary=summary, meta={"duration_ms": 10})
+
         iteration_count = state.iteration_count or 0
         project_id = (
             ctx.project_id

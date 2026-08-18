@@ -13,7 +13,7 @@ Macro kinds (design doc v0.3 G2):
      confirm step ("address bar -> navigate"). Fields inside outline/table
      containers are rejected (M1.5 file-name-cell trap).
 
-Persistence mirrors lifecycle.persist_candidates but self-contained:
+Persistence mirrors persist_candidates but self-contained:
 app_map_id=None (native surveys are not web app_maps), namespace=NATIVE_NS.
 """
 
@@ -24,6 +24,9 @@ import re
 from dataclasses import dataclass, field
 
 from app.core.events.publishers import publish_macro_mutated
+from app.core.execution.macro import (
+    MacroScript,
+)
 from app.infrastructure.database import session_scope
 from app.models.macro import Macro
 
@@ -290,42 +293,13 @@ async def persist_native_macros(
 ) -> list[int]:
     """Insert as pending_review macros (namespace=native_macos) + publish.
 
-    Idempotent: pre-existing native_macos rows with the same names are
-    deleted first (regeneration replaces, never duplicates)."""
-    from sqlalchemy import delete
+    Delegates to the macro module's unified batch-replace implementation.
+    """
+    from app.core.execution.macro import persist_native_macros as _persist
 
-    from app.core.execution.macro.schemas import MacroScript
-
-    # 每批按应用前缀替换（persist 逐应用调用，绝不能整 namespace 清空——
-    # 否则后一批会抹掉前一批；规则演进剔除的旧名也不会残留）
-    prefixes = {c.name.split(" ", 1)[0] for c in candidates}
-    ids: list[int] = []
-    async with session_scope() as db:
-        for prefix in prefixes:
-            stmt = delete(Macro).where(Macro.namespace == NATIVE_NS, Macro.name.startswith(f"{prefix} "))
-            await db.execute(stmt)
-        for c in candidates:
-            script = MacroScript(steps=c.steps).to_yaml()
-            macro = Macro(
-                app_map_id=None,
-                entity=None,
-                name=c.name,
-                description=c.description,
-                trigger_patterns=c.trigger_patterns,
-                parameters=c.parameters,
-                macro_script=script,
-                risk_tier=c.risk_tier,
-                requires_confirmation=c.requires_confirmation,
-                status="pending_review",
-                is_active=False,
-                namespace=NATIVE_NS,
-                project_id=project_id,
-                member_id=member_id,
-            )
-            db.add(macro)
-            await db.flush()
-            ids.append(macro.id)
-    for macro_id in ids:
-        await publish_macro_mutated(macro_id, action="create")
-    logger.info("[native_factory] persisted %d native macros", len(ids))
-    return ids
+    return await _persist(
+        candidates,
+        project_id=project_id,
+        member_id=member_id,
+        namespace=NATIVE_NS,
+    )

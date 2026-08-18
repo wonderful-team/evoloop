@@ -139,7 +139,7 @@ class ALLanguageServer(SolidLanguageServer):
             return True
 
         except Exception as e:
-            log.error(f"Error downloading/extracting AL extension: {e}")
+            log.exception(f"Error downloading/extracting AL extension: {e}")
             return False
 
     @classmethod
@@ -588,7 +588,7 @@ class ALLanguageServer(SolidLanguageServer):
             )
             log.debug("Sent workspace configuration")
         except Exception as e:
-            log.warning(f"Failed to send workspace config: {e}")
+            log.warning(f"Failed to send workspace config: {e}", exc_info=True)
 
         # Check if app.json exists and open it
         # app.json is the AL project manifest file (similar to package.json for Node.js)
@@ -610,7 +610,7 @@ class ALLanguageServer(SolidLanguageServer):
 
                 log.debug(f"Opened app.json: {app_json_uri}")
             except Exception as e:
-                log.warning(f"Failed to open app.json: {e}")
+                log.warning(f"Failed to open app.json: {e}", exc_info=True)
 
         # Try to set active workspace (AL-specific custom LSP request)
         # This is optional and may not be supported by all AL server versions
@@ -630,7 +630,7 @@ class ALLanguageServer(SolidLanguageServer):
             log.debug(f"Set active workspace result: {result}")
         except Exception as e:
             # This is a custom AL request, not critical if it fails
-            log.debug(f"Failed to set active workspace (non-critical): {e}")
+            log.debug(f"Failed to set active workspace (non-critical): {e}", exc_info=True)
 
         # Check if project supports load status check (optional)
         # Many AL server versions don't support this, so we use a short timeout
@@ -777,7 +777,7 @@ class ALLanguageServer(SolidLanguageServer):
                     log.debug(f"AL: Added {len(all_syms)} symbols from {relative_path}")
 
             except Exception as e:
-                log.warning(f"AL: Failed to get symbols for {relative_path}: {e}")
+                log.warning(f"AL: Failed to get symbols for {relative_path}: {e}", exc_info=True)
 
         if all_file_symbols:
             log.debug(f"AL: Returning symbols from {len(all_file_symbols)} files")
@@ -850,7 +850,7 @@ class ALLanguageServer(SolidLanguageServer):
             log.debug(f"AL gotodefinition response: {response}")
             return response  # type: ignore[return-value]
         except Exception as e:
-            log.warning(f"Failed to use al/gotodefinition, falling back to standard: {e}")
+            log.warning(f"Failed to use al/gotodefinition, falling back to standard: {e}", exc_info=True)
             # Fallback to standard LSP method if custom command fails
             return super()._send_definition_request(definition_params)
 
@@ -893,7 +893,7 @@ class ALLanguageServer(SolidLanguageServer):
         except Exception as e:
             # Mark as unsupported to avoid repeated failed attempts
             self._project_load_check_supported = False
-            log.debug(f"Project load check not supported by this AL server version: {e}")
+            log.debug(f"Project load check not supported by this AL server version: {e}", exc_info=True)
             # Assume loaded if we can't check
             return True
 
@@ -953,5 +953,5 @@ class ALLanguageServer(SolidLanguageServer):
             self.server.send_request("al/setActiveWorkspace", params)
             log.info(f"Set active workspace to: {workspace_uri}")
         except Exception as e:
-            log.warning(f"Failed to set active workspace: {e}")
+            log.warning(f"Failed to set active workspace: {e}", exc_info=True)
             # Non-critical error, continue operation

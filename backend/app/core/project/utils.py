@@ -69,7 +69,7 @@ def read_project_json(project_path: str) -> dict:
         try:
             return json.loads(result.content) or {}
         except (json.JSONDecodeError, TypeError, ValueError) as e:
-            logger.warning(f"[ProjectUtils] Failed to parse {meta_file}: {e}")
+            logger.warning(f"[ProjectUtils] Failed to parse {meta_file}: {e}", exc_info=True)
     return {}
 
 
@@ -136,7 +136,7 @@ async def get_project_path(project_id: int) -> str:
                 if repo.local_path and os.path.isdir(repo.local_path):
                     return repo.local_path
     except Exception as e:
-        logger.debug(f"DB lookup failed for {project_id}: {e}")
+        logger.debug(f"DB lookup failed for {project_id}: {e}", exc_info=True)
 
     return ""
 
@@ -201,5 +201,5 @@ async def resolve_project_to_repo(project_id: int) -> Repository | None:
 
             return repos[0]
     except Exception as e:
-        logger.warning(f"[ProjectUtils] Failed to resolve project_id {project_id} to repo: {e}")
+        logger.warning(f"[ProjectUtils] Failed to resolve project_id {project_id} to repo: {e}", exc_info=True)
         return None

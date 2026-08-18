@@ -211,7 +211,9 @@ async def _search_parallel(query: str) -> list[str] | None:
             _search_parallel_inner(query), timeout=_SEARCH_PARALLEL_TIMEOUT
         )
     except asyncio.TimeoutError:
-        logger.debug("Web search overall timed out (%ss) for %r", _SEARCH_PARALLEL_TIMEOUT, query, exc_info=True)
+        # 预期降级：整体 8s 硬上限到点即返回 None（不阻塞 Agent），
+        # 非错误，不应打印 Traceback。
+        logger.debug("Web search overall timed out (%ss) for %r", _SEARCH_PARALLEL_TIMEOUT, query)
         return None
 
 

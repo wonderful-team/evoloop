@@ -36,7 +36,7 @@ async def query_app_atlas(
         count = len(bundle_ids) if isinstance(bundle_ids, list) else 1
         return content, {"count": count, "state_id": state_id, "platform": platform}
     except Exception as e:
-        logger.error(f"[AtlasTool] Failed to retrieve context for {bundle_ids}: {e}")
+        logger.exception(f"[AtlasTool] Failed to retrieve context for {bundle_ids}: {e}")
         return f"Error: Unable to retrieve atlas for {bundle_ids}. Details: {str(e)}", {"status": "error"}
 
 
@@ -61,7 +61,7 @@ async def list_app_atlas() -> str:
         content = await atlas_engine.list_apps()
         return content, {"count": len(apps)}
     except Exception as e:
-        logger.error(f"[AtlasTool] Failed to list apps: {e}")
+        logger.exception(f"[AtlasTool] Failed to list apps: {e}")
         return f"Error: Unable to list apps in Atlas. Details: {str(e)}", {"status": "error"}
 
 
@@ -77,5 +77,5 @@ async def clear_app_atlas() -> str:
         await atlas_engine.clear_atlas()
         return "Successfully cleared all historical Atlas data.", {"status": "success"}
     except Exception as e:
-        logger.error(f"[AtlasTool] Failed to clear Atlas: {e}")
+        logger.exception(f"[AtlasTool] Failed to clear Atlas: {e}")
         return f"Error: Unable to clear Atlas data. Details: {str(e)}", {"status": "error"}

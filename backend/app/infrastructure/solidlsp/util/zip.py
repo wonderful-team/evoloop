@@ -102,7 +102,7 @@ class SafeZipExtractor:
                 log.info(f"Extracted: {member.filename}")
 
         except Exception as e:
-            log.error(f"Failed to extract {member.filename}: {e}")
+            log.exception(f"Failed to extract {member.filename}: {e}")
 
     @staticmethod
     def _normalize_path(path: Path) -> Path:

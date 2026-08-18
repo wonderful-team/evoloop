@@ -25,6 +25,9 @@ class BrowserAdvancedMixin:
         value = ctx.get("value")
         url_pattern = ctx.get("url_pattern")
         timeout_ms = ctx.get("timeout_ms", 15_000)
+        kwargs = ctx.get("kwargs", {})
+        frame_selector = kwargs.get("frame_selector")
+        frame_wait_for_selector = kwargs.get("frame_wait_for_selector")
         dialog_action = ctx.get("dialog_action")
         dialog_text = ctx.get("dialog_text")
         kwargs = ctx.get("kwargs", {})
@@ -32,7 +35,47 @@ class BrowserAdvancedMixin:
         if action == "run_js":
             if not script:
                 return ControllerResponse.missing_param("script")
-            if selector:
+            if frame_selector:
+                target_frame = None
+                deadline = asyncio.get_event_loop().time() + timeout_ms / 1000.0
+                while target_frame is None and asyncio.get_event_loop().time() < deadline:
+                    for frame in page.frames:
+                        furl = frame.url or ""
+                        if frame_selector in furl:
+                            target_frame = frame
+                            break
+                        if frame_wait_for_selector:
+                            try:
+                                if await frame.evaluate(
+                                    f"() => !!document.querySelector({frame_wait_for_selector!r})"
+                                ):
+                                    target_frame = frame
+                                    break
+                            except Exception:
+                                pass
+                    if target_frame is None:
+                        await asyncio.sleep(0.3)
+                if target_frame is None:
+                    logger.warning(
+                        f"[Browser] frame_selector '{frame_selector}' no match. frames={[f.url[:60] for f in page.frames]}"
+                    )
+                    return ControllerResponse.error(
+                        f"No iframe matched frame_selector '{frame_selector}'"
+                    )
+                if frame_wait_for_selector:
+                    deadline = asyncio.get_event_loop().time() + timeout_ms / 1000.0
+                    while asyncio.get_event_loop().time() < deadline:
+                        try:
+                            found = await target_frame.evaluate(
+                                f"() => !!document.querySelector({frame_wait_for_selector!r})"
+                            )
+                            if found:
+                                break
+                        except Exception:
+                            pass
+                        await asyncio.sleep(0.3)
+                result = await target_frame.evaluate(script)
+            elif selector:
                 result = await page.locator(selector).first.evaluate(script)
             else:
                 result = await page.evaluate(script)

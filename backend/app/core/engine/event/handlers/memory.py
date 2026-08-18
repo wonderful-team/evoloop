@@ -169,7 +169,7 @@ class MemoryCommandHandler:
                     if await manager.delete_memory(mem.id):
                         deleted_names.append(mem.title or mem.content[:20] or "unknown")
             except Exception as e:
-                logger.warning(f"[EngineCommand] Failed to delete memories by source_message_id {source_message_id}: {e}")
+                logger.warning(f"[EngineCommand] Failed to delete memories by source_message_id {source_message_id}: {e}", exc_info=True)
 
         # 按 name 兜底：兼容旧版只传 name 的调用。
         if name:
@@ -257,4 +257,4 @@ class MemoryCommandHandler:
                 )
             logger.info(f"[EngineCommand] memory.sync sent to Gateway: concepts={len(concepts)}")
         except Exception as e:
-            logger.error(f"[EngineCommand] Failed to send memory.sync: {e}")
+            logger.exception(f"[EngineCommand] Failed to send memory.sync: {e}")

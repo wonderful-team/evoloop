@@ -21,10 +21,12 @@ from app.core.environment.controllers.utils import (
     resolve_element_alias,
 )
 from app.core.environment.schemas import AppInfo
-from app.core.learning.trace_recorder import get_recorder
+from app.core.learning.trace.recorder import get_recorder
 from app.infrastructure.drivers.adb import ADBError, adb_driver
 from app.infrastructure.vision import VisionTask, vision_engine
-from app.infrastructure.vision.providers.native.android_a11y import android_a11y_provider
+from app.infrastructure.vision.providers.native.android_a11y import (
+    android_a11y_provider,
+)
 from app.utils.controller_response import ControllerResponse
 from app.utils.text import normalize_text
 
@@ -185,17 +187,10 @@ class MobileController(
         device_id = ctx.get("device_id")
         if disable_atlas:
             return
-        try:
-            from app.core.atlas.tasks import map_observed_ui_task
-
-            map_observed_ui_task.delay(
-                image_source=screenshot_path,
-                device_id=device_id,
-                platform="android",
-                bundle_id=bundle_id,
-            )
-        except Exception as e:
-            logger.warning(f"[Harvest] Failed to trigger: {e}")
+        logger.debug(
+            f"[Harvest] Atlas UI mapping task not implemented (map_observed_ui), "
+            f"skip for device={device_id}, screenshot={screenshot_path}"
+        )
 
     @classmethod
     async def _normalize_coordinates(
@@ -412,7 +407,7 @@ class MobileController(
                             if target_norm in normalize_text(el.text):
                                 return {"x": el.x, "y": el.y}
                 except Exception as e:
-                    logger.debug(f"[Mobile] OCR attempt {ocr_attempts} failed: {e}")
+                    logger.debug(f"[Mobile] OCR attempt {ocr_attempts} failed: {e}", exc_info=True)
 
             await asyncio.sleep(0.05)
 
@@ -566,5 +561,5 @@ class MobileController(
         except ADBError as e:
             return ControllerResponse.error("ADB ERROR", details=str(e))
         except Exception as e:
-            logger.error(f"Mobile control error: {e}")
+            logger.exception(f"Mobile control error: {e}")
             return ControllerResponse.error("Mobile action failed.", details=str(e))

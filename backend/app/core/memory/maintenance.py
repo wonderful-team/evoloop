@@ -55,7 +55,7 @@ class MemoryMaintenanceAgent:
             return results
 
         except Exception as e:
-            logger.error(f"[Maintenance] Failed: {e}")
+            logger.exception(f"[Maintenance] Failed: {e}")
             # Still try to cleanup
             try:
                 await self._cleanup_thread()
@@ -85,7 +85,7 @@ class MemoryMaintenanceAgent:
                 logger.debug(f"[Maintenance] Cleaned {deleted} messages from {self.thread_id}")
 
         except Exception as e:
-            logger.warning(f"[Maintenance] Cleanup warning: {e}")
+            logger.warning(f"[Maintenance] Cleanup warning: {e}", exc_info=True)
 
     def get_last_time(self) -> datetime | None:
         """Get last maintenance time from log file."""
@@ -99,7 +99,7 @@ class MemoryMaintenanceAgent:
                     last_line = lines[-1]
                     return datetime.strptime(last_line, "%Y-%m-%d %H:%M")
         except Exception as e:
-            logger.warning(f"[Maintenance] Failed to read log: {e}")
+            logger.warning(f"[Maintenance] Failed to read log: {e}", exc_info=True)
 
         return None
 
@@ -189,7 +189,7 @@ if _MAINTENANCE_ENABLED:
             result = await scheduler.run()
             return {"triggered": result is not None}
         except Exception as e:
-            logger.error(f"[Maintenance] Scheduled task failed: {e}")
+            logger.exception(f"[Maintenance] Scheduled task failed: {e}")
             return {"triggered": False, "error": str(e)}
 else:
     logger.debug("[Maintenance] Scheduled memory maintenance is DISABLED. Set MEMORY_MAINTENANCE_ENABLED=True to enable.")

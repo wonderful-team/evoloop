@@ -74,7 +74,7 @@ class OAuthAuthorizationCodeHandler(AuthHandler):
 
             return token
         except Exception as e:
-            logger.error(f"Failed to load stored token: {e}")
+            logger.exception(f"Failed to load stored token: {e}")
             return None
 
     async def _store_token(self, token: AuthToken) -> None:
@@ -83,7 +83,7 @@ class OAuthAuthorizationCodeHandler(AuthHandler):
             token_data = json.dumps({
                 "access_token": token.access_token,
                 "token_type": token.token_type,
-                "expires_at": token.expires_at,
+                "expires_in": token.expires_in,
                 "refresh_token": token.refresh_token,
                 "scope": token.scope,
             })
@@ -93,7 +93,7 @@ class OAuthAuthorizationCodeHandler(AuthHandler):
             if token.refresh_token:
                 await cache.set(self._get_refresh_key(), token.refresh_token)
         except Exception as e:
-            logger.error(f"Failed to store token: {e}")
+            logger.exception(f"Failed to store token: {e}")
 
     async def authenticate(self) -> AuthToken:
         """
@@ -221,7 +221,7 @@ class OAuthAuthorizationCodeHandler(AuthHandler):
                 return AuthToken(
                     access_token=result["access_token"],
                     token_type=result.get("token_type", "Bearer"),
-                    expires_at=time.time() + result.get("expires_in", 3600) if "expires_in" in result else None,
+                    expires_in=time.time() + result.get("expires_in", 3600) if "expires_in" in result else None,
                     refresh_token=result.get("refresh_token"),
                     scope=result.get("scope"),
                 )
@@ -255,7 +255,7 @@ class OAuthAuthorizationCodeHandler(AuthHandler):
                 new_token = AuthToken(
                     access_token=result["access_token"],
                     token_type=result.get("token_type", "Bearer"),
-                    expires_at=time.time() + result.get("expires_in", 3600) if "expires_in" in result else None,
+                    expires_in=time.time() + result.get("expires_in", 3600) if "expires_in" in result else None,
                     refresh_token=result.get("refresh_token", token.refresh_token),
                     scope=result.get("scope", token.scope),
                 )
@@ -365,7 +365,7 @@ class OAuthDeviceCodeHandler(AuthHandler):
                         token = AuthToken(
                             access_token=result["access_token"],
                             token_type=result.get("token_type", "Bearer"),
-                            expires_at=time.time() + result.get("expires_in", 3600) if "expires_in" in result else None,
+                            expires_in=time.time() + result.get("expires_in", 3600) if "expires_in" in result else None,
                             refresh_token=result.get("refresh_token"),
                             scope=result.get("scope"),
                         )
@@ -376,7 +376,7 @@ class OAuthDeviceCodeHandler(AuthHandler):
                             json.dumps({
                                 "access_token": token.access_token,
                                 "token_type": token.token_type,
-                                "expires_at": token.expires_at,
+                                "expires_in": token.expires_in,
                                 "refresh_token": token.refresh_token,
                                 "scope": token.scope,
                             })
@@ -431,7 +431,7 @@ class OAuthDeviceCodeHandler(AuthHandler):
                 new_token = AuthToken(
                     access_token=result["access_token"],
                     token_type=result.get("token_type", "Bearer"),
-                    expires_at=time.time() + result.get("expires_in", 3600) if "expires_in" in result else None,
+                    expires_in=time.time() + result.get("expires_in", 3600) if "expires_in" in result else None,
                     refresh_token=result.get("refresh_token", token.refresh_token),
                     scope=result.get("scope", token.scope),
                 )
@@ -442,7 +442,7 @@ class OAuthDeviceCodeHandler(AuthHandler):
                     json.dumps({
                         "access_token": new_token.access_token,
                         "token_type": new_token.token_type,
-                        "expires_at": new_token.expires_at,
+                        "expires_in": new_token.expires_in,
                         "refresh_token": new_token.refresh_token,
                         "scope": new_token.scope,
                     })

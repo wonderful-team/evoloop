@@ -152,7 +152,7 @@ class PersistentTerminal(BaseModel):
         try:
             os.write(self._master_fd, full_cmd.encode())
         except OSError as e:
-            logger.error(f"[PTY][{self.session_id}] Master FD write error: {e}")
+            logger.exception(f"[PTY][{self.session_id}] Master FD write error: {e}")
             self._start_shell()
             os.write(self._master_fd, full_cmd.encode())
 
@@ -203,7 +203,7 @@ class PersistentTerminal(BaseModel):
                     exit_code_str = line[len(marker) :].strip()
                     exit_code = int(exit_code_str)
                 except ValueError:
-                    logger.error(f"[PTY][{self.session_id}] Failed to parse exit code from: {line[:100]}")
+                    logger.exception(f"[PTY][{self.session_id}] Failed to parse exit code from: {line[:100]}")
                     exit_code = -1
                 break
 

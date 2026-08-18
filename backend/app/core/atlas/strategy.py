@@ -99,7 +99,7 @@ class AtlasStrategyStore:
             if data:
                 return AppStrategy.model_validate(json.loads(data))
         except Exception as e:
-            logger.warning(f"Failed to load strategy for {bundle_id}: {e}")
+            logger.warning(f"Failed to load strategy for {bundle_id}: {e}", exc_info=True)
         return None
 
     @classmethod
@@ -110,7 +110,7 @@ class AtlasStrategyStore:
             await cache.set(key, json.dumps(strategy.model_dump()), ex=86400 * 7)  # 7 days
             return True
         except Exception as e:
-            logger.error(f"Failed to save strategy for {strategy.bundle_id}: {e}")
+            logger.exception(f"Failed to save strategy for {strategy.bundle_id}: {e}")
             return False
 
     @classmethod
@@ -121,7 +121,7 @@ class AtlasStrategyStore:
             await cache.delete(key)
             return True
         except Exception as e:
-            logger.error(f"Failed to delete strategy for {bundle_id}: {e}")
+            logger.exception(f"Failed to delete strategy for {bundle_id}: {e}")
             return False
 
     @classmethod

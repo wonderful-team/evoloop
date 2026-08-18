@@ -109,7 +109,7 @@ class SequentialWorkflowNode(BaseAgentNode):
                 model=model,
             )
         except (ValueError, RuntimeError, OSError) as e:
-            logger.error(f"[SequentialWorkflow] Step {step_index + 1} failed: {e}")
+            logger.exception(f"[SequentialWorkflow] Step {step_index + 1} failed: {e}")
             return StateUpdate(
                 messages=[
                     AIMessage(

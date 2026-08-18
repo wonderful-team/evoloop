@@ -3,7 +3,6 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func, select
 
 from app.api.deps import CurrentUserOptional, require_benefit
 from app.core.learning.schemas import (
@@ -12,8 +11,6 @@ from app.core.learning.schemas import (
     StartRecordingResponse,
     StopRecordingResponse,
 )
-from app.infrastructure.database import session_scope
-from app.models import TraceEvent
 from app.utils.id import gen_uuid
 
 from ._shared import _active_sessions
@@ -41,13 +38,9 @@ async def _count_persisted_events(session_ids: list[str]) -> dict[str, int]:
     """Real persisted event counts per recording session (TraceEvent rows)."""
     if not session_ids:
         return {}
-    async with session_scope() as db:
-        rows = await db.execute(
-            select(TraceEvent.recording_session_id, func.count(TraceEvent.id))
-            .where(TraceEvent.recording_session_id.in_(session_ids))
-            .group_by(TraceEvent.recording_session_id)
-        )
-        return {sid: cnt for sid, cnt in rows.all() if sid is not None}
+    from app.core.learning.trace.repository import trace_repository
+
+    return await trace_repository.count_by_sessions(session_ids)
 
 
 @router.post("/traces/stop", response_model=StopRecordingResponse)

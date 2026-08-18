@@ -56,7 +56,7 @@ class AtlasEngine:
                 )
                 return
         except Exception as e:
-            logger.debug(f"[AtlasEngine] Dynamic app check failed: {e}")
+            logger.debug(f"[AtlasEngine] Dynamic app check failed: {e}", exc_info=True)
 
         try:
             # Standard app mapping
@@ -83,7 +83,7 @@ class AtlasEngine:
             logger.info(f"[AtlasEngine] Background mapped state '{window_title}' for {bundle_id}")
 
         except Exception as e:
-            logger.error(f"[AtlasEngine] Failed to index observed UI tree for {bundle_id}: {e}")
+            logger.exception(f"[AtlasEngine] Failed to index observed UI tree for {bundle_id}: {e}")
 
     async def query_app_atlas(
         self,
@@ -266,7 +266,7 @@ class AtlasEngine:
                                         "source": "atlas_memory",
                                     }
         except Exception as e:
-            logger.debug(f"[AtlasEngine] Historical memory check failed: {e}")
+            logger.debug(f"[AtlasEngine] Historical memory check failed: {e}", exc_info=True)
 
         # 4. Learned Skills Fallback (Task-specific memory)
         # This covers mappings like "SearchButton" -> (x, y) learned from past traces
@@ -311,7 +311,7 @@ class AtlasEngine:
                             "source": "atlas_skill_semantic",
                         }
         except Exception as se:
-            logger.debug(f"[AtlasEngine] Skill search failed: {se}")
+            logger.debug(f"[AtlasEngine] Skill search failed: {se}", exc_info=True)
         return None
 
     async def clear_atlas(self) -> None:
@@ -401,7 +401,7 @@ class AtlasEngine:
             logger.debug(f"[AtlasEngine] Saved strategy for {bundle_id}")
 
         except Exception as e:
-            logger.error(f"[AtlasEngine] Failed to save strategy: {e}")
+            logger.exception(f"[AtlasEngine] Failed to save strategy: {e}")
 
     async def _store_dynamic_app_infrastructure(
         self,
@@ -484,7 +484,7 @@ class AtlasEngine:
             )
 
         except Exception as e:
-            logger.error(f"[AtlasEngine] Failed to store dynamic app infrastructure: {e}")
+            logger.exception(f"[AtlasEngine] Failed to store dynamic app infrastructure: {e}")
 
     def _classify_element_category(self, element: AtlasElement, platform: str) -> str:
         """

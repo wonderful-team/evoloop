@@ -43,7 +43,6 @@ device_intent_trigger_intents:
   - 打开_WiFi
   - 打开信息
   - 退出应用
-  - 关闭_WiFi
   - 切换到应用
 
 # Device keyword redirects: when a device keyword is present in the text and
@@ -52,9 +51,7 @@ device_intent_trigger_intents:
 device_intents:
   WiFi:
     - 打开_WiFi
-    - 关闭_WiFi
     - 打开 WiFi
-    - 关闭 WiFi
   蓝牙:
     - 打开蓝牙
     - 关闭蓝牙

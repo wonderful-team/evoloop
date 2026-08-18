@@ -212,7 +212,7 @@ async def perform_rewind(
         return result
 
     except Exception as e:
-        logger.error(f"[Rewind] Failed for thread={thread_id}: {e}")
+        logger.exception(f"[Rewind] Failed for thread={thread_id}: {e}")
         raise RewindError(f"Rewind failed: {e}", thread_id=thread_id) from e
 
 
@@ -282,7 +282,7 @@ async def _clear_hitl(thread_id: str) -> None:
 
         await activity_monitor.clear_human_request(thread_id)
     except Exception as e:
-        logger.error(f"[Rewind] Failed to clear activity: {e}")
+        logger.exception(f"[Rewind] Failed to clear activity: {e}")
 
     try:
         from app.core.hitl.core import cancel_request, get_pending_requests_for_thread
@@ -293,4 +293,4 @@ async def _clear_hitl(thread_id: str) -> None:
         if pending:
             logger.info(f"[Rewind] Cancelled {len(pending)} pending HITL requests")
     except Exception as e:
-        logger.error(f"[Rewind] Failed to cancel HITL requests: {e}")
+        logger.exception(f"[Rewind] Failed to cancel HITL requests: {e}")

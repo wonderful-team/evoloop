@@ -90,7 +90,7 @@ class ActionMixin:
                 )
                 return
             except Exception as e:
-                logger.debug(f"ASCII input failed, trying fallback: {e}")
+                logger.debug(f"ASCII input failed, trying fallback: {e}", exc_info=True)
 
         if _try_paste_fallback():
             logger.info(

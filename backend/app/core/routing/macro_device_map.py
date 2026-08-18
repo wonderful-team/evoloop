@@ -21,8 +21,6 @@ import asyncio
 import logging
 import time
 
-from sqlalchemy import select
-
 from app.core.routing.device_kind import DeviceKind
 from app.core.routing.routing_data import get_store
 
@@ -80,28 +78,13 @@ class MacroDeviceMap:
                 self._refreshing = False
 
     async def _load(self) -> tuple[dict[int, DeviceKind], dict[int, int]]:
-        from app.infrastructure.database import session_scope
-        from app.models.macro import Macro
+        from app.core.execution.macro import list_macros
 
         markers = tuple(get_store().device_markers or [])
         marker_tokens = _marker_tokens(markers)
 
-        async with session_scope() as session:
-            stmt = (
-                select(Macro)
-                .where(
-                    Macro.is_active.is_(True),
-                    Macro.status == "verified",
-                )
-                .order_by(Macro.id.asc())
-            )
-            result = await session.execute(stmt)
-            scalars = result.scalars()
-            if asyncio.iscoroutine(scalars):
-                scalars = await scalars
-            macros = scalars.all()
-            if asyncio.iscoroutine(macros):
-                macros = await macros
+        macros = await list_macros(status="verified", is_active=True)
+        macros.sort(key=lambda m: m.id)
 
         device: dict[int, DeviceKind] = {}
         # phone macro id -> bare subject cores (marker stripped).

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.api.deps import get_db
+from app.api.deps import CurrentUser, get_db
 from app.api.schemas.symbols import SymbolRelationResponse, SymbolResponse
 from app.models import CodeEntity, Repository
 
@@ -16,6 +16,7 @@ async def search_symbols(
     type: str | None = Query(None, description="Filter by entity type (class, function)"),
     limit: int = 20,
     db: Session = Depends(get_db),
+    current_user: CurrentUser = None,  # noqa: ARG001
 ):
     """
     Search for code symbols (classes, functions) within a project.
@@ -76,6 +77,7 @@ async def search_symbols(
 async def get_project_relations(
     project_id: int,
     db: Session = Depends(get_db),
+    current_user: CurrentUser = None,  # noqa: ARG001
 ):
     """
     Get all dependency relationships (CodeRelations) within a project.

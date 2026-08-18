@@ -20,7 +20,7 @@ from app.core.environment.controllers.utils import (
     RecordingContext,
     resolve_element_alias,
 )
-from app.core.learning.trace_recorder import get_recorder
+from app.core.learning.trace.recorder import get_recorder
 from app.core.vision.perceptions_formatter import PerceptionsFormatter
 from app.infrastructure.drivers.macos import macos_driver
 from app.infrastructure.vision import VisionTask, get_vision_router, vision_engine
@@ -273,7 +273,7 @@ class DesktopController(
                             total_count=len(filtered_elements)
                         )
                     except Exception as e:
-                        logger.error(f"Failed to render OCR results template: {e}")
+                        logger.exception(f"Failed to render OCR results template: {e}")
                         return PerceptionsFormatter.ui_elements(filtered_elements, max_items=50)
 
                 except Exception as e:
@@ -318,5 +318,5 @@ class DesktopController(
                 note="Please grant Accessibility access to the terminal/application running this backend.",
             )
         except Exception as e:
-            logger.error(f"Desktop control error: {e}")
+            logger.exception(f"Desktop control error: {e}")
             return ControllerResponse.error("Desktop action failed.", details=str(e))

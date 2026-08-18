@@ -2,6 +2,10 @@ import json
 import logging
 
 from app.infrastructure.config.service import SystemConfigService
+from app.infrastructure.llm.thinking_adapter import (
+    detect_model_family,
+    extract_reasoning_from_kwargs,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +35,7 @@ class LLMConfigService:
         if headers:
             final_headers.update(headers)
 
-        if provider == "anthropic" or "api/anthropic" in (base_url or ""):
+        if provider == "anthropic" or detect_model_family(model, base_url) == "anthropic":
             from app.infrastructure.llm.anthropic_adapter import (
                 CompatibleChatAnthropic,
             )
@@ -72,7 +76,7 @@ class LLMConfigService:
         async for chunk in llm.astream("Ping"):
             content += chunk.content
             # Capture reasoning_content from patched additional_kwargs if present
-            reasoning = chunk.additional_kwargs.get("reasoning_content") or chunk.additional_kwargs.get("thinking")
+            reasoning = extract_reasoning_from_kwargs(chunk.additional_kwargs)
             if reasoning:
                 content += reasoning
             if len(content) > 100:

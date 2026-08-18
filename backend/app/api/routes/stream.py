@@ -50,7 +50,7 @@ async def stream_chat(thread_id: str):
                 activity = await activity_monitor.get_activity(thread_id)
                 logger.debug(f"[SSE] Fetched initial activity for {thread_id}")
             except Exception as e:
-                logger.warning(f"[SSE] Initial activity fetch failed for {thread_id} ({type(e).__name__}): {e}. Retrying in 1s...")
+                logger.warning(f"[SSE] Initial activity fetch failed for {thread_id} ({type(e).__name__}): {e}. Retrying in 1s...", exc_info=True)
                 await asyncio.sleep(1.0)
                 activity = await activity_monitor.get_activity(thread_id)
 
@@ -91,7 +91,7 @@ async def stream_chat(thread_id: str):
                         yield f"event: error\ndata: {json.dumps({'error': 'Stream connection lost after maximum retries'})}\n\n"
                         break
                     backoff = min(BASE_BACKOFF * (2 ** (reconnect_attempts - 1)), 30.0)
-                    logger.warning(f"[SSE] PubSub read error for {thread_id}: {e}. Re-subscribing in {backoff}s...")
+                    logger.warning(f"[SSE] PubSub read error for {thread_id}: {e}. Re-subscribing in {backoff}s...", exc_info=True)
                     await asyncio.sleep(backoff)
                     await pubsub.subscribe(channel)
                     continue
@@ -99,11 +99,11 @@ async def stream_chat(thread_id: str):
                     if "Buffer is closed" in str(e):
                         reconnect_attempts += 1
                         if reconnect_attempts > MAX_RECONNECT_ATTEMPTS:
-                            logger.error(f"[SSE] Cache buffer closed, max retries exceeded for {thread_id}.")
+                            logger.exception(f"[SSE] Cache buffer closed, max retries exceeded for {thread_id}.")
                             yield f"event: error\ndata: {json.dumps({'error': 'Stream connection lost after maximum retries'})}\n\n"
                             break
                         backoff = min(BASE_BACKOFF * (2 ** (reconnect_attempts - 1)), 30.0)
-                        logger.error(f"[SSE] Cache buffer is closed for {thread_id}. Re-initializing in {backoff}s...")
+                        logger.exception(f"[SSE] Cache buffer is closed for {thread_id}. Re-initializing in {backoff}s...")
                         await asyncio.sleep(backoff)
                         await pubsub.subscribe(channel)
                         continue
@@ -125,6 +125,7 @@ async def stream_chat(thread_id: str):
                 await asyncio.sleep(0.01)
 
         except asyncio.CancelledError:
+            # 客户端断开连接（SSE 取消）是预期行为，不是错误，无需打印 Traceback。
             logger.info(f"Stream cancelled: {thread_id}")
         except Exception as e:
             logger.error(f"Stream error: {e}", exc_info=True)
@@ -195,7 +196,7 @@ async def stream_system():
                         yield f"event: error\ndata: {json.dumps({'error': 'System stream connection lost after maximum retries'})}\n\n"
                         break
                     backoff = min(BASE_BACKOFF * (2 ** (reconnect_attempts - 1)), 30.0)
-                    logger.warning(f"[SSE] PubSub read error for system stream: {e}. Re-subscribing in {backoff}s...")
+                    logger.warning(f"[SSE] PubSub read error for system stream: {e}. Re-subscribing in {backoff}s...", exc_info=True)
                     await asyncio.sleep(backoff)
                     await pubsub.subscribe(channel)
                     continue
@@ -207,7 +208,7 @@ async def stream_system():
                             yield f"event: error\ndata: {json.dumps({'error': 'System stream connection lost after maximum retries'})}\n\n"
                             break
                         backoff = min(BASE_BACKOFF * (2 ** (reconnect_attempts - 1)), 30.0)
-                        logger.error(f"[SSE] System stream cache buffer is closed. Re-initializing in {backoff}s...")
+                        logger.exception(f"[SSE] System stream cache buffer is closed. Re-initializing in {backoff}s...")
                         await asyncio.sleep(backoff)
                         await pubsub.subscribe(channel)
                         continue
@@ -217,7 +218,7 @@ async def stream_system():
                     raw_data = message["data"]
 
                     try:
-                        event_data = json.loads(raw_data)
+                        json.loads(raw_data)
                         yield f"data: {raw_data}\n\n"
                     except Exception as e:
                         yield f"event: error\ndata: {json.dumps({'error': 'Failed to process system event', 'details': str(e)})}\n\n"

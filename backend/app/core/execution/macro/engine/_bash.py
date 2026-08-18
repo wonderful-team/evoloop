@@ -63,7 +63,7 @@ class BashMixin:
                 process.communicate(), timeout=timeout
             )
         except asyncio.TimeoutError:
-            logger.warning(f"[{thread_id}] Bash step timed out after {timeout}s")
+            logger.warning(f"[{thread_id}] Bash step timed out after {timeout}s", exc_info=True)
             if process is not None:
                 try:
                     process.kill()

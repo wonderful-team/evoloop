@@ -52,7 +52,7 @@ def _whitelist() -> list[dict]:
     try:
         entries = json.loads(raw)
     except json.JSONDecodeError as e:
-        logger.warning(f"[script_gate] {_ENV_WHITELIST} 解析失败，按空白名单处理: {e}")
+        logger.warning(f"[script_gate] {_ENV_WHITELIST} 解析失败，按空白名单处理: {e}", exc_info=True)
         return []
     return entries if isinstance(entries, list) else []
 

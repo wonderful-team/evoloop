@@ -34,7 +34,7 @@ async def _run_ocr(filepath: str) -> str:
             )
         return "\n\n" + ControllerResponse.error("OCR: no text detected")
     except Exception as e:
-        logger.error(f"[Browser] OCR failed: {e}")
+        logger.exception(f"[Browser] OCR failed: {e}")
         return "\n\n" + ControllerResponse.error("OCR Error.", details=str(e))
 
 

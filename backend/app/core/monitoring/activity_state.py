@@ -194,7 +194,7 @@ class ActivityStateService:
                     final_outcome=activity.final_outcome,
                 )
             except (json.JSONDecodeError, ValueError) as e:
-                logger.error(f"Failed to parse activity state for {thread_id}: {e}")
+                logger.exception(f"Failed to parse activity state for {thread_id}: {e}")
                 return ActivityState(status="error")
 
     async def update_field(self, thread_id: str, field: str, value: Any) -> bool:

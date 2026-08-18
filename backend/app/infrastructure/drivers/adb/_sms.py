@@ -65,7 +65,7 @@ class SMSMixin:
                     return messages
 
             except Exception as e:
-                logger.warning(f"Failed to read SMS: {e}")
+                logger.warning(f"Failed to read SMS: {e}", exc_info=True)
 
             elapsed = time.time() - start_time
             if elapsed >= timeout:

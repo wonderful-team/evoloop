@@ -26,14 +26,15 @@ import tempfile
 import time
 from pathlib import Path
 
-from sqlalchemy import or_, select
-
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
 from app.core.engine.message.native_classes import HumanMessage, SystemMessage
-from app.core.execution.macro.compiler import MacroScriptCompiler
-from app.core.execution.macro.schemas import MacroVerificationResult
-from app.core.execution.macro.utils import cleanup_macro_steps, verify_macro_script
+from app.core.execution.macro import (
+    MacroScriptCompiler,
+    MacroVerificationResult,
+    cleanup_macro_steps,
+    verify_macro_script,
+)
 from app.core.learning.prompts.builder import LearningPromptBuilder
 from app.core.learning.schemas import RecordingSession
 from app.core.learning.synthesizer_utils import (
@@ -44,7 +45,6 @@ from app.core.learning.synthesizer_utils import (
 )
 from app.core.learning.workflow_synthesizer import SynthesizedSkill
 from app.infrastructure.config.service import SystemConfigService
-from app.infrastructure.database import session_scope
 from app.infrastructure.drivers.adb import adb_driver
 from app.infrastructure.llm.vision import VisionLLMFactory
 from app.infrastructure.video.compressor import (
@@ -118,7 +118,7 @@ class MultimodalSkillSynthesizer:
                 except Exception:
                     logger.debug("Failed to remove temporary audio file", exc_info=True)
         except Exception as e:
-            logger.warning(f"Audio transcription failed or skipped: {e}")
+            logger.warning(f"Audio transcription failed or skipped: {e}", exc_info=True)
 
         # Step 2: 获取事件序列
         events = await self._fetch_events(recording.session_id)
@@ -179,7 +179,7 @@ class MultimodalSkillSynthesizer:
                 voice_transcript=voice_transcript,
             )
         except Exception as e:
-            logger.error(f"Vision LLM call failed: {e}")
+            logger.exception(f"Vision LLM call failed: {e}")
             raise RuntimeError(f"LLM analysis failed: {e}")
 
         # Step 8: 解析 LLM 输出
@@ -206,7 +206,7 @@ class MultimodalSkillSynthesizer:
                 try:
                     target_macro = json.loads(cleaned_macro)
                 except Exception as e:
-                    logger.warning(f"Failed to parse LLM macro string as JSON: {e}")
+                    logger.warning(f"Failed to parse LLM macro string as JSON: {e}", exc_info=True)
                     target_macro = compiled_macro
             else:
                 target_macro = compiled_macro
@@ -254,7 +254,7 @@ class MultimodalSkillSynthesizer:
 
     async def _compile_macro_from_events(self, events: list[TraceEvent]) -> list[dict]:
         """从 TraceEvent 序列编译确定性宏脚本 (使用 MacroScriptCompiler)"""
-        from app.core.learning.trace_parser import TraceParser
+        from app.core.learning.trace.parser import TraceParser
 
         if not events:
             return []
@@ -292,7 +292,7 @@ class MultimodalSkillSynthesizer:
         return await verify_macro_script(
             macro_script=macro_script,
             thread_id="multimodal_dryrun",
-            project_id=project_id,
+            _project_id=project_id,
             params={"max_scrolls": 2, "is_dry_run": True},
         )
 
@@ -385,37 +385,27 @@ class MultimodalSkillSynthesizer:
 
     async def _fetch_events(self, session_id: str) -> list[TraceEvent]:
         """从数据库获取事件并进行时间轴归一化"""
-        async with session_scope() as session:
-            stmt = (
-                select(TraceEvent)
-                .where(
-                    or_(
-                        TraceEvent.recording_session_id == session_id,
-                        TraceEvent.session_id == session_id,
-                    )
+        from app.core.learning.trace.repository import trace_repository
+
+        events = await trace_repository.get_by_session(
+            session_id, match_session_id=True
+        )
+
+        if not events:
+            return []
+
+        for event in events:
+            if event.timestamp is not None:
+                event.timestamp = normalize_timestamp_to_seconds(event.timestamp)
+
+        if events:
+            timestamps = [e.timestamp for e in events if e.timestamp is not None]
+            if timestamps:
+                logger.info(
+                    f"[_fetch_events] Normalized timestamp range: {min(timestamps):.3f}s - {max(timestamps):.3f}s, count: {len(timestamps)}"
                 )
-                .order_by(TraceEvent.timestamp)
-            )
-            result = await session.execute(stmt)
-            events = list(result.scalars().all())
 
-            session.expunge_all()
-
-            if not events:
-                return []
-
-            for event in events:
-                if event.timestamp is not None:
-                    event.timestamp = normalize_timestamp_to_seconds(event.timestamp)
-
-            if events:
-                timestamps = [e.timestamp for e in events if e.timestamp is not None]
-                if timestamps:
-                    logger.info(
-                        f"[_fetch_events] Normalized timestamp range: {min(timestamps):.3f}s - {max(timestamps):.3f}s, count: {len(timestamps)}"
-                    )
-
-            return events
+        return events
 
     async def _extract_and_compress_frames(
         self,
@@ -635,7 +625,7 @@ class MultimodalSkillSynthesizer:
                 ):
                     all_apps.append(pkg)
             except Exception as e:
-                logger.debug(f"Failed to get current app from ADB: {e}")
+                logger.debug(f"Failed to get current app from ADB: {e}", exc_info=True)
 
         if not all_apps:
             return "unknown"
@@ -739,7 +729,7 @@ class MultimodalSkillSynthesizer:
         try:
             metadata = safe_yaml_loads(yaml_content) if yaml_content else {}
         except Exception as e:
-            logger.error(f"Failed to parse LLM YAML metadata: {e}")
+            logger.exception(f"Failed to parse LLM YAML metadata: {e}")
             metadata = {}
 
         # The prompt asks for macro_script as a YAML object ({version, metadata,

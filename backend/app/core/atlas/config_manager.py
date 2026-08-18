@@ -21,7 +21,6 @@ logger = logging.getLogger(__name__)
 # Cache keys
 REDIS_KEY_APP_NAME_MAP = "atlas:app_name_map"  # Hash: name -> bundle_id
 REDIS_KEY_DYNAMIC_APPS_PREFIX = "system:dynamic_apps"  # Set: bundle_ids (platform-specific)
-REDIS_KEY_APP_STRATEGIES = "atlas:strategies"  # Key pattern: atlas:strategies:{platform}:{bundle_id}
 
 
 class AtlasConfigManager:
@@ -39,7 +38,7 @@ class AtlasConfigManager:
             if bundle_id:
                 return bundle_id
         except Exception as e:
-            logger.debug(f"[AtlasConfig] Cache lookup failed: {e}")
+            logger.debug(f"[AtlasConfig] Cache lookup failed: {e}", exc_info=True)
 
         # 2. Try auto-detection for macOS
         return await AtlasConfigManager._detect_bundle_id(app_name)
@@ -62,7 +61,7 @@ class AtlasConfigManager:
                 await AtlasConfigManager.set_app_name_mapping(app_name, bundle_id)
                 return bundle_id
         except Exception as e:
-            logger.debug(f"[AtlasConfig] Bundle ID detection failed for {app_name}: {e}")
+            logger.debug(f"[AtlasConfig] Bundle ID detection failed for {app_name}: {e}", exc_info=True)
         return None
 
     @staticmethod
@@ -72,16 +71,7 @@ class AtlasConfigManager:
             await cache.hset(REDIS_KEY_APP_NAME_MAP, app_name, bundle_id)
             logger.info(f"[AtlasConfig] Mapped '{app_name}' -> '{bundle_id}'")
         except Exception as e:
-            logger.error(f"[AtlasConfig] Failed to set mapping: {e}")
-
-    @staticmethod
-    async def remove_app_name_mapping(app_name: str):
-        """Remove app name mapping (cache only)."""
-        try:
-            await cache.hdel(REDIS_KEY_APP_NAME_MAP, app_name)
-            logger.info(f"[AtlasConfig] Removed mapping for '{app_name}'")
-        except Exception as e:
-            logger.error(f"[AtlasConfig] Failed to remove mapping: {e}")
+            logger.exception(f"[AtlasConfig] Failed to set mapping: {e}")
 
     @staticmethod
     def _get_dynamic_apps_key(platform: str) -> str:
@@ -96,34 +86,8 @@ class AtlasConfigManager:
             apps = await cache.smembers(key)
             return set(apps) if apps else set()
         except Exception as e:
-            logger.error(f"[AtlasConfig] Failed to get dynamic apps: {e}")
+            logger.exception(f"[AtlasConfig] Failed to get dynamic apps: {e}")
             return set()
-
-    @staticmethod
-    async def mark_app_dynamic(bundle_id: str, platform: str = "android", reason: str = ""):
-        """Mark an app as dynamic (coordinate-unstable)."""
-        try:
-            key = AtlasConfigManager._get_dynamic_apps_key(platform)
-            await cache.sadd(key, bundle_id)
-            if reason:
-                # Include platform in categorization key
-                await cache.hset(f"system:app_categorization:{platform}", bundle_id, reason)
-
-            logger.info(f"[AtlasConfig] Marked '{platform}:{bundle_id}' as DYNAMIC: {reason}")
-        except Exception as e:
-            logger.error(f"[AtlasConfig] Failed to mark app dynamic: {e}")
-
-    @staticmethod
-    async def unmark_app_dynamic(bundle_id: str, platform: str = "android"):
-        """Remove app from dynamic list."""
-        try:
-            key = AtlasConfigManager._get_dynamic_apps_key(platform)
-            await cache.srem(key, bundle_id)
-            await cache.hdel(f"system:app_categorization:{platform}", bundle_id)
-
-            logger.info(f"[AtlasConfig] Unmarked '{platform}:{bundle_id}' as dynamic")
-        except Exception as e:
-            logger.error(f"[AtlasConfig] Failed to unmark app: {e}")
 
     @staticmethod
     async def is_dynamic_app(bundle_id: str | None, platform: str = "android") -> bool:
@@ -144,20 +108,8 @@ class AtlasConfigManager:
             if strategy:
                 return strategy.model_dump()
         except Exception as e:
-            logger.debug(f"[AtlasConfig] Failed to get strategy: {e}")
+            logger.debug(f"[AtlasConfig] Failed to get strategy: {e}", exc_info=True)
         return None
-
-    @staticmethod
-    async def set_app_strategy(bundle_id: str, strategy: dict[str, Any], platform: str = "android"):
-        """Set default strategy for an app on a specific platform."""
-        try:
-            from app.core.atlas.strategy import AppStrategy, AtlasStrategyStore
-
-            app_strategy = AppStrategy.model_validate(strategy)
-            await AtlasStrategyStore.save_strategy(app_strategy)
-            logger.info(f"[AtlasConfig] Set strategy for '{platform}:{bundle_id}'")
-        except Exception as e:
-            logger.error(f"[AtlasConfig] Failed to set strategy: {e}")
 
     @staticmethod
     async def initialize_defaults():
@@ -202,7 +154,7 @@ class AtlasConfigManager:
             await AtlasStrategyStore.init_default_strategies()
 
         except Exception as e:
-            logger.error(f"[AtlasConfig] Failed to initialize defaults: {e}")
+            logger.exception(f"[AtlasConfig] Failed to initialize defaults: {e}")
 
 
 # Convenience functions for direct use

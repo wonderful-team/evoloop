@@ -60,3 +60,16 @@ async def synthesize_macros_task(
         "gaps": result.gaps,
         "validation_errors": result.validation_errors,
     }
+
+
+@shared_task(name="native_macro_maintenance")
+async def native_macro_maintenance_task(apps: list[tuple[str, str]] | None = None) -> list[dict]:
+    """Resurvey -> regenerate (replace) -> reindex for the configured apps.
+
+    Triggered explicitly (maintenance API / frontend entry) — never
+    auto-fired on a schedule (scanning launches apps, which would disturb
+    the user; desktop UI macros update on demand instead).
+    """
+    from app.core.execution.macro.maintenance import native_macro_maintenance
+
+    return await native_macro_maintenance(apps=apps)

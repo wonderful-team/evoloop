@@ -81,7 +81,7 @@ class DynamicAppTriage(BaseExplorer):
                     if result:
                         all_results.update(result)
                 except Exception as e:
-                    logger.error(f"[DynamicAppTriage] Batch task failed: {e}")
+                    logger.exception(f"[DynamicAppTriage] Batch task failed: {e}")
 
             if all_results:
                 dynamic_key = self._get_dynamic_apps_key(platform)
@@ -118,5 +118,5 @@ class DynamicAppTriage(BaseExplorer):
             app_ids = await cache.smembers(dynamic_key)
             return set(app_ids) if app_ids else set()
         except Exception as e:
-            logger.error(f"[DynamicAppTriage] Cache fetch failed for {platform}: {e}")
+            logger.exception(f"[DynamicAppTriage] Cache fetch failed for {platform}: {e}")
             return set()

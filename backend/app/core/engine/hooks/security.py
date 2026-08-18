@@ -226,7 +226,7 @@ async def sensitive_file_placeholder_replacement_gate(context: HookContext) -> H
         if tool_input.args:
             tool_input.args = substitute_value(tool_input.args)
     except ValueError as e:
-        logger.error(f"[SecureVault] Substitution failed: {e}")
+        logger.exception(f"[SecureVault] Substitution failed: {e}")
         return HookResult(success=False, block=True, message=f"[SECURITY ERROR] {e}")
 
     # Save injected secrets in context.extra for post-execution sanitization
@@ -240,7 +240,7 @@ async def sensitive_file_placeholder_replacement_gate(context: HookContext) -> H
                 ctx.injected_secrets = set()
             ctx.injected_secrets.update(injected_secrets)
         except Exception as e:
-            logger.warning(f"Failed to save injected_secrets to EvoContext: {e}")
+            logger.warning(f"Failed to save injected_secrets to EvoContext: {e}", exc_info=True)
 
     return HookResult(success=True, modified_context=context)
 
@@ -262,11 +262,9 @@ async def sensitive_file_censorship_gate(context: HookContext) -> HookResult:
             if ctx_secrets:
                 injected_secrets = list(ctx_secrets)
         except Exception as e:
-            logger.debug(f"[CENSOR] Failed to read EvoContext injected_secrets: {e}")
+            logger.debug(f"[CENSOR] Failed to read EvoContext injected_secrets: {e}", exc_info=True)
 
-    logger.info(
-        f"[CENSOR DEBUG] injected_secrets={injected_secrets}, has_tool_result={context.tool_result is not None}, output={context.tool_result.output if context.tool_result else None}"
-    )
+    logger.info(f"[CENSOR DEBUG] injected_secrets={injected_secrets}, has_tool_result={context.tool_result is not None}, output={context.tool_result.output if context.tool_result else None}")
     if not injected_secrets or not context.tool_result:
         return HookResult(success=True)
 

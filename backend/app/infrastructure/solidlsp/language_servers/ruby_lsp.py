@@ -194,7 +194,7 @@ class RubyLsp(SolidLanguageServer):
                             content = f.read()
                             ruby_lsp_in_bundle = "ruby-lsp" in content.lower()
                     except Exception as e:
-                        log.warning(f"Warning: Could not read Gemfile.lock: {e}")
+                        log.warning(f"Warning: Could not read Gemfile.lock: {e}", exc_info=True)
 
                 if ruby_lsp_in_bundle:
                     log.info("Found ruby-lsp in Gemfile.lock")

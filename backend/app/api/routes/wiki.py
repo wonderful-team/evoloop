@@ -11,7 +11,7 @@ import os
 import time
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
-from sqlalchemy import select, delete
+from sqlalchemy import delete
 from sqlmodel import Session
 
 from app.api.deps import CurrentUserOptional, TokenDep, require_benefit
@@ -35,32 +35,10 @@ router = APIRouter(tags=["wiki"])
 
 
 async def _ensure_wiki_generation_skill():
-    """Fetch or import the 'Wiki Generation' learned skill."""
-    from app.core.learning.skill_visibility import visible_filter
-    from app.infrastructure.database import session_scope
-    from app.models.learning import LearnedSkill
+    """Fetch the 'Wiki Generation' learned skill from the repository."""
+    from app.core.learning.skills.repository import skill_repository
 
-    async with session_scope() as session:
-        stmt = select(LearnedSkill).where(
-            LearnedSkill.name == "Wiki Generation",
-            visible_filter(),
-        )
-        result = await session.execute(stmt)
-        skill = result.scalar_one_or_none()
-        if skill:
-            return skill
-
-    try:
-        async with session_scope() as session:
-            stmt = select(LearnedSkill).where(
-                LearnedSkill.name == "Wiki Generation",
-                visible_filter(),
-            )
-            result = await session.execute(stmt)
-            return result.scalar_one_or_none()
-    except Exception as e:
-        logger.warning(f"[Wiki] Failed to import Wiki Generation skill: {e}")
-        return None
+    return await skill_repository.get_by_name("Wiki Generation", visible_only=True)
 
 
 @router.get("/{project_id}", response_model=list[WikiPageRead])
@@ -98,7 +76,9 @@ async def generate_wiki(
         logger.warning("[Wiki] Wiki Generation skill not found; falling back to generic mission.")
 
     if req.force_regenerate:
-        from app.infrastructure.database.resource_manager import db_resource_manager as rm
+        from app.infrastructure.database.resource_manager import (
+            db_resource_manager as rm,
+        )
         from app.models.wiki import WikiPage
 
         with Session(rm.sync_engine) as session:

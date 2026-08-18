@@ -150,7 +150,7 @@ class Solargraph(SolidLanguageServer):
                         content = f.read()
                         solargraph_in_bundle = "solargraph" in content.lower()
                 except Exception as e:
-                    log.warning(f"Warning: Could not read Gemfile.lock: {e}")
+                    log.warning(f"Warning: Could not read Gemfile.lock: {e}", exc_info=True)
 
             if solargraph_in_bundle:
                 log.info("Found solargraph in Gemfile.lock")

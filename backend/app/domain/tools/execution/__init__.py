@@ -14,15 +14,21 @@ from app.domain.tools.execution.background import (
     run_command_background,
 )
 from app.domain.tools.execution.execute import _execute_command, execute_command
+from app.domain.tools.execution.list_macros import list_macros
 from app.domain.tools.execution.macro import run_macro
 from app.domain.tools.execution.query import cancel_command, query_command_status
+from app.domain.tools.execution.read_macro import read_macro
 from app.domain.tools.execution.security import is_dangerous_command
+from app.domain.tools.execution.update_macro import update_macro
 
 __all__ = [
     "execute_command",
     "query_command_status",
     "cancel_command",
     "run_macro",
+    "list_macros",
+    "read_macro",
+    "update_macro",
     "_execute_command",
     "is_dangerous_command",
     "format_command_result",

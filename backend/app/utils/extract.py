@@ -257,6 +257,8 @@ def safe_parse_json_value(text: str) -> Any | None:
         try:
             return ast.literal_eval(text)
         except (ValueError, SyntaxError) as e:
+            # 预期降级路径：literal_eval 失败会继续走后续 repair 策略，
+            # 非错误，不应打印 Traceback。
             logger.debug(f"Failed to parse as Python literal: {e}")
 
     return None

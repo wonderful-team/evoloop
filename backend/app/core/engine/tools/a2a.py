@@ -52,7 +52,7 @@ async def list_agents() -> str:
             return json.dumps(online_agents, ensure_ascii=False, indent=2)
         return json.dumps(devices, ensure_ascii=False, indent=2)
     except Exception as e:
-        logger.error(f"[A2A] ListAgentsTool failed: {e}")
+        logger.exception(f"[A2A] ListAgentsTool failed: {e}")
         return f"Error querying online agents: {e}"
 
 
@@ -138,7 +138,7 @@ async def send_agent_task(
                 )
             )
         except Exception as e:
-            logger.error(f"[A2A] Failed to upload attachment {path}: {e}")
+            logger.exception(f"[A2A] Failed to upload attachment {path}: {e}")
             return f"Error uploading attachment {path}: {e}"
 
     caller_device_key = evocloud_manager.link.device_key if evocloud_manager.link else "unknown-caller"
@@ -167,7 +167,7 @@ async def send_agent_task(
         await evocloud_manager.api.send_command_to_device(device_key=target_device_key, cmd_data=cmd_data)
         logger.info(f"[A2A] Dispatched A2A task {task_id} to device {target_device_key}")
     except Exception as e:
-        logger.error(f"[A2A] Failed to dispatch task to gateway: {e}")
+        logger.exception(f"[A2A] Failed to dispatch task to gateway: {e}")
         return f"Error dispatching task: {e}"
 
     tool_call_id = kwargs.get("tool_call_id") or f"call-{task_id}"
@@ -263,7 +263,7 @@ async def complete_task(status: str, summary: str, attachments: list[str] = []) 
                 )
             )
         except Exception as e:
-            logger.error(f"[A2A] Failed to upload callback attachment {path}: {e}")
+            logger.exception(f"[A2A] Failed to upload callback attachment {path}: {e}")
             return f"Error uploading attachment {path}: {e}"
 
     callback_payload = AgentTaskResult(
@@ -284,7 +284,7 @@ async def complete_task(status: str, summary: str, attachments: list[str] = []) 
         await evocloud_manager.api.send_command_to_device(device_key=caller_device_key, cmd_data=cmd_data)
         logger.info(f"[A2A] Sent A2A callback result for task {thread_id} to device {caller_device_key}")
     except Exception as e:
-        logger.error(f"[A2A] Failed to send callback to caller: {e}")
+        logger.exception(f"[A2A] Failed to send callback to caller: {e}")
         return f"Error sending callback: {e}"
 
     from app.core.monitoring.activity import activity_monitor

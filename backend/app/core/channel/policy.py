@@ -68,8 +68,30 @@ def _is_voice_session(session_source: str | None) -> bool:
     return session_source == "voice"
 
 
+def _is_duty_session(session_source: str | None) -> bool:
+    """值守场景判定：委托统一的场景编码判定（app.core.channel.duty.is_duty_source）。"""
+    from app.core.channel.duty import is_duty_source
+
+    return is_duty_source(session_source)
+
+
 def _is_supervisor(node_source: str | None) -> bool:
     return node_source == "supervisor"
+
+
+def _has_route_to_call(block: object) -> bool:
+    """判断 AI MessageBlock 是否携带 route_to 工具调用（Supervisor 派活信号）。
+
+    Supervisor 派活前会在同一条 assistant 消息里先输出安抚文本 + 附带
+    route_to 工具调用；据此精确识别「安抚回复」，避免把直接回复/最终回复
+    （走 SessionCompletedEvent）重复发送。
+    """
+    tool_calls = getattr(block, "tool_calls", None) or []
+    for tc in tool_calls:
+        name = tc.get("name") if isinstance(tc, dict) else getattr(tc, "name", None)
+        if name == "route_to":
+            return True
+    return False
 
 
 def _is_streaming_block(block: object) -> bool:
@@ -174,6 +196,16 @@ class OutputChannelPolicy:
             # completed / pending / failed etc.
             if _is_voice_session(session_source) and _is_supervisor(node_source):
                 return {"sse", "mobile", "voice"}
+            if _is_duty_session(session_source):
+                # 值守场景：仅「Supervisor 派活前的安抚文本」（AI + 带 route_to
+                # 工具调用）路由到值守渠道发送给客户；直接回复/最终回复走
+                # SessionCompletedEvent 订阅，避免重复。Worker 中间文本（
+                # node_source=worker）不路由，防止内部过程泄漏给客户。
+                # 用场景标识 "duty" 路由，publisher 端按渠道声明的 scenes
+                # 匹配到具体值守渠道（如 wecom_duty）。
+                if _is_supervisor(node_source) and _has_route_to_call(block):
+                    return {"sse", "duty"}
+                return {"sse"}
             return {"sse", "mobile"}
 
         # system / unknown roles

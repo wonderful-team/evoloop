@@ -88,7 +88,7 @@ class FilePreparer:
             if content is None:
                 return None
         except Exception as e:
-            logger.warning(f"Could not read {file_path}: {e}")
+            logger.warning(f"Could not read {file_path}: {e}", exc_info=True)
             return None
 
         new_checksum = compute_md5(content)

@@ -1,5 +1,8 @@
 from fastapi import APIRouter, BackgroundTasks
 
+# 直接来自真实来源（_chat 已不再 import；此处保持 test patch 兼容的模块级导出）
+from app.core.engine.background_agent import run_agent_background  # noqa: F401
+
 # External dependencies used by agent endpoints that tests patch directly on agent module
 from app.infrastructure.database.resource_manager import db_resource_manager
 
@@ -12,7 +15,6 @@ from ._chat import (
     chat_endpoint,
     resume_chat,
     retry_chat,
-    run_agent_background,
     session_scope,
     stop_chat,
     thread_context_store,

@@ -16,7 +16,6 @@ from app.core.memory.retrieval import MemoryRetriever
 from app.core.memory.short_term import SqlShortTermMemory
 from app.core.memory.state_tracking import MemoryStateTracker
 from app.core.memory.store import MemoryStore
-from app.core.memory.two_tier import TwoTierMemoryManager
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +46,6 @@ class MemoryContainer:
         self._smart_retriever: MemoryRetriever | None = None
         self._quality: MemoryQualityAnalyzer | None = None
         self._state_tracker: MemoryStateTracker | None = None
-        self._two_tier: TwoTierMemoryManager | None = None
         self._manager: MemoryManager | None = None
 
     async def initialize(self) -> None:
@@ -179,13 +177,3 @@ class MemoryContainer:
         if self._state_tracker is None:
             self._state_tracker = MemoryStateTracker()
         return self._state_tracker
-
-    @property
-    def two_tier_manager(self) -> TwoTierMemoryManager:
-        """Get two-tier memory manager (lazy)."""
-        if self._two_tier is None:
-            self._two_tier = TwoTierMemoryManager(
-                storage=self.storage,
-                config=self.config,
-            )
-        return self._two_tier

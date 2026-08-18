@@ -7,10 +7,7 @@ Unifies 'Eager' (JIT injection) and 'Lazy' (Tool-based) patterns.
 import logging
 from typing import Any
 
-from sqlalchemy import select
-
 from app.core.engine.state import AgentState
-from app.infrastructure.database import session_scope
 
 logger = logging.getLogger(__name__)
 
@@ -24,24 +21,18 @@ class SkillHydrator:
     @staticmethod
     async def get_skill_by_id(skill_id: int) -> Any | None:
         """
-        Fetch a single skill by its ID.
+        Fetch a single visible skill by its ID.
         Used for direct skill lookup without search overhead.
         """
-        from app.core.learning.skill_visibility import visible_filter
-        from app.models.learning import LearnedSkill
+        from app.core.learning.skills.repository import skill_repository
 
         if not skill_id:
             return None
 
         try:
-            async with session_scope() as session:
-                stmt = select(LearnedSkill).where(
-                    LearnedSkill.id == skill_id, visible_filter()
-                )
-                result = await session.execute(stmt)
-                return result.scalar_one_or_none()
+            return await skill_repository.get_by_id(skill_id, visible_only=True)
         except Exception as e:
-            logger.error(f"[Hydrator] Failed to fetch skill {skill_id}: {e}")
+            logger.exception(f"[Hydrator] Failed to fetch skill {skill_id}: {e}")
             return None
 
     @staticmethod
@@ -56,7 +47,7 @@ class SkillHydrator:
         If eager, returns full LearnedSkill objects.
         If lazy, returns a lightweight list of dicts (name, description) for an index.
         """
-        from app.core.learning.discovery import skill_discovery
+        from app.core.learning.skills.discovery import skill_discovery
 
         if mode == "lazy":
             logger.info(f"[Hydrator] Lazy mode for topic: {topic}. Fetching namespace index.")

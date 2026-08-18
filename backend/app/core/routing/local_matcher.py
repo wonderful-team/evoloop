@@ -120,26 +120,56 @@ class LocalMatcher:
         # press_key template's "按下{key}" must outrank its own "按{key}").
         self._compiled.sort(key=lambda c: c[3], reverse=True)
 
-    def match(self, text: str) -> tuple[str, dict[str, Any]] | None:
+    def match(
+        self, text: str, project_id: int | None = None
+    ) -> tuple[str, dict[str, Any]] | None:
+        """Match ``text`` against the template catalog.
+
+        When ``project_id`` is provided, project-scoped macros (whose template
+        carries a matching ``project_id``) are matched first so a project-level
+        trigger ("打开商品列表") wins over a generic global template ("打开{app}")
+        with the same or overlapping utterance.  Global templates (no
+        ``project_id``) are the fallback.
+        """
         cleaned = text.strip().strip("。，？！,.?! ")
         if not cleaned:
             return None
-        for anchored, template, slots, _lit_len in self._compiled:
-            m = anchored.match(cleaned)
-            if not m:
-                continue
-            args = dict(template.get("args") or {})
-            ok = True
-            for slot in slots:
-                value = m.group(slot)
-                resolved = self._verify_slot(slot, value)
-                if resolved is None:
-                    ok = False
-                    break
-                args[slot] = strip_filler_words(resolved, self._slot_filler_prefixes, self._slot_filler_suffixes)
-            if ok:
-                return template["action"], args
-        return None
+
+        def _try(template_project: int | None) -> tuple[str, dict[str, Any]] | None:
+            for anchored, template, slots, _lit_len in self._compiled:
+                tpid = template.get("project_id")
+                # 项目优先：第一轮仅当前项目宏；第二轮仅全局宏（兜底）。
+                if project_id is not None:
+                    if template_project == "project":
+                        if tpid != project_id:
+                            continue
+                    elif template_project == "global":
+                        if tpid is not None:
+                            continue
+                m = anchored.match(cleaned)
+                if not m:
+                    continue
+                args = dict(template.get("args") or {})
+                ok = True
+                for slot in slots:
+                    value = m.group(slot)
+                    resolved = self._verify_slot(slot, value)
+                    if resolved is None:
+                        ok = False
+                        break
+                    args[slot] = strip_filler_words(resolved, self._slot_filler_prefixes, self._slot_filler_suffixes)
+                if ok:
+                    return template["action"], args
+            return None
+
+        if project_id is not None:
+            # 第一轮：项目级模板（macro.project_id == project_id 或 None）
+            hit = _try("project")
+            if hit is not None:
+                return hit
+            # 第二轮：仅全局模板（macro.project_id 为空）
+            return _try("global")
+        return _try("project")
 
     # ── Rule 3/4: slot verification ───────────────────────────
 

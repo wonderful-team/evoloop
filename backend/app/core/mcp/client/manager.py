@@ -122,6 +122,11 @@ class McpClientManager:
                     self._transport.create_transport(config)
                 )
                 session = await self._transport.create_session(read, write)
+                # Push session exit onto the same stack so teardown order is
+                # guaranteed: session (stops receive loop) closes BEFORE the
+                # transport's streams. Closing them separately would race the
+                # still-cancelling receive loop with stream.aclose().
+                stack.push_async_exit(session.__aexit__)
 
                 self._stacks[server_name] = stack
                 self._sessions[server_name] = session
@@ -159,7 +164,7 @@ class McpClientManager:
             )
 
         except Exception as e:
-            logger.error(f"Error connecting to {server_name}: {e}")
+            logger.exception(f"Error connecting to {server_name}: {e}")
             if "stack" in locals():
                 await stack.aclose()
             return ConnectionResult(
@@ -235,33 +240,24 @@ class McpClientManager:
                     result = await self.connect_from_db(server.name)
                     results.append(result)
                 except Exception as e:
-                    logger.error(f"Failed to connect to MCP server '{server.name}': {e}")
+                    logger.exception(f"Failed to connect to MCP server '{server.name}': {e}")
                     results.append(ConnectionResult(
                         success=False,
                         server_name=server.name,
                         error=str(e)
                     ))
 
-        # Check critical servers
-        if "filesystem" not in self._sessions:
-            logger.critical("CRITICAL: 'filesystem' MCP server failed to connect!")
-
         return results
 
     async def disconnect(self, server_name: str) -> None:
         """Disconnect a single server."""
-        session = self._sessions.get(server_name)
-        if session is not None:
-            try:
-                await session.__aexit__(None, None, None)
-            except Exception as e:
-                logger.debug(f"Error closing session for '{server_name}': {e}")
-
         if server_name in self._stacks:
             try:
+                # The stack owns both the session and the transport, closing
+                # them in registration order (session first, transport second).
                 await self._stacks[server_name].aclose()
             except Exception as e:
-                logger.debug(f"Error closing stack for '{server_name}': {e}")
+                logger.debug(f"Error closing stack for '{server_name}': {e}", exc_info=True)
             del self._stacks[server_name]
 
         self._sessions.pop(server_name, None)
@@ -353,7 +349,12 @@ class McpClientManager:
         return []
 
     async def aget_all_tools(self) -> list[EvoLoopTool]:
-        """Get all tools from all connected servers, ensuring connections are alive."""
+        """Get all tools from all connected servers, ensuring connections are alive.
+
+        Only iterates servers already connected (in ``_configs``). Connection is
+        established by connect_all() at a controlled point (e.g. a lazily-bound
+        first use in the current loop), not re-seeded on every call.
+        """
         all_tools = []
         for server_name in list(self._configs.keys()):
             if await self.ensure_connected(server_name):
@@ -617,7 +618,7 @@ class McpClientManager:
                         session.add(new_server)
                 logger.info("Legacy MCP config migrated successfully.")
             except Exception as e:
-                logger.error(f"Failed to migrate legacy config: {e}")
+                logger.exception(f"Failed to migrate legacy config: {e}")
 
     @staticmethod
     def _parse_json_field(value: Any, default: Any) -> Any:

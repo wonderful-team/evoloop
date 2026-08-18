@@ -44,19 +44,55 @@ class FinishNode(BaseNode):
             return await self.handle_error(state, e, config=config)
 
     async def _prepare_audit_input(self, state: "AgentState") -> None:
+        from collections import Counter
+
         plan_progress = state.plan_progress
         effective_completed = plan_progress.completed_steps if plan_progress else 0
         effective_total = plan_progress.total_steps if plan_progress else 0
 
         tool_history = state.tool_history or []
-        created_count = sum(1 for t in tool_history if "write_" in t or "edit_" in t or "create_" in t)
+        created_count = sum(
+            1 for t in tool_history if "write_" in t or "edit_" in t or "create_" in t
+        )
+
+        # Tool usage digest so the audit can see what was actually attempted.
+        tool_counts = Counter(t.split(":")[0] for t in tool_history)
+        tool_stats = dict(tool_counts.most_common(10))
+
+        # Preserve the most recent worker final report / system note in the audit input.
+        key_digest = ""
+        for msg in reversed(state.messages):
+            if msg.role == "assistant" and not getattr(msg, "tool_calls", None):
+                text = str(getattr(msg, "content", "") or "").strip()
+                if len(text) > 30:
+                    key_digest = text[:600]
+                    break
+        if not key_digest:
+            for msg in reversed(state.messages):
+                if msg.role == "system":
+                    text = str(getattr(msg, "content", "") or "").strip()
+                    if len(text) > 30:
+                        key_digest = text[:600]
+                        break
+
+        verification_status = ""
+        if state.verification and state.verification.status:
+            verification_status = state.verification.status
+
+        key_findings = [
+            f"Cognitive Progress: {effective_completed}/{effective_total} steps"
+        ]
+        if key_digest:
+            key_findings.append(f"Final worker report (excerpt): {key_digest[:200]}")
+        if verification_status:
+            key_findings.append(f"Verification status: {verification_status}")
 
         progress = ProgressMetrics(
             total_steps=effective_total,
             completed_steps=effective_completed,
             total_deliverables=created_count,
             completed_deliverables=created_count,
-            key_findings=[f"Cognitive Progress: {effective_completed}/{effective_total} steps"],
+            key_findings=key_findings,
             issues_encountered=[],
         )
 
@@ -70,20 +106,37 @@ class FinishNode(BaseNode):
                     suggested_action="Route back to Supervisor",
                 )
             )
+        # If the worker already concluded that verification is impossible due to
+        # environment limitations, do not flag it as actionable incompleteness.
+        if state.shared_context and state.shared_context.get("verification_impossible"):
+            anomalies = [
+                a for a in anomalies
+                if a.anomaly_type != "incomplete_plan"
+            ]
+            anomalies.append(
+                AuditAnomaly(
+                    anomaly_type="verification_impossible",
+                    severity="info",
+                    description="Worker reported that verification is impossible in the current environment.",
+                    suggested_action="Accept the worker's final report and finish.",
+                )
+            )
 
         audit_input = AuditInputData(
             original_goal=state.session_goal or "",
             plan_summary={"total": effective_total, "completed": effective_completed},
             progress=progress,
             deliverables=[],
-            tool_stats={},
+            tool_stats=tool_stats,
             anomalies=anomalies,
-            key_messages_digest="",
+            key_messages_digest=key_digest,
         )
         state.audit_input_data = audit_input
         state.audit_anomalies = anomalies
 
-    async def handle_error(self, state: "AgentState", error: Exception, config: dict = None) -> "StateUpdate":
+    async def handle_error(
+        self, state: "AgentState", error: Exception, config: dict = None
+    ) -> "StateUpdate":
         from app.core.engine.message.native_classes import AIMessage
 
         error_msg = AIMessage(
@@ -95,35 +148,28 @@ class FinishNode(BaseNode):
             next_node=RoutingTarget.END,
         )
 
-    async def _has_replayable_steps(self, thread_id: str) -> bool:
-        """Return True if the thread contains at least one deterministic replayable step."""
-        from app.core.execution.macro.macro_creator_service import MacroCreatorService
-
-        try:
-            return await MacroCreatorService.is_eligible(thread_id)
-        except Exception as e:
-            logger.warning("[Finish] Failed to check replayable steps for %s: %s", thread_id, e)
-            return False
-
     async def _update_agent_activity(
         self,
         thread_id: str,
         summary: str | None,
         final_outcome: str,
-        macro_creation_eligible: bool,
     ) -> None:
-        """Persist the audit summary and macro creation eligibility to AgentActivity."""
+        """Persist the audit summary and outcome to AgentActivity."""
         try:
             async with session_scope() as session:
                 activity = await session.get(AgentActivity, thread_id)
                 if activity is None:
-                    logger.debug(f"[Finish] No AgentActivity record for {thread_id}; skipping macro creation flag.")
+                    logger.debug(
+                        f"[Finish] No AgentActivity record for {thread_id}; skipping activity update."
+                    )
                     return
                 activity.summary = summary
                 activity.final_outcome = final_outcome
-                activity.macro_creation_eligible = macro_creation_eligible
         except Exception as e:
-            logger.warning(f"[Finish] Failed to update AgentActivity for {thread_id}: {e}")
+            logger.warning(
+                f"[Finish] Failed to update AgentActivity for {thread_id}: {e}",
+                exc_info=True,
+            )
 
     async def _run(self, state: "AgentState", config: dict) -> "StateUpdate":
         start_time = time.time()
@@ -164,7 +210,9 @@ class FinishNode(BaseNode):
                     ),
                 )
 
-                logger.info(f"[Finish] Soft trim before audit: {trim_result.before_count} -> {trim_result.after_count} msgs")
+                logger.info(
+                    f"[Finish] Soft trim before audit: {trim_result.before_count} -> {trim_result.after_count} msgs"
+                )
             messages = trim_result.messages
 
         iteration_count = state.iteration_count or 0
@@ -187,20 +235,17 @@ class FinishNode(BaseNode):
 
         summary = audit_result.summary
         final_outcome = audit_result.meta.get("outcome", "")
-        macro_creation_eligible = (
-            final_outcome.upper() == "COMPLETED"
-            and await self._has_replayable_steps(effective_thread_id)
-        )
         await self._update_agent_activity(
             thread_id=effective_thread_id,
             summary=summary,
             final_outcome=final_outcome,
-            macro_creation_eligible=macro_creation_eligible,
         )
 
         if final_outcome.upper() == "INCOMPLETE":
             if iteration_count < max_steps:
-                logger.warning("[Finish] Verdict: INCOMPLETE. Routing back to Supervisor.")
+                logger.warning(
+                    "[Finish] Verdict: INCOMPLETE. Routing back to Supervisor."
+                )
                 return StateUpdate(
                     messages=messages,
                     next_node=RoutingTarget.SUPERVISOR,
@@ -208,7 +253,9 @@ class FinishNode(BaseNode):
                     final_outcome=final_outcome,
                 )
             else:
-                logger.warning("[Finish] Verdict: INCOMPLETE, iteration limit reached. Forcing completion.")
+                logger.warning(
+                    "[Finish] Verdict: INCOMPLETE, iteration limit reached. Forcing completion."
+                )
 
         state.audit_tier = "unified"
         state.summary = summary
@@ -228,9 +275,13 @@ class FinishNode(BaseNode):
                     duration_ms=total_duration,
                 ),
             )
-            stop_result = await hook_system.trigger(HookEvent.STOP, stop_ctx, blocking=True)
+            stop_result = await hook_system.trigger(
+                HookEvent.STOP, stop_ctx, blocking=True
+            )
             if stop_result.block:
-                logger.warning(f"[Finish] STOP hook blocked completion: {stop_result.message}")
+                logger.warning(
+                    f"[Finish] STOP hook blocked completion: {stop_result.message}"
+                )
                 from app.core.engine.message.native_classes import AIMessage
 
                 block_msg = AIMessage(
@@ -246,7 +297,9 @@ class FinishNode(BaseNode):
         except (ValueError, RuntimeError, OSError) as e:
             logger.exception(f"[Finish] Stop hook failed: {e}")
 
-        logger.info(f"[Finish] Audit complete: {total_duration:.0f}ms. Finalizing session...")
+        logger.info(
+            f"[Finish] Audit complete: {total_duration:.0f}ms. Finalizing session..."
+        )
 
         metadata = config.get("metadata", {})
         run_id = config.get("configurable", {}).get("run_id")
@@ -256,7 +309,9 @@ class FinishNode(BaseNode):
         blackboard_dict = {
             "ticket": state.ticket.model_dump() if state.ticket else None,
             "visited_nodes": state.visited_nodes,
-            "verification": state.verification.model_dump() if state.verification else None,
+            "verification": state.verification.model_dump()
+            if state.verification
+            else None,
             "metadata": metadata_clean,
         }
 
@@ -282,7 +337,11 @@ class FinishNode(BaseNode):
         for msg in audit_result.messages or []:
             content = msg.content or ""
             if "<evoloop_tts_summary>" in str(content):
-                m = re.search(r'<evoloop_tts_summary>(.*?)</evoloop_tts_summary>', str(content), re.DOTALL)
+                m = re.search(
+                    r"<evoloop_tts_summary>(.*?)</evoloop_tts_summary>",
+                    str(content),
+                    re.DOTALL,
+                )
                 if m:
                     tts_summary = m.group(1).strip()
                     break
@@ -299,7 +358,6 @@ class FinishNode(BaseNode):
             summary=summary,
             tts_summary=tts_summary,
             outcome=final_outcome,
-            macro_creation_eligible=macro_creation_eligible,
             audit_tier="unified",
             duration_ms=total_duration,
             turn_summary_message_id=None,
@@ -313,7 +371,9 @@ class FinishNode(BaseNode):
         from app.core.events.publishers import publish_session_completed
 
         if not metadata.get("skip_persistence"):
-            logger.info(f"[Finish] Publishing SessionCompletedEvent for thread {effective_thread_id}...")
+            logger.info(
+                f"[Finish] Publishing SessionCompletedEvent for thread {effective_thread_id}..."
+            )
             await publish_session_completed(data=event_data)
 
         logger.debug(f"[Finish] Blackboard pruned for thread {effective_thread_id}")

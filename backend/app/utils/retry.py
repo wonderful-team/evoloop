@@ -67,7 +67,7 @@ def wait_for_db(db_engine: Engine) -> None:
                 # Try to create session to check if DB is awake
                 session.exec(select(1))
         except Exception as e:
-            logger.error(f"Database not ready yet: {e}")
+            logger.exception(f"Database not ready yet: {e}")
             raise e
 
     logger.info("Waiting for database connection...")
@@ -125,7 +125,7 @@ def retry_async(
                     logger.warning(
                         f"Attempt {attempt}/{max_attempts} failed for {func.__name__}: {e}. "
                         f"Retrying in {current_delay}s..."
-                    )
+                    , exc_info=True)
 
                     if on_retry:
                         on_retry(e, attempt)
@@ -160,7 +160,7 @@ def retry_with_fallback(fallback_value: T):
             try:
                 return await func(*args, **kwargs)
             except Exception as e:
-                logger.warning(f"{func.__name__} failed, returning fallback: {e}")
+                logger.warning(f"{func.__name__} failed, returning fallback: {e}", exc_info=True)
                 return fallback_value
 
         return wrapper
@@ -266,7 +266,7 @@ async def retry_operation(
         except exceptions as e:
             if attempt == max_attempts:
                 raise
-            logger.warning(f"Attempt {attempt} failed: {e}. Retrying...")
+            logger.warning(f"Attempt {attempt} failed: {e}. Retrying...", exc_info=True)
             await asyncio.sleep(delay)
 
     raise RuntimeError("Unexpected end of retry loop")

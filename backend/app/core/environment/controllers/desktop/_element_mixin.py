@@ -63,10 +63,10 @@ class DesktopElementMixin:
                     return res
             return None
         except asyncio.TimeoutError:
-            logger.debug(f"[Desktop] AX Tree timeout for '{name}'")
+            logger.debug(f"[Desktop] AX Tree timeout for '{name}'", exc_info=True)
             return None
         except Exception as e:
-            logger.debug(f"[Desktop] AX Tree failed for '{name}': {e}")
+            logger.debug(f"[Desktop] AX Tree failed for '{name}': {e}", exc_info=True)
             return None
 
     @classmethod
@@ -93,7 +93,7 @@ class DesktopElementMixin:
                     )
             return None
         except Exception as e:
-            logger.debug(f"[Desktop] Atlas resolution dividend failed: {e}")
+            logger.debug(f"[Desktop] Atlas resolution dividend failed: {e}", exc_info=True)
             return None
 
     @classmethod
@@ -149,10 +149,10 @@ class DesktopElementMixin:
                     return ElementResolutionResult(type="coords", x=win_x + el.x, y=win_y + el.y)
             return None
         except asyncio.TimeoutError:
-            logger.debug(f"[Desktop] OCR timeout for '{name}'")
+            logger.debug(f"[Desktop] OCR timeout for '{name}'", exc_info=True)
             return None
         except Exception as e:
-            logger.debug(f"[Desktop] OCR failed for '{name}': {e}")
+            logger.debug(f"[Desktop] OCR failed for '{name}': {e}", exc_info=True)
             return None
         finally:
             if temp_img:
@@ -190,7 +190,7 @@ class DesktopElementMixin:
                             p.cancel()
                         break
                 except Exception as e:
-                    logger.debug(f"[Desktop] Engine task failed: {e}")
+                    logger.debug(f"[Desktop] Engine task failed: {e}", exc_info=True)
 
             if result:
                 break

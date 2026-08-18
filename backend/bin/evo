@@ -86,7 +86,7 @@ show_help() {
 ║    evo logs             查看服务日志                         ║
 ║    evo status           查看服务运行状态                     ║
 ║                                                              ║
-║    evo dev              启动开发服务器（前台）               ║
+║    evo dev              后台启动开发服务器（仅 API）         ║
 ║    evo worker           启动 Task Queue Worker（独立进程）   ║
 ║    evo beat             启动 Celery Beat（前台）             ║
 ║                                                              ║
@@ -98,15 +98,15 @@ show_help() {
 ║                                                              ║
 ║  【测试】                                                     ║
 ║    evo test             运行测试套件                         ║
-║    evo test-cov         运行测试并生成覆盖率报告              ║
-║    evo test-e2e         运行端到端测试                       ║
-║    evo test-brain       运行 Brain 模块测试                  ║
-║    evo test-atlas       运行 Atlas 模块测试                  ║
+║    evo test cov         运行测试并生成覆盖率报告              ║
+║    evo test e2e         运行端到端测试                       ║
+║    evo test brain       运行 Brain 模块测试                  ║
+║    evo test atlas       运行 Atlas 模块测试                  ║
 ║                                                              ║
 ║  【数据库】                                                   ║
 ║    evo db init          初始化数据库                         ║
 ║    evo db migrate       运行数据库迁移                       ║
-║    evo db reset         重置数据库                           ║
+║    evo db reset         重新迁移并填充种子数据（不清数据）    ║
 ║    evo db seed          填充测试数据                         ║
 ║                                                              ║
 ║  【知识库】                                                   ║
@@ -152,10 +152,6 @@ show_help() {
 ║    evo demo final       最终演示                             ║
 ║    evo demo phase3      阶段3演示                            ║
 ║    evo demo mobile      移动端演示                           ║
-║                                                              ║
-║  【运行（生产模式）】                                         ║
-║    evo run api          启动 API 服务器（生产模式）          ║
-║    evo run worker       启动 Worker（生产模式）              ║
 ║                                                              ║
 ║  【导出】                                                     ║
 ║    evo export openapi   导出 OpenAPI 文档到前端              ║
@@ -277,8 +273,18 @@ case "${1:-help}" in
             cp "$PROJECT_DIR/../.env.local" "$PROJECT_DIR/../.env"
         fi
         _cleanup_stuck_ports
-        info "启动开发服务器 ($WORKERS Workers)..."
-        ENVIRONMENT=local WORKERS=$WORKERS RELOAD=false .venv/bin/python bin/run.py api
+        LOG_DIR="$PROJECT_DIR/logs"
+        mkdir -p "$LOG_DIR"
+        info "启动开发服务器 ($WORKERS Workers) → $LOG_DIR/api.log"
+        # -u 强制无缓冲，避免重定向到文件后 stdout 块缓冲导致日志延迟写入
+        ENVIRONMENT=local WORKERS=$WORKERS RELOAD=false nohup .venv/bin/python -u bin/run.py api > "$LOG_DIR/api.log" 2>&1 &
+        echo $! > "$LOG_DIR/api.pid"
+        sleep 2
+        if pgrep -f "bin/run.py api" > /dev/null; then
+            success "开发服务器启动成功 (PID: $(cat $LOG_DIR/api.pid))，日志: $LOG_DIR/api.log"
+        else
+            error "开发服务器启动失败，查看日志: $LOG_DIR/api.log"
+        fi
         ;;
 
     worker)
@@ -287,9 +293,18 @@ case "${1:-help}" in
             info "本地开发模式：使用 .env.local 覆盖当前 .env"
             cp "$PROJECT_DIR/../.env.local" "$PROJECT_DIR/../.env"
         fi
-        info "启动 Task Queue Worker ($WORKERS Workers)..."
+        LOG_DIR="$PROJECT_DIR/logs"
+        mkdir -p "$LOG_DIR"
+        info "启动 Task Queue Worker ($WORKERS Workers) → $LOG_DIR/worker.log"
         info "Backend: 根据 EMBEDDED_MODE 环境变量 (true→Huey / false→Celery)"
-        ENVIRONMENT=local .venv/bin/python bin/run.py worker --workers=$WORKERS "${@:2}"
+        ENVIRONMENT=local nohup .venv/bin/python -u bin/run.py worker --workers=$WORKERS "${@:2}" > "$LOG_DIR/worker.log" 2>&1 &
+        echo $! > "$LOG_DIR/worker.pid"
+        sleep 2
+        if pgrep -f "bin/run.py worker" > /dev/null; then
+            success "Worker 启动成功 (PID: $(cat $LOG_DIR/worker.pid))，日志: $LOG_DIR/worker.log"
+        else
+            error "Worker 启动失败，查看日志: $LOG_DIR/worker.log"
+        fi
         ;;
 
     beat)
@@ -315,6 +330,8 @@ case "${1:-help}" in
         # 检查服务是否已在运行
         if pgrep -f "python bin/run.py api" > /dev/null; then
             warning "API 服务已在运行"
+            # 刷新 pid 文件，防止与真实进程脱节（stale）
+            pgrep -f "python bin/run.py api" | head -1 > "$LOG_DIR/api.pid"
         else
             info "启动 API 服务 ($WORKERS Workers)..."
             ENVIRONMENT=local WORKERS=$WORKERS nohup .venv/bin/python bin/run.py api > "$LOG_DIR/api.log" 2>&1 &
@@ -329,6 +346,7 @@ case "${1:-help}" in
 
         if pgrep -f "python bin/run.py worker" > /dev/null; then
             warning "Worker 服务已在运行"
+            pgrep -f "python bin/run.py worker" | head -1 > "$LOG_DIR/worker.pid"
         else
             info "启动 Worker 服务 ($WORKERS Workers)..."
             ENVIRONMENT=local nohup .venv/bin/python bin/run.py worker --workers=$WORKERS > "$LOG_DIR/worker.log" 2>&1 &
@@ -344,6 +362,7 @@ case "${1:-help}" in
         if _is_celery_available; then
             if pgrep -f "celery.*beat" > /dev/null; then
                 warning "Beat 服务已在运行"
+                pgrep -f "celery.*beat" | head -1 > "$LOG_DIR/beat.pid"
             else
                 info "启动 Beat 服务..."
                 ENVIRONMENT=local nohup .venv/bin/celery -A app.infrastructure.queue.celery_app beat -l info > "$LOG_DIR/beat.log" 2>&1 &
@@ -381,7 +400,12 @@ case "${1:-help}" in
             local pid=""
             if [ -f "$pid_file" ]; then
                 pid=$(cat "$pid_file")
-            else
+                # pid 文件可能已失效（stale）：进程不存在时清空，回退到进程名查找
+                if [ -n "$pid" ] && ! kill -0 "$pid" 2>/dev/null; then
+                    pid=""
+                fi
+            fi
+            if [ -z "$pid" ]; then
                 # 尝试通过进程名查找
                 pid=$(pgrep -f "$pattern" | head -1)
             fi
@@ -390,12 +414,15 @@ case "${1:-help}" in
                 info "正在停止 $name (PID: $pid)..."
                 kill "$pid" 2>/dev/null || true
                 
-                # 等待最多 10 秒
-                for i in {1..10}; do
+                # 等待优雅退出（可用 EVO_STOP_TIMEOUT 覆盖，默认 10 秒）
+                local wait_secs="${EVO_STOP_TIMEOUT:-10}"
+                local i=0
+                while (( i < wait_secs )); do
                     if ! kill -0 "$pid" 2>/dev/null; then
                         break
                     fi
                     sleep 1
+                    i=$((i + 1))
                 done
                 
                 # 如果 10 秒后仍在运行，使用 SIGKILL 强制杀掉
@@ -470,8 +497,8 @@ case "${1:-help}" in
             fi
         }
 
-        check_service "API    " "python bin/run.py api"
-        check_service "Worker " "python bin/run.py worker"
+        check_service "API    " "python.*bin/run.py api"
+        check_service "Worker " "python.*bin/run.py worker"
         check_service "Beat   " "celery.*beat"
 
         echo ""
@@ -491,7 +518,13 @@ case "${1:-help}" in
     format)
         info "格式化代码..."
         .venv/bin/ruff check app tests --fix
+        RUFF_EXIT=$?
         .venv/bin/ruff format app tests
+        FMT_EXIT=$?
+        if [ $RUFF_EXIT -ne 0 ] || [ $FMT_EXIT -ne 0 ]; then
+            error "格式化未完全成功 (ruff=$RUFF_EXIT, format=$FMT_EXIT)"
+            exit 1
+        fi
         success "格式化完成"
         ;;
 
@@ -979,7 +1012,7 @@ case "${1:-help}" in
 
     arch)
         echo "当前架构: $(arch)"
-        echo "Python 架构: $(.venv/bin/python -c 'import platform; print(platform.machine())' 2>/dev/null || .venv/bin/python -c 'import platform; print(platform.machine())')"
+        echo "Python 架构: $(.venv/bin/python -c 'import platform; print(platform.machine())' 2>/dev/null || echo 'unknown')"
         ;;
 
     setup)
@@ -992,12 +1025,13 @@ case "${1:-help}" in
         if ! command -v uv &> /dev/null; then
             info "安装 uv..."
             curl -LsSf https://astral.sh/uv/install.sh | sh
-            export PATH="$HOME/.cargo/bin:$PATH"
+            export PATH="$HOME/.local/bin:$PATH"
         fi
 
-        # 步骤 2: 安装 Python 依赖
+        # 步骤 2: 安装 Python 依赖（使用 uv）
+        check_uv
         info "安装 Python 依赖 (当前架构: $(arch))..."
-        .venv/bin/pip install -e . || .venv/bin/pip install -r requirements.txt
+        uv pip install -e . || uv pip install -r requirements.txt
 
         # 步骤 3: 创建数据库目录
         info "创建数据目录..."
@@ -1011,8 +1045,9 @@ case "${1:-help}" in
                 # 生成随机密钥
                 if command -v openssl &> /dev/null; then
                     SECRET_KEY=$(openssl rand -base64 32)
-                    sed -i.bak "s/SECRET_KEY=.*/SECRET_KEY=$SECRET_KEY/" .env 2>/dev/null || true
-                    rm -f .env.bak
+                    # 经环境变量透传：$ENV{SECRET_KEY} 在替换串中原样插值，
+                    # 不经过正则转义，规避 base64 中的 / = + 破坏替换。
+                    SECRET_KEY="$SECRET_KEY" perl -i -pe 's/^SECRET_KEY=.*/SECRET_KEY=$ENV{SECRET_KEY}/' .env 2>/dev/null || true
                 fi
                 success ".env 创建完成"
                 warning "请编辑 .env 文件配置数据库连接信息"

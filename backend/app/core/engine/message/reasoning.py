@@ -7,6 +7,13 @@ from __future__ import annotations
 from typing import Any
 
 from app.core.engine.message.native_classes import BaseMessage
+from app.infrastructure.llm.thinking_adapter import extract_reasoning_from_kwargs
+
+__all__ = [
+    "extract_reasoning_from_message",
+    "extract_reasoning_from_kwargs",
+    "extract_tool_calls",
+]
 
 
 def extract_reasoning_from_message(message: BaseMessage) -> str | None:
@@ -25,24 +32,6 @@ def extract_reasoning_from_message(message: BaseMessage) -> str | None:
         if anthropic_thinking:
             return "".join(anthropic_thinking)
 
-    return None
-
-
-def extract_reasoning_from_kwargs(additional_kwargs: dict | None) -> str | None:
-    """Extract raw reasoning content string from additional_kwargs dict."""
-    if not additional_kwargs:
-        return None
-
-    # 1. Prefer unified "thinking" key
-    thinking = additional_kwargs.get("thinking")
-    if isinstance(thinking, str):
-        return thinking if thinking.strip() else None
-
-    # 2. Fallback to raw reasoning_content
-    reasoning = additional_kwargs.get("reasoning_content")
-    if reasoning:
-        res = str(reasoning)
-        return res if res.strip() else None
     return None
 
 

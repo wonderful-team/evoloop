@@ -10,26 +10,10 @@ from app.core.learning.schemas.skills import SkillExecutionParams
 from app.models.schemas.base import ScopedRequest
 
 
-class HumanInputRequestOut(BaseModel):
-    id: str
-    thread_id: str
-    request_type: str
-    prompt: str
-    options: list[str] | None = None
-    context: str | None = None
-    default_value: str | None = None
-    created_at: str
-    status: str
-
-
 class ExecuteSkillRequest(ScopedRequest):
     thread_id: str
     params: SkillExecutionParams
     project_id: int | None = DEFAULT_PROJECT_ID
-
-
-class RespondRequest(BaseModel):
-    response: Any
 
 
 class StartMirrorRequest(BaseModel):

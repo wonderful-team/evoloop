@@ -55,7 +55,7 @@ async def analyze_image(
                 )
                 logger.info(f"[Vision] Injected {tree_label} into prompt via template.")
         except Exception as e:
-            logger.warning(f"[Vision] Failed to inject AX Tree: {e}")
+            logger.warning(f"[Vision] Failed to inject AX Tree: {e}", exc_info=True)
 
     result = await vision_engine.process(
         task=VisionTask.ANALYZE,

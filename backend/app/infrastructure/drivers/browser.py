@@ -100,11 +100,23 @@ class BrowserManager:
                 ctx_pages = self._context.pages
                 # Drop pages that have been closed (e.g. by user action or crash).
                 state.pages = [p for p in state.pages if p in ctx_pages]
+                # Capture pages opened outside this session (e.g. window.open
+                # triggered by page JS) so they become selectable tabs.
+                captured_new = False
+                for p in ctx_pages:
+                    if p not in state.pages:
+                        state.pages.append(p)
+                        captured_new = True
                 if not state.pages:
                     state.active_idx = 0
 
                 if state.pages:
-                    state.active_idx = min(state.active_idx, len(state.pages) - 1)
+                    # If a window.open/new page appeared since last access, jump to it
+                    # (this is the page the app just opened, e.g. a detail/edit page).
+                    if captured_new:
+                        state.active_idx = len(state.pages) - 1
+                    else:
+                        state.active_idx = min(state.active_idx, len(state.pages) - 1)
                     return state.pages[state.active_idx]
 
                 page = await self._context.new_page()
@@ -114,7 +126,7 @@ class BrowserManager:
             except Exception as e:
                 # Catch cases where context exists but is closed (e.g. TargetClosed)
                 if "closed" in str(e).lower():
-                    logger.warning(f"[Browser] Context is closed ({e}). Re-starting.")
+                    logger.warning(f"[Browser] Context is closed ({e}). Re-starting.", exc_info=True)
                     await self.close_internal()
                     await self._start()
                     page = await self._context.new_page()
@@ -154,7 +166,7 @@ class BrowserManager:
             # NOT a built-in — without it here, Mode 1 failure crashes instead of falling
             # through to Mode 2 auto-launch (dead code). Probe failure = expected "no
             # external Chrome" env condition, so catch it and auto-launch.
-            logger.info(f"ℹ️ [Browser] No external Chrome found ({type(e).__name__}). Will auto-launch.")
+            logger.info(f"ℹ️ [Browser] No external Chrome found ({type(e).__name__}). Will auto-launch.", exc_info=True)
             self._is_cdp = False
 
         # ─── Mode 2: Auto-Launch (subprocess → CDP) ─────────────────────────
@@ -210,7 +222,7 @@ class BrowserManager:
                 self._is_cdp = True
                 logger.info("✅ [Browser] Mode 2: auto-launched Chrome + CDP connected.")
             except Exception as e:
-                logger.error(f"[Browser] Mode 2 (auto-launch CDP) failed: {e}")
+                logger.exception(f"[Browser] Mode 2 (auto-launch CDP) failed: {e}")
                 raise RuntimeError(
                     f"Browser startup failed. Could not connect to CDP at {settings.CHROME_CDP_URL}. "
                     "Please ensure Google Chrome is installed at the default path."
@@ -242,7 +254,7 @@ class BrowserManager:
             state.pages.append(page)
             state.active_idx = len(state.pages) - 1
             if url:
-                await page.goto(url, wait_until="networkidle", timeout=30_000)
+                await page.goto(url, wait_until="load", timeout=30_000)
             return page
 
     async def switch_tab(self, index: int, thread_id: str | None = None):
@@ -331,7 +343,7 @@ class BrowserManager:
                 if self._chrome_proc.poll() is None:
                     self._chrome_proc.kill()
             except Exception as e:
-                logger.warning(f"[Browser] Failed to terminate Chrome subprocess: {e}")
+                logger.warning(f"[Browser] Failed to terminate Chrome subprocess: {e}", exc_info=True)
             self._chrome_proc = None
 
         # 3. Reset state

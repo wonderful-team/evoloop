@@ -49,7 +49,7 @@ class LoopMixin:
                     dynamic_apps = await DynamicAppTriage.get_dynamic_apps(platform="android")
                     is_dynamic = bundle_id in dynamic_apps
             except Exception as e:
-                logger.warning(f"Failed to detect dynamic status: {e}")
+                logger.warning(f"Failed to detect dynamic status: {e}", exc_info=True)
 
         max_retries = payload.get("max_retries", 3)
         backoff_base = payload.get("backoff_base", 2)
@@ -99,7 +99,7 @@ class LoopMixin:
 
                 except Exception as e:
                     last_error = str(e)
-                    logger.error(f"[{thread_id}] Unexpected error in batch iteration {index}: {e}")
+                    logger.exception(f"[{thread_id}] Unexpected error in batch iteration {index}: {e}")
                     retry_count += 1
                     await asyncio.sleep(backoff_base ** retry_count)
 
@@ -135,15 +135,15 @@ class LoopMixin:
                 with open(state_file, encoding='utf-8') as f:
                     state = json.load(f)
             except Exception as e:
-                logger.warning(f"[{thread_id}] Failed to load state file, starting fresh: {e}")
+                logger.warning(f"[{thread_id}] Failed to load state file, starting fresh: {e}", exc_info=True)
 
         if (collect_mode in ("list", "auto")) and (state["phase"] == "list" or collect_mode == "list"):
             logger.info(f"[{thread_id}] Starting LIST phase for batch collection")
             await activity_monitor.log_event("macro_thought", {"text": "Starting list collection phase"}, thread_id)
 
-            max_screens = int(list_config.get("max_screens", 10))
-            swipe_distance = int(list_config.get("swipe_distance", 1200))
-            wait_ms = int(list_config.get("wait_after_swipe_ms", 1500))
+            max_screens = int(list_config.get("max_screens") or 10)
+            swipe_distance = int(list_config.get("swipe_distance") or 1200)
+            wait_ms = int(list_config.get("wait_after_swipe_ms") or 1500)
 
             anchor_rule = list_config.get("anchor_element", {"type": "price", "pattern": "￥[0-9,.]+"})
             feature_config = list_config.get("feature_region", {"offset_y": -200, "height": 200, "max_features": 4})
@@ -162,7 +162,7 @@ class LoopMixin:
                     else:
                         raise NotImplementedError(f"Collect mode not implemented for source: {step.source}")
                 except Exception as e:
-                    logger.error(f"[{thread_id}] Failed to get UI dump: {e}")
+                    logger.exception(f"[{thread_id}] Failed to get UI dump: {e}")
                     break
 
                 items = cls._extract_collect_items_from_xml(xml, anchor_rule, feature_config)
@@ -202,7 +202,7 @@ class LoopMixin:
 
                     await asyncio.sleep(wait_ms / 1000)
                 except Exception as e:
-                    logger.error(f"[{thread_id}] Scroll action exception: {e}")
+                    logger.exception(f"[{thread_id}] Scroll action exception: {e}")
                     break
 
             state["phase"] = "detail"
@@ -227,7 +227,7 @@ class LoopMixin:
                 logger.info(f"[{thread_id}] No pending items to process")
                 return True, "No pending items", None
 
-            limit = int(detail_config.get("limit"))
+            limit = int(detail_config.get("limit") or 0)
             if limit:
                 pending_items = pending_items[:limit]
 
@@ -300,7 +300,7 @@ class LoopMixin:
                     await asyncio.sleep(0.8)
 
                 except Exception as e:
-                    logger.error(f"[{thread_id}] Error processing item {i}: {e}")
+                    logger.exception(f"[{thread_id}] Error processing item {i}: {e}")
                     item["status"] = "failed"
                     item["error"] = str(e)
                     fail_count += 1
@@ -346,7 +346,6 @@ class LoopMixin:
         items = []
 
         try:
-            anchor_type = anchor_rule.get("type", "price")
             anchor_pattern = anchor_rule.get("pattern", "")
             offset_y = feature_config.get("offset_y", -200)
             feature_height = feature_config.get("height", 200)
@@ -405,6 +404,6 @@ class LoopMixin:
                     items.append(item)
 
         except Exception as e:
-            logger.warning(f"Error parsing XML for collect items: {e}")
+            logger.warning(f"Error parsing XML for collect items: {e}", exc_info=True)
 
         return items

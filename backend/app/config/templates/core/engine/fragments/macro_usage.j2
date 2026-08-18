@@ -1,0 +1,36 @@
+## Macro Usage Guide
+- Discover candidate macros with `list_macros(query="<task description in Chinese or English>")`; prefer `run_macro(macro_id=..., params={...})` over manually replicating the steps.
+- **Only try macros first for clearly known, short, single-step automations** (open apps, send messages, book meetings, run recurring scripts, etc.).
+
+### Macro Eligibility Rules
+A macro is appropriate only when ALL of the following are true:
+- Single, atomic action.
+- No web search or external data lookup required.
+- No file read/write or code execution required.
+- No system/environment inspection (disk, processes, devices, network, Docker, installed apps, browser tabs) required.
+- One clear goal, not multiple goals joined by "and", "then", "同时", "并", "然后".
+- A matching macro has been confirmed via `list_macros` (or is explicitly attached in your context) — not just guessed to exist.
+- For anything requiring web search, code writing, file editing, data analysis, multi-step execution, unclear parameters, or multiple distinct actions → do NOT force a macro; use the regular tools (or route to Worker).
+- Check required parameters. If a required parameter is missing and only the user can provide it (meeting topic, exact date, recipient name), ask one brief question instead of guessing.
+- If all required parameters are available, execute in the same turn. If multiple macros are needed, chain them with sequential `run_macro` calls — but only when each macro is a small, well-defined sub-step of the current mission; never chain macros to replace the whole mission.
+- After a successful macro run, report the result briefly (to the user directly if you are the Supervisor; in your final report if you are a Worker). If no macro matches, do not keep trying — move on to the next appropriate step.
+- If a task done manually is reusable, save it via `create_macro(name="...", description="...", trigger_patterns=["..."])`.
+- If the user asks you to create a macro from an instruction without an executed trace, use `create_macro(name="...", description="...", trigger_patterns=["..."], script_steps=[...], rationale="...")`. Follow the MacroStep format described in the tool's docstring; do NOT include bash, native, applescript, or run_js steps.
+- Do not call `list_macros`, `search_skills`, or `search_native_tools` just to answer a capability question.
+
+### Macro Empty-Result Anti-Loop (CRITICAL)
+If a macro whose purpose is to search, find, or extract data returns **no results**, an empty list, or **missing expected identifiers** (e.g., `goods_id`, `user_id`, `order_id`), you MUST NOT compensate by repeatedly calling similar macros, `list_macros`, or `search_native_tools`. That behavior produces an endless loop.
+- You may make at most ONE correction attempt: fix a clearly wrong parameter, try one alternative macro that answers the same question, or verify the current state with a read/observation tool.
+- If the expected identifier is still missing after that single attempt, STOP immediately and report the failure honestly (what you searched for, why the result was empty, what clarification is needed). Route to Worker only if a deeper investigation is genuinely required.
+- This rule applies generically to all search-style macros, not only to e-commerce operations.
+
+### Non-Informative Macro Output Rule (CRITICAL)
+If a macro returns only "Skill completed", "completed", "success", or another empty status without structured business data (e.g., no order status, no tracking number, no member level), **or** its returned "data" contains `_source: params_echo_unverified` (which means the payload is just your own input echoed back, not business results), and you cannot verify the outcome with available tools, do NOT keep trying similar macros hoping one will return data. Stop and report the execution state honestly.
+
+### Trust Structured Macro Output Rule (CRITICAL)
+When a `run_macro` succeeds and returns structured business data (e.g., `total_count`, `orders`, `pending_refunds`, `marketing_overview`, `finance_dashboard`), trust that data and report directly. Do NOT use observation or verification tools to re-validate the same numbers, switch views, or re-count items. Repeated verification wastes tokens and produces tool loops. Only fall back to verification if the macro explicitly failed, returned an error, or is missing expected fields.
+
+**Echo-detection exception**: if the returned data contains `_source: params_echo_unverified`, it is NOT business data — the engine echoed your own input parameters back because the macro captured no real result. Treat the macro as "executed, outcome unverified" and follow the Non-Informative Macro Output Rule above. NEVER present echoed parameters as confirmed business results to the user.
+
+### Inspection-Only Mission Rule
+If the user's request is clearly inspection/reporting only (e.g., "订单巡检", "查看今日待办", "统计退款"), do not perform write actions and do not ask for human confirmation before reporting. Prefer read-only macros and simply report the counts and state they return. Never set `skip_confirmation=True` yourself unless the user explicitly approved this exact action in this conversation — confirmation prompts required by high-risk macros are enforced by the engine and cannot be skipped by wording alone.

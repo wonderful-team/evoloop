@@ -52,7 +52,7 @@ class CodeExplorationEngine:
                     "results": results
                 }
         except Exception as e:
-            logger.debug(f"[Engine] SQL lookup failed: {e}")
+            logger.debug(f"[Engine] SQL lookup failed: {e}", exc_info=True)
 
         try:
             results = await self._grep_find_symbol(name, repo_path)
@@ -63,7 +63,7 @@ class CodeExplorationEngine:
                     "results": results
                 }
         except Exception as e:
-            logger.debug(f"[Engine] Search center lookup failed: {e}")
+            logger.debug(f"[Engine] Search center lookup failed: {e}", exc_info=True)
 
         return None
 
@@ -134,7 +134,7 @@ class CodeExplorationEngine:
             return self._format_diagnostics(diagnostics)
 
         except Exception as e:
-            logger.error(f"[Engine] Type check failed: {e}")
+            logger.exception(f"[Engine] Type check failed: {e}")
             return [{"error": str(e)}]
 
     async def analyze_impact(self, symbol: str, project_id: int = DEFAULT_PROJECT_ID) -> list[dict[str, Any]]:
@@ -146,7 +146,7 @@ class CodeExplorationEngine:
             usages = await retriever.find_usages(symbol, project_id)
             return usages or []
         except Exception as e:
-            logger.error(f"[Engine] Impact analysis failed: {e}")
+            logger.exception(f"[Engine] Impact analysis failed: {e}")
             return []
 
     def _get_language_from_suffix(self, suffix: str) -> str | None:

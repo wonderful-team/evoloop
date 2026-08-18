@@ -42,4 +42,4 @@ class MonitoringLifecycleSubscriber:
             )
             logger.debug(f"[Monitoring] ✓ Observability run finalized for {data.thread_id}")
         except Exception as e:
-            logger.error(f"[Monitoring] Failed to finalize observability run: {e}")
+            logger.exception(f"[Monitoring] Failed to finalize observability run: {e}")

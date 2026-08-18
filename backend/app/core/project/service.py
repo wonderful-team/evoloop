@@ -91,7 +91,7 @@ class ProjectContextManager:
 
                     return read_file(full_path).content
                 except Exception as e:
-                    logger.warning(f"Failed to read README at {full_path}: {e}")
+                    logger.warning(f"Failed to read README at {full_path}: {e}", exc_info=True)
                     continue
         return ""
 

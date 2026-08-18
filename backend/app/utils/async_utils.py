@@ -13,11 +13,6 @@ R = TypeVar("R")
 _ALL_LOOP_BOUND_RESOURCES: list[weakref.ReferenceType["LoopBoundResource"]] = []
 
 
-def run_in_thread_sync(func: Callable[..., T], *args, **kwargs) -> T:
-    """Run a blocking function in a separate thread."""
-    pass  # Defined below
-
-
 async def run_in_thread(func: Callable[..., T], *args, **kwargs) -> T:
     """
     Run a blocking function in a separate thread to avoid blocking the event loop.
@@ -74,7 +69,9 @@ class LoopBoundResource(Generic[R]):
                     try:
                         await self._cleanup(resource)
                     except (TypeError, ValueError, RuntimeError, OSError) as e:
-                        logger.warning(f"Error cleaning up loop-bound resource: {e}")
+                        logger.warning(
+                            "Error cleaning up loop-bound resource: %s", e, exc_info=True
+                        )
         except RuntimeError:
             pass
 
@@ -86,7 +83,11 @@ class LoopBoundResource(Generic[R]):
                 try:
                     await self._cleanup(resource)
                 except (TypeError, ValueError, RuntimeError, OSError) as e:
-                    logger.warning(f"Error cleaning up loop-bound resource during flush_all: {e}")
+                    logger.warning(
+                        "Error cleaning up loop-bound resource during flush_all: %s",
+                        e,
+                        exc_info=True,
+                    )
         self._resources.clear()
 
 

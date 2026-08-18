@@ -29,7 +29,7 @@ class SandboxFactory:
 
                 cls._instance = DockerSandbox(image_name=image)
             except Exception as e:
-                logger.error(f"Failed to initialize Docker Sandbox, falling back to Local: {e}")
+                logger.exception(f"Failed to initialize Docker Sandbox, falling back to Local: {e}")
                 cls._instance = LocalSandbox()
         else:
             cls._instance = LocalSandbox()

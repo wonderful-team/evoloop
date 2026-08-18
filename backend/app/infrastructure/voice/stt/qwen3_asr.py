@@ -172,7 +172,7 @@ def _load_audio_samples_16k(file_path: str) -> list[float]:
         raw_int16 = array.array("h", res.stdout)
         return [s / 32768.0 for s in raw_int16]
     except Exception as e:
-        logger.warning(f"[Qwen3ASR] ffmpeg transcode failed: {e}")
+        logger.warning(f"[Qwen3ASR] ffmpeg transcode failed: {e}", exc_info=True)
 
     raise ValueError(f"Unable to read or convert audio file: {file_path}")
 
@@ -297,7 +297,7 @@ class Qwen3ASRProvider(BaseSTTProvider):
                 language=VoiceLocale.ZH_CN,
             )
         except Exception as e:
-            logger.error(f"[Qwen3ASR] Transcription failed: {e}")
+            logger.exception(f"[Qwen3ASR] Transcription failed: {e}")
             raise
         finally:
             if is_temporary:

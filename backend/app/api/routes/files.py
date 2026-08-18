@@ -107,7 +107,7 @@ async def get_file_content(
         result = read_file(full_path)
         return FileContent(content=result.content, language=ext.lstrip("."))
     except Exception as e:
-        logger.error(f"Error reading file {full_path}: {e}")
+        logger.exception(f"Error reading file {full_path}: {e}")
         raise HTTPException(status_code=500, detail="Error reading file")
 
 
@@ -208,7 +208,7 @@ async def open_file(
             subprocess.run(["xdg-open", target_file], check=True)
         return OpenFileResponse(status="success", message="File opened")
     except Exception as e:
-        logger.error(f"Failed to open file {target_file}: {e}")
+        logger.exception(f"Failed to open file {target_file}: {e}")
         raise HTTPException(500, f"Failed to open file: {str(e)}")
 
 
@@ -238,7 +238,7 @@ async def create_file(
 
         return FileNode(name=os.path.basename(target_file), path=req.path, type="file")
     except Exception as e:
-        logger.error(f"Failed to write file {target_file}: {e}")
+        logger.exception(f"Failed to write file {target_file}: {e}")
         raise HTTPException(500, f"Failed to write file: {str(e)}")
 
 
@@ -287,7 +287,7 @@ async def upload_file(
         return FileUploadResponse(url=url, filename=filename, path=rel_path)
 
     except Exception as e:
-        logger.error(f"Failed to upload file {target_path}: {e}")
+        logger.exception(f"Failed to upload file {target_path}: {e}")
         raise HTTPException(500, f"Failed to upload file: {str(e)}")
 
 
@@ -328,7 +328,7 @@ async def workspace_upload(
         rel_path = os.path.relpath(target_file, root_path)
         return FileNode(name=filename, path=rel_path, type="file")
     except Exception as e:
-        logger.error(f"Failed to upload to workspace {target_file}: {e}")
+        logger.exception(f"Failed to upload to workspace {target_file}: {e}")
         raise HTTPException(500, f"Failed to upload to workspace: {str(e)}")
 
 
@@ -423,7 +423,7 @@ async def create_directory(
         os.makedirs(target_dir, exist_ok=True)
         return FileNode(name=os.path.basename(target_dir), path=req.path, type="directory")
     except Exception as e:
-        logger.error(f"Failed to create directory {target_dir}: {e}")
+        logger.exception(f"Failed to create directory {target_dir}: {e}")
         raise HTTPException(500, f"Failed to create directory: {str(e)}")
 
 
@@ -466,7 +466,7 @@ async def move_file(
             type="directory" if is_dir else "file",
         )
     except Exception as e:
-        logger.error(f"Failed to move {source_file} to {target_file}: {e}")
+        logger.exception(f"Failed to move {source_file} to {target_file}: {e}")
         raise HTTPException(500, f"Failed to move: {str(e)}")
 
 
@@ -489,16 +489,16 @@ async def delete_file(
         raise HTTPException(403, "Access denied")
 
     if not os.path.exists(target_file):
-        return BaseAPIResponse(status="success", message="File already deleted")
+        return BaseAPIResponse(success=True, message="File already deleted")
 
     try:
         if os.path.isdir(target_file):
             shutil.rmtree(target_file)
         else:
             os.remove(target_file)
-        return BaseAPIResponse(status="success", message="File deleted")
+        return BaseAPIResponse(success=True, message="File deleted")
     except Exception as e:
-        logger.error(f"Failed to delete {target_file}: {e}")
+        logger.exception(f"Failed to delete {target_file}: {e}")
         raise HTTPException(500, f"Failed to delete: {str(e)}")
 
 
@@ -526,7 +526,7 @@ async def read_any_file(req: ReadFileRequest):
         result = read_file(target_path)
         return ReadFileResponse(content=result.content)
     except Exception as e:
-        logger.error(f"Error reading file {target_path}: {e}")
+        logger.exception(f"Error reading file {target_path}: {e}")
         raise HTTPException(500, "Error reading file")
 
 

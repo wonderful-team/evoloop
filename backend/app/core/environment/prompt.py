@@ -14,12 +14,19 @@ from app.core.context.manager import ContextManager
 from app.core.context.plugins import plugin_registry
 from app.core.environment.utils import collect_cpu_mem
 from app.core.tools.manager import tool_manager
-from app.infrastructure.config.service import SystemConfigService
 from app.infrastructure.drivers.browser import browser_manager
 from app.infrastructure.drivers.system import get_disk_usage, get_listening_ports
 from app.utils.template import render_template
 
 logger = logging.getLogger(__name__)
+
+
+def _get_user_lang() -> str:
+    """Preferred UI language from the config table (lazy import to avoid an
+    infra circular import: this module is reached via the macro engine chain)."""
+    from app.infrastructure.config.service import SystemConfigService
+
+    return SystemConfigService.get_language_preference()
 
 
 class AppEnvironmentPrompt:
@@ -50,7 +57,7 @@ class AppEnvironmentPrompt:
                 "spatial_awareness": ctx.spatial_awareness,
                 "boundaries": ctx.active_boundaries,
                 "user_preferences": ctx.metadata.get("user_preferences", {}),
-                "user_lang": SystemConfigService.get_language_preference(),
+                "user_lang": _get_user_lang(),
                 "mcp_inventory": tool_manager.get_mcp_inventory(),
                 "browser_status": _get_browser_status(),
                 "has_android": ctx.metadata.get("has_android", False),

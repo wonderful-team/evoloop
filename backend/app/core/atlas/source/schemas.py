@@ -40,6 +40,14 @@ class AppMapElement(DynamicBaseModel):
     # templates fall back to a "#name, [name='name']" union guess.
     selector_type: str | None = None
 
+    # Runtime verification markers (written by runtime_verify, see v3.1 design):
+    #   runtime_fixed: selector was repaired against live DOM (name/selector_type
+    #       updated to a working runtime selector).
+    #   runtime_absent: no working selector found on the live page — templates
+    #       skip this element (honest coverage gap, never fabricate).
+    runtime_fixed: bool = False
+    runtime_absent: bool = False
+
     @field_validator("binds", mode="before")
     @classmethod
     def _coerce_binds(cls, v):

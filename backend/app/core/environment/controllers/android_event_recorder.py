@@ -184,7 +184,7 @@ class AndroidEventRecorder:
             return None, 0
 
         except Exception as e:
-            logger.debug(f"Failed to parse event line: {line.strip()}, error: {e}")
+            logger.debug(f"Failed to parse event line: {line.strip()}, error: {e}", exc_info=True)
             return None, 0
 
     def get_current_package(self, device_id: str | None = None) -> str | None:
@@ -205,7 +205,7 @@ class AndroidEventRecorder:
                 self.current_package = pkg
                 return pkg
         except Exception as e:
-            logger.debug(f"[AndroidEventRecorder] Failed to get package: {e}")
+            logger.debug(f"[AndroidEventRecorder] Failed to get package: {e}", exc_info=True)
 
         return self.current_package
 
@@ -322,11 +322,11 @@ class AndroidEventRecorder:
                     time.sleep(0.01)
                     continue
                 except Exception as e:
-                    logger.debug(f"Error reading from adb: {e}")
+                    logger.debug(f"Error reading from adb: {e}", exc_info=True)
                     break
 
         except Exception as e:
-            logger.error(f"Event recording error: {e}")
+            logger.exception(f"Event recording error: {e}")
         finally:
             self.is_recording = False
             logger.info(f"Android event recording stopped. Captured {len(self.events)} events")
@@ -358,7 +358,7 @@ class AndroidEventRecorder:
                     f"Offset={self._relative_offset_ms:.1f}ms"
                 )
         except Exception as e:
-            logger.warning(f"[AndroidEventRecorder] Failed to calibrate clocks: {e}")
+            logger.warning(f"[AndroidEventRecorder] Failed to calibrate clocks: {e}", exc_info=True)
 
     def start_recording(self, device_id: str, callback=None, video_start_time: float | None = None) -> bool:
         """Start recording events."""

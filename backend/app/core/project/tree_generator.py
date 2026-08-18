@@ -88,7 +88,7 @@ class AnnotatedTreeGenerator:
 
             return render_template("domain/codebase/codebase_tree.prompt.j2", style="tree", root=root_node)
         except Exception as e:
-            logger.error(f"Failed to render tree: {e}")
+            logger.exception(f"Failed to render tree: {e}")
             return "Error rendering tree structure."
 
     def _collect_flat_paths(self, node: TreeNode, prefix: str = "") -> list[str]:

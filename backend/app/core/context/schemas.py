@@ -11,7 +11,7 @@ from app.infrastructure.pydantic_base import DynamicBaseModel
 class DynamicContextLayer(DynamicBaseModel):
     """Dynamic context that must always be fresh."""
 
-    shared_context: dict[str, str] = Field(default_factory=dict)
+    shared_context: dict[str, Any] = Field(default_factory=dict)
     tool_memory: dict | None = None
     execution_ticket: ExecutionTicket | None = None
     messages: list = Field(default_factory=list)
@@ -29,7 +29,7 @@ class ContextMetadata(DynamicBaseModel):
     active_skills: Any | None = None
     active_macros: Any | None = None
     operation_map: str | None = None
-    shared_context: dict[str, str] = Field(default_factory=dict)
+    shared_context: dict[str, Any] = Field(default_factory=dict)
     tool_memory: dict | None = None
     execution_ticket: Any | None = None
     iteration_count: int | None = None

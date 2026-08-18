@@ -1,6 +1,6 @@
 """Macro SQLModel — deterministic YAML scripts, independent from learned_skills.
 
-Macros are whole-replay scripts executed by MacroService.run(); the LLM never
+Macros are whole-replay scripts executed via MacroEngine.run(); the LLM never
 reads their content. Two provenance kinds coexist:
   - app_map_id set:    produced by the template factory from an AppMap
   - app_map_id NULL:   created by the flywheel (never obsoleted by re-survey)
@@ -35,6 +35,11 @@ class Macro(Base):
     risk_tier: Mapped[str] = mapped_column(String(10), default="ui")
     requires_confirmation: Mapped[bool] = mapped_column(Boolean, default=False)
     allow_self_healing: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    # 业务域声明（§13.2 宏模式）：录制/导入时声明，业务接管清单按此分组
+    domain: Mapped[str | None] = mapped_column(
+        String(100), index=True, nullable=True
+    )
 
     # Short feedback message returned to the user for navigation macros.
     # Nullable: generic fallback is used when absent.

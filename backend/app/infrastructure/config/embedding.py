@@ -43,7 +43,7 @@ class EmbeddingConfigService:
 
             return True, len(vec)  # Return success and dimension
         except Exception as e:
-            logger.error(f"Embedding Validation Failed: {e}")
+            logger.exception(f"Embedding Validation Failed: {e}")
             raise e
 
     @staticmethod

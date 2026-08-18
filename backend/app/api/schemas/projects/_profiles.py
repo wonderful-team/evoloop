@@ -15,7 +15,11 @@ class DiscoverResponse(BaseAPIResponse):
 
 
 class ProjectSettings(DynamicBaseModel):
-    """Structured project settings stored in .evoloop/project.json."""
+    """Structured project settings stored in .evoloop/project.json.
+
+    值守配置（customer_service_duty）已拆分到独立端点 PUT /projects/{id}/duty
+    （v7），settings 不再承载。
+    """
 
     name: str | None = None
     url: str | None = None

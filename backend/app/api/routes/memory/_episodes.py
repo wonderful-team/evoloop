@@ -37,5 +37,5 @@ async def get_episodes_by_concept(
             for r in results
         ]
     except Exception as e:
-        logger.error(f"Failed to find episodes by concept: {e}")
+        logger.exception(f"Failed to find episodes by concept: {e}")
         return []

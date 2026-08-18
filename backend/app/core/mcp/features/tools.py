@@ -36,7 +36,7 @@ class McpToolsFeature(McpFeature):
             self._native_tools = self._convert_to_native_tools()
             logger.info(f"Loaded {len(self._native_tools)} tools from {server_name}")
         except Exception as e:
-            logger.error(f"Failed to list tools for {server_name}: {e}")
+            logger.exception(f"Failed to list tools for {server_name}: {e}")
             self._tools = []
             self._native_tools = []
 
@@ -112,7 +112,12 @@ class McpToolsFeature(McpFeature):
         properties = schema.get("properties", {})
 
         for field_name, field_def in properties.items():
-            field_type = type_map.get(field_def.get("type", "string"), str)
+            raw_type = field_def.get("type", "string")
+            # 兼容 type 为数组（如 ['null', 'string']，PHP 可选参数）：
+            # 取第一个非 null 类型作为字段类型
+            if isinstance(raw_type, list):
+                raw_type = next((t for t in raw_type if t != "null"), "string")
+            field_type = type_map.get(raw_type, str)
             description = field_def.get("description", "")
 
             if field_name in required_fields:

@@ -41,7 +41,7 @@ class DocumentReaderService:
                     raise OSError(result.error_message or "Failed to read file")
                 return result.content
         except Exception as e:
-            logger.error(f"Failed to read document {file_path}: {e}")
+            logger.exception(f"Failed to read document {file_path}: {e}")
             raise
 
     def _read_pdf(self, path: str, start: int | None, end: int | None) -> str:

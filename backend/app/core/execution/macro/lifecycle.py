@@ -9,18 +9,17 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterable
 
-from sqlalchemy import Text, func, literal, or_, select
+from sqlalchemy import Text, delete, func, literal, or_, select
 
 from app.core.events.publishers import publish_macro_mutated
+from app.core.execution.macro.schemas import MacroScript
 from app.infrastructure.database import session_scope
 from app.models.macro import Macro
 
 logger = logging.getLogger(__name__)
 
 
-def _macro_to_yaml(candidate) -> str:
-    from app.core.execution.macro.schemas import MacroScript
-
+def macro_to_yaml(candidate) -> str:
     return MacroScript(steps=candidate.macro_script).to_yaml()
 
 
@@ -31,10 +30,15 @@ async def persist_candidates(
     project_id: int,
     candidates: Iterable,
     member_id: int = 0,
+    db=None,
 ) -> list[int]:
-    """Batch-insert template-factory candidates as pending_review macros."""
+    """Batch-insert template-factory candidates as pending_review macros.
+
+    ``db`` optional: pass a session to run inside the caller's transaction.
+    """
     ids: list[int] = []
-    async with session_scope() as db:
+
+    async def _apply(session):
         for c in candidates:
             macro = Macro(
                 app_map_id=app_map_id,
@@ -43,7 +47,7 @@ async def persist_candidates(
                 description=c.description,
                 trigger_patterns=c.trigger_patterns,
                 parameters=c.parameters,
-                macro_script=_macro_to_yaml(c),
+                macro_script=macro_to_yaml(c),
                 risk_tier=c.risk_tier,
                 requires_confirmation=c.requires_confirmation,
                 status="pending_review",
@@ -52,9 +56,15 @@ async def persist_candidates(
                 project_id=project_id,
                 member_id=member_id,
             )
-            db.add(macro)
-            await db.flush()
+            session.add(macro)
+            await session.flush()
             ids.append(macro.id)
+
+    if db is not None:
+        await _apply(db)
+    else:
+        async with session_scope() as _db:
+            await _apply(_db)
 
     for macro_id in ids:
         await publish_macro_mutated(macro_id, action="create")
@@ -89,6 +99,7 @@ async def create_macro_from_synthesis(
     source_thread_id: str | None = None,
     project_id: int | None = None,
     member_id: int = 0,
+    domain: str | None = None,
 ) -> Macro:
     """Persist a flywheel-created macro (pending_review, is_active=False).
 
@@ -118,33 +129,53 @@ async def create_macro_from_synthesis(
         source_thread_id=source_thread_id,
         project_id=project_id,
         member_id=member_id,
+        domain=domain,
     )
     db.add(macro)
     await db.flush()
     return macro
 
 
-async def load_macro(macro_id: int) -> Macro | None:
-    async with session_scope() as db:
-        stmt = select(Macro).where(Macro.id == macro_id)
-        result = await db.execute(stmt)
-        return result.scalars().first()
+def invalidate_macro_cache(_macro_id: int | None = None) -> None:
+    """No-op cache invalidation.
+
+    宏缓存已移除（进程内缓存曾导致 "DB 已更新但执行旧脚本" 问题）：宏每次
+    执行都直接读库，无需失效。保留此函数仅为兼容历史调用方（事件订阅、
+    公开 API），实际不做任何事。
+    """
+    return
 
 
-async def load_verified_macro(macro_id: int) -> Macro | None:
-    macro = await load_macro(macro_id)
+async def load_macro(macro_id: int, db=None) -> Macro | None:
+    """Load a macro by id. ``db`` optional: pass a session to read inside the
+    caller's transaction."""
+    if db is not None:
+        return await db.get(Macro, macro_id)
+    async with session_scope() as _db:
+        return await _db.get(Macro, macro_id)
+
+
+async def load_verified_macro(macro_id: int, db=None) -> Macro | None:
+    macro = await load_macro(macro_id, db=db)
     if macro is None or not macro.is_routable():
         return None
     return macro
 
 
-async def find_macro_by_name(name: str, project_id: int | None = None) -> Macro | None:
-    async with session_scope() as db:
+async def find_macro_by_name(
+    name: str, project_id: int | None = None, db=None
+) -> Macro | None:
+    async def _query(session):
         stmt = select(Macro).where(Macro.name == name)
         if project_id is not None:
             stmt = stmt.where(Macro.project_id == project_id)
-        result = await db.execute(stmt)
+        result = await session.execute(stmt)
         return result.scalars().first()
+
+    if db is not None:
+        return await _query(db)
+    async with session_scope() as _db:
+        return await _query(_db)
 
 
 async def list_macros(
@@ -152,13 +183,19 @@ async def list_macros(
     project_id: int | None = None,
     app_map_id: int | None = None,
     status: str | None = None,
+    is_active: bool | None = None,
     namespace: str | None = None,
     entity: str | None = None,
+    fallback_skill_id: int | None = None,
     query: str | None = None,
     limit: int | None = None,
     offset: int | None = None,
+    db=None,
 ) -> list[Macro]:
-    async with session_scope() as db:
+    """List macros by filters. ``db`` optional: pass a session to run inside
+    the caller's transaction; ``None`` opens its own session."""
+
+    async def _query(session):
         stmt = select(Macro)
         if project_id is not None:
             if project_id == 0:
@@ -171,10 +208,14 @@ async def list_macros(
             stmt = stmt.where(Macro.app_map_id == app_map_id)
         if status is not None:
             stmt = stmt.where(Macro.status == status)
+        if is_active is not None:
+            stmt = stmt.where(Macro.is_active.is_(is_active))
         if namespace is not None:
             stmt = stmt.where(Macro.namespace == namespace)
         if entity is not None:
             stmt = stmt.where(Macro.entity == entity)
+        if fallback_skill_id is not None:
+            stmt = stmt.where(Macro.fallback_skill_id == fallback_skill_id)
         if query:
             keywords = [k for k in query.split() if k]
             if keywords:
@@ -192,7 +233,7 @@ async def list_macros(
         if query and len(keywords) > 1:
             # Multi-keyword search: rank results by the number of matched keywords
             # and apply limit/offset in Python so the most relevant macros appear first.
-            result = await db.execute(stmt.limit(1000))
+            result = await session.execute(stmt.limit(1000))
             macros = list(result.scalars().all())
 
             def _score(macro):
@@ -220,13 +261,20 @@ async def list_macros(
                 stmt = stmt.limit(limit)
             if offset is not None:
                 stmt = stmt.offset(offset)
-            result = await db.execute(stmt)
+            result = await session.execute(stmt)
             return list(result.scalars().all())
 
+    if db is not None:
+        return await _query(db)
+    async with session_scope() as _db:
+        return await _query(_db)
 
-async def list_active_macro_index(project_id: int | None = None) -> list[dict]:
+
+async def list_active_macro_index(
+    project_id: int | None = None, db=None
+) -> list[dict]:
     """Lightweight index of routable macros for Agent context injection."""
-    macros = await list_macros(project_id=project_id, status="verified")
+    macros = await list_macros(project_id=project_id, status="verified", db=db)
     return [
         {
             "id": m.id,
@@ -240,35 +288,63 @@ async def list_active_macro_index(project_id: int | None = None) -> list[dict]:
     ]
 
 
-async def confirm_macro(macro_id: int) -> bool:
-    async with session_scope() as db:
-        macro = await db.get(Macro, macro_id)
+async def confirm_macro(macro_id: int, db=None) -> bool:
+    """Confirm a pending_review macro. ``db`` optional: pass a session to run
+    inside the caller's transaction; ``None`` opens its own session.
+
+    Returns True when the macro is verified afterwards (including an already
+    verified no-op), but only publishes an event when the status actually
+    changed."""
+    async def _apply(session) -> tuple[bool, bool]:
+        macro = await session.get(Macro, macro_id)
         if macro is None:
-            return False
+            return False, False
+        if macro.status == "verified":
+            return False, True  # already verified: no-op, no event
+        if macro.status != "pending_review":
+            return False, False
         macro.status = "verified"
         macro.is_active = True
-        db.add(macro)
-    await publish_macro_mutated(macro_id, action="update")
-    return True
+        session.add(macro)
+        return True, True
+
+    if db is not None:
+        ok = await _apply(db)
+    else:
+        async with session_scope() as _db:
+            ok = await _apply(_db)
+    if ok:
+        # 宏缓存已移除（load_macro 每次读库），invalidate_macro_cache 为 no-op
+        # 兼容保留；此处仍调用以保证历史调用语义一致。
+        invalidate_macro_cache(macro_id)
+        await publish_macro_mutated(macro_id, action="update")
+    return ok
 
 
-async def confirm_bulk(macro_ids: list[int]) -> int:
-    count = 0
-    async with session_scope() as db:
+async def confirm_bulk(macro_ids: list[int], db=None) -> int:
+    async def _apply(session) -> list[int]:
+        promoted_ids: list[int] = []
         for macro_id in macro_ids:
-            macro = await db.get(Macro, macro_id)
+            macro = await session.get(Macro, macro_id)
             if macro is None or macro.status != "pending_review":
                 continue
             macro.status = "verified"
             macro.is_active = True
-            db.add(macro)
-            count += 1
-    for macro_id in macro_ids:
+            session.add(macro)
+            promoted_ids.append(macro_id)
+        return promoted_ids
+
+    if db is not None:
+        promoted_ids = await _apply(db)
+    else:
+        async with session_scope() as _db:
+            promoted_ids = await _apply(_db)
+    for macro_id in promoted_ids:
         await publish_macro_mutated(macro_id, action="update")
-    return count
+    return len(promoted_ids)
 
 
-async def update_macro(macro_id: int, fields: dict) -> bool:
+async def update_macro(macro_id: int, fields: dict, db=None) -> bool:
     allowed = {
         "name",
         "description",
@@ -279,43 +355,194 @@ async def update_macro(macro_id: int, fields: dict) -> bool:
         "risk_tier",
         "requires_confirmation",
         "allow_self_healing",
+        "domain",
     }
-    async with session_scope() as db:
-        macro = await db.get(Macro, macro_id)
+
+    async def _apply(session) -> bool:
+        macro = await session.get(Macro, macro_id)
         if macro is None:
             return False
         for key, value in fields.items():
             if key in allowed:
                 setattr(macro, key, value)
-        db.add(macro)
-    await publish_macro_mutated(macro_id, action="update")
-    return True
+        session.add(macro)
+        return True
+
+    if db is not None:
+        ok = await _apply(db)
+    else:
+        async with session_scope() as _db:
+            ok = await _apply(_db)
+    if ok:
+        await publish_macro_mutated(macro_id, action="update")
+    return ok
 
 
-async def delete_macro(macro_id: int) -> bool:
-    async with session_scope() as db:
-        macro = await db.get(Macro, macro_id)
+async def downgrade_macro(macro_id: int, db=None) -> bool:
+    """Downgrade a verified macro back to pending_review + inactive.
+
+    Used when runtime verification fails for a macro (e.g. stale script).
+    ``db`` optional: pass a session to run inside the caller's transaction.
+    """
+    async def _apply(session) -> bool:
+        macro = await session.get(Macro, macro_id)
         if macro is None:
             return False
-        await db.delete(macro)
-    await publish_macro_mutated(macro_id, action="delete")
-    return True
+        macro.status = "pending_review"
+        macro.is_active = False
+        session.add(macro)
+        return True
+
+    if db is not None:
+        ok = await _apply(db)
+    else:
+        async with session_scope() as _db:
+            ok = await _apply(_db)
+    if ok:
+        invalidate_macro_cache(macro_id)
+        await publish_macro_mutated(macro_id, action="update")
+    return ok
 
 
-async def mark_obsolete_by_app_map(app_map_id: int) -> int:
-    """Bulk-obsolete all macros derived from a superseded AppMap."""
-    async with session_scope() as db:
+async def delete_macro(macro_id: int, db=None) -> bool:
+    async def _apply(session) -> bool:
+        macro = await session.get(Macro, macro_id)
+        if macro is None:
+            return False
+        await session.delete(macro)
+        return True
+
+    if db is not None:
+        ok = await _apply(db)
+    else:
+        async with session_scope() as _db:
+            ok = await _apply(_db)
+    if ok:
+        await publish_macro_mutated(macro_id, action="delete")
+    return ok
+
+
+async def purge_obsolete_macros(db=None) -> int:
+    """Physically delete all obsolete macros (tombstone cleanup).
+
+    Single transaction + single cache invalidation — avoids per-row
+    publish storms when bulk-cleaning. Returns the deleted count.
+    """
+    async def _apply(session) -> int:
+        stmt = delete(Macro).where(Macro.status == "obsolete")
+        result = await session.execute(stmt)
+        return result.rowcount
+
+    if db is not None:
+        count = await _apply(db)
+    else:
+        async with session_scope() as _db:
+            count = await _apply(_db)
+    if count:
+        invalidate_macro_cache()
+        logger.info("[Macro] purged %d obsolete macros", count)
+    return count
+
+
+async def obsolete_macro(macro_id: int, db=None) -> bool:
+    """Mark a macro obsolete (terminal state) + inactive."""
+    async def _apply(session) -> bool:
+        macro = await session.get(Macro, macro_id)
+        if macro is None:
+            return False
+        macro.status = "obsolete"
+        macro.is_active = False
+        session.add(macro)
+        return True
+
+    if db is not None:
+        ok = await _apply(db)
+    else:
+        async with session_scope() as _db:
+            ok = await _apply(_db)
+    if ok:
+        await publish_macro_mutated(macro_id, action="obsolete")
+    return ok
+
+
+async def persist_native_macros(
+    candidates,
+    *,
+    project_id: int,
+    member_id: int = 0,
+    namespace: str,
+    db=None,
+) -> list[int]:
+    """Batch-replace native macros: delete rows matching each candidate's
+    name prefix under ``namespace``, then insert fresh pending_review rows.
+
+    Runs in one transaction (caller's session if ``db`` is passed).
+    """
+    prefixes = {c.name.split(" ", 1)[0] for c in candidates}
+    ids: list[int] = []
+
+    async def _apply(session) -> None:
+        for prefix in prefixes:
+            stmt = delete(Macro).where(
+                Macro.namespace == namespace,
+                Macro.name.startswith(f"{prefix} "),
+            )
+            await session.execute(stmt)
+        for c in candidates:
+            script = MacroScript(steps=c.steps).to_yaml()
+            macro = Macro(
+                app_map_id=None,
+                entity=None,
+                name=c.name,
+                description=c.description,
+                trigger_patterns=c.trigger_patterns,
+                parameters=c.parameters,
+                macro_script=script,
+                risk_tier=c.risk_tier,
+                requires_confirmation=c.requires_confirmation,
+                status="pending_review",
+                is_active=False,
+                namespace=namespace,
+                project_id=project_id,
+                member_id=member_id,
+            )
+            session.add(macro)
+            await session.flush()
+            ids.append(macro.id)
+
+    if db is not None:
+        await _apply(db)
+    else:
+        async with session_scope() as _db:
+            await _apply(_db)
+    for macro_id in ids:
+        await publish_macro_mutated(macro_id, action="create")
+    return ids
+
+
+async def mark_obsolete_by_app_map(app_map_id: int, db=None) -> int:
+    """Bulk-obsolete all macros derived from a superseded AppMap.
+
+    ``db`` optional: pass a session to run inside the caller's transaction.
+    """
+    async def _apply(session) -> list[int]:
         stmt = select(Macro).where(
             Macro.app_map_id == app_map_id,
             Macro.status != "obsolete",
         )
-        result = await db.execute(stmt)
+        result = await session.execute(stmt)
         rows = list(result.scalars().all())
         for macro in rows:
             macro.status = "obsolete"
             macro.is_active = False
-            db.add(macro)
-        ids = [m.id for m in rows]
+            session.add(macro)
+        return [m.id for m in rows]
+
+    if db is not None:
+        ids = await _apply(db)
+    else:
+        async with session_scope() as _db:
+            ids = await _apply(_db)
     for macro_id in ids:
         await publish_macro_mutated(macro_id, action="obsolete")
     if ids:

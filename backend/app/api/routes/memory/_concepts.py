@@ -44,7 +44,7 @@ async def list_concepts(
             for m in results
         ]
     except Exception as e:
-        logger.warning(f"Failed to list concepts: {e}")
+        logger.warning(f"Failed to list concepts: {e}", exc_info=True)
         return []
 
 
@@ -99,7 +99,7 @@ async def list_concepts_with_counts(
             for m in results
         ]
     except Exception as e:
-        logger.warning(f"Failed to list concepts: {e}")
+        logger.warning(f"Failed to list concepts: {e}", exc_info=True)
         return []
 
 
@@ -130,7 +130,7 @@ async def get_concept(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to get concept {concept_name}: {e}")
+        logger.exception(f"Failed to get concept {concept_name}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -155,7 +155,7 @@ async def add_concept(
         )
         return ConceptOperationResponse(status="success", name=req.name)
     except Exception as e:
-        logger.error(f"Failed to add concept: {e}")
+        logger.exception(f"Failed to add concept: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -175,7 +175,7 @@ async def delete_concept(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to delete concept {concept_name}: {e}")
+        logger.exception(f"Failed to delete concept {concept_name}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -209,5 +209,5 @@ async def update_concept(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to update concept {concept_name}: {e}")
+        logger.exception(f"Failed to update concept {concept_name}: {e}")
         raise HTTPException(status_code=500, detail=str(e))

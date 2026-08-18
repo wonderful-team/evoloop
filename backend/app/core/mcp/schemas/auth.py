@@ -31,9 +31,10 @@ class ElicitationValues(DynamicBaseModel):
 
 class ElicitationField(DynamicBaseModel):
     name: str
-    label: str
-    type: str = "text"
+    description: str = ""
     required: bool = True
+    sensitive: bool = False
+    field_type: str = "string"
     default: Any | None = None
     options: list[dict[str, Any]] | None = None
 

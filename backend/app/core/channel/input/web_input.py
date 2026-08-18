@@ -7,8 +7,6 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from sqlalchemy import select
-
 from app.core.channel.base import IncomingMessage, InputChannel
 
 logger = logging.getLogger(__name__)
@@ -35,31 +33,38 @@ class WebInputChannel(InputChannel):
         skill_ids = raw.get("skill_ids")
         if skill_ids:
             try:
-                from app.infrastructure.database import session_scope
-                from app.models.learning import LearnedSkill
+                from app.core.learning.skills.repository import skill_repository
 
-                async with session_scope() as session:
-                    stmt = select(LearnedSkill).where(LearnedSkill.id.in_(skill_ids))
-                    res = await session.execute(stmt)
-                    for skill in res.scalars().all():
-                        references.append({
-                            "id": str(skill.id),
-                            "type": "skill",
-                            "target_id": str(skill.id),
-                            "target_name": skill.name,
-                            "metadata": {
-                                "skill_id": skill.id,
-                                "skill_name": skill.name,
-                                "description": skill.description,
-                            },
-                            "meta_data": {
-                                "skill_id": skill.id,
-                                "skill_name": skill.name,
-                                "description": skill.description,
-                            },
-                        })
+                for skill in await skill_repository.get_by_ids(skill_ids):
+                    references.append({
+                        "id": str(skill.id),
+                        "type": "skill",
+                        "target_id": str(skill.id),
+                        "target_name": skill.name,
+                        "metadata": {
+                            "skill_id": skill.id,
+                            "skill_name": skill.name,
+                            "description": skill.description,
+                        },
+                        "meta_data": {
+                            "skill_id": skill.id,
+                            "skill_name": skill.name,
+                            "description": skill.description,
+                        },
+                    })
             except Exception as e:
                 logger.warning("Failed to fetch skills %s: %s", skill_ids, e)
+
+        meta: dict[str, Any] = {}
+        try:
+            from app.core.session.manager import session_manager
+
+            session = session_manager.get(thread_id)
+            if session is not None and session.worker is not None and not session.worker.done:
+                meta["has_running_worker"] = "true"
+                meta["running_worker_desc"] = session.worker.description
+        except Exception:
+            logger.warning("[WebInputChannel] session lookup failed", exc_info=True)
 
         return IncomingMessage(
             source="web",
@@ -74,6 +79,7 @@ class WebInputChannel(InputChannel):
             member_id=kwargs.get("member_id", 0),
             is_retry=kwargs.get("is_retry", False),
             skip_message_persistence=kwargs.get("skip_message_persistence", False),
+            metadata=meta,
         )
 
 

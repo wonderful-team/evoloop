@@ -38,7 +38,7 @@ class DeviceInfoMixin:
         try:
             return float(stdout.split()[0])
         except (IndexError, ValueError):
-            logger.error(f"Failed to parse uptime from: {stdout}")
+            logger.exception(f"Failed to parse uptime from: {stdout}")
             return 0.0
 
     def get_current_app(self, device_id=None):
@@ -151,7 +151,7 @@ class DeviceInfoMixin:
             return final_data
 
         except Exception as e:
-            logger.error(f"Failed to get current Android app: {e}")
+            logger.exception(f"Failed to get current Android app: {e}")
             return {"package": "error", "activity": "error", "confidence": "none"}
 
     def get_package_info(self, package, device_id=None):
@@ -173,7 +173,7 @@ class DeviceInfoMixin:
                 info["last_update_time"] = lut_match.group(1).strip()
             return info
         except Exception as e:
-            logger.error(f"Failed to get package info for {package}: {e}")
+            logger.exception(f"Failed to get package info for {package}: {e}")
             return {"package": package, "error": str(e)}
 
     def check_app_status(self, package, device_id=None):
@@ -200,7 +200,7 @@ class DeviceInfoMixin:
                 if stdout.strip():
                     return "background"
             except Exception as e:
-                logger.debug(f"Failed to check if {package} is running: {e}")
+                logger.debug(f"Failed to check if {package} is running: {e}", exc_info=True)
 
             return "unknown"
         except Exception:

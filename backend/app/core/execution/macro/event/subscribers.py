@@ -10,27 +10,17 @@ import logging
 from app.core.atlas.source.event.types import AppMapEventType
 from app.core.events.decorators import event_register, event_subscribe
 from app.core.events.registry import SystemEventType
-from app.core.events.schemas.lifecycle import SessionCompletedEvent
+from app.core.execution.macro import (
+    invalidate_macro_cache,
+    mark_obsolete_by_app_map,
+    synthesize_macros_task,
+)
 from app.core.execution.macro.event import MacroEventType, MacroExecutionFailedEvent
 from app.core.execution.macro.healing_policy import SelfHealingPolicy
+from app.core.routing.matcher_cache import matcher_cache
+from app.core.routing.navigation_macro_cache import get_navigation_macro_cache
 
 logger = logging.getLogger(__name__)
-
-
-@event_register()
-class MacroCreatorSubscriber:
-    """Create a pending_review macro from a completed, eligible trace."""
-
-    @event_subscribe(SystemEventType.SESSION_COMPLETED)
-    async def on_session_completed(self, event: SessionCompletedEvent) -> None:
-        if not getattr(event.data, "macro_creation_eligible", False):
-            return
-
-        thread_id = event.data.thread_id
-        member_id = getattr(event.data, "member_id", None) or 0
-        from app.core.execution.macro.macro_creator_service import MacroCreatorService
-
-        await MacroCreatorService.create_macro_from_trace(thread_id, member_id=member_id)
 
 
 @event_register()
@@ -43,9 +33,7 @@ class MacroAppMapSubscriber:
         app_map_id = data.get("app_map_id")
         if not app_map_id:
             return
-        from app.core.execution.macro import lifecycle
-
-        await lifecycle.mark_obsolete_by_app_map(int(app_map_id))
+        await mark_obsolete_by_app_map(int(app_map_id))
 
 
 @event_register()
@@ -63,8 +51,6 @@ class MacroAppMapGenerateCompletedSubscriber:
                 "[Macro] generate_completed event missing app_map_id/project_id"
             )
             return
-
-        from app.core.execution.macro.tasks import synthesize_macros_task
 
         synthesize_macros_task.delay(
             app_map_id=int(app_map_id),
@@ -88,9 +74,6 @@ class MacroSelfHealingAdvisor:
     but adds contextual suggestions based on the failure context.
     """
 
-    def __init__(self):
-        pass
-
     @event_subscribe(MacroEventType.EXECUTION_FAILED)
     async def on_macro_failed(self, event: MacroExecutionFailedEvent) -> None:
         """
@@ -99,19 +82,28 @@ class MacroSelfHealingAdvisor:
         """
         # Use centralized policy check
         decision = SelfHealingPolicy.check(
-            skill=None,  # Skill-level check already done in MacroService
+            macro=None,  # Macro-level check already done in MacroService
             execution_params=event.data,
         )
 
         if not decision.allowed:
-            logger.info(f"[Self-Healing] {decision.source}-level skip for macro failure in thread {event.thread_id}")
+            logger.info(
+                "[Self-Healing] %s-level skip for macro failure in thread %s",
+                decision.source,
+                event.thread_id,
+            )
             event.suggestions.append(SelfHealingPolicy.get_disabled_message(decision))
             return
 
         # Success Case: Suggest recovery with contextual information
-        logger.info(f"[Self-Healing] Suggesting perceptual recovery for macro '{event.skill_name}'")
+        logger.info(
+            "[Self-Healing] Suggesting perceptual recovery for macro '%s'",
+            event.skill_name,
+        )
         event.suggestions.append(
-            SelfHealingPolicy.get_enabled_message(skill_name=event.skill_name, error_message=event.error_message)
+            SelfHealingPolicy.get_enabled_message(
+                macro_name=event.skill_name, error_message=event.error_message
+            )
         )
 
 
@@ -147,17 +139,15 @@ class MacroL0MatcherSubscriber:
         single catalog rebuild after a short delay, while invalidating caches
         eagerly keeps the next API request consistent.
         """
-        from app.core.execution.macro.runner import invalidate_macro_cache
-        from app.core.routing.matcher_cache import matcher_cache
-        from app.core.routing.navigation_macro_cache import get_navigation_macro_cache
-
         macro_id = self._macro_id_from_event(event)
         invalidate_macro_cache(macro_id)
         await matcher_cache.invalidate_and_schedule_rebuild()
         try:
             await get_navigation_macro_cache().refresh()
         except Exception:
-            logger.warning("[L0Matcher] navigation macro cache refresh failed", exc_info=True)
+            logger.warning(
+                "[L0Matcher] navigation macro cache refresh failed", exc_info=True
+            )
 
         logger.info(
             "[L0Matcher] scheduled debounced rebuild and navigation cache refresh after macro lifecycle event: %s (macro_id=%s)",

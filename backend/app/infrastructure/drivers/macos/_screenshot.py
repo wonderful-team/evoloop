@@ -42,7 +42,7 @@ class ScreenshotMixin:
                 x, y, w, h = map(int, region.split(","))
                 cmd.extend(["-R", f"{x},{y},{w},{h}"])
             except ValueError:
-                logger.warning(f"Invalid region format: {region}, capturing full screen")
+                logger.warning(f"Invalid region format: {region}, capturing full screen", exc_info=True)
 
         cmd.append(filepath)
 

@@ -2,19 +2,17 @@
 
 The L0/L1 routing decision logic has moved to the shared dispatcher in
 ``app.core.routing.dispatch_handler``.  This channel is now responsible only
-for:
+for normalizing inbound voice.route payloads into ``IncomingMessage``.
 
-1. Normalizing inbound voice.route payloads into ``IncomingMessage``.
-2. Handing post-dispatch worker registration and task finalization.
-
-Voice output (route results, failures, cancellations) is delegated to
-``app.core.voice.executor`` helpers, which forward to ``VoiceChannel`` so the
-WS transport stays unified under the Channel abstraction.
+2026-08 (parent-run-liveness): post-dispatch worker registration and task
+finalization (``post_dispatch`` / ``await_and_finalize`` / ``handle_cancelled``)
+moved into ``AgentSession``; this channel only normalizes input. ``receive``
+injects ``has_running_worker`` from the live session (falling back to the
+metadata flag for non-session single-shot runs).
 """
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from typing import Any
 
@@ -31,9 +29,6 @@ class VoiceInputChannel(InputChannel):
     name = "voice"
 
     def __init__(self) -> None:
-        self._executor: Any = None
-        self._state_machine: Any = None
-        self._state_enum: Any = None
         self._worker_registry: Any = None
 
     def bind(
@@ -43,10 +38,7 @@ class VoiceInputChannel(InputChannel):
         state_enum: Any,
         worker_registry: Any,
     ) -> None:
-        """Inject runtime dependencies from voice_ws.py."""
-        self._executor = executor
-        self._state_machine = state_machine
-        self._state_enum = state_enum
+        """Inject runtime dependencies from voice_ws.py (kept for compat; worker_registry used)."""
         self._worker_registry = worker_registry
 
     async def receive(self, raw: dict[str, Any], **kwargs: Any) -> IncomingMessage | None:
@@ -67,15 +59,8 @@ class VoiceInputChannel(InputChannel):
         if not member_id:
             member_id = await identity_service.get_member_id() or 0
 
-        running_worker = (
-            await self._worker_registry.get_worker(thread_id)
-            if self._worker_registry
-            else None
-        )
         meta: dict[str, Any] = {"source": "voice", "voice_thread_id": thread_id}
-        if running_worker and running_worker.status == "running":
-            meta["has_running_worker"] = "true"
-            meta["running_worker_desc"] = running_worker.description
+        await self._inject_has_running_worker(thread_id, meta, raw)
 
         return IncomingMessage(
             source="voice",
@@ -87,72 +72,24 @@ class VoiceInputChannel(InputChannel):
             message_id=message_id,
         )
 
-    async def post_dispatch(self, msg: IncomingMessage, result: Any) -> dict[str, Any] | None:
-        """Handle post-dispatch actions: register worker or push failure.
-
-        Returns a dict with ``task`` key when the worker was created,
-        or ``None`` on failure.
-        """
-        thread_id = msg.thread_id
-
-        if result.status == "failed":
-            await self._executor.push_voice_result(thread_id, "failed", getattr(result, "error", ""))
-            return None
-
-        from app.core.engine.background_agent import run_agent_background
-
-        running_worker = (
-            await self._worker_registry.get_worker(thread_id)
-            if self._worker_registry
-            else None
-        )
-        desc = running_worker.description if running_worker else ""
-
-        task = asyncio.create_task(run_agent_background(thread_id, result.inputs))
-        if self._worker_registry is not None:
-            await self._worker_registry.register_worker(thread_id, task, description=desc)
-
-        # Store the previous worker for post-dispatch re-registration
-        return {
-            "task": task,
-            "old_worker_task": running_worker.task if running_worker and running_worker.status == "running" else None,
-        }
-
-    async def await_and_finalize(self, thread_id: str, task: Any, old_worker_task: Any, worker_desc: str = "") -> None:
-        """Await the agent task, then re-register old worker if it survived (SUPERVISOR_CHOOSE_QUERY)."""
+    async def _inject_has_running_worker(self, thread_id: str, meta: dict[str, Any], raw: dict[str, Any]) -> None:
+        """has_running_worker 数据源：优先会话状态（session.worker），fallback 到 metadata 标记。"""
         try:
-            await task
-        except asyncio.CancelledError:
-            await self.handle_cancelled(thread_id)
-        else:
-            if old_worker_task is not None and not old_worker_task.done():
-                is_query = await self._worker_registry.pop_previous_task(thread_id) is not None
-                if is_query:
-                    await self._worker_registry.register_worker(thread_id, old_worker_task, description=worker_desc)
+            from app.core.session.manager import session_manager
 
-    async def handle_cancelled(self, thread_id: str) -> None:
-        """Clean up when the agent task is cancelled."""
-        # If a new worker is already running for this thread, the cancellation is
-        # from a NEW_COMMAND replacement; do not push a stale cancelled result.
+            session = session_manager.get(thread_id)
+            if session is not None and session.worker is not None and not session.worker.done:
+                meta["has_running_worker"] = "true"
+                meta["running_worker_desc"] = session.worker.description
+                return
+        except Exception:
+            logger.warning("[VoiceInputChannel] session lookup failed", exc_info=True)
+
         if self._worker_registry is not None:
-            try:
-                if await self._worker_registry.has_running_worker(thread_id):
-                    logger.info(
-                        "[VoiceInputChannel] Task cancelled for %s but a new worker "
-                        "is already running; suppressing stale cancelled result.",
-                        thread_id,
-                    )
-                    return
-            except Exception:
-                logger.warning(
-                    "[VoiceInputChannel] Failed to check worker state for %s; "
-                    "proceeding with cancelled push",
-                    thread_id,
-                    exc_info=True,
-                )
-        await self._executor.push_voice_result(thread_id, "cancelled", "")
-        if self._state_machine is not None:
-            await self._state_machine.set(thread_id, self._state_enum.LISTENING)
+            running_worker = await self._worker_registry.get_worker(thread_id)
+            if running_worker and running_worker.status == "running":
+                meta["has_running_worker"] = "true"
+                meta["running_worker_desc"] = running_worker.description
 
 
 voice_input = VoiceInputChannel()

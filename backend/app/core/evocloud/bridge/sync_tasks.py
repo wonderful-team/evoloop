@@ -152,10 +152,10 @@ async def full_sync_task(device_key: str) -> dict:
     except Exception as e:
         err_str = str(e).lower()
         if any(kw in err_str for kw in ("connect", "unreachable", "timeout", "socket", "network")):
-            logger.warning(f"[SyncTask] Cloud unreachable during full sync (device={device_key}). Skipping noisy retry.")
+            logger.warning(f"[SyncTask] Cloud unreachable during full sync (device={device_key}). Skipping noisy retry.", exc_info=True)
             return {"code": -1, "message": "Cloud unreachable"}
 
-        logger.error(f"[SyncTask] Exception in full sync: {type(e).__name__}: {e}")
+        logger.exception(f"[SyncTask] Exception in full sync: {type(e).__name__}: {e}")
         raise
 
 
@@ -318,7 +318,7 @@ async def incremental_sync_task(device_key: str, thread_ids: list[str]) -> dict:
 
                 except Exception as e:
                     results["failed"] += 1
-                    logger.error(f"[SyncTask] Error syncing thread {thread_id}: {e}")
+                    logger.exception(f"[SyncTask] Error syncing thread {thread_id}: {e}")
 
         logger.info(
             f"[SyncTask] Incremental sync completed: "
@@ -327,7 +327,7 @@ async def incremental_sync_task(device_key: str, thread_ids: list[str]) -> dict:
         return {"code": 0, "data": results}
 
     except Exception as e:
-        logger.error(f"[SyncTask] Exception in incremental sync: {e}")
+        logger.exception(f"[SyncTask] Exception in incremental sync: {e}")
         raise
 
 
@@ -373,8 +373,8 @@ async def sync_device_info_task(device_key: str, info: dict) -> dict:
             logger.warning(
                 f"[SyncTask] Cloud unreachable during device info sync "
                 f"(device={device_key}). Skipping noisy retry."
-            )
+            , exc_info=True)
             return {"code": -1, "message": "Cloud unreachable"}
 
-        logger.error(f"[SyncTask] Exception in device info sync: {type(e).__name__}: {e}")
+        logger.exception(f"[SyncTask] Exception in device info sync: {type(e).__name__}: {e}")
         raise

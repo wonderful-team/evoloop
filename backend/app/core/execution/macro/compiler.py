@@ -23,7 +23,7 @@ from app.core.execution.macro.utils import cleanup_macro_steps
 
 if TYPE_CHECKING:
     from app.core.learning.schemas.migrated import TraceStep
-    from app.core.learning.trace_parser import TraceSequence
+    from app.core.learning.trace.parser import TraceSequence
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +72,7 @@ _EVENT_TYPE_REMAP = {
     "input_text": "input",
     "evaluate": "run_js",
     "dump": "dump_ui",
+    "extract": "get_text",
 }
 
 # Raw mobile mirror events that must be normalized before macro compilation.
@@ -89,7 +90,7 @@ class MacroScriptCompiler:
 
     def compile(self, sequence: TraceSequence) -> MacroScript:
         """Compile raw TraceSteps into a clean structured MacroScript."""
-        from app.core.learning.trace_parser import TraceSequence
+        from app.core.learning.trace.parser import TraceSequence
 
         if not isinstance(sequence, TraceSequence):
             raise TypeError(

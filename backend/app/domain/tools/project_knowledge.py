@@ -9,6 +9,7 @@ import logging
 from typing import Annotated
 
 from app.constants import DEFAULT_PROJECT_ID
+from app.core.config import settings
 from app.core.engine.message.native_classes import RunnableConfig
 from app.core.tools import evoloop_tool
 from app.core.tools.base import InjectedToolArg
@@ -34,7 +35,7 @@ async def _search_concepts(
             for c in concepts
         ]
     except Exception as e:
-        logger.warning(f"[query_concepts] Search failed: {e}")
+        logger.warning(f"[query_concepts] Search failed: {e}", exc_info=True)
         return []
 
 
@@ -80,3 +81,11 @@ async def query_concepts(
         return f"No concept knowledge found for project {project_id}."
 
     return f"# Project Knowledge (project_id={project_id})\n\n" + "\n\n".join(sections)
+
+
+# 门控：ENABLE_MEMORY 关闭时禁用概念查询工具。
+if not settings.ENABLE_MEMORY:
+    for _tool in (query_concepts,):
+        _wrapped = getattr(_tool, "func", None)
+        if _wrapped is not None:
+            _wrapped.is_evoloop_active = False

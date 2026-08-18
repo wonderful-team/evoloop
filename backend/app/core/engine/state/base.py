@@ -56,7 +56,7 @@ class AgentStateBase(DynamicBaseModel):
     workflow_step_index: int | None = None
     pending_signals: list[dict[str, Any]] = Field(default_factory=list)
     pending_approvals: list[PendingApproval] = Field(default_factory=list)
-    shared_context: dict[str, str] = Field(default_factory=dict)
+    shared_context: dict[str, Any] = Field(default_factory=dict)
     max_supervisor_steps: int | None = None
     signal_queue_total: int = 0
     tool_memory: dict | None = None
@@ -162,6 +162,7 @@ class AgentState(AgentStateBase):
     iteration_count: int = 0
     next_node: str | None = None
     session_goal: str | None = None
+    session_handoff: bool = False  # 会话模式：Supervisor 决策出 WORKER，交给主循环启动 rollout
 
 
 class StateUpdate(AgentStateBase):

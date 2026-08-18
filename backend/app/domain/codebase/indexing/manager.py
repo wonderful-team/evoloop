@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 import threading
+import time
 
 from sqlalchemy import delete, select
 
@@ -16,7 +17,7 @@ from app.domain.codebase.security import scan_file
 from app.domain.watchers import RepoWatcher
 from app.infrastructure.cache import cache
 from app.infrastructure.database import session_scope
-from app.models import CodeChunk, Repository, SecurityFinding, SourceFile
+from app.models import Repository, SecurityFinding, SourceFile
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +43,7 @@ async def _set_indexing_status(repo_id: int, status: str, details: dict | None =
                 mapping[key] = json.dumps(value) if isinstance(value, dict | list) else str(value)
         await cache.hset(_indexing_status_key(repo_id), mapping=mapping)
     except Exception as e:
-        logger.warning(f"[IndexingManager] Failed to write status cache for repo {repo_id}: {e}")
+        logger.warning(f"[IndexingManager] Failed to write status cache for repo {repo_id}: {e}", exc_info=True)
 
 
 async def _clear_cancel_flag(repo_id: int) -> None:
@@ -50,7 +51,7 @@ async def _clear_cancel_flag(repo_id: int) -> None:
     try:
         await cache.delete(_cancel_key(repo_id))
     except Exception as e:
-        logger.warning(f"[IndexingManager] Failed to clear cancel flag for repo {repo_id}: {e}")
+        logger.warning(f"[IndexingManager] Failed to clear cancel flag for repo {repo_id}: {e}", exc_info=True)
 
 
 async def _request_cancel(repo_id: int) -> None:
@@ -58,7 +59,7 @@ async def _request_cancel(repo_id: int) -> None:
     try:
         await cache.set(_cancel_key(repo_id), "1")
     except Exception as e:
-        logger.warning(f"[IndexingManager] Failed to set cancel flag for repo {repo_id}: {e}")
+        logger.warning(f"[IndexingManager] Failed to set cancel flag for repo {repo_id}: {e}", exc_info=True)
 
 
 async def _is_cancel_requested(repo_id: int) -> bool:
@@ -66,7 +67,7 @@ async def _is_cancel_requested(repo_id: int) -> bool:
     try:
         return bool(await cache.get(_cancel_key(repo_id)))
     except Exception as e:
-        logger.warning(f"[IndexingManager] Failed to read cancel flag for repo {repo_id}: {e}")
+        logger.warning(f"[IndexingManager] Failed to read cancel flag for repo {repo_id}: {e}", exc_info=True)
         return False
 
 
@@ -120,7 +121,7 @@ class IndexingManager:
         except RuntimeError:
             logger.warning(
                 f"[IndexingManager] No running event loop; cannot schedule cancellation for project {project_id}"
-            )
+            , exc_info=True)
 
     async def _cancel_by_project(self, project_id: int) -> None:
         """Resolve active repo(s) for a project and request cancellation."""
@@ -173,7 +174,7 @@ class IndexingManager:
                 self._watchers[path] = watcher
                 logger.info(f"Started watching {path} (Repo ID: {repo_id})")
             except Exception as e:
-                logger.error(f"Failed to start watcher for {path}: {e}")
+                logger.exception(f"Failed to start watcher for {path}: {e}")
 
     async def stop_watching(self, path: str):
         """
@@ -252,7 +253,7 @@ class IndexingManager:
 
                     await project_summarizer.add_project(repo.name, repo_path)
                 except Exception as e:
-                    logger.error(f"Project Summarization Trigger Failed: {e}")
+                    logger.exception(f"Project Summarization Trigger Failed: {e}")
 
                 if await self._check_cancelled(repo_id):
                     return
@@ -277,7 +278,7 @@ class IndexingManager:
                         )
 
                 except Exception as e:
-                    logger.error(f"Semantic Extraction Failed: {e}")
+                    logger.exception(f"Semantic Extraction Failed: {e}")
 
                 with self._lock:
                     self._active_jobs[repo_id] = "done"
@@ -286,11 +287,13 @@ class IndexingManager:
                 await self._update_indexing_status(repo_id, "completed")
 
                 if project_id is not None:
-                    from app.domain.codebase.event.publishers import publish_indexing_completed
+                    from app.domain.codebase.event.publishers import (
+                        publish_indexing_completed,
+                    )
                     asyncio.create_task(publish_indexing_completed(project_id, repo_id))
 
         except asyncio.CancelledError:
-            logger.info(f"Full Index Cancelled for Repo {repo_id}")
+            logger.info(f"Full Index Cancelled for Repo {repo_id}", exc_info=True)
             with self._lock:
                 self._active_jobs[repo_id] = "cancelled"
             await _set_indexing_status(repo_id, "cancelled")
@@ -298,7 +301,7 @@ class IndexingManager:
             await self._update_indexing_status(repo_id, "failed")
             raise
         except Exception as e:
-            logger.error(f"Full Index Failed for Repo {repo_id}: {e}")
+            logger.exception(f"Full Index Failed for Repo {repo_id}: {e}")
             with self._lock:
                 self._active_jobs[repo_id] = "error"
             await _set_indexing_status(repo_id, "error")
@@ -325,7 +328,7 @@ class IndexingManager:
 
             logger.info(f"Dispatched full index task for Project {project_id}")
         except Exception as e:
-            logger.error(f"Failed to dispatch indexing task: {e}")
+            logger.exception(f"Failed to dispatch indexing task: {e}")
 
     async def _resolve_and_dispatch_repo_task(self, project_id: int, rebuild: bool) -> None:
         """Async helper to resolve project -> repo and dispatch the indexing task."""
@@ -339,7 +342,7 @@ class IndexingManager:
 
             await self._dispatch_repo_index(repo.id, rebuild)
         except Exception as e:
-            logger.error(f"[IndexingManager] Error dispatching index for project {project_id}: {e}")
+            logger.exception(f"[IndexingManager] Error dispatching index for project {project_id}: {e}")
 
     async def _dispatch_repo_index(self, repo_id: int, rebuild: bool = False) -> None:
         """Dispatch a repo-level full-index task to the queue."""
@@ -351,7 +354,7 @@ class IndexingManager:
                 repo = await session.get(Repository, repo_id)
                 project_id = repo.project_id if repo else None
         except Exception as e:
-            logger.warning(f"[IndexingManager] Could not resolve project_id for repo {repo_id}: {e}")
+            logger.warning(f"[IndexingManager] Could not resolve project_id for repo {repo_id}: {e}", exc_info=True)
 
         with self._lock:
             self._active_jobs[repo_id] = "queued"
@@ -386,7 +389,7 @@ class IndexingManager:
 
             await publish_indexing_status_changed(project_id, status, repo_id=repo_id)
         except Exception as e:
-            logger.warning(f"[IndexingManager] Failed to publish indexing status event: {e}")
+            logger.warning(f"[IndexingManager] Failed to publish indexing status event: {e}", exc_info=True)
 
     async def _run_semantic_extraction(self, repo_id: int, repo_path: str, project_id: int | None):
         """
@@ -519,7 +522,7 @@ class IndexingManager:
                     await session.commit()
 
         except Exception as e:
-            logger.error(f"Semantic Extraction Failed: {e}")
+            logger.exception(f"Semantic Extraction Failed: {e}")
             return
 
         if not has_routes and not has_models:
@@ -532,7 +535,7 @@ class IndexingManager:
             result = read_file(file_path)
             return result.content if result.success else None
         except Exception as e:
-            logger.debug(f"Failed to read file for security scan {file_path}: {e}")
+            logger.debug(f"Failed to read file for security scan {file_path}: {e}", exc_info=True)
             return None
 
     async def _persist_security_findings(
@@ -572,7 +575,7 @@ class IndexingManager:
                         )
                 source_file.security_scan_status = "completed"
         except Exception as e:
-            logger.error(f"Security scan failed for {rel_path}: {e}")
+            logger.exception(f"Security scan failed for {rel_path}: {e}")
             try:
                 async with session_scope() as session:
                     stmt = select(SourceFile).where(
@@ -584,7 +587,7 @@ class IndexingManager:
                     if source_file is not None:
                         source_file.security_scan_status = "failed"
             except Exception as mark_err:
-                logger.error(
+                logger.exception(
                     f"Failed to mark security_scan_status as failed: {mark_err}"
                 )
 
@@ -597,149 +600,58 @@ class IndexingManager:
         1. Read project config files (composer.json, package.json, etc.)
         2. Identify framework and routes
         3. Extract DB models
-        4. Return structured data
+        4. Persist findings (write wiki / update chunk flags)
 
-        Results are persisted as API endpoints and DB tables.
+        Agent runs in the background via the standard single-shot path
+        (``dispatch_agent_run`` → ``run_agent_background``), consistent with
+        the codebase wiki/appmap generation flows. The Agent itself persists
+        results (wiki page + chunk flag updates), so the caller does not need
+        a synchronous structured return.
         """
         logger.info(f"Agent analysis dispatched for repo {repo_id} at {repo_path}")
         try:
-            from app.core.engine.inference_engine import InferenceEngine
-            from app.domain.codebase.schemas import APIEndpoint, DBTable
+            from app.core.engine.background_agent import run_agent_background
+            from app.core.engine.dispatch import dispatch_agent_run
 
-            engine = InferenceEngine()
-            agent_result = await engine.analyze_codebase(
-                repo_path=repo_path,
-                task="infer_api_and_db",
+            thread_id = f"codebase-agent-{repo_id}-{int(time.time())}"
+            from app.core.context.manager import ContextManager, EvoContext
+
+            ctx = EvoContext(
+                thread_id=thread_id,
+                project_id=project_id or 0,
+                working_directory=repo_path,
+            )
+            ContextManager.set(ctx)
+
+            msg = (
+                f"**Mission Goal**: Analyze the codebase at `{repo_path}` because "
+                f"convention-based inference found no routes or DB models.\n\n"
+                f"Use `query_code_chunks` / `query_source_files` / file tools to: "
+                f"1) identify the framework and API routes, 2) extract DB models. "
+                f"Then persist your findings via `write_wiki_page` and record any "
+                f"routes/tables you found."
+            )
+
+            result = await dispatch_agent_run(
+                thread_id=thread_id,
+                message_content=msg,
                 project_id=project_id,
+                skip_message_persistence=True,
+                metadata={
+                    "task_type": "codebase_analysis",
+                    "goal_prefix": "[Codebase Analysis] ",
+                    "repo_id": repo_id,
+                },
             )
-
-            if not agent_result:
-                logger.info(f"Agent returned no results for repo {repo_id}")
+            if result.status == "failed":
+                logger.error(f"Agent dispatch failed for repo {repo_id}: {result.error}")
                 return
-
-            endpoints = agent_result.get("endpoints", [])
-            tables = agent_result.get("tables", [])
-
-            for ep_data in endpoints:
-                ep = APIEndpoint(**ep_data)
-                rel_path = ep.file_path
-                await self._update_api_chunk_flags(repo_id, rel_path, [ep])
-
-            for table_data in tables:
-                table = DBTable(**table_data)
-                rel_path = table.file_path
-                await self._update_db_chunk_flags(repo_id, rel_path, [table])
-
-            logger.info(
-                f"Agent analysis for repo {repo_id}: "
-                f"{len(endpoints)} endpoints, {len(tables)} tables"
-            )
-
+            if result.inputs:
+                # 异步派发（不阻塞索引流程），与其他后台 Agent 派发方式一致
+                asyncio.create_task(run_agent_background(thread_id, result.inputs))
+            logger.info(f"Agent analysis queued for repo {repo_id} (thread={thread_id})")
         except Exception as e:
-            logger.error(f"Agent analysis failed for repo {repo_id}: {e}")
-
-    async def _update_api_chunk_flags(
-        self, repo_id: int, rel_path: str, entities: list
-    ) -> None:
-        """Update CodeChunk rows from extracted API endpoints."""
-        try:
-            async with session_scope() as session:
-                stmt = select(SourceFile).where(
-                    SourceFile.repository_id == repo_id,
-                    SourceFile.path == rel_path,
-                )
-                result = await session.execute(stmt)
-                source_file = result.scalars().first()
-                if source_file is None:
-                    return
-
-                for ep in entities:
-                    handler_name = getattr(ep, "handler_name", "")
-                    if not handler_name:
-                        continue
-
-                    await self._apply_chunk_flag(
-                        session,
-                        source_file.id,
-                        handler_name,
-                        is_api_route=True,
-                        api_method=getattr(ep, "method", None),
-                        api_path=getattr(ep, "path", None),
-                    )
-        except Exception as e:
-            logger.error(f"Failed to update API chunk flags: {e}")
-
-    async def _update_db_chunk_flags(
-        self, repo_id: int, rel_path: str, tables: list
-    ) -> None:
-        """Update CodeChunk rows from extracted DB tables."""
-        try:
-            async with session_scope() as session:
-                stmt = select(SourceFile).where(
-                    SourceFile.repository_id == repo_id,
-                    SourceFile.path == rel_path,
-                )
-                result = await session.execute(stmt)
-                source_file = result.scalars().first()
-                if source_file is None:
-                    return
-
-                for table in tables:
-                    table_name = getattr(table, "name", "")
-                    if not table_name:
-                        continue
-
-                    await self._apply_chunk_flag(
-                        session,
-                        source_file.id,
-                        table_name,
-                        is_db_model=True,
-                        db_table_name=table_name,
-                    )
-        except Exception as e:
-            logger.error(f"Failed to update DB chunk flags: {e}")
-
-    async def _apply_chunk_flag(
-        self,
-        session,
-        source_file_id: int,
-        name: str,
-        *,
-        is_api_route: bool = False,
-        api_method: str | None = None,
-        api_path: str | None = None,
-        is_db_model: bool = False,
-        db_table_name: str | None = None,
-    ) -> None:
-        """Match a CodeChunk by source_file_id and identifier/name and update flags."""
-        # CodeChunk identifiers are FQNs like "path/to/file.py::Class.method".
-        # Match either the exact name or a suffix of the FQN.
-        suffix_dot = f".{name}"
-        suffix_colon = f"::{name}"
-
-        stmt = select(CodeChunk).where(
-            CodeChunk.source_file_id == source_file_id,
-            (
-                (CodeChunk.identifier == name)
-                | CodeChunk.identifier.endswith(suffix_dot)
-                | CodeChunk.identifier.endswith(suffix_colon)
-            ),
-        )
-        result = await session.execute(stmt)
-        chunk = result.scalars().first()
-        if chunk is None:
-            return
-
-        if is_api_route:
-            chunk.is_api_route = True
-            if api_method:
-                chunk.api_method = api_method.upper()
-            if api_path:
-                chunk.api_path = api_path
-        if is_db_model:
-            chunk.is_db_model = True
-            if db_table_name:
-                chunk.db_table_name = db_table_name
+            logger.exception(f"Agent analysis failed for repo {repo_id}: {e}")
 
     async def _resolve_repo_path(self, repo: Repository) -> str | None:
         """Resolve the local filesystem path for a repository.

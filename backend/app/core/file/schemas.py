@@ -95,6 +95,7 @@ class FileWriteResult(DynamicBaseModel):
     success: bool
     path: str | None = None
     new_hash: str | None = None
+    current_hash: str | None = None
     bytes_written: int | None = None
     error: str | None = None
     message: str | None = None

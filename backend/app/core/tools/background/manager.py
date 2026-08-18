@@ -123,7 +123,7 @@ class BackgroundTaskManager:
             except asyncio.CancelledError:
                 break
             except (TypeError, ValueError, RuntimeError, OSError) as e:
-                logger.error(f"Cleanup error: {e}")
+                logger.exception(f"Cleanup error: {e}")
 
     async def _cleanup_old_tasks(self):
         """Remove completed tasks older than max_task_age."""
@@ -492,7 +492,7 @@ class BackgroundTaskManager:
 
             await activity_monitor.record_task_update(task)
         except Exception as e:
-            logger.debug(f"Failed to log to activity monitor: {e}")
+            logger.debug(f"Failed to log to activity monitor: {e}", exc_info=True)
 
     async def _publish_output_event(self, task: BackgroundTask, output: str) -> None:
         """Publish output event (throttled)."""

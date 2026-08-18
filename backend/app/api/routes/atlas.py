@@ -18,7 +18,8 @@ from app.core.atlas.source.event import publish_app_map_generate_completed
 from app.core.engine.background_agent import run_agent_background
 from app.core.engine.dispatch import dispatch_agent_run
 from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket
-from app.core.learning.discovery import skill_discovery
+from app.core.execution.macro import list_macros
+from app.core.learning.skills.discovery import skill_discovery
 from app.core.project.utils import get_project_path
 from app.core.tools.registry import get_tool_bundle
 
@@ -162,12 +163,11 @@ async def generate_macros(
 
 @router.get("/app-maps")
 async def list_app_maps(project_id: int, _token: TokenDep):
-    from app.core.execution.macro import lifecycle
 
     maps = await persistence.list_app_maps(project_id, status=None)
     out = []
     for m in maps:
-        macros = await lifecycle.list_macros(app_map_id=m.id)
+        macros = await list_macros(app_map_id=m.id)
         out.append(
             {
                 "id": m.id,
@@ -184,3 +184,77 @@ async def list_app_maps(project_id: int, _token: TokenDep):
             }
         )
     return out
+
+
+class OperationMapTrainRequest(BaseModel):
+    project_id: int
+    entity: str | None = None
+    base_url: str | None = None
+    skip_static_seed: bool = False
+
+
+@router.post("/operation-maps/train", response_model=TaskAcceptedResponse)
+async def train_operation_maps(
+    req: OperationMapTrainRequest,
+    bg_tasks: BackgroundTasks,
+    _token: TokenDep,
+) -> TaskAcceptedResponse:
+    """Train a project's operation library (AppMap seed + runtime verify).
+
+    Dispatched as a background task: phase 1 = indexing -> AppMap (v2.0
+    pipeline); phase 2 = runtime verify + repair + macro re-synthesis (v3.1).
+    """
+    from app.core.atlas.source.train_orchestrator import train_project
+
+    path = await get_project_path(req.project_id)
+    if not path:
+        raise HTTPException(404, "Project not found or has no local path")
+
+    task_id = f"operation-train-{req.project_id}-{int(time.time())}"
+    bg_tasks.add_task(
+        train_project,
+        project_id=req.project_id,
+        entity=req.entity,
+        base_url=req.base_url,
+        skip_static_seed=req.skip_static_seed,
+    )
+    logger.info(
+        "[AtlasAPI] Dispatched operation-map training: project=%s entity=%s task=%s",
+        req.project_id,
+        req.entity,
+        task_id,
+    )
+    return TaskAcceptedResponse(status="accepted", task_id=task_id)
+
+
+@router.get("/operation-maps/status")
+async def operation_map_status(
+    project_id: int,
+    _token: TokenDep,
+) -> dict:
+    """Summarize the project's verified operation library.
+
+    Per-entity verified/pending macro counts plus runtime element repair
+    markers (runtime_fixed / runtime_absent), showing training completeness.
+    """
+
+    maps = await persistence.list_app_maps(project_id, status="active")
+    entities = []
+    for m in maps:
+        macros = await list_macros(app_map_id=m.id)
+        entities.append(
+            {
+                "entity": m.entity,
+                "platform": m.platform,
+                "map_version": m.map_version,
+                "verified_macros": sum(1 for x in macros if x.status == "verified"),
+                "pending_macros": sum(1 for x in macros if x.status == "pending_review"),
+                "elements_runtime_fixed": sum(
+                    1 for el in (m.elements or []) if el.get("runtime_fixed")
+                ),
+                "elements_runtime_absent": sum(
+                    1 for el in (m.elements or []) if el.get("runtime_absent")
+                ),
+            }
+        )
+    return {"project_id": project_id, "entities": entities}

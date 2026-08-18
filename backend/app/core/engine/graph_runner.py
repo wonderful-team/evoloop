@@ -5,8 +5,6 @@ import logging
 from sqlalchemy import select
 
 from app.constants import DEFAULT_PROJECT_ID
-from app.core.engine.callbacks.database_logger import DatabaseCallbackHandler
-from app.core.engine.callbacks.transparent import TransparentCallbackHandler
 from app.core.engine.state import AgentState
 from app.core.exceptions import AgentCancelledException, AgentHumanInterruptException
 from app.core.monitoring.activity import activity_monitor
@@ -46,29 +44,22 @@ async def resume_graph_background(
     # Restore context via hydration (skills index, telemetry, memory etc.)
     await _restore_resume_context(thread_id, state, config)
 
-    callback = TransparentCallbackHandler(thread_id=thread_id)
     raw_project_id = config.get("metadata", {}).get("project_id") if config else None
     project_id = int(raw_project_id) if raw_project_id is not None else DEFAULT_PROJECT_ID
     run_id = config.get("configurable", {}).get("run_id", f"resume-{thread_id}") if config else f"resume-{thread_id}"
 
-    db_callback = DatabaseCallbackHandler(
-        thread_id=thread_id,
-        project_id=project_id,
-        run_id=run_id,
-    )
+    # 统一复用 runner_base.build_callbacks（与 session/单发路径一致）
+    from app.core.engine.runner_base import build_callbacks
 
-    # Imitation-learning trace capture (chain A), same as the chat runner.
-    from app.core.learning.trace_recorder import TraceCallbackHandler
-
-    trace_callback = TraceCallbackHandler(thread_id=thread_id, run_id=run_id)
+    callbacks = build_callbacks(thread_id, project_id, run_id)
 
     try:
         if clear_human_request_flag:
             await activity_monitor.clear_human_request(thread_id)
 
-        await activity_monitor.start_run(thread_id, run_label, run_id=run_id)
+        await activity_monitor.start_run(thread_id, run_label, run_id=run_id, project_id=project_id)
 
-        resume_config = {**config, "callbacks": [callback, db_callback, trace_callback]}
+        resume_config = {**config, "callbacks": callbacks}
 
         from app.core.engine.loop import run_node_loop
 
@@ -80,10 +71,10 @@ async def resume_graph_background(
     except AgentCancelledException:
         await activity_monitor.end_run(thread_id, "cancelled", run_id=run_id)
     except AgentHumanInterruptException:
-        logger.info(f"Resume interrupted for human input: {thread_id}")
+        logger.info(f"Resume interrupted for human input: {thread_id}", exc_info=True)
         await activity_monitor.end_run(thread_id, "human_interrupt", run_id=run_id)
     except Exception as e:
-        logger.error(f"Resume error for {thread_id}: {e}")
+        logger.exception(f"Resume error for {thread_id}: {e}")
         await activity_monitor.end_run(thread_id, "failed", run_id=run_id)
 
 

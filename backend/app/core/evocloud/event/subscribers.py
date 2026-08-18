@@ -46,7 +46,7 @@ class EvoCloudLifecycleSubscriber:
             projects = await evocloud_manager.scan_projects()
             logger.info(f"[EvoCloud] ✓ Projects cache warmed: {len(projects)} projects")
         except Exception as e:
-            logger.warning(f"[EvoCloud] Cache warming failed: {e}")
+            logger.warning(f"[EvoCloud] Cache warming failed: {e}", exc_info=True)
 
     async def _start_services(self):
         """Start EvoCloud services (WebSocket link + cache warming)."""
@@ -78,7 +78,7 @@ class EvoCloudLifecycleSubscriber:
             else:
                 logger.debug("[EvoCloud] No token found, skipping auto-start. Will start on USER_LOGGED_IN.")
         except Exception as e:
-            logger.error(f"[EvoCloud] Failed to start services: {e}")
+            logger.exception(f"[EvoCloud] Failed to start services: {e}")
 
     @event_subscribe(SystemEventType.USER_LOGGED_IN)
     async def on_user_logged_in(self, event):
@@ -87,7 +87,7 @@ class EvoCloudLifecycleSubscriber:
         try:
             await self._start_services()
         except Exception as e:
-            logger.error(f"[EvoCloud] Failed to start services on login: {e}")
+            logger.exception(f"[EvoCloud] Failed to start services on login: {e}")
 
     @event_subscribe(SystemEventType.USER_LOGGED_OUT)
     async def on_user_logged_out(self, event):
@@ -97,7 +97,7 @@ class EvoCloudLifecycleSubscriber:
             await self._stop_services()
             logger.debug("[EvoCloud] Services stopped successfully")
         except Exception as e:
-            logger.error(f"[EvoCloud] Error during logout shutdown: {e}")
+            logger.exception(f"[EvoCloud] Error during logout shutdown: {e}")
 
     @event_subscribe(SystemEventType.APP_STOPPING)
     async def on_application_stopping(self, event):
@@ -109,7 +109,7 @@ class EvoCloudLifecycleSubscriber:
             await self._stop_services()
             logger.debug("[EvoCloud] Services stopped successfully")
         except Exception as e:
-            logger.error(f"[EvoCloud] Error during shutdown: {e}")
+            logger.exception(f"[EvoCloud] Error during shutdown: {e}")
 
 
 # =============================================================================
@@ -268,4 +268,4 @@ class EvoCloudSyncCleanupSubscriber:
                 else:
                     logger.warning(f"[EvoCloud] Failed to delete messages from cloud via fallback: {result.get('message')}")
         except Exception as e:
-            logger.error(f"[EvoCloud] Exception during cloud sync messages cleanup: {e}")
+            logger.exception(f"[EvoCloud] Exception during cloud sync messages cleanup: {e}")

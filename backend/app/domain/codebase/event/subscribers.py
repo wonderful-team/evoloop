@@ -77,7 +77,7 @@ class IndexingLifecycleSubscriber:
                     f"[Indexing] ✓ Active project indexing started: {default_path}"
                 )
         except Exception as e:
-            logger.warning(f"[Indexing] Failed to start active project indexing: {e}")
+            logger.warning(f"[Indexing] Failed to start active project indexing: {e}", exc_info=True)
 
     @event_subscribe(SystemEventType.APP_STOPPING)
     async def on_application_stopping(self, event):
@@ -88,7 +88,7 @@ class IndexingLifecycleSubscriber:
             await indexing_manager.stop_all()
             logger.info("[Indexing] All indexing watchers and tasks stopped")
         except Exception as e:
-            logger.warning(f"[Indexing] Failed to stop indexing manager: {e}")
+            logger.warning(f"[Indexing] Failed to stop indexing manager: {e}", exc_info=True)
 
 
 @event_register()
@@ -141,7 +141,7 @@ class CodebaseSystemEventSubscriber:
                 # Trigger Smart Full-Indexing for "Staleness Check"
                 asyncio.create_task(indexing_manager.run_indexing_background(repo.id))
             except Exception as e:
-                logger.error(
+                logger.exception(
                     f"[Codebase] Failed to handle project switch for {path}: {e}"
                 )
 
@@ -176,7 +176,7 @@ class IndexingEventSubscriber:
                 f"[IndexingHandler] Started watching and indexing: {event.path}"
             )
         except Exception as e:
-            logger.error(
+            logger.exception(
                 f"[IndexingHandler] Failed to start indexing for {event.path}: {e}"
             )
 
@@ -197,7 +197,7 @@ class IndexingEventSubscriber:
 
             logger.info(f"[IndexingHandler] Stopped watching: {event.path}")
         except Exception as e:
-            logger.error(f"[IndexingHandler] Failed to stop watching {event.path}: {e}")
+            logger.exception(f"[IndexingHandler] Failed to stop watching {event.path}: {e}")
 
     @event_subscribe(ProjectEventType.PROJECT_MOVED)
     async def on_project_moved(self, event: BaseEvent) -> None:
@@ -223,7 +223,7 @@ class IndexingEventSubscriber:
                 f"[IndexingHandler] Updated watcher: {event.src_path} -> {event.dest_path}"
             )
         except Exception as e:
-            logger.error(f"[IndexingHandler] Failed to handle move: {e}")
+            logger.exception(f"[IndexingHandler] Failed to handle move: {e}")
 
 
 @event_register()
@@ -267,7 +267,7 @@ class GenerationAutoDispatchSubscriber:
                 f"[GenerationAutoDispatch] Dispatched {items} for project {project_id}"
             )
         except Exception as e:
-            logger.error(
+            logger.exception(
                 f"[GenerationAutoDispatch] Failed to dispatch generation "
                 f"for project {project_id}: {e}"
             )

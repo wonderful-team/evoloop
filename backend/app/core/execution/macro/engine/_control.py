@@ -76,9 +76,10 @@ class ControlMixin:
                     max_iters = 5
 
             while iterations < max_iters:
-                is_true = await cls._evaluate_condition(cond_type, selector, step.source)
-                if not is_true:
-                    break
+                if cond_type is not None:
+                    is_true = await cls._evaluate_condition(cond_type, selector, step.source)
+                    if not is_true:
+                        break
 
                 loop_params = dict(params) if params else {}
                 loop_params["loop_index"] = iterations

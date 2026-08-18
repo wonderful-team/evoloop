@@ -1,6 +1,15 @@
 ### MISSION TICKET
 **Goal**: {{ topic }}
 
+{%- if shared_context and shared_context.get('verification_impossible') %}
+{%- set blocked_topics = shared_context.get('verification_blocked_topics') or [shared_context.get('verification_blocked_topic', '')] %}
+> **Anti-Loop Self-Check**: Previous Workers have determined that the environment cannot verify outcomes for these topics:
+{%- for t in blocked_topics %}
+> - `{{ t }}`
+{%- endfor %}
+> If your current mission is to verify or confirm one of those *same* topics, do not run additional probes. Immediately call `report_outcome(status='unverifiable', summary='...', topic='...')` and then output your final report.
+{%- endif %}
+
 {%- if acceptance_criteria %}
 **Acceptance Criteria**:
   {% for c in acceptance_criteria -%}
@@ -66,26 +75,12 @@ The following Standard Operating Procedures are attached to this mission. You MU
 {% for block in knowledge_blocks -%}
 {{ block }}
 {% endfor %}
-{%- else %}
-## [ZERO-SOP FALLBACK: NO PREDEFINED PROCEDURE]
-WARNING: No Standard Operating Procedure (SOP) is available for this mission.
-
-**YOU MUST DO ONE OF THE FOLLOWING:**
-1. **Call `list_skills`** — Search the skill library index for relevant SOPs.
-2. **Call `read_skill_sop(id)`** — Read the matched SOP and follow its instructions to the letter.
-
-**FORBIDDEN:**
-- Do NOT randomly try tools hoping to find the right one
-- Do NOT guess the execution strategy without guidance
-- Do NOT proceed with complex multi-step tasks without an SOP
-
-**ONLY proceed directly if the task is trivial (e.g., single file read, simple command).**
 {%- endif %}
 
-{%- include 'core/engine/fragments/macro_block.j2' %}
-
-{%- if active_macros %}
-> **Worker Macro Rule**: You are already executing a specific mission assigned by the Supervisor. Only use a macro if it is a small, well-defined sub-step of your task. Do NOT run a macro that replaces the entire mission — that routing decision was the Supervisor's job.
+{%- if operation_map %}
+## Project Operation Map
+Known business operations surveyed from the project source (Atlas AppMap). Use it to ground URLs, actions and field names — do NOT guess.
+{{ operation_map }}
 {%- endif %}
 
 {%- if previous_output %}
@@ -130,14 +125,7 @@ The following critical notes were left by previous workers/subtasks for you to c
 {%- endif %}
 {%- endif %}
 
-{%- if telemetry %}
-## System Telemetry
-- CPU: {{ telemetry.cpu.usage_percent }}% | Load: {{ telemetry.cpu.load_avg|join(', ') }}
-- Memory: {{ telemetry.memory.percent }}% ({{ (telemetry.memory.available / 1024**2)|round }}MB available)
-{%- if telemetry.active_window %}
-- Active Window: {{ telemetry.active_window.window_title }} ({{ telemetry.active_window.app_name }})
-{%- endif %}
-{%- endif %}
+{% if not is_duty %}{% include 'core/engine/fragments/system_telemetry.j2' %}{% endif %}
 
 {%- if memory and memory.core_raw %}
 ## Project Memory (MEMORY.md)
@@ -148,7 +136,7 @@ The following critical notes were left by previous workers/subtasks for you to c
 {{ memory.episodic_raw }}
 {%- endif %}
 
-{%- if environment_block %}
+{%- if environment_block and not is_duty %}
 ## Environment
 {{ environment_block.strip() }}
 {%- endif %}

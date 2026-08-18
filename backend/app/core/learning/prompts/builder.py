@@ -44,7 +44,7 @@ class LearningPromptBuilder:
         try:
             return render_template(template_name, **vars)
         except Exception as e:
-            logger.error(f"Error rendering {template_name}: {e}")
+            logger.exception(f"Error rendering {template_name}: {e}")
             return f"{fallback_msg}: {e}"
 
     def build_skill_synthesis_prompt(self, vars: dict[str, Any]) -> str:

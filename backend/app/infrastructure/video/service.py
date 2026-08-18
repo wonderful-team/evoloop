@@ -64,7 +64,7 @@ class VideoService:
             fps = float(fps_str.split("/")[0]) / float(fps_str.split("/")[1]) if "/" in fps_str else float(fps_str)
             return VideoInfo(duration=duration, width=width, height=height, fps=fps, path=local_path)
         except Exception as e:
-            logger.error(f"[VideoService] Failed to get metadata for {video_url_or_path}: {e}")
+            logger.exception(f"[VideoService] Failed to get metadata for {video_url_or_path}: {e}")
             return VideoInfo(duration=0.0, width=0, height=0, fps=0.0, path=local_path)
 
     @staticmethod
@@ -108,7 +108,7 @@ class VideoService:
                 compressed = compressor.compress(frame_path)
                 result.append(compressed)
             except Exception as e:
-                logger.warning(f"[VideoService] Failed to compress frame {frame_path}: {e}")
+                logger.warning(f"[VideoService] Failed to compress frame {frame_path}: {e}", exc_info=True)
                 continue
 
         return result

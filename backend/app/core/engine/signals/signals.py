@@ -14,14 +14,16 @@ from collections.abc import Callable
 from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
-from sqlalchemy import select
 
+from app.core.engine.message.native_classes import AIMessage
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.state import AgentState, StateUpdate
-from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket, TicketParameters
-from app.infrastructure.database import session_scope
+from app.core.engine.state.config import (
+    AgentRuntimeConfig,
+    ExecutionTicket,
+    TicketParameters,
+)
 from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.models.learning import LearnedSkill
 from app.utils.extract import safe_parse_json
 
 logger = logging.getLogger(__name__)
@@ -148,21 +150,64 @@ async def _resolve_skill_tool_allowlist(skill_ids: list[int | str]) -> list[str]
     if not skill_ids:
         return []
     try:
-        async with session_scope() as session:
-            stmt = select(LearnedSkill).where(LearnedSkill.id.in_(skill_ids))
-            result = await session.execute(stmt)
-            skills = result.scalars().all()
-            tools: set[str] = set()
-            for skill in skills:
-                if skill.tools_used:
-                    tools.update(skill.tools_used)
-            return sorted(tools)
+        from app.core.learning.skills.repository import skill_repository
+
+        skills = await skill_repository.get_by_ids(skill_ids, visible_only=False)
+        tools: set[str] = set()
+        for skill in skills:
+            if skill.tools_used:
+                tools.update(skill.tools_used)
+        return sorted(tools)
     except Exception as e:
-        logger.warning(f"[Signals] Failed to resolve skill tools: {e}")
+        logger.warning(f"[Signals] Failed to resolve skill tools: {e}", exc_info=True)
         return []
 
 
 # ───────────────────────── Handlers ─────────────────────────
+
+
+# Verification-intent keywords used for lineage / anti-loop heuristics.
+def _normalize_topic(text: str) -> str:
+    """Remove whitespace/punctuation so topic comparisons survive spaces."""
+    import re
+
+    return re.sub(r"[\s_\-，,。.?！!？]+", "", text.lower())
+
+
+def _same_topic(blocked_topic: str, current_topic: str) -> bool:
+    """Structural identity check between two topic strings."""
+    if not blocked_topic or not current_topic:
+        return False
+    blocked = _normalize_topic(blocked_topic)
+    current = _normalize_topic(current_topic)
+    if not blocked or not current:
+        return False
+    if blocked in current or current in blocked:
+        return True
+    import re
+
+    blocked_ids = set(re.findall(r"\d{6,}", blocked_topic))
+    current_ids = set(re.findall(r"\d{6,}", current_topic))
+    return bool(blocked_ids and current_ids and (blocked_ids & current_ids))
+
+
+def _is_topic_blocked(state: AgentState, routing_context: RoutingContext) -> bool:
+    """Return True if the new route topic matches any previously blocked verification topic."""
+    shared = state.shared_context or {}
+    current = routing_context.topic or routing_context.query or ""
+    if not current:
+        return False
+
+    # New multi-topic list
+    blocked_topics = shared.get("verification_blocked_topics") or []
+    if isinstance(blocked_topics, list):
+        for blocked in blocked_topics:
+            if _same_topic(str(blocked), current):
+                return True
+
+    # Backward compatibility with single-topic key
+    blocked_topic = shared.get("verification_blocked_topic") or ""
+    return _same_topic(str(blocked_topic), current)
 
 
 async def handle_route_to(state: AgentState, signal: RouteToSignal, _config: dict) -> StateUpdate:
@@ -172,6 +217,32 @@ async def handle_route_to(state: AgentState, signal: RouteToSignal, _config: dic
     routing_context = signal.context
 
     logger.info(f"[Signals] ✅ route_to -> {target} | {reason}")
+
+    # Structural anti-loop guard: if this exact topic was already proven
+    # unverifiable in this thread, do not dispatch another Worker for it.
+    shared = state.shared_context or {}
+    if (
+        target == RoutingTarget.WORKER
+        and shared.get("verification_impossible")
+        and _is_topic_blocked(state, routing_context)
+    ):
+        logger.info(
+            "[Signals] Blocking repeated route_to for topic already known to be unverifiable."
+        )
+        final_report = shared.get("verification_block_reason", "The current environment cannot verify macro outcomes.")
+        final_msg = AIMessage(
+            content=(
+                "[SYSTEM FINAL REPORT] The requested action was attempted via macro, "
+                "but the environment cannot verify the outcome. "
+                f"Reason: {final_report}\n\n"
+                "Finishing the task and reporting the current known state to the user."
+            )
+        )
+        return StateUpdate(
+            next_node=RoutingTarget.FINISH,
+            messages=state.messages + [final_msg],
+            route_reason="blocked_repeated_verification",
+        )
 
     inferred_namespace = routing_context.namespace_context
 
@@ -212,6 +283,8 @@ async def handle_route_to(state: AgentState, signal: RouteToSignal, _config: dic
         exclude_none=True,
     )
 
+    historical_context = routing_context.historical_context
+
     execution_ticket = ExecutionTicket(
         ticket_type=routing_context.ticket_type or "task",
         priority=routing_context.priority or "normal",
@@ -225,7 +298,7 @@ async def handle_route_to(state: AgentState, signal: RouteToSignal, _config: dic
         workflow_mode=routing_context.workflow_mode or "single",
         macro_goal=routing_context.macro_goal,
         parameters=TicketParameters(**parameters) if parameters else None,
-        historical_context=routing_context.historical_context,
+        historical_context=historical_context,
         referenced_tech=routing_context.referenced_tech,
     )
 
@@ -244,7 +317,7 @@ async def handle_route_to(state: AgentState, signal: RouteToSignal, _config: dic
 
                 await activity_monitor.update_goal(state.thread_id, session_goal)
             except Exception as e:
-                logger.warning(f"[Signals] Failed to update session goal: {e}")
+                logger.warning(f"[Signals] Failed to update session goal: {e}", exc_info=True)
 
     return StateUpdate(
         next_node=target,

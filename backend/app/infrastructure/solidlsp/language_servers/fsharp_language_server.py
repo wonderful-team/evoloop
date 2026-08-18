@@ -116,7 +116,7 @@ class FSharpLanguageServer(SolidLanguageServer):
                 log.info("FsAutoComplete installed successfully")
                 log.debug(f"Installation output: {result.stdout}")
             except subprocess.CalledProcessError as e:
-                log.error(f"Failed to install FsAutoComplete: {e.stderr}")
+                log.exception(f"Failed to install FsAutoComplete: {e.stderr}")
                 raise RuntimeError(f"Failed to install FsAutoComplete: {e.stderr}")
 
         if not os.path.exists(fsautocomplete_path):
@@ -356,7 +356,7 @@ class FSharpLanguageServer(SolidLanguageServer):
         try:
             self.server.start()
         except Exception as e:
-            log.error(f"Failed to start F# language server process: {e}")
+            log.exception(f"Failed to start F# language server process: {e}")
             raise SolidLSPException(f"Failed to start F# language server: {e}")
 
         # Send initialization

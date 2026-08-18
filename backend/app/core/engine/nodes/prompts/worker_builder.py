@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Any
 
 from jinja2 import TemplateError
 
+from app.core.channel.duty import is_duty_source
 from app.core.config import settings
 from app.core.context import ContextManager, plugin_registry
 from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket
@@ -106,6 +107,7 @@ class WorkerPromptBuilder(BasePromptBuilder):
             "multi_tenant_mode": settings.MULTI_TENANT_MODE,
             "role_name": self.agent_config.role_name if self.agent_config else "Specialist",
             "instructions": self.agent_config.system_instructions if self.agent_config else "Execute the assigned task accurately.",
+            "is_duty": is_duty_source(ctx.metadata.get("source")),
             "has_android": ctx.metadata.get("has_android", False),
             "has_desktop_tool": has_desktop_tool,
             "has_mobile_tool": has_mobile_tool,
@@ -139,6 +141,17 @@ class WorkerPromptBuilder(BasePromptBuilder):
 
         topic = (self.ticket.topic if self.ticket else None) or session_goal
 
+        # 值守渠道：省略环境信息（telemetry / environment_block / cwd），
+        # 值守 Worker 只做业务查询，不需要宿主机遥测。SKILL/SOP/Macro
+        # 是能力级内容，值守未来也可能使用，不做省略。
+        is_duty = is_duty_source(ctx.metadata.get("source"))
+        if is_duty:
+            telemetry = {}
+            environment_block = ""
+            cwd = ""
+        elif telemetry is None:
+            telemetry = {}
+
         # Safely extract flat state properties
         if isinstance(self.blackboard, dict):
             shared_context = self.blackboard.get("shared_context", {})
@@ -151,6 +164,7 @@ class WorkerPromptBuilder(BasePromptBuilder):
             "topic": topic,
             "active_macros": ctx.metadata.get("active_macros", []) or [],
             "operation_map": ctx.metadata.get("operation_map", "") or "",
+            "is_duty": is_duty,
             "acceptance_criteria": self.ticket.acceptance_criteria if self.ticket else [],
             "parameters": self.ticket.parameters if self.ticket else {},
             "focus_paths": self.focus_paths,
@@ -196,7 +210,7 @@ class WorkerPromptBuilder(BasePromptBuilder):
             blocks = [b.strip() for b in rendered.split("\n\n\n") if b.strip()]
             return blocks or [rendered.strip()]
         except (ImportError, TemplateError) as e:
-            logger.error(f"Error rendering Knowledge Blocks: {e}")
+            logger.exception(f"Error rendering Knowledge Blocks: {e}")
             blocks = []
             for i, skill in enumerate(self.skills):
                 block = render_template(

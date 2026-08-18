@@ -314,9 +314,9 @@ async def _regenerate_macros(project_id: int) -> None:
     """Regenerate macros for all active AppMaps that have Chinese aliases."""
     from sqlalchemy import select
 
-    from app.core.execution.macro.tasks import synthesize_macros_task as _wrapped
     from app.infrastructure.database import session_scope
     from app.models.app_map import AppMap
+    from app.core.execution.macro import synthesize_macros_task as _wrapped
 
     _raw = getattr(_wrapped, "func", _wrapped)
     import inspect
@@ -368,7 +368,11 @@ def _classify_action(name: str) -> tuple[str, str]:
 
 async def build_entities_from_index(project_id: int, groups: dict) -> dict:
     """Build AppMap entities dict from Tree-sitter parsed code chunks."""
-    from app.core.atlas.source.skeleton.generator import APPMAP_ACTION_CATEGORIES, _FRONTEND_EXTS, _NON_CONTROLLER_STEMS
+    from app.core.atlas.source.skeleton.generator import (
+        _FRONTEND_EXTS,
+        _NON_CONTROLLER_STEMS,
+        APPMAP_ACTION_CATEGORIES,
+    )
 
     all_ids = set()
     for cf_list in groups.values():
@@ -458,7 +462,8 @@ async def batch_write_appmaps(project_id: int, entities: dict, member_id: int = 
     import inspect
 
     from app.core.atlas.source.persistence import save_app_map
-    from app.core.execution.macro.tasks import synthesize_macros_task as _raw_sync
+
+    from app.core.execution.macro import synthesize_macros_task as _raw_sync
 
     _raw = getattr(_raw_sync, "func", _raw_sync)
     if not inspect.iscoroutinefunction(_raw):

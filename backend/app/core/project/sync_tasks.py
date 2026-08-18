@@ -62,7 +62,7 @@ async def sync_project_to_cloud_task(_self, repo_id: int):
                     raise RuntimeError(f"Cloud API Failed: {res.get('message')}")
 
             except Exception as e:
-                logger.error(f"[SyncTask] Sync Failed: {e}")
+                logger.exception(f"[SyncTask] Sync Failed: {e}")
                 raise e  # Trigger Retry
     finally:
         await flush_loop_bound_resources()
@@ -159,7 +159,7 @@ def _format_task_description(task_data: dict) -> str:
             checklist=task_data.get("acceptance_criteria", []),
         )
     except Exception as e:
-        logger.error(f"Failed to render task description: {e}")
+        logger.exception(f"Failed to render task description: {e}")
         return task_data.get("description", "Formatting error.")
 
 

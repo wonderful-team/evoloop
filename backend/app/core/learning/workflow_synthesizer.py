@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 
 from app.core.learning.prompts import prompt_builder
 from app.core.learning.schemas import SkillParameter
-from app.core.learning.trace_parser import TraceParser, TraceSequence
+from app.core.learning.trace.parser import TraceParser, TraceSequence
 from app.i18n.service import i18n
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils.yaml import YAMLError, safe_yaml_dumps, safe_yaml_loads

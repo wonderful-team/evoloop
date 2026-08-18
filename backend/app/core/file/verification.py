@@ -100,7 +100,7 @@ def write_file_with_verification(content: str, file_path: str, expected_hash: st
             )
 
     except Exception as e:
-        logger.error(f"Failed to write file {file_path}: {e}")
+        logger.exception(f"Failed to write file {file_path}: {e}")
         # Clean up temp file if exists
         temp_path = file_path + ".tmp"
         if os.path.exists(temp_path):
@@ -170,7 +170,7 @@ def apply_edit_with_verification(
         return write_result
 
     except Exception as e:
-        logger.error(f"Failed to apply edit to {file_path}: {e}")
+        logger.exception(f"Failed to apply edit to {file_path}: {e}")
         return FileWriteResult(success=False, error="EDIT_FAILED", message=str(e))
 
 

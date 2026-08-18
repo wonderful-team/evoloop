@@ -47,6 +47,7 @@ async def triage_app_batch(app_ids: list[str]) -> dict[str, dict]:
         data = json.loads(content)
         return data.get("results", {})
     except json.JSONDecodeError as e:
+        # 预期降级：LLM 偶尔返回空/非 JSON（返回 {} 继续），非错误，不打印 Traceback。
         logger.error(
             f"[Task] Failed to parse LLM JSON output. Error: {e}. Raw content: {content}"
         )

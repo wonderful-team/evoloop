@@ -86,7 +86,7 @@ def inspect_document(file_path: str) -> str:
 
         return dumps(metadata, indent=2)
     except Exception as e:
-        logger.error(f"Inspection failed: {e}")
+        logger.exception(f"Inspection failed: {e}")
         return dumps({"error": str(e)})
 
 
@@ -190,7 +190,7 @@ async def read_document(file_path: str, start_page: int | None = None, end_page:
         return format_file_content(filename, content, lang)
 
     except Exception as e:
-        logger.error(f"Read failed: {e}")
+        logger.exception(f"Read failed: {e}")
         return ControllerResponse.error(f"Error reading file {file_path}", details=str(e))
 
 
@@ -368,7 +368,7 @@ def _read_pdf(path: str, start: int | None, end: int | None) -> str:
             content_blocks=content_blocks
         ) + footer_msg
     except Exception as e:
-        logger.error(f"Failed to render Document template for PDF: {e}")
+        logger.exception(f"Failed to render Document template for PDF: {e}")
         # Fallback to simple template
         content_blocks = []
         for i in range(start_idx, end_idx):
@@ -426,7 +426,7 @@ def _read_excel(path: str) -> str:
             content_blocks=content_blocks,
         )
     except Exception as e:
-        logger.error(f"Failed to render Spreadsheet template: {e}")
+        logger.exception(f"Failed to render Spreadsheet template: {e}")
         # Fallback to spreadsheet formatter
         sheets = []
         for sheet_name in sheet_names:

@@ -27,12 +27,18 @@ async def run_node_loop(
     *,
     max_loop_steps: int = 100,
     log_prefix: str = "Agent",
+    session_mode: bool = False,
 ) -> None:
     """Execute the agent node loop until END or max steps.
 
     Mutates *state* in place — sets ``state.next_node`` at each iteration.
     Raises ``AgentCancelledException`` / ``AgentHumanInterruptException``
     if the activity monitor signals cancellation or HITL interrupt.
+
+    ``session_mode=True`` (parent-run-liveness): when the Supervisor decides a
+    new WORKER / SEQUENTIAL_WORKFLOW target, the loop does NOT run the worker
+    synchronously — it sets ``state.session_handoff = True`` and breaks so the
+    session main loop can launch a background rollout.
     """
     from app.core.engine.nodes.finish import FinishNode
     from app.core.engine.nodes.sequential_workflow import SequentialWorkflowNode
@@ -68,13 +74,14 @@ async def run_node_loop(
                 RoutingTarget.WORKER,
                 RoutingTarget.SEQUENTIAL_WORKFLOW,
             }
-            if state.next_node in NEW_COMMAND_NODES:
-                from app.core.engine.worker_registry import worker_registry
-
-                old_task = await worker_registry.pop_previous_task(thread_id)
-                if old_task and not old_task.done():
-                    logger.info(f"[{log_prefix}] NEW_COMMAND target '{state.next_node}' detected. Cancelling old worker task.")
-                    old_task.cancel()
+            if session_mode and state.next_node in NEW_COMMAND_NODES:
+                # 会话模式：worker 决策交给会话主循环启动后台 rollout（§4.2）。
+                # ⚠ 必须把 next_node 重置回 SUPERVISOR：rollout 完成后的聚合轮将
+                #    从这里（Supervisor）重进图消费 worker_outcome，而非残留的 WORKER
+                #    （否则聚合轮会同步再跑一次 worker）。
+                state.session_handoff = True
+                state.next_node = RoutingTarget.SUPERVISOR
+                break
         elif current_node == RoutingTarget.WORKER:
             update = await worker_node(state, config)
             merge_state_update(state, update)

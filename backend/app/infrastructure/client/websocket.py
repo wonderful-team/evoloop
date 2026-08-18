@@ -122,7 +122,7 @@ class ClientWebSocketManager:
                 self._zeroconf.register_service(self._service_info)
                 logger.info(f"[mDNS] Registered service: {self._service_info.name} at {local_ip}:{port}")
             except Exception as e:
-                logger.warning(f"[mDNS] Failed to register service: {e}")
+                logger.warning(f"[mDNS] Failed to register service: {e}", exc_info=True)
         else:
             logger.info("[mDNS] Zeroconf not installed, local discovery disabled.")
 
@@ -149,7 +149,7 @@ class ClientWebSocketManager:
                 self._zeroconf = None
                 logger.info("[mDNS] Unregistered service")
             except Exception as e:
-                logger.warning(f"[mDNS] Failed to unregister service: {e}")
+                logger.warning(f"[mDNS] Failed to unregister service: {e}", exc_info=True)
 
         logger.info("[WebSocket] Tool server stopped")
 
@@ -173,9 +173,9 @@ class ClientWebSocketManager:
                     data = json.loads(message)
                     await self._handle_message(data)
                 except json.JSONDecodeError as e:
-                    logger.error(f"[WebSocket] Invalid JSON: {e}")
+                    logger.exception(f"[WebSocket] Invalid JSON: {e}")
                 except Exception as e:
-                    logger.error(f"[WebSocket] Error handling message: {e}")
+                    logger.exception(f"[WebSocket] Error handling message: {e}")
 
         except ConnectionClosed:
             logger.info("[WebSocket] Client disconnected")
@@ -375,7 +375,7 @@ class DirectClientToolExecutor:
                     timeout=timeout
                 )
             except Exception as e:
-                logger.warning(f"[WebSocket] Failed, falling back to HTTP: {e}")
+                logger.warning(f"[WebSocket] Failed, falling back to HTTP: {e}", exc_info=True)
                 # Fall through to HTTP
 
         # Fallback to HTTP

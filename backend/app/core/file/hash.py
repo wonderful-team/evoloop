@@ -48,7 +48,7 @@ def compute_file_hash(file_path: str, algo: str = "md5", chunk_size: int = 4096)
                 hasher.update(chunk)
         return hasher.hexdigest()
     except (OSError, TypeError, ValueError) as e:
-        logger.error(f"Failed to compute hash for {file_path}: {e}")
+        logger.exception(f"Failed to compute hash for {file_path}: {e}")
         return ""
 
 

@@ -92,7 +92,7 @@ class BackgroundTask(DynamicBaseModel):
             except Exception as e:
                 import logging
                 logging.getLogger(__name__).debug(f"Failed to resolve display title for {self.tool_name}: {e}")
-        
+
         data["display_title"] = display_title
         # Keep title as-is but also provide the rendered one for UI
         if self.title.startswith("evoloop.tool_summary."):

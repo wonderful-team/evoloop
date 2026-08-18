@@ -67,7 +67,10 @@ class ActivityMonitor:
         project_id: int | None = None,
     ) -> AsyncGenerator[str, None]:
         from app.core.context.manager import ContextManager
-        from app.core.exceptions import AgentCancelledException, AgentHumanInterruptException
+        from app.core.exceptions import (
+            AgentCancelledException,
+            AgentHumanInterruptException,
+        )
         from app.infrastructure.database import session_scope
         from app.utils.id import gen_uuid
 
@@ -104,6 +107,7 @@ class ActivityMonitor:
                     await self._publish_run_completed(thread_id, result, run_id, task_type)
 
         except AgentCancelledException:
+            # 用户主动取消是预期流程，非错误，不打印 Traceback。
             logger.info(f"[ActivityMonitor] 🛑 Run {run_id} cancelled by user")
             result = await self._state_service.end_run(thread_id, "cancelled", run_id=run_id)
             await self._publish_run_completed(thread_id, result, run_id, task_type)
@@ -120,7 +124,7 @@ class ActivityMonitor:
             raise
 
         except Exception as e:
-            logger.error(f"[ActivityMonitor] ❌ Run {run_id} failed with error: {e}")
+            logger.exception(f"[ActivityMonitor] ❌ Run {run_id} failed with error: {e}")
             result = await self._state_service.end_run(thread_id, "failed", run_id=run_id)
             await self._publish_run_completed(thread_id, result, run_id, task_type)
             raise

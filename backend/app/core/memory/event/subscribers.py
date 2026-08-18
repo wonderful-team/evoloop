@@ -44,7 +44,7 @@ class MemoryLifecycleSubscriber:
             await MemoryLifespanManager.shutdown()
             logger.info("[Memory] Memory container shutdown")
         except Exception as e:
-            logger.warning(f"[Memory] Failed to shutdown memory container: {e}")
+            logger.warning(f"[Memory] Failed to shutdown memory container: {e}", exc_info=True)
 
     @event_subscribe(SystemEventType.EXTRACTION_REQUESTED)
     async def on_extraction_requested(self, event: ExtractionRequestedEvent):
@@ -181,7 +181,7 @@ class MemoryRewind:
                 try:
                     await self._cleanup_physical_memory(event)
                 except Exception as pe:
-                    logger.warning(f"[MemoryRewind] Physical cleanup warning: {pe}")
+                    logger.warning(f"[MemoryRewind] Physical cleanup warning: {pe}", exc_info=True)
 
                 # Report back to the main event
                 event.results["memories"] = count
@@ -191,7 +191,7 @@ class MemoryRewind:
 
         except Exception as e:
             error_msg = f"Memory cleanup failed: {e}"
-            logger.error(f"[MemoryRewind] {error_msg}")
+            logger.exception(f"[MemoryRewind] {error_msg}")
             event.errors.append(error_msg)
             event.success = False
 
@@ -275,7 +275,7 @@ class MemoryRewind:
                             count += 1
 
                 except Exception as e:
-                    logger.warning(f"[MemoryRewind] Failed to delete memories for msg {msg_id}: {e}")
+                    logger.warning(f"[MemoryRewind] Failed to delete memories for msg {msg_id}: {e}", exc_info=True)
 
             # Delete by run_id.
             # NOTE: MemoryIndex has no `run_id` column; the DB column is
@@ -294,10 +294,10 @@ class MemoryRewind:
                         if await memory_manager.delete_memory(mem.id):
                             count += 1
                 except Exception as e:
-                    logger.warning(f"[MemoryRewind] Failed to delete memories for run {run_id}: {e}")
+                    logger.warning(f"[MemoryRewind] Failed to delete memories for run {run_id}: {e}", exc_info=True)
 
         except Exception as e:
-            logger.error(f"[MemoryRewind] Memory manager initialization failed: {e}")
+            logger.exception(f"[MemoryRewind] Memory manager initialization failed: {e}")
 
         return count
 
@@ -342,7 +342,7 @@ class MemoryRewind:
                         f.unlink()
                         logger.debug(f"[MemoryRewind] Deleted stale context file: {f.name}")
                     except Exception as exc:
-                        logger.debug(f"[MemoryRewind] Failed to delete {f.name}: {exc}")
+                        logger.debug(f"[MemoryRewind] Failed to delete {f.name}: {exc}", exc_info=True)
 
         # 2. Regenerate MEMORY.md (Tier 1)
         try:
@@ -356,7 +356,7 @@ class MemoryRewind:
             await container.memory_manager.regenerate_memory_md()
             logger.info("[MemoryRewind] MEMORY.md regenerated successfully")
         except Exception as e:
-            logger.error(f"[MemoryRewind] Failed to regenerate MEMORY.md: {e}")
+            logger.exception(f"[MemoryRewind] Failed to regenerate MEMORY.md: {e}")
 
     def get_deleted_count(self) -> int:
         """Get the count of memories deleted in the last operation."""
@@ -390,6 +390,6 @@ class MemoryConversationCleanup:
                 if hasattr(memory_manager, "_engine") and memory_manager._engine:
                     await memory_manager._engine._db_delete_by_source_thread_id(thread_id)
         except Exception as e:
-            logger.warning(f"[MemoryCleanup] MemoryIndex cleanup warning: {e}")
+            logger.warning(f"[MemoryCleanup] MemoryIndex cleanup warning: {e}", exc_info=True)
 
         logger.info(f"[MemoryCleanup] Memory cleanup done for thread {thread_id}")

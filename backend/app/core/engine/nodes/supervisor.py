@@ -2,12 +2,11 @@ import logging
 import time
 from typing import Any
 
-from pydantic import ValidationError
 from sqlalchemy import select
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
-from app.core.engine.message.native_classes import BaseMessage
+from app.core.engine.message.native_classes import BaseMessage, SystemMessage
 from app.core.engine.nodes.base import BaseAgentNode
 from app.core.engine.nodes.prompts import SupervisorContext, SupervisorPromptBuilder
 from app.core.engine.routers import RoutingTarget
@@ -40,6 +39,25 @@ class SupervisorNode(BaseAgentNode):
             if msg.role == "tool":
                 latest_tool_idx = i
 
+        # 最新 tool 消息配对的 assistant(tool_calls) 索引：若最新 tool 是其
+        # 所属 assistant tool_calls 的结果，保留该 assistant 消息，让 LLM 看到
+        # "调用了工具 → 返回结果"的完整闭环，避免 Supervisor 反复重试同一宏。
+        keep_assistant_idx = -1
+        if latest_tool_idx >= 0:
+            latest_tool = messages[latest_tool_idx]
+            latest_tool_call_id = getattr(latest_tool, "tool_call_id", None)
+            for i in range(latest_tool_idx - 1, -1, -1):
+                m = messages[i]
+                if m.role != "assistant" or not getattr(m, "tool_calls", None):
+                    continue
+                ids = [
+                    tc.get("id") if isinstance(tc, dict) else getattr(tc, "id", None)
+                    for tc in m.tool_calls
+                ]
+                if latest_tool_call_id in ids:
+                    keep_assistant_idx = i
+                    break
+
         for i, msg in enumerate(messages):
             role = msg.role
             if role == "system":
@@ -51,7 +69,9 @@ class SupervisorNode(BaseAgentNode):
                 else:
                     result.append(msg)
             elif role == "assistant":
-                if not msg.tool_calls:
+                # 保留无 tool_calls 的普通 assistant 消息，以及最新 tool 结果
+                # 配对的 assistant(tool_calls) 消息；其余历史 tool_calls 丢弃。
+                if not msg.tool_calls or i == keep_assistant_idx:
                     result.append(msg)
             elif role == "tool" and i == latest_tool_idx:
                 result.append(msg)
@@ -63,6 +83,36 @@ class SupervisorNode(BaseAgentNode):
                 f"(dropped={dropped} tool/exec messages)"
             )
         return result
+
+    @staticmethod
+    def _extract_final_report(messages: list[BaseMessage]) -> str | None:
+        """Return the most recent plaintext assistant report if one exists."""
+        for msg in reversed(messages):
+            if msg.role == "assistant" and not getattr(msg, "tool_calls", None):
+                content = str(getattr(msg, "content", "") or "").strip()
+                if len(content) > 30:
+                    return content
+        return None
+
+    @staticmethod
+    def _is_unverifiable_report(report: str) -> bool:
+        """
+        Lightweight fallback: detect explicit 'cannot verify' language in legacy
+        Worker plaintext reports. New code should use `report_outcome` instead.
+        """
+        if not report:
+            return False
+        text = report.lower()
+        return any(
+            phrase in text
+            for phrase in (
+                "无法验证",
+                "verification impossible",
+                "unverifiable",
+                "无法确认",
+                "environment cannot verify",
+            )
+        )
 
     async def prepare_state(self, state: AgentState, config: dict) -> StateUpdate | None:
         if state.pending_signals:
@@ -83,7 +133,7 @@ class SupervisorNode(BaseAgentNode):
                     await self._sync_db_plan_step_on_signal_consume(state, config)
                     return dispatch_result
             except Exception as e:
-                logger.warning(f"[Supervisor] Failed to consume queued signal: {e}. Clearing entry.")
+                logger.warning(f"[Supervisor] Failed to consume queued signal: {e}. Clearing entry.", exc_info=True)
                 return StateUpdate(pending_signals=remaining)
 
         state.messages = self._filter_messages_for_supervisor(state.messages)
@@ -98,18 +148,81 @@ class SupervisorNode(BaseAgentNode):
         worker_outcome = StateLifecycleManager.consume_worker_outcome(state)
         if worker_outcome:
             logger.info(f"[Supervisor] Worker returned '{worker_outcome}'. Delegating review to Supervisor LLM.")
+            # Capture the finished ticket's topic before clearing it; this lets the
+            # anti-loop guard associate future verification routes with this target.
+            finished_ticket_topic = state.ticket.topic if state.ticket else None
             state.ticket = None
 
-            if worker_outcome in ("truncated", "failed", "error", "incomplete"):
+            final_report = self._extract_final_report(state.messages)
+            shared = state.shared_context or {}
+            reported_status = shared.get("worker_report_status")
+
+            # Primary signal: Worker explicitly reported that verification is impossible.
+            is_unverifiable = (
+                reported_status == "unverifiable"
+                or shared.get("verification_impossible") is True
+            )
+            # Fallback for legacy plaintext reports.
+            if not is_unverifiable and final_report:
+                is_unverifiable = self._is_unverifiable_report(final_report)
+
+            reason = (
+                shared.get("verification_block_reason")
+                or shared.get("worker_report_summary")
+                or (final_report[:500] if final_report else "")
+                or "The current environment cannot verify macro outcomes."
+            )
+
+            if is_unverifiable:
+                blocked_topic = (
+                    shared.get("verification_blocked_topic")
+                    or finished_ticket_topic
+                    or state.session_goal
+                    or ""
+                )
+                blocked_topic = blocked_topic[:500]
+
+                blocked_topics = shared.get("verification_blocked_topics") or []
+                if not isinstance(blocked_topics, list):
+                    blocked_topics = []
+                if blocked_topic and blocked_topic not in blocked_topics:
+                    blocked_topics.append(blocked_topic)
+
+                state.shared_context = {
+                    **shared,
+                    "verification_impossible": True,
+                    "verification_block_reason": reason[:500],
+                    "verification_blocked_topic": blocked_topic,
+                    "verification_blocked_topics": blocked_topics,
+                }
+                warning_msg = (
+                    "[SYSTEM NOTE] The previous Worker execution reported that the outcome "
+                    "is unverifiable due to environment limitations:\n\n"
+                    f"{reason[:600]}\n\n"
+                    "ACCEPT this report and respond to the user. "
+                    "Do NOT dispatch another Worker for verification."
+                )
+                state.messages.append(SystemMessage(content=warning_msg))
+                logger.info("[Supervisor] Worker reported unverifiable outcome; flagged and instructed to accept.")
+            elif worker_outcome in ("truncated", "failed", "error", "incomplete"):
                 warning_msg = (
                     f"[SYSTEM ALERT] The previous Worker execution was {worker_outcome.upper()}.\n"
                     "If TRUNCATED: The worker hit its step limit before finishing. You MUST review the progress and issue a new `route_to` ticket to continue the work.\n"
                     "If FAILED/ERROR/INCOMPLETE: Review the last tool errors and decide whether to retry or formulate a new plan.\n"
                     "DO NOT return an empty response. You must take explicit action."
                 )
-                from app.core.engine.message.native_classes import SystemMessage
-
                 state.messages.append(SystemMessage(content=warning_msg))
+
+            # Preserve the Worker's final plaintext report for context so the
+            # Supervisor does not mistakenly re-route after the Worker has concluded.
+            if worker_outcome in ("success", "done") and final_report:
+                preserve_msg = (
+                    "[SYSTEM NOTE] The Worker has returned the following final report. "
+                    "ACCEPT the report and respond to the user if it already answers the mission. "
+                    "Do NOT dispatch another Worker for verification unless the report is incomplete.\n\n"
+                    f"{final_report[:800]}"
+                )
+                state.messages.append(SystemMessage(content=preserve_msg))
 
         return None
 

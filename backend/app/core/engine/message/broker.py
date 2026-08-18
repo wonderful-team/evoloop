@@ -41,7 +41,7 @@ class LocalMessageBroker(MessageBroker):
             in_memory_bus.publish(channel, message)
             return 1
         except (RuntimeError, TypeError, AttributeError) as e:
-            logger.warning(f"[LocalMessageBroker] Publish failed: {e}")
+            logger.warning(f"[LocalMessageBroker] Publish failed: {e}", exc_info=True)
             return 0
 
     def pubsub(self) -> PubSubBackend:
@@ -62,7 +62,7 @@ class DistributedMessageBroker(MessageBroker):
 
             return await cache.publish(channel, message)
         except (RedisError, OSError, TypeError, ValueError) as e:
-            logger.error(f"[DistributedMessageBroker] Publish failed to channel {channel}: {e}")
+            logger.exception(f"[DistributedMessageBroker] Publish failed to channel {channel}: {e}")
             return 0
 
     def pubsub(self) -> PubSubBackend:

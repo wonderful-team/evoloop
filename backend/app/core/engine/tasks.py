@@ -10,9 +10,13 @@ from sqlalchemy import desc, func, select
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
 from app.core.context.manager import ContextManager, EvoContext
-from app.core.learning.trace_recorder import sync_thread_to_graph
+from app.core.execution.macro import (
+    MacroScriptCompiler,
+    create_macro_from_synthesis,
+)
+from app.core.learning.trace.recorder import sync_thread_to_graph
 from app.infrastructure.database import session_scope
-from app.infrastructure.queue.factory import shared_task
+from app.infrastructure.queue.factory import periodic_task, shared_task
 from app.models import FileOperation, Message
 from app.utils.parameters import normalize_parameters
 from app.utils.pydantic_helpers import clean_none_values
@@ -169,7 +173,7 @@ async def persist_file_operation_task(
             )
         )
     except Exception as e:
-        logger.warning(f"[Task] Failed to publish changeset updated event: {e}")
+        logger.warning(f"[Task] Failed to publish changeset updated event: {e}", exc_info=True)
 
 
 @shared_task(name="engine_harvest_concepts")  # type: ignore[reportCallIssue]
@@ -261,8 +265,7 @@ async def record_episode_task(
         logger.info(f"[Task] Episode recorded for thread {thread_id}")
 
         if auto_synthesize:
-            from app.core.execution.macro.compiler import MacroScriptCompiler
-            from app.core.learning.trace_parser import TraceParser
+            from app.core.learning.trace.parser import TraceParser
             from app.core.learning.workflow_synthesizer import WorkflowSynthesizer
             from app.models.learning import TraceEvent
 
@@ -286,7 +289,7 @@ async def record_episode_task(
                         publish_macro_mutated,
                         publish_skill_mutated,
                     )
-                    from app.core.learning.skill_lifecycle import create_from_synthesis
+                    from app.core.learning.skills.lifecycle import create_from_synthesis
 
                     macro_script = MacroScriptCompiler().compile(sequence).to_yaml()
 
@@ -303,9 +306,6 @@ async def record_episode_task(
                             source_thread_id=result.skill.source_thread_id,
                             source_session_id=result.skill.source_session_id,
                             instructions=result.skill.instructions,
-                        )
-                        from app.core.execution.macro.lifecycle import (
-                            create_macro_from_synthesis,
                         )
 
                         db_macro = await create_macro_from_synthesis(
@@ -354,7 +354,7 @@ def cleanup_artifacts_task(max_age_days: int = 3):
                     elif entry.is_dir():
                         shutil.rmtree(entry.path)
             except Exception as e:
-                logger.warning(f"Failed to delete artifact {entry.path}: {e}")
+                logger.warning(f"Failed to delete artifact {entry.path}: {e}", exc_info=True)
 
 
 @shared_task(name="engine_git_harvest")  # type: ignore[reportCallIssue]
@@ -432,23 +432,18 @@ async def git_harvest_task(cwd: str, project_id: int, model: str | None = None):
 
 
 @shared_task(name="engine_reconcile_skill_macro")  # type: ignore[reportCallIssue]
-async def reconcile_skill_macro_task(
-    skill_id: int, thread_id: str, model: str | None = None
-):
+async def reconcile_skill_macro_task(skill_id: int, thread_id: str, model: str | None = None):
     """
     Background task to reconcile a broken skill macro.
     """
     from app.core.events.publishers import publish_skill_mutated
-    from app.core.execution.macro.compiler import MacroScriptCompiler
-    from app.core.learning.trace_parser import TraceParser
+    from app.core.learning.trace.parser import TraceParser
     from app.core.learning.workflow_synthesizer import WorkflowSynthesizer
-    from app.models.learning import LearnedSkill, TraceEvent
+    from app.models.learning import TraceEvent
 
     # Pre-check: ensure there are enough trace events to synthesize from
     async with session_scope() as db:
-        stmt = select(func.count(TraceEvent.id)).where(
-            TraceEvent.thread_id == thread_id
-        )
+        stmt = select(func.count(TraceEvent.id)).where(TraceEvent.thread_id == thread_id)
         count_res = await db.execute(stmt)
         event_count = count_res.scalar()
 
@@ -477,61 +472,56 @@ async def reconcile_skill_macro_task(
         healed = False
         healed_macro_ids: list[int] = []
         async with session_scope() as session:
-            stmt = select(LearnedSkill).where(LearnedSkill.id == skill_id)
-            result = await session.execute(stmt)
-            original_skill = result.scalar_one_or_none()
+            from app.core.learning.skills.lifecycle import patch_skill
+            from app.core.learning.skills.repository import skill_repository
+
+            original_skill = await skill_repository.get_by_id(skill_id, db=session)
 
             if original_skill:
                 healed = True
                 if repaired_skill.skill and repaired_skill.skill.instructions:
-                    original_skill.instructions = repaired_skill.skill.instructions
+                    await patch_skill(
+                        original_skill, instructions=repaired_skill.skill.instructions
+                    )
 
                 # Chain-heal paired flywheel macros (macros table is the
                 # authoritative store for deterministic scripts).
-                from app.models.macro import Macro
+                from app.core.execution.macro import (
+                    create_macro_from_synthesis,
+                    list_macros,
+                    update_macro,
+                )
 
                 if original_skill.macro_id:
-                    macro = await session.get(Macro, original_skill.macro_id)
-                    if macro is not None:
-                        macro.macro_script = macro_script
-                        session.add(macro)
-                        healed_macro_ids.append(macro.id)
+                    if await update_macro(
+                        original_skill.macro_id, {"macro_script": macro_script}, db=session
+                    ):
+                        healed_macro_ids.append(original_skill.macro_id)
                 else:
-                    existing = (
-                        (
-                            await session.execute(
-                                select(Macro).where(Macro.fallback_skill_id == skill_id)
-                            )
-                        )
-                        .scalars()
-                        .first()
+                    existing_rows = await list_macros(
+                        fallback_skill_id=skill_id, db=session
                     )
+                    existing = existing_rows[0] if existing_rows else None
                     if existing is not None:
-                        existing.macro_script = macro_script
-                        session.add(existing)
-                        original_skill.macro_id = existing.id
+                        await update_macro(
+                            existing.id, {"macro_script": macro_script}, db=session
+                        )
+                        await patch_skill(original_skill, macro_id=existing.id)
                         healed_macro_ids.append(existing.id)
                     else:
-                        new_macro = Macro(
-                            app_map_id=None,
-                            entity=None,
+                        new_macro = await create_macro_from_synthesis(
+                            session,
                             name=original_skill.name,
                             description=original_skill.description or "",
                             trigger_patterns=original_skill.trigger_patterns or [],
                             parameters=original_skill.parameters or [],
                             macro_script=macro_script,
-                            risk_tier="ui",
-                            requires_confirmation=False,
-                            status="pending_review",
-                            is_active=False,
                             fallback_skill_id=original_skill.id,
                             source_thread_id=original_skill.source_thread_id,
                             project_id=original_skill.project_id,
                             member_id=original_skill.member_id,
                         )
-                        session.add(new_macro)
-                        await session.flush()
-                        original_skill.macro_id = new_macro.id
+                        await patch_skill(original_skill, macro_id=new_macro.id)
                         healed_macro_ids.append(new_macro.id)
 
         # Publish AFTER commit: subscribers re-query the row in a new session
@@ -545,6 +535,16 @@ async def reconcile_skill_macro_task(
                 await publish_macro_mutated(macro_id, action="update")
     finally:
         ContextManager.reset(token)
+
+
+@periodic_task(cron="* * * * *", name="engine_scheduler_tick_periodic")
+def engine_scheduler_tick_periodic():
+    """每分钟轮询值守/自主任务的周期调度。
+
+    复用 engine_scheduler_tick 的 tick 逻辑（Celery beat 的 60s 调度
+    在 Huey 模式不生效，此处用 Huey periodic 替代）。
+    """
+    engine_scheduler_tick.delay()
 
 
 @shared_task(name="engine_scheduler_tick")  # type: ignore[reportCallIssue]
@@ -564,7 +564,6 @@ async def run_autonomous_task_execution(task_id: int, project_id: int | None = N
     """
     from app.core.engine.background_agent import run_agent_background
     from app.core.environment.devices import DevicePool
-    from app.models.learning import LearnedSkill
     from app.models.scheduler import AutonomousTask
 
     # 1. Reserve a device
@@ -578,13 +577,17 @@ async def run_autonomous_task_execution(task_id: int, project_id: int | None = N
             if not task:
                 raise ValueError(f"Autonomous task {task_id} not found.")
 
-            skill = await session.get(LearnedSkill, task.skill_id)
-            if not skill:
-                raise ValueError(f"Skill {task.skill_id} for task {task_id} not found.")
+            skill_ids = list(task.skill_ids or [])
+            skills = []
+            if skill_ids:
+                from app.core.learning.skills.repository import skill_repository
+
+                skills = await skill_repository.get_by_ids(skill_ids, db=session)
 
             intent_description = task.intent_description
-            skill_name = skill.name
-            skill_id = skill.id
+            # 主 skill = 第一个（任务可关联多个 skill，主 skill 用于渲染初始 prompt）
+            skill_name = skills[0].name if skills else ""
+            skill_id = skills[0].id if skills else 0
 
         thread_id = f"auton-{task_id}-{int(time.time())}"
 
@@ -710,7 +713,7 @@ async def run_engine_audit_structured_extraction(
             logger.info(f"[Task] 🚀 Publishing ExtractionCompletedEvent for thread {thread_id}")
             await system_bus.publish(event)
     except Exception as e:
-        logger.error(f"[Task] engine_audit_structured_extraction failed for thread {thread_id}: {e!r}")
+        logger.exception(f"[Task] engine_audit_structured_extraction failed for thread {thread_id}: {e!r}")
         raise
 
 

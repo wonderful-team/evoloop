@@ -8,18 +8,15 @@ Event subscribers for the learning domain.
 import logging
 from typing import Any
 
-from sqlalchemy import delete, or_
-
 from app.core.engine.rewind import REWIND_REQUESTED, RewindRequestedEvent
 from app.core.events.base import BaseEvent
 from app.core.events.decorators import event_register, event_subscribe
 from app.core.events.registry import SystemEventType
-from app.core.execution.macro.event.schemas import MacroMutatedEvent
+from app.core.execution.macro import MacroMutatedEvent
 from app.core.learning.event.schemas import SkillMutatedEvent
 from app.core.learning.event.types import SkillEventType
-from app.core.learning.skill_sync_service import skill_sync_service
+from app.core.learning.skills.sync_service import skill_sync_service
 from app.infrastructure.database import session_scope
-from app.models import TraceEvent
 
 logger = logging.getLogger(__name__)
 
@@ -43,22 +40,14 @@ class TraceRewindSubscriber:
             return
 
         async with session_scope() as session:
-            stmt = delete(TraceEvent).where(TraceEvent.thread_id == event.thread_id)
-            conditions = []
-            if message_ids:
-                conditions.append(TraceEvent.message_id.in_(message_ids))
-            if run_ids:
-                conditions.append(TraceEvent.run_id.in_(run_ids))
+            from app.core.learning.trace.repository import trace_repository
 
-            if len(conditions) > 1:
-                stmt = stmt.where(or_(*conditions))
-            elif conditions:
-                stmt = stmt.where(conditions[0])
-            else:
-                return
-
-            result = await session.execute(stmt)
-            count = result.rowcount or 0
+            count = await trace_repository.delete_by_thread(
+                event.thread_id,
+                message_ids=message_ids,
+                run_ids=run_ids,
+                db=session,
+            )
 
         event.results["trace_events"] = count
         logger.info(

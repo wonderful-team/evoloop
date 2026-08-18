@@ -8,6 +8,7 @@ import time
 from typing import Annotated
 
 from app.constants import FORGET_SAFETY_WINDOW
+from app.core.config import settings
 from app.core.context.manager import ContextManager
 from app.core.memory.models import MemoryEntry, MemoryType, PrivacyLevel
 from app.core.memory.short_term import SqlShortTermMemory
@@ -54,7 +55,7 @@ async def write_handover_notes(notes: str, key: str = "general") -> str:
             return f"Successfully saved handover notes under key '{key}'."
         return "Error: State context not available."
     except Exception as e:
-        logger.error(f"[MemoryTool] Failed to write handover notes: {e}")
+        logger.exception(f"[MemoryTool] Failed to write handover notes: {e}")
         return f"Failed to write handover notes: {str(e)}"
 
 
@@ -130,7 +131,7 @@ async def remember(content: str, context: str = "", is_user_preference: bool = F
         return f"Remembered: {title} (ID: {entry_id})"
 
     except Exception as e:
-        logger.error(f"[MemoryTool] Failed to remember: {e}")
+        logger.exception(f"[MemoryTool] Failed to remember: {e}")
         return f"Failed to save memory: {str(e)}"
 
 
@@ -184,7 +185,7 @@ async def recall(query: str, limit: int = 5) -> str:
         return "\n".join(lines), {"count": len(entries)}
 
     except Exception as e:
-        logger.error(f"[MemoryTool] Recall failed: {e}")
+        logger.exception(f"[MemoryTool] Recall failed: {e}")
         return f"Failed to recall: {str(e)}"
 
 
@@ -219,7 +220,7 @@ async def forget_memory(memory_id: str) -> str:
             return f"Could not find memory with ID '{memory_id}' to delete."
 
     except Exception as e:
-        logger.error(f"[MemoryTool] Failed to forget memory: {e}")
+        logger.exception(f"[MemoryTool] Failed to forget memory: {e}")
         return f"Error deleting memory: {str(e)}"
 
 
@@ -275,7 +276,7 @@ async def search_history(
         return text, meta
 
     except Exception as e:
-        logger.error(f"[MemoryTool] History search failed: {e}")
+        logger.exception(f"[MemoryTool] History search failed: {e}")
         return f"Failed to search history: {str(e)}"
 
 
@@ -391,7 +392,7 @@ async def forget_tool_outputs(
                 state.tool_memory = memory.to_dict()
                 ctx.metadata.tool_memory = memory.to_dict()
         except Exception as e:
-            logger.warning(f"[ContextMgmt] Failed to persist tool_memory: {e}")
+            logger.warning(f"[ContextMgmt] Failed to persist tool_memory: {e}", exc_info=True)
 
         msg = f"Successfully forgot {len(results['forgotten'])} outputs, saved {total_saved} chars."
         return msg, {
@@ -403,7 +404,7 @@ async def forget_tool_outputs(
         }
 
     except Exception as e:
-        logger.error(f"[ContextMgmt] Forget failed: {e}")
+        logger.exception(f"[ContextMgmt] Forget failed: {e}")
         return f"Error: {str(e)}", {"status": "error"}
 
 
@@ -448,7 +449,7 @@ async def recall_tool_output(
                     state.tool_memory = memory.to_dict()
                     ctx.metadata.tool_memory = memory.to_dict()
             except Exception as e:
-                logger.warning(f"[ContextMgmt] Failed to update tool_memory on recall: {e}")
+                logger.warning(f"[ContextMgmt] Failed to update tool_memory on recall: {e}", exc_info=True)
 
             return f"Successfully recalled content for {tool_call_id} (Length: {len(msg.content)})", {
                 "status": "success",
@@ -457,7 +458,7 @@ async def recall_tool_output(
             }
 
     except Exception as e:
-        logger.error(f"[ContextMgmt] Recall failed: {e}")
+        logger.exception(f"[ContextMgmt] Recall failed: {e}")
         return f"Error: {str(e)}", {"status": "error"}
 
 
@@ -499,7 +500,7 @@ async def list_forgotten_outputs(
 
         return "\n".join(lines), {"count": len(forgotten_records)}
     except Exception as e:
-        logger.error(f"[ContextMgmt] List forgotten failed: {e}")
+        logger.exception(f"[ContextMgmt] List forgotten failed: {e}")
         return f"Error retrieving forgotten outputs: {str(e)}"
 
 
@@ -518,3 +519,21 @@ def _generate_summary(tool_name: str, content: str, max_length: int = 200) -> st
         return f"[list_dir: {len(items)} items] {', '.join(items[:3])}..."
 
     return f"[{tool_name}: {len(content)} chars] {content[:max_length]}..."
+
+
+# 门控：ENABLE_MEMORY 关闭时禁用全部记忆工具（不读取、不写入、不暴露）。
+_MEMORY_TOOLS = (
+    write_handover_notes,
+    remember,
+    recall,
+    forget_memory,
+    search_history,
+    forget_tool_outputs,
+    recall_tool_output,
+    list_forgotten_outputs,
+)
+if not settings.ENABLE_MEMORY:
+    for _tool in _MEMORY_TOOLS:
+        _wrapped = getattr(_tool, "func", None)
+        if _wrapped is not None:
+            _wrapped.is_evoloop_active = False

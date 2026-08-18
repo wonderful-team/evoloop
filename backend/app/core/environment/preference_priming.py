@@ -36,7 +36,7 @@ async def prime_preferences(project_id: int | None = None) -> PreferenceContext:
         )
         preferences = _parse_preferences(prefs_text)
     except Exception as e:
-        logger.warning(f"Failed to retrieve preferences: {e}")
+        logger.warning(f"Failed to retrieve preferences: {e}", exc_info=True)
         preferences = {}
 
     # Add language preference

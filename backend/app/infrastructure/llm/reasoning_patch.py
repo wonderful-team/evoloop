@@ -16,6 +16,8 @@ from typing import Any
 
 import httpx
 
+from app.infrastructure.llm.thinking_adapter import is_reasoning_model
+
 logger = logging.getLogger(__name__)
 
 
@@ -31,11 +33,13 @@ def _apply_reasoning_patch() -> None:
                 content = request.read()
                 body = json.loads(content)
 
-                model_name = body.get("model", "").lower()
+                model_name = body.get("model", "")
+                # DeepSeek gateway 通道可能在 URL 中携带 deepseek/thinking 标识，
+                # 而 body 的 model 可能为空（默认路由）；此处同时校验模型名与 URL。
                 is_deepseek = (
                     "deepseek" in url_str.lower()
                     or "thinking" in url_str.lower()
-                    or "deepseek" in model_name
+                    or is_reasoning_model(model_name)
                 )
 
                 if "messages" in body:

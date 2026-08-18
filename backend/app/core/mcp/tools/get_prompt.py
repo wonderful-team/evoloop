@@ -87,5 +87,5 @@ async def get_mcp_prompt(server_name: str, prompt_name: str, arguments: str = "{
         return "\n".join(lines)
 
     except Exception as e:
-        logger.error(f"Error getting MCP prompt: {e}")
+        logger.exception(f"Error getting MCP prompt: {e}")
         return f"Error getting prompt '{prompt_name}' from '{server_name}': {str(e)}"

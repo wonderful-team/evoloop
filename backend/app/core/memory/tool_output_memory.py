@@ -298,7 +298,7 @@ def get_tool_memory_from_state(state: "AgentState") -> ToolOutputMemory:
         try:
             return ToolOutputMemory.from_dict(tool_memory_data)
         except Exception as e:
-            logger.warning(f"[ToolOutputMemory] Failed to load from state: {e}")
+            logger.warning(f"[ToolOutputMemory] Failed to load from state: {e}", exc_info=True)
 
     return ToolOutputMemory()
 

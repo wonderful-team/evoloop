@@ -60,7 +60,7 @@ class VisionEngine:
                 )
                 logger.debug(f"[VisionEngine] Emitted UiTreeObservedEvent for {app_info.bundle_id}")
             except Exception as e:
-                logger.warning(f"[VisionEngine] Failed to emit Atlas event: {e}")
+                logger.warning(f"[VisionEngine] Failed to emit Atlas event: {e}", exc_info=True)
         else:
             # Standard Routing for single-provider tasks
             provider = await self.router.get_provider(task, **kwargs)
@@ -99,7 +99,7 @@ class VisionEngine:
                 )
                 logger.debug(f"[VisionEngine] Dispatched Atlas background mapping for {image_source}")
             except Exception as ex:
-                logger.debug(f"[VisionEngine] Failed to dispatch Celery task: {ex}")
+                logger.debug(f"[VisionEngine] Failed to dispatch Celery task: {ex}", exc_info=True)
 
         # 6. Publish Completion Event
         provider_name = provider.name if task != VisionTask.DETECT else "pipeline_manager"

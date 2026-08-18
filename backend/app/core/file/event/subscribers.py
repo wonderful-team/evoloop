@@ -177,7 +177,7 @@ class FileRewind:
                         logger.warning(f"⚠️ Cannot undo {operation} for {op['path']}: no backup")
 
             except Exception as e:
-                logger.error(f"❌ Undo failed for {op.get('path', 'unknown')}: {e}")
+                logger.exception(f"❌ Undo failed for {op.get('path', 'unknown')}: {e}")
 
         return count
 

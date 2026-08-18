@@ -28,18 +28,6 @@ _MAX_GRAPH_DEPTH = 5
 _GRAPH_CONFIDENCE = ("EXTRACTED", "INFERRED")
 
 
-async def validate_app_map_via_graph(
-    payload: AppMapPayload, project_id: int
-) -> list[str]:
-    """Validate AppMap route→table reachability via CodeRelation graph (BFS).
-
-    Design-doc name for the graph reachability check. Delegates to the internal
-    ``_validate_graph_reachability`` which performs a BFS up to ``_MAX_GRAPH_DEPTH``
-    hops, traversing only ``EXTRACTED`` / ``INFERRED`` edges.
-    """
-    return await _validate_graph_reachability(payload, project_id)
-
-
 async def validate_app_map(
     payload: AppMapPayload,
     project_path: str | None = None,

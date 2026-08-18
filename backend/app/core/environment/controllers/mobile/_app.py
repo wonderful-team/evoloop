@@ -50,7 +50,7 @@ class MobileAppMixin:
                     else:
                         await trigger_atlas_harvest(bundle_id=text)
                 except Exception as e:
-                    logger.debug(f"[Mobile] Atlas preload for {text} (non-critical): {e}")
+                    logger.debug(f"[Mobile] Atlas preload for {text} (non-critical): {e}", exc_info=True)
 
             asyncio.create_task(_preload_atlas_data())
 

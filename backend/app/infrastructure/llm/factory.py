@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 try:
     import app.infrastructure.llm.reasoning_patch  # noqa: F401
 except ImportError as e:
-    logger.warning(f"[Reasoning] Failed to import patch in factory.py: {e}")
+    logger.warning(f"[Reasoning] Failed to import patch in factory.py: {e}", exc_info=True)
 
 
 # --- Thinking-config extra_body builder, shared by platform and direct modes ---
@@ -223,7 +223,9 @@ class LLMFactory:
                 if use_lightning:
                     if lightning_mode == "llama.cpp":
                         # llama.cpp mode: use LlamaCppChatModel directly
-                        from app.infrastructure.llm.lightning import get_lightning_service
+                        from app.infrastructure.llm.lightning import (
+                            get_lightning_service,
+                        )
 
                         llm = await get_lightning_service().get_llm()
                         if llm is not None:
@@ -490,33 +492,28 @@ class LLMFactory:
 
 # Global instance for easy import if needed, or prefer using Factory.create()
 def get_default_llm(model_name: str | None = None, temperature: float = 0.3, **kwargs):
-    """Get default LLM (async wrapper for backward compatibility).
+    """Get default LLM as an awaitable (Task or coroutine).
 
-    NOTE: The ``asyncio.run()`` fallback (line 408) creates a *new* event loop,
-    which means the LLM instance cannot be cached by
-    ``LLMFactory._instance_cache`` (a ``WeakKeyDictionary`` keyed by event loop).
-    Every call to this fallback path will create a fresh LLM instance and then
-    discard the loop, guaranteeing a cache miss for subsequent calls.
-    If you see repeated \"Creating new LLM instance\" log entries for the same
-    configuration, check whether this fallback is being triggered and convert
-    the caller to use ``await get_default_llm(...)`` or
-    ``await LLMFactory.create_llm(...)`` directly instead.
+    Always returns something ``await``-able so every caller shares one
+    contract: ``llm = await get_default_llm(...)``. In an async context the
+    coroutine is scheduled as a Task; outside any running loop a bare coroutine
+    is returned (the caller supplies the loop via ``await``).
+
+    NOTE: the no-loop fallback creates a coroutine that the caller must drive;
+    it never blocks on a fresh ``asyncio.run`` loop, so the event-loop-bound
+    ``LLMFactory._instance_cache`` is never silently bypassed.
     """
     config = LLMConfig(model_name=model_name or "", temperature=temperature, **kwargs)
 
     try:
-        loop = asyncio.get_running_loop()
-        if loop.is_running():
-            return asyncio.create_task(LLMFactory.create_llm(config))
-        else:
-            return loop.run_until_complete(LLMFactory.create_llm(config))
+        return asyncio.create_task(LLMFactory.create_llm(config))
     except RuntimeError:
         logger.warning(
-            f"[LLMFactory] get_default_llm falling back to asyncio.run() — "
-            f"new event loop will bypass the instance cache. "
+            "[LLMFactory] get_default_llm called outside a running loop; "
+            "returning coroutine (caller must await). "
             f"model={config.model_name}, temp={config.temperature}"
-        )
-        return asyncio.run(LLMFactory.create_llm(config))
+        , exc_info=True)
+        return LLMFactory.create_llm(config)
 
 
 async def shutdown_http_pool():

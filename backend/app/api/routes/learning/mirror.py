@@ -1,13 +1,11 @@
 """Mirror sub-router — device mirroring, event capture, extract points."""
 
-import json
 import logging
 import subprocess
 import time
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from sqlalchemy import func, select
 
 from app.api.deps import CurrentUserOptional, require_benefit
 from app.core.environment.controllers.mirror_session import mirror_manager
@@ -28,66 +26,14 @@ from app.core.learning.schemas import (
     StopMirrorResponse,
     UploadScreenshotResponse,
 )
+from app.core.learning.trace.repository import trace_repository
 from app.infrastructure.database import session_scope
 from app.infrastructure.drivers.adb import adb_driver
-from app.models import TraceEvent
 
 from ._shared import _active_sessions
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-
-def _build_trace_event(
-    *,
-    member_id: int,
-    session_id: str,
-    thread_id: str | None,
-    step_number: int,
-    node_name: str,
-    action_type: str,
-    timestamp: int,
-    event_type: str,
-    source: str,
-    app_name: str | None,
-    payload: dict,
-    state_context: dict,
-    target_selector: str | None = None,
-    target_text: str | None = None,
-    mouse_x: float | None = None,
-    mouse_y: float | None = None,
-    window_title: str | None = None,
-    action_payload: dict | None = None,
-) -> TraceEvent:
-    """Single construction site for recorder TraceEvent rows.
-
-    All four recorder endpoints persist the same shape; only the payload
-    contents and context tag differ. ``action_payload`` defaults to the
-    event payload itself.
-    """
-    return TraceEvent(
-        member_id=member_id,
-        session_id=session_id,
-        recording_session_id=session_id,
-        thread_id=thread_id,
-        step_number=step_number,
-        node_name=node_name,
-        action_type=action_type,
-        timestamp=timestamp,
-        event_type=event_type,
-        target_selector=target_selector,
-        target_text=target_text,
-        payload=payload,
-        mouse_x=mouse_x,
-        mouse_y=mouse_y,
-        source=source,
-        app_name=app_name,
-        window_title=window_title,
-        state_snapshot=state_context,
-        action_payload=json.dumps(action_payload if action_payload is not None else payload),
-        # Recorder endpoints persist USER-recorded events — human by definition.
-        is_human_action=True,
-    )
 
 
 @router.get("/mirror/devices", response_model=MirrorDevicesResponse)
@@ -139,9 +85,7 @@ async def stop_mirror_session(body: StopMirrorRequest, current_user: CurrentUser
     _active_sessions.pop(body.session_id, None)
 
     async with session_scope() as db:
-        stmt = select(func.count(TraceEvent.id)).where(TraceEvent.recording_session_id == body.session_id)
-        total_count_result = await db.execute(stmt)
-        total_count = total_count_result.scalar() or 0
+        total_count = await trace_repository.count_by_session(body.session_id, db=db)
 
     return StopMirrorResponse(
         success=True,
@@ -161,7 +105,7 @@ async def get_device_resolution(device_id: str, current_user: CurrentUserOptiona
             return DeviceResolutionResponse(width=1080, height=1920)
         return DeviceResolutionResponse(width=size[0], height=size[1])
     except Exception as e:
-        logger.error(f"Failed to get device resolution: {e}")
+        logger.exception(f"Failed to get device resolution: {e}")
         return DeviceResolutionResponse(width=1080, height=1920)
 
 
@@ -177,13 +121,11 @@ async def persist_mirror_events(body: PersistMirrorEventsRequest, current_user: 
         )
 
     async with session_scope() as db:
-        stmt = (
-            select(TraceEvent)
-            .where(TraceEvent.member_id == (current_user.id if current_user else 0))
-            .where(TraceEvent.recording_session_id == body.session_id)
+        existing_count = await trace_repository.count_by_session(
+            body.session_id,
+            member_id=current_user.id if current_user else 0,
+            db=db,
         )
-        result = await db.execute(stmt)
-        existing_count = len(result.scalars().all())
 
         if existing_count >= len(events):
             return MirrorPersistResponse(
@@ -201,7 +143,7 @@ async def persist_mirror_events(body: PersistMirrorEventsRequest, current_user: 
                 source = event_data.get("source") or "mobile"
                 thread_id = body.thread_id or "global"
 
-                trace_event = _build_trace_event(
+                trace_event = trace_repository.build_event(
                     member_id=current_user.id if current_user else 0,
                     session_id=body.session_id,
                     thread_id=thread_id,
@@ -219,7 +161,7 @@ async def persist_mirror_events(body: PersistMirrorEventsRequest, current_user: 
                     app_name=payload_data.get("package_name"),
                     state_context={"context": "android_mirror"},
                 )
-                db.add(trace_event)
+                await trace_repository.add(db, trace_event)
 
                 if i < 5:
                     logger.info(f"[persist_mirror_events] Event {i}: {event_data['event_type']} at {relative_ms}ms")
@@ -262,7 +204,7 @@ async def persist_global_events(body: GlobalEventsRequest, current_user: Current
                 if app_name:
                     payload["package_name"] = app_name
 
-                trace_event = _build_trace_event(
+                trace_event = trace_repository.build_event(
                     member_id=current_user.id if current_user else 0,
                     session_id=body.session_id,
                     thread_id=body.thread_id,
@@ -281,7 +223,7 @@ async def persist_global_events(body: GlobalEventsRequest, current_user: Current
                     window_title=event.window_title,
                     state_context={"context": "global_recorder"},
                 )
-                db.add(trace_event)
+                await trace_repository.add(db, trace_event)
 
                 if i < 5:
                     logger.info(f"[persist_global_events] Event {i}: {event.event_type} at {int(event.timestamp)}ms, app={event.app_name}")
@@ -315,7 +257,7 @@ async def persist_dom_events(body: DomEventsRequest, current_user: CurrentUserOp
                 action_type = "region_extract" if is_region_extract else "user_interaction"
                 node_name = "region_marker" if is_region_extract else "dom_recorder"
 
-                trace_event = _build_trace_event(
+                trace_event = trace_repository.build_event(
                     member_id=current_user.id if current_user else 0,
                     session_id=body.session_id,
                     thread_id=body.thread_id,
@@ -331,7 +273,7 @@ async def persist_dom_events(body: DomEventsRequest, current_user: CurrentUserOp
                     app_name=event.url if not is_region_extract else "screen_region",
                     state_context={"context": node_name, "url": event.url},
                 )
-                db.add(trace_event)
+                await trace_repository.add(db, trace_event)
 
                 if i < 5:
                     logger.info(f"[persist_dom_events] Event {i}: {event.event_type} at {int(event.timestamp)}ms, selector={event.selector}")
@@ -357,7 +299,7 @@ async def upload_screenshot(file: UploadFile = File(...), current_user: CurrentU
         )
         return UploadScreenshotResponse(success=True, path=file_path, message="Screenshot uploaded successfully")
     except Exception as e:
-        logger.error(f"Failed to upload screenshot: {e}")
+        logger.exception(f"Failed to upload screenshot: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to upload screenshot: {str(e)}")
 
 
@@ -370,7 +312,7 @@ async def create_android_extract_point(body: AndroidExtractPointRequest, current
         region_width = body.width if body.width is not None else 0.02
         region_height = body.height if body.height is not None else 0.02
 
-        trace_event = _build_trace_event(
+        trace_event = trace_repository.build_event(
             member_id=current_user.id if current_user else 0,
             session_id=body.session_id,
             thread_id=body.thread_id or "global",
@@ -401,7 +343,7 @@ async def create_android_extract_point(body: AndroidExtractPointRequest, current
                 "height": region_height,
             },
         )
-        db.add(trace_event)
+        await trace_repository.add(db, trace_event)
         await db.flush()
         await db.refresh(trace_event)
 
@@ -425,13 +367,12 @@ async def create_android_extract_point(body: AndroidExtractPointRequest, current
 async def list_android_extract_points(session_id: str, current_user: CurrentUserOptional = None):
     """Get all extract points for a session."""
     async with session_scope() as db:
-        stmt = select(TraceEvent).where(TraceEvent.member_id == (current_user.id if current_user else 0)).where(
-            TraceEvent.recording_session_id == session_id,
-            TraceEvent.action_type == "region_extract"
-        ).order_by(TraceEvent.timestamp)
-
-        result = await db.execute(stmt)
-        events = result.scalars().all()
+        events = await trace_repository.get_by_session(
+            session_id,
+            member_id=current_user.id if current_user else 0,
+            action_type="region_extract",
+            db=db,
+        )
 
         extract_points = []
         for e in events:

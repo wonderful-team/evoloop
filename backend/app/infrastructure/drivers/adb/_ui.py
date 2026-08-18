@@ -23,7 +23,7 @@ class UIMixin:
                 suffix=suffix
             )
         except Exception as e:
-            logger.warning(f"[ADB] Failed to use hierarchical storage: {e}, using temp")
+            logger.warning(f"[ADB] Failed to use hierarchical storage: {e}, using temp", exc_info=True)
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"android_screenshot_{timestamp}.png"
             filepath = os.path.join(tempfile.gettempdir(), filename)
@@ -71,7 +71,7 @@ class UIMixin:
                         logger.info(f"Dumped UI hierarchy in {(time.time()-start)*1000:.0f}ms (uiautomator2, cached)")
                         return xml_content
                 except Exception as e:
-                    logger.warning(f"[ADB] Cached uiautomator2 failed: {e}, will retry")
+                    logger.warning(f"[ADB] Cached uiautomator2 failed: {e}, will retry", exc_info=True)
 
             elif capabilities.get("native_uiautomator") and not capabilities.get("uiautomator2"):
                 return self._dump_ui_native(device_id, compressed, start)

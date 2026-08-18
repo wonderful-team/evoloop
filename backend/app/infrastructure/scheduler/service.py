@@ -6,7 +6,6 @@ from croniter import croniter
 from sqlalchemy import select
 
 from app.infrastructure.database import session_scope
-from app.models.learning import LearnedSkill
 from app.models.scheduler import AutonomousTask
 
 logger = logging.getLogger(__name__)
@@ -21,15 +20,15 @@ class SchedulerService:
     async def tick():
         """
         Poll for due tasks and dispatch them to the background worker.
-        Called every minute by Celery Beat.
+        Called every 60s by engine_scheduler_tick_periodic (Huey periodic "* * * * *").
         """
         now = datetime.now(timezone.utc)
 
         async with session_scope() as session:
             # 1. Catch active & due tasks (fetch only IDs)
             stmt = select(AutonomousTask.id).where(
-                AutonomousTask.is_active == True,
-                AutonomousTask.is_dead_letter == False,
+                AutonomousTask.is_active,
+                not AutonomousTask.is_dead_letter,
                 AutonomousTask.next_run_at <= now,
             )
             result = await session.execute(stmt)
@@ -44,7 +43,7 @@ class SchedulerService:
             try:
                 await SchedulerService.dispatch_task(task_id)
             except Exception as e:
-                logger.error(f"[Scheduler] Failed to dispatch task {task_id}: {e}")
+                logger.exception(f"[Scheduler] Failed to dispatch task {task_id}: {e}")
 
     @staticmethod
     async def dispatch_task(task_id: int):
@@ -59,6 +58,23 @@ class SchedulerService:
             # Update last run and next run
             task.last_run_at = datetime.now(timezone.utc)
             task.next_run_at = SchedulerService.calculate_next_run(task.trigger_spec, task.last_run_at)
+
+            # 值守任务（params_template 带 duty_channel 标记）走轻量轮巡路径，
+            # 不依赖 Android 设备池，直接 poll_once → dispatch。
+            # run_duty_poll 只收 project_id，history 由系统按 local_path 推断（§6.8.3）。
+            from app.core.channel.duty.scheduler import task_is_duty
+
+            if task_is_duty(task.params_template):
+                from app.core.channel.duty.scheduler import run_duty_poll
+
+                run_duty_poll.delay(
+                    project_id=task.project_id,
+                    kind=task.params_template.get("kind"),
+                )
+                logger.info(
+                    f"[Scheduler] Dispatched duty task {task.id} (next run: {task.next_run_at})"
+                )
+                return
 
             # Prepare payload for background agent
             # Instead of just running the macro, we start an agent session
@@ -96,24 +112,28 @@ class SchedulerService:
     @staticmethod
     async def register_task(
         intent_description: str,
-        skill_id: int,
-        trigger_spec: str,
+        skill_ids: list[int] | None = None,
+        trigger_spec: str = "interval:3600",
         params: dict[str, Any] | None = None,
         project_id: int | None = None,
     ) -> int:
         """
         Programmatic entry for Agent to register a new recurring delegation.
         """
+        skill_ids = skill_ids or []
         async with session_scope() as session:
-            # Validate skill
-            skill = await session.get(LearnedSkill, skill_id)
-            if not skill:
-                raise ValueError(f"Skill ID {skill_id} not found.")
+            # Validate skills (if any)
+            if skill_ids:
+                from app.core.learning.skills.repository import skill_repository
+
+                missing = await skill_repository.validate_ids(skill_ids, db=session)
+                if missing:
+                    raise ValueError(f"Skill IDs {sorted(missing)} not found.")
 
             task = AutonomousTask(
                 member_id=0,
                 intent_description=intent_description,
-                skill_id=skill_id,
+                skill_ids=skill_ids,
                 trigger_spec=trigger_spec,
                 params_template=params,
                 project_id=project_id,

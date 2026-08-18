@@ -44,7 +44,7 @@ def refresh_workspace_snapshot(spin_seconds: float = 0.05) -> None:
             AppKit.NSDate.dateWithTimeIntervalSinceNow_(spin_seconds)
         )
     except (ValueError, OSError, RuntimeError, TypeError) as e:
-        logger.debug(f"runloop spin failed: {e}")
+        logger.debug(f"runloop spin failed: {e}", exc_info=True)
 
 
 def frontmost_application() -> Any | None:
@@ -57,7 +57,7 @@ def frontmost_application() -> Any | None:
             return None
         return NSWorkspace.sharedWorkspace().frontmostApplication()
     except (ValueError, OSError, RuntimeError, TypeError) as e:
-        logger.debug(f"frontmost_application failed: {e}")
+        logger.debug(f"frontmost_application failed: {e}", exc_info=True)
         return None
 
 
@@ -112,7 +112,7 @@ def executable_path_for_bundle(bundle_id: str) -> str | None:
         exe = bundle.executableURL() if bundle is not None else None
         return exe.path() if exe is not None else None
     except (ValueError, OSError, RuntimeError, TypeError) as e:
-        logger.debug(f"executable_path_for_bundle({bundle_id}) failed: {e}")
+        logger.debug(f"executable_path_for_bundle({bundle_id}) failed: {e}", exc_info=True)
         return None
 
 
@@ -124,7 +124,7 @@ def running_pid_for_bundle(bundle_id: str) -> int | None:
     try:
         r = subprocess.run(["pgrep", "-f", exe], capture_output=True, timeout=10)
     except (subprocess.TimeoutExpired, OSError) as e:
-        logger.debug(f"pgrep failed for {bundle_id}: {e}")
+        logger.debug(f"pgrep failed for {bundle_id}: {e}", exc_info=True)
         return None
     if r.returncode != 0:
         return None
@@ -147,7 +147,7 @@ def ensure_app_running(bundle_id: str, wait_windows: float = 20.0) -> int | None
                 try:
                     subprocess.run(["open", "-b", bundle_id], capture_output=True, timeout=15)
                 except (subprocess.TimeoutExpired, OSError) as e:
-                    logger.debug(f"open -b {bundle_id} failed: {e}")
+                    logger.debug(f"open -b {bundle_id} failed: {e}", exc_info=True)
                 next_open = time.time() + 4.0
             time.sleep(0.3)
             continue
@@ -158,6 +158,6 @@ def ensure_app_running(bundle_id: str, wait_windows: float = 20.0) -> int | None
                 time.sleep(0.5)
                 return pid
         except (ValueError, TypeError) as e:
-            logger.debug(f"window probe failed for {bundle_id}: {e}")
+            logger.debug(f"window probe failed for {bundle_id}: {e}", exc_info=True)
         time.sleep(0.6)
     return running_pid_for_bundle(bundle_id)
