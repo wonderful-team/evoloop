@@ -16,9 +16,8 @@ When your mission involves web pages or browser UI:
 3. **OS Coordination**: Only use `desktop_control` (if available to you) for tasks *outside* the browser viewport (e.g., handling native macOS dialogs, uploading files from a non-browser folder, or bringing the browser window to focus if another app is covering it).
 4. **State Persistence**: Cookies and session state are preserved across tool calls.
 5. **Robust Text Selection**: When matching elements by `text="..."` (in `click`, `wait_for`, etc.), NEVER use long phrases or full sentences. The HTML DOM may split text across multiple nodes causing text match timeouts. Always use a SHORT, UNIQUE keyword.
-6. **Coordinate Fallback**: If DOM interaction fails or you cannot find the right selector, you can fall back to using `x` and `y` coordinates for `click` with `browser_control` if you have spatial information from `screenshot` OCR.
-7. **Fixed-Time Waiting**: To sleep for a fixed duration, use the **standalone `wait_for` tool** (`wait_for(seconds=N)`). Do NOT use `browser_control(action="wait_for")` for this — that action strictly requires a `selector`, `text`, or `url_pattern` and cannot act as a plain sleep.
-8. **Browser Reliability**: For web automation, `browser_control` is dramatically more reliable than `desktop_control` + OCR. It supports CSS selectors, JS execution, and cookie management. The browser starts automatically on first use—no manual launch needed.
+6. **Fixed-Time Waiting**: To sleep for a fixed duration, use the **standalone `wait_for` tool** (`wait_for(seconds=N)`). Do NOT use `browser_control(action="wait_for")` for this — that action strictly requires a `selector`, `text`, or `url_pattern` and cannot act as a plain sleep.
+7. **Browser Reliability**: For web automation, `browser_control` is dramatically more reliable than `desktop_control` + OCR. It supports CSS selectors, JS execution, and cookie management. The browser starts automatically on first use—no manual launch needed.
 {%- endif -%}
 
 {%- if has_desktop_tool %}
