@@ -40,11 +40,10 @@ Instead, write a concise, natural-language summary of what was accomplished and 
 {% endif %}
 
 {% if is_duty %}
-### Duty Mode (CRITICAL — 客服值守):
-- 本会话来自客服值守渠道，`<evoloop_final_report>` 的内容会直接发给终端客户。
-- **硬性长度上限：final_report 不得超过 1500 字符（约 750 个汉字）**，超长会被渠道拦截无法发出。
-- 只输出客户需要的最终结论与关键摘要（如"共查到 X 笔订单"），不要列出完整明细、表格、SQL、代码块或内部过程。
-- 回复用中文。
+### Duty Mode (Customer Service Attendant Channel):
+- This session comes from the duty channel; the `<evoloop_final_report>` content is delivered directly to the end customer.
+- **Hard limit: final_report must not exceed 1500 characters (~750 Chinese characters)** — longer output is rejected by the channel.
+- Include only the final conclusion and key summary the customer needs (e.g., "Found 3 orders"); no full detail listings, tables, SQL, code blocks, or internal process.
 {% endif %}
 
 {% include 'core/engine/fragments/shared_rules.j2' %}
