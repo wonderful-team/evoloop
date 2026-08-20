@@ -68,6 +68,8 @@
     "stop": "Stop",
     "submit": "Submit",
     "success": "Success",
+    "customInput": "Custom input",
+    "customInputPlaceholder": "Type custom content...",
     "themes": {
       "appearance": "Appearance",
       "dark": "Dark",

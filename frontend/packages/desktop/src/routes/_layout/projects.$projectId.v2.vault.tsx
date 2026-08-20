@@ -73,6 +73,13 @@ function VaultPage() {
   const [credType, setCredType] = useState("ssh")
   const [description, setDescription] = useState("")
   const [payloadPairs, setPayloadPairs] = useState<KeyValuePair[]>([])
+  const [originalKeys, setOriginalKeys] = useState<string[]>([])
+
+  const [viewOpen, setViewOpen] = useState(false)
+  const [viewCredential, setViewCredential] = useState<Credential | null>(null)
+  const [viewPayload, setViewPayload] = useState<Record<string, string>>({})
+  const [viewLoading, setViewLoading] = useState(false)
+  const [viewRevealed, setViewRevealed] = useState<Record<string, boolean>>({})
 
   const fetchCredentials = async () => {
     if (!projectId) return
@@ -119,17 +126,59 @@ function VaultPage() {
     setIdentifier("")
     setCredType("ssh")
     setDescription("")
+    setOriginalKeys([])
     prefillPayload("ssh")
     setDialogOpen(true)
   }
 
-  const handleOpenEditDialog = (cred: Credential) => {
+  const handleOpenEditDialog = async (cred: Credential) => {
     setIsEditing(true)
     setIdentifier(cred.identifier)
     setCredType(cred.type)
     setDescription(cred.description || "")
-    prefillPayload(cred.type)
+    setPayloadPairs([])
     setDialogOpen(true)
+    try {
+      const res = (await VaultService.listCredentialFields({
+        identifier: cred.identifier,
+        projectId: Number(projectId),
+      })) as { fields?: string[] }
+      const fields = res?.fields ?? []
+      setOriginalKeys(fields)
+      setPayloadPairs(fields.map((key) => ({ key, value: "", show: false })))
+    } catch (err) {
+      console.error("Failed to load credential fields", err)
+      toast.error(t("common.loadFailed"))
+    }
+  }
+
+  const handleOpenViewDialog = async (cred: Credential) => {
+    setViewCredential(cred)
+    setViewPayload({})
+    setViewRevealed({})
+    setViewOpen(true)
+    setViewLoading(true)
+    try {
+      const res = (await VaultService.getCredentialPayload({
+        identifier: cred.identifier,
+        projectId: Number(projectId),
+      })) as { payload?: Record<string, string> }
+      const payload = res?.payload ?? {}
+      setViewPayload(payload)
+      setViewRevealed(
+        Object.fromEntries(
+          Object.keys(payload).map((key) => [
+            key,
+            /pass|key|secret|token/i.test(key),
+          ]),
+        ),
+      )
+    } catch (err) {
+      console.error("Failed to load credential payload", err)
+      toast.error(t("common.loadFailed"))
+    } finally {
+      setViewLoading(false)
+    }
   }
 
   const handleTypeChange = (value: string) => {
@@ -174,10 +223,18 @@ function VaultPage() {
       return
     }
 
-    const payloadObj: Record<string, string> = {}
+    const payloadObj: Record<string, string | null> = {}
     for (const pair of payloadPairs) {
       if (pair.key.trim()) {
         payloadObj[pair.key.trim()] = pair.value
+      }
+    }
+
+    if (isEditing) {
+      for (const key of originalKeys) {
+        if (!(key in payloadObj)) {
+          payloadObj[key] = null
+        }
       }
     }
 
@@ -357,6 +414,16 @@ function VaultPage() {
                       </TableCell>
                       <TableCell className="text-right py-3.5 pr-6">
                         <div className="flex justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleOpenViewDialog(cred)}
+                            className="h-8 shadow-xs"
+                            title={t("vault.actions.view")}
+                          >
+                            <Eye className="h-3.5 w-3.5 mr-1" />
+                            {t("vault.actions.view")}
+                          </Button>
                           <Button
                             variant="outline"
                             size="sm"
@@ -617,6 +684,89 @@ function VaultPage() {
                 {t("common.save")}
               </Button>
             </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={viewOpen} onOpenChange={setViewOpen}>
+          <DialogContent className="sm:max-w-[560px] max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="text-xl flex items-center gap-2">
+                <Eye className="h-5 w-5 text-primary" />
+                {t("vault.view.title")}
+                {viewCredential && (
+                  <span className="font-mono text-sm text-muted-foreground font-normal">
+                    {viewCredential.identifier}
+                  </span>
+                )}
+              </DialogTitle>
+              <DialogDescription className="pt-1">
+                {t("vault.view.description")}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3 py-2">
+              {viewLoading ? (
+                <div className="flex items-center justify-center py-10">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <div className="space-y-2 border rounded-lg p-3 bg-muted/5">
+                  {Object.entries(viewPayload).map(([key, value]) => {
+                    const hidden = viewRevealed[key]
+                    return (
+                      <div key={key} className="flex gap-2 items-center">
+                        <span className="w-1/3 font-mono text-xs text-muted-foreground truncate">
+                          {key}
+                        </span>
+                        <span className="flex-1 font-mono text-xs px-2 py-1.5 bg-background rounded border border-border/60 min-w-0">
+                          {hidden ? "••••••" : value || "-"}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 text-muted-foreground/60 hover:text-muted-foreground"
+                          onClick={() =>
+                            setViewRevealed((prev) => ({
+                              ...prev,
+                              [key]: !prev[key],
+                            }))
+                          }
+                          title={
+                            hidden
+                              ? t("vault.view.showValue")
+                              : t("vault.view.hideValue")
+                          }
+                        >
+                          {hidden ? (
+                            <Eye className="h-3.5 w-3.5" />
+                          ) : (
+                            <EyeOff className="h-3.5 w-3.5" />
+                          )}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 text-muted-foreground/60 hover:text-muted-foreground"
+                          onClick={() => copyToClipboard(value)}
+                          title={t("vault.view.copyValue")}
+                        >
+                          {copiedId === value ? (
+                            <Check className="h-3.5 w-3.5 text-emerald-500" />
+                          ) : (
+                            <Copy className="h-3.5 w-3.5" />
+                          )}
+                        </Button>
+                      </div>
+                    )
+                  })}
+                  {Object.keys(viewPayload).length === 0 && !viewLoading && (
+                    <p className="text-sm text-muted-foreground py-6 text-center">
+                      -
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
           </DialogContent>
         </Dialog>
       </div>

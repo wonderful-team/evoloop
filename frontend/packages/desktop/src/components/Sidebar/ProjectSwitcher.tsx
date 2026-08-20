@@ -17,6 +17,7 @@ import {
   Clock,
   Folder,
   Globe,
+  Headset,
   ListTodo,
   RefreshCw,
   Search,
@@ -25,7 +26,10 @@ import {
 } from "lucide-react"
 import * as React from "react"
 import { useTranslation } from "react-i18next"
+import { toast } from "sonner"
+import { ProjectsService } from "@/client"
 import { useProjectStatus } from "@/hooks/useProjectStatus"
+import { useDutyStore } from "@/stores/dutyStore"
 import {
   GLOBAL_PROJECT,
   type Project,
@@ -96,6 +100,8 @@ export function ProjectSwitcher({
     useProjectStore()
   const [internalOpen, setInternalOpen] = React.useState(false)
   const [searchQuery, setSearchQuery] = React.useState("")
+  const { globalEnabled: dutyGlobalEnabled, wecomEnabled: dutyWecomEnabled } =
+    useDutyStore()
 
   // Support both controlled and uncontrolled modes
   const isControlled = controlledOpen !== undefined
@@ -149,6 +155,59 @@ export function ProjectSwitcher({
           }).catch(() => {})
         })
         .catch(() => {})
+    }
+  }
+
+  const handleDutyToggle = async (project: Project) => {
+    const next = !project.duty_enabled
+    try {
+      // 读取该项目当前值守配置（保留企微参数与节奏），切换 enabled
+      const res = (await ProjectsService.getProjectDuty({
+        projectId: project.id,
+      })) as Record<string, unknown>
+      const duty = { ...res }
+      await ProjectsService.updateProjectDuty({
+        projectId: project.id,
+        requestBody: {
+          ...duty,
+          enabled: next,
+        },
+      })
+      // 更新 store 中的该项目值守状态
+      useProjectStore.setState({
+        projects: useProjectStore
+          .getState()
+          .projects.map((p) =>
+            p.id === project.id ? { ...p, duty_enabled: next } : p,
+          ),
+      })
+      if (project.id === useProjectStore.getState().currentProject?.id) {
+        useProjectStore.setState({
+          currentProject: {
+            ...useProjectStore.getState().currentProject!,
+            duty_enabled: next,
+          },
+        })
+      }
+      toast.success(
+        next
+          ? t("projectSwitcher.dutyStarted")
+          : t("projectSwitcher.dutyStopped"),
+      )
+    } catch (e) {
+      // 后端校验失败（ApiError.body = {detail: {message, errors}}），显示具体原因
+      const body = (e as { body?: unknown })?.body as
+        | { detail?: { message?: string; errors?: string[] } }
+        | undefined
+      const reason = body?.detail?.errors ?? []
+      const message = body?.detail?.message
+      if (reason.length > 0) {
+        toast.error(reason.join("；"))
+      } else if (message) {
+        toast.error(message)
+      } else {
+        toast.error(t("projectSwitcher.dutyError"))
+      }
     }
   }
 
@@ -379,15 +438,38 @@ export function ProjectSwitcher({
                             {t("projectSwitcher.tasks")}
                           </span>
                         </div>
-                        <div
-                          className="flex items-center gap-1.5 w-24 justify-end"
-                          title={t("projectSwitcher.lastSync")}
-                        >
-                          <Clock className="h-3.5 w-3.5" />
-                          <span>
-                            {project.last_sync_time_format?.split(" ")[0] ||
-                              t("projectSwitcher.never")}
-                          </span>
+                        {/* 值守参与按钮（替换原日期列） */}
+                        <div className="w-24 justify-end">
+                          <Button
+                            variant={
+                              project.duty_enabled ? "secondary" : "outline"
+                            }
+                            size="sm"
+                            className={cn(
+                              "h-7 gap-1 px-2 text-xs",
+                              project.duty_enabled &&
+                                "bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border-emerald-200",
+                            )}
+                            disabled={
+                              !project.duty_enabled &&
+                              (!dutyGlobalEnabled || !dutyWecomEnabled)
+                            }
+                            title={
+                              !project.duty_enabled &&
+                              (!dutyGlobalEnabled || !dutyWecomEnabled)
+                                ? t("projectSwitcher.dutyDisabled")
+                                : undefined
+                            }
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleDutyToggle(project)
+                            }}
+                          >
+                            <Headset className="h-3.5 w-3.5" />
+                            {project.duty_enabled
+                              ? t("projectSwitcher.dutyOn")
+                              : t("projectSwitcher.dutyOff")}
+                          </Button>
                         </div>
                       </div>
                     </div>

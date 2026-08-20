@@ -1,4 +1,3 @@
-import { Button } from "@evoloop/shared/components/ui/button"
 import {
   ResizableHandle,
   ResizablePanel,
@@ -15,12 +14,12 @@ import {
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query"
-import { Brain } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { AgentService, ConversationsService, MemoryService } from "@/client"
 import { isLoggedIn } from "@/hooks/useAuth"
+import { useSystemEvent } from "@/hooks/useSystemEvent"
 import { useAgentStore } from "@/stores/agentStore"
 import { useChangesetStore } from "@/stores/changesetStore"
 import { useChatStore } from "@/stores/chatStore"
@@ -89,15 +88,18 @@ export function ChatInterface() {
 
   const [sidebarActiveTab, setSidebarActiveTab] = useState<string>("chats")
   const [expandAgentChanges, setExpandAgentChanges] = useState<boolean>(false)
+  const [showChatListSheet, setShowChatListSheet] = useState(false)
 
   const projectId = currentProject?.id ?? storeProjectId ?? undefined
 
   // We maintain 'showContextPanel' locally as it involves UI preference
   // Global mode: hidden by default; Project mode: show by default
   // But respect user's manual preference stored in localStorage
+  // In compact window (<1024px) it's a Sheet overlay, so keep it closed by default
   const [showContextPanel, setShowContextPanel] = useState(() => {
     const saved = localStorage.getItem("chat.contextPanel.hidden")
     if (saved === "true") return false
+    if (typeof window !== "undefined" && window.innerWidth < 1024) return false
     return true
   })
   // Compact window detection (< 1024px, matching lg breakpoint of left sidebar)
@@ -110,19 +112,28 @@ export function ChatInterface() {
 
   useEffect(() => {
     const mql = window.matchMedia("(max-width: 1023px)")
-    const handler = (e: MediaQueryListEvent) => setIsCompactWindow(e.matches)
+    const handler = (e: MediaQueryListEvent) => {
+      setIsCompactWindow(e.matches)
+      // Closing the context sheet on shrink, otherwise it overlays the chat area
+      if (e.matches) setShowContextPanel(false)
+    }
     mql.addEventListener("change", handler)
     return () => mql.removeEventListener("change", handler)
   }, [])
 
   // Auto-show context panel when switching from global to project mode
-  // But only if user hasn't manually closed it
+  // But only if user hasn't manually closed it (skipped in compact window)
   useEffect(() => {
     const saved = localStorage.getItem("chat.contextPanel.hidden")
-    if (!isGlobalMode && currentProject && saved !== "true") {
+    if (
+      !isCompactWindow &&
+      !isGlobalMode &&
+      currentProject &&
+      saved !== "true"
+    ) {
       setShowContextPanel(true)
     }
-  }, [isGlobalMode, currentProject])
+  }, [isGlobalMode, currentProject, isCompactWindow])
 
   // Track if user manually closed context panel during the CURRENT run
   const hasManuallyClosedInCurrentRun = useRef(false)
@@ -134,16 +145,17 @@ export function ChatInterface() {
     }
   }, [status])
 
-  // Auto-show context panel when agent starts working
+  // Auto-show context panel when agent starts working (skipped in compact window)
   useEffect(() => {
     if (
+      !isCompactWindow &&
       status === "running" &&
       !showContextPanel &&
       !hasManuallyClosedInCurrentRun.current
     ) {
       setShowContextPanel(true)
     }
-  }, [status, showContextPanel])
+  }, [status, showContextPanel, isCompactWindow])
 
   // Persist manual close action
   const handleCloseContextPanel = useCallback(() => {
@@ -157,6 +169,18 @@ export function ChatInterface() {
     localStorage.removeItem("chat.contextPanel.hidden")
     setShowContextPanel(true)
   }, [])
+
+  const handleOpenChatList = useCallback(() => {
+    setShowChatListSheet(true)
+  }, [])
+
+  // Refresh conversation list when a new conversation is created from
+  // another device/channel (voice link, mobile, wecom, etc.)
+  const handleConversationCreated = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["projectConversations"] })
+  }, [queryClient])
+
+  useSystemEvent("conversation.created", handleConversationCreated)
 
   // --- Initialization ---
   useEffect(() => {
@@ -754,23 +778,13 @@ export function ChatInterface() {
             className="flex flex-col h-full relative min-h-0 min-w-0 w-full overflow-hidden"
             style={{ contain: "content" }}
           >
-            {/* Top Right Controls */}
-            <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
-              {/* Toggle Context Panel Button */}
-              {(!showContextPanel || isCompactWindow) && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handleOpenContextPanel}
-                  title={t("common.openContextPanel")}
-                >
-                  <Brain className="h-5 w-5 text-muted-foreground" />
-                </Button>
-              )}
-            </div>
-
             {/* Breadcrumb Status */}
-            <BreadcrumbStatus />
+            <BreadcrumbStatus
+              isCompactWindow={isCompactWindow}
+              showContextPanel={showContextPanel}
+              onOpenContextPanel={handleOpenContextPanel}
+              onOpenChatList={handleOpenChatList}
+            />
             <HITLBanner />
             <QuotaExhaustedBanner />
 
@@ -845,6 +859,44 @@ export function ChatInterface() {
           </>
         )}
       </ResizablePanelGroup>
+
+      {/* Compact Window Chat List Sheet */}
+      {isCompactWindow && (
+        <Sheet open={showChatListSheet} onOpenChange={setShowChatListSheet}>
+          <SheetContent
+            side="left"
+            className="w-[320px] sm:w-[400px] max-w-[85vw] p-0 border-r border-border bg-background [&>button]:hidden shadow-2xl flex flex-col min-w-0 overflow-hidden"
+          >
+            <SheetHeader className="sr-only">
+              <SheetTitle>{t("chat.sidebar.tabChats")}</SheetTitle>
+            </SheetHeader>
+            <ChatSidebar
+              threads={mappedThreads}
+              activeThreadId={activeThreadId || ""}
+              setActiveThreadId={(id) => {
+                handleSetActiveThreadId(id)
+                setShowChatListSheet(false)
+              }}
+              projectId={projectId}
+              onDeleteThread={handleDeleteThread}
+              onStopThread={handleStopThread}
+              onNewChat={() => {
+                handleNewChat()
+                setShowChatListSheet(false)
+              }}
+              onSelectDiff={handleSelectDiff}
+              onQuoteFile={handleQuoteFile}
+              activeTab={sidebarActiveTab}
+              onTabChange={setSidebarActiveTab}
+              expandAgentChanges={expandAgentChanges}
+              fetchNextPage={fetchNextPage}
+              hasNextPage={hasNextPage}
+              isFetchingNextPage={isFetchingNextPage}
+              onTogglePin={handleTogglePin}
+            />
+          </SheetContent>
+        </Sheet>
+      )}
 
       {/* Compact Window Context Sheet */}
       {isCompactWindow && (

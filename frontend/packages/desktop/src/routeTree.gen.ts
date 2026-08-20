@@ -35,6 +35,7 @@ import { Route as LayoutProjectsProjectIdOverviewRouteImport } from './routes/_l
 import { Route as LayoutProjectsProjectIdMacrosRouteImport } from './routes/_layout/projects.$projectId.macros'
 import { Route as LayoutProjectsProjectIdGenerationRouteImport } from './routes/_layout/projects.$projectId.generation'
 import { Route as LayoutProjectsProjectIdFilesRouteImport } from './routes/_layout/projects.$projectId.files'
+import { Route as LayoutProjectsProjectIdDutyRouteImport } from './routes/_layout/projects.$projectId.duty'
 import { Route as LayoutProjectsProjectIdAssetsRouteImport } from './routes/_layout/projects.$projectId.assets'
 import { Route as LayoutProjectsProjectIdV2IndexRouteImport } from './routes/_layout/projects.$projectId.v2.index'
 import { Route as LayoutProjectsProjectIdV2WikiRouteImport } from './routes/_layout/projects.$projectId.v2.wiki'
@@ -184,6 +185,12 @@ const LayoutProjectsProjectIdFilesRoute =
     path: '/files',
     getParentRoute: () => LayoutProjectsProjectIdRoute,
   } as any)
+const LayoutProjectsProjectIdDutyRoute =
+  LayoutProjectsProjectIdDutyRouteImport.update({
+    id: '/duty',
+    path: '/duty',
+    getParentRoute: () => LayoutProjectsProjectIdRoute,
+  } as any)
 const LayoutProjectsProjectIdAssetsRoute =
   LayoutProjectsProjectIdAssetsRouteImport.update({
     id: '/assets',
@@ -263,6 +270,7 @@ export interface FileRoutesByFullPath {
   '/projects/': typeof LayoutProjectsIndexRoute
   '/subscription/': typeof LayoutSubscriptionIndexRoute
   '/projects/$projectId/assets': typeof LayoutProjectsProjectIdAssetsRoute
+  '/projects/$projectId/duty': typeof LayoutProjectsProjectIdDutyRoute
   '/projects/$projectId/files': typeof LayoutProjectsProjectIdFilesRoute
   '/projects/$projectId/generation': typeof LayoutProjectsProjectIdGenerationRoute
   '/projects/$projectId/macros': typeof LayoutProjectsProjectIdMacrosRoute
@@ -298,6 +306,7 @@ export interface FileRoutesByTo {
   '/projects': typeof LayoutProjectsIndexRoute
   '/subscription': typeof LayoutSubscriptionIndexRoute
   '/projects/$projectId/assets': typeof LayoutProjectsProjectIdAssetsRoute
+  '/projects/$projectId/duty': typeof LayoutProjectsProjectIdDutyRoute
   '/projects/$projectId/files': typeof LayoutProjectsProjectIdFilesRoute
   '/projects/$projectId/generation': typeof LayoutProjectsProjectIdGenerationRoute
   '/projects/$projectId/macros': typeof LayoutProjectsProjectIdMacrosRoute
@@ -337,6 +346,7 @@ export interface FileRoutesById {
   '/_layout/projects/': typeof LayoutProjectsIndexRoute
   '/_layout/subscription/': typeof LayoutSubscriptionIndexRoute
   '/_layout/projects/$projectId/assets': typeof LayoutProjectsProjectIdAssetsRoute
+  '/_layout/projects/$projectId/duty': typeof LayoutProjectsProjectIdDutyRoute
   '/_layout/projects/$projectId/files': typeof LayoutProjectsProjectIdFilesRoute
   '/_layout/projects/$projectId/generation': typeof LayoutProjectsProjectIdGenerationRoute
   '/_layout/projects/$projectId/macros': typeof LayoutProjectsProjectIdMacrosRoute
@@ -376,6 +386,7 @@ export interface FileRouteTypes {
     | '/projects/'
     | '/subscription/'
     | '/projects/$projectId/assets'
+    | '/projects/$projectId/duty'
     | '/projects/$projectId/files'
     | '/projects/$projectId/generation'
     | '/projects/$projectId/macros'
@@ -411,6 +422,7 @@ export interface FileRouteTypes {
     | '/projects'
     | '/subscription'
     | '/projects/$projectId/assets'
+    | '/projects/$projectId/duty'
     | '/projects/$projectId/files'
     | '/projects/$projectId/generation'
     | '/projects/$projectId/macros'
@@ -449,6 +461,7 @@ export interface FileRouteTypes {
     | '/_layout/projects/'
     | '/_layout/subscription/'
     | '/_layout/projects/$projectId/assets'
+    | '/_layout/projects/$projectId/duty'
     | '/_layout/projects/$projectId/files'
     | '/_layout/projects/$projectId/generation'
     | '/_layout/projects/$projectId/macros'
@@ -664,6 +677,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutProjectsProjectIdFilesRouteImport
       parentRoute: typeof LayoutProjectsProjectIdRoute
     }
+    '/_layout/projects/$projectId/duty': {
+      id: '/_layout/projects/$projectId/duty'
+      path: '/duty'
+      fullPath: '/projects/$projectId/duty'
+      preLoaderRoute: typeof LayoutProjectsProjectIdDutyRouteImport
+      parentRoute: typeof LayoutProjectsProjectIdRoute
+    }
     '/_layout/projects/$projectId/assets': {
       id: '/_layout/projects/$projectId/assets'
       path: '/assets'
@@ -764,6 +784,7 @@ const LayoutSubscriptionRouteWithChildren =
 
 interface LayoutProjectsProjectIdRouteChildren {
   LayoutProjectsProjectIdAssetsRoute: typeof LayoutProjectsProjectIdAssetsRoute
+  LayoutProjectsProjectIdDutyRoute: typeof LayoutProjectsProjectIdDutyRoute
   LayoutProjectsProjectIdFilesRoute: typeof LayoutProjectsProjectIdFilesRoute
   LayoutProjectsProjectIdGenerationRoute: typeof LayoutProjectsProjectIdGenerationRoute
   LayoutProjectsProjectIdMacrosRoute: typeof LayoutProjectsProjectIdMacrosRoute
@@ -785,6 +806,7 @@ interface LayoutProjectsProjectIdRouteChildren {
 const LayoutProjectsProjectIdRouteChildren: LayoutProjectsProjectIdRouteChildren =
   {
     LayoutProjectsProjectIdAssetsRoute: LayoutProjectsProjectIdAssetsRoute,
+    LayoutProjectsProjectIdDutyRoute: LayoutProjectsProjectIdDutyRoute,
     LayoutProjectsProjectIdFilesRoute: LayoutProjectsProjectIdFilesRoute,
     LayoutProjectsProjectIdGenerationRoute:
       LayoutProjectsProjectIdGenerationRoute,

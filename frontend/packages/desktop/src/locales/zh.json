@@ -624,6 +624,7 @@
     "noProject": "未选择项目",
     "ok": "确定",
     "openContextPanel": "打开上下文面板",
+    "openChatList": "打开会话列表",
     "openMenu": "打开菜单",
     "preview": "预览",
     "previous": "上一页",
@@ -1105,7 +1106,9 @@
       "riskTier": "风险等级",
       "riskTierHint": "由系统自动评估，不可手动更改",
       "fallbackSkill": "自愈回落技能",
-      "fallbackSkillRequired": "开启自愈后，必须选择一个回落技能作为接管心法"
+      "fallbackSkillRequired": "开启自愈后，必须选择一个回落技能作为接管心法",
+      "updateDesktop": "更新桌面宏",
+      "updateDesktopStarted": "已开始扫描桌面应用，正在更新宏…"
     }
   },
   "macroEditor": {
@@ -1339,7 +1342,13 @@
     "showing": "显示 {{count}} 个项目",
     "tasks": "任务",
     "title": "切换项目",
-    "unknown": "未知"
+    "unknown": "未知",
+    "dutyOn": "退出值守",
+    "dutyOff": "参与值守",
+    "dutyStarted": "已开启值守",
+    "dutyStopped": "已停止值守",
+    "dutyError": "值守切换失败",
+    "dutyDisabled": "请先在全局设置开启值守并启用企微渠道"
   },
   "projects": {
     "actions": {
@@ -1506,7 +1515,8 @@
       "vault": "密码箱",
       "wiki": "百科",
       "generation": "生成产物",
-      "macros": "指令"
+      "macros": "指令",
+      "duty": "值守"
     },
     "tasks": {
       "assignee": "负责人",
@@ -1595,7 +1605,58 @@
       }
     },
     "title": "项目",
-    "projectNameFallback": "项目 #{{id}}"
+    "projectNameFallback": "项目 #{{id}}",
+    "duty": {
+      "title": "客服值守",
+      "desc": "让 Agent 充当本项目的智能客服，值守企业微信客户咨询。",
+      "active": "值守中：Agent 正在处理本项目的客户消息",
+      "loadError": "加载值守配置失败",
+      "enabled": "本项目值守已启动",
+      "disabled": "本项目值守已停止",
+      "startFailed": "值守启动失败，请检查配置",
+      "failedTitle": "值守启动失败（配置已还原）",
+      "wecomTitle": "企业微信",
+      "corpId": "企业ID (corp_id)",
+      "agentId": "应用 AgentID",
+      "secret": "应用密钥",
+      "startDuty": "开启本项目值守",
+      "stopDuty": "停止本项目值守",
+      "saveCredentials": "保存企微凭据",
+      "credentialsSaved": "企微凭据已保存",
+      "intervalLabel": "轮巡间隔（秒）",
+      "intervalHint": "60~3600（1~60 分钟），建议 60 的倍数；低于 60 秒无法兑现（全局扫描粒度）",
+      "intervalSaved": "轮巡间隔已保存",
+      "intervalBad": "轮巡间隔须为 60~3600 的整数",
+      "inactive": "未参与值守",
+      "runningDesc": "Agent 正在处理本项目客户的企业微信消息",
+      "stoppedDesc": "本项目未参与值守",
+      "corpIdPlaceholder": "请输入企业ID",
+      "agentIdPlaceholder": "请输入应用 AgentID",
+      "secretPlaceholder": "请输入应用密钥",
+      "globalOff": "值守功能未开启",
+      "globalOffDesc": "请先在全局设置开启值守功能",
+      "wecomOff": "企业微信渠道未启用",
+      "wecomOffDesc": "请先在全局设置启用企业微信渠道",
+      "lastRun": "上次轮巡",
+      "nextRun": "下次轮巡",
+      "never": "从未",
+      "dutyStoppedGlobal": "全局值守未开启",
+      "businessPollLabel": "业务巡检扫描间隔（分钟）",
+      "businessPollHint": "1~1440 分钟；以此频率扫描下面的任务列表，到期的任务作为独立 human 消息发给 Agent",
+      "businessPollBad": "业务巡检扫描间隔须为 1~1440 的整数",
+      "businessPollTasksLabel": "巡检任务列表",
+      "businessPollTaskPlaceholder": "请对项目 #{project_id} 执行一次业务巡检任务，检查是否有待处理事项；有则直接处理，无则回复「本次巡检无待办事项」。",
+      "addBusinessPollTask": "新增任务",
+      "noBusinessPollTasks": "暂无任务，点击右上角新增",
+      "taskEnabled": "已启用",
+      "taskDisabled": "已停用",
+      "taskNextRunAt": "下次执行时间",
+      "taskInterval": "间隔（分钟）",
+      "deleteTask": "删除任务",
+      "businessTitle": "业务巡检（运营线）",
+      "businessDesc": "每个任务到点后作为独立 human 消息发给 Agent，Agent 按 PROJECT.md 自主处理，与客服轮巡节奏独立",
+      "businessSaved": "保存业务巡检配置"
+    }
   },
   "requirements": {
     "analysis": {
@@ -1759,7 +1820,11 @@
       "mode": "MISSING",
       "none_hint": "MISSING",
       "active_tier": "当前：{{tier}}",
-      "gguf_hint": "下载：{{cmd}}"
+      "gguf_hint": "下载：{{cmd}}",
+      "localModelTitle": "可选本地 Embedding 模型",
+      "localModelDesc": "下载 BGE 向量模型后，可在 GGUF 模式下离线运行语义搜索。",
+      "useDownloadedModel": "填入已下载模型路径",
+      "modelNotAvailable": "暂无可选模型"
     },
     "general": {
       "browse": "浏览",
@@ -1840,7 +1905,7 @@
       "mode": "模式",
       "none_hint": "轻量通道已关闭。本地路由和嵌入将不可用。适合低算力机器。",
       "llmModel": "LLM 模型",
-      "llmModelPlaceholder": "/path/to/qwen3-4b-instruct-2507-q4_k_m.gguf",
+      "llmModelPlaceholder": "/path/to/local-llm.gguf",
       "embedModel": "嵌入模型",
       "embedModelPlaceholder": "/path/to/bge-base-zh-v1.5-q4_k_m.gguf",
       "contextWindow": "上下文窗口（tokens）",
@@ -1852,7 +1917,7 @@
       "connection_error": "连接错误：{{message}}",
       "loadError": "加载轻量通道配置失败",
       "channel_separator": "重型通道（复杂 Agent 任务）",
-      "gguf_hint": "下载：{{cmd}}"
+      "gguf_hint": "请下载 GGUF 格式的本地 LLM 模型并填写路径"
     },
     "models": {
       "default_view": {
@@ -2004,6 +2069,26 @@
         "setInterval": "设置双击间隔失败"
       },
       "sttProvider": "语音识别服务提供商"
+    },
+    "duty": {
+      "title": "客服值守（全局）",
+      "enabledDesc": "开启后，各项目可在项目概览中参与值守（Agent 充当该项目客服）",
+      "channelsLabel": "可用渠道",
+      "wecomDesc": "企业微信客户端（GUI 自动化）",
+      "enabled": "值守功能已开启",
+      "disabled": "值守功能已关闭",
+      "saveError": "保存值守配置失败",
+      "loadError": "加载值守配置失败",
+      "stopLabel": "停止值守",
+      "startDuty": "开启值守",
+      "stopDuty": "停止值守",
+      "runningDesc": "值守中：Agent 正在服务各参与项目的客户",
+      "stoppedDesc": "已停止：开启后各项目可参与值守",
+      "saved": "已保存",
+      "validationFailed": "企业微信未就绪，无法开启",
+      "stopping": "客服值守停止中，请稍等",
+      "stopped": "客服值守已停止",
+      "started": "客服值守已开启"
     }
   },
   "startup": {
@@ -2412,15 +2497,16 @@
       "description": "描述"
     },
     "actions": {
-      "copyPlaceholder": "复制使用占位符"
+      "copyPlaceholder": "复制使用占位符",
+      "view": "查看详情"
     },
     "dialog": {
       "editTitle": "编辑凭证",
       "addTitle": "添加凭证",
-      "editDescription": "编辑凭证元数据。由于安全加密策略，现有的机密无法被读取；保存将覆盖它们。",
+      "editDescription": "编辑凭证。字段名会回显,但加密值不会显示;仅填写需要修改的字段。",
       "addDescription": "添加新凭证。字段键和值将被安全加密。",
       "warningTitle": "安全警告：",
-      "warningText": "编辑此凭证需要再次输入所有值。任何留空或遗漏的字段将不会被保留。",
+      "warningText": "留空的字段将保持原值不变;删除的字段行将在保存时从凭证中移除。",
       "fields": {
         "identifier": "凭证标识符",
         "identifierHelp": "在代码/模板中使用的唯一字符串。仅限字母、数字、下划线和连字符。",
@@ -2451,6 +2537,15 @@
       "env": "环境变量 (.env)",
       "password": "用户名和密码",
       "ssh": "SSH 服务器（主机、端口、用户、密钥/密码）"
+    },
+    "view": {
+      "title": "查看凭证",
+      "description": "字段值加密存储,不会在列表或 API 中返回;仅在此处主动查看。敏感字段默认隐藏。",
+      "copyValue": "复制值",
+      "hideValue": "隐藏值",
+      "showValue": "显示值",
+      "field": "字段",
+      "value": "值"
     }
   },
   "sidebar": {
@@ -2509,5 +2604,9 @@
   "echarts": {
     "filenameFallback": "chart",
     "imageFilterName": "图片"
+  },
+  "agentStop": {
+    "stopped": "已停止所有 Agent 活动",
+    "failed": "停止失败，请重试"
   }
 }

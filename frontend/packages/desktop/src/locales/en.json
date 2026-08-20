@@ -627,6 +627,7 @@
     "noProject": "No project",
     "ok": "OK",
     "openContextPanel": "Open Context Panel",
+    "openChatList": "Open conversations",
     "openMenu": "Open menu",
     "preview": "Preview",
     "previous": "Previous",
@@ -1105,7 +1106,9 @@
       "riskTier": "Risk Tier",
       "riskTierHint": "Assessed automatically by the system, cannot be changed manually",
       "fallbackSkill": "Self-healing Fallback Skill",
-      "fallbackSkillRequired": "A fallback skill must be selected when self-healing is enabled"
+      "fallbackSkillRequired": "A fallback skill must be selected when self-healing is enabled",
+      "updateDesktop": "Update Desktop Macros",
+      "updateDesktopStarted": "Scanning desktop apps, updating macros…"
     }
   },
   "macroEditor": {
@@ -1339,7 +1342,13 @@
     "showing": "Showing {{count}} projects",
     "tasks": "tasks",
     "title": "Switch Project",
-    "unknown": "Unknown"
+    "unknown": "Unknown",
+    "dutyOn": "Leave Duty",
+    "dutyOff": "Join Duty",
+    "dutyStarted": "Duty started",
+    "dutyStopped": "Duty stopped",
+    "dutyError": "Failed to toggle duty",
+    "dutyDisabled": "Enable duty and WeCom channel in global settings first"
   },
   "projects": {
     "actions": {
@@ -1506,7 +1515,8 @@
       "vault": "Vault",
       "wiki": "Wiki",
       "generation": "Project Portrait",
-      "macros": "Instructions"
+      "macros": "Instructions",
+      "duty": "Duty"
     },
     "tasks": {
       "assignee": "Assignee",
@@ -1595,7 +1605,58 @@
       }
     },
     "title": "Projects",
-    "projectNameFallback": "Project #{{id}}"
+    "projectNameFallback": "Project #{{id}}",
+    "duty": {
+      "title": "Customer Service Duty",
+      "desc": "Let the Agent act as this project's intelligent customer service for WeCom inquiries.",
+      "active": "Duty active: Agent is handling this project's customer messages",
+      "loadError": "Failed to load duty config",
+      "enabled": "Project duty started",
+      "disabled": "Project duty stopped",
+      "startFailed": "Failed to start duty, check config",
+      "failedTitle": "Duty start failed (config reverted)",
+      "wecomTitle": "WeCom",
+      "corpId": "Corp ID",
+      "agentId": "Agent ID",
+      "secret": "Secret",
+      "startDuty": "Start Duty",
+      "stopDuty": "Stop Duty",
+      "saveCredentials": "Save Credentials",
+      "credentialsSaved": "Credentials saved",
+      "intervalLabel": "Poll interval (seconds)",
+      "intervalHint": "60~3600 (1~60 min), multiples of 60 recommended; below 60s cannot be honored (global scan granularity)",
+      "intervalSaved": "Poll interval saved",
+      "intervalBad": "Poll interval must be an integer between 60 and 3600",
+      "inactive": "Not in duty",
+      "runningDesc": "Agent is handling this project's WeCom customer messages",
+      "stoppedDesc": "This project is not in duty",
+      "corpIdPlaceholder": "Enter Corp ID",
+      "agentIdPlaceholder": "Enter Agent ID",
+      "secretPlaceholder": "Enter secret",
+      "globalOff": "Duty is not enabled",
+      "globalOffDesc": "Enable duty in global settings first",
+      "wecomOff": "WeCom channel not enabled",
+      "wecomOffDesc": "Enable the WeCom channel in global settings first",
+      "lastRun": "Last run",
+      "nextRun": "Next run",
+      "never": "Never",
+      "dutyStoppedGlobal": "Global duty is off",
+      "businessPollLabel": "Business poll scan interval (minutes)",
+      "businessPollHint": "1~1440 min; scan the task list at this frequency. Due tasks are sent as separate human messages to the Agent",
+      "businessPollBad": "Business poll interval must be an integer of 1~1440",
+      "businessPollTasksLabel": "Poll tasks",
+      "businessPollTaskPlaceholder": "Please run a business poll task for project #{project_id} for pending todos; handle them if any, or reply with no todos.",
+      "addBusinessPollTask": "Add task",
+      "noBusinessPollTasks": "No tasks yet; click Add task above",
+      "taskEnabled": "Enabled",
+      "taskDisabled": "Disabled",
+      "taskNextRunAt": "Next run",
+      "taskInterval": "Interval (minutes)",
+      "deleteTask": "Delete task",
+      "businessTitle": "Business Poll (Ops Line)",
+      "businessDesc": "Each due task is sent as a separate human message to the Agent, which handles it per PROJECT.md, independent of customer-service poll cadence",
+      "businessSaved": "Save business poll config"
+    }
   },
   "requirements": {
     "analysis": {
@@ -1759,7 +1820,11 @@
       "mode": "MISSING",
       "none_hint": "MISSING",
       "active_tier": "Active: {{tier}}",
-      "gguf_hint": "Download: {{cmd}}"
+      "gguf_hint": "Download: {{cmd}}",
+      "localModelTitle": "Optional Local Embedding Model",
+      "localModelDesc": "Download the BGE embedding model to use offline semantic search in GGUF mode.",
+      "useDownloadedModel": "Fill in downloaded model path",
+      "modelNotAvailable": "No optional model available"
     },
     "general": {
       "browse": "Browse",
@@ -1828,7 +1893,7 @@
       "mode": "Mode",
       "none_hint": "Lightning Channel is disabled. Local routing and embeddings will not work. Suitable for low-spec machines.",
       "llmModel": "LLM Model",
-      "llmModelPlaceholder": "/path/to/qwen3-4b-instruct-2507-q4_k_m.gguf",
+      "llmModelPlaceholder": "/path/to/local-llm.gguf",
       "embedModel": "Embedding Model",
       "embedModelPlaceholder": "/path/to/bge-base-zh-v1.5-q4_k_m.gguf",
       "contextWindow": "Context Window (tokens)",
@@ -1840,7 +1905,7 @@
       "connection_error": "Connection error: {{message}}",
       "loadError": "Failed to load Lightning config",
       "channel_separator": "Heavy Channel (Complex Agent Tasks)",
-      "gguf_hint": "Download: {{cmd}}"
+      "gguf_hint": "Download a GGUF model and enter its path here"
     },
     "modelFields": {
       "apiKey": "API Key",
@@ -2003,6 +2068,26 @@
         "setInterval": "Failed to set double click interval"
       },
       "sttProvider": "STT Provider"
+    },
+    "duty": {
+      "title": "Customer Service Duty (Global)",
+      "enabledDesc": "When on, projects can join duty from their overview (Agent acts as that project's customer service)",
+      "channelsLabel": "Available Channels",
+      "wecomDesc": "WeCom desktop client (GUI automation)",
+      "enabled": "Duty enabled",
+      "disabled": "Duty disabled",
+      "saveError": "Failed to save duty config",
+      "loadError": "Failed to load duty config",
+      "stopLabel": "Stop Duty",
+      "startDuty": "Start Duty",
+      "stopDuty": "Stop Duty",
+      "runningDesc": "Duty active: Agent is serving participating projects",
+      "stoppedDesc": "Stopped: projects can join once enabled",
+      "saved": "Saved",
+      "validationFailed": "WeCom not ready, cannot enable",
+      "stopping": "Stopping customer service duty, please wait",
+      "stopped": "Customer service duty stopped",
+      "started": "Customer service duty started"
     }
   },
   "startup": {
@@ -2408,15 +2493,16 @@
       "description": "Description"
     },
     "actions": {
-      "copyPlaceholder": "Copy usage placeholder"
+      "copyPlaceholder": "Copy usage placeholder",
+      "view": "View details"
     },
     "dialog": {
       "editTitle": "Edit Credential",
       "addTitle": "Add Credential",
-      "editDescription": "Edit credential metadata. Due to secure encryption policies, existing secrets cannot be retrieved; saving will overwrite them.",
+      "editDescription": "Edit credential. Field names are prefilled, but encrypted values are not shown; only fill in the fields you want to change.",
       "addDescription": "Add a new credential. The payload keys and values will be securely encrypted.",
       "warningTitle": "Security Warning:",
-      "warningText": "Editing this credential requires entering all values again. Any fields left blank or omitted will not be preserved.",
+      "warningText": "Fields left blank keep their current value; removed field rows will be deleted from the credential on save.",
       "fields": {
         "identifier": "Credential Identifier",
         "identifierHelp": "Unique string used in code/templates. Letters, numbers, underscores, and hyphens only.",
@@ -2447,6 +2533,15 @@
       "env": "Environment Variable (.env)",
       "password": "Username & Password",
       "ssh": "SSH Server (Host, Port, User, Key/Password)"
+    },
+    "view": {
+      "title": "View Credential",
+      "description": "Field values are stored encrypted and never returned in lists or APIs; only visible here on demand. Sensitive fields are hidden by default.",
+      "copyValue": "Copy value",
+      "hideValue": "Hide value",
+      "showValue": "Show value",
+      "field": "Field",
+      "value": "Value"
     }
   },
   "sidebar": {
@@ -2505,5 +2600,9 @@
   "echarts": {
     "filenameFallback": "chart",
     "imageFilterName": "Image"
+  },
+  "agentStop": {
+    "stopped": "All agent activities stopped",
+    "failed": "Failed to stop, please retry"
   }
 }

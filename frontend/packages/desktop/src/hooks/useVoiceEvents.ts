@@ -4,37 +4,21 @@ import { useNavigate } from "@tanstack/react-router"
 import { isTauri, safeInvoke, safeListen } from "@/lib/tauri"
 import type { VoiceState } from "@/stores/voiceStore"
 import { useVoiceStore } from "@/stores/voiceStore"
-import {
-  useTauriVoiceShortcut,
-  useTauriVoiceShortcutSettings,
-} from "./useTauriVoiceShortcut"
 
 let listenersInitialized = false
 
 export function useVoiceEvents() {
   const unlistenersRef = useRef<Array<() => void>>([])
-  const voiceModeSyncedRef = useRef(false)
   const navigate = useNavigate()
 
   const setVoiceState = useVoiceStore((s) => s.setVoiceState)
   const setPartialText = useVoiceStore((s) => s.setPartialText)
-  const setRouteResult = useVoiceStore((s) => s.setRouteResult)
   const setTtsSentence = useVoiceStore((s) => s.setTtsSentence)
   const appendToken = useVoiceStore((s) => s.appendToken)
   const clearTokenBuffer = useVoiceStore((s) => s.clearTokenBuffer)
-  const setDictationResult = useVoiceStore((s) => s.setDictationResult)
   const voiceState = useVoiceStore((s) => s.voiceState)
   const voiceMode = useVoiceStore((s) => s.voiceMode)
   const setVoiceMode = useVoiceStore((s) => s.setVoiceMode)
-  const cycleVoiceMode = useVoiceStore((s) => s.cycleVoiceMode)
-
-  const { shortcutEnabled } = useTauriVoiceShortcutSettings()
-
-  // Register global shortcut F12 handler
-  useTauriVoiceShortcut({
-    enabled: shortcutEnabled,
-    onPress: cycleVoiceMode,
-  })
 
   // Register Tray Menu voice toggles
   const voiceModeRef = useRef(voiceMode)
@@ -85,12 +69,6 @@ export function useVoiceEvents() {
     prevVoiceModeRef.current = voiceMode
 
     if (prev === voiceMode) return
-
-    // voice-mode-sync from Rust F12 handler — session already managed
-    if (voiceModeSyncedRef.current) {
-      voiceModeSyncedRef.current = false
-      return
-    }
 
     if (prev !== "off" && voiceMode !== "off") {
       // Switching between modes — no stop/start, just tell Rust to swap mode
@@ -209,17 +187,6 @@ export function useVoiceEvents() {
 
     const unlisteners: Array<() => void> = []
 
-    // Sync voiceMode from Rust (F12 shortcut handled entirely in Rust)
-    unlisteners.push(
-      await safeListen<string>("voice-mode-sync", (event) => {
-        const mode = event.payload
-        if (mode === "off" || mode === "dictation" || mode === "dialogue") {
-          voiceModeSyncedRef.current = true
-          setVoiceMode(mode)
-        }
-      }),
-    )
-
     unlisteners.push(
       await safeListen<{ state: VoiceState }>("voice:state", (event) => {
         setVoiceState(event.payload.state)
@@ -243,15 +210,6 @@ export function useVoiceEvents() {
       await safeListen<{ text: string }>("voice:partial", (event) => {
         setPartialText(event.payload.text)
       }),
-    )
-
-    unlisteners.push(
-      await safeListen<Record<string, unknown>>(
-        "voice:route_result",
-        (event) => {
-          setRouteResult(event.payload)
-        },
-      ),
     )
 
     unlisteners.push(
@@ -447,11 +405,9 @@ export function useVoiceEvents() {
   }, [
     setVoiceState,
     setPartialText,
-    setRouteResult,
     setTtsSentence,
     appendToken,
     clearTokenBuffer,
-    setDictationResult,
   ])
 
   // Sync tray icon with voice state

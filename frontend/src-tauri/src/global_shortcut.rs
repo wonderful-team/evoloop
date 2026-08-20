@@ -12,6 +12,7 @@ pub struct GlobalShortcutManager {
     is_registered: AtomicBool,
     target_key: Arc<Mutex<String>>,
     record_key: Arc<Mutex<String>>,
+    stop_key: Arc<Mutex<String>>,
     app_handle: Arc<Mutex<Option<tauri::AppHandle>>>,
 }
 
@@ -22,6 +23,7 @@ impl GlobalShortcutManager {
             is_registered: AtomicBool::new(false),
             target_key: Arc::new(Mutex::new("F12".to_string())),
             record_key: Arc::new(Mutex::new("CmdOrCtrl+Shift+KeyR".to_string())),
+            stop_key: Arc::new(Mutex::new("Escape".to_string())),
             app_handle: Arc::new(Mutex::new(None)),
         }
     }
@@ -36,6 +38,10 @@ impl GlobalShortcutManager {
 
     pub fn set_record_key(&self, key: String) {
         *self.record_key.lock().unwrap() = key;
+    }
+
+    pub fn set_stop_key(&self, key: String) {
+        *self.stop_key.lock().unwrap() = key;
     }
 
     pub fn set_long_press_threshold(&self, _ms: u64) {}
@@ -122,6 +128,43 @@ impl GlobalShortcutManager {
             Err(e) => log::warn!("[shortcut] failed to parse record shortcut key {rec_key_str:?}: {e}"),
         }
 
+        // 3. Agent stop shortcut (Esc x2) — 统一停止所有活跃 Agent（Web/值守/语音/移动端）
+        let stop_key_str = self.stop_key.lock().unwrap().clone();
+        match Shortcut::from_str(&stop_key_str) {
+            Ok(stop_shortcut) => {
+                let app_clone = app.clone();
+                let stop_key_for_log = stop_key_str.clone();
+                let last_press: Arc<Mutex<Option<std::time::Instant>>> = Arc::new(Mutex::new(None));
+                if let Err(e) = app.global_shortcut().on_shortcut(stop_shortcut, move |_app, _event, state| {
+                    if state.state == ShortcutState::Pressed {
+                        let now = std::time::Instant::now();
+                        let is_double = {
+                            let mut last = last_press.lock().unwrap();
+                            match *last {
+                                Some(prev) if now.duration_since(prev).as_millis() < 500 => {
+                                    *last = None; // 消耗双击
+                                    true
+                                }
+                                _ => {
+                                    *last = Some(now);
+                                    false
+                                }
+                            }
+                        };
+                        if is_double {
+                            log::info!("[shortcut] Escape pressed twice — agent stop requested");
+                            let _ = app_clone.emit("agent-stop-requested", ());
+                        }
+                    }
+                }) {
+                    log::error!("[shortcut] failed to register agent-stop handler: {:?}", e);
+                } else {
+                    log::info!("[shortcut] agent-stop shortcut registered: {stop_key_for_log:?}");
+                }
+            }
+            Err(e) => log::warn!("[shortcut] failed to parse agent-stop shortcut key {stop_key_str:?}: {e}"),
+        }
+
         self.is_registered.store(true, Ordering::SeqCst);
         log::info!("[shortcut] global shortcuts registered");
     }
@@ -139,6 +182,10 @@ impl GlobalShortcutManager {
                 let rec_key_str = self.record_key.lock().unwrap().clone();
                 if let Ok(rec_shortcut) = Shortcut::from_str(&rec_key_str) {
                     let _ = app.global_shortcut().unregister(rec_shortcut);
+                }
+                let stop_key_str = self.stop_key.lock().unwrap().clone();
+                if let Ok(stop_shortcut) = Shortcut::from_str(&stop_key_str) {
+                    let _ = app.global_shortcut().unregister(stop_shortcut);
                 }
             }
         }

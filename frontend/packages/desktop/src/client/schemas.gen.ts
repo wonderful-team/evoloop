@@ -584,6 +584,37 @@ export const Body_learning_upload_screenshotSchema = {
     title: 'Body_learning-upload_screenshot'
 } as const;
 
+export const BusinessPollPromptSchema = {
+    properties: {
+        id: {
+            type: 'string',
+            title: 'Id'
+        },
+        prompt: {
+            type: 'string',
+            title: 'Prompt'
+        },
+        next_run_at: {
+            type: 'string',
+            title: 'Next Run At'
+        },
+        interval_minutes: {
+            type: 'integer',
+            title: 'Interval Minutes'
+        },
+        enabled: {
+            type: 'boolean',
+            title: 'Enabled',
+            default: true
+        }
+    },
+    additionalProperties: true,
+    type: 'object',
+    required: ['id', 'prompt', 'next_run_at', 'interval_minutes'],
+    title: 'BusinessPollPrompt',
+    description: '业务巡检任务（一条独立的 Agent 会话）。'
+} as const;
+
 export const CacheInvalidateResponseSchema = {
     properties: {
         code: {
@@ -983,6 +1014,28 @@ export const ConceptCreateSchema = {
                 }
             ],
             title: 'Source Thread Id'
+        },
+        memory_kind: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Memory Kind'
+        },
+        created_by_member_id: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Created By Member Id'
         }
     },
     additionalProperties: true,
@@ -1727,45 +1780,6 @@ export const DeviceResolutionResponseSchema = {
     title: 'DeviceResolutionResponse'
 } as const;
 
-export const DictationRequestSchema = {
-    properties: {
-        raw_text: {
-            type: 'string',
-            title: 'Raw Text'
-        },
-        target_locale: {
-            type: 'string',
-            title: 'Target Locale',
-            default: 'zh'
-        }
-    },
-    type: 'object',
-    required: ['raw_text'],
-    title: 'DictationRequest'
-} as const;
-
-export const DictationResponseSchema = {
-    properties: {
-        polished_text: {
-            type: 'string',
-            title: 'Polished Text'
-        },
-        raw_text: {
-            type: 'string',
-            title: 'Raw Text'
-        },
-        changes: {
-            items: {},
-            type: 'array',
-            title: 'Changes',
-            default: []
-        }
-    },
-    type: 'object',
-    required: ['polished_text', 'raw_text'],
-    title: 'DictationResponse'
-} as const;
-
 export const DiscoverRequestSchema = {
     properties: {
         record_secrets: {
@@ -2023,6 +2037,78 @@ export const DownloadRequestSchema = {
     type: 'object',
     required: ['model_id'],
     title: 'DownloadRequest'
+} as const;
+
+export const DutyConfigSchema = {
+    properties: {
+        enabled: {
+            anyOf: [
+                {
+                    type: 'boolean'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Enabled'
+        },
+        channels: {
+            anyOf: [
+                {
+                    additionalProperties: true,
+                    type: 'object'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Channels'
+        },
+        interval: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Interval'
+        },
+        business_poll_interval: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Business Poll Interval'
+        },
+        business_poll_prompts: {
+            anyOf: [
+                {
+                    items: {
+                        '$ref': '#/components/schemas/BusinessPollPrompt'
+                    },
+                    type: 'array'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Business Poll Prompts'
+        }
+    },
+    additionalProperties: true,
+    type: 'object',
+    title: 'DutyConfig',
+    description: `值守配置（项目 project.json 的 customer_service_duty 字段）。
+
+全字段可选 = 部分更新语义（PUT）：未传字段保持原值。
+interval/business_poll_interval 用 StrictInt（禁止 "60"→60 之类 coercion），
+非法类型在 422 层被拒，与运行时校验语义一致（v6.3 起）。`
 } as const;
 
 export const EmbeddingApplyResponseSchema = {
@@ -3033,74 +3119,6 @@ export const HealthCheckResponseSchema = {
     title: 'HealthCheckResponse'
 } as const;
 
-export const HumanInputRequestOutSchema = {
-    properties: {
-        id: {
-            type: 'string',
-            title: 'Id'
-        },
-        thread_id: {
-            type: 'string',
-            title: 'Thread Id'
-        },
-        request_type: {
-            type: 'string',
-            title: 'Request Type'
-        },
-        prompt: {
-            type: 'string',
-            title: 'Prompt'
-        },
-        options: {
-            anyOf: [
-                {
-                    items: {
-                        type: 'string'
-                    },
-                    type: 'array'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Options'
-        },
-        context: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Context'
-        },
-        default_value: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Default Value'
-        },
-        created_at: {
-            type: 'string',
-            title: 'Created At'
-        },
-        status: {
-            type: 'string',
-            title: 'Status'
-        }
-    },
-    type: 'object',
-    required: ['id', 'thread_id', 'request_type', 'prompt', 'created_at', 'status'],
-    title: 'HumanInputRequestOut'
-} as const;
-
 export const HybridResultItemSchema = {
     properties: {
         type: {
@@ -3788,6 +3806,17 @@ export const MacroCreateRequestSchema = {
             type: 'string',
             title: 'Macro Script',
             default: 'steps: []'
+        },
+        domain: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Domain'
         }
     },
     type: 'object',
@@ -3871,6 +3900,17 @@ export const MacroDTOSchema = {
             ],
             title: 'Namespace'
         },
+        domain: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Domain'
+        },
         fallback_skill_id: {
             anyOf: [
                 {
@@ -3895,7 +3935,7 @@ export const MacroDTOSchema = {
         }
     },
     type: 'object',
-    required: ['id', 'app_map_id', 'entity', 'name', 'description', 'trigger_patterns', 'parameters', 'risk_tier', 'requires_confirmation', 'allow_self_healing', 'status', 'is_active', 'namespace', 'fallback_skill_id', 'project_id'],
+    required: ['id', 'app_map_id', 'entity', 'name', 'description', 'trigger_patterns', 'parameters', 'risk_tier', 'requires_confirmation', 'allow_self_healing', 'status', 'is_active', 'namespace', 'domain', 'fallback_skill_id', 'project_id'],
     title: 'MacroDTO'
 } as const;
 
@@ -3976,6 +4016,17 @@ export const MacroDetailDTOSchema = {
             ],
             title: 'Namespace'
         },
+        domain: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Domain'
+        },
         fallback_skill_id: {
             anyOf: [
                 {
@@ -4026,7 +4077,7 @@ export const MacroDetailDTOSchema = {
         }
     },
     type: 'object',
-    required: ['id', 'app_map_id', 'entity', 'name', 'description', 'trigger_patterns', 'parameters', 'risk_tier', 'requires_confirmation', 'allow_self_healing', 'status', 'is_active', 'namespace', 'fallback_skill_id', 'project_id', 'macro_script', 'app_map_version', 'source_thread_id'],
+    required: ['id', 'app_map_id', 'entity', 'name', 'description', 'trigger_patterns', 'parameters', 'risk_tier', 'requires_confirmation', 'allow_self_healing', 'status', 'is_active', 'namespace', 'domain', 'fallback_skill_id', 'project_id', 'macro_script', 'app_map_version', 'source_thread_id'],
     title: 'MacroDetailDTO'
 } as const;
 
@@ -4052,6 +4103,28 @@ export const MacroExecuteRequestSchema = {
     },
     type: 'object',
     title: 'MacroExecuteRequest'
+} as const;
+
+export const MacroMaintenanceRequestSchema = {
+    properties: {
+        apps: {
+            anyOf: [
+                {
+                    items: {
+                        type: 'string'
+                    },
+                    type: 'array'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Apps'
+        }
+    },
+    type: 'object',
+    title: 'MacroMaintenanceRequest',
+    description: 'Manual trigger for the native (desktop UI) macro survey pass.'
 } as const;
 
 export const MacroUpdateRequestSchema = {
@@ -4123,6 +4196,17 @@ export const MacroUpdateRequestSchema = {
                 }
             ],
             title: 'Namespace'
+        },
+        domain: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Domain'
         },
         fallback_skill_id: {
             anyOf: [
@@ -5011,6 +5095,45 @@ export const OpenFileRequestSchema = {
     title: 'OpenFileRequest'
 } as const;
 
+export const OperationMapTrainRequestSchema = {
+    properties: {
+        project_id: {
+            type: 'integer',
+            title: 'Project Id'
+        },
+        entity: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Entity'
+        },
+        base_url: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Base Url'
+        },
+        skip_static_seed: {
+            type: 'boolean',
+            title: 'Skip Static Seed',
+            default: false
+        }
+    },
+    type: 'object',
+    required: ['project_id'],
+    title: 'OperationMapTrainRequest'
+} as const;
+
 export const OperationResponseSchema = {
     properties: {
         success: {
@@ -5397,6 +5520,18 @@ export const ProfileContentResponseSchema = {
                 }
             ],
             title: 'Name'
+        },
+        framework_profile: {
+            anyOf: [
+                {
+                    additionalProperties: true,
+                    type: 'object'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Framework Profile'
         }
     },
     additionalProperties: true,
@@ -5429,6 +5564,40 @@ export const ProjectDeleteResponseSchema = {
     type: 'object',
     required: ['status', 'id'],
     title: 'ProjectDeleteResponse'
+} as const;
+
+export const ProjectSettingsSchema = {
+    properties: {
+        name: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Name'
+        },
+        url: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Url'
+        }
+    },
+    additionalProperties: true,
+    type: 'object',
+    title: 'ProjectSettings',
+    description: `Structured project settings stored in .evoloop/project.json.
+
+值守配置（customer_service_duty）已拆分到独立端点 PUT /projects/{id}/duty
+（v7），settings 不再承载。`
 } as const;
 
 export const ProjectStatusActivitySchema = {
@@ -5877,17 +6046,6 @@ export const ResourceResponseSchema = {
     type: 'object',
     required: ['id', 'project_id', 'type', 'name', 'content', 'created_at'],
     title: 'ResourceResponse'
-} as const;
-
-export const RespondRequestSchema = {
-    properties: {
-        response: {
-            title: 'Response'
-        }
-    },
-    type: 'object',
-    required: ['response'],
-    title: 'RespondRequest'
 } as const;
 
 export const ResumeRequestSchema = {
@@ -7009,7 +7167,7 @@ export const TTSRequestSchema = {
         voice: {
             type: 'string',
             title: 'Voice',
-            default: '中文女'
+            default: ''
         }
     },
     type: 'object',

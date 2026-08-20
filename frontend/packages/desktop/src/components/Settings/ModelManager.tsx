@@ -44,9 +44,11 @@ export function ModelManager() {
 
   if (models.length === 0) return null
 
-  // Only show models that need manual download (ASR has its own section)
-  const ttsModels = models.filter((m) => m.id !== "qwen3_asr")
-  if (ttsModels.length === 0) return null
+  // Only show models that need manual download (ASR and embedding have their own sections)
+  const displayModels = models.filter(
+    (m) => m.id !== "qwen3_asr" && m.id !== "bge-base-zh-v1.5",
+  )
+  if (displayModels.length === 0) return null
 
   return (
     <SettingsCard
@@ -54,7 +56,7 @@ export function ModelManager() {
       title={t("settings.voice.models") || "语音模型"}
     >
       <div className="space-y-3">
-        {ttsModels.map((model) => (
+        {displayModels.map((model) => (
           <ModelItem
             key={model.id}
             model={model}
@@ -66,7 +68,7 @@ export function ModelManager() {
   )
 }
 
-function ModelItem({
+export function ModelItem({
   model,
   onDownload,
 }: {

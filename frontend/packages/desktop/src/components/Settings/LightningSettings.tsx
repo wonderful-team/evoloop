@@ -220,9 +220,7 @@ export function LightningSettings() {
                 className="h-10 transition-colors focus:border-primary"
               />
               <p className="text-xs text-muted-foreground">
-                {t("settings.lightning.gguf_hint", {
-                  cmd: "uv run python scripts/download_models.py qwen3-4b-instruct-2507",
-                })}
+                {t("settings.lightning.gguf_hint")}
               </p>
             </div>
             <div className="space-y-3">

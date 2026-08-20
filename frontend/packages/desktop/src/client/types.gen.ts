@@ -152,6 +152,18 @@ export type Body_learning_upload_screenshot = {
     file: (Blob | File);
 };
 
+/**
+ * 业务巡检任务（一条独立的 Agent 会话）。
+ */
+export type BusinessPollPrompt = {
+    id: string;
+    prompt: string;
+    next_run_at: string;
+    interval_minutes: number;
+    enabled?: boolean;
+    [key: string]: unknown | string | number | boolean;
+};
+
 export type CacheInvalidateResponse = {
     code?: number;
     message: string;
@@ -247,6 +259,8 @@ export type ConceptCreate = {
     related_files?: (Array<(string)> | null);
     source_message_id?: (string | null);
     source_thread_id?: (string | null);
+    memory_kind?: (string | null);
+    created_by_member_id?: (number | null);
     [key: string]: unknown | string;
 };
 
@@ -417,17 +431,6 @@ export type DeviceResolutionResponse = {
     [key: string]: unknown | boolean | string | number;
 };
 
-export type DictationRequest = {
-    raw_text: string;
-    target_locale?: string;
-};
-
-export type DictationResponse = {
-    polished_text: string;
-    raw_text: string;
-    changes?: Array<unknown>;
-};
-
 export type DiscoveredModelResponse = {
     id: string;
     name: string;
@@ -488,6 +491,24 @@ export type DownloadFileRequest = {
 
 export type DownloadRequest = {
     model_id: string;
+};
+
+/**
+ * 值守配置（项目 project.json 的 customer_service_duty 字段）。
+ *
+ * 全字段可选 = 部分更新语义（PUT）：未传字段保持原值。
+ * interval/business_poll_interval 用 StrictInt（禁止 "60"→60 之类 coercion），
+ * 非法类型在 422 层被拒，与运行时校验语义一致（v6.3 起）。
+ */
+export type DutyConfig = {
+    enabled?: (boolean | null);
+    channels?: ({
+    [key: string]: unknown;
+} | null);
+    interval?: (number | null);
+    business_poll_interval?: (number | null);
+    business_poll_prompts?: (Array<BusinessPollPrompt> | null);
+    [key: string]: unknown;
 };
 
 export type EmbeddingApplyResponse = {
@@ -758,18 +779,6 @@ export type HTTPValidationError = {
     detail?: Array<ValidationError>;
 };
 
-export type HumanInputRequestOut = {
-    id: string;
-    thread_id: string;
-    request_type: string;
-    prompt: string;
-    options?: (Array<(string)> | null);
-    context?: (string | null);
-    default_value?: (string | null);
-    created_at: string;
-    status: string;
-};
-
 /**
  * Single item in hybrid search results.
  */
@@ -978,6 +987,7 @@ export type MacroCreateRequest = {
     description?: string;
     project_id?: (number | null);
     macro_script?: string;
+    domain?: (string | null);
 };
 
 export type MacroDetailDTO = {
@@ -994,6 +1004,7 @@ export type MacroDetailDTO = {
     status: string;
     is_active: boolean;
     namespace: (string | null);
+    domain: (string | null);
     fallback_skill_id: (number | null);
     project_id: (number | null);
     macro_script: string;
@@ -1015,6 +1026,7 @@ export type MacroDTO = {
     status: string;
     is_active: boolean;
     namespace: (string | null);
+    domain: (string | null);
     fallback_skill_id: (number | null);
     project_id: (number | null);
 };
@@ -1026,6 +1038,13 @@ export type MacroExecuteRequest = {
     };
 };
 
+/**
+ * Manual trigger for the native (desktop UI) macro survey pass.
+ */
+export type MacroMaintenanceRequest = {
+    apps?: (Array<(string)> | null);
+};
+
 export type MacroUpdateRequest = {
     name?: (string | null);
     description?: (string | null);
@@ -1033,6 +1052,7 @@ export type MacroUpdateRequest = {
     parameters?: (Array<unknown> | null);
     macro_script?: (string | null);
     namespace?: (string | null);
+    domain?: (string | null);
     fallback_skill_id?: (number | null);
     allow_self_healing?: (boolean | null);
     risk_tier?: (string | null);
@@ -1254,6 +1274,13 @@ export type OpenFileRequest = {
     [key: string]: unknown | string;
 };
 
+export type OperationMapTrainRequest = {
+    project_id: number;
+    entity?: (string | null);
+    base_url?: (string | null);
+    skip_static_seed?: boolean;
+};
+
 /**
  * Simple operation status response.
  */
@@ -1358,6 +1385,9 @@ export type ProfileContentResponse = {
     exists?: boolean;
     url?: (string | null);
     name?: (string | null);
+    framework_profile?: ({
+    [key: string]: unknown;
+} | null);
     [key: string]: unknown | boolean | string;
 };
 
@@ -1367,6 +1397,18 @@ export type ProjectDeleteResponse = {
     status: string;
     id: number;
     [key: string]: unknown | boolean | string | number;
+};
+
+/**
+ * Structured project settings stored in .evoloop/project.json.
+ *
+ * 值守配置（customer_service_duty）已拆分到独立端点 PUT /projects/{id}/duty
+ * （v7），settings 不再承载。
+ */
+export type ProjectSettings = {
+    name?: (string | null);
+    url?: (string | null);
+    [key: string]: unknown;
 };
 
 export type ProjectStatusActivity = {
@@ -1480,10 +1522,6 @@ export type ResourceResponse = {
     content: string;
     created_at: string;
     [key: string]: unknown | boolean | string | number;
-};
-
-export type RespondRequest = {
-    response: unknown;
 };
 
 export type ResumeRequest = {
@@ -2292,6 +2330,13 @@ export type AgentStopChatData = {
 
 export type AgentStopChatResponse = (StopChatResponse);
 
+export type AgentStopAllAgentData = {
+    projectId?: (number | null);
+    threadId?: (string | null);
+};
+
+export type AgentStopAllAgentResponse = (StopChatResponse);
+
 export type AgentRetryChatData = {
     guestId?: (string | null);
     requestBody: ChatRequest;
@@ -2336,6 +2381,20 @@ export type AtlasListAppMapsData = {
 };
 
 export type AtlasListAppMapsResponse = (unknown);
+
+export type AtlasTrainOperationMapsData = {
+    requestBody: OperationMapTrainRequest;
+};
+
+export type AtlasTrainOperationMapsResponse = (TaskAcceptedResponse);
+
+export type AtlasOperationMapStatusData = {
+    projectId: number;
+};
+
+export type AtlasOperationMapStatusResponse = ({
+    [key: string]: unknown;
+});
 
 export type AuthGetCaptchaConfigResponse = (EvoCloudProxyResponse);
 
@@ -2431,6 +2490,7 @@ export type ConversationsGetThreadActivityResponse = (unknown);
 
 export type ConversationsGetConversationMessagesData = {
     beforeId?: (string | null);
+    includeToolCalls?: boolean;
     limit?: number;
     threadId: string;
 };
@@ -2487,7 +2547,7 @@ export type DevicesSendCommandData = {
 export type DevicesSendCommandResponse = (unknown);
 
 export type DevicesGetRecentLogsData = {
-    deviceKey: number;
+    deviceKey: string;
     limit?: number;
     projectId?: (number | null);
 };
@@ -2644,37 +2704,6 @@ export type ProjectsGetGenerationContentEndpointResponse = (GenerationContentRes
 
 export type LearningGetActionRegistryResponse = (Array<ActionDef>);
 
-export type LearningListPendingRequestsData = {
-    threadId?: (string | null);
-};
-
-export type LearningListPendingRequestsResponse = (Array<HumanInputRequestOut>);
-
-export type LearningGetRequestData = {
-    requestId: string;
-};
-
-export type LearningGetRequestResponse = (HumanInputRequestOut);
-
-export type LearningRespondToRequestData = {
-    requestBody: RespondRequest;
-    requestId: string;
-};
-
-export type LearningRespondToRequestResponse = (BaseAPIResponse);
-
-export type LearningCancelPendingRequestData = {
-    requestId: string;
-};
-
-export type LearningCancelPendingRequestResponse = (BaseAPIResponse);
-
-export type LearningCleanupRequestsData = {
-    maxAgeHours?: number;
-};
-
-export type LearningCleanupRequestsResponse = (BaseAPIResponse);
-
 export type LearningSynthesizeSkillData = {
     requestBody: SynthesizeRequest;
 };
@@ -2714,12 +2743,12 @@ export type LearningUpdateSkillData = {
 
 export type LearningUpdateSkillResponse = (UpdateSkillResponse);
 
-export type LearningExecuteSkillData = {
+export type LearningRunSkillData = {
     requestBody: ExecuteSkillRequest;
     skillId: number;
 };
 
-export type LearningExecuteSkillResponse = (ExecuteSkillResponse);
+export type LearningRunSkillResponse = (ExecuteSkillResponse);
 
 export type LearningValidateSkillData = {
     skillId: number;
@@ -2917,6 +2946,12 @@ export type MacrosExecuteMacroData = {
 };
 
 export type MacrosExecuteMacroResponse = (unknown);
+
+export type MacrosTriggerMacroMaintenanceData = {
+    requestBody?: (MacroMaintenanceRequest | null);
+};
+
+export type MacrosTriggerMacroMaintenanceResponse = (unknown);
 
 export type McpListMcpServersResponse = (Array<unknown>);
 
@@ -3144,6 +3179,19 @@ export type ProjectsUpdateProfileData = {
 
 export type ProjectsUpdateProfileResponse = (ProfileContentResponse);
 
+export type ProjectsGetProjectSettingsData = {
+    projectId: number;
+};
+
+export type ProjectsGetProjectSettingsResponse = (ProjectSettings);
+
+export type ProjectsUpdateProjectSettingsData = {
+    projectId: number;
+    requestBody: ProjectSettings;
+};
+
+export type ProjectsUpdateProjectSettingsResponse = (ProjectSettings);
+
 export type ProjectsGetProjectsData = {
     filterType?: (string | null);
     page?: number;
@@ -3157,6 +3205,25 @@ export type ProjectsCreateProjectData = {
 };
 
 export type ProjectsCreateProjectResponse = (unknown);
+
+export type ProjectsGetProjectDutyData = {
+    projectId: number;
+};
+
+export type ProjectsGetProjectDutyResponse = (DutyConfig);
+
+export type ProjectsUpdateProjectDutyData = {
+    projectId: number;
+    requestBody: DutyConfig;
+};
+
+export type ProjectsUpdateProjectDutyResponse = (DutyConfig);
+
+export type ProjectsGetProjectDutyStatusData = {
+    projectId: number;
+};
+
+export type ProjectsGetProjectDutyStatusResponse = (unknown);
 
 export type ProjectsGetCurrentProjectResponse = (unknown);
 
@@ -3218,8 +3285,6 @@ export type RouteRouteInitData = {
 };
 
 export type RouteRouteInitResponse = (unknown);
-
-export type RouteRouteIndexResponse = (unknown);
 
 export type StreamStreamChatData = {
     guestId?: (string | null);
@@ -3381,6 +3446,24 @@ export type SystemDiscoverModelsResponse = (ModelDiscoveryResponse);
 
 export type SystemHealthCheckResponse = (HealthCheckResponse);
 
+export type SystemGetCustomerServiceDutyResponse = ({
+    [key: string]: unknown;
+});
+
+export type SystemUpdateCustomerServiceDutyData = {
+    requestBody: {
+        [key: string]: unknown;
+    };
+};
+
+export type SystemUpdateCustomerServiceDutyResponse = ({
+    [key: string]: unknown;
+});
+
+export type SystemValidateCustomerServiceDutyResponse = ({
+    [key: string]: unknown;
+});
+
 export type SystemGetEmbeddingTierStatusResponse = (EmbeddingTierStatusResponse);
 
 export type SystemApplyEmbeddingTierConfigData = {
@@ -3539,6 +3622,24 @@ export type VaultAddCredentialResponse = ({
     [key: string]: unknown;
 });
 
+export type VaultListCredentialFieldsData = {
+    identifier: string;
+    projectId?: (number | null);
+};
+
+export type VaultListCredentialFieldsResponse = ({
+    [key: string]: unknown;
+});
+
+export type VaultGetCredentialPayloadData = {
+    identifier: string;
+    projectId?: (number | null);
+};
+
+export type VaultGetCredentialPayloadResponse = ({
+    [key: string]: unknown;
+});
+
 export type VaultDeleteCredentialData = {
     identifier: string;
     projectId?: (number | null);
@@ -3547,12 +3648,6 @@ export type VaultDeleteCredentialData = {
 export type VaultDeleteCredentialResponse = ({
     [key: string]: unknown;
 });
-
-export type VoiceDictationPolishData = {
-    requestBody: DictationRequest;
-};
-
-export type VoiceDictationPolishResponse = (DictationResponse);
 
 export type VoiceGenerateTtsData = {
     requestBody: TTSRequest;

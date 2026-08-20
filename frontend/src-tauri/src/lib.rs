@@ -62,6 +62,7 @@ pub struct AppServiceState {
     pub quit_item: Arc<Mutex<Option<MenuItem<tauri::Wry>>>>,
     pub voice_dictation_item: Arc<Mutex<Option<MenuItem<tauri::Wry>>>>,
     pub voice_dialogue_item: Arc<Mutex<Option<MenuItem<tauri::Wry>>>>,
+    pub duty_item: Arc<Mutex<Option<MenuItem<tauri::Wry>>>>,
     pub global_observer: Arc<GlobalObserver>,
     // Screen recording (Two-Track Architecture)
     pub recording_process: Arc<Mutex<Option<std::process::Child>>>,
@@ -906,6 +907,48 @@ async fn set_voice_shortcut_duration(duration_ms: u64) -> Result<(), String> {
     Ok(())
 }
 
+// ── Agent stop shortcut (Esc x2) commands ─────────────────────────────
+
+#[tauri::command]
+#[cfg(desktop)]
+async fn start_agent_stop_listener(app: tauri::AppHandle) -> Result<(), String> {
+    GLOBAL_SHORTCUT_MANAGER.set_app_handle(app);
+    GLOBAL_SHORTCUT_MANAGER.start_listening();
+    Ok(())
+}
+
+#[tauri::command]
+#[cfg(desktop)]
+async fn stop_agent_stop_listener() -> Result<(), String> {
+    GLOBAL_SHORTCUT_MANAGER.stop_listening();
+    Ok(())
+}
+
+#[tauri::command]
+#[cfg(desktop)]
+async fn set_agent_stop_key(key: String) -> Result<(), String> {
+    GLOBAL_SHORTCUT_MANAGER.set_stop_key(key);
+    Ok(())
+}
+
+#[tauri::command]
+#[cfg(mobile)]
+async fn start_agent_stop_listener() -> Result<(), String> {
+    Ok(())
+}
+
+#[tauri::command]
+#[cfg(mobile)]
+async fn stop_agent_stop_listener() -> Result<(), String> {
+    Ok(())
+}
+
+#[tauri::command]
+#[cfg(mobile)]
+async fn set_agent_stop_key(_key: String) -> Result<(), String> {
+    Ok(())
+}
+
 #[tauri::command]
 #[cfg(mobile)]
 async fn start_voice_shortcut_listener() -> Result<(), String> {
@@ -1088,6 +1131,7 @@ pub fn run() {
             let record_i = MenuItem::with_id(_app, "record", "技能录制 (Ctrl+Shift+R)", true, None::<&str>)?;
             let voice_dictation_i = MenuItem::with_id(_app, "voice_dictation", "语音听写", true, Some("F12"))?;
             let voice_dialogue_i = MenuItem::with_id(_app, "voice_dialogue", "语音对话", true, Some("F12"))?;
+            let duty_i = MenuItem::with_id(_app, "duty_toggle", "客服值守", true, None::<&str>)?;
 
             let service_state = AppServiceState {
                 children: Arc::new(Mutex::new(Vec::new())),
@@ -1097,6 +1141,7 @@ pub fn run() {
                 quit_item: Arc::new(Mutex::new(Some(quit_i.clone()))),
                 voice_dictation_item: Arc::new(Mutex::new(Some(voice_dictation_i.clone()))),
                 voice_dialogue_item: Arc::new(Mutex::new(Some(voice_dialogue_i.clone()))),
+                duty_item: Arc::new(Mutex::new(Some(duty_i.clone()))),
                 global_observer: Arc::new(GlobalObserver::new()),
                 // Screen recording (Two-Track Architecture)
                 recording_process: Arc::new(Mutex::new(None)),
@@ -1126,7 +1171,7 @@ pub fn run() {
             _app.manage(service_state);
 
             // Build system tray
-            let tray = tray::setup_tray(_app, &show_i, &record_i, &voice_dictation_i, &voice_dialogue_i, &quit_i)?;
+            let tray = tray::setup_tray(_app, &show_i, &record_i, &voice_dictation_i, &voice_dialogue_i, &duty_i, &quit_i)?;
 
             let state = _app.state::<AppServiceState>();
             *state.tray.lock().unwrap() = Some(tray);
@@ -1182,6 +1227,7 @@ pub fn run() {
             commands::permissions::open_accessibility_settings,
             tray::sync_tray_recording_state,
             tray::sync_tray_translations,
+            tray::sync_tray_duty_state,
             tray::sync_tray_event_count,
             tray::sync_tray_countdown,
             tray::set_recording_start_time,
@@ -1217,6 +1263,10 @@ pub fn run() {
             stop_voice_shortcut_listener,
             set_voice_shortcut_key,
             set_voice_shortcut_duration,
+            // Agent stop shortcut (Esc x2)
+            start_agent_stop_listener,
+            stop_agent_stop_listener,
+            set_agent_stop_key,
             // Version commands
             version::get_version_info,
             version::get_version,

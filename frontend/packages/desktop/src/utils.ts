@@ -6,11 +6,26 @@ function extractErrorMessage(err: ApiError): string {
     return err.message
   }
 
-  const errDetail = (err.body as any)?.detail
+  const body = err.body as any
+  // New uniform error envelope: prefer top-level message / code.
+  if (typeof body?.message === "string" && body.message) {
+    return body.message
+  }
+  if (typeof body?.code === "string" && body.code) {
+    return body.code
+  }
+
+  const errDetail = body?.detail
   if (Array.isArray(errDetail) && errDetail.length > 0) {
     return errDetail[0].msg
   }
-  return errDetail || "Something went wrong."
+  if (typeof errDetail === "string") {
+    return errDetail
+  }
+  if (errDetail?.message) {
+    return String(errDetail.message)
+  }
+  return "Something went wrong."
 }
 
 /**

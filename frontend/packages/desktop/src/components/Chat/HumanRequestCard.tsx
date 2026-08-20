@@ -43,6 +43,7 @@ export function HumanRequestCard({ request }: HumanRequestCardProps) {
   const { resumeAgent, cancelHumanRequest } = useAgentStore()
   const setProject = useProjectStore((s) => s.setProject)
   const [input, setInput] = useState("")
+  const [customValue, setCustomValue] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Project switch state
@@ -125,30 +126,55 @@ export function HumanRequestCard({ request }: HumanRequestCardProps) {
 
             {/* Choice Input */}
             {request.type === "choice" && request.options && (
-              <RadioGroup
-                value={input}
-                onValueChange={setInput}
-                className="gap-1.5"
-              >
-                {request.options.map((opt, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center space-x-2.5 p-1.5 px-2 rounded-md border border-transparent hover:border-primary/20 hover:bg-primary/5 transition-all cursor-pointer group"
-                  >
+              <div className="space-y-2">
+                <RadioGroup
+                  value={input}
+                  onValueChange={setInput}
+                  className="gap-1.5"
+                >
+                  {request.options.map((opt, i) => (
+                    <div
+                      key={i}
+                      className="flex items-center space-x-2.5 p-1.5 px-2 rounded-md border border-transparent hover:border-primary/20 hover:bg-primary/5 transition-all cursor-pointer group"
+                    >
+                      <RadioGroupItem
+                        value={opt}
+                        id={`opt-${i}`}
+                        className="border-primary/20 shrink-0 mt-0.5"
+                      />
+                      <Label
+                        htmlFor={`opt-${i}`}
+                        className="text-[13px] font-medium cursor-pointer flex-1 leading-relaxed break-words"
+                      >
+                        {opt}
+                      </Label>
+                    </div>
+                  ))}
+                  {/* 自定义输入选项（每次都带） */}
+                  <div className="flex items-center space-x-2.5 p-1.5 px-2 rounded-md border border-transparent hover:border-primary/20 hover:bg-primary/5 transition-all cursor-pointer group">
                     <RadioGroupItem
-                      value={opt}
-                      id={`opt-${i}`}
+                      value="__custom__"
+                      id="opt-custom"
                       className="border-primary/20 shrink-0 mt-0.5"
                     />
                     <Label
-                      htmlFor={`opt-${i}`}
+                      htmlFor="opt-custom"
                       className="text-[13px] font-medium cursor-pointer flex-1 leading-relaxed break-words"
                     >
-                      {opt}
+                      {t("common.customInput")}
                     </Label>
                   </div>
-                ))}
-              </RadioGroup>
+                </RadioGroup>
+                {/* 选中自定义输入时显示输入框 */}
+                {input === "__custom__" && (
+                  <Textarea
+                    value={customValue}
+                    onChange={(e) => setCustomValue(e.target.value)}
+                    placeholder={t("common.customInputPlaceholder")}
+                    className="min-h-[60px] bg-muted/20 border-none focus-visible:ring-1 focus-visible:ring-primary/20 resize-none text-sm"
+                  />
+                )}
+              </div>
             )}
 
             {/* Project Switch Input */}
@@ -252,8 +278,17 @@ export function HumanRequestCard({ request }: HumanRequestCardProps) {
                     request.type === "choice" ||
                     request.type === "file_select") && (
                     <Button
-                      onClick={() => handleResponse(input)}
-                      disabled={isSubmitting || !input.trim()}
+                      onClick={() =>
+                        handleResponse(
+                          request.type === "choice" && input === "__custom__"
+                            ? customValue
+                            : input,
+                        )
+                      }
+                      disabled={isSubmitting ||
+                        (request.type === "choice" && input === "__custom__"
+                          ? !customValue.trim()
+                          : !input.trim())}
                       size="sm"
                       className="h-8 px-5 rounded-full font-bold text-xs"
                     >

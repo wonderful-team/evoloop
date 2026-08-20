@@ -21,10 +21,9 @@ import {
   Power,
   Radio,
   Sparkles,
-  Volume2,
   Zap,
 } from "lucide-react"
-import { useCallback, useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { useModelManager } from "@/hooks/useModelManager"
@@ -48,9 +47,6 @@ export function VoiceControlSettings() {
     shortcutKey: sk,
     longPressThreshold,
     shortcutEnabled: se,
-    updateShortcutKey,
-    updateLongPressThreshold,
-    toggleShortcut,
   } = useTauriVoiceShortcutSettings()
 
   const [tempWakeWord, setTempWakeWord] = useState(wakeWord)
@@ -255,12 +251,7 @@ export function VoiceControlSettings() {
   const {
     setLongPressThreshold: setTauriLongPressThreshold,
     setShortcutKey: setTauriShortcutKey,
-  } = useTauriVoiceShortcut({
-    enabled: tempShortcutEnabled && isTauri,
-    onPress: () => {
-      toast.success(t("settings.voice.shortcutStarted"))
-    },
-  })
+  } = useTauriVoiceShortcut()
 
   // Sync temp shortcut settings with Tauri preview when changed
   useEffect(() => {
@@ -350,7 +341,7 @@ export function VoiceControlSettings() {
                           onClick={() => startDownload("qwen3_asr")}
                         >
                           <Download className="h-3.5 w-3.5 mr-1" />
-                          {t("settings.voice.modelDownloadBtn")} (954MB)
+                          {t("settings.voice.modelDownloadBtn")} ({qwen.size})
                         </Button>
                       )
                     })()}

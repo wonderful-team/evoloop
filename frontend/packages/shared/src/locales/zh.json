@@ -68,6 +68,8 @@
     "stop": "停止",
     "submit": "提交",
     "success": "成功",
+    "customInput": "自定义输入",
+    "customInputPlaceholder": "输入自定义内容...",
     "themes": {
       "appearance": "外观",
       "dark": "深色",

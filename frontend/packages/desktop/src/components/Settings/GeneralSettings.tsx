@@ -28,6 +28,7 @@ import { z } from "zod"
 import { type SystemConfig, SystemService } from "@/client"
 import { useTour } from "@/components/Common/SpotlightTour"
 import { isTauri } from "@/lib/tauri"
+import CustomerServiceDutySettings from "./CustomerServiceDutySettings"
 import { SettingsCard } from "./SettingsCard"
 import { useSettings } from "./SettingsContext"
 
@@ -308,6 +309,9 @@ export default function GeneralSettings() {
           </form>
         </Form>
       </SettingsCard>
+
+      {/* 客服值守（全局机制） */}
+      <CustomerServiceDutySettings />
 
       <SettingsCard
         icon={PlayCircle}

@@ -123,6 +123,18 @@ export function MacroLibraryView({ projectId }: MacroLibraryViewProps) {
     onError: (e: any) => toast.error(e.message),
   })
 
+  // TODO: 桌面应用扫描入口（隐藏）——需先实现"选择要扫描的应用"UI
+  // （后端 POST /api/v1/macros/maintenance 已支持 apps 参数指定 bundle:Name 列表），
+  // 完成后在工具栏展示"更新桌面宏"按钮。
+  const _maintenanceMutation = useMutation({
+    mutationFn: () => MacrosService.triggerMacroMaintenance({}),
+    onSuccess: () => {
+      toast.success(t("learning.macros.updateDesktopStarted"))
+      setTimeout(invalidate, 6000)
+    },
+    onError: (e: any) => toast.error(e.message),
+  })
+
   const _createMutation = useMutation({
     mutationFn: (projId: number | null) =>
       MacrosService.createMacro({

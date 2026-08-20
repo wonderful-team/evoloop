@@ -85,6 +85,28 @@ pub fn sync_tray_translations() {}
 
 #[tauri::command]
 #[cfg(desktop)]
+pub fn sync_tray_duty_state(
+    state: tauri::State<'_, AppServiceState>,
+    active: bool,
+    start_text: String,
+    stop_text: String,
+) {
+    let duty_item_opt = {
+        let lock = state.duty_item.lock().unwrap();
+        lock.clone()
+    };
+    if let Some(duty_item) = duty_item_opt {
+        let text = if active { stop_text } else { start_text };
+        let _ = duty_item.set_text(text);
+    }
+}
+
+#[tauri::command]
+#[cfg(mobile)]
+pub fn sync_tray_duty_state() {}
+
+#[tauri::command]
+#[cfg(desktop)]
 pub fn sync_tray_event_count(
     state: tauri::State<'_, AppServiceState>,
     count: usize,
@@ -181,6 +203,7 @@ pub fn setup_tray(
     record_i: &MenuItem<tauri::Wry>,
     voice_dictation_i: &MenuItem<tauri::Wry>,
     voice_dialogue_i: &MenuItem<tauri::Wry>,
+    duty_i: &MenuItem<tauri::Wry>,
     quit_i: &MenuItem<tauri::Wry>,
 ) -> tauri::Result<TrayIcon<tauri::Wry>> {
     use tauri::image::Image;
@@ -190,6 +213,8 @@ pub fn setup_tray(
         voice_dictation_i,
         voice_dialogue_i,
         record_i,
+        &PredefinedMenuItem::separator(app)?,
+        duty_i,
         &PredefinedMenuItem::separator(app)?,
         quit_i,
     ])?;
@@ -260,6 +285,9 @@ pub fn setup_tray(
             }
             "voice_dialogue" => {
                 let _ = app.emit("tray-voice-dialogue-toggle", ());
+            }
+            "duty_toggle" => {
+                let _ = app.emit("tray-duty-toggle", ());
             }
             _ => {}
         })

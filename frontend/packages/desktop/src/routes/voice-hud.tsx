@@ -162,7 +162,7 @@ function VoiceHUD() {
       bgGradient = "from-purple-950/90 to-zinc-950/95"
       borderGlow = "border-purple-500/30 shadow-[0_0_20px_rgba(168,85,247,0.2)]"
     } else if (state === "processing") {
-      label = t("voiceHud.thinking")
+      label = text || t("voiceHud.thinking")
       icon = <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
       bgGradient = "from-zinc-950/90 to-purple-950/90"
       borderGlow = "border-purple-500/20 shadow-[0_0_20px_rgba(168,85,247,0.15)]"

@@ -23,6 +23,8 @@ import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { SystemService } from "@/client"
+import { useModelManager } from "@/hooks/useModelManager"
+import { ModelItem } from "./ModelManager"
 import { SettingsCard } from "./SettingsCard"
 import { useSettings } from "./SettingsContext"
 
@@ -49,6 +51,14 @@ export function EmbeddingSettings() {
     msg: string
   } | null>(null)
   const [activeTier, setActiveTier] = useState<string | null>(null)
+  const {
+    models: optionalModels,
+    loading: optionalModelsLoading,
+    startDownload,
+  } = useModelManager()
+  const BGE_GGUF_DEFAULT_PATH =
+    "~/.evoloop/models/gguf/bge-base-zh-v1.5-q4_k_m.gguf"
+  const bgeModel = optionalModels.find((m) => m.id === "bge-base-zh-v1.5")
   const {
     setComponentDirty,
     registerSaveHandler,
@@ -409,6 +419,46 @@ export function EmbeddingSettings() {
               )}
               <span className="flex-1 leading-relaxed">{testResult.msg}</span>
             </div>
+          )}
+        </div>
+
+        {/* Optional local embedding model download */}
+        <div className="space-y-3 pt-6 border-t border-border/50">
+          <div className="space-y-1">
+            <h4 className="text-sm font-medium">
+              {t("settings.embedding.localModelTitle")}
+            </h4>
+            <p className="text-xs text-muted-foreground">
+              {t("settings.embedding.localModelDesc")}
+            </p>
+          </div>
+          {optionalModelsLoading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              {t("common.loading")}
+            </div>
+          ) : bgeModel ? (
+            <div className="space-y-3">
+              <ModelItem
+                model={bgeModel}
+                onDownload={() => startDownload("bge-base-zh-v1.5")}
+              />
+              {bgeModel.downloaded && isGguf && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => update("ggufModel", BGE_GGUF_DEFAULT_PATH)}
+                  disabled={form.ggufModel === BGE_GGUF_DEFAULT_PATH}
+                >
+                  {t("settings.embedding.useDownloadedModel")}
+                </Button>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              {t("settings.embedding.modelNotAvailable")}
+            </p>
           )}
         </div>
       </div>

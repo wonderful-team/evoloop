@@ -32,6 +32,23 @@ const saveLastSelectedProjectId = (id: number | null) => {
   }
 }
 
+// 把当前项目上报给后端（SharedState.project_id，后端 SSOT + 持久化）。
+// 仅在后端当前 project_id 为空（0）时用于初始化回填——此后后端成为权威，
+// 前端从后端读。失败不阻断（非致命）。
+const syncProjectToBackend = (project: Project | null) => {
+  if (!project || project.id == null || project.id === 0) return
+  import("@/client")
+    .then(({ ProjectsService }) => {
+      ProjectsService.switchProject({
+        requestBody: {
+          project_id: project.id!,
+          project_name: project.name || "",
+        },
+      }).catch(() => {})
+    })
+    .catch(() => {})
+}
+
 export interface TaskStats {
   total: number
   pending: number
@@ -202,6 +219,23 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
       set({ projects: list, isLoading: false })
 
+      // 真数据源：后端 SharedState.project_id（GET /projects/current）。
+      // 后端是 SSOT——前端以此为准决定当前项目，localStorage 仅作缓存。
+      // 若后端返回有效 project_id 且在本列表中，用它作为 currentProject。
+      let backendPid: number | null = null
+      try {
+        const curResp: any = await ProjectsService.getCurrentProject()
+        const curData =
+          curResp?.data || curResp || {}
+        const rawPid = curData.project_id ?? curData.projectId
+        const pid = Number(rawPid)
+        if (!Number.isNaN(pid) && pid > 0) backendPid = pid
+      } catch (e) {
+        console.error("获取后端当前项目失败（回退本地缓存）:", e)
+      }
+      const backendInList =
+        backendPid != null ? list.find((p) => p.id === backendPid) : null
+
       const localProjects = list.filter((p) => p.exists_locally !== false)
       const current = get().currentProject
       const isGlobal = get().isGlobalMode
@@ -216,22 +250,40 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
       if (isGlobal && current?.id === 0) {
         // Keep global mode
+      } else if (backendInList) {
+        // 后端真数据源优先
+        saveLastSelectedProjectId(backendInList.id)
+        set({ currentProject: backendInList, isGlobalMode: false })
       } else if (current && currentInList) {
         set({ currentProject: currentInList })
+        // 后端暂无权威 project_id（0）时，把当前项目回填给后端
+        if (backendPid == null || backendPid <= 0) {
+          syncProjectToBackend(currentInList)
+        }
       } else if (lastSelectedInList) {
         set({
           currentProject: lastSelectedInList,
           isGlobalMode: isGlobalProject(lastSelectedInList),
         })
+        // 后端暂无权威 project_id（0）时，把本地恢复的项目回填给后端
+        if (backendPid == null || backendPid <= 0) {
+          syncProjectToBackend(lastSelectedInList)
+        }
       } else if (current && !currentInList) {
         if (localProjects.length > 0) {
           const firstLocal = localProjects[0]
           saveLastSelectedProjectId(firstLocal.id)
           set({ currentProject: firstLocal, isGlobalMode: false })
+          if (backendPid == null || backendPid <= 0) {
+            syncProjectToBackend(firstLocal)
+          }
         } else if (list.length > 0) {
           const first = list[0]
           saveLastSelectedProjectId(first.id)
           set({ currentProject: first, isGlobalMode: false })
+          if (backendPid == null || backendPid <= 0) {
+            syncProjectToBackend(first)
+          }
         } else {
           saveLastSelectedProjectId(0)
           set({ currentProject: GLOBAL_PROJECT, isGlobalMode: true })
@@ -240,10 +292,16 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         const firstLocal = localProjects[0]
         saveLastSelectedProjectId(firstLocal.id)
         set({ currentProject: firstLocal, isGlobalMode: false })
+        if (backendPid == null || backendPid <= 0) {
+          syncProjectToBackend(firstLocal)
+        }
       } else if (list.length > 0) {
         const first = list[0]
         saveLastSelectedProjectId(first.id)
         set({ currentProject: first, isGlobalMode: false })
+        if (backendPid == null || backendPid <= 0) {
+          syncProjectToBackend(first)
+        }
       } else {
         saveLastSelectedProjectId(0)
         set({ currentProject: GLOBAL_PROJECT, isGlobalMode: true })

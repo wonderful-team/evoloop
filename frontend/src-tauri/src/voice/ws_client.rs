@@ -2,7 +2,7 @@ use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::{mpsc, oneshot, Mutex, RwLock};
 use tokio_tungstenite::tungstenite::Message;
 use log::{info, warn, error};
@@ -16,6 +16,14 @@ pub struct VoiceEnvelope {
     pub body: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timestamp: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub target: Option<serde_json::Value>,
     #[serde(skip)]
     pub raw_bytes: Option<Vec<u8>>,
 }
@@ -110,6 +118,10 @@ impl VoiceWsClient {
                                             msg_type: "voice.audio_frame".to_string(),
                                             body: None,
                                             message_id: None,
+                                            version: None,
+                                            timestamp: None,
+                                            source: None,
+                                            target: None,
                                             raw_bytes: Some(bin),
                                         };
                                         handler(envelope);
@@ -155,6 +167,10 @@ impl VoiceWsClient {
                                         "version": "2.0",
                                         "type": "ping",
                                         "message_id": uuid::Uuid::new_v4().to_string(),
+                                        "timestamp": SystemTime::now()
+                                            .duration_since(UNIX_EPOCH)
+                                            .map(|d| d.as_secs())
+                                            .unwrap_or(0),
                                         "body": {},
                                     });
                                     if let Ok(ping_text) = serde_json::to_string(&ping) {
@@ -199,10 +215,28 @@ impl VoiceWsClient {
     }
 
     pub async fn send(&self, msg_type: &str, body: serde_json::Value) -> Result<(), String> {
+        self.send_with_message_id(msg_type, body, None).await
+    }
+
+    pub async fn send_with_message_id(
+        &self,
+        msg_type: &str,
+        body: serde_json::Value,
+        message_id: Option<&str>,
+    ) -> Result<(), String> {
+        let mid = message_id
+            .map(str::to_string)
+            .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
         let envelope = serde_json::json!({
             "version": "2.0",
             "type": msg_type,
-            "message_id": uuid::Uuid::new_v4().to_string(),
+            "message_id": mid,
+            "timestamp": SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0),
+            "source": {"kind": "voice"},
+            "target": {"kind": "backend"},
             "body": body,
         });
         let text = serde_json::to_string(&envelope).map_err(|e| e.to_string())?;
@@ -235,30 +269,6 @@ impl VoiceWsClient {
         self.send("voice.barge_in", serde_json::json!({
             "thread_id": thread_id,
         })).await
-    }
-
-    pub async fn send_route(&self, thread_id: &str, text: &str, message_id: &str, project_id: Option<&str>) -> Result<(), String> {
-        let mut body = serde_json::json!({
-            "thread_id": thread_id,
-            "text": text,
-            "message_id": message_id,
-        });
-        if let Some(pid) = project_id {
-            body["project_id"] = serde_json::json!(pid);
-        }
-        self.send("voice.route", body).await
-    }
-
-    pub async fn send_dictation_finalize(&self, thread_id: &str, raw_text: &str, target_locale: &str, project_id: Option<&str>) -> Result<(), String> {
-        let mut body = serde_json::json!({
-            "thread_id": thread_id,
-            "raw_text": raw_text,
-            "target_locale": target_locale,
-        });
-        if let Some(pid) = project_id {
-            body["project_id"] = serde_json::json!(pid);
-        }
-        self.send("voice.dictation.finalize", body).await
     }
 
     pub async fn send_voice_start(&self, thread_id: &str, mode: &str) -> Result<(), String> {

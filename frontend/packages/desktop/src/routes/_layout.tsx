@@ -10,6 +10,8 @@ import { AppTitleBar } from "@/components/Common/AppTitleBar"
 import { SpotlightTourProvider, useTour } from "@/components/Common/SpotlightTour"
 import { desktopTourSteps } from "@/components/Common/tourSteps"
 import { GlobalRecorderManager } from "@/components/Learning/GlobalRecorderManager"
+import { CustomerServiceDutyManager } from "@/components/Duty/CustomerServiceDutyManager"
+import { AgentStopManager } from "@/components/Common/AgentStopManager"
 import AppSidebar from "@/components/Sidebar/AppSidebar"
 import { SetupWizard, useSetupRequired } from "@/components/Wizard"
 import { useSetupWizard } from "@/components/Wizard/SetupWizardContext"
@@ -117,6 +119,8 @@ function Layout() {
       preventAutoStart={setupLoading || setupRequired}
     >
       <GlobalRecorderManager />
+      <CustomerServiceDutyManager />
+      <AgentStopManager />
 
       <SidebarProvider
         defaultOpen={false}

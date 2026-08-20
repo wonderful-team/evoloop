@@ -1,12 +1,6 @@
-import type { UnlistenFn } from "@tauri-apps/api/event"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { isTauri, safeInvoke, safeListen } from "@/lib/tauri"
-
-interface UseTauriVoiceShortcutOptions {
-  onPress?: () => void
-  enabled?: boolean
-}
+import { isTauri, safeInvoke } from "@/lib/tauri"
 
 interface UseTauriVoiceShortcutReturn {
   isListening: boolean
@@ -17,39 +11,11 @@ interface UseTauriVoiceShortcutReturn {
   setLongPressThreshold: (durationMs: number) => Promise<void>
 }
 
-export function useTauriVoiceShortcut(
-  options: UseTauriVoiceShortcutOptions = {},
-): UseTauriVoiceShortcutReturn {
+export function useTauriVoiceShortcut(): UseTauriVoiceShortcutReturn {
   const { t } = useTranslation()
-  const { onPress, enabled = true } = options
 
   const [isListening, setIsListening] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  const unlistenRef = useRef<UnlistenFn | null>(null)
-
-  useEffect(() => {
-    if (!enabled) return
-
-    const setupListeners = async () => {
-      if (!isTauri()) return
-      try {
-        unlistenRef.current = await safeListen("voice-shortcut-press", () => {
-          console.log("[voice-shortcut] F12 pressed, calling onPress")
-          onPress?.()
-        })
-      } catch (e) {
-        console.error("Failed to setup voice shortcut listeners:", e)
-        setError(t("settings.voice.shortcutErrors.setupListeners"))
-      }
-    }
-
-    setupListeners()
-
-    return () => {
-      unlistenRef.current?.()
-    }
-  }, [enabled, onPress, t])
 
   const startListening = useCallback(async () => {
     try {
