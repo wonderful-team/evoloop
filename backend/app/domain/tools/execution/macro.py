@@ -86,22 +86,34 @@ async def _run_macro_row(macro_id, macro_name, params, thread_id, skip_confirmat
         if params:
             original_args["params"] = params
 
+        # Intent-level batch grant: if this operation is covered by an approved
+        # batch grant, execute without per-call confirmation.
+        if is_operation_granted(thread_id, "run_macro", params=params, macro_id=macro.id):
+            logger.info(
+                "[run_macro] Operation covered by batch grant for macro=%s (id=%s), bypassing confirmation.",
+                macro.name,
+                macro.id,
+            )
+            skip_confirmation = True
+
         # If the same macro+params was recently approved, execute directly without
         # asking for confirmation again. The original behavior returned a vague
         # "already approved" message without executing, leaving the Agent uncertain.
-        from app.core.hitl.mcp_confirmation import find_recently_approved_by_key
+        if not skip_confirmation:
+            from app.core.hitl.core import find_recently_approved_by_key
 
-        recently_approved = await find_recently_approved_by_key(
-            thread_id, "run_macro", original_args
-        )
-        if recently_approved:
-            logger.info(
-                "[run_macro] Recently approved request %s found for macro=%s (id=%s), executing directly.",
-                recently_approved, macro.name, macro.id,
+            recently_approved = await find_recently_approved_by_key(
+                thread_id, "run_macro", original_args
             )
-            skip_confirmation = True
-        else:
-            return await _request_macro_confirmation(macro, thread_id, original_args)
+            if recently_approved:
+                logger.info(
+                    "[run_macro] Recently approved request %s found for macro=%s (id=%s), executing directly.",
+                    recently_approved,
+                    macro.name,
+                    macro.id,
+                )
+            else:
+                return await _request_macro_confirmation(macro, thread_id, original_args)
 
     execution_params = params.copy() if params else {}
     execution_params["_macro_id"] = macro.id
@@ -135,14 +147,46 @@ async def _run_macro_row(macro_id, macro_name, params, thread_id, skip_confirmat
             f"宏 '{macro.name}' 无法执行: {result.message}",
             note="确认宏已启用（Macro Library），并传入所需参数。",
         )
+    detail = _format_macro_result(macro, result)
     if result.success:
-        return SkillResponse.success(macro.name, result.extracted_data)
-    return SkillResponse.error(
-        macro.name,
-        result.message or "Unknown error",
-        fallback_context=result.fallback_context,
-        suggestions=result.suggestions or [],
+        return ControllerResponse.success(f"宏「{macro.name}」执行完成", details=detail or None)
+    return ControllerResponse.error(
+        f"宏「{macro.name}」执行失败: {result.message}",
+        details=detail or None,
     )
+
+
+def _format_macro_result(macro, result) -> str | None:
+    """渲染宏执行的结构化结果摘要（步骤级成败 + 提取数据）。
+
+    解决"宏执行返回空结果"的 Agent 决策黑洞：Agent 拿到各步骤成败与
+    提取数据后，可判断宏是真正生效还是跑完没生效（如搜索无结果/页面
+    状态未变化），无需再靠外部核验兜底。
+    """
+    step_log = result.step_log or []
+    parts: list[str] = []
+    if step_log:
+        ok_n = sum(1 for s in step_log if s.get("ok"))
+        parts.append(f"步骤 {ok_n}/{len(step_log)} 通过")
+        steps_txt = " | ".join(
+            f"{s['step']}:{s.get('event_type') or s.get('type')}"
+            + ("✓" if s.get("ok") else "✗")
+            for s in step_log
+        )
+        parts.append(f"步骤明细: {steps_txt}")
+        fails = [s for s in step_log if not s.get("ok")]
+        if fails:
+            errs = "; ".join(
+                f"第{f['step']}步: {f.get('error', '未生效')}" for f in fails
+            )
+            parts.append(f"未生效步骤: {errs}")
+    if result.extracted_data:
+        import json
+
+        parts.append(
+            "提取数据: " + json.dumps(result.extracted_data, ensure_ascii=False)
+        )
+    return "\n".join(parts) if parts else None
 
 
 async def _request_macro_confirmation(macro, thread_id, original_args: dict) -> str:
@@ -242,10 +286,7 @@ async def _request_macro_confirmation(macro, thread_id, original_args: dict) -> 
             macro.id,
             recently_approved,
         )
-        return (
-            f"宏 {macro.name} 已在请求 {recently_approved} 确认过，"
-            "不再重复确认。"
-        )
+        return f"宏 {macro.name} 已在请求 {recently_approved} 确认过，不再重复确认。"
 
     from app.core.hitl.orchestrator import HITLOrchestrator
 
@@ -258,7 +299,8 @@ async def _request_macro_confirmation(macro, thread_id, original_args: dict) -> 
         macro.name,
         macro.id,
     )
-    # 统一发起 approval（create + push + raise），携带 skip_grant（不持久化授权）
+    # 统一发起 approval（create + push + raise），携带 skip_grant（不持久化授权）；
+    # resume_override 声明批准后重执行时注入 skip_confirmation 参数，避免死循环。
     return await HITLOrchestrator.raise_approval(
         thread_id=thread_id,
         prompt=action_description,
@@ -275,4 +317,5 @@ async def _request_macro_confirmation(macro, thread_id, original_args: dict) -> 
         resource_path=f"macro:{macro.id}",
         skip_grant=True,
         response_template=response_template,
+        resume_override={"args": {"skip_confirmation": True}},
     )
