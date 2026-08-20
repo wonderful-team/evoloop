@@ -138,9 +138,49 @@ async def create_macro(
        MacroStep dicts, validates and gates them, then saves the macro as
        'pending_review'. A rationale is required in this mode.
 
-    In script mode, escape-risk steps (bash, native, applescript, run_js) are
-    rejected before any dry-run execution because macro verification actually
-    executes the script.
+    In script mode, escape-risk steps (bash, native, applescript, run_js as an
+    ACTION step) are rejected before any dry-run execution because macro
+    verification actually executes the script.
+
+    ## Evoloop macro authoring standard (MUST follow)
+
+    These are the authoritative conventions used by every verified macro in
+    the library. Deviating from them fails dry-run verification:
+
+    1. **Navigate URLs must be absolute and use the `{{base_url}}` placeholder.**
+       Never use a relative path: `/shop.html#url=...` fails with
+       "Cannot navigate to invalid URL". Always write:
+       `{"type": "action", "event_type": "navigate", "payload": {"url": "{{base_url}}/shop.html#url=shop/goods/lists"}}`
+       The engine resolves `{{base_url}}` to the project's deployment URL.
+
+    2. **Placeholders only support plain variables.**
+       `{{param}}` or `{{parameters.param}}` are injected verbatim. Jinja
+       filters/expressions (e.g. `{{ x|default("0") }}`) are NOT supported and
+       will remain unresolved. Apply defaults inside JS instead:
+       `const v = ('{{order_status}}' === '') ? '0' : '{{order_status}}';`
+
+    3. **run_js is allowed ONLY inside EXTRACT steps** (reading page state).
+       run_js as an ACTION step is rejected by the risk gate. JS must be a
+       function: `() => {...}` returning a JSON-serializable value.
+
+    4. **Loop/if conditions use this exact schema:**
+       `{"type": "loop", "condition": {"type": "element_exists" | "element_visible" | "text_contains", "target_selector": ".css-selector"}, "steps": [...], "max_iterations": 5}`
+       Supported condition types: `element_exists`, `element_visible`,
+       `text_contains`.
+
+    5. **step_number is auto-normalized** by the engine; duplicates and gaps
+       are fixed automatically. You may still number steps for readability.
+
+    6. **Parameterize thresholds** via `parameters` + `{{param}}` placeholders
+       instead of hardcoding business values (e.g. stock > 100), so the macro
+       can be reused with different inputs. Declare parameters in the
+       `parameters` argument as a list of dicts, e.g.
+       `[{"name": "stock_threshold", "type": "string", "required": True, "description": "库存阈值"}]`,
+       then reference them inside steps as `{{stock_threshold}}`.
+       If you omit `parameters`, they are derived automatically from any
+       `{{placeholder}}` used in script_steps (each becomes a required string
+       parameter). `{{base_url}}` is resolved by the engine and never counts
+       as a macro parameter.
 
     ## MacroStep format for script_steps
     Each step is a dict. Required/common fields:
@@ -156,26 +196,30 @@ async def create_macro(
       Open an app:
         {"type": "action", "event_type": "open_app", "payload": {"app_name": "WeChat"}, "step_number": 1}
       Click an element:
-        {"type": "action", "event_type": "click", "payload": {"selector": {"type": "ax", "value": "发送"}}, "step_number": 2}
+        {"type": "action", "event_type": "click", "payload": {"selector": {"type": "css", "value": ".btn-confirm"}}, "step_number": 2}
       Type into an input:
-        {"type": "action", "event_type": "input", "payload": {"selector": {"type": "ax", "value": "搜索框"}, "value": "hello"}, "step_number": 3}
+        {"type": "action", "event_type": "input", "payload": {"selector": {"type": "css", "value": "#search-input"}, "value": "{{keyword}}"}, "step_number": 3}
       Wait briefly:
         {"type": "action", "event_type": "wait", "payload": {"seconds": 1}, "step_number": 4}
-      Navigate to a URL:
-        {"type": "action", "event_type": "navigate", "payload": {"url": "https://example.com"}, "step_number": 5}
+      Navigate to a backend page (correct):
+        {"type": "action", "event_type": "navigate", "payload": {"url": "{{base_url}}/shop.html#url=shop/goods/lists"}, "step_number": 5}
       Extract text:
         {"type": "extract", "event_type": "get_text", "extract_type": "get_text", "payload": {"key": "result"}, "step_number": 6}
 
+      Extract structured data via page JavaScript (EXTRACT only):
+        {"type": "extract", "event_type": "run_js", "extract_type": "run_js", "key": "orders", "payload": {"script": "() => JSON.stringify({count: document.querySelectorAll('.row').length})"}, "step_number": 7}
+
     Control flow:
       If branch:
-        {"type": "if", "condition": {"op": "exists", "selector": {"type": "ax", "value": "确定"}},
-         "then_steps": [...], "else_steps": [...], "step_number": 7}
+        {"type": "if", "condition": {"type": "element_exists", "target_selector": ".modal-confirm"},
+         "then_steps": [...], "else_steps": [...], "step_number": 8}
       Loop:
-        {"type": "loop", "condition": {"op": "exists", "selector": {"type": "ax", "value": "加载更多"}},
-         "steps": [...], "max_iterations": 5, "step_number": 8}
+        {"type": "loop", "condition": {"type": "element_exists", "target_selector": ".layui-laypage-next:not(.layui-disabled)"},
+         "steps": [...], "max_iterations": 5, "step_number": 9}
 
-    IMPORTANT: Do NOT include bash, native (applescript/run_js), or any
-    escape-risk steps. They will be rejected by the risk gate.
+    IMPORTANT: Do NOT include bash, native, or applescript steps. They will be
+    rejected by the risk gate. run_js is allowed ONLY inside EXTRACT steps for
+    reading page state; run_js as an ACTION step is not allowed.
     """
     ctx = ContextManager.current()
     target_thread = thread_id or (ctx.thread_id if ctx else None)
