@@ -208,7 +208,7 @@ class ToolMessageMixin:
                 tool_name=tool_name,
                 tool_call_id=tool_call_id,
                 sequence_number=seq if persist_data.should_persist else 0,
-                status="streaming",
+                status="completed",
                 metadata=metadata,
                 message_id=message_id,
                 action="update",

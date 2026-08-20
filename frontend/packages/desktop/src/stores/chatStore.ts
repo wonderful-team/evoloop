@@ -740,7 +740,10 @@ export const useChatStore = create<ChatState>((set, get) => {
               ex.status === "streaming"
                 ? ex.content
                 : msg.content || ex.content,
-            status: msg.status || ex.status,
+            status:
+              msg.status === "streaming" && ex.status === "completed"
+                ? ex.status
+                : msg.status || ex.status,
             // Merge references: prefer incoming if existing has none
             references:
               msg.references && msg.references.length > 0
@@ -775,49 +778,59 @@ export const useChatStore = create<ChatState>((set, get) => {
         return
       }
 
-      let streamIdx = -1
-      for (let i = messages.length - 1; i >= 0; i--) {
-        if (
-          messages[i].role === msg.role &&
-          messages[i].status === "streaming"
-        ) {
-          streamIdx = i // fallback: remember the last streaming message
-          if (String(messages[i].id) === String(msg.id)) {
-            break // exact match found
-          }
-        }
-      }
-
-      if (streamIdx >= 0) {
-        let shouldRefreshChangeset = false
-        set((state) => {
-          const msgs = [...state.messages]
-          const ex = msgs[streamIdx]
-          const prevChangesetCount = ex.changeset_count || 0
-          msgs[streamIdx] = {
-            ...msg,
-            content: msg.content || msgs[streamIdx].content,
-            thinking: msg.thinking || msgs[streamIdx].thinking,
-            status: msg.status || "completed",
-          }
+      // Merge into an existing streaming row of the same role when the incoming
+      // block is a continuation/finalization of that same logical message:
+      //   - AI streaming continuation (ids may differ: placeholder-* vs real id)
+      //   - AI completed finalization (replaces the streaming placeholder row)
+      // A new tool step (status="running") must always append as its own row —
+      // merging it into a stale streaming row collapses earlier tool messages
+      // into one and makes AI messages appear squeezed together.
+      const isNewToolStep = msg.role === "tool" && msg.status === "running"
+      if (!isNewToolStep) {
+        let streamIdx = -1
+        for (let i = messages.length - 1; i >= 0; i--) {
           if (
-            msg.changeset_count &&
-            msg.changeset_count > 0 &&
-            prevChangesetCount === 0
+            messages[i].role === msg.role &&
+            messages[i].status === "streaming"
           ) {
-            shouldRefreshChangeset = true
-          }
-          return { messages: msgs }
-        })
-        if (shouldRefreshChangeset) {
-          setTimeout(() => {
-            const threadId = get().threadId
-            if (threadId) {
-              useChangesetStore.getState().fetchChangeset(threadId)
+            streamIdx = i // fallback: remember the last streaming message
+            if (String(messages[i].id) === String(msg.id)) {
+              break // exact match found
             }
-          }, 500)
+          }
         }
-        return
+
+        if (streamIdx >= 0) {
+          let shouldRefreshChangeset = false
+          set((state) => {
+            const msgs = [...state.messages]
+            const ex = msgs[streamIdx]
+            const prevChangesetCount = ex.changeset_count || 0
+            msgs[streamIdx] = {
+              ...msg,
+              content: msg.content || msgs[streamIdx].content,
+              thinking: msg.thinking || msgs[streamIdx].thinking,
+              status: msg.status || "completed",
+            }
+            if (
+              msg.changeset_count &&
+              msg.changeset_count > 0 &&
+              prevChangesetCount === 0
+            ) {
+              shouldRefreshChangeset = true
+            }
+            return { messages: msgs }
+          })
+          if (shouldRefreshChangeset) {
+            setTimeout(() => {
+              const threadId = get().threadId
+              if (threadId) {
+                useChangesetStore.getState().fetchChangeset(threadId)
+              }
+            }, 500)
+          }
+          return
+        }
       }
 
       // Trigger changeset refresh if message has file changes
