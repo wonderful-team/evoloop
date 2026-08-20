@@ -24,59 +24,6 @@ from app.utils.id import gen_uuid
 logger = logging.getLogger(__name__)
 
 
-# Tools whose only purpose is to discover other tools. For these we count by
-# tool-name (ignoring query args) and surface the query trail to the model so
-# it can see that exploration has stalled.
-_DISCOVERY_TOOLS = {"list_macros", "search_native_tools"}
-
-
-def _collect_discovery_queries(tool_name: str, history: list[str]) -> list[str]:
-    """Extract non-empty query strings from a discovery tool's call history."""
-    queries: list[str] = []
-    prefix = f"{tool_name}:"
-    for entry in history:
-        if not entry.startswith(prefix):
-            continue
-        try:
-            _, json_part = entry.split(":", 1)
-            args = json.loads(json_part)
-        except Exception:
-            continue
-        q = args.get("query") or args.get("q") or args.get("search") or ""
-        if q and q not in queries:
-            queries.append(str(q))
-    return queries
-
-
-def _build_repeat_warning(tool_name: str, tool_args: dict[str, Any], history: list[str]) -> str:
-    """Return a warning when the model is repeating tool calls without progress."""
-    if tool_name in _DISCOVERY_TOOLS:
-        # Count all calls to this discovery tool this turn, regardless of query.
-        prefix = f"{tool_name}:"
-        call_count = sum(1 for entry in history if entry.startswith(prefix))
-        if call_count < 5:
-            return ""
-        queries = _collect_discovery_queries(tool_name, history)
-        if not queries:
-            return ""
-        query_summary = ", ".join(f'"{q}"' for q in queries[:12])
-        return (
-            f"\n\n[SYSTEM WARNING: `{tool_name}` has been called {call_count} times this turn "
-            f"with queries: {query_summary}. No new information is being gathered. "
-            "Stop searching and produce a final report.]"
-        )
-
-    tool_sig = f"{tool_name}:{json.dumps(tool_args, sort_keys=True)}"
-    repeat_count = history.count(tool_sig)
-    if repeat_count < 3:
-        return ""
-    return (
-        f"\n\n[SYSTEM WARNING: This is the {repeat_count}th identical "
-        f"`{tool_name}` call with the same arguments in this turn. "
-        "No new information is being gathered. Stop repeating and produce a final report.]"
-    )
-
-
 class ToolExecutionResult(BaseModel):
     """Result of a tool execution, including the message and raw output."""
 
@@ -188,8 +135,6 @@ class AgentToolExecutor:
             async with self._history_lock:
                 local_tool_history.append(tool_sig)
 
-            repeat_warning = _build_repeat_warning(tool_name, tool_args, local_tool_history)
-
             is_mutating = tool.metadata.get("is_state_mutating", False)
             if self.enable_diff_tracking and is_mutating:
                 from app.core.tools.registry import get_tool_affected_paths
@@ -257,9 +202,6 @@ class AgentToolExecutor:
             if self.enable_diff_tracking and tool.metadata.get("is_state_mutating"):
                 await self._track_diffs(tool_name, tool_args, thread_id, tool_message_id, tool_id)
 
-            if repeat_warning:
-                content = f"{repeat_warning}\n\n{content}"
-
             msg = self._create_tool_message(
                 content=str(content),
                 tool_id=tool_id,
@@ -273,9 +215,6 @@ class AgentToolExecutor:
             raise
         except Exception as e:
             content = f"Error executing {tool_name}: {e}"
-
-            if repeat_warning:
-                content = f"{repeat_warning}\n\n{content}"
 
             if tool_callbacks:
                 await emit_tool_error(tool_callbacks, tool_name, e, tool_run_id)
@@ -340,9 +279,7 @@ class AgentToolExecutor:
                         meta = RunnableConfigMetadata.from_config(self.config)
                         msg_id = message_id
                         if settings.EMBEDDED_MODE:
-                            from app.core.engine.tasks import (
-                                persist_file_operation_task,
-                            )
+                            from app.core.engine.tasks import persist_file_operation_task
 
                             await persist_file_operation_task(
                                 thread_id=thread_id,
