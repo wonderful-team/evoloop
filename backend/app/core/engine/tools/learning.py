@@ -14,6 +14,7 @@ from app.core.execution.macro.lifecycle import (
     find_macro_by_name,
 )
 from app.core.execution.macro.schemas import (
+    DEFAULT_ALLOWED_FAMILIES,
     MacroScript,
     compute_max_risk,
     scan_step_families,
@@ -330,14 +331,11 @@ async def _create_macro_from_script(
         except Exception as e:
             return f"Error: Invalid macro script: {e}"
 
-        allowed_families = {"observe", "act", "control", "data"}
-        reason = scan_step_families(script.steps, allowed_families)
+        reason = scan_step_families(script.steps, DEFAULT_ALLOWED_FAMILIES)
         if reason:
             return f"Error: Risk gate rejected: {reason}"
 
-        result = await verify_macro_script(
-            cleaned_steps, thread_id=target_thread, _project_id=project_id
-        )
+        result = await verify_macro_script(cleaned_steps, thread_id=target_thread, _project_id=project_id)
         if not result.success:
             return f"Error: Macro verification failed: {result.error or result.status}"
 

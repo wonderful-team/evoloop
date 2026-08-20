@@ -109,6 +109,13 @@ RISK_TIERS: list[str] = ["observe", "act", "data", "money", "escape"]
 RISK_TIER_ORDER: dict[str, int] = {t: i for i, t in enumerate(RISK_TIERS)}
 
 
+# Families allowed for Agent-authored macro scripts (create_macro / update_macro
+# rewrite path). escape (bash/native/applescript) and money are excluded because
+# Agent-written macros must not silently gain arbitrary code-execution or
+# money-movement capability without human review.
+DEFAULT_ALLOWED_FAMILIES: set[str] = {"observe", "act", "control", "data"}
+
+
 def action_family(step_type: MacroStepType, event_type: MacroActionType | str | None) -> str:
     """Derive action family from a macro step using priority:
     1. escape  — type==NATIVE or type==BASH (system-level execution)
