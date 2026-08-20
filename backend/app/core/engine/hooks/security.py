@@ -215,17 +215,15 @@ async def sensitive_file_placeholder_replacement_gate(context: HookContext) -> H
         return val
 
     try:
-        # Substitute placeholders in all standard tool input fields
-        if tool_input.command:
-            tool_input.command = substitute_value(tool_input.command)
-        if tool_input.path:
-            tool_input.path = substitute_value(tool_input.path)
-        if tool_input.content:
-            tool_input.content = substitute_value(tool_input.content)
-        if tool_input.query:
-            tool_input.query = substitute_value(tool_input.query)
-        if tool_input.args:
-            tool_input.args = substitute_value(tool_input.args)
+        # Substitute placeholders across ALL tool input fields (declared + dynamic
+        # extra fields). The 5 legacy fields (command/path/content/query/args) only
+        # cover a subset of tools; run_macro's `params`, browser_control's action
+        # fields etc. live in dynamic extra fields and previously bypassed vault
+        # injection, causing {{vault.*}} placeholders to reach the target literally.
+        original_input = tool_input.model_dump()
+        replaced = substitute_value(original_input)
+        if replaced != original_input:
+            context.tool_input = ToolInput.model_validate(replaced)
     except ValueError as e:
         logger.exception(f"[SecureVault] Substitution failed: {e}")
         return HookResult(success=False, block=True, message=f"[SECURITY ERROR] {e}")

@@ -72,6 +72,9 @@ nodes:
       - "ask_human"
       - "list_agents"
       - "send_agent_task"
+      # Vault & Credentials (Secure credential management)
+      - "list_vault_credentials"
+      - "request_secure_credential"
       # Session control (rename only; end/cancel are handled by natural agent response)
       - "set_agent_name"
 
@@ -121,6 +124,7 @@ nodes:
       - "run_macro"
       - "list_macros"
       - "create_macro"
+      - "read_macro"
       - "update_macro"
       - "reconcile_skill"
       # - "query_app_atlas"

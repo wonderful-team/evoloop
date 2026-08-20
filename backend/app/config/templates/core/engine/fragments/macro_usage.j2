@@ -36,6 +36,9 @@ Two authoring paths:
 - **Trace Mode** (only when `browser_control` / `desktop_control` / `mobile_control` are actually available in your environment — they are absent in some deployments): complete the task once with those tools, then `create_macro(name="...", description="...", trigger_patterns=["..."])` omitting `script_steps`; the trace is compiled automatically.
 - **Script Mode** (when you know the exact DOM/API steps): `create_macro(..., script_steps=[...], rationale="...")`, following the MacroStep format in the tool docstring. If unsure about selectors, inspect the page once with `browser_control` (if available) before writing steps.
 
+### Learn from verified macro scripts before authoring (STRONGLY RECOMMENDED)
+Before writing a new macro, read 1–2 verified macros of the same category with `read_macro(macro_id=...)` (returns the full YAML script). Study their proven structure — `{{base_url}}` navigate URLs, wait timing, extract/`run_js` patterns, control flow — and mirror that skeleton for the new macro. This yields consistent, working scripts in one pass. Do NOT copy business logic blindly (each macro's extract script must match its own page/API), and limit reference reads to 1–2 to control context usage.
+
 ### Step design checklist for script mode
 1. **Navigate** to the page first (`event_type: navigate`, payload `url: "{{base_url}}/shop.html#url=shop/xxx/yyy"`). `{{base_url}}` is the project's base URL injected at runtime — use the placeholder, never hardcode the host.
 2. **Wait** for the page/DOM to settle (`event_type: wait`, `payload: {seconds: 2}`).
@@ -55,6 +58,13 @@ Two authoring paths:
 - Read-only macros (navigate + wait + extract) get `risk_tier=observe`; run_js extraction bumps it to `data`. Neither requires confirmation.
 - Any macro with `click`, `input`, or write-like actions gets higher risk (`act`/`data`) and may require confirmation.
 - The engine sets `requires_confirmation` automatically and blocks unapproved high-risk macros. When the user has **explicitly approved this exact macro operation in this conversation** (e.g. replied "确认，执行吧" / "同意" / "执行" to your confirmation question), call `run_macro(..., skip_confirmation=True)` so the macro executes directly without a second confirmation prompt. Do NOT set `skip_confirmation=True` if the user has not explicitly approved this exact operation in this conversation — the engine will keep the macro locked.
+
+### Irreversible Operation Failure Protocol
+For macros with irreversible or money-moving effects (transfer/refund/pay, ship, delete, status changes, etc.):
+- **Always verify the business outcome after execution** (e.g. re-query the order/refund status, check the page state) — never report success from the macro's own output alone.
+- **If the verified outcome does not match the expected result (e.g. status unchanged after a transfer), DO NOT retry.** This overrides any general retry allowance: do not re-run the macro, do not adjust parameters and try again, do not try alternative macros for the same irreversible action.
+- **Stop and report honestly**: state what the macro reported, what the verification shows, what you tried, and that the target system itself appears abnormal — the problem is likely in the target system, not in your execution. Ask the user for a decision or hand over for manual inspection.
+- **Never attempt to fix the target system's own problems** (its backend, business logic, or data); report them instead.
 
 ### Batch Approval for Write Macros
 For multi-macro write batches, follow the general batch-approval protocol (see the HITL Usage section above). When building the `operations` list for macros, set `tool_name="run_macro"`, include the exact `macro_id` (or `macro_name`) and business `params`, and provide a human-readable `description` for each entry.

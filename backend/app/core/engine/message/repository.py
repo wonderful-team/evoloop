@@ -442,6 +442,30 @@ class MessageRepository:
             logger.exception(f"[MessageRepository] Failed to update status by tool_call_id {tool_call_id}: {e}")
             raise
 
+    async def update_tool_result_by_tool_call_id(self, tool_call_id: str, content: str) -> bool:
+        """
+        Update content of the tool result message (``role='tool'``) for a tool_call_id.
+
+        Unlike ``update_content_by_tool_call_id``（匹配同 tool_call_id 的*所有*
+        消息，包括 HITL 的 ``hitl_request`` system 消息），此方法只更新工具结果
+        消息本身——避免 HITL resume 写回结果时误改 hitl_request 的 JSON 载荷。
+        """
+        try:
+            async with session_scope() as session:
+                stmt = (
+                    update(Message)
+                    .where(Message.thread_id == self.thread_id)
+                    .where(Message.tool_call_id == tool_call_id)
+                    .where(Message.role == "tool")
+                    .values(content=content)
+                )
+                result = await session.execute(stmt)
+                logger.info(f"[MessageRepository] Updated tool result content for tool_call_id {tool_call_id}")
+                return result.rowcount > 0
+        except Exception as e:
+            logger.exception(f"[MessageRepository] Failed to update tool result by tool_call_id {tool_call_id}: {e}")
+            raise
+
     async def update_content_by_tool_call_id(self, tool_call_id: str, content: str) -> bool:
         """
         Update message content by tool_call_id (used to deliver async callback

@@ -64,7 +64,11 @@ async def get_pending_hitl_call(config: dict) -> dict | None:
                     if last_hitl.content:
                         try:
                             parsed_content = json.loads(last_hitl.content)
-                            request_type = parsed_content.get("type") if isinstance(parsed_content, dict) else None
+                            request_type = (
+                                parsed_content.get("type")
+                                if isinstance(parsed_content, dict)
+                                else None
+                            )
                         except (json.JSONDecodeError, TypeError):
                             request_type = None
                     if t_name and t_call_id:
@@ -84,11 +88,53 @@ async def get_pending_hitl_call(config: dict) -> dict | None:
                             # resume 元数据：发起端声明的重执行豁免（args/config
                             # 注入），见 core.push_hitl_notification。
                             "resume": last_hitl.meta_data.get("resume"),
+                            "project_id": last_hitl.project_id,
                         }
     except Exception as e:
         logger.warning(f"Failed to find pending HITL call: {e}", exc_info=True)
 
     return None
+
+
+# 已知的自由文本请求类型：用户输入原样透传，不做 APPROVED/REJECTED 归一化。
+_FREE_TEXT_REQUEST_TYPES = frozenset(
+    {"text", "choice", "project_switch", "file_select"}
+)
+# 批准/拒绝同义词（中英文，仅 approval 类请求下生效）。
+_APPROVAL_SYNONYMS = frozenset(
+    {
+        "yes",
+        "approve",
+        "approved",
+        "confirm",
+        "ok",
+        "y",
+        "同意",
+        "确认",
+        "批准",
+        "可以",
+        "好的",
+        "好",
+        "是",
+        "行",
+    }
+)
+_REJECTION_SYNONYMS = frozenset(
+    {
+        "no",
+        "reject",
+        "rejected",
+        "cancel",
+        "cancelled",
+        "deny",
+        "n",
+        "拒绝",
+        "不同意",
+        "取消",
+        "不行",
+        "否",
+    }
+)
 
 
 def normalize_hitl_input(
@@ -108,17 +154,24 @@ def normalize_hitl_input(
     means no explicit approval — it must never silently approve a sensitive
     authorization-gated operation.
 
-    When ``request_type`` is unknown (e.g. legacy pending requests), the tool's
-    ``name`` is used as a fallback: authorization-gated tools and standard
-    confirmation tools still normalize.
+    When ``request_type`` is missing or unknown (e.g. legacy pending requests),
+    the tool's ``name`` and ``authorization`` metadata are used as a fallback:
+    authorization-gated tools and standard confirmation tools still normalize.
     """
-    is_approval = request_type in ("confirmation", "approval") if request_type else None
+    if request_type in ("confirmation", "approval"):
+        is_approval = True
+    elif request_type in _FREE_TEXT_REQUEST_TYPES:
+        is_approval = False
+    else:
+        # 未知/缺失 request_type：退回按授权标记/框架工具名判定（授权门控请求必然
+        # 携带 authorization 元数据；run_macro 等业务工具确认同样携带，无需列名）。
+        is_approval = None
+
     if is_approval is None:
-        # 未知 request_type：退回按工具名/授权标记判定
-        name = (tool_call.get("name") or "").lower() if isinstance(tool_call, dict) else ""
-        is_approval = bool(tool_call.get("authorization")) or name in (
-            "ask_confirm", "request_approval", "run_macro",
+        name = (
+            (tool_call.get("name") or "").lower() if isinstance(tool_call, dict) else ""
         )
+        is_approval = bool(tool_call.get("authorization")) or name in ("ask_confirm", "request_approval")
 
     if not is_approval:
         # 自由文本类型：原样返回（含空输入——文本输入可能合法为空）
@@ -131,9 +184,9 @@ def normalize_hitl_input(
 
     # Universal approval/rejection normalization (covers authorization-style HITL
     # where the original blocked tool name is not a standard HITL tool).
-    if lower_input in ("yes", "approve", "approved", "confirm", "ok", "y"):
+    if lower_input in _APPROVAL_SYNONYMS:
         return "APPROVED"
-    if lower_input in ("no", "reject", "rejected", "cancel", "cancelled", "deny", "n"):
+    if lower_input in _REJECTION_SYNONYMS:
         return "REJECTED"
 
     return user_input
@@ -228,10 +281,7 @@ class HITLOrchestrator:
             # 只精确替换 {id}/{prompt}，其它花括号原样保留。
             response_text = response_template.replace("{id}", request.id).replace("{prompt}", prompt)
         else:
-            response_text = (
-                f"需要运营人员确认后才可执行（请求 ID: {request.id}）。"
-                "已暂停等待确认。"
-            )
+            response_text = i18n.get("hitl.approval_default", id=request.id)
 
         await push_hitl_notification(
             thread_id=thread_id,
@@ -313,6 +363,55 @@ class HITLOrchestrator:
         return "CANCELLED"
 
     @staticmethod
+    @staticmethod
+    async def persist_hitl_user_message(
+        thread_id: str,
+        project_id: int | None,
+        member_id: int,
+        tool_call_id: str,
+        user_content: str | None,
+        final_result: str,
+    ) -> None:
+        """把 HITL 用户答复落为 human 消息，并更新原 tool 消息结果（而非新增）。
+
+        - ``human`` 消息：让用户在会话里看到自己的选择/输入（choice/text 为
+          原文，approval 类为 APPROVED/REJECTED），前端据此渲染用户气泡。
+        - 更新原 ask_human / 授权工具的 tool 消息内容为最终结果，而不是新增
+          一条 tool 消息——否则同一 tool_call 出现两条 tool 结果，LLM 重建
+          上下文会取到空的旧 tool_output（HITL 选项未被 Agent 消费的问题）。
+        """
+        from app.core.engine.message.repository import MessageRepository
+
+        repo = MessageRepository(thread_id, project_id, member_id=member_id)
+        if user_content:
+            msg_id, seq = await repo.persist(
+                role="human",
+                content=user_content,
+                category="user",
+                action_type="text",
+                status="completed",
+            )
+            # 实时推送到当前会话渠道（SSE 等）：与 persist_user_message 一致，
+            # 否则 human 消息只落库、SSE 流收不到（前端仅历史加载才显示）。
+            if msg_id:
+                from app.core.engine.message.factory import MessageBlockFactory
+                from app.core.engine.message.publisher import MessagePublisher
+
+                block = MessageBlockFactory.from_event(
+                    thread_id=thread_id,
+                    sequence_number=seq,
+                    role="human",
+                    content=user_content,
+                    category="user",
+                    status="completed",
+                    message_id=msg_id,
+                )
+                publisher = MessagePublisher(thread_id=thread_id, project_id=project_id)
+                await publisher.publish(block)
+        # 只更新 role='tool' 的结果消息（避免误改同 tool_call_id 的 hitl_request）
+        await repo.update_tool_result_by_tool_call_id(tool_call_id, final_result)
+
+    @staticmethod
     async def resume_and_persist(
         thread_id: str,
         project_id: int | None,
@@ -321,7 +420,7 @@ class HITLOrchestrator:
         user_input: str | None,
         state=None,
     ) -> bool:
-        """统一的后台/会话恢复路径：检测 → 关闭请求 → 审批重执行 → 持久化工具结果。
+        """统一的后台/会话恢复路径：检测 → 关闭请求 → 审批重执行 → 持久化。
 
         供 ``runner.py``（voice/background）与 ``session.py``（会话模式）复用，
         消除两处几乎相同的 "handle_resume + resolve_approved_tool_result +
@@ -330,8 +429,6 @@ class HITLOrchestrator:
         注意：``_chat.py`` 的单发（无会话）路径刻意不走这里——它把工具结果写回
         ``inputs`` 交给 graph，而非独立 persist。
         """
-        from app.core.engine.message.repository import MessageRepository
-
         pending_tool = await HITLOrchestrator.get_pending_request(
             thread_id, (config.get("configurable") or {}).get("model")
         )
@@ -343,15 +440,15 @@ class HITLOrchestrator:
         final_result = await HITLOrchestrator.resolve_approved_tool_result(
             pending_tool, config, normalized_input, state=state
         )
-        repo = MessageRepository(thread_id, project_id, member_id=member_id)
-        await repo.persist(
-            role="tool",
-            content=final_result,
+        # 落为 human 消息（用户可见）+ 更新原 tool 消息结果（Agent 可见），
+        # 而非新增 tool 消息（避免同 tool_call 双 tool 结果导致 Agent 取空）。
+        await HITLOrchestrator.persist_hitl_user_message(
+            thread_id=thread_id,
+            project_id=project_id,
+            member_id=member_id,
             tool_call_id=pending_tool["id"],
-            tool_name=pending_tool["name"],
-            category="tool",
-            action_type="tool_response",
-            status="completed",
+            user_content=normalized_input,
+            final_result=final_result,
         )
         return True
 
@@ -372,6 +469,35 @@ class HITLOrchestrator:
         ⚠ ``REJECTED``（拒绝访问）：直接返回拒绝结果，**不授予权限、不重执行**。
         用户拒绝即不授权，任何后续访问都应继续走 HITL。
         """
+        tool_name = pending_tool.get("name")
+        tool_args = pending_tool.get("args") or {}
+        tool_call_id = pending_tool.get("id")
+
+        # 批量审批：请求参数携带 grant_id（ask_confirm 批量确认）时，批准后激活
+        # 对应的 batch grant，拒绝则使其失效。数据驱动判定，不在编排层按工具名特判。
+        grant_id = tool_args.get("grant_id")
+        if grant_id:
+            request_id = pending_tool.get("request_id")
+            if (
+                isinstance(fallback_result, str)
+                and fallback_result.upper() == "APPROVED"
+            ):
+                grant = approve_grant_by_request_id(request_id) if request_id else None
+                if grant:
+                    return i18n.get(
+                        "hitl.batch_approved",
+                        grant_id=grant.id,
+                        count=len(grant.operations),
+                    )
+                return i18n.get("hitl.batch_approved_fallback")
+            if (
+                isinstance(fallback_result, str)
+                and fallback_result.upper() == "REJECTED"
+            ):
+                reject_grant_by_request_id(request_id)
+                return i18n.get("hitl.batch_rejected")
+            return fallback_result
+
         authorization = pending_tool.get("authorization")
 
         # 自由文本类型（无 authorization）：原样返回用户输入，不触发任何
@@ -382,10 +508,7 @@ class HITLOrchestrator:
         # 用户拒绝（授权门控）：不授权、不重执行，返回明确拒绝说明。
         if isinstance(fallback_result, str) and fallback_result.upper() == "REJECTED":
             resource_path = authorization.get("resource_path", "")
-            return (
-                f"用户拒绝了该访问请求（REJECTED）：{resource_path}。"
-                "请勿重试此路径，改用其他可用方式或向用户说明后继续完成其余任务。"
-            )
+            return i18n.get("hitl.access_rejected", path=resource_path)
 
         project_id = config.get("metadata", {}).get("project_id") or 0
         from app.core.hitl.authorization import AuthorizationService
@@ -410,23 +533,13 @@ class HITLOrchestrator:
                 project_id=project_id,
             )
 
-        tool_name = pending_tool.get("name")
-        tool_args = pending_tool.get("args") or {}
-        tool_call_id = pending_tool.get("id")
-
-        # 宏确认门控（skip_grant 标记）：批准后重执行时注入 skip_confirmation=True，
-        # 避免 run_macro 再次触发确认形成死循环。
-        if authorization.get("skip_grant") and tool_name == "run_macro":
-            tool_args = dict(tool_args)
-            tool_args["skip_confirmation"] = True
-
-        # MCP 写工具确认门控：批准后重执行时注入 config 标记跳过门控，
-        # 避免同工具再次触发确认形成死循环（宏路径用 skip_confirmation 参数，
-        # MCP 工具无该参数，改用 config 标记）。
-        resume_config = config
-        if authorization.get("skip_grant") and tool_name.startswith("mcp__"):
-            resume_config = {**config}
-            resume_config["_skip_mcp_confirmation"] = True
+        # 门控豁免声明（resume_override，由发起端在请求元数据中声明）：
+        # 批准后重执行时按声明注入 args 标记，避免再次触发确认形成死循环
+        # （宏确认注入 skip_confirmation 参数）。不在编排层按工具名特判。
+        resume = pending_tool.get("resume") or {}
+        args_override = resume.get("args") or {}
+        if args_override:
+            tool_args = {**tool_args, **args_override}
 
         try:
             from app.core.engine.tools.executor import AgentToolExecutor

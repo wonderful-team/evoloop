@@ -119,17 +119,13 @@ class AgentToolExecutor:
 
             if pre_result.modified_context and pre_result.modified_context.tool_input is not None:
                 tool_input = pre_result.modified_context.tool_input
-                if tool_input.args:
-                    tool_args = tool_input.args
-                else:
-                    for field, val in [
-                        ("command", tool_input.command),
-                        ("path", tool_input.path),
-                        ("content", tool_input.content),
-                        ("query", tool_input.query),
-                    ]:
-                        if val is not None and field in tool_args:
-                            tool_args[field] = val
+                # Full-roundtrip write-back: the vault placeholder hook now substitutes
+                # across all fields (declared + dynamic extra), so we must persist every
+                # non-None field back into tool_args — not just the 5 legacy fields
+                # (command/path/content/query/args). Otherwise run_macro `params` and
+                # browser_control action fields would be replaced in the hook but lost here.
+                dumped = tool_input.model_dump()
+                tool_args = {k: v for k, v in dumped.items() if v is not None}
 
             tool_sig = f"{tool_name}:{json.dumps(tool_args, sort_keys=True)}"
             async with self._history_lock:

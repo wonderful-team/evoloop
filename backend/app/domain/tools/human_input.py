@@ -143,6 +143,8 @@ async def ask_confirm(
     risk_level: Literal["low", "medium", "high", "critical"] = "medium",
     details: str | None = None,
     consequences: str | None = None,
+    operations: list[dict[str, Any]] | None = None,
+    risk_note: str | None = None,
 ) -> str:
     """
     Request user approval before executing a potentially impactful action.
@@ -170,11 +172,37 @@ async def ask_confirm(
     current_tool_call_id = ctx_fields["tool_call_id"]
     last_ai_message_id = ctx_fields["parent_id"]
 
+    ops: list[dict[str, Any]] = []
+    for op in operations or []:
+        if isinstance(op, BaseModel):
+            ops.append(op.model_dump())
+        elif isinstance(op, dict):
+            ops.append(op)
+    if ops:
+        detail_lines = []
+        for i, op in enumerate(ops, 1):
+            desc = op.get("description") or op.get("tool_name", "")
+            macro_name = op.get("macro_name")
+            macro_id = op.get("macro_id")
+            if macro_name:
+                desc = f"{desc} ({macro_name})"
+            elif macro_id:
+                desc = f"{desc} (macro_id={macro_id})"
+            params = op.get("params") or {}
+            params_str = ", ".join(f"{k}={v}" for k, v in params.items() if not k.startswith("_"))
+            detail_lines.append(f"{i}. {desc}" + (f" ({params_str})" if params_str else ""))
+        batch_details = "\n".join(detail_lines)
+        combined_details = "\n\n".join(filter(None, [details, batch_details]))
+        combined_consequences = "\n\n".join(filter(None, [consequences, risk_note]))
+    else:
+        combined_details = details
+        combined_consequences = consequences
+
     approval_context = build_approval_context(
         action_description=action_description,
         risk_level=risk_level,
-        details=details,
-        consequences=consequences,
+        details=combined_details,
+        consequences=combined_consequences,
     )
 
     logger.info(
@@ -184,22 +212,74 @@ async def ask_confirm(
         bool(ops),
     )
 
-    # 统一发起 approval（create + push + raise），用 i18n 模板生成响应文本
-    from app.core.hitl.orchestrator import HITLOrchestrator
+    # Single-action approval: reuse the unified orchestrator path.
+    if not ops:
+        from app.core.hitl.orchestrator import HITLOrchestrator
 
-    return await HITLOrchestrator.raise_approval(
+        return await HITLOrchestrator.raise_approval(
+            thread_id=thread_id,
+            prompt=action_description,
+            context=approval_context,
+            tool_name="ask_confirm",
+            risk_level=risk_level,
+            tool_call_id=current_tool_call_id,
+            parent_id=last_ai_message_id,
+            project_id=project_id,
+            run_id=str(command_id) if command_id else None,
+            original_tool_name="ask_confirm",
+            response_text_factory=lambda req: i18n.get(
+                "domain_tools.human_input.approval_template",
+                id=req.id,
+                approval_context=approval_context,
+            ),
+        )
+
+    # Batch approval: create the grant first, then link it to the HITL request
+    # so that post-approval resume can activate the grant.
+    grant_id = gen_uuid()
+    create_pending_grant(
+        grant_id=grant_id,
         thread_id=thread_id,
+        request_id="",
+        operations=ops,
+        ttl_seconds=300,
+    )
+
+    request = await create_request(
+        thread_id=thread_id,
+        request_type="approval",
         prompt=action_description,
         context=approval_context,
-        tool_name="ask_confirm",
-        risk_level=risk_level,
-        tool_call_id=current_tool_call_id,
-        parent_id=last_ai_message_id,
+        default_value="REJECTED",
+    )
+
+    update_grant_request_id(grant_id, request.id)
+
+    await push_hitl_notification(
+        thread_id=thread_id,
+        request=request,
+        request_data={
+            "id": request.id,
+            "type": "approval",
+            "prompt": action_description,
+            "context": approval_context,
+            "default_value": "REJECTED",
+            "risk_level": risk_level,
+            "batch_grant_id": grant_id,
+            "operations": ops,
+        },
         project_id=project_id,
         run_id=str(command_id) if command_id else None,
-        response_text_factory=lambda req: i18n.get(
-            "domain_tools.human_input.approval_template",
-            id=req.id,
-            approval_context=approval_context,
-        ),
+        tool_name="ask_confirm",
+        tool_call_id=current_tool_call_id,
+        parent_id=last_ai_message_id,
+        original_tool_name="ask_confirm",
+        original_tool_args={"grant_id": grant_id},
     )
+
+    response_text = i18n.get(
+        "domain_tools.human_input.approval_template",
+        id=request.id,
+        approval_context=approval_context,
+    )
+    raise_hitl_interrupt(request.id, response_text)

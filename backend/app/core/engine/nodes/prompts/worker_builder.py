@@ -72,17 +72,25 @@ class WorkerPromptBuilder(BasePromptBuilder):
             ),
         }
 
-        # Protocol flags based on the node's tool list (Static for the node)
+        # Protocol flags based on the node's RESOLVED tool list. The resolved
+        # set (YAML pool + skill allowlist + MCP dynamic tools, post
+        # vision-filter) is the source of truth — the agent_config declaration
+        # alone may omit tools the Worker actually received.
+        from app.core.tools.manager import tool_manager
+
         node_tools = self.agent_config.tools if self.agent_config else []
-        has_desktop_tool = any(t in node_tools for t in ["desktop_control", "open_app"])
-        has_mobile_tool = any(
-            t in node_tools for t in ["mobile_control", "list_devices"]
-        )
-        has_browser_tool = "browser_control" in node_tools
-        has_wiki_tools = any(
-            t in node_tools
-            for t in ["write_wiki_page", "edit_wiki_page", "save_concepts"]
-        )
+        resolved_state = self.blackboard if isinstance(self.blackboard, AgentState) else None
+        try:
+            resolved_tools = [t.name for t in await tool_manager.get_node_tools("worker", resolved_state)]
+        except Exception as e:
+            logger.warning(f"[WorkerPromptBuilder] Failed to resolve worker tools; falling back to agent_config.tools: {e}")
+            resolved_tools = []
+
+        effective_tools = set(node_tools) | set(resolved_tools)
+        has_desktop_tool = any(t in effective_tools for t in ["desktop_control", "open_app"])
+        has_mobile_tool = any(t in effective_tools for t in ["mobile_control", "list_devices"])
+        has_browser_tool = "browser_control" in effective_tools
+        has_wiki_tools = any(t in effective_tools for t in ["write_wiki_page", "edit_wiki_page", "save_concepts"])
 
         logger.info(
             f"[WorkerPromptBuilder] Static Protocol flags: "

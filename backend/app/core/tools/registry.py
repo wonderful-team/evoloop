@@ -308,14 +308,19 @@ def get_node_tools(node_role: str, config_path: str | None = None) -> list[BaseT
 
     hydrated = get_tools_by_names(tool_names, source_role=node_role)
 
-    # Only cache when all declared tools were found (avoid polluting cache with incomplete results)
-    if not config_path and len(hydrated) == len(tool_names):
-        _cached_node_tools[node_role] = hydrated
-    elif not config_path:
-        logger.warning(
-            f"[Registry] Not caching {node_role} tools: "
-            f"expected {len(tool_names)}, got {len(hydrated)}"
-        )
+    # 缓存已解析的工具：yaml 声明是节点能力池，可能因运行时门控（如
+    # ENABLE_MEMORY=False 禁用的记忆工具）部分未注册——缺失是预期行为，
+    # 不因部分缺失而放弃缓存（否则每次调用都重新解析 + 重复告警）。
+    # 缺失项仅记一次性 warning；缓存命中后不再走到这里。
+    if not config_path:
+        missing_count = len(tool_names) - len(hydrated)
+        if missing_count:
+            logger.warning(
+                f"[Registry] {node_role} tools: {missing_count} declared tools not "
+                f"registered (gated/disabled), caching {len(hydrated)}"
+            )
+        if hydrated:
+            _cached_node_tools[node_role] = hydrated
 
     return hydrated
 
