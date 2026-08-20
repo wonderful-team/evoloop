@@ -13,6 +13,24 @@ logger = logging.getLogger(__name__)
 
 class SecureVaultService:
     @staticmethod
+    def _merge_payloads(old_payload: dict[str, Any], new_payload: dict[str, Any]) -> dict[str, Any]:
+        """Merge a partial-update payload into the existing one.
+
+        - value is None -> delete the field
+        - value is an empty string -> keep the existing field untouched
+        - otherwise -> overwrite (or add) the field
+        """
+        merged = dict(old_payload)
+        for key, value in new_payload.items():
+            if value is None:
+                merged.pop(key, None)
+            elif isinstance(value, str) and value == "":
+                continue
+            else:
+                merged[key] = value
+        return merged
+
+    @staticmethod
     def add_credential(
         identifier: str,
         type: str,
@@ -22,12 +40,13 @@ class SecureVaultService:
     ) -> SecureCredential:
         """
         Encrypt and save a new secure credential in the database.
+
+        When the credential already exists, the payload is merged with the
+        existing one (partial update): non-empty values overwrite, None values
+        delete the field, missing keys are preserved.
         """
         if not db_resource_manager.sync_engine:
             raise RuntimeError("Database engine not initialized")
-
-        json_str = json.dumps(payload)
-        encrypted = encrypt_payload(json_str)
 
         with Session(db_resource_manager.sync_engine) as session:
             # Check if identifier already exists
@@ -35,10 +54,12 @@ class SecureVaultService:
             config = session.exec(statement).first()
 
             if config:
+                existing = json.loads(decrypt_payload(config.encrypted_payload))
+                merged = SecureVaultService._merge_payloads(existing, payload)
                 config.type = type
                 config.project_id = project_id
                 config.description = description
-                config.encrypted_payload = encrypted
+                config.encrypted_payload = encrypt_payload(json.dumps(merged))
                 logger.info(f"[SecureVault] Updated existing credential: {identifier}")
             else:
                 config = SecureCredential(
@@ -46,7 +67,7 @@ class SecureVaultService:
                     type=type,
                     project_id=project_id,
                     description=description,
-                    encrypted_payload=encrypted,
+                    encrypted_payload=encrypt_payload(json.dumps(payload)),
                 )
                 session.add(config)
                 logger.info(f"[SecureVault] Added new credential: {identifier}")
@@ -85,6 +106,15 @@ class SecureVaultService:
 
             decrypted = decrypt_payload(config.encrypted_payload)
             return json.loads(decrypted)
+
+    @staticmethod
+    def list_credential_fields(identifier: str, project_id: int | None = None) -> list[str]:
+        """
+        Return the field names (keys) of a credential payload without the values.
+        Enforces the same project-level isolation as get_credential_payload.
+        """
+        payload = SecureVaultService.get_credential_payload(identifier, project_id=project_id)
+        return list(payload.keys())
 
     @staticmethod
     def delete_credential(identifier: str, project_id: int | None = None) -> bool:
@@ -127,7 +157,7 @@ class SecureVaultService:
                 statement = select(SecureCredential).where(
                     or_(
                         SecureCredential.project_id == project_id,
-                        SecureCredential.project_id == None,
+                        SecureCredential.project_id.is_(None),
                     )
                 )
             else:

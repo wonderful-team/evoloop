@@ -581,7 +581,7 @@ class Settings(BaseSettings):
 
     # Dynamic Agents
     SUPERVISOR_AGENT_MAX_STEPS: int = 20
-    WORKER_AGENT_MAX_STEPS: int = 50
+    WORKER_AGENT_MAX_STEPS: int = 100
     FINISH_AGENT_MAX_STEPS: int = 10
 
     # Long-horizon task limits (e.g. wiki generation, large codebase analysis)
