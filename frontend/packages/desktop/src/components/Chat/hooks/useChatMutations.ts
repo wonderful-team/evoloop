@@ -100,7 +100,7 @@ export function useChatMutations({
       window.dispatchEvent(new CustomEvent("chat-scroll-to-bottom"))
       return { snapshot }
     },
-    onSuccess: (data: any) => {
+    onSuccess: async (data: any) => {
       const filesMsg =
         data.files_reverted && data.files_reverted > 0
           ? t("chat.interface.filesRevertedMessage", {
@@ -109,9 +109,14 @@ export function useChatMutations({
           : ""
       toast.success(`${t("chat.interface.retrying")}${filesMsg}`)
 
-      // Reload store to reflect rolled back state and new streaming status
+      // Reload store to reflect rolled back state and new streaming status.
+      // setThread replaces the message list and reconnects SSE; wait for it to
+      // settle before scrolling to the bottom — otherwise the first streamed
+      // messages arrive while the viewport is no longer at the bottom and the
+      // list stops following (scrollbar gets pushed up by incoming SSE).
       if (activeThreadId && projectId) {
-        setThread(activeThreadId, projectId)
+        await setThread(activeThreadId, projectId)
+        window.dispatchEvent(new CustomEvent("chat-scroll-to-bottom"))
       }
       setIsRewindDialogOpen(false)
     },

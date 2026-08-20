@@ -214,7 +214,7 @@ export const useChatStore = create<ChatState>((set, get) => {
         })
 
         // Fetch history and activity first, then connect SSE
-        Promise.all([
+        await Promise.all([
           get().fetchHistory(threadId),
           get().fetchActivity(threadId),
           get().fetchActiveTasks(threadId),

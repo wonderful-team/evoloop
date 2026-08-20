@@ -11,6 +11,7 @@ import {
   memo,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -104,9 +105,19 @@ const TurnStepsGroupView = memo(function TurnStepsGroupView({
   const { t } = useTranslation()
   const [isOpen, setIsOpen] = useState(isTurnActive || false)
 
-  useEffect(() => {
-    setIsOpen(isTurnActive || false)
-  }, [isTurnActive])
+  // 【决定】自动折叠逻辑暂时注释：实测会导致滚动条在流式/折叠瞬间跳来跳去。
+  // 保持"思考与执行过程"始终展开，滚动跟随最稳定。
+  // 待后续优化折叠时机与滚动配合后再恢复。
+  // useEffect(() => {
+  //   // 展开立即执行；折叠延时 3 秒，让流式内容先稳定、滚动条先贴底，
+  //   // 避免折叠瞬间的高度骤减与滚动跟随抢跑（导致滚动条被顶上去）。
+  //   if (isTurnActive) {
+  //     setIsOpen(true)
+  //     return
+  //   }
+  //   const timer = setTimeout(() => setIsOpen(false), 3000)
+  //   return () => clearTimeout(timer)
+  // }, [isTurnActive])
 
   return (
     <Collapsible
@@ -238,28 +249,83 @@ export const MessageList = memo(function MessageList({
     isLoadingHistory,
     loadMoreHistory,
   })
-  // Flag that forces followOutput to return "auto" once, used after sending a message
+  // One-shot flag: force the next followOutput to pin to the bottom (used
+  // right after sending a message / clicking retry). Afterwards we hand control
+  // back to Virtuoso's native followOutput, which already implements the
+  // desired interaction: follow while at the bottom, stop when the user scrolls
+  // up, resume when they scroll back to the bottom.
   const forceFollowRef = useRef(false)
+  // Tracks whether the user has DELIBERATELY scrolled up (to stop following).
+  // Crucially we do NOT gate following on "is the viewport exactly at the
+  // bottom right now": during fast SSE streaming the scrollTop can transiently
+  // lag behind scrollHeight, which would flip an "at bottom" flag off and
+  // permanently stop following (the deadlock you saw — content grows, the bar
+  // is pushed up and never recovers). Instead we only stop following on an
+  // actual upward scroll by the user, and resume once they scroll back down.
+  const userScrolledUpRef = useRef(false)
+  const prevScrollTopRef = useRef<number | null>(null)
+  const prevScrollHeightRef = useRef<number | null>(null)
+  // Tracks the virtual index of the first rendered item so Virtuoso can
+  // preserve scroll position when older history is prepended (loadMoreHistory).
+  const [firstItemIndex, setFirstItemIndex] = useState(0)
+  const prevLenRef = useRef(0)
+  const prevFirstIdRef = useRef<string | null>(null)
+  const loadMoreTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
     callbacksRef.current = { hasMoreHistory, isLoadingHistory, loadMoreHistory }
   })
 
+  // Detect history prepends (loadMoreHistory adds items at the front) and bump
+  // firstItemIndex accordingly, so Virtuoso keeps the visible position instead
+  // of jumping when older messages arrive above the current ones. Runs before
+  // paint (useLayoutEffect) to avoid a one-frame visual flash.
+  useLayoutEffect(() => {
+    const firstId = messages.length ? String(messages[0].id) : null
+    const prevLen = prevLenRef.current
+    const prevFirstId = prevFirstIdRef.current
+    prevLenRef.current = messages.length
+    prevFirstIdRef.current = firstId
+    if (messages.length === 0) {
+      // Thread switched / list reset.
+      setFirstItemIndex(0)
+      return
+    }
+    // A prepend is only recognized when the previous first item is still
+    // present at the exact offset — guards against full-list replacements.
+    const delta = messages.length - prevLen
+    const oldFirstPreserved =
+      prevLen > 0 && delta > 0 && String(messages[delta]?.id) === prevFirstId
+    if (delta > 0 && firstId !== prevFirstId && oldFirstPreserved) {
+      setFirstItemIndex((v) => v + delta)
+    } else if (prevLen > 0 && firstId !== prevFirstId) {
+      // Full replacement (e.g. retry/rewind refetch rebuilds the list from the
+      // latest page) — restart the virtual index from the fresh first item.
+      setFirstItemIndex(0)
+    }
+  }, [messages])
+
+  // Clean up any pending scroll-triggered load timer on unmount.
+  useEffect(() => {
+    return () => {
+      if (loadMoreTimerRef.current) clearTimeout(loadMoreTimerRef.current)
+    }
+  }, [])
+
   // 监听用户强制滚到底部的事件 (比如发送新消息、点击重试)
   useEffect(() => {
     const handleScrollToBottom = () => {
-      // 设置强制跟随标志，使 followOutput 在下次触发时无条件返回 "auto"
+      // Re-engage following (send/retry), then scroll via Virtuoso's own
+      // index-based API. No manual scrollTop writes that could race with the
+      // list rebuild after a retry refetch.
+      userScrolledUpRef.current = false
+      prevScrollTopRef.current = null
+      prevScrollHeightRef.current = null
       forceFollowRef.current = true
-      // 多轮延迟滚动，覆盖 Virtuoso 刚渲染、流式消息高度突变等场景
-      const delays = [50, 200, 500, 1000]
-      for (const delay of delays) {
-        setTimeout(() => {
-          virtuosoRef.current?.scrollToIndex({
-            index: "LAST",
-            align: "end",
-            behavior: "auto",
-          })
-        }, delay)
-      }
+      virtuosoRef.current?.scrollToIndex({
+        index: "LAST",
+        align: "end",
+        behavior: "auto",
+      })
     }
     window.addEventListener("chat-scroll-to-bottom", handleScrollToBottom)
     return () =>
@@ -287,32 +353,65 @@ export const MessageList = memo(function MessageList({
     }
   }, [isLoadingHistory, hasMoreHistory, loadMoreHistory])
 
-  const handleFollowOutput = useCallback(
-    (isAtBottom: boolean) => {
-      if (isLoadingHistory) return false
-      // 如果有强制跟随标志（用户刚发了消息），无视 isAtBottom，强制跟随并清除标志
-      if (forceFollowRef.current) {
-        forceFollowRef.current = false
-        return "auto"
-      }
-      if (!isAtBottom) return false
-      return "auto"
-    },
-    [isLoadingHistory],
-  )
+  const handleFollowOutput = useCallback((isAtBottom: boolean) => {
+    // Follow while the user has not deliberately scrolled up. We deliberately
+    // ignore isAtBottom for the decision (except as a Virtuoso hint) so a
+    // transient lag during streaming never permanently detaches the viewport.
+    if (userScrolledUpRef.current) return false
+    // forceFollowRef (send/retry) pins immediately regardless of position.
+    if (forceFollowRef.current) {
+      forceFollowRef.current = false
+      return "smooth"
+    }
+    return isAtBottom ? "auto" : "smooth"
+  }, [])
 
   const handleScroll = useCallback((event: React.UIEvent) => {
     const target = event.target as HTMLElement
     const { scrollTop, scrollHeight, clientHeight } = target
+    const prev = prevScrollTopRef.current
+    const prevHeight = prevScrollHeightRef.current
+    prevScrollTopRef.current = scrollTop
+    prevScrollHeightRef.current = scrollHeight
+    // A deliberate upward scroll by the user: scrollTop decreased AND the
+    // content height did NOT shrink at the same time. A retry/refetch rebuild
+    // shortens the list, which makes the browser clamp scrollTop down (smaller)
+    // together with scrollHeight — that is NOT a user scroll and must not turn
+    // off following, otherwise the viewport stays detached forever.
+    if (
+      prev !== null &&
+      prevHeight !== null &&
+      scrollTop < prev &&
+      scrollHeight >= prevHeight
+    ) {
+      userScrolledUpRef.current = true
+    }
+    // Resume following when the user scrolls back to the bottom. Only when
+    // there is actually scrollable content (scrollHeight > clientHeight);
+    // otherwise (no overflow) the position check is meaningless.
+    const scrollable = scrollHeight - clientHeight
+    if (
+      userScrolledUpRef.current &&
+      scrollable > 0 &&
+      scrollTop + clientHeight >= scrollHeight - 24
+    ) {
+      userScrolledUpRef.current = false
+    }
+
     const scrollableHeight = scrollHeight - clientHeight
     if (scrollableHeight <= 0) return
 
     if (scrollTop / scrollableHeight > 0.2) return
 
+    // Debounce: coalesce rapid scroll events into a single load.
+    if (loadMoreTimerRef.current) return
     const { hasMoreHistory, isLoadingHistory, loadMoreHistory } =
       callbacksRef.current
     if (hasMoreHistory && !isLoadingHistory && loadMoreHistory) {
-      loadMoreHistory()
+      loadMoreTimerRef.current = setTimeout(() => {
+        loadMoreTimerRef.current = null
+        loadMoreHistory()
+      }, 150)
     }
   }, [])
 
@@ -613,6 +712,43 @@ export const MessageList = memo(function MessageList({
       .filter(Boolean) as VirtItem[]
   }, [renderItems, messages.length])
 
+  // Pin-to-bottom driven by the LAST RENDERED item's signature.
+  //
+  // Why the rendered tail and not just the last raw message:
+  //  - SSE tokens grow the last AI message in-place (array length unchanged),
+  //    so Virtuoso's followOutput (length-only) never fires -> we re-pin here.
+  //  - When the tail is a "turn_steps_group", its fold/unfold (isTurnActive)
+  //    changes height without changing any single message's content. Including
+  //    isTurnActive + step count lets a fold after a retry also re-pin, instead
+  //    of leaving the scrollbar bounced up over the retried message.
+  // We only scroll when atBottomRef (Virtuoso's own at-bottom state) is true,
+  // so an up-scrolled user is never yanked to the bottom.
+  const lastTailSigRef = useRef<string | null>(null)
+  useLayoutEffect(() => {
+    if (virtItems.length === 0) return
+    const tail = virtItems[virtItems.length - 1]
+    let sig: string
+    if (tail.type === "turn_steps_group") {
+      const lastStep = tail.steps ? tail.steps[tail.steps.length - 1] : null
+      sig = `g|${tail.isTurnActive}|${tail.steps?.length ?? 0}|${
+        lastStep ? (lastStep.content || "").length : 0
+      }`
+    } else {
+      const d = tail.data as any
+      sig = `m|${String(d?.id ?? "")}|${(d?.content || "").length}`
+    }
+    if (sig !== lastTailSigRef.current) {
+      lastTailSigRef.current = sig
+      if (!userScrolledUpRef.current) {
+        virtuosoRef.current?.scrollToIndex({
+          index: "LAST",
+          align: "end",
+          behavior: "auto",
+        })
+      }
+    }
+  }, [virtItems])
+
   const virtuosoContext = useMemo(
     () => ({
       scrollerRef,
@@ -695,9 +831,10 @@ export const MessageList = memo(function MessageList({
       ref={virtuosoRef}
       style={{ height: "100%" }}
       data={virtItems}
+      firstItemIndex={firstItemIndex}
       itemContent={itemContent}
       followOutput={handleFollowOutput}
-      atBottomThreshold={100}
+      atBottomThreshold={50}
       components={STATIC_COMPONENTS}
       context={virtuosoContext}
     />
