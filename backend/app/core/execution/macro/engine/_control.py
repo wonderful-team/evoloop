@@ -16,6 +16,7 @@ class ControlMixin:
         extracted_data,
         disable_ocr=True,
         active_bundle_id=None,
+        execution_warnings=None,
     ):
         if params is None:
             params = {}
@@ -37,6 +38,7 @@ class ControlMixin:
                     extracted_data,
                     disable_ocr,
                     active_bundle_id,
+                    execution_warnings=execution_warnings,
                 )
 
         elif step.type == MacroStepType.LOOP:
@@ -51,6 +53,7 @@ class ControlMixin:
                     disable_ocr,
                     collect_mode,
                     active_bundle_id,
+                    execution_warnings=execution_warnings,
                 )
 
             if payload.get("items_key"):
@@ -62,10 +65,15 @@ class ControlMixin:
                     extracted_data,
                     disable_ocr,
                     active_bundle_id,
+                    execution_warnings=execution_warnings,
                 )
 
             iterations = 0
             if not step.steps:
+                if execution_warnings is not None:
+                    execution_warnings.append(
+                        f"loop step {step.step_number} 无循环体（空 steps）"
+                    )
                 return True, "", None
 
             max_iters = payload.get("max_iterations", step.max_iterations)
@@ -106,7 +114,13 @@ class ControlMixin:
 
                 iterations += 1
 
-            if iterations >= max_iters:
+            if iterations == 0:
+                if execution_warnings is not None:
+                    execution_warnings.append(
+                        f"loop step {step.step_number} 迭代 0 次"
+                        + (f"（条件 {cond_type}: {selector} 未命中）" if cond_type else "")
+                    )
+            elif iterations >= max_iters:
                 logger.warning(f"[{thread_id}] While loop reached max iterations ({max_iters})")
 
         return True, "", None

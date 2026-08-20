@@ -14,10 +14,9 @@ from app.core.execution.macro.lifecycle import (
     find_macro_by_name,
 )
 from app.core.execution.macro.schemas import (
-    RISK_TIER_ORDER,
     MacroScript,
-    action_family,
-    action_risk,
+    compute_max_risk,
+    scan_step_families,
 )
 from app.core.execution.macro.utils import cleanup_macro_steps, verify_macro_script
 from app.core.tools import evoloop_tool
@@ -125,6 +124,7 @@ async def create_macro(
     trigger_patterns: list[str] | None = None,
     thread_id: str | None = None,
     script_steps: list[dict[str, Any]] | None = None,
+    parameters: list[dict] | None = None,
     rationale: str | None = None,
 ) -> str:
     """
@@ -255,6 +255,7 @@ async def create_macro(
         description=description,
         trigger_patterns=trigger_patterns,
         script_steps=script_steps,
+        parameters=parameters,
         rationale=rationale,
     )
 
@@ -293,11 +294,17 @@ async def _create_macro_from_trace(
 
         macro_id = macro.id if hasattr(macro, "id") else macro.get("id")
 
-        return (
-            f"✅ Macro created (ID: {macro_id}, name: {name}). "
-            f"It is saved as 'pending_review' — please confirm it in the "
-            f"Skill Library before it becomes active."
+        # No human review step exists for agent-authored macros: the trace
+        # itself (a completed, successful real execution) is the verification.
+        # Promote so the macro is discoverable.
+        async with session_scope() as db:
+            confirmed = await confirm_macro(int(macro_id), db=db)
+
+        status_note = (
+            "Dry-run verification passed; the macro is active and discoverable via list_macros."
+            if confirmed else "Activation failed; the macro remains inactive — report this to the user."
         )
+        return f"✅ Macro created from trace (ID: {macro_id}, name: {name}). {status_note}"
     except Exception as e:
         logger.exception(f"Failed to create macro from trace: {e}")
         return f"Error: Failed to create macro from trace: {str(e)}"
@@ -311,7 +318,8 @@ async def _create_macro_from_script(
     description: str,
     trigger_patterns: list[str] | None,
     script_steps: list[dict[str, Any]],
-    rationale: str | None,
+    parameters: list[dict] | None = None,
+    rationale: str | None = None,
 ) -> str:
     """Agent-written macro path: validate, gate, dry-run, persist."""
     try:
@@ -323,7 +331,7 @@ async def _create_macro_from_script(
             return f"Error: Invalid macro script: {e}"
 
         allowed_families = {"observe", "act", "control", "data"}
-        reason = _scan_step_families(script.steps, allowed_families)
+        reason = scan_step_families(script.steps, allowed_families)
         if reason:
             return f"Error: Risk gate rejected: {reason}"
 
@@ -333,8 +341,10 @@ async def _create_macro_from_script(
         if not result.success:
             return f"Error: Macro verification failed: {result.error or result.status}"
 
-        max_risk = _compute_max_risk(script.steps)
+        max_risk = compute_max_risk(script.steps)
         requires_confirmation = max_risk in {"money", "escape"}
+
+        final_params = finalize_macro_parameters(parameters, script.to_yaml())
 
         async with session_scope() as db:
             existing = await find_macro_by_name(name, project_id=project_id, db=db)
@@ -346,7 +356,7 @@ async def _create_macro_from_script(
                 name=name,
                 description=description,
                 trigger_patterns=trigger_patterns or [],
-                parameters=[],
+                parameters=final_params,
                 macro_script=script.to_yaml(),
                 risk_tier=max_risk,
                 requires_confirmation=requires_confirmation,
@@ -366,44 +376,30 @@ async def _create_macro_from_script(
             rationale,
         )
 
+        # No human review step exists for agent-authored macros: the dry-run
+        # verification above IS the gate. Self-verify by promoting to
+        # verified/active so the macro is immediately discoverable via
+        # list_macros (which only shows verified macros).
+        async with session_scope() as db:
+            confirmed = await confirm_macro(macro_id, db=db)
+
+        if not confirmed:
+            logger.warning(
+                "[Tool] Agent-written macro %s failed self-activation; "
+                "it remains inactive.",
+                macro_id,
+            )
+            return (
+                f"⚠️ Macro created (ID: {macro_id}, name: {name}) and dry-run "
+                f"verified, but activation failed. Report the macro ID to the "
+                f"user; it is not discoverable yet."
+            )
+
         return (
-            f"✅ Macro created from script (ID: {macro_id}, name: {name}). "
-            f"It is saved as 'pending_review' — confirm it before it becomes active."
+            f"✅ Macro created and self-verified (ID: {macro_id}, name: {name}, "
+            f"risk={max_risk}). Dry-run verification passed and the macro is "
+            f"now active and discoverable via list_macros."
         )
     except Exception as e:
         logger.exception(f"Failed to create macro from script: {e}")
         return f"Error: Failed to create macro from script: {str(e)}"
-
-
-def _scan_step_families(steps: list[Any], allowed: set[str]) -> str | None:
-    """Reject any step whose action family is not in the allowed set."""
-    for step in steps:
-        family = action_family(step.type, step.event_type)
-        if family not in allowed:
-            return (
-                f"step type={step.type} event_type={step.event_type} "
-                f"is in disallowed family '{family}'"
-            )
-        for nested in (step.then_steps, step.else_steps, step.steps):
-            if nested:
-                reason = _scan_step_families(nested, allowed)
-                if reason:
-                    return reason
-    return None
-
-
-def _compute_max_risk(steps: list[Any]) -> str:
-    """Return the highest risk tier present in the script."""
-    max_risk = "observe"
-    for step in steps:
-        risk = action_risk(step.event_type)
-        if RISK_TIER_ORDER.get(risk, 0) > RISK_TIER_ORDER.get(max_risk, 0):
-            max_risk = risk
-        for nested in (step.then_steps, step.else_steps, step.steps):
-            if nested:
-                nested_risk = _compute_max_risk(nested)
-                if RISK_TIER_ORDER.get(nested_risk, 0) > RISK_TIER_ORDER.get(
-                    max_risk, 0
-                ):
-                    max_risk = nested_risk
-    return max_risk

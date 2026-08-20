@@ -30,8 +30,8 @@ from app.core.execution.macro.lifecycle import load_macro as _load_macro
 from app.core.execution.macro.schemas import (
     RISK_TIER_ORDER,
     MacroScript,
-    action_family,
     action_risk,
+    iter_macro_steps,
 )
 from app.core.project.utils import get_project_path, read_project_json
 from app.infrastructure.config.vault import SecureVaultService
@@ -96,6 +96,8 @@ class ExecutionOutcome:
     message: str
     fell_back: bool = False  # macro failed and an agentic recovery run took over
     extracted_data: dict[str, Any] | None = None  # data captured by EXTRACT steps
+    step_log: list[dict[str, Any]] | None = None  # per-step execution records
+    execution_warnings: list[str] | None = None  # non-fatal signals (e.g. zero-iteration loop)
 
 
 def is_navigation_macro(macro: Macro) -> str | None:
@@ -235,28 +237,19 @@ def _step_requires_ui(step: Any) -> bool:
 
 
 def _scan_steps_risk(steps: list[Any], policy: ExecutionPolicy) -> str | None:
-    """Recursively scan steps for disallowed families or excessive risk.
+    """Scan a macro step tree (MacroStep or dict) for policy violations.
 
     Returns None if all steps pass, or a human-readable rejection reason.
     """
-    for step in steps:
-        family = action_family(step.type, getattr(step, "event_type", None))
-        if (
-            policy.allowed_families is not None
-            and family not in policy.allowed_families
-        ):
+    for family, step_type, event_type in iter_macro_steps(steps):
+        if policy.allowed_families is not None and family not in policy.allowed_families:
             return f"disallowed family '{family}'"
         if policy.max_risk_tier is not None:
-            risk = action_risk(getattr(step, "event_type", None))
+            risk = action_risk(event_type)
             if RISK_TIER_ORDER.get(risk, 0) > RISK_TIER_ORDER.get(
                 policy.max_risk_tier, 0
             ):
                 return f"risk '{risk}' exceeds max '{policy.max_risk_tier}'"
-        for attr in ("then_steps", "else_steps", "steps"):
-            nested = getattr(step, attr, None) or []
-            reason = _scan_steps_risk(nested, policy)
-            if reason:
-                return reason
     return None
 
 
@@ -325,7 +318,7 @@ async def run_deterministic(
         # Only fall back to self-healing (MacroService.run) on failure — the slow
         # self-heal path (activity log + recording + Agent recovery) is acceptable
         # for the error case, but must not penalize the success case.
-        return await _run_with_self_heal(
+        outcome = await _run_with_self_heal(
             macro,
             thread_id=thread_id,
             script=script,
@@ -333,12 +326,23 @@ async def run_deterministic(
             project_id=project_id,
             skill_name=skill_name,
         )
+        # 自愈路径未带回 step_log 时，用 fast path 已收集的 step_log 兜底，
+        # 保证 Agent 在失败场景也能拿到步骤级诊断（步骤号/成败/错误）。
+        if not outcome.step_log and data:
+            outcome.step_log = (data or {}).get("step_log")
+        return outcome
 
     # 失败时把失败步骤信息并入 message，委托 Agent 时传递失败上下文
     if not ok and data and data.get("step_number"):
         step_note = f"第{data.get('step_number')}步({data.get('event_type') or 'action'})失败"
         msg = f"{step_note}: {msg}" if msg else step_note
-    return ExecutionOutcome(ok, msg or "", extracted_data=extracted_data)
+    return ExecutionOutcome(
+        ok,
+        msg or "",
+        extracted_data=extracted_data,
+        step_log=(data or {}).get("step_log"),
+        execution_warnings=(data or {}).get("execution_warnings"),
+    )
 
 
 async def _run_with_self_heal(
@@ -363,11 +367,16 @@ async def _run_with_self_heal(
 
     result = await MacroService.run(thread_id=thread_id, script_input=script, params=exec_params, macro=macro)
 
+    result_step_log = (result or {}).get("step_log") if isinstance(result, dict) else getattr(result, "step_log", None)
+    result_warnings = (result or {}).get("execution_warnings") if isinstance(result, dict) else getattr(result, "execution_warnings", None)
+
     if result.get("status") != "fallback_required":
         return ExecutionOutcome(
             bool(result.get("success")),
             result.get("message") or "",
             extracted_data=result.get("extracted_data") or {},
+            step_log=result_step_log,
+            execution_warnings=result_warnings,
         )
 
     if not result.get("allow_self_healing", True):
@@ -376,7 +385,7 @@ async def _run_with_self_heal(
             thread_id,
             result.get("healing_disabled_reason", "unknown"),
         )
-        return ExecutionOutcome(False, result.get("message") or "")
+        return ExecutionOutcome(False, result.get("message") or "", step_log=result_step_log)
 
     logger.warning("[%s] Macro failed, triggering agentic fallback", thread_id)
     failure_context = dict(result.get("fallback_context") or {})
@@ -396,9 +405,9 @@ async def _run_with_self_heal(
     )
     if dispatched.status == "failed":
         logger.error("[MacroFallback] Dispatch failed: %s", dispatched.error)
-        return ExecutionOutcome(False, f"Self-healing dispatch failed: {dispatched.error}")
+        return ExecutionOutcome(False, f"Self-healing dispatch failed: {dispatched.error}", step_log=result_step_log)
 
     # 后台派发 Agent 恢复：立即返回 fell_back=True，不阻塞 web/chat 的 HTTP 响应
     #（原实现 await run_agent_background，会把宏失败的自愈拖到几分钟级，导致请求挂死）。
     asyncio.create_task(run_agent_background(thread_id, dispatched.inputs))
-    return ExecutionOutcome(False, result.get("message") or "", fell_back=True)
+    return ExecutionOutcome(False, result.get("message") or "", fell_back=True, step_log=result_step_log)

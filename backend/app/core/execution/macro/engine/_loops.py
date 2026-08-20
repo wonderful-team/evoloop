@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 class LoopMixin:
     @classmethod
-    async def _handle_loop(cls, thread_id, step, payload, params, extracted_data, disable_ocr=True, active_bundle_id=None):
+    async def _handle_loop(cls, thread_id, step, payload, params, extracted_data, disable_ocr=True, active_bundle_id=None, execution_warnings=None):
         items_key = payload.get("items_key", "items")
         items = extracted_data.get(items_key) or params.get(items_key)
 
@@ -28,6 +28,8 @@ class LoopMixin:
                 warn_msg = f"[WARNING] Batch loop skipped: No items found for key '{items_key}'"
                 logger.warning(f"[{thread_id}] {warn_msg}")
                 await activity_monitor.log_event("macro_thought", {"text": warn_msg}, thread_id)
+                if execution_warnings is not None:
+                    execution_warnings.append(f"loop step {step.step_number} 迭代 0 次（items_key '{items_key}' 无数据）")
                 return True, "", None
 
         logger.info(f"[{thread_id}] Starting Batch Loop: {len(items)} items for key '{items_key}'")
@@ -70,7 +72,7 @@ class LoopMixin:
                     iter_params["item"] = item
                     iter_params["batch_index"] = index
 
-                    success, msg, fallback = await cls.execute_steps(thread_id, step.steps, iter_params, extracted_data, disable_ocr, active_bundle_id)
+                    success, msg, fallback = await cls.execute_steps(thread_id, step.steps, iter_params, extracted_data, disable_ocr, active_bundle_id, execution_warnings=execution_warnings)
 
                     if success:
                         break
@@ -123,7 +125,8 @@ class LoopMixin:
         extracted_data,
         disable_ocr,
         collect_mode,
-        active_bundle_id=None
+        active_bundle_id=None,
+        execution_warnings=None,
     ):
         state_file = payload.get("state_file", f"/tmp/macro_collect_{thread_id}.json")
         list_config = payload.get("list_config", {})
@@ -261,7 +264,13 @@ class LoopMixin:
                         iter_params["collected_signature"] = item["signature"]
 
                         success, msg, fallback = await cls.execute_steps(
-                            thread_id, step.steps, iter_params, extracted_data, disable_ocr, active_bundle_id
+                            thread_id,
+                            step.steps,
+                            iter_params,
+                            extracted_data,
+                            disable_ocr,
+                            active_bundle_id,
+                            execution_warnings=execution_warnings
                         )
 
                         if not success:

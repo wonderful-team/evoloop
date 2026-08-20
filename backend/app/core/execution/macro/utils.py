@@ -40,6 +40,16 @@ async def verify_macro_script(
         if params:
             default_params.update(params)
 
+        # dry-run 与真实执行对齐：注入 {{base_url}}，否则 navigate 步骤的
+        # 占位符/相对路径直接进 page.goto → "Cannot navigate to invalid URL"，
+        # 导致 Agent 造宏验证必败且报错无细节。
+        if "base_url" not in default_params and _project_id:
+            from app.core.execution.macro.runner import resolve_project_base_url
+
+            base_url = await resolve_project_base_url(_project_id)
+            if base_url:
+                default_params["base_url"] = base_url
+
         if isinstance(macro_script, str):
             steps: list[dict[str, Any]] = macro_from_yaml(macro_script)
         elif isinstance(macro_script, list):
@@ -62,6 +72,7 @@ async def verify_macro_script(
 
         success = result.get("success", False)
         extracted_data = result.get("extracted_data") or {}
+        step_log = result.get("step_log")
 
         expected_keys = [s["key"] for s in steps if s.get("type") == "extract"]
         missing_keys = [k for k in expected_keys if k not in extracted_data]
@@ -73,12 +84,35 @@ async def verify_macro_script(
             f"Extracted keys: {list(extracted_data.keys())}"
         )
 
+        # MacroRunResult 只有 message 字段（无 error）；之前只读 error 导致
+        # 真实失败原因（如 "Cannot navigate to invalid URL"）被吞成空，
+        # Agent 只看到 "Macro verification failed: failed" 无细节。
+        # 仅在失败时回退到 message（成功时的 message 不是错误）。
+        error = result.get("error")
+        if error is None and not success:
+            error = result.get("message")
+
+        # 失败时把步骤级执行记录（step_log）编译成可诊断摘要，随 error 一起
+        # 返回，否则 Agent 只能看到 "failed" 无法定位出错步骤。
+        if not success and step_log:
+            failed_steps = [s for s in step_log if not s.get("ok")]
+            if failed_steps:
+                detail = "; ".join(
+                    f"step {s.get('step')}({s.get('type')}/{s.get('event_type', '-')}): "
+                    f"{s.get('error') or 'failed'}"
+                    for s in failed_steps[:5]
+                )
+                error = f"{error or 'Macro verification failed'}; failed steps: {detail}"
+            else:
+                error = f"{error or 'Macro verification failed'}; step_log: {step_log[:10]}"
+
         return MacroVerificationResult(
             status=status,
             success=success,
             missing_keys=missing_keys,
             extracted_count=len(extracted_data),
-            error=result.get("error"),
+            error=error,
+            step_log=step_log,
         )
     except Exception:
         logger.exception("[%s] Macro verification crashed", thread_id)

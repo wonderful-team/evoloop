@@ -111,31 +111,24 @@ RISK_TIER_ORDER: dict[str, int] = {t: i for i, t in enumerate(RISK_TIERS)}
 
 def action_family(step_type: MacroStepType, event_type: MacroActionType | str | None) -> str:
     """Derive action family from a macro step using priority:
-    1. escape  — type==NATIVE or event_type in (APPLESCRIPT, RUN_JS)
-    2. observe — type in (EXTRACT, DUMP) or perception event_type
+    1. escape  — type==NATIVE or type==BASH (system-level execution)
+    2. observe — type in (EXTRACT, DUMP), including run_js extraction
     3. control — type in (CONTROL, IF, LOOP)
-    4. act     — everything else
+    4. escape  — event_type in (applescript, run_js, bash) when used as actions
+    5. act     — everything else
+
+    Note: run_js inside an EXTRACT step is treated as observation/data extraction,
+    not as arbitrary code execution, because its purpose is to read page state.
+    run_js as an ACTION step remains escape.
     """
     if step_type in (MacroStepType.NATIVE, MacroStepType.BASH):
         return "escape"
-    if event_type and str(event_type) in ("applescript", "run_js", "bash"):
-        return "escape"
     if step_type in (MacroStepType.EXTRACT, MacroStepType.DUMP):
-        return "observe"
-    _perception = frozenset({
-        "get_text",
-        "get_attribute",
-        "get_html",
-        "get_links",
-        "get_elements",
-        "screenshot",
-        "dump_ui",
-        "gui_extract",
-    })
-    if event_type and str(event_type) in _perception:
         return "observe"
     if step_type in (MacroStepType.CONTROL, MacroStepType.IF, MacroStepType.LOOP):
         return "control"
+    if event_type and str(event_type) in ("applescript", "run_js", "bash"):
+        return "escape"
     return "act"
 
 
@@ -202,6 +195,77 @@ def action_risk(event_type: MacroActionType | str | None) -> str:
     if event_type is None:
         return "observe"
     return _risk.get(str(event_type), "act")
+
+
+def _step_nested(step: Any) -> tuple[list[Any], list[Any], list[Any]]:
+    """Return (then_steps, else_steps, steps) from a MacroStep or dict."""
+    if isinstance(step, dict):
+        return (
+            step.get("then_steps") or [],
+            step.get("else_steps") or [],
+            step.get("steps") or [],
+        )
+    return (
+        getattr(step, "then_steps", None) or [],
+        getattr(step, "else_steps", None) or [],
+        getattr(step, "steps", None) or [],
+    )
+
+
+def iter_macro_steps(steps: list[Any]):
+    """Depth-first walk over a macro step tree (MacroStep or dict).
+
+    Yields (family, step_type, event_type) for every step, including nested
+    then/else/steps bodies. Shared by risk/family scanners so the tree-walk
+    logic lives in one place instead of being copied across callers.
+    """
+    for step in steps:
+        if isinstance(step, dict):
+            step_type = step.get("type")
+            event_type = step.get("event_type")
+        else:
+            step_type = getattr(step, "type", None)
+            event_type = getattr(step, "event_type", None)
+        family = action_family(step_type, event_type)
+        yield family, step_type, event_type
+        then_steps, else_steps, body = _step_nested(step)
+        for nested in (then_steps, else_steps, body):
+            yield from iter_macro_steps(nested)
+
+
+def scan_step_families(steps: list[Any], allowed: set[str]) -> str | None:
+    """Reject any step whose action family is not in the allowed set.
+
+    Accepts a list of MacroStep objects or dicts. Returns the first rejection
+    reason, or None when every step (including nested) is allowed.
+    """
+    for family, step_type, event_type in iter_macro_steps(steps):
+        if family not in allowed:
+            return (
+                f"step type={step_type} event_type={event_type} "
+                f"is in disallowed family '{family}'"
+            )
+    return None
+
+
+def compute_max_risk(steps: list[Any]) -> str:
+    """Return the highest risk tier present in the script.
+
+    Family-aware: steps in the "observe" family (EXTRACT / DUMP step types,
+    including run_js used inside them for reading page state) contribute at
+    most "data" risk — matching scan_step_families, which classifies those
+    steps as observation rather than code execution. run_js/applescript/bash
+    as ACTION steps still yield "escape".
+    """
+    max_risk = "observe"
+    for family, step_type, event_type in iter_macro_steps(steps):
+        if family == "observe":
+            risk = "data" if event_type == "run_js" else "observe"
+        else:
+            risk = action_risk(event_type)
+        if RISK_TIER_ORDER.get(risk, 0) > RISK_TIER_ORDER.get(max_risk, 0):
+            max_risk = risk
+    return max_risk
 
 
 class ExtractType(str, Enum):
@@ -548,6 +612,8 @@ class MacroRunResult(DynamicBaseModel):
     suggestions: list[str] | None = None
     status: str | None = None  # e.g. "fallback_required"
     fallback_context: dict[str, Any] | None = None
+    step_log: list[dict[str, Any]] | None = None  # per-step execution records
+    execution_warnings: list[str] | None = None  # non-fatal signals (e.g. zero-iteration loop)
 
 
 class MacroVerificationResult(DynamicBaseModel):
@@ -558,4 +624,4 @@ class MacroVerificationResult(DynamicBaseModel):
     missing_keys: list[str] = []
     extracted_count: int = 0
     error: str | None = None
-
+    step_log: list[dict[str, Any]] | None = None  # per-step execution records

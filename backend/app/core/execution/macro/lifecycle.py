@@ -309,16 +309,16 @@ async def confirm_macro(macro_id: int, db=None) -> bool:
         return True, True
 
     if db is not None:
-        ok = await _apply(db)
+        changed, verified_after = await _apply(db)
     else:
         async with session_scope() as _db:
-            ok = await _apply(_db)
-    if ok:
+            changed, verified_after = await _apply(_db)
+    if changed:
         # 宏缓存已移除（load_macro 每次读库），invalidate_macro_cache 为 no-op
         # 兼容保留；此处仍调用以保证历史调用语义一致。
         invalidate_macro_cache(macro_id)
         await publish_macro_mutated(macro_id, action="update")
-    return ok
+    return verified_after
 
 
 async def confirm_bulk(macro_ids: list[int], db=None) -> int:

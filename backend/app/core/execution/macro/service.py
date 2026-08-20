@@ -89,6 +89,8 @@ class MacroService:
                         allow_self_healing=False,
                         healing_disabled_reason=decision.reason,
                         healing_disabled_source=decision.source,
+                        step_log=(fallback_ctx or {}).get("step_log"),
+                        execution_warnings=(fallback_ctx or {}).get("execution_warnings"),
                     )
 
                 # Self-healing is allowed - trigger fallback via event system
@@ -107,6 +109,8 @@ class MacroService:
                     suggestions=event.suggestions,
                     status="fallback_required",
                     fallback_context=fallback_ctx,
+                    step_log=(fallback_ctx or {}).get("step_log"),
+                    execution_warnings=(fallback_ctx or {}).get("execution_warnings"),
                 )
 
             # 4. Success Reporting
@@ -120,6 +124,8 @@ class MacroService:
                 success=True,
                 message="Deterministic Macro Execution Complete.",
                 extracted_data=extracted_data,
+                step_log=(fallback_ctx or {}).get("step_log"),
+                execution_warnings=(fallback_ctx or {}).get("execution_warnings"),
             )
 
         except Exception as e:

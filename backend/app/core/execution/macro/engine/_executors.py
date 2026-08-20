@@ -74,7 +74,7 @@ class ExecutorMixin:
                 and page.url.rstrip("/") == target_url.rstrip("/")
             ):
                 logger.info("[macro-engine] navigate skip: already on %s", target_url)
-                return
+                return True
             res = await BrowserController.execute(
                 action=tool_action,
                 url=target_url,
@@ -251,6 +251,8 @@ class ExecutorMixin:
             # run_js 返回 false/undefined → 步骤未真正生效。默认仅记录可见
             # warning（兼容"已登录跳过/元素不存在继续"的条件性用法）；宏步骤
             # 声明 require_success: true 时视为失败并停止（通用引擎的状态校验）。
+            # 返回值带出 false 信号 → step_log 记录步骤未生效，Agent 可据此
+            # 判断宏"跑完但没生效"（如列表搜索无结果）。
             if res and isinstance(res, str) and _is_false_result(res):
                 if payload.get("require_success", False) and not continue_on_error:
                     raise ValueError(
@@ -261,6 +263,7 @@ class ExecutorMixin:
                     "[macro-engine] run_js step returned false (continue): %s",
                     str(payload.get("script") or "")[:120],
                 )
+                return False
 
             # VERIFY 断言：run_js 返回 VERIFY:<state> 且步骤声明 expect:<states> 时，
             # 提取到的业务状态必须匹配预期，否则宏失败。解决"假完成"——宏报
@@ -299,6 +302,8 @@ class ExecutorMixin:
                     timeout_ms=post.get("timeout_ms", 8000),
                 )
                 handle_res(vr)
+
+        return True
 
     @classmethod
     async def _execute_desktop_step(
