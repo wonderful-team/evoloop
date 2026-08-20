@@ -58,6 +58,20 @@ def normalize_parameters(parameters: Any) -> list[dict[str, Any]]:
     return out
 
 
+def finalize_macro_parameters(declared: list[dict] | None, script_yaml: str | None) -> list[dict[str, Any]]:
+    """Resolve a macro's parameter declaration for agent-written scripts.
+
+    Explicitly declared parameters win; otherwise derive required string
+    parameters from ``{{placeholder}}`` usage in the script. ``{{base_url}}``
+    is injected by the engine at runtime and never becomes a macro parameter.
+    """
+    normalized = normalize_parameters(declared)
+    if normalized:
+        return normalized
+    derived = derive_parameters_from_macro(script_yaml)
+    return [p for p in derived if p["name"] != "base_url"]
+
+
 def missing_required_params(parameters: Any, provided: dict[str, Any] | None) -> list[str]:
     """Names of required parameters absent from the execution request.
 

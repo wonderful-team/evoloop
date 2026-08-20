@@ -133,20 +133,6 @@ class ToolManager:
                 except (TypeError, ValueError, RuntimeError, OSError) as e:
                     logger.exception(f"[ToolManager] Failed to inject default MCP tools: {e}")
 
-            # 3. Strict Supervisor Allowlist Enforcement
-            # Only apply this to specialists (workers), NEVER to the supervisor itself.
-            if dynamic_tools and node_name != "supervisor":
-                # If Supervisor provided a strict tool allowlist, we prune any tool not in the list.
-                # Always auto-inject macro tools so the Worker can discover deterministic macros.
-                allowed = set(dynamic_tools) | {"list_macros", "run_macro"}
-                combined_map = {k: v for k, v in combined_map.items() if k in allowed}
-
-                # 4. Prevent tool-choice ambiguity: when write_wiki_page is explicitly
-                #    authorized, remove write_file so the Agent cannot accidentally
-                #    bypass the wiki system and write raw files instead.
-                if "write_wiki_page" in allowed and "write_file" in combined_map:
-                    combined_map.pop("write_file", None)
-
         if not combined_map:
             logger.warning(
                 f"[ToolManager] get_node_tools('{node_name}') resolved to an empty tool list; "

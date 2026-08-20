@@ -190,9 +190,10 @@ async def create_macro(
         )
 
     logger.info(
-        "[Tool] Agent triggered macro creation for thread %s. name=%r "
-        "script_mode=%s",
-        target_thread, name, script_steps is not None,
+        "[Tool] Agent triggered macro creation for thread %s. name=%r script_mode=%s",
+        target_thread,
+        name,
+        script_steps is not None,
     )
 
     if script_steps is None:
@@ -284,9 +285,7 @@ async def _create_macro_from_script(
             cleaned_steps, thread_id=target_thread, _project_id=project_id
         )
         if not result.success:
-            return (
-                f"Error: Macro verification failed: {result.error or result.status}"
-            )
+            return f"Error: Macro verification failed: {result.error or result.status}"
 
         max_risk = _compute_max_risk(script.steps)
         requires_confirmation = max_risk in {"money", "escape"}
@@ -294,10 +293,7 @@ async def _create_macro_from_script(
         async with session_scope() as db:
             existing = await find_macro_by_name(name, project_id=project_id, db=db)
             if existing is not None:
-                return (
-                    f"Error: A macro named '{name}' already exists "
-                    f"(id={existing.id})."
-                )
+                return f"Error: A macro named '{name}' already exists (id={existing.id})."
 
             macro = await create_macro_from_synthesis(
                 db,
@@ -317,7 +313,11 @@ async def _create_macro_from_script(
         logger.info(
             "[Tool] Agent-written macro created: id=%s name=%s risk=%s "
             "requires_confirmation=%s rationale=%r",
-            macro_id, name, max_risk, requires_confirmation, rationale,
+            macro_id,
+            name,
+            max_risk,
+            requires_confirmation,
+            rationale,
         )
 
         return (

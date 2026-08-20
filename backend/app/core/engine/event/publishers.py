@@ -11,6 +11,7 @@ from app.core.events import system_bus
 from .schemas import (
     AgentRunCompletedEvent,
     AgentSessionStartedEvent,
+    ConversationCreatedEvent,
     ConversationDeletedEvent,
     WebSocketMessageReceivedEvent,
 )
@@ -54,6 +55,23 @@ async def publish_agent_run_completed(
 async def publish_conversation_deleted(thread_id: str) -> None:
     """Publish a conversation deletion event for domain subscribers."""
     await system_bus.publish(ConversationDeletedEvent(thread_id=thread_id))
+
+
+async def publish_conversation_created(
+    thread_id: str,
+    project_id: int = DEFAULT_PROJECT_ID,
+    member_id: int = 0,
+    title: str = "",
+) -> None:
+    """Publish a conversation-created event so frontends can refresh their lists."""
+    await system_bus.publish(
+        ConversationCreatedEvent(
+            thread_id=thread_id,
+            project_id=project_id,
+            member_id=member_id,
+            title=title,
+        )
+    )
 
 
 async def publish_ws_message_received(

@@ -6,6 +6,7 @@ from app.core.context import ContextManager
 from app.core.engine.message.native_classes import RunnableConfig
 from app.core.tools import evoloop_tool
 from app.core.tools.base import InjectedToolArg
+from app.utils.async_utils import is_in_event_loop
 
 logger = logging.getLogger(__name__)
 
@@ -85,8 +86,8 @@ async def request_secure_credential(
     ctx = ContextManager.current()
     project_id = ctx.project_id
 
-    # Check if we are in an interactive TTY console
-    if not sys.stdin.isatty():
+    # Check if we are in an interactive TTY console (never block the server event loop on stdin)
+    if not sys.stdin.isatty() or is_in_event_loop():
         logger.warning(f"[SecureVault] Non-interactive environment detected. Stdin prompt blocked for: {identifier}")
         return (
             f"[VAULT ERROR] Credential '{identifier}' is missing and cannot be requested interactively "

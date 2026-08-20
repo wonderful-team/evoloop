@@ -178,7 +178,7 @@ async def dispatch_agent_run(
                     f"[Dispatch] Upload session {upload_session_id} promoted to thread {thread_id}"
                 )
             except (OSError, shutil.Error) as e:
-                logger.warning(f"[Dispatch] Failed to promote upload session: {e}", exc_info=True)
+                logger.warning(f"[Dispatch] Failed to promote upload session: {e}")
 
     # ------------------------------------------------------------------
     # 2. Process references (images, files, skills)
@@ -203,7 +203,7 @@ async def dispatch_agent_run(
         content_blocks = ref_context.content_blocks
         references_list = ref_context.references
     except Exception as e:
-        logger.warning(f"[Dispatch] Reference service failed: {e}, falling back to raw message_content", exc_info=True)
+        logger.warning(f"[Dispatch] Reference service failed: {e}, falling back to raw message_content")
         content_blocks = message_content
 
     # ------------------------------------------------------------------
@@ -264,6 +264,17 @@ async def dispatch_agent_run(
                     title=first_line[:200] or "未知话题",
                 )
                 session.add(conversation)
+                # Notify frontends (system channel) so conversation lists
+                # refresh in real-time for sessions started from other
+                # devices/channels (voice, mobile, wecom, etc.).
+                from app.core.engine.event.publishers import publish_conversation_created
+
+                await publish_conversation_created(
+                    thread_id=thread_id,
+                    project_id=project_id,
+                    member_id=member_id,
+                    title=conversation.title,
+                )
             else:
                 conversation.updated_at = datetime.now(timezone.utc)
 

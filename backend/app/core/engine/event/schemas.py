@@ -102,10 +102,41 @@ class ConversationDeletedEvent(AgentEvent):
         self.data = EventData(thread_id=self.thread_id)
 
 
+class ConversationCreatedEvent(AgentEvent):
+    """
+    Published when a new interactive conversation is created.
+
+    Bridged to the frontend via the system channel so all clients
+    (desktop / mobile) can refresh their conversation lists in real-time
+    when a session is started from another device or channel
+    (voice, mobile, wecom, web, etc.).
+    """
+
+    event_type: str = SystemEventType.CONVERSATION_CREATED
+    thread_id: str = ""
+    project_id: int = DEFAULT_PROJECT_ID
+    member_id: int = 0
+    title: str = ""
+
+    is_public: bool = True
+    broadcast_channel: str = "system"
+
+    def model_post_init(self, __context: Any) -> None:
+        self.data = EventData(
+            thread_id=self.thread_id,
+            project_id=self.project_id,
+            member_id=self.member_id,
+            title=self.title,
+        )
+
+
 class ExtractionRequest(BaseModel):
     name: str
     description: str
-    schema_dict: dict = Field(..., description="The pydantic output_schema as a dict, or raw json schema dict")
+    schema_dict: dict = Field(
+        ...,
+        description="The pydantic output_schema as a dict, or raw json schema dict"
+    )
 
 
 class ExtractionRequestedEvent(BaseEvent):
@@ -125,5 +156,8 @@ class ExtractionCompletedEvent(BaseEvent):
     run_id: str | None = None
     project_id: int | None = None
     member_id: int | None = None
-    extracted_data: dict = Field(default_factory=dict, description="The raw structured output from LLM")
+    extracted_data: dict = Field(
+        default_factory=dict,
+        description="The raw structured output from LLM"
+    )
     is_public: bool = False

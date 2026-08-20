@@ -15,8 +15,8 @@ from app.core.execution.macro import (
     load_macro,
     resolve_project_base_url,
 )
-from app.core.execution.skill_response import SkillResponse
 from app.core.hitl import raise_hitl_interrupt
+from app.core.hitl.batch_grants import is_operation_granted
 from app.core.hitl.prompts import build_approval_context, resolve_tool_context
 from app.core.tools import evoloop_tool
 from app.core.tools.base import InjectedToolArg
@@ -208,7 +208,7 @@ async def _request_macro_confirmation(macro, thread_id, original_args: dict) -> 
     )
 
     # 源头去重：复用同线程同宏同参数的已有 pending 请求。
-    from app.core.hitl.mcp_confirmation import (
+    from app.core.hitl.core import (
         _find_pending_by_key,
         find_recently_approved_by_key,
     )
@@ -217,7 +217,9 @@ async def _request_macro_confirmation(macro, thread_id, original_args: dict) -> 
     if existing:
         logger.info(
             "[run_macro] Reusing existing pending request=%s for macro=%s (id=%s)",
-            existing["request_id"], macro.name, macro.id,
+            existing["request_id"],
+            macro.name,
+            macro.id,
         )
         response_text = (
             f"宏 {macro.name} 已有待确认请求（请求 ID: {existing['request_id']}），"
@@ -236,7 +238,9 @@ async def _request_macro_confirmation(macro, thread_id, original_args: dict) -> 
         logger.info(
             "[run_macro] Skipping repeat confirmation for macro=%s (id=%s), "
             "recently approved=%s",
-            macro.name, macro.id, recently_approved,
+            macro.name,
+            macro.id,
+            recently_approved,
         )
         return (
             f"宏 {macro.name} 已在请求 {recently_approved} 确认过，"

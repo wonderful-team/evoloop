@@ -254,10 +254,16 @@ def _load_yaml_config(config_path: str | None = None) -> dict:
 
 
 def _report_missing_tools(node_role: str | None, missing_tools: list[str]):
-    """Report missing tools via logger and activity monitor."""
-    logger.error(
+    """Report missing tools via logger and activity monitor.
+
+    缺失可能是预期行为：yaml 声明是节点能力池，部分工具受运行时门控
+    （如 ENABLE_MEMORY=False 禁用的记忆工具）未注册。记 warning 而非
+    error，避免把"条件性未注册"误报为配置错误。
+    """
+    logger.warning(
         f"[ToolRBAC] Missing tools for role '{node_role}': {missing_tools}. "
-        f"These tools are declared in YAML but not found in Registry or MCP."
+        f"These tools are declared in YAML but not found in Registry or MCP "
+        f"(may be gated by runtime settings)."
     )
 
     try:

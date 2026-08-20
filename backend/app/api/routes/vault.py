@@ -24,6 +24,7 @@ class CredentialListItem(BaseModel):
     project_id: int | None
     description: str | None
 
+
 @router.get("/credentials", response_model=list[CredentialListItem], dependencies=[Depends(get_current_user)])
 def list_credentials(project_id: int | None = Query(None)) -> list[dict[str, Any]]:
     """
@@ -33,10 +34,41 @@ def list_credentials(project_id: int | None = Query(None)) -> list[dict[str, Any
     return SecureVaultService.list_credentials(project_id=project_id)
 
 
+@router.get("/credentials/{identifier}/fields", dependencies=[Depends(get_current_user)])
+def list_credential_fields(identifier: str, project_id: int | None = Query(None)) -> dict[str, Any]:
+    """
+    List the field names (keys) of a credential payload without exposing values.
+    """
+    try:
+        fields = SecureVaultService.list_credential_fields(identifier, project_id=project_id)
+        return {"success": True, "identifier": identifier, "fields": fields}
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
+
+@router.get("/credentials/{identifier}/payload", dependencies=[Depends(get_current_user)])
+def get_credential_payload(identifier: str, project_id: int | None = Query(None)) -> dict[str, Any]:
+    """
+    Return the decrypted payload for explicit user inspection (view/copy).
+    """
+    try:
+        payload = SecureVaultService.get_credential_payload(identifier, project_id=project_id)
+        return {"success": True, "identifier": identifier, "payload": payload}
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
+
 @router.post("/credentials", dependencies=[Depends(get_current_user)])
 def add_credential(data: CredentialCreate) -> dict[str, Any]:
     """
     Add or update a secure credential. Encrypts payload at the backend.
+
+    Existing credentials are partially updated: non-empty values overwrite,
+    None values delete the field, missing keys are preserved.
     """
     try:
         credential = SecureVaultService.add_credential(

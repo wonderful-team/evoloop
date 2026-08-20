@@ -540,5 +540,12 @@
     "info": "ℹ️",
     "thinking": "🧠",
     "rocket": "🚀"
+  },
+  "hitl": {
+    "approval_default": "Requires operator confirmation before execution (request ID: {id}). Paused awaiting confirmation.",
+    "batch_approved": "Batch approval granted (batch ID: {grant_id}, {count} operations). Proceed with the approved operations; they will not re-prompt for confirmation while valid.",
+    "batch_approved_fallback": "Batch approval granted. Proceed with the approved operations.",
+    "batch_rejected": "Batch approval was rejected. Do not execute the operations in the batch.",
+    "access_rejected": "User rejected this access request (REJECTED): {path}. Do not retry this path; use alternative approaches or continue with the rest of the task."
   }
 }

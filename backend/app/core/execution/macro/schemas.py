@@ -424,7 +424,7 @@ class MacroScript(DynamicBaseModel):
     @classmethod
     def check_step_numbers(cls, values):
         """Validate step numbers are unique and sequential."""
-        steps = values.get('steps', []) if isinstance(values, dict) else getattr(values, 'steps', [])
+        steps = values.get("steps", []) if isinstance(values, dict) else getattr(values, "steps", [])
         if not steps:
             return values
 

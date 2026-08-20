@@ -1,9 +1,9 @@
 """update_macro tool — Agent maintenance of deterministic macro metadata.
 
 Allows the Agent to update a macro's name, description, trigger patterns,
-and parameter schema. The macro script itself is NOT editable through this
-tool; script changes should be handled by delete + re-create or a dedicated
-approval flow.
+parameter schema, and (with validation) its script. Script rewrites require a
+rationale and will reset the macro to pending_review after passing the same
+risk/verification gate used by create_macro.
 """
 
 from __future__ import annotations

@@ -32,6 +32,9 @@ class SystemEventType(str, Enum):
     EXTRACTION_COMPLETED = "system.extraction_completed"
     WEBSOCKET_MESSAGE_RECEIVED = "websocket.message_received"
 
+    # Conversation Lifecycle
+    CONVERSATION_CREATED = "conversation.created"
+
     # Configuration Handlers
     CONFIG_CHANGED = "system.config_changed"
     STATE_CHANGED = "system.state_changed"

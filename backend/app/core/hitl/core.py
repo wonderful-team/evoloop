@@ -8,7 +8,7 @@ framework running inside hooks.
 
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
@@ -164,8 +164,8 @@ async def finalize_request(
 
     ``sibling_key``（``{"name": ..., "args": ...}``，由调用方从 pending_tool 传入）
     用于关闭同线程下同工具+同参数的兄弟 pending 请求——Agent 重试可能为同一
-    工具创建多条 approval 请求，运营批准一条后其余残留 pending（见 handoff
-    mcp-confirm-gap §3.4）。未传则跳过（无额外查询开销）。
+    工具创建多条 approval 请求，运营批准一条后其余残留 pending。未传则跳过
+    （无额外查询开销）。
     """
     async with session_scope() as session:
         updated_request = False
@@ -195,7 +195,11 @@ async def finalize_request(
 
         logger.info(
             "[HITL] finalized request=%s tool=%s status=%s (human_requests=%s, messages=%s)",
-            request_id, tool_call_id, status, updated_request, updated_message,
+            request_id,
+            tool_call_id,
+            status,
+            updated_request,
+            updated_message,
         )
         return updated_request or updated_message
 
@@ -216,8 +220,7 @@ async def _close_sibling_requests(
 
         # 查同线程其他 waiting_human 的 hitl_request 消息（同 original_tool）
         siblings = await session.execute(
-            select(Message)
-            .where(
+            select(Message).where(
                 Message.thread_id == thread_id,
                 Message.role == "system",
                 Message.category == "hitl_request",
@@ -235,9 +238,7 @@ async def _close_sibling_requests(
                 continue
             # 关闭 messages 轨
             await session.execute(
-                update(Message)
-                .where(Message.id == sibling.id)
-                .values(status=status)
+                update(Message).where(Message.id == sibling.id).values(status=status)
             )
             # 关闭 human_requests 轨（meta_data.hitl_request_id）
             s_req_id = smeta.get("hitl_request_id")
@@ -255,11 +256,105 @@ async def _close_sibling_requests(
         if closed:
             logger.info(
                 "[HITL] Closed %d sibling request(s) matching %s %s (thread=%s)",
-                closed, name, args, thread_id,
+                closed,
+                name,
+                args,
+                thread_id,
             )
     except Exception as e:
         # 批量关闭是优化非关键路径，失败不应阻断主流程 finalize。
         logger.warning(f"[HITL] Failed to close sibling requests: {e}", exc_info=True)
+
+
+# ============ Request Dedup Helpers ============
+
+
+async def _find_pending_by_key(thread_id: str, tool_name: str, tool_args: dict) -> dict | None:
+    """查找同线程下同工具+同参数的已有 pending approval 请求。
+
+    避免 Agent 重试同一写操作时产生重复 approval 请求（源头去重）：
+    命中则复用已有请求（``hitl_request_id`` + ``context``），不创建新请求。
+
+    Returns:
+        ``{"request_id": ..., "context": ...}`` 或 None。
+    """
+    try:
+        async with session_scope() as session:
+            stmt = (
+                select(Message)
+                .where(
+                    Message.thread_id == thread_id,
+                    Message.role == "system",
+                    Message.category == "hitl_request",
+                    Message.status == "waiting_human",
+                )
+                .order_by(Message.sequence_number.desc())
+            )
+            res = await session.execute(stmt)
+            for msg in res.scalars().all():
+                meta = msg.meta_data or {}
+                original = meta.get("original_tool") or {}
+                if original.get("name") != tool_name:
+                    continue
+                if (original.get("args") or {}) != tool_args:
+                    continue
+                req_id = meta.get("hitl_request_id")
+                if req_id:
+                    return {
+                        "request_id": req_id,
+                        "context": meta.get("hitl_context") or "",
+                    }
+    except Exception as e:
+        logger.warning(f"[HITL] Failed to find pending by key: {e}")
+    return None
+
+
+async def find_recently_approved_by_key(
+    thread_id: str, tool_name: str, tool_args: dict, window_seconds: int = 300
+) -> str | None:
+    """查找同线程下同工具+同参数**最近已批准**的请求。
+
+    防止 Agent/LLM 在批准后因未收到结束信号而反复发起同一写操作（Supervisor
+    循环调用 run_macro），每次循环都产生新的 approval 请求。若同 key 在窗口内
+    已批准（completed），视为"已确认过"，返回该请求 ID 供调用方复用批准语义。
+
+    Returns:
+        最近已批准请求的 request_id，或 None。
+    """
+    try:
+        cutoff = datetime.now(timezone.utc) - timedelta(seconds=window_seconds)
+        async with session_scope() as session:
+            stmt = (
+                select(Message)
+                .where(
+                    Message.thread_id == thread_id,
+                    Message.role == "system",
+                    Message.category == "hitl_request",
+                    Message.status.in_(["completed"]),
+                    Message.updated_at >= cutoff,
+                )
+                .order_by(Message.updated_at.desc())
+            )
+            res = await session.execute(stmt)
+            for msg in res.scalars().all():
+                meta = msg.meta_data or {}
+                original = meta.get("original_tool") or {}
+                if original.get("name") != tool_name:
+                    continue
+                if (original.get("args") or {}) != tool_args:
+                    continue
+                req_id = meta.get("hitl_request_id")
+                if req_id:
+                    logger.info(
+                        "[HITL] Reusing recently approved request=%s for %s (thread=%s)",
+                        req_id,
+                        tool_name,
+                        thread_id,
+                    )
+                    return req_id
+    except Exception as e:
+        logger.warning(f"[HITL] Failed to find recently approved by key: {e}")
+    return None
 
 
 # ============ Notification & Interrupt ============
@@ -279,12 +374,16 @@ async def push_hitl_notification(
     resource_path: str | None = None,
     action: str | None = None,
     skip_grant: bool = False,
+    resume_override: dict | None = None,
 ) -> None:
     """
     Push a HITL request to the activity monitor and the message handler.
 
     This is the shared notification path used by both explicit HITL tools and the
     authorization framework.
+
+    ``resume_override``：审批后重执行时的门控豁免声明，由发起端（如宏确认）
+    在发起时声明，resume 端按声明注入 ``{"args": {...}}``，避免按工具名特判。
     """
     # 1. Notify Activity Monitor with structured data
     await activity_monitor.set_human_request(
@@ -316,6 +415,8 @@ async def push_hitl_notification(
         if skip_grant:
             metadata["authorization"] = metadata.get("authorization") or {}
             metadata["authorization"]["skip_grant"] = True
+        if resume_override:
+            metadata["resume"] = resume_override
         asyncio.create_task(
             handler.handle_hitl_request(
                 request_type=request.request_type,
@@ -331,7 +432,7 @@ async def push_hitl_notification(
             )
         )
     except Exception as e:
-        logger.warning(f"Failed to push HITL request via MessageHandler: {e}", exc_info=True)
+        logger.warning(f"Failed to push HITL request via MessageHandler: {e}")
 
 
 def raise_hitl_interrupt(request_id: str, response_text: str) -> None:

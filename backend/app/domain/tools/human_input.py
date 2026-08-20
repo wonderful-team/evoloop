@@ -167,7 +167,12 @@ async def ask_confirm(
         consequences=consequences,
     )
 
-    logger.info(f"Approval requested for: {action_description[:50]}... (Risk: {risk_level})")
+    logger.info(
+        "Approval requested for: %s... (Risk: %s, batch=%s)",
+        action_description[:50],
+        risk_level,
+        bool(ops),
+    )
 
     # 统一发起 approval（create + push + raise），用 i18n 模板生成响应文本
     from app.core.hitl.orchestrator import HITLOrchestrator

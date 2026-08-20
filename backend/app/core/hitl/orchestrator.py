@@ -8,12 +8,14 @@ import json
 import logging
 
 from app.core.engine.message.repository import MessageRepository
+from app.core.hitl.batch_grants import approve_grant_by_request_id, reject_grant_by_request_id
 from app.core.hitl.core import (
     HumanInputRequest,
     create_request,
     push_hitl_notification,
     raise_hitl_interrupt,
 )
+from app.i18n.service import i18n
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +81,9 @@ async def get_pending_hitl_call(config: dict) -> dict | None:
                             # authorization 元数据（resource_path/action）标记这是
                             # 授权门控工具，审批后应重执行而非仅回显 APPROVED。
                             "authorization": authorization if authorization else None,
+                            # resume 元数据：发起端声明的重执行豁免（args/config
+                            # 注入），见 core.push_hitl_notification。
+                            "resume": last_hitl.meta_data.get("resume"),
                         }
     except Exception as e:
         logger.warning(f"Failed to find pending HITL call: {e}", exc_info=True)
@@ -189,6 +194,7 @@ class HITLOrchestrator:
         resource_path: str | None = None,
         response_template: str | None = None,
         response_text_factory=None,
+        resume_override: dict | None = None,
     ) -> str:
         """统一发起 approval 请求：create_request → push_hitl_notification →
         raise_hitl_interrupt。
@@ -200,6 +206,9 @@ class HITLOrchestrator:
         ``{prompt}`` 占位）；``response_text_factory`` 接收 ``HumanInputRequest``
         返回完整响应文本（如 ask_confirm 用 i18n 模板展示完整上下文）。
         两者都不传则用默认文案。
+
+        ``resume_override``：审批后重执行的门控豁免声明（``{"args": {...}}``），
+        随请求元数据下发，resume 端按声明注入，不在编排层按工具名特判。
         """
         from app.core.hitl.core import create_request, push_hitl_notification
 
@@ -245,6 +254,7 @@ class HITLOrchestrator:
             resource_path=resource_path,
             action=action,
             skip_grant=skip_grant,
+            resume_override=resume_override,
         )
 
         raise_hitl_interrupt(request.id, response_text)
@@ -265,7 +275,10 @@ class HITLOrchestrator:
         # 原子化关闭两轨（human_requests + messages），避免半关闭。
         # 同工具+同参数的兄弟 pending 请求一并关闭（Agent 重试可能产生重复
         # approval 请求，见 handoff mcp-confirm-gap §3.4 残留问题）。
-        sibling_key = {"name": tool_call.get("name"), "args": tool_call.get("args") or {}}
+        sibling_key = {
+            "name": tool_call.get("name"),
+            "args": tool_call.get("args") or {},
+        }
         await finalize_request(
             thread_id=thread_id,
             request_id=request_id,
@@ -285,7 +298,10 @@ class HITLOrchestrator:
 
         request_id = tool_call.get("request_id")
         # 取消时同工具+同参数的兄弟 pending 请求一并取消，避免残留。
-        sibling_key = {"name": tool_call.get("name"), "args": tool_call.get("args") or {}}
+        sibling_key = {
+            "name": tool_call.get("name"),
+            "args": tool_call.get("args") or {},
+        }
         await finalize_request(
             thread_id=thread_id,
             request_id=request_id,
@@ -375,7 +391,7 @@ class HITLOrchestrator:
         from app.core.hitl.authorization import AuthorizationService
 
         # skip_grant 标记（如宏执行确认）：批准后仅重执行，不持久化授权——
-        # 宏确认是"每次执行"语义，不应写入 project.json authorized_paths。
+        # 门控确认是"每次执行"语义，不应写入 project.json authorized_paths。
         if not authorization.get("skip_grant"):
             try:
                 await AuthorizationService(project_id).grant_permission(
@@ -384,7 +400,7 @@ class HITLOrchestrator:
                     granted_by="hitl-approval",
                 )
             except Exception as e:
-                logger.warning(f"[HITL] grant_permission failed for approval: {e}", exc_info=True)
+                logger.warning(f"[HITL] grant_permission failed for approval: {e}")
 
         if state is None:
             from app.core.engine.state import AgentState
@@ -420,7 +436,10 @@ class HITLOrchestrator:
                 t.name: t for t in await tool_manager.get_node_tools("worker", state)
             }
             executor = AgentToolExecutor(
-                tool_map=tool_map, state=state, config=resume_config, name="HITLResume"
+                tool_map=tool_map,
+                state=state,
+                config=config,
+                name="HITLResume"
             )
             result = await executor.execute_tool(tool_name, tool_args, tool_call_id, [])
             return result.message.content or ""
@@ -450,7 +469,6 @@ class HITLOrchestrator:
         frontend UI (Approve/Reject) works without changes.
         """
         from app.core.hitl.prompts import build_approval_context
-        from app.i18n.service import i18n
 
         context = build_approval_context(
             action_description=action_description,

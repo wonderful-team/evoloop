@@ -12,6 +12,7 @@ import re
 from typing import Any
 
 from app.core.engine.hooks.core import HookContext, HookEvent, HookResult, hook_system
+from app.core.engine.hooks.schemas import ToolInput
 
 logger = logging.getLogger(__name__)
 

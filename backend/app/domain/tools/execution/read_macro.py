@@ -1,7 +1,7 @@
 """read_macro tool — Agent introspection for deterministic macros.
 
-Returns macro metadata only; the full YAML script is intentionally omitted
-so the Agent cannot accidentally copy/paste or reproduce an untrusted script.
+Returns macro metadata plus the full YAML script so the Agent can review
+actual steps (e.g. self-checking a macro after a false-positive trigger).
 """
 
 from __future__ import annotations
@@ -20,11 +20,14 @@ async def read_macro(
     macro_id: int | None = None,
     macro_name: str | None = None,
 ) -> str:
-    """Read macro metadata (no script) by id or name.
+    """Read macro metadata and full script by id or name.
 
     Use this when you need to check a macro's trigger patterns, parameters,
-    risk tier, or confirmation requirements before running or updating it.
-    The full macro script is not exposed.
+    risk tier, or confirmation requirements before running or updating it,
+    to review the actual script steps (e.g. during false-positive
+    self-check), or to study a verified macro's script as a reference
+    template before authoring a similar new macro. The full macro script
+    is included in the result.
     """
     if macro_id is None and macro_name is None:
         return ControllerResponse.error(
@@ -56,5 +59,8 @@ async def read_macro(
         f"  Allow self-healing: {macro.allow_self_healing}",
         f"  Trigger patterns: {macro.trigger_patterns or []}",
         f"  Parameters: {macro.parameters or []}",
+        "",
+        "Script:",
+        macro.macro_script,
     ]
     return ControllerResponse.success("\n".join(lines))

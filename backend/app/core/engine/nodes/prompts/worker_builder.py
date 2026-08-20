@@ -6,6 +6,7 @@ from jinja2 import TemplateError
 from app.core.channel.duty import is_duty_source
 from app.core.config import settings
 from app.core.context import ContextManager, plugin_registry
+from app.core.engine.state import AgentState
 from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket
 from app.utils.template import render_template
 

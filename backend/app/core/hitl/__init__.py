@@ -10,7 +10,6 @@ from app.core.hitl.core import (
     push_hitl_notification,
     raise_hitl_interrupt,
 )
-from app.core.hitl.mcp_confirmation import maybe_gate_mcp_tool
 from app.core.hitl.orchestrator import HITLOrchestrator
 from app.core.hitl.policies import (
     DEFAULT_SENSITIVE_PATTERNS,
@@ -29,7 +28,6 @@ __all__ = [
     "push_hitl_notification",
     "raise_hitl_interrupt",
     "HITLOrchestrator",
-    "maybe_gate_mcp_tool",
     "build_approval_context",
     "format_risk_header",
     "AuthorizationPolicy",

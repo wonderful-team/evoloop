@@ -546,5 +546,12 @@
     "info": "ℹ️",
     "thinking": "🧠",
     "rocket": "🚀"
+  },
+  "hitl": {
+    "approval_default": "需要操作人员确认后才可执行（请求 ID: {id}）。已暂停等待确认。",
+    "batch_approved": "批量审批已通过（批次 ID: {grant_id}，共 {count} 项操作）。请继续执行已批准的操作，它们在有效期内不会再触发二次确认。",
+    "batch_approved_fallback": "批量审批已通过。请继续执行已批准的操作。",
+    "batch_rejected": "批量审批已被拒绝。请勿执行批次中的操作。",
+    "access_rejected": "用户拒绝了该访问请求（REJECTED）：{path}。请勿重试此路径，改用其他可用方式或向用户说明后继续完成其余任务。"
   }
 }
