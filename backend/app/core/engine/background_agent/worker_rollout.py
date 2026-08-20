@@ -47,9 +47,7 @@ async def run_worker_rollout(
 
             # Multi-skill sequential workflow delegated by Worker.
             if update.next_node == "sequential_workflow":
-                from app.core.engine.nodes.sequential_workflow import (
-                    SequentialWorkflowNode,
-                )
+                from app.core.engine.nodes.sequential_workflow import SequentialWorkflowNode
 
                 seq_update = await SequentialWorkflowNode()(state, config)
                 merge_state_update(state, seq_update)
