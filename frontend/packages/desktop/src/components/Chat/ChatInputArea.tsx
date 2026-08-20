@@ -613,7 +613,7 @@ export const ChatInputArea = memo(
             {/* Bottom: Toolbar */}
             <div className="flex items-center justify-between border-t border-border/40 bg-muted/20 px-2 py-1 gap-2 overflow-hidden">
               {/* Left Group: Tools */}
-              <div className="flex items-center gap-1.5 shrink-0 overflow-x-auto hide-scrollbar max-w-[70%]">
+              <div className="flex items-center gap-1.5 flex-1 min-w-0 overflow-x-auto hide-scrollbar">
                 {isTerminalMode ? (
                   <div className="flex items-center gap-1.5">
                     <button
@@ -675,7 +675,7 @@ export const ChatInputArea = memo(
                       }
                     />
                     {isTauri() && (
-                      <div className="h-8 flex items-center justify-center">
+                      <div className="h-8 hidden lg:flex items-center justify-center">
                         <RecordingButton
                           threadId={activeThreadId ?? ""}
                           enabled={true}
@@ -827,7 +827,7 @@ export const ChatInputArea = memo(
                             variant={autoSpeak ? "secondary" : "ghost"}
                             size="icon"
                             onClick={toggleAutoSpeak}
-                            className="h-8 w-8"
+                            className="h-8 w-8 hidden lg:inline-flex"
                           >
                             {autoSpeak ? (
                               <Volume2 className="h-4 w-4 text-primary" />
@@ -844,7 +844,7 @@ export const ChatInputArea = memo(
                       </Tooltip>
                     </TooltipProvider>
 
-                    <div className="w-px h-6 bg-border mx-1" />
+                    <div className="w-px h-6 bg-border mx-1 hidden lg:block" />
                   </>
                 )}
 
@@ -875,7 +875,7 @@ export const ChatInputArea = memo(
                   ) : (
                     <span className="flex items-center gap-2">
                       <Send size={14} />
-                      <span className="text-xs font-bold">
+                      <span className="hidden sm:inline text-xs font-bold">
                         {t("common.send")}
                       </span>
                     </span>
