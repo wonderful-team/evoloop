@@ -9,6 +9,7 @@ from app.core.execution.macro import (
     MacroCreatorService,
 )
 from app.core.execution.macro.lifecycle import (
+    confirm_macro,
     create_macro_from_synthesis,
     find_macro_by_name,
 )
@@ -22,6 +23,7 @@ from app.core.execution.macro.utils import cleanup_macro_steps, verify_macro_scr
 from app.core.tools import evoloop_tool
 from app.infrastructure.database import session_scope
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.utils.parameters import finalize_macro_parameters
 
 logger = logging.getLogger(__name__)
 
