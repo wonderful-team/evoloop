@@ -9,6 +9,34 @@ from app.core.engine.message.native_classes import AIMessageChunk
 logger = logging.getLogger(__name__)
 
 
+def _apply_prompt_cache_breakpoint(messages: list[dict]) -> None:
+    """在最后一条含文本的 user 消息末尾加 ephemeral 缓存断点（Anthropic 协议）。
+
+    与网关层 OpenAI→Anthropic 转换的断点策略保持一致：system 断点由
+    _format_system_content 负责；此处负责 messages 尾部断点，使历史前缀
+    在直连模式（不经网关）下同样享受 prompt caching。tool_result 块
+    不允许携带 cache_control，无文本块时向前回退查找更早的 user 消息。
+    """
+    for i in range(len(messages) - 1, -1, -1):
+        if messages[i].get("role") != "user":
+            continue
+        content = messages[i].get("content")
+        if isinstance(content, list):
+            for block in reversed(content):
+                if isinstance(block, dict) and block.get("type") == "text":
+                    block["cache_control"] = {"type": "ephemeral"}
+                    return
+        elif isinstance(content, str):
+            messages[i]["content"] = [
+                {
+                    "type": "text",
+                    "text": content,
+                    "cache_control": {"type": "ephemeral"},
+                }
+            ]
+            return
+
+
 class CompatibleChatAnthropic:
     """
     A robust, native, SDK-free ChatAnthropic wrapper that connects directly to the Anthropic Messages API.
@@ -136,6 +164,8 @@ class CompatibleChatAnthropic:
 
         if callbacks:
             await emit_llm_start(callbacks, run_id, metadata)
+
+        _apply_prompt_cache_breakpoint(api_messages)
 
         req_params = {
             "model": self.model,

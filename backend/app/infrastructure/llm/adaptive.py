@@ -253,6 +253,8 @@ class AdaptiveChatOpenAI:
                     "temperature": state.current_temperature,
                     "stream": True,
                     "extra_body": self.extra_body,
+                    # 要求网关/上游在流式末尾返回 usage，用于计费与缓存命中分析
+                    "stream_options": {"include_usage": True},
                 }
                 # Always pass model key to satisfy openai SDK (can be empty string for cloud default routing)
                 req_params["model"] = self.model or ""
@@ -278,7 +280,10 @@ class AdaptiveChatOpenAI:
 
                 accumulated: AIMessageChunk | None = None
                 accumulated_reasoning: list[str] = []
+                usage = None
                 async for chunk in stream:
+                    if chunk.usage is not None:
+                        usage = chunk.usage
                     if not chunk.choices:
                         continue
                     delta = chunk.choices[0].delta
@@ -334,6 +339,22 @@ class AdaptiveChatOpenAI:
                         additional_kwargs=final_additional_kwargs,
                     )
                     await emit_llm_end(callbacks, final_msg, run_id)
+
+                if usage is not None:
+                    u = usage.model_dump() if hasattr(usage, "model_dump") else dict(usage)
+                    details = u.get("prompt_tokens_details") or {}
+                    cached = details.get("cached_tokens") if isinstance(details, dict) else None
+                    logger.info(
+                        "[LLMUsage] model=%s input=%s output=%s cache_hit=%s cache_miss=%s cache_read=%s cache_creation=%s cached_tokens=%s",
+                        self.model,
+                        u.get("prompt_tokens"),
+                        u.get("completion_tokens"),
+                        u.get("prompt_cache_hit_tokens"),
+                        u.get("prompt_cache_miss_tokens"),
+                        u.get("cache_read_tokens"),
+                        u.get("cache_creation_tokens"),
+                        cached,
+                    )
 
                 break
 
