@@ -416,7 +416,10 @@ async def resume_chat(
         pending = await HITLOrchestrator.get_pending_request(req.thread_id, active_model)
         if pending:
             logger.info("[Chat] Resume into live session (HITL) %s", req.thread_id)
-            session.inject_resume(req.user_input or "")
+            session.inject_resume(
+                req.user_input or "",
+                project_id=pending.get("project_id") or req.project_id,
+            )
         else:
             logger.info("[Chat] Resume as new message into live session %s", req.thread_id)
             from app.core.engine.dispatch import persist_user_message
@@ -487,12 +490,23 @@ async def resume_chat(
             resume_config,
             normalized_input
         )
-        tool_msg = ToolMessage(tool_call_id=pending_tool["id"], content=final_result)
 
-        # 恢复完整会话历史（含 assistant 的 tool_calls 声明与 tool 结果配对），
-        # 再追加本次批准后的重执行结果。仅注入单条 tool_msg 会导致 repair 把
-        # 它当作 orphaned tool（填充 "[Tool execution context missing]"），
-        # Supervisor 看不到自己 run_macro 的完整上下文，进而反复重试同一宏。
+        # 落为 human 消息（用户可见）+ 更新原 tool 消息结果（Agent 可见），
+        # 而非新增 tool 消息——避免同一 tool_call 双 tool 结果导致 LLM 重建
+        # 上下文取到空的旧 tool_output（HITL 选项未被 Agent 消费的问题）。
+        await HITLOrchestrator.persist_hitl_user_message(
+            thread_id=req.thread_id,
+            project_id=req.project_id,
+            member_id=_current_user.id if _current_user else 0,
+            tool_call_id=pending_tool["id"],
+            user_content=normalized_input,
+            final_result=final_result,
+        )
+
+        # 恢复完整会话历史（含 assistant 的 tool_calls 声明与更新后的 tool
+        # 结果配对）。原 tool 消息已被 update_content_by_tool_call_id 改写为
+        # 最终结果，直接走 DB 历史即可，无需再 append tool_msg（否则又出现
+        # 同一 tool_call 两条 tool 结果的错配）。
         try:
             from app.core.engine.message.repository import MessageRepository
             from app.core.engine.message.utils import to_base_message
@@ -502,11 +516,10 @@ async def resume_chat(
             history_messages = [
                 bm for bm in (to_base_message(m) for m in db_history) if bm is not None
             ]
-            history_messages.append(tool_msg)
             inputs = {"messages": history_messages}
         except Exception as e:
             logger.warning(f"[Chat] Resume history restore failed, falling back to single tool_msg: {e}")
-            inputs = {"messages": [tool_msg]}
+            inputs = {"messages": [ToolMessage(tool_call_id=pending_tool["id"], content=final_result)]}
 
     config = {
         "configurable": {

@@ -70,11 +70,15 @@ class AgentSession:
         *,
         is_cancel: bool = False,
         kind: str = "hitl_response",
+        project_id: int | None = None,
     ) -> None:
         """注入恢复事件。``kind``：``hitl_response``（§4.5）| ``a2a_result``（§4.6）。
 
         A2A 结果已被 ``update_content_by_tool_call_id`` 写入 DB，会话只重建 state
         reload 被改写消息并续跑，不走 HITL 原语。
+
+        ``project_id``：HITL 请求上下文的项目 id，随事件透传，避免 resume 后
+        落库的消息丢失 project_id（退回 DEFAULT_PROJECT_ID=0）。
         """
         self.gate.put(
             GateEvent(
@@ -83,6 +87,7 @@ class AgentSession:
                     "hitl_resume_response": hitl_resume_response,
                     "is_hitl_cancel": is_cancel,
                     "resume_kind": kind,
+                    "project_id": project_id,
                 },
             )
         )
@@ -376,6 +381,7 @@ async def _hang_for_resume(session: AgentSession) -> None:
                     hitl_resume_response=payload["hitl_resume_response"],
                     is_hitl_cancel=bool(payload.get("is_hitl_cancel")),
                     model=_current_model(),
+                    project_id=payload.get("project_id"),
                     metadata={"_resume_kind": payload.get("resume_kind", "hitl_response")},
                 )
                 return
@@ -388,6 +394,7 @@ async def _hang_for_resume(session: AgentSession) -> None:
                 session.pending_resume = BackgroundAgentInputs(
                     hitl_resume_response=new_inputs.goal or "",
                     model=new_inputs.model or _current_model(),
+                    project_id=payload.get("project_id") or new_inputs.project_id,
                     metadata={"_resume_kind": "hitl_response"},
                 )
             return

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import Awaitable, Callable
 from typing import TypeVar
 
@@ -39,6 +40,40 @@ _exec_lock = asyncio.Lock()
 _active_kinds: set[str] = set()
 
 T = TypeVar("T")
+
+
+# ── 在飞登记（防积压）──────────────────────────────────────
+# 背景：SchedulerService.dispatch_task 只认 next_run_at<=now 就 .delay() 投递，
+# 不感知该 (project_id, kind) 是否已在飞（排队中或执行中）。单轮执行时长 >
+# interval 时，每 60s tick 都会再投一份，Huey 队列（持久化）持续积压重复副本。
+# 修复：dispatch 投递前 try_claim_inflight 登记；run_duty_poll 执行结束 finally
+# release。Huey 单 worker 下 tick 周期任务与 run_duty_poll 同进程，进程内登记可靠。
+# 超时兜底：worker 异常/卡死导致未 release 时，陈旧登记自动失效可重新 claim，
+# 避免任务被永久卡死。
+
+# 在飞登记：{(project_id, kind): 派发时的 monotonic 时间戳}
+_inflight: dict[tuple[int, str], float] = {}
+
+# 在飞登记超时（秒）：超过该时长视为陈旧，允许重新 claim（防 worker 异常卡死）。
+_INFLIGHT_TIMEOUT = 300.0
+
+
+def try_claim_inflight(project_id: int, kind: str) -> bool:
+    """尝试登记「(project_id, kind) 在飞」。已登记且未超时 → 返回 False（跳过投递）。
+
+    成功登记（首次或陈旧超时重新占位）返回 True。调用方据此决定是否投递。
+    """
+    now = time.monotonic()
+    ts = _inflight.get((project_id, kind))
+    if ts is not None and now - ts < _INFLIGHT_TIMEOUT:
+        return False
+    _inflight[(project_id, kind)] = now
+    return True
+
+
+def release_inflight(project_id: int, kind: str) -> None:
+    """释放「(project_id, kind)」在飞登记（run_duty_poll 结束后 finally 调用）。"""
+    _inflight.pop((project_id, kind), None)
 
 
 async def _run_kind(kind: str, run: Callable[[], Awaitable[T]]) -> T | None:
@@ -97,6 +132,20 @@ async def _run_duty_poll_impl(project_id: int, kind: str | None = None) -> int:
     return total
 
 
+async def _run_duty_poll_with_release(project_id: int, kind: str | None) -> int:
+    """run_duty_poll 内部实现：执行轮巡并在 finally 释放在飞登记。"""
+    try:
+        return await _run_duty_poll_impl(project_id=project_id, kind=kind)
+    finally:
+        # 执行结束（含异常）释放该 kind 的在飞登记，允许下轮 tick 正常投递。
+        # kind=None 兼容旧调度（同时跑两线），两线都释放。
+        if kind is None:
+            release_inflight(project_id, KIND_WECOM)
+            release_inflight(project_id, KIND_BUSINESS_POLL)
+        else:
+            release_inflight(project_id, kind)
+
+
 @shared_task(name="run_duty_poll")
 async def run_duty_poll(project_id: int, kind: str | None = None) -> int:
     """执行一次值守轮巡，返回处理的消息数（0 = 无新消息快速路径）。
@@ -104,8 +153,7 @@ async def run_duty_poll(project_id: int, kind: str | None = None) -> int:
     Args:
         kind: 指定执行种类；None 则同时执行企微线 + 业务巡检。
     """
-    handled = await _run_duty_poll_impl(project_id=project_id, kind=kind)
-    return handled
+    return await _run_duty_poll_with_release(project_id=project_id, kind=kind)
 
 
 def task_is_duty(task_params: dict | None) -> bool:
