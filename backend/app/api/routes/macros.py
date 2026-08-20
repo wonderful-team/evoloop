@@ -220,6 +220,7 @@ async def execute_macro(
         "message": result.message,
         "extracted_data": result.extracted_data,
         "status": result.status,
+        "step_log": result.step_log,
     }
 
 
