@@ -12,11 +12,19 @@ import logging
 
 from pydantic import Field
 
+from app.core.execution.macro import confirm_macro, downgrade_macro, load_macro
 from app.core.execution.macro import update_macro as lifecycle_update_macro
-from app.core.execution.macro import load_macro
+from app.core.execution.macro.schemas import (
+    RISK_TIER_ORDER,
+    MacroScript,
+    action_family,
+    action_risk,
+)
+from app.core.execution.macro.utils import cleanup_macro_steps, verify_macro_script
 from app.core.tools import evoloop_tool
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils.controller_response import ControllerResponse
+from app.utils.parameters import finalize_macro_parameters
 
 logger = logging.getLogger(__name__)
 

@@ -7,17 +7,21 @@ live there so they can also be used by the authorization framework.
 """
 
 import logging
-from typing import Literal
+from typing import Any, Literal
+
+from pydantic import BaseModel
 
 from app.core.hitl import (
     create_request,
     push_hitl_notification,
     raise_hitl_interrupt,
 )
+from app.core.hitl.batch_grants import create_pending_grant, update_grant_request_id
 from app.core.hitl.prompts import build_approval_context, resolve_tool_context
 from app.core.tools import evoloop_tool
 from app.domain.tools.schemas import RequestApprovalArgs, RequestHumanInputArgs
 from app.i18n.service import i18n
+from app.utils.id import gen_uuid
 
 logger = logging.getLogger(__name__)
 
@@ -148,8 +152,14 @@ async def ask_confirm(
     - Running commands that could have side effects
     - Making irreversible changes
     - Executing operations with significant cost
+    - Running multiple state-changing operations of the same kind in one turn
+      (provide the full ``operations`` list for batch approval)
 
-    The workflow will pause until the user approves or rejects.
+    When ``operations`` is provided, this becomes a batch approval: the user
+    approves or rejects the entire list at once. Approved operations are covered
+    by a short-lived grant and will not trigger per-call confirmation again.
+
+    The workflow will pause until the user responds.
 
     Returns "APPROVED" or "REJECTED" based on user decision.
     """

@@ -23,6 +23,20 @@ async def run_in_thread(func: Callable[..., T], *args, **kwargs) -> T:
     return await loop.run_in_executor(None, partial_func)
 
 
+def is_in_event_loop() -> bool:
+    """
+    Return True when a running asyncio event loop exists (e.g. inside a server
+    process or worker thread). Interactive stdin prompts must never block the
+    event loop; callers that run in both sync CLI and async server contexts
+    should guard with this.
+    """
+    try:
+        asyncio.get_running_loop()
+        return True
+    except RuntimeError:
+        return False
+
+
 class LoopBoundResource(Generic[R]):
     """
     Manages an async resource (like an HTTP client, Lock, or Queue) that is bound to a specific asyncio event loop.
