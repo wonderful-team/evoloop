@@ -10,6 +10,7 @@ import useCustomToast from "@evoloop/shared/hooks/useCustomToast"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import type { ColumnDef } from "@tanstack/react-table"
 import { Edit, Globe, MoreHorizontal, Trash2 } from "lucide-react"
+import { Switch } from "@evoloop/shared/components/ui/switch"
 import { McpService } from "@/client"
 import { handleError } from "@/utils"
 
@@ -19,6 +20,7 @@ export type McpServerPublic = {
   command: string
   status: string
   tools_count: number
+  enabled?: boolean
   // Allow optional args if backend starts providing it
   args?: string[]
 }
@@ -47,6 +49,37 @@ function DeleteServer({ name }: { name: string }) {
     >
       <Trash2 className="mr-2 h-4 w-4" /> {t("mcp.delete")}
     </DropdownMenuItem>
+  )
+}
+
+function ToggleEnabled({ server }: { server: McpServerPublic }) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const { showErrorToast } = useCustomToast()
+
+  const mutation = useMutation({
+    mutationFn: (enabled: boolean) =>
+      McpService.addMcpServer({
+        requestBody: {
+          name: server.name,
+          command: server.command,
+          args: server.args || [],
+          env: {},
+          enabled,
+        },
+      }),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["mcpServers"] })
+    },
+    onError: handleError.bind(showErrorToast),
+  })
+
+  return (
+    <Switch
+      checked={server.enabled !== false}
+      disabled={mutation.isPending}
+      onCheckedChange={(checked) => mutation.mutate(checked)}
+    />
   )
 }
 
@@ -94,6 +127,11 @@ export const getColumns = ({
         {t("mcp.table.toolsCount", { count: row.original.tools_count || 0 })}
       </span>
     ),
+  },
+  {
+    accessorKey: "enabled",
+    header: t("mcp.table.enabled"),
+    cell: ({ row }) => <ToggleEnabled server={row.original} />,
   },
   {
     accessorKey: "command",

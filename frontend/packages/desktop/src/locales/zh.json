@@ -1279,9 +1279,12 @@
       "status": "连接状态",
       "tools": "可用功能",
       "toolsCount": "{{count}} 个功能",
-      "unknown": "未知"
+      "unknown": "未知",
+      "enabled": "启用"
     },
-    "title": "外部工具连接"
+    "title": "外部工具连接",
+    "enabledLabel": "启用",
+    "enabledHelp": "关闭后保存配置但不连接，Agent 将无法调用该服务"
   },
   "mermaid": {
     "renderingPartial": "Rendering Partial",
@@ -1619,8 +1622,10 @@
       "corpId": "企业ID (corp_id)",
       "agentId": "应用 AgentID",
       "secret": "应用密钥",
-      "startDuty": "开启本项目值守",
-      "stopDuty": "停止本项目值守",
+      "pollTitle": "轮巡节奏",
+      "savePoll": "保存轮巡间隔",
+      "startDuty": "当前项目参与值守",
+      "stopDuty": "当前项目退出值守",
       "saveCredentials": "保存企微凭据",
       "credentialsSaved": "企微凭据已保存",
       "intervalLabel": "轮巡间隔（秒）",
@@ -2075,6 +2080,8 @@
       "enabledDesc": "开启后，各项目可在项目概览中参与值守（Agent 充当该项目客服）",
       "channelsLabel": "可用渠道",
       "wecomDesc": "企业微信客户端（GUI 自动化）",
+      "pollIntervalLabel": "兜底轮巡间隔（秒）",
+      "pollIntervalHint": "推送失效时的轮巡频率，60~3600（缺省 60）",
       "enabled": "值守功能已开启",
       "disabled": "值守功能已关闭",
       "saveError": "保存值守配置失败",
@@ -2168,6 +2175,12 @@
       "validityNote": "Validity Note",
       "waiting": "正在等待支付结果...",
       "wechatPay": "微信扫码支付",
+      "cardPay": "银行卡支付",
+      "method": "支付方式",
+      "payNow": "立即支付",
+      "processing": "支付处理中...",
+      "stripe": "Stripe 支付",
+      "wechatpay": "微信支付",
       "qrAlt": "付款二维码"
     },
     "plan": {

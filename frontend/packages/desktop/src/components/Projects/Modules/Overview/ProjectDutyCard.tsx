@@ -46,9 +46,7 @@ function localInputToIso(value: string): string {
 }
 
 interface DutyChannelCfg {
-  corp_id?: string;
-  agent_id?: string;
-  secret?: string;
+  enabled?: boolean;
 }
 
 interface BusinessPollPrompt {
@@ -62,22 +60,7 @@ interface BusinessPollPrompt {
 interface ProjectDutyConfig {
   enabled: boolean;
   channels?: Record<string, DutyChannelCfg>;
-  interval?: number;
-  business_poll_interval?: number;
   business_poll_prompts?: BusinessPollPrompt[];
-}
-
-interface DutyStatus {
-  enabled: boolean;
-  active: boolean;
-  last_run_at: string | null;
-  next_run_at: string | null;
-  interval: number;
-  business_poll_interval: number;
-  business_last_run_at: string | null;
-  business_next_run_at: string | null;
-  last_failure: string | null;
-  global_enabled: boolean;
 }
 
 /**
@@ -89,45 +72,25 @@ export function ProjectDutyCard({ projectId }: { projectId: number }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [config, setConfig] = useState<ProjectDutyConfig>({ enabled: false });
-  const [corpId, setCorpId] = useState("");
-  const [agentId, setAgentId] = useState("");
-  const [secret, setSecret] = useState("");
-  const [intervalInput, setIntervalInput] = useState("60");
-  const [businessPollInput, setBusinessPollInput] = useState("1");
   const [businessPollPrompts, setBusinessPollPrompts] = useState<
     BusinessPollPrompt[]
   >([]);
   const [errors, setErrors] = useState<string[]>([]);
-  const [status, setStatus] = useState<DutyStatus | null>(null);
   const fetchConfig = useCallback(async () => {
     setLoading(true);
     try {
-      const [res, statusRes] = await Promise.all([
-        ProjectsService.getProjectDuty({ projectId }),
-        ProjectsService.getProjectDutyStatus({ projectId }),
-      ]);
+      const res = await ProjectsService.getProjectDuty({ projectId });
       const duty = (res ?? {}) as Record<string, unknown>;
       const channels = (duty.channels ?? {}) as Record<string, DutyChannelCfg>;
-      const wecom = channels.wecom ?? {};
       setConfig({
         enabled: Boolean(duty.enabled),
         channels,
-        interval: duty.interval as number | undefined,
-        business_poll_interval: duty.business_poll_interval as
-          | number
-          | undefined,
         business_poll_prompts: (duty.business_poll_prompts ??
           []) as BusinessPollPrompt[],
       });
-      setIntervalInput(String(duty.interval ?? 60));
-      setBusinessPollInput(String(duty.business_poll_interval ?? 1));
       setBusinessPollPrompts(
         (duty.business_poll_prompts ?? []) as BusinessPollPrompt[],
       );
-      setCorpId(wecom.corp_id ?? "");
-      setAgentId(wecom.agent_id ?? "");
-      setSecret(wecom.secret ?? "");
-      setStatus(statusRes as unknown as DutyStatus);
       setErrors([]);
     } catch {
       toast.error(t("projects.duty.loadError"));
@@ -140,62 +103,16 @@ export function ProjectDutyCard({ projectId }: { projectId: number }) {
     fetchConfig();
   }, [fetchConfig]);
 
-  const parseInterval = (): number | null => {
-    const n = Number(intervalInput);
-    if (!Number.isInteger(n) || n < 60 || n > 3600) return null;
-    return n;
-  };
-
-  const parseBusinessPoll = (): number | null => {
-    const n = Number(businessPollInput);
-    if (!Number.isInteger(n) || n < 1 || n > 1440) return null;
-    return n;
-  };
-
   const handleToggle = async (enabled: boolean) => {
     setSaving(true);
     setErrors([]);
-    const interval = parseInterval();
-    if (enabled && interval === null) {
-      setSaving(false);
-      setErrors([t("projects.duty.intervalBad")]);
-      return;
-    }
-    const businessPoll = parseBusinessPoll();
-    if (enabled && businessPoll === null) {
-      setSaving(false);
-      setErrors([t("projects.duty.businessPollBad")]);
-      return;
-    }
     try {
       const channels = config.channels ?? {};
-      channels.wecom = { corp_id: corpId, agent_id: agentId, secret };
-      // 开启：提交 interval（后端校验并重建任务）；停止：携带原 interval，避免整包替换抹掉配置
-      const body = enabled
-        ? {
-            enabled,
-            channels,
-            interval,
-            business_poll_interval: businessPoll,
-          }
-        : {
-            enabled,
-            channels,
-            interval: config.interval ?? 60,
-            business_poll_interval: config.business_poll_interval ?? 60,
-          };
       await ProjectsService.updateProjectDuty({
         projectId,
-        requestBody: {
-          ...body,
-        },
+        requestBody: { enabled, channels },
       });
-      setConfig({
-        enabled,
-        channels,
-        interval: interval ?? 60,
-        business_poll_interval: businessPoll ?? 60,
-      });
+      setConfig({ enabled, channels });
       toast.success(
         enabled ? t("projects.duty.enabled") : t("projects.duty.disabled"),
       );
@@ -210,47 +127,6 @@ export function ProjectDutyCard({ projectId }: { projectId: number }) {
       if (reason.length === 0 && !body?.detail?.message) {
         toast.error(t("projects.duty.startFailed"));
       }
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const saveCredentials = async () => {
-    setSaving(true);
-    setErrors([]);
-    const interval = parseInterval();
-    if (interval === null) {
-      setSaving(false);
-      setErrors([t("projects.duty.intervalBad")]);
-      return;
-    }
-    const businessPoll = parseBusinessPoll();
-    if (businessPoll === null) {
-      setSaving(false);
-      setErrors([t("projects.duty.businessPollBad")]);
-      return;
-    }
-    try {
-      const channels = config.channels ?? {};
-      channels.wecom = { corp_id: corpId, agent_id: agentId, secret };
-      await ProjectsService.updateProjectDuty({
-        projectId,
-        requestBody: {
-          enabled: config.enabled,
-          channels,
-          interval,
-          business_poll_interval: businessPoll,
-        },
-      });
-      setConfig({
-        enabled: config.enabled,
-        channels,
-        interval,
-        business_poll_interval: businessPoll,
-      });
-      toast.success(t("projects.duty.credentialsSaved"));
-    } catch {
-      toast.error(t("projects.duty.saveError"));
     } finally {
       setSaving(false);
     }
@@ -276,12 +152,6 @@ export function ProjectDutyCard({ projectId }: { projectId: number }) {
   const saveBusinessPoll = async () => {
     setSaving(true);
     setErrors([]);
-    const businessPoll = parseBusinessPoll();
-    if (businessPoll === null) {
-      setSaving(false);
-      setErrors([t("projects.duty.businessPollBad")]);
-      return;
-    }
     const prompts = businessPollPrompts.map((p) => ({
       id: p.id,
       prompt: p.prompt,
@@ -293,13 +163,11 @@ export function ProjectDutyCard({ projectId }: { projectId: number }) {
       await ProjectsService.updateProjectDuty({
         projectId,
         requestBody: {
-          business_poll_interval: businessPoll,
           business_poll_prompts: prompts,
         },
       });
       setConfig((prev) => ({
         ...prev,
-        business_poll_interval: businessPoll,
         business_poll_prompts: prompts,
       }));
       toast.success(t("projects.duty.businessSaved"));
@@ -371,19 +239,6 @@ export function ProjectDutyCard({ projectId }: { projectId: number }) {
                     ? t("projects.duty.runningDesc")
                     : t("projects.duty.stoppedDesc")}
                 </p>
-                {status?.active && (
-                  <p className="text-xs text-muted-foreground/80 mt-0.5">
-                    {t("projects.duty.lastRun")}:{" "}
-                    {status.last_run_at
-                      ? new Date(status.last_run_at).toLocaleString()
-                      : t("projects.duty.never")}
-                    {" · "}
-                    {t("projects.duty.nextRun")}:{" "}
-                    {status.next_run_at
-                      ? new Date(status.next_run_at).toLocaleString()
-                      : "-"}
-                  </p>
-                )}
               </div>
             </div>
             {config.enabled ? (
@@ -437,89 +292,7 @@ export function ProjectDutyCard({ projectId }: { projectId: number }) {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="space-y-6">
-          {/* 企微凭据 */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base font-medium">
-                {t("projects.duty.wecomTitle")}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">
-                    {t("projects.duty.corpId")}
-                  </Label>
-                  <Input
-                    value={corpId}
-                    onChange={(e) => setCorpId(e.target.value)}
-                    placeholder={t("projects.duty.corpIdPlaceholder")}
-                    className="h-10 transition-colors focus:border-primary"
-                    disabled={saving}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">
-                    {t("projects.duty.agentId")}
-                  </Label>
-                  <Input
-                    value={agentId}
-                    onChange={(e) => setAgentId(e.target.value)}
-                    placeholder={t("projects.duty.agentIdPlaceholder")}
-                    className="h-10 transition-colors focus:border-primary"
-                    disabled={saving}
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">
-                  {t("projects.duty.secret")}
-                </Label>
-                <Input
-                  type="password"
-                  value={secret}
-                  onChange={(e) => setSecret(e.target.value)}
-                  placeholder={t("projects.duty.secretPlaceholder")}
-                  className="h-10 transition-colors focus:border-primary"
-                  disabled={saving}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">
-                  {t("projects.duty.intervalLabel")}
-                </Label>
-                <Input
-                  type="number"
-                  min={60}
-                  max={3600}
-                  step={60}
-                  value={intervalInput}
-                  onChange={(e) => setIntervalInput(e.target.value)}
-                  className="h-10 transition-colors focus:border-primary"
-                  disabled={saving}
-                />
-                <p className="text-xs text-muted-foreground">
-                  {t("projects.duty.intervalHint")}
-                </p>
-              </div>
-              <div className="flex justify-end">
-                <Button
-                  variant="outline"
-                  disabled={saving}
-                  onClick={saveCredentials}
-                >
-                  {saving ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    t("projects.duty.saveCredentials")
-                  )}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+      <div className="space-y-6">
         <div className="space-y-6">
           {/* 业务巡检（运营线）：Agent 主动巡检商城业务，独立于客服轮巡节奏 */}
           <Card>
@@ -532,24 +305,6 @@ export function ProjectDutyCard({ projectId }: { projectId: number }) {
               <p className="text-xs text-muted-foreground">
                 {t("projects.duty.businessDesc")}
               </p>
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">
-                  {t("projects.duty.businessPollLabel")}
-                </Label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={1440}
-                  step={1}
-                  value={businessPollInput}
-                  onChange={(e) => setBusinessPollInput(e.target.value)}
-                  className="h-10 transition-colors focus:border-primary"
-                  disabled={saving}
-                />
-                <p className="text-xs text-muted-foreground">
-                  {t("projects.duty.businessPollHint")}
-                </p>
-              </div>
 
               <div className="space-y-3">
                 <div className="flex items-center justify-between">

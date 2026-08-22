@@ -6,6 +6,7 @@ import {
   CardTitle,
 } from "@evoloop/shared/components/ui/card"
 import { Switch } from "@evoloop/shared/components/ui/switch"
+import { Input } from "@evoloop/shared/components/ui/input"
 import { Headset, Loader2, Play, Square } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
@@ -15,6 +16,7 @@ import { SystemService } from "@/client"
 interface GlobalDutyConfig {
   enabled: boolean
   channels: string[]
+  poll_interval?: number
 }
 
 /**
@@ -29,6 +31,7 @@ export default function CustomerServiceDutySettings() {
   const [config, setConfig] = useState<GlobalDutyConfig>({
     enabled: false,
     channels: [],
+    poll_interval: 60,
   })
 
   const fetchConfig = useCallback(async () => {
@@ -41,6 +44,8 @@ export default function CustomerServiceDutySettings() {
       setConfig({
         enabled: Boolean(res.enabled),
         channels: Array.isArray(res.channels) ? (res.channels as string[]) : [],
+        poll_interval:
+          typeof res.poll_interval === "number" ? res.poll_interval : 60,
       })
     } catch {
       toast.error(t("settings.duty.loadError"))
@@ -74,7 +79,11 @@ export default function CustomerServiceDutySettings() {
         }
       }
       await SystemService.updateCustomerServiceDuty({
-        requestBody: { enabled: next.enabled, channels: next.channels },
+        requestBody: {
+          enabled: next.enabled,
+          channels: next.channels,
+          poll_interval: next.poll_interval,
+        },
       })
       setConfig(next)
       // 仅提示启停变化；纯渠道变更不打扰
@@ -175,6 +184,33 @@ export default function CustomerServiceDutySettings() {
                 disabled={saving}
               />
             </div>
+          </div>
+        </div>
+
+        {/* 轮巡兜底间隔（秒）：推送失效时按此频率轮巡，缺省 60 */}
+        <div className="border-t pt-4">
+          <span className="text-sm font-medium">
+            {t("settings.duty.pollIntervalLabel")}
+          </span>
+          <div className="mt-2 flex items-center gap-3">
+            <Input
+              type="number"
+              min={60}
+              max={3600}
+              step={60}
+              value={config.poll_interval ?? 60}
+              onChange={(e) => {
+                const n = Number(e.target.value)
+                if (Number.isInteger(n) && n >= 60 && n <= 3600) {
+                  handleSave({ ...config, poll_interval: n })
+                }
+              }}
+              className="h-9 max-w-[160px]"
+              disabled={saving}
+            />
+            <p className="text-xs text-muted-foreground">
+              {t("settings.duty.pollIntervalHint")}
+            </p>
           </div>
         </div>
       </CardContent>

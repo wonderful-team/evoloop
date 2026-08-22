@@ -1279,9 +1279,12 @@
       "status": "Status",
       "tools": "Available Features",
       "toolsCount": "{{count}} features",
-      "unknown": "unknown"
+      "unknown": "unknown",
+      "enabled": "Enabled"
     },
-    "title": "External Tools"
+    "title": "External Tools",
+    "enabledLabel": "Enabled",
+    "enabledHelp": "When disabled, config is saved but not connected; Agent cannot call this server."
   },
   "mermaid": {
     "renderingPartial": "Rendering Partial",
@@ -1619,8 +1622,10 @@
       "corpId": "Corp ID",
       "agentId": "Agent ID",
       "secret": "Secret",
-      "startDuty": "Start Duty",
-      "stopDuty": "Stop Duty",
+      "pollTitle": "Poll Schedule",
+      "savePoll": "Save Poll Interval",
+      "startDuty": "This Project Participates in Duty",
+      "stopDuty": "This Project Exits Duty",
       "saveCredentials": "Save Credentials",
       "credentialsSaved": "Credentials saved",
       "intervalLabel": "Poll interval (seconds)",
@@ -2074,6 +2079,8 @@
       "enabledDesc": "When on, projects can join duty from their overview (Agent acts as that project's customer service)",
       "channelsLabel": "Available Channels",
       "wecomDesc": "WeCom desktop client (GUI automation)",
+      "pollIntervalLabel": "Fallback Poll Interval (seconds)",
+      "pollIntervalHint": "Poll frequency when push is unavailable, 60~3600 (default 60)",
       "enabled": "Duty enabled",
       "disabled": "Duty disabled",
       "saveError": "Failed to save duty config",
@@ -2167,6 +2174,12 @@
       "validityNote": "Validity Note",
       "waiting": "Waiting for payment result...",
       "wechatPay": "Pay with WeChat",
+      "cardPay": "Pay with Card",
+      "method": "Payment Method",
+      "payNow": "Pay Now",
+      "processing": "Processing payment...",
+      "stripe": "Stripe",
+      "wechatpay": "WeChat Pay",
       "qrAlt": "Payment QR"
     },
     "plan": {

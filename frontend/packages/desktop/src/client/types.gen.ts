@@ -1088,6 +1088,7 @@ export type McpServerCreate = {
     env?: ({
     [key: string]: (string);
 } | null);
+    enabled?: boolean;
     [key: string]: unknown | string;
 };
 

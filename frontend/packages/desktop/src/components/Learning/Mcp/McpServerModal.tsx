@@ -18,6 +18,7 @@ import {
   FormMessage,
 } from "@evoloop/shared/components/ui/form"
 import { Input } from "@evoloop/shared/components/ui/input"
+import { Switch } from "@evoloop/shared/components/ui/switch"
 import useCustomToast from "@evoloop/shared/hooks/useCustomToast"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
@@ -34,6 +35,7 @@ export type McpServerPublic = {
   command: string
   status: string
   tools_count: number
+  enabled?: boolean
   // args might not be in the public list view based on previous code,
   // but we need it for editing if possible.
   // If backend listMcpServers doesn't return args, we might have an issue pre-filling.
@@ -64,6 +66,7 @@ export default function McpServerModal({
     name: z.string().min(1, { message: t("mcp.nameRequired") }),
     command: z.string().min(1, { message: t("mcp.commandRequired") }),
     args: z.string().optional(),
+    enabled: z.boolean(),
   })
 
   type McpServerForm = z.infer<typeof mcpServerSchema>
@@ -74,6 +77,7 @@ export default function McpServerModal({
       name: "",
       command: "",
       args: "",
+      enabled: true,
     },
   })
 
@@ -81,26 +85,6 @@ export default function McpServerModal({
   useEffect(() => {
     if (open) {
       if (mode === "edit" && initialData) {
-        // If initialData.args is an array, join it
-        // Note: The previous code for AddMcpServer didn't have args in list view props clearly
-        // But let's try to map what we can.
-        // NOTE: backend `listMcpServers` output might need `args` field.
-        // Checking `mcp.py`... list_servers returns list of dicts.
-        // backend `McpClientManager.list_servers` only returns {name, command, status, tools_count}.
-        // It does NOT return args/env.
-        // We might need to fetch details or update backend list to return args.
-        // For now, let's proceed, but editing might clear args if we don't fix backend.
-        // Assuming we will fix backend or it already provides it (mcp_client.py lines 286+ don't show args).
-        // Actually, let's fix backend listing first or concurrently?
-        // Plan said "No backend changes needed".
-        // ERROR: Backend `list_servers` in Python (Step 21, line 280) implementation:
-        // returns { name, command, status, tools_count }. ARGS MISSING.
-        // We must update backend to include args if we want to edit them.
-        // Or I can update backend now. I should update backend to return args.
-
-        // Let's write the modal assuming args will be there.
-        // If args is missing, user has to re-enter. Acceptable for V1?
-        // Better to fix. I will add a backend step to allow reading params.
         const argsStr = Array.isArray(initialData.args)
           ? initialData.args.join(" ")
           : (initialData as any).args || "" // Fallback
@@ -109,12 +93,14 @@ export default function McpServerModal({
           name: initialData.name,
           command: initialData.command,
           args: argsStr,
+          enabled: initialData.enabled !== false,
         })
       } else {
         form.reset({
           name: "",
           command: "",
           args: "",
+          enabled: true,
         })
       }
     }
@@ -134,6 +120,7 @@ export default function McpServerModal({
           command: data.command,
           args: argsList,
           env: {},
+          enabled: data.enabled,
         },
       })
     },
@@ -215,6 +202,25 @@ export default function McpServerModal({
                   </FormControl>
                   <FormDescription>{t("mcp.argsHelp")}</FormDescription>
                   <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="enabled"
+              render={({ field }) => (
+                <FormItem className="flex items-center justify-between rounded-md border p-3">
+                  <div className="space-y-0.5">
+                    <FormLabel>{t("mcp.enabledLabel")}</FormLabel>
+                    <FormDescription>{t("mcp.enabledHelp")}</FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
                 </FormItem>
               )}
             />
