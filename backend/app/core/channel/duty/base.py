@@ -162,7 +162,9 @@ class DutyChannel(InputChannel, ABC):
                 updated_prompts.append(p)
                 continue
 
-            task_thread_id = f"duty_business_{project_id}_{p.get('id')}"
+            # 每次巡检用独立 thread（带 run 时间戳）：业务巡检是一次性独立查证，
+            # 不应共享同一条任务的历史（否则历史无限堆积、Agent 消化重复上下文）。
+            task_thread_id = f"duty_business_{project_id}_{p.get('id')}_{int(now_ts)}"
             msg = IncomingMessage(
                 source="duty",
                 thread_id=task_thread_id,
@@ -185,8 +187,11 @@ class DutyChannel(InputChannel, ABC):
                 session = await session_manager.submit(
                     task_thread_id, result.inputs, await_completion=False
                 )
-                await session.wait_delivery_complete()
 
+                # 派发成功即推进 next_run_at：不等 Agent 完成 delivery。
+                # 否则若某条任务卡在 HITL/长任务（wait_delivery_complete 无超时
+                # 永久阻塞），整轮扫描停滞，后续任务与 save_business_poll_prompts
+                # 都不执行，next_run_at 永不落盘。
                 interval = int(p.get("interval_minutes") or 60)
                 p["next_run_at"] = (now_dt + timedelta(minutes=interval)).isoformat()
                 updated_prompts.append(p)
@@ -196,6 +201,14 @@ class DutyChannel(InputChannel, ABC):
                     project_id,
                     p.get("id"),
                 )
+                # delivery 完成仅作观察（带超时，best-effort），不影响调度推进
+                delivered = await session.wait_delivery_complete(timeout=30)
+                if not delivered:
+                    logger.warning(
+                        "[duty] 业务巡检任务 delivery 超时 (project=%s, prompt=%s)",
+                        project_id,
+                        p.get("id"),
+                    )
             except Exception:
                 logger.exception(
                     "[duty] 业务巡检任务失败 (project=%s, prompt=%s)",
@@ -239,3 +252,19 @@ class DutyChannel(InputChannel, ABC):
         raise NotImplementedError(
             "DutyChannel is poll-driven; call poll_once() instead of receive()."
         )
+
+    # 值守渠道被注册为输出 channel（安抚回复 send()），HITL 请求无交互 UI，
+    # 显式 no-op（与 VoiceChannel 同语义：HITL 以状态变化呈现，不推送）。
+    async def send_hitl_request(
+        self,
+        request_id: str,
+        request_type: str,
+        prompt: str,
+        ctx: Any,
+        options: list[str] | None = None,
+        context: str | None = None,
+        default_value: str | None = None,
+        tool_name: str | None = None,
+        metadata: dict | None = None,
+    ) -> None:
+        return

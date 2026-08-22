@@ -67,29 +67,34 @@ class LanceVectorStore(BaseVectorStore):
         # Document chunks table
         try:
             self.doc_table = self.client.open_table("doc_chunks")
-        except Exception as e:
-            logger.warning(f"Init failed: {e}", exc_info=True)
+            logger.debug("[LanceVectorStore] Opened existing doc_chunks table")
+        except Exception:# Handle multiple possible exception types (FileNotFoundError, ValueError)
             self.doc_table = self._create_doc_chunks_table()
+            logger.info("[LanceVectorStore] Created doc_chunks table")
 
         # Memories table
         try:
             self.memory_table = self.client.open_table("memories")
-        except Exception as e:
-            logger.warning(f"Init failed: {e}", exc_info=True)
+            logger.debug("[LanceVectorStore] Opened existing memories table")
+        except Exception:# Handle multiple possible exception types (FileNotFoundError, ValueError)
             self.memory_table = self._create_memories_table()
+            logger.info("[LanceVectorStore] Created memories table")
+
         # Skills table
         try:
             self.skills_table = self.client.open_table("skills")
-        except Exception as e:
-            logger.warning(f"Init failed: {e}", exc_info=True)
+            logger.debug("[LanceVectorStore] Opened existing skills table")
+        except Exception:# Handle multiple possible exception types (FileNotFoundError, ValueError)
             self.skills_table = self._create_skills_table()
+            logger.info("[LanceVectorStore] Created skills table")
 
         # Concepts table
         try:
             self.concepts_table = self.client.open_table("concepts")
-        except Exception as e:
-            logger.warning(f"Init failed: {e}", exc_info=True)
+            logger.debug("[LanceVectorStore] Opened existing concepts table")
+        except Exception:# Handle multiple possible exception types (FileNotFoundError, ValueError)
             self.concepts_table = self._create_concepts_table()
+            logger.info("[LanceVectorStore] Created concepts table")
 
     def _create_code_chunks_table(self):
         """Create code chunks table with schema."""

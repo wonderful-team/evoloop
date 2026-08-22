@@ -41,23 +41,10 @@ def clamp_duty_interval(interval: object) -> int:
     return max(DUTY_INTERVAL_MIN, min(interval, DUTY_INTERVAL_MAX))
 
 
-# 运营线（业务巡检）检查间隔（分钟）。该频率只决定“扫描任务列表”的节奏，
-# 真正的任务执行时间由 prompts 各自的 next_run_at/interval_minutes 控制。
+# 运营线（业务巡检）扫描频率（分钟）。固定系统常量，对齐 60s tick 粒度：
+# 它只决定“扫描任务列表”的节奏，真正的执行时间由 prompts 各自的
+# next_run_at/interval_minutes 控制，不随项目/全局配置。
 BUSINESS_POLL_INTERVAL = 1  # 分钟
-BUSINESS_POLL_INTERVAL_MIN = 1  # 分钟
-BUSINESS_POLL_INTERVAL_MAX = 1440  # 分钟（24h）
-
-
-def clamp_business_poll_interval(interval: object) -> int:
-    """钳制运营线巡检间隔到 [5, 1440]（分钟）；非法/缺省回退 60。
-
-    非整数（None/str/bool/float 等）一律回退缺省——配置只接受整数分钟。
-    """
-    if not isinstance(interval, int) or isinstance(interval, bool):
-        return BUSINESS_POLL_INTERVAL
-    return max(
-        BUSINESS_POLL_INTERVAL_MIN, min(interval, BUSINESS_POLL_INTERVAL_MAX)
-    )
 
 
 def load_global_duty_config() -> dict:
@@ -85,12 +72,15 @@ def save_global_duty_config(cfg: dict) -> None:
 async def load_duty_config(project_id: int) -> dict:
     """按项目加载值守配置。
 
+    轮巡节奏是全局机制（60s tick 粒度 + 推送接管），故轮巡间隔取自全局
+    配置（poll_interval）；业务巡检扫描频率固定为系统常量，不随项目配置。
+
     Returns:
         {
             "enabled": bool,
-            "channels": dict,        # 该项目企微参数（corp_id/agent_id/secret）
-            "interval": int,         # 轮巡间隔（秒，钳制 60~3600，缺省 DUTY_INTERVAL）
-            "business_poll_interval": int,  # 业务巡检扫描间隔（分钟，钳制 1~1440）
+            "channels": dict,            # 各渠道参数（wecom / callback MCP 配置）
+            "active_channels": list[str],  # 启用的渠道名（wecom/callback，缺省 enabled=true）
+            "poll_interval": int,        # 兜底轮巡间隔（秒，来自全局，钳制 60~3600）
             "business_poll_prompts": list,  # 业务巡检任务列表（每条独立会话）
             "history_dir": str,      # <local_path>/.evoloop/wecom_history
             "project_path": str,
@@ -104,13 +94,25 @@ async def load_duty_config(project_id: int) -> dict:
     pj = read_project_json(path)
     cfg = pj.get("customer_service_duty") or {}
     history_dir = os.path.join(path, ".evoloop", "wecom_history")
+    channels = cfg.get("channels") or {}
+    # 启用的渠道列表。兼容两种格式：
+    # - 新格式 dict：{"wecom": {...}, "callback": {...}}，enabled（缺省 true）决定是否启用
+    # - 旧格式 list：["wecom"]（早期项目配置），全部视为启用
+    if isinstance(channels, dict):
+        active_channels = [
+            name
+            for name, c in channels.items()
+            if isinstance(c, dict) and c.get("enabled", True)
+        ]
+    else:
+        active_channels = [c for c in channels if isinstance(c, str)]
+    # 轮巡间隔（兜底）从全局读取；缺省 DUTY_INTERVAL
+    poll_interval = clamp_duty_interval(load_global_duty_config().get("poll_interval"))
     return {
         "enabled": bool(cfg.get("enabled", False)),
-        "channels": cfg.get("channels") or {},
-        "interval": clamp_duty_interval(cfg.get("interval")),
-        "business_poll_interval": clamp_business_poll_interval(
-            cfg.get("business_poll_interval")
-        ),
+        "channels": channels,
+        "active_channels": active_channels,
+        "poll_interval": poll_interval,
         "business_poll_prompts": cfg.get("business_poll_prompts") or [],
         "history_dir": history_dir,
         "project_path": path,

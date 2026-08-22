@@ -39,17 +39,15 @@ async def _load_duty(project_id: int) -> tuple[str, dict]:
 
 
 @router.get("", response_model=DutyConfig)
-async def get_project_duty(
-    project_id: int,
-    _token: TokenDepOptional = None,
-):
-    """读取项目值守配置（enabled/channels/interval/business_poll_interval）。"""
+async def get_project_duty(project_id: int, _token: TokenDepOptional = None):
+    """读取项目值守配置（enabled/channels/business_poll_prompts）。
+
+    轮巡间隔/业务巡检扫描间隔属全局值守设置，不在此返回。
+    """
     _, duty = await _load_duty(project_id)
     return DutyConfig(
         enabled=duty.get("enabled"),
         channels=duty.get("channels"),
-        interval=duty.get("interval"),
-        business_poll_interval=duty.get("business_poll_interval"),
         business_poll_prompts=[
             BusinessPollPrompt(**p) for p in (duty.get("business_poll_prompts") or [])
         ],
@@ -64,34 +62,14 @@ async def update_project_duty(
 ):
     """更新项目值守配置（部分更新），并执行启动/停止语义。
 
-    校验（422）：interval 60~3600 秒整数；business_poll_interval 1~1440 分钟
-整数。business_poll_prompts 为列表，每条含 id/prompt/next_run_at/interval_minutes/enabled。
+    校验（422）：business_poll_prompts 为列表，每条含 id/prompt/next_run_at/
+    interval_minutes/enabled。轮巡间隔/业务巡检扫描间隔属全局，不在项目 PUT 里。
     启停（§8.5.5/§8.5.6）：enabled=true → 校验全局/渠道条件并启动，
     失败回滚 enabled=false（400 + 失败原因）；false → 停止并协作式切断 Agent。
     """
     path, duty = await _load_duty(project_id)
 
     # 字段级校验（v6.3/v7）
-    if req.interval is not None:
-        iv = req.interval
-        if isinstance(iv, bool) or not isinstance(iv, int) or not 60 <= iv <= 3600:
-            raise HTTPException(
-                422,
-                detail={"message": "轮巡间隔须为 60~3600 秒（1~60 分钟）的整数"},
-            )
-    if req.business_poll_interval is not None:
-        bp = req.business_poll_interval
-        if (
-            isinstance(bp, bool)
-            or not isinstance(bp, int)
-            or not 1 <= bp <= 1440
-        ):
-            raise HTTPException(
-                422,
-                detail={
-                    "message": "业务巡检间隔须为 1~1440 分钟（24 小时）的整数"
-                },
-            )
     if req.business_poll_prompts is not None:
         for p in req.business_poll_prompts:
             iv = p.interval_minutes
@@ -145,8 +123,6 @@ async def update_project_duty(
     return DutyConfig(
         enabled=saved.get("enabled"),
         channels=saved.get("channels"),
-        interval=saved.get("interval"),
-        business_poll_interval=saved.get("business_poll_interval"),
         business_poll_prompts=[
             BusinessPollPrompt(**p) for p in (saved.get("business_poll_prompts") or [])
         ],
@@ -154,10 +130,7 @@ async def update_project_duty(
 
 
 @router.get("/status")
-async def get_project_duty_status(
-    project_id: int,
-    _token: TokenDepOptional = None,
-):
+async def get_project_duty_status(project_id: int, _token: TokenDepOptional = None):
     """读取项目值守运行状态（参与开关 + 调度运行信息）。
 
     返回：enabled / active / last_run_at / next_run_at / interval /
@@ -179,6 +152,6 @@ async def get_project_duty_status(
         ).scalars().all()
         for t in rows:
             kind = (t.params_template or {}).get("kind")
-            if kind in ("wecom", "business_poll"):
+            if kind in ("wecom", "kf", "business_poll"):
                 tasks[kind] = t
     return await _read_duty_status(project_id, path, tasks)

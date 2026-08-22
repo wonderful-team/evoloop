@@ -21,15 +21,15 @@ class DutyConfig(DynamicBaseModel):
     """值守配置（项目 project.json 的 customer_service_duty 字段）。
 
     全字段可选 = 部分更新语义（PUT）：未传字段保持原值。
-    interval/business_poll_interval 用 StrictInt（禁止 "60"→60 之类 coercion），
-    非法类型在 422 层被拒，与运行时校验语义一致（v6.3 起）。
+
+    轮巡间隔/业务巡检扫描间隔属于全局值守设置（CUSTOMER_SERVICE_DUTY），
+    不在项目级配置；项目只负责参与意愿（enabled）+ 渠道（channels）+
+    巡检任务列表（business_poll_prompts）。
     """
 
     enabled: bool | None = None
-    channels: dict | None = None
-    interval: StrictInt | None = None
-    # 业务巡检检查间隔（分钟），最小 1：调度任务以此频率扫描 prompts 列表。
-    business_poll_interval: StrictInt | None = None
+    # 兼容新旧格式：dict（{"wecom": {...}, "callback": {...}}）或旧数组（["wecom"]）
+    channels: dict | list | None = None
     # 业务巡检任务列表；每条到点后作为独立 human 消息发给 Agent（thread_id=""）。
     business_poll_prompts: list[BusinessPollPrompt] | None = None
 

@@ -91,9 +91,9 @@ async def init_mcp(force_update: bool = False) -> dict[str, str]:
         existing_db_servers = {row[0] for row in result.all()}
 
     # MCP servers are now managed exclusively via DB configuration
-    # (McpServer table, e.g. mall-backend-ops). Default npx-based servers
-    # (local-postgres / filesystem / brave-search) are no longer auto-seeded;
-    # they caused npx download stalls and polluted Agent tool lists.
+    # (McpServer table). Default npx-based servers (local-postgres / filesystem /
+    # brave-search) are no longer auto-seeded; they caused npx download stalls
+    # and polluted Agent tool lists.
     for name in existing_db_servers:
         results[name] = "skipped_existing"
 

@@ -31,9 +31,7 @@ def _resolve_project_id(p: dict) -> int | None:
     return int(resolved) if resolved is not None else None
 
 
-async def _read_duty_status(
-    project_id: int, local_path: str, task_or_tasks: Any = None
-) -> dict:
+async def _read_duty_status(project_id: int, local_path: str, task_or_tasks: Any = None) -> dict:
     """读项目值守状态：参与开关 + 调度运行信息。
 
     Args:
@@ -56,7 +54,6 @@ async def _read_duty_status(
     """
     from app.core.channel.duty.config import (
         BUSINESS_POLL_INTERVAL,
-        clamp_business_poll_interval,
         clamp_duty_interval,
         load_global_duty_config,
     )
@@ -80,43 +77,34 @@ async def _read_duty_status(
 
         duty = read_project_json(local_path).get("customer_service_duty") or {}
         result["enabled"] = bool(duty.get("enabled", False))
-        result["interval"] = clamp_duty_interval(duty.get("interval"))
-        result["business_poll_interval"] = clamp_business_poll_interval(
-            duty.get("business_poll_interval")
-        )
 
         global_cfg = load_global_duty_config()
         result["global_enabled"] = bool(global_cfg.get("enabled", False))
         result["active"] = result["enabled"] and result["global_enabled"]
+        # 轮巡间隔取自全局（兜底节奏）；业务巡检扫描频率固定为系统常量
+        result["interval"] = clamp_duty_interval(global_cfg.get("poll_interval"))
+        result["business_poll_interval"] = BUSINESS_POLL_INTERVAL
 
         wecom_task: Any = None
+        kf_task: Any = None
         business_task: Any = None
         if isinstance(task_or_tasks, dict):
             wecom_task = task_or_tasks.get("wecom")
+            kf_task = task_or_tasks.get("kf")
             business_task = task_or_tasks.get("business_poll")
         elif task_or_tasks is not None:
             wecom_task = task_or_tasks
 
-        if wecom_task is not None:
-            result["active"] = bool(wecom_task.is_active)
-            result["last_run_at"] = (
-                wecom_task.last_run_at.isoformat() if wecom_task.last_run_at else None
-            )
-            result["next_run_at"] = (
-                wecom_task.next_run_at.isoformat() if wecom_task.next_run_at else None
-            )
-            result["last_failure"] = wecom_task.last_failure_reason
+        # 主轮巡状态：优先企微线，否则用商城微信客服线（callback-only 项目）
+        channel_task = wecom_task if wecom_task is not None else kf_task
+        if channel_task is not None:
+            result["active"] = bool(channel_task.is_active)
+            result["last_run_at"] = channel_task.last_run_at.isoformat() if channel_task.last_run_at else None
+            result["next_run_at"] = channel_task.next_run_at.isoformat() if channel_task.next_run_at else None
+            result["last_failure"] = channel_task.last_failure_reason
         if business_task is not None:
-            result["business_last_run_at"] = (
-                business_task.last_run_at.isoformat()
-                if business_task.last_run_at
-                else None
-            )
-            result["business_next_run_at"] = (
-                business_task.next_run_at.isoformat()
-                if business_task.next_run_at
-                else None
-            )
+            result["business_last_run_at"] = business_task.last_run_at.isoformat() if business_task.last_run_at else None
+            result["business_next_run_at"] = business_task.next_run_at.isoformat() if business_task.next_run_at else None
     except Exception as e:
         logger.warning("[ProjectsAPI] 读取值守状态失败 %s: %s", local_path, e)
     return result

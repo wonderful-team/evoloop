@@ -1,8 +1,11 @@
-"""MCP server configuration schemas."""
+"""MCP server configuration schemas.
 
-from typing import Any
-
-from pydantic import Field
+NOTE: This module only defines the server CRUD DTOs (McpServer*) and HealthStatus
+that have no other canonical home. Shared MCP models (ServerCapabilities,
+McpServerConfig, ConnectionState, ConnectionResult) are defined in their
+canonical modules and re-exported via ``app.core.mcp.schemas`` — do NOT redefine
+them here to avoid duplication.
+"""
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
@@ -12,6 +15,7 @@ class McpServerBase(DynamicBaseModel):
     command: str
     args: list[str] | None = []
     env: dict[str, str] | None = {}
+    enabled: bool = True
 
 
 class McpServerCreate(McpServerBase):
@@ -28,69 +32,6 @@ class McpServerUpdate(DynamicBaseModel):
     command: str | None = None
     args: list[str] | None = None
     env: dict[str, str] | None = None
-
-
-class ServerCapabilities(DynamicBaseModel):
-    """Capabilities reported by an MCP server."""
-
-
-class McpServerConfig(DynamicBaseModel):
-    """Configuration for an MCP server connection."""
-
-    name: str
-    transport: str = "stdio"
-    command: str | None = None
-    args: list[str] = Field(default_factory=list)
-    env: dict[str, str] = Field(default_factory=dict)
-    url: str | None = None
-    headers: dict[str, str] = Field(default_factory=dict)
-    auth_type: str = "none"
-    auth_config: dict[str, Any] = Field(default_factory=dict)
-    auto_connect: bool = True
-    enabled: bool = True
-
-
-class ConnectionState(DynamicBaseModel):
-    """Connection state tracking."""
-
-    server_name: str
-    is_connected: bool = False
-    last_health_check: float | None = None
-    tools_count: int = 0
-    error_message: str | None = None
-
-
-class ConnectionResult(DynamicBaseModel):
-    """Result of a connection attempt."""
-
-    success: bool
-    server_name: str
-    tools_count: int = 0
-    error: str | None = None
-    capabilities: ServerCapabilities | None = None
-
-
-class WorkerMcpServerConfig(DynamicBaseModel):
-    """MCP server configuration for a specific Worker."""
-
-    name: str
-    transport: str = "stdio"
-    command: str | None = None
-    args: list[str] = Field(default_factory=list)
-    env: dict[str, str] = Field(default_factory=dict)
-    url: str | None = None
-    headers: dict[str, str] = Field(default_factory=dict)
-    auth_type: str = "none"
-    auth_config: dict[str, Any] = Field(default_factory=dict)
-    inherit_from_global: bool = False
-
-
-class WorkerMcpConfig(DynamicBaseModel):
-    """MCP configuration for a Worker."""
-
-    servers: list[WorkerMcpServerConfig] = Field(default_factory=list)
-    inherit_servers: list[str] = Field(default_factory=list)
-    auto_connect: bool = True
 
 
 class HealthStatus(DynamicBaseModel):

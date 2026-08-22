@@ -2,7 +2,7 @@ import json
 import logging
 import time
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.deps import get_current_user
 from app.api.schemas.system import (
@@ -226,10 +226,8 @@ async def validate_customer_service_duty() -> dict:
 @router.put("/customer_service_duty", dependencies=[Depends(get_current_user)])
 async def update_customer_service_duty(cfg: dict) -> dict:
     """更新全局客服值守配置。渠道启用/启停时联动（§8.5.6 全局停止）。"""
-    from fastapi import HTTPException
-
     from app.core.channel.duty import provision
-    from app.core.channel.duty.config import save_global_duty_config
+    from app.core.channel.duty.config import clamp_duty_interval, save_global_duty_config
 
     enabled = bool(cfg.get("enabled", False))
     old = await get_customer_service_duty()
@@ -241,6 +239,10 @@ async def update_customer_service_duty(cfg: dict) -> dict:
         errors = await provision.validate_global_duty()
         if errors:
             raise HTTPException(400, detail={"message": "企微渠道启用失败", "errors": errors})
+
+    # 轮巡间隔（兜底）钳制到 60~3600s
+    if "poll_interval" in cfg:
+        cfg["poll_interval"] = clamp_duty_interval(cfg.get("poll_interval"))
 
     save_global_duty_config(cfg)
 

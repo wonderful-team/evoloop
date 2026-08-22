@@ -94,6 +94,7 @@ class McpServerConfig(DynamicBaseModel):
             name=server.name,
             transport=transport,
             command=server.command,
+            url=server.command if transport == TransportType.SSE else None,
             args=args or [],
             env=env or {},
             enabled=server.enabled,

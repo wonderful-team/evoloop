@@ -268,9 +268,11 @@ class WeComDutyChannel(DutyChannel):
         contact, project_id = self._contact_from_thread(thread_id)
         if not contact or not project_id:
             return
-        logger.info(
-            "[wecom_duty] 收到 Agent 最终回复 (contact=%s): %r", contact, summary[:50]
-        )
+        # 仅处理本渠道（GUI）管理的会话：企微 external_userid 以 "wm" 开头，
+        # 是商城微信客服（callback/MCP）渠道的会话，跳过避免重复尝试回复。
+        if contact.startswith("wm"):
+            return
+        logger.info("[wecom_duty] 收到 Agent 最终回复 (contact=%s): %r", contact, summary[:50])
         try:
             ok = await self._send_reply(contact, summary, project_id)
             logger.info(
@@ -333,6 +335,4 @@ class WeComDutyChannel(DutyChannel):
                     timeout=None,
                 )
             except Exception:
-                logger.exception(
-                    "[%s] Failed to dispatch duty message for %s", self.name, contact
-                )
+                logger.exception("[%s] Failed to dispatch duty message for %s", self.name, contact)

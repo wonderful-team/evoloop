@@ -31,6 +31,8 @@ class SystemEventType(str, Enum):
     EXTRACTION_REQUESTED = "system.extraction_requested"
     EXTRACTION_COMPLETED = "system.extraction_completed"
     WEBSOCKET_MESSAGE_RECEIVED = "websocket.message_received"
+    # 服务端主动推送的任意 MCP notification（method 与 payload 在 event.data 中）
+    MCP_SERVER_NOTIFICATION = "mcp.server_notification"
 
     # Conversation Lifecycle
     CONVERSATION_CREATED = "conversation.created"

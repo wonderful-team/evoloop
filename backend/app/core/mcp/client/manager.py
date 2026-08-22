@@ -8,6 +8,8 @@ from typing import Any
 
 from sqlalchemy import select
 
+from app.core.events.base import BaseEvent, EventData, system_bus
+from app.core.events.registry import SystemEventType
 from app.core.mcp.auth.manager import mcp_auth_manager
 from app.core.mcp.config import (
     AuthType,
@@ -121,7 +123,11 @@ class McpClientManager:
                 read, write = await stack.enter_async_context(
                     self._transport.create_transport(config)
                 )
-                session = await self._transport.create_session(read, write)
+                session = await self._transport.create_session(
+                    read,
+                    write,
+                    message_handler=self._build_message_handler(server_name)
+                )
                 # Push session exit onto the same stack so teardown order is
                 # guaranteed: session (stops receive loop) closes BEFORE the
                 # transport's streams. Closing them separately would race the
@@ -210,6 +216,7 @@ class McpClientManager:
                 name=server.name,
                 transport=transport,
                 command=server.command,
+                url=server.command if transport == TransportType.SSE else None,
                 args=args,
                 env=env,
                 enabled=server.enabled,
@@ -248,6 +255,50 @@ class McpClientManager:
                     ))
 
         return results
+
+    def _build_message_handler(self, server_name: str):
+        """构造 mcp ClientSession 的入站消息处理器。
+
+        服务端主动推送的任意 notification（如 notifications/kf_new_message）会
+        经由此 handler 以通用事件 ``MCP_SERVER_NOTIFICATION`` 分发到事件总线，
+        method 与 payload 保留在 ``event.data`` 中，由各订阅方自行判断是否关心。
+        MCP 客户端层不感知任何具体业务 method。
+        """
+        async def _on_message(message) -> None:
+            # 兼容两种 root：标准类型（对象 .method / .root）与宽松类型（dict）
+            root = getattr(message, "root", None)
+            if isinstance(root, dict):
+                method = root.get("method")
+                payload = root.get("params")
+            else:
+                method = getattr(root, "method", None)
+                payload = getattr(root, "params", None)
+
+            # 仅分发服务端主动推送的 notification（method 以 notifications/ 前缀），
+            # 请求/响应等其它消息不入事件总线。
+            if not method or not str(method).startswith("notifications/"):
+                return
+
+            class McpServerNotificationEvent(BaseEvent):
+                event_type: str = SystemEventType.MCP_SERVER_NOTIFICATION
+                server_name: str
+                method: str | None
+
+            try:
+                await system_bus.publish(
+                    McpServerNotificationEvent(
+                        server_name=server_name,
+                        method=method,
+                        data=EventData.model_validate(
+                            {"method": method, "payload": payload}
+                        ),
+                    )
+                )
+                logger.info("MCP notification %s received from %s", method, server_name)
+            except Exception:
+                logger.exception("Failed to dispatch MCP notification for %s", server_name)
+
+        return _on_message
 
     async def disconnect(self, server_name: str) -> None:
         """Disconnect a single server."""
@@ -498,7 +549,8 @@ class McpClientManager:
     # ═══════════════════════════════════════════════════════════
 
     async def add_server(self, name: str, details: dict[str, Any]) -> ConnectionResult:
-        """Add server to DB and connect."""
+        """Add server to DB and connect (unless disabled)."""
+        enabled = bool(details.get("enabled", True))
         # Update DB
         async with session_scope() as session:
             result = await session.execute(
@@ -513,16 +565,26 @@ class McpClientManager:
                 db_server.command = details.get("command")
                 db_server.args = args_json
                 db_server.env = env_json
-                db_server.enabled = True
+                db_server.enabled = enabled
             else:
                 db_server = McpServer(
                     name=name,
                     command=details.get("command"),
                     args=args_json,
                     env=env_json,
-                    enabled=True,
+                    enabled=enabled,
                 )
                 session.add(db_server)
+
+        # Disabled server: store config only, do not connect
+        if not enabled:
+            await self.disconnect(name)
+            return ConnectionResult(
+                success=True,
+                server_name=name,
+                tools_count=0,
+                error=None,
+            )
 
         # Connect
         transport = TransportType.SSE if is_sse_url(details.get("command")) else TransportType.STDIO
@@ -531,6 +593,7 @@ class McpClientManager:
             name=name,
             transport=transport,
             command=details.get("command"),
+            url=details.get("command") if transport == TransportType.SSE else None,
             args=details.get("args", []),
             env=details.get("env", {}),
             enabled=True,

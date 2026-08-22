@@ -1,5 +1,6 @@
 """MCP authentication schemas."""
 
+import time
 from typing import Any
 
 from pydantic import Field
@@ -11,8 +12,18 @@ class AuthToken(DynamicBaseModel):
     access_token: str
     refresh_token: str | None = None
     token_type: str = "Bearer"
-    expires_in: int | None = None
+    expires_in: float | None = None
     scope: str | None = None
+
+    def is_expired(self) -> bool:
+        """判断 token 是否已过期。
+
+        ``expires_in`` 存的是绝对过期时间戳（``time.time() + expires_in``）；
+        未设置（None）视为永不过期。
+        """
+        if self.expires_in is None:
+            return False
+        return time.time() >= self.expires_in
 
 
 class AuthConfig(DynamicBaseModel):

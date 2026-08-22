@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from croniter import croniter
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.infrastructure.database import session_scope
 from app.models.scheduler import AutonomousTask
@@ -26,9 +26,13 @@ class SchedulerService:
 
         async with session_scope() as session:
             # 1. Catch active & due tasks (fetch only IDs)
+            # 注意：不能写 `not AutonomousTask.is_dead_letter`——对 SQLAlchemy
+            # Column 用 Python `not` 会在构造语句时就求值为常量 False，导致
+            # 查询恒空、所有 AutonomousTask 永不派发。必须用 is_(False) /
+            # coalesce 生成 SQL 条件。
             stmt = select(AutonomousTask.id).where(
                 AutonomousTask.is_active,
-                not AutonomousTask.is_dead_letter,
+                func.coalesce(AutonomousTask.is_dead_letter, False).is_(False),
                 AutonomousTask.next_run_at <= now,
             )
             result = await session.execute(stmt)

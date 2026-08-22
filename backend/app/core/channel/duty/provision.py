@@ -24,7 +24,6 @@ from app.core.channel.duty.config import (
 )
 from app.core.channel.duty.scheduler import (
     KIND_BUSINESS_POLL,
-    KIND_WECOM,
     task_is_duty,
 )
 from app.infrastructure.database import session_scope
@@ -38,20 +37,25 @@ logger = logging.getLogger(__name__)
 async def validate_global_duty() -> list[str]:
     """校验全局值守是否具备开启条件（渠道就绪检测），返回失败原因列表。
 
-    校验项：企业微信客户端是否就绪（已安装 / 已登录 / 会话列表可读）。
+    校验项：已全局启用的各渠道各自就绪检测——wecom（本地 GUI）要求企微
+    客户端已安装/登录/会话列表可读；callback（MCP 接入商城）不依赖本地
+    企微客户端，跳过客户端检测。
     全局开启值守或启用渠道前调用，条件不满足则阻止开启。
     """
     errors: list[str] = []
+    global_cfg = load_global_duty_config()
+    channels = global_cfg.get("channels") or []
 
-    try:
-        from app.core.channel.duty.wecom import common
+    if "wecom" in channels:
+        try:
+            from app.core.channel.duty.wecom import common
 
-        ready, reason = await common.check_wecom_ready()
-        if not ready:
-            errors.append(reason)
-    except Exception as e:
-        logger.warning("[wecom_provision] 全局就绪检测异常: %s", e)
-        errors.append(f"企业微信就绪检测失败: {e}")
+            ready, reason = await common.check_wecom_ready()
+            if not ready:
+                errors.append(reason)
+        except Exception as e:
+            logger.warning("[wecom_provision] 全局就绪检测异常: %s", e)
+            errors.append(f"企业微信就绪检测失败: {e}")
 
     return errors
 
@@ -59,25 +63,58 @@ async def validate_global_duty() -> list[str]:
 async def validate_project_duty(project_id: int) -> list[str]:
     """校验某项目能否开启值守，返回失败原因列表（空 = 全部通过）。
 
-    校验项：全局总开关、企微渠道已全局启用。不做 GUI 就绪检测——
+    校验项：全局总开关、项目启用的各渠道均已全局启用（wecom → 企微渠道；
+    callback → 商城微信客服渠道 + MCP server 已注册）。不做 GUI 就绪检测——
     企微就绪已在"全局启用企微渠道"时校验过，项目开启依赖渠道已启用。
 
-    注：企微凭据（corp_id/secret）是 API 接入的预留字段，GUI 值守
-    （本地客户端登录）不需要，故此处不强制校验。
+    企微交互由商城侧负责，客户端不保存/校验任何企微凭据。
     """
     errors: list[str] = []
 
     global_cfg = load_global_duty_config()
     if not global_cfg.get("enabled"):
         errors.append("值守总开关未开启（请先在全局设置开启）")
-    if "wecom" not in (global_cfg.get("channels") or []):
-        errors.append("企微渠道未在全局启用")
+    global_channels = global_cfg.get("channels") or []
 
     cfg = await load_duty_config(project_id)
     if not cfg:
         errors.append("项目无本地路径")
+        return errors
+
+    for channel_name in cfg.get("active_channels") or []:
+        if channel_name == "wecom":
+            if "wecom" not in global_channels:
+                errors.append("企微渠道未在全局启用")
+        elif channel_name == "callback":
+            if "callback" not in global_channels:
+                errors.append("商城微信客服渠道未在全局启用")
+            if not (cfg.get("channels") or {}).get("callback", {}).get("mcp_server"):
+                errors.append("商城微信客服渠道未配置 callback.mcp_server")
+            elif not await _mcp_server_ready(cfg):
+                errors.append("商城微信客服渠道依赖的 MCP server 未注册或不可用")
 
     return errors
+
+
+async def _mcp_server_ready(cfg: dict) -> bool:
+    """校验 callback 渠道依赖的 MCP server 是否已注册（连不连得上不强求）。
+
+    只校验 mcp_servers 表里有记录（连接失败会在轮巡时告警并跳过本轮）。
+    server 名从 callback.mcp_server 读取（不在代码写死）。
+    """
+    from app.core.mcp.client.manager import mcp_client_manager
+
+    channels = cfg.get("channels") or {}
+    callback_cfg = channels.get("callback") or {}
+    server = callback_cfg.get("mcp_server")
+    if not server:
+        return False
+    try:
+        servers = await mcp_client_manager.list_servers()
+        return any(s.name == server for s in servers)
+    except Exception as e:
+        logger.warning("[wecom_provision] MCP server 列表获取失败: %s", e)
+        return False
 
 
 # ── 启动 ──────────────────────────────────────────────────
@@ -194,29 +231,41 @@ async def _disable_project_config(project_id: int) -> None:
 
 
 async def _upsert_tasks(project_id: int) -> None:
-    """upsert 该项目的两条值守 AutonomousTask：企微轮巡 + 业务巡检扫描。"""
+    """upsert 该项目的值守 AutonomousTask：每个启用渠道一条轮巡任务 + 业务巡检扫描。
+
+    轮巡间隔取自全局（poll_interval）；业务巡检扫描频率固定为系统常量
+    （BUSINESS_POLL_INTERVAL 分钟，对齐 60s tick 粒度，真正的执行节奏由
+    每条 prompt 的 interval_minutes 控制）。
+    """
+    from app.core.channel.duty.scheduler import CHANNEL_KIND_MAP
+
     cfg = await load_duty_config(project_id)
-    wecom_interval = cfg.get("interval", DUTY_INTERVAL)
-    business_interval = cfg.get(
-        "business_poll_interval", BUSINESS_POLL_INTERVAL
-    )
-    await _upsert_task_by_kind(
-        project_id,
-        kind=KIND_WECOM,
-        interval_seconds=wecom_interval,
-    )
+    poll_interval = cfg.get("poll_interval", DUTY_INTERVAL)
+    for channel_name in cfg.get("active_channels") or []:
+        kind = CHANNEL_KIND_MAP.get(channel_name)
+        if kind is None:
+            continue
+        await _upsert_task_by_kind(
+            project_id,
+            kind=kind,
+            interval_seconds=poll_interval,
+            channel_name=channel_name,
+        )
     await _upsert_task_by_kind(
         project_id,
         kind=KIND_BUSINESS_POLL,
-        interval_seconds=business_interval * 60,
+        interval_seconds=BUSINESS_POLL_INTERVAL * 60,
+        channel_name=None,
     )
 
 
 async def _upsert_task_by_kind(
-    project_id: int, kind: str, interval_seconds: int
+    project_id: int, kind: str, interval_seconds: int, channel_name: str | None
 ) -> None:
     """upsert 某项目某一类值守 AutonomousTask。"""
     trigger_spec = f"interval:{interval_seconds}"
+    duty_channel = "mcp_kf" if channel_name == "callback" else "wecom_duty"
+    params_template = {"duty_channel": duty_channel, "kind": kind}
     async with session_scope() as session:
         stmt = select(AutonomousTask).where(AutonomousTask.project_id == project_id)
         tasks = (await session.execute(stmt)).scalars().all()
@@ -236,7 +285,7 @@ async def _upsert_task_by_kind(
                 skill_ids=[],
                 trigger_type="interval",
                 trigger_spec=trigger_spec,
-                params_template={"duty_channel": "wecom_duty", "kind": kind},
+                params_template=params_template,
                 is_active=True,
                 next_run_at=_next_run_at(),
             )
@@ -245,7 +294,7 @@ async def _upsert_task_by_kind(
             task.skill_ids = []
             task.trigger_spec = trigger_spec
             task.is_active = True
-            task.params_template = {"duty_channel": "wecom_duty", "kind": kind}
+            task.params_template = params_template
             task.next_run_at = _next_run_at()
 
 

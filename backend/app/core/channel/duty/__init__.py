@@ -6,6 +6,7 @@
 结构：
 - ``base.py``            DutyChannel 基类 + ContactDelta/RawInbound
 - ``wecom/``             企业微信值守实现（channel.py + common/read/reply/scan_all）
+- ``mcp_kf/``            经 MCP（项目配置 callback.mcp_server）接入商城微信客服的值守实现
 - ``scheduler.py``       run_duty_poll 调度接入
 """
 
@@ -14,6 +15,7 @@ from app.core.channel.duty.base import (
     DutyChannel,
     RawInbound,
 )
+from app.core.channel.duty.mcp_kf.mcp_kf_channel import MpcKfChannel
 from app.core.channel.duty.wecom.channel import WeComDutyChannel
 
 
@@ -35,6 +37,7 @@ __all__ = [
     "ContactDelta",
     "DutyChannel",
     "RawInbound",
+    "MpcKfChannel",
     "WeComDutyChannel",
     "is_duty_source",
 ]

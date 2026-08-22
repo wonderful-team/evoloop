@@ -77,8 +77,6 @@ from app.core.mcp.client import (
     restore_std_streams,
 )
 from app.core.mcp.config import AuthType
-from app.core.mcp.worker import WorkerMcpSession, worker_mcp_manager
-from app.core.mcp.worker_config import WorkerMcpConfig, WorkerMcpServerConfig
 
 __all__ = [
     # Main entry point
@@ -101,11 +99,6 @@ __all__ = [
     "mcp_auth_manager",
     "mcp_elicitation_handler",
     "ElicitationRequest",
-    # Worker MCP
-    "WorkerMcpSession",
-    "worker_mcp_manager",
-    "WorkerMcpConfig",
-    "WorkerMcpServerConfig",
     # Infrastructure
     "McpHealthChecker",
     "McpTransport",
