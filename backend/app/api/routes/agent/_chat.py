@@ -73,6 +73,8 @@ async def chat_endpoint(
         active_model=req.model,
         token=token,
     )
+    if req.working_directory:
+        thread_context_store.set_working_directory(req.thread_id, req.working_directory)
     member_id = _current_user.id if _current_user else 0
 
     async with route_lock_scope(req.thread_id, ctx):

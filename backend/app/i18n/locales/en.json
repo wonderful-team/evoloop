@@ -546,6 +546,19 @@
     "batch_approved": "Batch approval granted (batch ID: {grant_id}, {count} operations). Proceed with the approved operations; they will not re-prompt for confirmation while valid.",
     "batch_approved_fallback": "Batch approval granted. Proceed with the approved operations.",
     "batch_rejected": "Batch approval was rejected. Do not execute the operations in the batch.",
-    "access_rejected": "User rejected this access request (REJECTED): {path}. Do not retry this path; use alternative approaches or continue with the rest of the task."
+    "access_rejected": "User rejected this access request (REJECTED): {path}. Do not retry this path; use alternative approaches or continue with the rest of the task.",
+    "authorization": {
+      "tool_not_subject_to_authorization": "Tool not subject to project-level authorization",
+      "no_matching_policy": "No matching authorization policy",
+      "policy_no_approval_required": "Policy does not require approval",
+      "previously_authorized": "Previously authorized by user",
+      "access_requires_approval": "Access to {resource_path} requires user approval",
+      "action": {
+        "read": "read {resource_path}",
+        "write": "write {resource_path}",
+        "execute": "execute {resource_path}"
+      },
+      "missing_policy_error": "Cannot request authorization without a matching policy"
+    }
   }
 }

@@ -419,6 +419,13 @@ class MacroEngine(
                         },
                     )
                 step_log.append({"step": step_num, "type": "bash", "ok": True})
+                # Bash 步骤的输出也应能被下游步骤通过 {{key}} 引用，
+                # 否则跨步骤（如 bash 算 itemids → run_js 使用）会解析为空。
+                # 与 EXTRACT 步骤后保持同样的合并语义：显式 caller params 优先。
+                params = {
+                    **{k: v for k, v in extracted_data.items() if v is not None},
+                    **params,
+                }
                 continue
 
             if step.type == MacroStepType.ACTION:

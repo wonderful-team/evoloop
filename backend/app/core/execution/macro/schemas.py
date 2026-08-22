@@ -113,7 +113,9 @@ RISK_TIER_ORDER: dict[str, int] = {t: i for i, t in enumerate(RISK_TIERS)}
 # rewrite path). escape (bash/native/applescript) and money are excluded because
 # Agent-written macros must not silently gain arbitrary code-execution or
 # money-movement capability without human review.
-DEFAULT_ALLOWED_FAMILIES: set[str] = {"observe", "act", "control", "data"}
+# 当前迭代临时放开 escape 族（bash/native/applescript/ACTION-run_js），
+# 以便宏内可以进行本地 JSON 数据处理。后续应引入受控的只读/数据加工通道。
+DEFAULT_ALLOWED_FAMILIES: set[str] = {"observe", "act", "control", "data", "escape"}
 
 
 def action_family(step_type: MacroStepType, event_type: MacroActionType | str | None) -> str:

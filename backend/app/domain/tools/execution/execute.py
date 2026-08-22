@@ -9,6 +9,7 @@ from app.core.engine.message.native_classes import RunnableConfig
 from app.core.project.utils import get_workspace_root
 from app.core.tools import evoloop_tool, get_working_directory
 from app.core.tools.base import InjectedToolArg
+from app.core.tools.path_security import get_allowed_roots
 from app.domain.tools.execution.background import execute_in_background, execute_smart
 from app.domain.tools.execution.security import (
     has_workspace_escape,
@@ -43,17 +44,24 @@ async def _execute_command(
         sandbox = SandboxFactory.get_sandbox()
 
         if working_dir and working_dir != ".":
-            escape = has_workspace_escape(command)
+            allowed_roots = get_allowed_roots(working_dir=working_dir)
+
+            escape = has_workspace_escape(
+                command,
+                working_dir=working_dir,
+                allowed_roots=allowed_roots,
+            )
             if escape is not None:
                 logger.warning(
-                    "[execute] blocked workspace escape via cd: %r (working_dir=%s)",
+                    "[execute] blocked workspace escape via cd: %r (working_dir=%s, allowed=%s)",
                     escape,
                     working_dir,
+                    allowed_roots,
                 )
                 return (
                     "",
-                    "Security Error: 命令尝试 cd 到工作目录之外（含 cd .. / cd / cd ~/ 绝对路径），"
-                    "已在沙箱内阻止。请只在工作目录内操作。",
+                    "Security Error: 命令尝试访问允许的工作目录之外，"
+                    "已在沙箱内阻止。请在当前工作目录或其允许的子目录内操作。",
                     1,
                 )
             wrapped_command = f"cd {working_dir} && {command}"

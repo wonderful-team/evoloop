@@ -188,7 +188,7 @@ class ReferenceService:
             # 5. Skill References
             elif att_type == "skill":
                 metadata = att.get("metadata") or att.get("meta_data") or {}
-                skill_id = metadata.get("skill_id") or att_id
+                skill_id = str(metadata.get("skill_id") or att_id)
                 skill_name = metadata.get("skill_name") or att_name
                 skill_description = metadata.get("description", "")
                 reference_notes.append(f"Skill: {skill_name} (ID: {skill_id})")

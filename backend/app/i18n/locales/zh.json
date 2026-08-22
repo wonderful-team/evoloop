@@ -552,6 +552,19 @@
     "batch_approved": "批量审批已通过（批次 ID: {grant_id}，共 {count} 项操作）。请继续执行已批准的操作，它们在有效期内不会再触发二次确认。",
     "batch_approved_fallback": "批量审批已通过。请继续执行已批准的操作。",
     "batch_rejected": "批量审批已被拒绝。请勿执行批次中的操作。",
-    "access_rejected": "用户拒绝了该访问请求（REJECTED）：{path}。请勿重试此路径，改用其他可用方式或向用户说明后继续完成其余任务。"
+    "access_rejected": "用户拒绝了该访问请求（REJECTED）：{path}。请勿重试此路径，改用其他可用方式或向用户说明后继续完成其余任务。",
+    "authorization": {
+      "tool_not_subject_to_authorization": "该工具不受项目级授权控制",
+      "no_matching_policy": "未匹配到授权策略",
+      "policy_no_approval_required": "策略无需审批",
+      "previously_authorized": "已由用户先前授权",
+      "access_requires_approval": "访问 {resource_path} 需要用户审批",
+      "action": {
+        "read": "读取 {resource_path}",
+        "write": "写入 {resource_path}",
+        "execute": "执行 {resource_path}"
+      },
+      "missing_policy_error": "没有匹配的策略，无法发起授权请求"
+    }
   }
 }

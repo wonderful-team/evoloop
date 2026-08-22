@@ -9,7 +9,6 @@ import logging
 import os
 from datetime import datetime, timezone
 
-from app.core.config import settings
 from app.core.context.thread_store import thread_context_store
 from app.core.engine.hooks.core import HookContext, HookEvent, HookResult, hook_system
 from app.core.engine.hooks.schemas import ToolInput
@@ -17,12 +16,20 @@ from app.core.engine.state.sub_schemas import PendingApproval
 from app.core.hitl.authorization import AuthorizationDecision, AuthorizationService
 from app.core.hitl.policies import AuthorizationPolicy
 from app.core.project.utils import get_project_path
+from app.core.tools.path_security import (
+    is_path_safe,
+    is_project_metadata_path,
+)
 
 logger = logging.getLogger(__name__)
 
 
 def _path_contains_evoloop(tool_input: ToolInput | None) -> bool:
-    """Check if any path argument touches the project metadata directory."""
+    """Check if any path argument touches a project-local metadata directory.
+
+    The global EvoLoop app data directory (``~/.evoloop``) is explicitly allowed;
+    only ``.evoloop`` directories inside project workspaces are protected.
+    """
     if tool_input is None:
         return False
     paths = []
@@ -39,7 +46,8 @@ def _path_contains_evoloop(tool_input: ToolInput | None) -> bool:
             val = tool_input.args.get(key)
             if val and isinstance(val, str):
                 paths.append(val)
-    return any(".evoloop" in p.lower() for p in paths)
+
+    return any(is_project_metadata_path(p) for p in paths)
 
 
 def _extract_path_from_input(tool_name: str, tool_input: ToolInput | None) -> tuple[str, str] | None:
@@ -68,46 +76,12 @@ def _extract_path_from_input(tool_name: str, tool_input: ToolInput | None) -> tu
 def _is_path_safe(
     path_str: str, project_path: str | None, working_directory: str | None = None
 ) -> bool:
-    # Resolve relative paths against the thread's working directory so that
-    # file tools and the authorization gate agree on what "." means.
-    if working_directory and not os.path.isabs(path_str):
-        base = os.path.expanduser(working_directory)
-        candidate = os.path.join(base, os.path.expanduser(path_str))
-    else:
-        candidate = os.path.expanduser(path_str)
-
-    try:
-        resolved = os.path.realpath(candidate)
-    except Exception:
-        resolved = os.path.abspath(candidate)
-
-    # Boundary 1: Active Project Workspace Root
-    if project_path:
-        try:
-            resolved_proj = os.path.realpath(os.path.expanduser(project_path))
-        except Exception:
-            resolved_proj = os.path.abspath(os.path.expanduser(project_path))
-        if resolved == resolved_proj or resolved.startswith(resolved_proj + os.sep):
-            return True
-
-    # Boundary 2: App Data Directory (~/.evoloop)
-    try:
-        app_data = os.path.realpath(os.path.expanduser(settings.APP_DATA_DIR))
-    except Exception:
-        app_data = os.path.abspath(os.path.expanduser(settings.APP_DATA_DIR))
-    if resolved == app_data or resolved.startswith(app_data + os.sep):
-        return True
-
-    # Boundary 3: ALLOWED_PATH_PREFIXES
-    for prefix in settings.ALLOWED_PATH_PREFIXES:
-        try:
-            resolved_prefix = os.path.realpath(os.path.expanduser(prefix))
-        except Exception:
-            resolved_prefix = os.path.abspath(os.path.expanduser(prefix))
-        if resolved == resolved_prefix or resolved.startswith(resolved_prefix + os.sep):
-            return True
-
-    return False
+    """Delegate to the centralized path safety helper."""
+    return is_path_safe(
+        path_str,
+        working_dir=working_directory,
+        project_path=project_path,
+    )
 
 
 @hook_system.register(HookEvent.PRE_TOOL_USE, matcher=".*", priority=1)

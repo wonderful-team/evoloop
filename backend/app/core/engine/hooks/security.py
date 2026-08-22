@@ -13,6 +13,7 @@ from typing import Any
 
 from app.core.engine.hooks.core import HookContext, HookEvent, HookResult, hook_system
 from app.core.engine.hooks.schemas import ToolInput
+from app.core.tools.path_security import is_project_metadata_path
 
 logger = logging.getLogger(__name__)
 
@@ -134,8 +135,10 @@ async def project_metadata_protection_gate(context: HookContext) -> HookResult:
                 paths_to_check.append(val)
 
     for path in paths_to_check:
-        if ".evoloop" in path.lower():
-            logger.warning(f"[SecurityHook] Blocked access to project metadata via {tool_name}: {path}")
+        if is_project_metadata_path(path):
+            logger.warning(
+                f"[SecurityHook] Blocked access to project metadata via {tool_name}: {path}"
+            )
             return HookResult(
                 success=False,
                 block=True,
@@ -147,8 +150,10 @@ async def project_metadata_protection_gate(context: HookContext) -> HookResult:
 
     if tool_name == "grep_search" and tool_input.args:
         search_path = tool_input.args.get("SearchPath") or ""
-        if search_path and ".evoloop" in search_path.lower():
-            logger.warning(f"[SecurityHook] Blocked grep search in project metadata: {search_path}")
+        if is_project_metadata_path(search_path):
+            logger.warning(
+                f"[SecurityHook] Blocked grep search in project metadata: {search_path}"
+            )
             return HookResult(
                 success=False,
                 block=True,

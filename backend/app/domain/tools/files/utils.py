@@ -4,6 +4,7 @@ from app.core.config import settings
 from app.core.engine.message.native_classes import RunnableConfig
 from app.core.file import resolve_path
 from app.core.tools import get_working_directory
+from app.core.tools.path_security import is_project_metadata_path
 from app.i18n.service import i18n
 
 
@@ -53,8 +54,9 @@ async def resolve_and_validate_path(
             i18n.get("domain_tools.files.security_violation", path=path, root=root)
         )
 
-    # Protect project metadata directory from agent file tools.
-    if ".evoloop" in target_path.lower():
+    # Protect project-local metadata directory from agent file tools, while allowing
+    # access to the global EvoLoop app data directory (~/.evoloop).
+    if is_project_metadata_path(target_path):
         raise ValueError(
             i18n.get(
                 "domain_tools.files.security_violation",

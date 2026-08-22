@@ -52,6 +52,8 @@ class ExtractionMixin:
                 call_kwargs["state"] = payload["state"]
 
             res = await BrowserController.execute(**call_kwargs)
+            if extract_type in ("run_js", "evaluate") and isinstance(res, str) and res.startswith("❌"):
+                raise ValueError(res)
             if extract_type == "screenshot":
                 match = re.search(r"(/.*\.png)", str(res))
                 extracted_data[key] = match.group(1) if match else res

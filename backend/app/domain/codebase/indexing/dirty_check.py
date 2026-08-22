@@ -67,8 +67,12 @@ async def is_file_changed_since_last_index(
     try:
         mtime_ts = os.path.getmtime(file_path)
         file_mtime = datetime.fromtimestamp(mtime_ts, timezone.utc)
-        if source_file.last_indexed_at and file_mtime < source_file.last_indexed_at:
-            return False
+        if source_file.last_indexed_at:
+            last_indexed = source_file.last_indexed_at
+            if last_indexed.tzinfo is None:
+                last_indexed = last_indexed.replace(tzinfo=timezone.utc)
+            if file_mtime < last_indexed:
+                return False
     except (OSError, ValueError, OverflowError):
         logger.debug("[dirty_check] mtime check failed, falling back to checksum", exc_info=True)
 

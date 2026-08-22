@@ -20,6 +20,7 @@ class ChatRequest(ScopedRequest):
     skill_ids: list[int] | None = None
     revert_files: bool = True
     scenario: str | None = None
+    working_directory: str | None = None
 
 
 class WebhookRequest(ScopedRequest):

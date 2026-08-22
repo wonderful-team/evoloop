@@ -74,11 +74,32 @@ class BrowserAdvancedMixin:
                         except Exception:
                             pass
                         await asyncio.sleep(0.3)
-                result = await target_frame.evaluate(script)
+                try:
+                    result = await target_frame.evaluate(script)
+                except Exception as e:
+                    logger.exception("[Browser] run_js failed in frame: %s", e)
+                    return ControllerResponse.error("run_js failed", details=str(e))
             elif selector:
-                result = await page.locator(selector).first.evaluate(script)
+                try:
+                    result = await page.locator(selector).first.evaluate(script)
+                except Exception as e:
+                    logger.exception("[Browser] run_js failed on element: %s", e)
+                    return ControllerResponse.error("run_js failed", details=str(e))
             else:
-                result = await page.evaluate(script)
+                for attempt in range(2):
+                    try:
+                        result = await page.evaluate(script)
+                        break
+                    except Exception as e:
+                        msg = str(e)
+                        if "Execution context was destroyed" in msg and attempt == 0:
+                            logger.warning("[Browser] run_js hit stale execution context, retrying...")
+                            await asyncio.sleep(1.0)
+                            continue
+                        logger.exception("[Browser] run_js failed: %s", e)
+                        return ControllerResponse.error("run_js failed", details=str(e))
+                else:
+                    result = None
             return f"JS result: {result}"
 
         elif action == "get_cookies":

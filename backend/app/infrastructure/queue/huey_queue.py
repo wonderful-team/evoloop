@@ -18,8 +18,6 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-logger = logging.getLogger(__name__)
-
 # Lazy import huey to avoid import errors if not installed
 try:
     from huey import Huey, SqliteHuey
@@ -34,6 +32,8 @@ except ImportError:
 
 
 from app.infrastructure.queue.base import SyncTaskMixin, TaskResult, TaskScheduler
+
+logger = logging.getLogger(__name__)
 
 
 class HueyTaskResult(TaskResult):
@@ -118,6 +118,7 @@ class HueyTaskScheduler(TaskScheduler, SyncTaskMixin):
         self.name = name
         self._huey: SqliteHuey | None = None
         self._tasks: dict[str, Callable] = {}
+        self._periodic_tasks: dict[str, Callable] = {}
         self._init_huey()
 
     def _init_huey(self):
@@ -180,6 +181,13 @@ class HueyTaskScheduler(TaskScheduler, SyncTaskMixin):
 
         def decorator(f: Callable) -> Callable:
             task_name = name or f"{f.__module__}.{f.__name__}"
+
+            # Idempotent registration: tests and hot-reloads may re-import the
+            # same module, causing Huey's registry to raise a duplicate-name
+            # error. Return the existing wrapper instead of crashing.
+            if task_name in self._tasks:
+                logger.debug(f"[Huey] Task already registered, returning existing wrapper: {task_name}")
+                return self._tasks[task_name]["func"]
 
             # Define wrapper with correct module/name BEFORE Huey registration.
             # Huey's Registry uses func.__module__ to build the task registry key,
@@ -455,6 +463,11 @@ class HueyTaskScheduler(TaskScheduler, SyncTaskMixin):
         def decorator(f: Callable):
             task_name = name or f"{f.__module__}.{f.__name__}"
 
+            # Idempotent registration for periodic tasks as well.
+            if task_name in self._periodic_tasks:
+                logger.debug(f"[Huey] Periodic task already registered, returning existing wrapper: {task_name}")
+                return self._periodic_tasks[task_name]
+
             @self._huey.periodic_task(
                 crontab(minute, hour, day, month, day_of_week), name=task_name, **kwargs
             )
@@ -465,6 +478,7 @@ class HueyTaskScheduler(TaskScheduler, SyncTaskMixin):
 
             periodic_wrapper.__name__ = f.__name__
             periodic_wrapper.__doc__ = f.__doc__
+            self._periodic_tasks[task_name] = periodic_wrapper
             return periodic_wrapper
 
         return decorator

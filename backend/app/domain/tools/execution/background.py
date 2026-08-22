@@ -15,6 +15,7 @@ from app.core.tools.background import (
     TaskType,
     task_manager,
 )
+from app.core.tools.path_security import get_allowed_roots
 from app.domain.tools.execution._utils import format_command_result, get_thread_id
 from app.domain.tools.execution.security import (
     has_workspace_escape,
@@ -22,6 +23,15 @@ from app.domain.tools.execution.security import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _build_allowed_roots(working_dir: str | None) -> list[str]:
+    """Build the list of directories commands are allowed to access.
+
+    Delegates to the centralized path security helper so that execute_command,
+    file tools, and hooks all agree on the safe boundaries.
+    """
+    return get_allowed_roots(working_dir=working_dir)
 
 
 def _terminate_process_group(process: asyncio.subprocess.Process) -> None:
@@ -81,14 +91,23 @@ async def run_command_background(
                 working_dir = workspace_root
 
         if working_dir and working_dir != ".":
-            escape = has_workspace_escape(command)
+            allowed_roots = _build_allowed_roots(working_dir)
+            escape = has_workspace_escape(
+                command,
+                working_dir=working_dir,
+                allowed_roots=allowed_roots,
+            )
             if escape is not None:
                 logger.warning(
-                    "[execute] blocked workspace escape via cd: %r (working_dir=%s)",
+                    "[execute] blocked workspace escape via cd: %r (working_dir=%s, allowed=%s)",
                     escape,
                     working_dir,
+                    allowed_roots,
                 )
-                task.output_lines = ["Security Error: 命令尝试 cd 到工作目录之外，已阻止。"]
+                task.output_lines = [
+                    "Security Error: 命令尝试访问允许的工作目录之外，"
+                    "已在沙箱内阻止。请在当前工作目录或其允许的子目录内操作。"
+                ]
                 task.status = "failed"
                 return
             wrapped_command = f"cd {working_dir} && {command}"
@@ -182,14 +201,23 @@ async def execute_smart(
             working_dir = workspace_root
 
     if working_dir and working_dir != ".":
-        escape = has_workspace_escape(command)
+        allowed_roots = _build_allowed_roots(working_dir)
+        escape = has_workspace_escape(
+            command,
+            working_dir=working_dir,
+            allowed_roots=allowed_roots,
+        )
         if escape is not None:
             logger.warning(
-                "[execute] blocked workspace escape via cd: %r (working_dir=%s)",
+                "[execute] blocked workspace escape via cd: %r (working_dir=%s, allowed=%s)",
                 escape,
                 working_dir,
+                allowed_roots,
             )
-            return "Security Error: 命令尝试 cd 到工作目录之外，已阻止。请只在工作目录内操作。"
+            return (
+                "Security Error: 命令尝试访问允许的工作目录之外，"
+                "已在沙箱内阻止。请在当前工作目录或其允许的子目录内操作。"
+            )
         wrapped_command = f"cd {working_dir} && {command}"
     else:
         wrapped_command = command

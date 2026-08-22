@@ -19,6 +19,7 @@ from app.core.hitl.policies import (
     PolicyLoader,
 )
 from app.core.project.utils import get_project_path
+from app.i18n.service import i18n
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +113,7 @@ class AuthorizationService:
             return AuthorizationDecision(
                 approved=True,
                 requires_hitl=False,
-                reason="Tool not subject to project authorization",
+                reason=i18n.get("hitl.authorization.tool_not_subject_to_authorization"),
             )
 
         resource_path, action = extracted
@@ -141,14 +142,14 @@ class AuthorizationService:
             return AuthorizationDecision(
                 approved=True,
                 requires_hitl=False,
-                reason="No matching authorization policy",
+                reason=i18n.get("hitl.authorization.no_matching_policy"),
             )
 
         if not matched_policy.requires_approval:
             return AuthorizationDecision(
                 approved=True,
                 requires_hitl=False,
-                reason="Policy does not require approval",
+                reason=i18n.get("hitl.authorization.policy_no_approval_required"),
                 policy=matched_policy,
                 resource_path=resource_path,
                 action=action,
@@ -163,7 +164,7 @@ class AuthorizationService:
                 return AuthorizationDecision(
                     approved=True,
                     requires_hitl=False,
-                    reason="Previously authorized by user",
+                    reason=i18n.get("hitl.authorization.previously_authorized"),
                     policy=matched_policy,
                     resource_path=resource_path,
                     action=action,
@@ -173,7 +174,7 @@ class AuthorizationService:
         return AuthorizationDecision(
             approved=False,
             requires_hitl=True,
-            reason=f"Access to {resource_path} requires user approval",
+            reason=i18n.get("hitl.authorization.access_requires_approval", resource_path=resource_path),
             policy=matched_policy,
             resource_path=resource_path,
             action=action,
@@ -193,11 +194,15 @@ class AuthorizationService:
     ) -> None:
         """Trigger HITL authorization request."""
         if decision.policy is None:
-            raise ValueError("Cannot request authorization without a matching policy")
+            raise ValueError(i18n.get("hitl.authorization.missing_policy_error"))
 
         await HITLOrchestrator.request_authorization(
             thread_id=thread_id,
-            action_description=f"{decision.action} {decision.resource_path}",
+            action_description=i18n.get(
+                f"hitl.authorization.action.{decision.action}",
+                default=f"{decision.action} {decision.resource_path}",
+                resource_path=decision.resource_path,
+            ),
             resource_path=decision.resource_path,
             risk_level=decision.policy.risk_level,
             policy=decision.policy.to_dict(),
