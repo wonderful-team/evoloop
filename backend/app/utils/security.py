@@ -1,72 +1,51 @@
-import hmac
+"""General security-related utilities that do not fit into a dedicated domain.
+
+Crypto/token helpers have moved to ``app.core.security.crypto``.
+Secret redaction helpers have moved to ``app.core.security.redaction``.
+Path traversal helpers are available in ``app.core.file.path_utils`` and
+``app.core.security.path``.
+
+This module is kept as a compatibility/utility layer for:
+- filename sanitization
+- bundle/package name validation
+- URL scheme safety checks
+- a simple in-memory rate limiter
+"""
+
 import os
 import re
-from collections.abc import Sequence
-from datetime import datetime, timedelta, timezone
-from typing import Any
 
-# Optional imports
-try:
-    import jwt
-    from passlib.context import CryptContext
+# Backward-compatible re-exports for code that has not migrated yet.
+# New code should import directly from app.core.security.*.
+from app.core.security.crypto import (
+    ALGORITHM,
+    create_access_token,
+    generate_hmac_signature,
+    get_password_hash,
+    verify_password,
+)
+from app.core.security.redaction import (
+    mask_sensitive_data,
+    redact_secrets,
+    sanitize_string,
+)
 
-    HAS_JWT = True
-except ImportError:
-    HAS_JWT = False
-    jwt = None  # type: ignore[assignment]
-
-# Try to import settings, fallback if not available
-try:
-    from app.core.config import settings
-
-    HAS_SETTINGS = True
-except (ImportError, Exception):
-    # Exception covers Pydantic validation errors in test environment
-    HAS_SETTINGS = False
-    settings = None  # type: ignore[assignment]
-
-if HAS_JWT:
-    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-else:
-    pwd_context = None
-
-ALGORITHM = "HS256"
-
-
-def create_access_token(subject: str | Any, expires_delta: timedelta) -> str:
-    if not HAS_JWT or not HAS_SETTINGS:
-        raise ImportError("JWT and settings are required for token creation")
-    expire = datetime.now(timezone.utc) + expires_delta
-    to_encode = {"exp": expire, "sub": str(subject)}
-    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
-
-
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    if not HAS_JWT:
-        raise ImportError("passlib is required for password verification")
-    return pwd_context.verify(plain_password, hashed_password)
-
-
-def get_password_hash(password: str) -> str:
-    if not HAS_JWT:
-        raise ImportError("passlib is required for password hashing")
-    return pwd_context.hash(password)
-
-
-def generate_hmac_signature(secret: str, message: str, hash_alg: str = "sha256") -> str:
-    """
-    Generate HMAC signature for a message.
-    Used for API request signing (e.g. EvoCloud).
-    """
-    if not secret:
-        return ""
-    return hmac.new(secret.encode("utf-8"), message.encode("utf-8"), hash_alg).hexdigest()
-
-
-# ============================================================================
-# Path Security
-# ============================================================================
+__all__ = [
+    "ALGORITHM",
+    "SimpleRateLimiter",
+    "create_access_token",
+    "generate_hmac_signature",
+    "get_password_hash",
+    "is_path_within_base",
+    "is_safe_url",
+    "mask_sensitive_data",
+    "redact_secrets",
+    "sanitize_filename",
+    "sanitize_string",
+    "validate_bundle_id",
+    "validate_package_name",
+    "verify_password",
+]
 
 
 def sanitize_filename(filename: str, replacement: str = "_") -> str:
@@ -212,79 +191,6 @@ def is_safe_url(url: str, allowed_schemes: set[str] | None = None) -> bool:
             return False
 
     return True
-
-
-# ============================================================================
-# Data Sanitization
-# ============================================================================
-
-
-def sanitize_string(value: str, max_length: int = 1000) -> str:
-    """
-    Sanitize a string value for safe storage/display.
-
-    Args:
-        value: String to sanitize
-        max_length: Maximum allowed length
-
-    Returns:
-        Sanitized string
-    """
-    # Remove control characters except common whitespace
-    sanitized = "".join(char for char in value if char >= " " or char in "\t\n\r")
-
-    # Limit length
-    if len(sanitized) > max_length:
-        sanitized = sanitized[:max_length]
-
-    return sanitized
-
-
-def mask_sensitive_data(data: str, visible_chars: int = 4) -> str:
-    """
-    Mask sensitive data showing only last few characters.
-
-    Args:
-        data: Sensitive data string
-        visible_chars: Number of characters to show at end
-
-    Returns:
-        Masked string (e.g., '****1234')
-    """
-    if len(data) <= visible_chars:
-        return "*" * len(data)
-
-    return "*" * (len(data) - visible_chars) + data[-visible_chars:]
-
-
-# ============================================================================
-# Secret Redaction
-# ============================================================================
-
-
-_REDACTED = "******"
-
-
-def redact_secrets(value: Any, secrets: Sequence[str]) -> Any:
-    """Replace every occurrence of ``secrets`` inside ``value`` with ``******``.
-
-    Recursively handles strings, dicts and lists; any other type is returned
-    unchanged. Empty secrets are skipped. Non-string containers are never
-    mutated in place — a sanitized copy is returned.
-    """
-    if not secrets:
-        return value
-    if isinstance(value, str):
-        sanitized = value
-        for secret in secrets:
-            if secret and secret in sanitized:
-                sanitized = sanitized.replace(secret, _REDACTED)
-        return sanitized
-    if isinstance(value, dict):
-        return {k: redact_secrets(v, secrets) for k, v in value.items()}
-    if isinstance(value, list):
-        return [redact_secrets(x, secrets) for x in value]
-    return value
 
 
 # ============================================================================

@@ -3,8 +3,8 @@ import os
 from app.core.config import settings
 from app.core.engine.message.native_classes import RunnableConfig
 from app.core.file import resolve_path
+from app.core.security.path import is_project_metadata_path
 from app.core.tools import get_working_directory
-from app.core.tools.path_security import is_project_metadata_path
 from app.i18n.service import i18n
 
 

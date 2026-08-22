@@ -9,18 +9,11 @@ from app.constants import DEFAULT_PROJECT_ID
 from app.core.context import ContextManager
 from app.core.engine.message.native_classes import RunnableConfig
 from app.core.project.utils import get_workspace_root
+from app.core.security.command import has_workspace_escape, is_dangerous_command
+from app.core.security.path import get_allowed_roots
 from app.core.tools import get_working_directory
-from app.core.tools.background import (
-    CreateBackgroundTaskRequest,
-    TaskType,
-    task_manager,
-)
-from app.core.tools.path_security import get_allowed_roots
+from app.core.tools.background import CreateBackgroundTaskRequest, TaskType, task_manager
 from app.domain.tools.execution._utils import format_command_result, get_thread_id
-from app.domain.tools.execution.security import (
-    has_workspace_escape,
-    is_dangerous_command,
-)
 
 logger = logging.getLogger(__name__)
 

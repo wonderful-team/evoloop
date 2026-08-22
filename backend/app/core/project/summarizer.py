@@ -7,6 +7,7 @@ from app.core.evocloud import evocloud_manager
 from app.core.monitoring.activity import activity_monitor
 from app.core.project.service import project_context_manager
 from app.core.project.utils import read_project_json, write_project_json
+from app.core.security.policy_loader import DEFAULT_SENSITIVE_PATTERNS
 from app.infrastructure.queue.factory import get_scheduler, shared_task
 from app.utils.async_utils import flush_loop_bound_resources
 
@@ -56,7 +57,9 @@ async def _summarize_project_logic(name: str, path: str, module_graph: str = "")
         arch_summary = " / ".join(p for p in parts if p)
 
         if arch_summary in ("", "Not available yet.", " / "):
-            from app.domain.codebase.indexing.directory_summarizer import DirectorySummarizer
+            from app.domain.codebase.indexing.directory_summarizer import (
+                DirectorySummarizer,
+            )
 
             summary_dir = await DirectorySummarizer.get_summary(path)
             if summary_dir:
@@ -137,13 +140,10 @@ async def _summarize_project_logic(name: str, path: str, module_graph: str = "")
         meta_dir = os.path.join(path, ".evoloop")
         os.makedirs(meta_dir, exist_ok=True)
 
-        meta_file = os.path.join(meta_dir, "project.json")
         # Ensure project_id is persisted in the local metadata file
         if project_id is not None:
             result["project_id"] = project_id
         # Ensure authorization defaults exist
-        from app.core.hitl.policies import DEFAULT_SENSITIVE_PATTERNS
-
         result.setdefault("sensitive_patterns", DEFAULT_SENSITIVE_PATTERNS)
         result.setdefault("authorized_paths", [])
         write_project_json(path, result)

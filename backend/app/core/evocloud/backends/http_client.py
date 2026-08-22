@@ -18,10 +18,10 @@ from app.core.evocloud.interfaces.client import EvoCloudClientProtocol
 from app.core.evocloud.routes import RouteTarget, get_endpoint_route
 from app.core.evocloud.schemas import EvoCloudConfig
 from app.core.identity import identity_service
+from app.core.security.crypto import generate_hmac_signature
 from app.infrastructure.cache import cache
 from app.utils.http import create_client as create_http_client
 from app.utils.json import dumps
-from app.utils.security import generate_hmac_signature
 
 logger = logging.getLogger(__name__)
 
@@ -208,7 +208,6 @@ class EvoCloudHTTPClient(
 
         try:
             resp = await client.request(method, url, params=request_params, json=data, headers=req_headers)
-            raw_text = resp.text
             resp_json = (resp.json() if resp.status_code == 200 else None) or {}
             is_token_expired = (
                 resp.status_code == 401

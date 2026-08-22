@@ -16,10 +16,7 @@ from app.core.engine.state.sub_schemas import PendingApproval
 from app.core.hitl.authorization import AuthorizationDecision, AuthorizationService
 from app.core.hitl.policies import AuthorizationPolicy
 from app.core.project.utils import get_project_path
-from app.core.tools.path_security import (
-    is_path_safe,
-    is_project_metadata_path,
-)
+from app.core.security.path import is_path_safe, is_project_metadata_path
 
 logger = logging.getLogger(__name__)
 

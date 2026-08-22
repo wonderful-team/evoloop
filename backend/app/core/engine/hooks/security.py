@@ -9,11 +9,11 @@ Provides security gates for tool execution:
 
 import logging
 import re
-from typing import Any
 
 from app.core.engine.hooks.core import HookContext, HookEvent, HookResult, hook_system
 from app.core.engine.hooks.schemas import ToolInput
-from app.core.tools.path_security import is_project_metadata_path
+from app.core.security.path import is_project_metadata_path
+from app.core.security.secrets import censor_tool_result, inject_secrets_into_tool_input
 
 logger = logging.getLogger(__name__)
 
@@ -173,52 +173,6 @@ async def sensitive_file_placeholder_replacement_gate(context: HookContext) -> H
     if not tool_input:
         return HookResult(success=True)
 
-    from app.infrastructure.config.vault import SecureVaultService
-
-    # Store decrypted secrets locally to avoid fetching multiple times and to use for post-execution mask
-    decrypted_cache = {}
-    injected_secrets = set()
-    project_id = context.project_id
-
-    # Pattern for {{vault.id.key}}
-    pattern = re.compile(r"\{\{\s*vault\.([\w\-]+)\.([\w\-]+)\s*\}\}")
-
-    def substitute_value(val: Any) -> Any:
-        if isinstance(val, str):
-            matches = list(pattern.finditer(val))
-            if not matches:
-                return val
-
-            # Perform substitutions from right to left to avoid index shift issues
-            new_val = val
-            for match in reversed(matches):
-                placeholder = match.group(0)
-                identifier = match.group(1)
-                key = match.group(2)
-
-                try:
-                    if identifier not in decrypted_cache:
-                        decrypted_cache[identifier] = SecureVaultService.get_credential_payload(
-                            identifier, project_id=project_id
-                        )
-
-                    payload = decrypted_cache[identifier]
-                    if key in payload:
-                        secret_value = str(payload[key])
-                        injected_secrets.add(secret_value)
-                        new_val = new_val.replace(placeholder, secret_value)
-                    else:
-                        logger.warning(f"[SecureVault] Key '{key}' not found in credential '{identifier}'")
-                except (KeyError, PermissionError) as e:
-                    raise ValueError(f"Failed to resolve secure placeholder {placeholder}: {e}")
-            return new_val
-
-        elif isinstance(val, dict):
-            return {k: substitute_value(v) for k, v in val.items()}
-        elif isinstance(val, list):
-            return [substitute_value(x) for x in val]
-        return val
-
     try:
         # Substitute placeholders across ALL tool input fields (declared + dynamic
         # extra fields). The 5 legacy fields (command/path/content/query/args) only
@@ -226,7 +180,7 @@ async def sensitive_file_placeholder_replacement_gate(context: HookContext) -> H
         # fields etc. live in dynamic extra fields and previously bypassed vault
         # injection, causing {{vault.*}} placeholders to reach the target literally.
         original_input = tool_input.model_dump()
-        replaced = substitute_value(original_input)
+        replaced, injected_secrets = await inject_secrets_into_tool_input(original_input, project_id=context.project_id)
         if replaced != original_input:
             context.tool_input = ToolInput.model_validate(replaced)
     except ValueError as e:
@@ -272,27 +226,14 @@ async def sensitive_file_censorship_gate(context: HookContext) -> HookResult:
     if not injected_secrets or not context.tool_result:
         return HookResult(success=True)
 
-    from typing import Any
-
-    def sanitize_value(val: Any) -> Any:
-        if isinstance(val, str):
-            sanitized = val
-            for secret in injected_secrets:
-                if secret and secret in sanitized:
-                    sanitized = sanitized.replace(secret, "******")
-            return sanitized
-        elif isinstance(val, dict):
-            return {k: sanitize_value(v) for k, v in val.items()}
-        elif isinstance(val, list):
-            return [sanitize_value(x) for x in val]
-        return val
-
-    # Sanitize outputs
-    if context.tool_result.output:
-        context.tool_result.output = sanitize_value(context.tool_result.output)
-    if context.tool_result.error:
-        context.tool_result.error = sanitize_value(context.tool_result.error)
-    if context.tool_result.data:
-        context.tool_result.data = sanitize_value(context.tool_result.data)
+    sanitized = censor_tool_result(
+        context.tool_result.output,
+        context.tool_result.error,
+        context.tool_result.data,
+        set(injected_secrets),
+    )
+    context.tool_result.output = sanitized["output"]
+    context.tool_result.error = sanitized["error"]
+    context.tool_result.data = sanitized["data"]
 
     return HookResult(success=True, modified_context=context)

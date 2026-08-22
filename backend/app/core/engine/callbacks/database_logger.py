@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 def censor_secrets(val: Any) -> Any:
     """Censor any raw secrets stored in the EvoContext's injected_secrets."""
     from app.core.context.manager import ContextManager
-    from app.utils.security import redact_secrets
+    from app.core.security.redaction import redact_secrets
 
     ctx = ContextManager.current()
     return redact_secrets(val, ctx.injected_secrets or [])

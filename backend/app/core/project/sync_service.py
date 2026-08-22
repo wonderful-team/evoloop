@@ -6,13 +6,13 @@ from sqlalchemy import select
 
 from app.core.evocloud import evocloud_manager
 from app.core.file import is_ignored_path
-from app.core.hitl.policies import DEFAULT_SENSITIVE_PATTERNS
 from app.core.project import cache as project_cache
 from app.core.project.utils import (
     get_workspace_root,
     read_project_json,
     write_project_json,
 )
+from app.core.security.policy_loader import DEFAULT_SENSITIVE_PATTERNS
 from app.domain.codebase.indexing.service import IndexingService
 from app.infrastructure.database import session_scope
 from app.models.codebase import Repository
@@ -275,7 +275,7 @@ class ProjectSyncService:
             if repo:
                 if repo.sync_status in ["SYNCED", "PENDING_CREATION"]:
                     raise ValueError(f"Project is already registered at this path: '{repo.name}'")
-                
+
                 # Restore previously ignored or disconnected project
                 repo.sync_status = "PENDING_CREATION"
                 repo.indexing_status = "pending"
