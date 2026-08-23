@@ -23,7 +23,7 @@ sys.path.insert(0, str(PROJECT_DIR))
 
 # Configure logging before importing app modules
 logging.basicConfig(
-    level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger("worker")
 
@@ -49,13 +49,17 @@ def run_huey_worker(workers: int = 1, verbose: bool = False):
 
     if verbose:
         logging.getLogger().setLevel(logging.DEBUG)
+        logging.getLogger("app").setLevel(logging.DEBUG)
         # Ensure task-related loggers are verbose
         for name in ["app.core.engine.tasks", "app.infrastructure.queue"]:
             logging.getLogger(name).setLevel(logging.DEBUG)
     else:
-        # Even in non-verbose mode, ensure we see task errors
-        logging.getLogger("app.core.engine.tasks").setLevel(logging.INFO)
-        logging.getLogger("app.infrastructure.queue").setLevel(logging.INFO)
+        # 非 verbose 时也保证任务日志可见：级别跟随 LOG_LEVEL（默认 INFO）
+        from app.core.config import settings
+
+        _task_level = getattr(logging, str(settings.LOG_LEVEL).upper(), logging.INFO)
+        logging.getLogger("app.core.engine.tasks").setLevel(_task_level)
+        logging.getLogger("app.infrastructure.queue").setLevel(_task_level)
 
     logger.info("=" * 60)
     logger.info("EvoLoop Task Queue Worker")

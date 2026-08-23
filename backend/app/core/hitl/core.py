@@ -15,8 +15,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, update
 
 from app.core.exceptions import AgentHumanInterruptException
+from app.core.hitl.types import HumanRequestType
 from app.core.monitoring.activity import activity_monitor
-from app.core.monitoring.schemas import HumanRequestType
 from app.infrastructure.database import session_scope
 from app.models import Message
 from app.models.conversation import HumanRequest

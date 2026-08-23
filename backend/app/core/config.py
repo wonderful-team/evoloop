@@ -576,7 +576,6 @@ class Settings(BaseSettings):
     COLD_MEMORY_RESULTS: int = 5
     MEMORY_PRUNE_THRESHOLD: int = 100
     CONTEXT_WINDOW_SIZE: int = 20
-    MEMORY_LOG_LEVEL: str = "INFO"
     MEMORY_MAINTENANCE_ENABLED: bool = False
 
     # Dynamic Agents

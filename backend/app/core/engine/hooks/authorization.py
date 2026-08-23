@@ -7,6 +7,7 @@ policy engine that escalates to HITL approval instead of blindly blocking.
 
 import logging
 import os
+import re
 from datetime import datetime, timezone
 
 from app.core.context.thread_store import thread_context_store

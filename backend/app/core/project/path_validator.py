@@ -70,14 +70,10 @@ async def validate_project_path(candidate_path: str, workspace_root: str) -> Non
                 
             # Candidate is subdirectory of existing project
             if candidate_realpath.startswith(existing_realpath + os.sep):
-                raise ValueError(
-                    f"Path cannot be inside another project: '{repo.name}' ({repo.local_path})"
-                )
+                raise ValueError(f"Path cannot be inside another project: '{repo.name}' ({repo.local_path})")
 
             # Existing project is subdirectory of candidate (candidate contains existing project)
             if existing_realpath.startswith(candidate_realpath + os.sep):
-                raise ValueError(
-                    f"Path cannot contain another project: '{repo.name}' ({repo.local_path})"
-                )
+                raise ValueError(f"Path cannot contain another project: '{repo.name}' ({repo.local_path})")
                 
     logger.info(f"[PathValidator] Path '{candidate_path}' successfully validated (resolved: '{candidate_realpath}')")

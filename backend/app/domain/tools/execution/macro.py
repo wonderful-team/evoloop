@@ -15,8 +15,8 @@ from app.core.execution.macro import (
     load_macro,
     resolve_project_base_url,
 )
-from app.core.hitl import raise_hitl_interrupt
 from app.core.hitl.batch_grants import is_operation_granted
+from app.core.hitl.core import raise_hitl_interrupt
 from app.core.hitl.prompts import build_approval_context, resolve_tool_context
 from app.core.tools import evoloop_tool
 from app.core.tools.base import InjectedToolArg

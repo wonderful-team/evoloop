@@ -233,7 +233,11 @@
       "get_skill": "读取技能[[ (id: {skill_id}) ]][[ (名称: {skill_name}) ]]",
       "create_skill_from_session": "合成技能: {reason}",
       "update_skill": "更新技能 '{name}'[[ (id: {skill_id}) ]]",
-      "delete_skill": "删除技能 {skill_id}"
+      "delete_skill": "删除技能 {skill_id}",
+      "read_macro": "读取宏[[ (id: {macro_id}) ]][[ (名称: {macro_name}) ]]",
+      "update_macro": "更新宏 '{name}'[[ (id: {macro_id}) ]]",
+      "delete_macro": "删除宏 {macro_id}",
+      "report_outcome": "上报结果: {status}"
     }
   },
   "database_logger": {

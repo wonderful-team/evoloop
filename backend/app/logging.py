@@ -67,24 +67,30 @@ def setup_logging():
     context_filter = ContextFilter()
     handler.addFilter(context_filter) # Filter on handler ensuring it applies to formatter
 
-    # Suppress noisy loggers
-    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
-    logging.getLogger("neo4j").setLevel(logging.WARNING)
-    logging.getLogger("httpx").setLevel(logging.WARNING)
-    logging.getLogger("httpcore").setLevel(logging.WARNING)
-    logging.getLogger("openai").setLevel(logging.WARNING)
-    logging.getLogger("mcp").setLevel(logging.WARNING)
-    logging.getLogger("watchfiles").setLevel(logging.WARNING)
-    logging.getLogger("aiosqlite").setLevel(logging.WARNING)
-    logging.getLogger("websockets.client").setLevel(logging.WARNING)
-    logging.getLogger("websockets.server").setLevel(logging.WARNING)
-    logging.getLogger("huey.consumer").setLevel(logging.WARNING)
-    logging.getLogger("hpack").setLevel(logging.WARNING)
-    logging.getLogger("hpack.hpack").setLevel(logging.WARNING)
-    logging.getLogger("fsevents").setLevel(logging.WARNING)
+    # 第三方噪声日志仅在非 DEBUG 时压到 WARNING，保证 LOG_LEVEL 是唯一权威开关。
+    # 设 LOG_LEVEL=DEBUG 时不抑制，让这些库的 DEBUG 也能输出。
+    if str(settings.LOG_LEVEL).upper() != "DEBUG":
+        for name in (
+            "uvicorn.access",
+            "neo4j",
+            "httpx",
+            "httpcore",
+            "openai",
+            "mcp",
+            "watchfiles",
+            "aiosqlite",
+            "websockets.client",
+            "websockets.server",
+            "huey.consumer",
+            "hpack",
+            "hpack.hpack",
+            "fsevents",
+        ):
+            logging.getLogger(name).setLevel(logging.WARNING)
 
-    # Enable detailed logs for our app
-    logging.getLogger("app").setLevel(logging.DEBUG)
+    # 应用日志级别跟随配置（LOG_LEVEL，默认 INFO）。需要细粒度调试时在 .env
+    # 设 LOG_LEVEL=DEBUG，或用 worker 的 --verbose 手动开启。
+    logging.getLogger("app").setLevel(settings.LOG_LEVEL)
 
 
 logger = logging.getLogger("evoloop")

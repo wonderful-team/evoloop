@@ -1,38 +1,9 @@
 """Schemas for monitoring module."""
 
-from enum import Enum
-
 from pydantic import Field
 
+from app.core.hitl.types import HumanRequestType
 from app.infrastructure.pydantic_base import DynamicBaseModel
-
-
-class HumanRequestType(str, Enum):
-    """Types of human requests that backend can make."""
-
-    # Traditional text input
-    TEXT = "text"
-    """Request text input from user (traditional HITL)."""
-
-    # Project-related
-    PROJECT_SWITCH = "project_switch"
-    """Request user to switch to a specific project or select from list."""
-
-    # Confirmation
-    CONFIRMATION = "confirmation"
-    """Request yes/no confirmation from user."""
-
-    # Approval
-    APPROVAL = "approval"
-    """Request explicit approval for impactful actions."""
-
-    # File selection
-    FILE_SELECT = "file_select"
-    """Request user to select one or more files."""
-
-    # Multiple Choice
-    CHOICE = "choice"
-    """Request user to select from a list of options."""
 
 
 class AgentActivityState(DynamicBaseModel):

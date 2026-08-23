@@ -7,6 +7,8 @@ import argparse
 import multiprocessing
 import os
 import sys
+import time
+from datetime import datetime
 from pathlib import Path
 
 PROJECT_DIR = Path(__file__).parent.parent
@@ -16,10 +18,83 @@ sys.path.insert(0, str(PROJECT_DIR))
 if multiprocessing.get_start_method(allow_none=True) != "spawn":
     multiprocessing.set_start_method("spawn", force=True)
 
+# 历史归档日志保留天数（默认 7 天），可用环境变量 LOG_RETENTION_DAYS 覆盖
+LOG_RETENTION_DAYS = int(os.getenv("LOG_RETENTION_DAYS", "7"))
+
+
+def _cleanup_old_archives(logs_dir: Path, role: str, retention_days: int) -> int:
+    """清除超过保留期的历史归档日志 {role}.log.bak_*。
+
+    按归档文件的 mtime 判断，超过 retention_days 天的归档会被删除。
+    返回删除的文件数。retention_days <= 0 表示不清理。
+    """
+    if retention_days <= 0:
+        return 0
+    cutoff = time.time() - retention_days * 86400
+    removed = 0
+    for f in logs_dir.glob(f"{role}.log.bak_*"):
+        try:
+            if f.is_file() and f.stat().st_mtime < cutoff:
+                f.unlink()
+                removed += 1
+        except OSError:
+            continue
+    if removed:
+        sys.stdout.write(
+            f"[run.py] 清理超过 {retention_days} 天的日志归档 {removed} 个 ({role}.log.bak_*)\n"
+        )
+        sys.stdout.flush()
+    return removed
+
+
+def _setup_log_redirect(role: str) -> Path:
+    """将 stdout/stderr 重定向到 logs/{role}.log，并归档旧日志。
+
+    不接收任何日志路径参数，路径固定为 backend/logs/{role}.log。
+    每次启动时先把已存在的 {role}.log 归档为 {role}.log.bak_<时间戳>，
+    并清除超过 LOG_RETENTION_DAYS 天的历史归档（默认 7 天）。
+    子进程（worker）会继承重定向后的 fd，日志同样落入该文件。
+    """
+    logs_dir = PROJECT_DIR / "logs"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+
+    log_file = logs_dir / f"{role}.log"
+
+    if log_file.exists() and log_file.stat().st_size > 0:
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        archive = logs_dir / f"{role}.log.bak_{ts}"
+        os.replace(str(log_file), str(archive))
+        sys.stdout.write(f"[run.py] 归档旧日志: {log_file.name} -> {archive.name}\n")
+        sys.stdout.flush()
+
+    _cleanup_old_archives(logs_dir, role, LOG_RETENTION_DAYS)
+
+    fd = os.open(str(log_file), os.O_WRONLY | os.O_CREAT | os.O_APPEND)
+    os.dup2(fd, sys.stdout.fileno())
+    os.dup2(fd, sys.stderr.fileno())
+    if fd > 2:
+        os.close(fd)
+    return log_file
+
+
+def _reject_log_args(argv: list[str]) -> None:
+    """run.py 不接受任何日志相关参数，日志路径固定。"""
+    for a in argv:
+        low = a.lower()
+        if low in ("--log", "--log-file", "--logfile", "-l") or low.startswith("--log"):
+            sys.stderr.write(
+                f"[run.py] 错误：不接受日志参数 `{a}`；日志固定写入 backend/logs/ 目录。\n"
+            )
+            sys.exit(2)
+
 
 def run_api():
     """启动 API 服务器。"""
     import uvicorn
+
+    from app.core.config import settings
+
+    _setup_log_redirect("api")
 
     host = os.getenv("HOST", "0.0.0.0")
     port = int(os.getenv("PORT", "20160"))
@@ -34,12 +109,15 @@ def run_api():
         reload=reload,
         workers=workers if not reload else 1,
         loop="asyncio",
+        log_level=str(settings.LOG_LEVEL).lower(),
     )
 
 
 def run_worker():
     """启动任务队列 Worker（独立进程）。"""
     import subprocess
+
+    _setup_log_redirect("worker")
 
     # Pass through command line arguments
     cmd = [sys.executable, "-m", "bin.run_worker"] + sys.argv[2:]
@@ -76,13 +154,15 @@ def export_openapi():
 
 
 def main():
+    _reject_log_args(sys.argv[1:])
+
     parser = argparse.ArgumentParser(
         description="EvoLoop Runner",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python bin/run.py api                       # Start API server
-  python bin/run.py worker                    # Start Task Queue Worker
+  python bin/run.py api                       # Start API server (logs -> backend/logs/api.log)
+  python bin/run.py worker                    # Start Task Queue Worker (logs -> backend/logs/worker.log)
   python bin/run.py worker --workers=4        # Start Worker with 4 workers
   python bin/run.py export-openapi            # Export OpenAPI schema
 
@@ -92,6 +172,13 @@ Environment Variables:
   WORKERS               Number of API workers (default: 1)
   RELOAD                Enable auto-reload (default: false)
   EMBEDDED_MODE         true→Huey / false→Celery
+
+Logging:
+  日志不接收参数，固定写入 backend/logs/ 目录：
+    - api:    backend/logs/api.log
+    - worker: backend/logs/worker.log
+  每次启动自动归档旧日志为 {role}.log.bak_<时间戳>，
+  并清除超过 LOG_RETENTION_DAYS 天的归档（默认 7 天，可用环境变量覆盖）。
 
 Note:
   Worker now runs as separate process for better stability.

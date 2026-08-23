@@ -96,13 +96,13 @@ class RequestHumanInputArgs(BaseModel):
     prompt: str = Field(
         ..., description="The question or instruction to present to the user."
     )
-    input_type: Literal["text", "choice", "confirmation"] = Field(
+    input_type: Literal["text", "choice", "multi_choice", "confirmation"] = Field(
         "text",
-        description="Type of input: 'text' for free-form, 'choice' for selection, 'confirmation' for yes/no.",
+        description="Type of input: 'text' for free-form, 'choice' for single selection, 'multi_choice' for multi-select (comma-separated result), 'confirmation' for yes/no.",
     )
     options: list[str] | None = Field(
         None,
-        description="Required if input_type is 'choice'. List of options for user to select from.",
+        description="Required if input_type is 'choice' or 'multi_choice'. List of options for user to select from.",
     )
     context: str | None = Field(
         None,

@@ -98,7 +98,7 @@ async def get_pending_hitl_call(config: dict) -> dict | None:
 
 # 已知的自由文本请求类型：用户输入原样透传，不做 APPROVED/REJECTED 归一化。
 _FREE_TEXT_REQUEST_TYPES = frozenset(
-    {"text", "choice", "project_switch", "file_select"}
+    {"text", "choice", "multi_choice", "project_switch", "file_select"}
 )
 # 批准/拒绝同义词（中英文，仅 approval 类请求下生效）。
 _APPROVAL_SYNONYMS = frozenset(
@@ -137,9 +137,7 @@ _REJECTION_SYNONYMS = frozenset(
 )
 
 
-def normalize_hitl_input(
-    tool_call: dict, user_input: str | None, request_type: str | None = None
-) -> str:
+def normalize_hitl_input(tool_call: dict, user_input: str | None, request_type: str | None = None) -> str:
     """
     Normalizes raw user input into a format expected by approval-style HITL tools
     (``confirmation`` / ``approval``, incl. authorization-gated tools): converts
@@ -192,9 +190,7 @@ def normalize_hitl_input(
     return user_input
 
 
-async def close_hitl_message(
-    thread_id: str, tool_call_id: str, status: str = "completed"
-) -> None:
+async def close_hitl_message(thread_id: str, tool_call_id: str, status: str = "completed") -> None:
     """
     Update the status of the HITL request message in the database (single-track).
 
@@ -209,9 +205,7 @@ async def close_hitl_message(
         if success:
             logger.debug(f"HITL message {tool_call_id} closed as {status}")
         else:
-            logger.warning(
-                f"Failed to find HITL message for tool_call_id: {tool_call_id}"
-            )
+            logger.warning(f"Failed to find HITL message for tool_call_id: {tool_call_id}")
     except Exception as e:
         logger.exception(f"Error closing HITL message: {e}")
 
@@ -311,9 +305,7 @@ class HITLOrchestrator:
         return response_text  # unreachable
 
     @staticmethod
-    async def handle_resume(
-        thread_id: str, tool_call: dict, user_input: str | None
-    ) -> str:
+    async def handle_resume(thread_id: str, tool_call: dict, user_input: str | None) -> str:
         """Processes resume logic: normalization, atomic dual-track closure, activity cleanup."""
         from app.core.hitl.core import finalize_request
         from app.core.monitoring.activity import activity_monitor
@@ -362,7 +354,6 @@ class HITLOrchestrator:
         await activity_monitor.clear_human_request(thread_id)
         return "CANCELLED"
 
-    @staticmethod
     @staticmethod
     async def persist_hitl_user_message(
         thread_id: str,
@@ -478,10 +469,7 @@ class HITLOrchestrator:
         grant_id = tool_args.get("grant_id")
         if grant_id:
             request_id = pending_tool.get("request_id")
-            if (
-                isinstance(fallback_result, str)
-                and fallback_result.upper() == "APPROVED"
-            ):
+            if isinstance(fallback_result, str) and fallback_result.upper() == "APPROVED":
                 grant = approve_grant_by_request_id(request_id) if request_id else None
                 if grant:
                     return i18n.get(
@@ -490,10 +478,7 @@ class HITLOrchestrator:
                         count=len(grant.operations),
                     )
                 return i18n.get("hitl.batch_approved_fallback")
-            if (
-                isinstance(fallback_result, str)
-                and fallback_result.upper() == "REJECTED"
-            ):
+            if isinstance(fallback_result, str) and fallback_result.upper() == "REJECTED":
                 reject_grant_by_request_id(request_id)
                 return i18n.get("hitl.batch_rejected")
             return fallback_result

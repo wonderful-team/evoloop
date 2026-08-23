@@ -77,6 +77,4 @@ def check_native_allowed(command: str, script_path: str) -> None:
             if actual != expected_hash:
                 raise ScriptGateError(f"native 步骤脚本 hash 不匹配: {script_path}")
         return
-    raise ScriptGateError(
-        f"native 步骤未在白名单（{_ENV_WHITELIST}）: {command} {script_path}"
-    )
+    raise ScriptGateError(f"native 步骤未在白名单（{_ENV_WHITELIST}）: {command} {script_path}")

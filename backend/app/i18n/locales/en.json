@@ -232,7 +232,11 @@
       "get_skill": "Read skill[[ (id: {skill_id}) ]][[ (name: {skill_name}) ]]",
       "create_skill_from_session": "Synthesize skill: {reason}",
       "update_skill": "Update skill '{name}'[[ (id: {skill_id}) ]]",
-      "delete_skill": "Delete skill {skill_id}"
+      "delete_skill": "Delete skill {skill_id}",
+      "read_macro": "Read macro[[ (id: {macro_id}) ]][[ (name: {macro_name}) ]]",
+      "update_macro": "Update macro '{name}'[[ (id: {macro_id}) ]]",
+      "delete_macro": "Delete macro {macro_id}",
+      "report_outcome": "Report outcome: {status}"
     }
   },
   "database_logger": {

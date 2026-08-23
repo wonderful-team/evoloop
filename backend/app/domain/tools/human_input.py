@@ -11,12 +11,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel
 
-from app.core.hitl import (
-    create_request,
-    push_hitl_notification,
-    raise_hitl_interrupt,
-)
 from app.core.hitl.batch_grants import create_pending_grant, update_grant_request_id
+from app.core.hitl.core import create_request, push_hitl_notification, raise_hitl_interrupt
 from app.core.hitl.prompts import build_approval_context, resolve_tool_context
 from app.core.tools import evoloop_tool
 from app.domain.tools.schemas import RequestApprovalArgs, RequestHumanInputArgs
@@ -38,7 +34,7 @@ logger = logging.getLogger(__name__)
 )
 async def ask_human(
     prompt: str,
-    input_type: Literal["text", "choice", "confirmation", "approval", "project_switch", "file_select"] = "text",
+    input_type: Literal["text", "choice", "multi_choice", "confirmation", "approval", "project_switch", "file_select"] = "text",
     options: list[str] | None = None,
     context: str | None = None,
     default_value: str | None = None,
@@ -51,6 +47,12 @@ async def ask_human(
     - Require clarification on requirements
     - Want user to make a decision between options
     - Need confirmation before proceeding
+
+    **批量勾选处理范围（重要）**：当需要运营从多个同类待办中**挑选一部分**处理时
+    （例如多笔退款/提现中只处理其中几笔），使用 ``input_type="multi_choice"``，
+    在 ``options`` 中列出可勾选项（可给出"全部处理 / 仅处理某类 / 各单据编号"等）。
+    运营可勾选多项，返回值是**逗号分隔的选中清单**；随后只执行清单内的项。
+    不要为每一笔单独请求确认。
 
     The workflow will pause until the user responds.
 
@@ -67,7 +69,7 @@ async def ask_human(
     #（与 HumanRequestType 枚举值一致），直接透传给 create_request 校验。
 
     # Validate choice options
-    if input_type == "choice" and not options:
+    if input_type in ("choice", "multi_choice") and not options:
         return i18n.get("domain_tools.human_input.error_options")
 
     # Create the request
@@ -160,6 +162,9 @@ async def ask_confirm(
     When ``operations`` is provided, this becomes a batch approval: the user
     approves or rejects the entire list at once. Approved operations are covered
     by a short-lived grant and will not trigger per-call confirmation again.
+
+    **注意**：若运营需要从清单中**只挑选一部分**处理（而非整批批准/驳回），应改
+    用 ``ask_human`` 的 ``input_type="multi_choice"`` 让运营勾选，不要用本工具。
 
     The workflow will pause until the user responds.
 

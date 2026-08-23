@@ -127,7 +127,7 @@ class MemoryConfig(DynamicBaseModel):
             cold_memory_results=settings.COLD_MEMORY_RESULTS,
             pruning_threshold=settings.MEMORY_PRUNE_THRESHOLD,
             context_window_size=settings.CONTEXT_WINDOW_SIZE,
-            log_level=settings.MEMORY_LOG_LEVEL,
+            log_level=settings.LOG_LEVEL,
         )
 
     @staticmethod

@@ -19,7 +19,7 @@ from app.core.execution.macro import (
     migrate_deterministic_skills,
 )
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=settings.LOG_LEVEL)
 logging.getLogger("sqlalchemy.engine.Engine").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
