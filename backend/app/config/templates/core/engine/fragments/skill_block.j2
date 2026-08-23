@@ -11,7 +11,7 @@ You MUST treat the following instructions as a strict state-machine. Read Phase 
 
 {% if skill.resource_path %}
 **Skill Resource Path**: `{{ skill.resource_path }}`
-All relative paths in this SOP are relative to the project root (the parent directory of `skills/`). Before executing any command from this SOP, ensure your CWD is set to the project root.{{ '\n' }}
+All relative paths in this SOP are relative to `{{ skill.resource_path }}`. Before executing any command from this SOP, ensure your CWD is set to `{{ skill.resource_path }}`.{{ '\n' }}
 {% endif %}
 
 {% if skill.instructions %}

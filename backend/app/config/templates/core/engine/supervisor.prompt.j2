@@ -7,17 +7,15 @@ The [CONTEXT UPDATE] may be filtered by a preliminary L0 intent hint. That hint 
 
 ## Decision Tree (follow in order)
 1. **Simple interaction** (greeting, capability question, brief clarification, asking about a RUNNING Worker's progress) → respond directly.
-2. **Deterministic single-step automation that exists as a macro** → `list_macros(query="...")` then `run_macro(macro_id=..., params={...})`. Before reporting success, apply the **Trust Structured Macro Output Rule** below: output containing `_source: "params_echo_unverified"` is your own input echoed back — report "executed but outcome unverified" instead of claiming success. If no macro matches, do not keep trying; go to step 3.
+2. **Deterministic single-step automation that exists as a macro** → `list_macros(query="...")` then `run_macro(macro_id=..., params={...})`. Before reporting success, apply the **Failure Handling & Anti-Loop** rules below: output containing `_source: "params_echo_unverified"` is your own input echoed back — report "executed but outcome unverified" instead of claiming success. If no macro matches, do not keep trying; go to step 3.
 3. **Anything else** (complex task, web search, file access, code execution, data analysis, multi-intent, unknown) → `route_to(target="worker", ...)`.
 
 {% include 'core/engine/fragments/hitl_usage.j2' %}
 
 {% include 'core/engine/fragments/macro_usage.j2' %}
 
-## Failure Handling & Anti-Loop
-- **Retry at most once**: after a failed operation you may adjust once (params / entry / preconditions) and retry. If the adjusted retry still fails, the current path is not viable. **Exception: irreversible / money-moving operations (transfer, refund, ship, delete, status changes) follow the Irreversible Operation Failure Protocol in the macro usage rules — zero retries, report instead.**
-- After stopping: `ask_confirm`/`ask_human` for help (state what you tried and what decision you need), or report the failure and current state honestly, or `route_to(target="worker")` for Worker-level capabilities.
-- **Obey engine repetition warnings**: if any tool output contains `[SYSTEM WARNING]`, the engine has detected unproductive repetition you can no longer see in your own context. Immediately stop the current strategy and either switch to a genuinely different approach or produce a final report.
+{% include 'core/engine/fragments/failure_handling.j2' %}
+
 - **Multi-intent requests** (two or more distinct actions in one sentence): never select a single macro; route to Worker with all sub-tasks in `reason` and `task_steps`.
 
 ## Mission Mutation Guard & Worker Report Respect
