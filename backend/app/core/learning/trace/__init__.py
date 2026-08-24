@@ -9,7 +9,6 @@ where the symbol is defined.
 
 from app.core.learning.trace.parser import TraceParser, TraceSequence
 from app.core.learning.trace.recorder import (
-    TraceCallbackHandler,
     TraceRecorder,
     get_recorder,
     sync_thread_to_graph,
@@ -21,7 +20,6 @@ __all__ = [
     "TraceSequence",
     "TraceRecorder",
     "get_recorder",
-    "TraceCallbackHandler",
     "sync_thread_to_graph",
     "TraceRepository",
     "trace_repository",

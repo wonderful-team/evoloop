@@ -157,9 +157,7 @@ class InferenceEngine:
                 )
 
                 loop_messages = trim_result.messages
-                logger.info(
-                    f"[{name}] Loop trim: {trim_result.before_count} -> {trim_result.after_count} msgs"
-                )
+                logger.info(f"[{name}] Loop trim: {trim_result.before_count} -> {trim_result.after_count} msgs")
 
             if loop_messages:
                 for i in range(len(loop_messages) - 1, -1, -1):

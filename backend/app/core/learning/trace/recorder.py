@@ -6,12 +6,8 @@ from datetime import datetime
 from typing import Any
 
 from app.core.config import settings
-from app.core.context.manager import ContextManager
-from app.core.engine.callbacks.base import AsyncCallbackHandler, LLMResult
 from app.core.file import ensure_dir
 from app.core.learning.schemas import ActionTrace
-from app.infrastructure.database import session_scope
-from app.utils.extract import safe_parse_json
 
 logger = logging.getLogger(__name__)
 
@@ -106,126 +102,6 @@ def get_recorder(session_id: str) -> TraceRecorder:
     if session_id not in _active_recorders:
         _active_recorders[session_id] = TraceRecorder(session_id)
     return _active_recorders[session_id]
-
-
-# ---------------------------------------------------------------------------
-# Callback Handler — persists agent actions into TraceEvent table
-# ---------------------------------------------------------------------------
-
-
-class TraceCallbackHandler(AsyncCallbackHandler):
-    """
-    Callback that records every tool call and LLM output into
-    the `TraceEvent` database table for imitation learning.
-
-    Wired into the engine callback list wherever TransparentCallbackHandler
-    is attached (chat runner, resume runner, background agent).
-    """
-
-    def __init__(self, thread_id: str, run_id: str | None = None):
-        super().__init__()
-        self.thread_id = thread_id
-        self.run_id = run_id
-        self._step = 0
-
-    # ------------------------------------------------------------------
-    # Public callbacks
-    # ------------------------------------------------------------------
-
-    async def on_tool_start(self, serialized: dict, input_str: str, **kwargs) -> None:
-        """Called when a tool starts execution."""
-        tool_name = serialized.get("name", "unknown_tool")
-        # Bridge passes str(dict) (Python repr), so JSON parsing usually fails
-        # on single quotes — fall back to literal_eval before giving up.
-        args: dict = {"raw": input_str}
-        parsed = safe_parse_json(input_str)
-        if parsed is not None:
-            args = parsed
-
-        await self._save_event(
-            action_type="tool_call",
-            payload={"name": tool_name, "args": args},
-        )
-
-    async def on_tool_end(self, output: Any, *, name: str = "unknown_tool", **kwargs) -> None:
-        """Called when a tool finishes execution."""
-        # Robustly serialize any output type
-        try:
-            if isinstance(output, str):
-                output_str = output
-            elif output is None:
-                output_str = "null"
-            elif isinstance(output, (dict, list)):
-                output_str = json.dumps(output, default=str)
-            else:
-                try:
-                    output_str = json.dumps(output, default=str)
-                except (TypeError, ValueError):
-                    output_str = str(output)
-        except Exception:
-            output_str = str(output)
-
-        # Truncate long outputs
-        if len(output_str) > 2000:
-            output_str = output_str[:2000]
-
-        await self._save_event(
-            action_type="tool_result",
-            payload={"name": name, "output": output_str, "success": True},
-        )
-
-    async def on_llm_end(self, response: LLMResult, **kwargs) -> None:
-        """Called when an LLM generates a response."""
-        if not response.generations:
-            return
-        try:
-            text = response.generations[0][0].text
-            await self._save_event(
-                action_type="llm_output",
-                payload={"content": text},
-            )
-        except Exception as e:
-            logger.debug("Suppressed error: %s", e, exc_info=True)
-
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
-
-    async def _save_event(self, action_type: str, payload: dict) -> None:
-        """Persist a single trace event into the TraceEvent table."""
-        try:
-            from app.models.learning import (
-                TraceEvent,  # avoid circular import at module load
-            )
-
-            self._step += 1
-            ctx = ContextManager.current()
-            state_snapshot = self._sanitize_snapshot(payload)
-            member_id = (ctx.member_id or 0) if ctx else 0
-
-            async with session_scope() as session:
-                event = TraceEvent(
-                    thread_id=self.thread_id,
-                    run_id=self.run_id,
-                    member_id=member_id,
-                    step_number=self._step,
-                    event_type=action_type,
-                    payload=payload,
-                    # Backward Compatibility
-                    action_type=action_type,
-                    action_payload=json.dumps(payload),
-                    state_snapshot=state_snapshot,
-                    node_name="agent",
-                    source="agent",
-                    is_human_action=False,
-                )
-                session.add(event)
-        except Exception as e:
-            logger.warning(f"[TraceCallbackHandler] Failed to save event: {e}", exc_info=True)
-
-    def _sanitize_snapshot(self, state: dict) -> dict:
-        """Safely convert a state dict into a JSON-serializable dict."""
-        return {k: v for k, v in state.items() if k not in ("environment_block",)}
 
 
 # ---------------------------------------------------------------------------

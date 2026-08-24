@@ -67,7 +67,7 @@ def build_callbacks(
     run_id: str,
     member_id: int = 0,
 ) -> list[Any]:
-    """组装标准 callbacks（transparent + database_logger + trace_recorder）。"""
+    """组装标准 callbacks（transparent + database_logger）。"""
     callback = TransparentCallbackHandler(thread_id=thread_id)
     db_callback = DatabaseCallbackHandler(
         thread_id=thread_id,
@@ -75,12 +75,7 @@ def build_callbacks(
         run_id=run_id,
         member_id=member_id,
     )
-    callbacks: list[Any] = [callback, db_callback]
-
-    from app.core.learning.trace.recorder import TraceCallbackHandler
-
-    callbacks.append(TraceCallbackHandler(thread_id=thread_id, run_id=run_id))
-    return callbacks
+    return [callback, db_callback]
 
 
 def build_execution_config(
