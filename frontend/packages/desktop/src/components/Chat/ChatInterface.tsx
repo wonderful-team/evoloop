@@ -145,12 +145,14 @@ export function ChatInterface() {
     }
   }, [status])
 
-  // Auto-show context panel when agent starts working (skipped in compact window)
+  // Auto-show context panel when agent starts working (skipped in compact window,
+  // and skipped when user has manually closed it before)
   useEffect(() => {
     if (
       !isCompactWindow &&
       status === "running" &&
       !showContextPanel &&
+      localStorage.getItem("chat.contextPanel.hidden") !== "true" &&
       !hasManuallyClosedInCurrentRun.current
     ) {
       setShowContextPanel(true)
@@ -174,13 +176,18 @@ export function ChatInterface() {
     setShowChatListSheet(true)
   }, [])
 
-  // Refresh conversation list when a new conversation is created from
-  // another device/channel (voice link, mobile, wecom, etc.)
+  // Refresh conversation list when a new conversation is created or an existing
+  // one is updated from another device/channel (voice link, mobile, wecom, etc.)
   const handleConversationCreated = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["projectConversations"] })
   }, [queryClient])
 
+  const handleConversationUpdated = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["projectConversations"] })
+  }, [queryClient])
+
   useSystemEvent("conversation.created", handleConversationCreated)
+  useSystemEvent("conversation.updated", handleConversationUpdated)
 
   // --- Initialization ---
   useEffect(() => {

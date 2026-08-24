@@ -36,6 +36,7 @@ class SystemEventType(str, Enum):
 
     # Conversation Lifecycle
     CONVERSATION_CREATED = "conversation.created"
+    CONVERSATION_UPDATED = "conversation.updated"
 
     # Configuration Handlers
     CONFIG_CHANGED = "system.config_changed"

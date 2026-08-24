@@ -130,6 +130,35 @@ class ConversationCreatedEvent(AgentEvent):
         )
 
 
+class ConversationUpdatedEvent(AgentEvent):
+    """
+    Published when an existing interactive conversation is updated
+    (e.g. its ``updated_at`` bumped by a new message).
+
+    Bridged to the frontend via the system channel so all clients
+    (desktop / mobile) can refresh their conversation lists in real-time
+    when a session is continued from another device or channel
+    (voice, mobile, wecom, web, etc.).
+    """
+
+    event_type: str = SystemEventType.CONVERSATION_UPDATED
+    thread_id: str = ""
+    project_id: int = DEFAULT_PROJECT_ID
+    member_id: int = 0
+    title: str = ""
+
+    is_public: bool = True
+    broadcast_channel: str = "system"
+
+    def model_post_init(self, __context: Any) -> None:
+        self.data = EventData(
+            thread_id=self.thread_id,
+            project_id=self.project_id,
+            member_id=self.member_id,
+            title=self.title,
+        )
+
+
 class ExtractionRequest(BaseModel):
     name: str
     description: str

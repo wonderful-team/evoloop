@@ -29,6 +29,10 @@ from typing import Any
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
 from app.core.context.manager import ContextManager, EvoContext
+from app.core.engine.event.publishers import (
+    publish_conversation_created,
+    publish_conversation_updated,
+)
 from app.core.engine.hooks import HookContext, HookEvent, hook_system
 from app.core.engine.hooks.schemas import HookMetadata
 from app.core.engine.message.reference import reference_service
@@ -267,8 +271,6 @@ async def dispatch_agent_run(
                 # Notify frontends (system channel) so conversation lists
                 # refresh in real-time for sessions started from other
                 # devices/channels (voice, mobile, wecom, etc.).
-                from app.core.engine.event.publishers import publish_conversation_created
-
                 await publish_conversation_created(
                     thread_id=thread_id,
                     project_id=project_id,
@@ -277,6 +279,15 @@ async def dispatch_agent_run(
                 )
             else:
                 conversation.updated_at = datetime.now(timezone.utc)
+                # Notify frontends (system channel) so conversation lists
+                # refresh in real-time when an existing session is continued
+                # from another device/channel (voice, mobile, wecom, etc.).
+                await publish_conversation_updated(
+                    thread_id=thread_id,
+                    project_id=project_id,
+                    member_id=member_id,
+                    title=conversation.title,
+                )
 
             # New message: persist to DB via Repository to ensure parent_id linkage
             from app.core.engine.message.repository import MessageRepository
@@ -368,6 +379,16 @@ async def persist_user_message(
             return None
 
         conversation.updated_at = datetime.now(timezone.utc)
+
+        # Notify frontends (system channel) so conversation lists
+        # refresh in real-time when a session is continued from
+        # another device/channel (voice, mobile, wecom, etc.).
+        await publish_conversation_updated(
+            thread_id=thread_id,
+            project_id=conversation.project_id,
+            member_id=conversation.member_id,
+            title=conversation.title,
+        )
 
         from app.core.engine.message.repository import MessageRepository
 

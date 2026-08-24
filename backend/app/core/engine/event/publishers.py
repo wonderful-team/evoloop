@@ -13,6 +13,7 @@ from .schemas import (
     AgentSessionStartedEvent,
     ConversationCreatedEvent,
     ConversationDeletedEvent,
+    ConversationUpdatedEvent,
     WebSocketMessageReceivedEvent,
 )
 
@@ -66,6 +67,23 @@ async def publish_conversation_created(
     """Publish a conversation-created event so frontends can refresh their lists."""
     await system_bus.publish(
         ConversationCreatedEvent(
+            thread_id=thread_id,
+            project_id=project_id,
+            member_id=member_id,
+            title=title,
+        )
+    )
+
+
+async def publish_conversation_updated(
+    thread_id: str,
+    project_id: int = DEFAULT_PROJECT_ID,
+    member_id: int = 0,
+    title: str = "",
+) -> None:
+    """Publish a conversation-updated event so frontends can refresh their lists."""
+    await system_bus.publish(
+        ConversationUpdatedEvent(
             thread_id=thread_id,
             project_id=project_id,
             member_id=member_id,
