@@ -1,4 +1,5 @@
 import { Button } from "@evoloop/shared/components/ui/button"
+import { Checkbox } from "@evoloop/shared/components/ui/checkbox"
 import { Label } from "@evoloop/shared/components/ui/label"
 import {
   RadioGroup,
@@ -19,6 +20,7 @@ export interface HumanRequestCardProps {
     type:
       | "text"
       | "choice"
+      | "multi_choice"
       | "confirmation"
       | "approval"
       | "project_switch"
@@ -44,6 +46,8 @@ export function HumanRequestCard({ request }: HumanRequestCardProps) {
   const setProject = useProjectStore((s) => s.setProject)
   const [input, setInput] = useState("")
   const [customValue, setCustomValue] = useState("")
+  const [selected, setSelected] = useState<string[]>([])
+  const [customEnabled, setCustomEnabled] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Project switch state
@@ -177,6 +181,60 @@ export function HumanRequestCard({ request }: HumanRequestCardProps) {
               </div>
             )}
 
+            {/* Multi Choice Input (勾选多项) */}
+            {request.type === "multi_choice" && request.options && (
+              <div className="space-y-2">
+                {request.options.map((opt, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center space-x-2.5 p-1.5 px-2 rounded-md border border-transparent hover:border-primary/20 hover:bg-primary/5 transition-all cursor-pointer group"
+                  >
+                    <Checkbox
+                      id={`mopt-${i}`}
+                      checked={selected.includes(opt)}
+                      onCheckedChange={(c) => {
+                        if (c) {
+                          setSelected((s) => [...s, opt])
+                        } else {
+                          setSelected((s) => s.filter((x) => x !== opt))
+                        }
+                      }}
+                      className="border-primary/20 shrink-0 mt-0.5"
+                    />
+                    <Label
+                      htmlFor={`mopt-${i}`}
+                      className="text-[13px] font-medium cursor-pointer flex-1 leading-relaxed break-words"
+                    >
+                      {opt}
+                    </Label>
+                  </div>
+                ))}
+                {/* 自定义输入选项（可选） */}
+                <div className="flex items-center space-x-2.5 p-1.5 px-2 rounded-md border border-transparent hover:border-primary/20 hover:bg-primary/5 transition-all cursor-pointer group">
+                  <Checkbox
+                    id="mopt-custom"
+                    checked={customEnabled}
+                    onCheckedChange={(c) => setCustomEnabled(c === true)}
+                    className="border-primary/20 shrink-0 mt-0.5"
+                  />
+                  <Label
+                    htmlFor="mopt-custom"
+                    className="text-[13px] font-medium cursor-pointer flex-1 leading-relaxed break-words"
+                  >
+                    {t("common.customInput")}
+                  </Label>
+                </div>
+                {customEnabled && (
+                  <Textarea
+                    value={customValue}
+                    onChange={(e) => setCustomValue(e.target.value)}
+                    placeholder={t("common.customInputPlaceholder")}
+                    className="min-h-[60px] bg-muted/20 border-none focus-visible:ring-1 focus-visible:ring-primary/20 resize-none text-sm"
+                  />
+                )}
+              </div>
+            )}
+
             {/* Project Switch Input */}
             {request.type === "project_switch" && (
               <div className="space-y-4">
@@ -273,22 +331,37 @@ export function HumanRequestCard({ request }: HumanRequestCardProps) {
                   {t("common.cancel")}
                 </Button>
                 <div className="flex gap-2">
-                  {/* Standard Submit for Text/Choice/File */}
+                  {/* Standard Submit for Text/Choice/MultiChoice/File */}
                   {(request.type === "text" ||
                     request.type === "choice" ||
+                    request.type === "multi_choice" ||
                     request.type === "file_select") && (
                     <Button
                       onClick={() =>
                         handleResponse(
                           request.type === "choice" && input === "__custom__"
                             ? customValue
-                            : input,
+                            : request.type === "multi_choice"
+                              ? [
+                                  ...selected,
+                                  ...(customEnabled && customValue.trim()
+                                    ? customValue
+                                        .split(/[,，\s]+/)
+                                        .filter(Boolean)
+                                    : []),
+                                ].join(",")
+                              : input,
                         )
                       }
-                      disabled={isSubmitting ||
+                      disabled={
+                        isSubmitting ||
                         (request.type === "choice" && input === "__custom__"
                           ? !customValue.trim()
-                          : !input.trim())}
+                          : request.type === "multi_choice"
+                            ? selected.length === 0 &&
+                              !(customEnabled && customValue.trim())
+                            : !input.trim())
+                      }
                       size="sm"
                       className="h-8 px-5 rounded-full font-bold text-xs"
                     >
