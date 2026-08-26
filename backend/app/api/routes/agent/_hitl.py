@@ -8,6 +8,7 @@ from app.core.config import settings
 from app.core.context.manager import ContextManager
 from app.core.engine.graph_runner import resume_graph_background
 from app.core.engine.message.native_classes import ToolMessage
+from app.core.hitl.types import HITLDecision
 from app.core.monitoring.activity import activity_monitor
 
 router = APIRouter()

@@ -13,6 +13,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from app.core.hitl.constants import DEFAULT_AUTHORIZATION_TTL_DAYS
 from app.core.hitl.orchestrator import HITLOrchestrator
 from app.core.security.authorization import AuthorizationDecision, AuthorizationEvaluator
 from app.core.security.policy_loader import AuthorizationPolicy, GrantedPermission, PolicyLoader
@@ -88,7 +89,7 @@ class AuthorizationService:
         resource_path: str,
         action: str,
         granted_by: str | None = None,
-        ttl_days: int = 7,
+        ttl_days: int = DEFAULT_AUTHORIZATION_TTL_DAYS,
     ) -> bool:
         """Persist a user-granted permission to project.json."""
         if not self.project_id:

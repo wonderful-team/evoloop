@@ -9,12 +9,18 @@ import logging
 
 from app.core.engine.message.repository import MessageRepository
 from app.core.hitl.batch_grants import approve_grant_by_request_id, reject_grant_by_request_id
+from app.core.hitl.constants import (
+    DEFAULT_GRANTED_BY,
+    MESSAGE_CATEGORY_HITL_REQUEST,
+    MESSAGE_STATUS_WAITING_HUMAN,
+)
 from app.core.hitl.core import (
     HumanInputRequest,
     create_request,
     push_hitl_notification,
     raise_hitl_interrupt,
 )
+from app.core.hitl.types import HITLDecision, HITLRequestStatus, HumanRequestType
 from app.i18n.service import i18n
 
 logger = logging.getLogger(__name__)
@@ -39,8 +45,8 @@ async def get_pending_hitl_call(config: dict) -> dict | None:
                     .where(
                         Message.thread_id == thread_id,
                         Message.role == "system",
-                        Message.category == "hitl_request",
-                        Message.status == "waiting_human",
+                        Message.category == MESSAGE_CATEGORY_HITL_REQUEST,
+                        Message.status == MESSAGE_STATUS_WAITING_HUMAN,
                     )
                     .order_by(Message.sequence_number.desc())
                 )
@@ -98,7 +104,13 @@ async def get_pending_hitl_call(config: dict) -> dict | None:
 
 # 已知的自由文本请求类型：用户输入原样透传，不做 APPROVED/REJECTED 归一化。
 _FREE_TEXT_REQUEST_TYPES = frozenset(
-    {"text", "choice", "multi_choice", "project_switch", "file_select"}
+    {
+        HumanRequestType.TEXT.value,
+        HumanRequestType.CHOICE.value,
+        HumanRequestType.MULTI_CHOICE.value,
+        HumanRequestType.PROJECT_SWITCH.value,
+        HumanRequestType.FILE_SELECT.value,
+    }
 )
 # 批准/拒绝同义词（中英文，仅 approval 类请求下生效）。
 _APPROVAL_SYNONYMS = frozenset(
@@ -112,6 +124,7 @@ _APPROVAL_SYNONYMS = frozenset(
         "同意",
         "确认",
         "批准",
+        "允许",
         "可以",
         "好的",
         "好",
@@ -176,16 +189,16 @@ def normalize_hitl_input(tool_call: dict, user_input: str | None, request_type: 
         return user_input if user_input is not None else ""
 
     if not user_input or not user_input.strip():
-        return "REJECTED"  # Fail-safe: no explicit input = no approval
+        return HITLDecision.REJECTED.value  # Fail-safe: no explicit input = no approval
 
     lower_input = user_input.lower().strip()
 
     # Universal approval/rejection normalization (covers authorization-style HITL
     # where the original blocked tool name is not a standard HITL tool).
     if lower_input in _APPROVAL_SYNONYMS:
-        return "APPROVED"
+        return HITLDecision.APPROVED.value
     if lower_input in _REJECTION_SYNONYMS:
-        return "REJECTED"
+        return HITLDecision.REJECTED.value
 
     return user_input
 
@@ -261,10 +274,10 @@ class HITLOrchestrator:
 
         request = await create_request(
             thread_id=thread_id,
-            request_type="approval",
+            request_type=HumanRequestType.APPROVAL.value,
             prompt=prompt,
             context=context,
-            default_value="REJECTED",
+            default_value=HITLDecision.REJECTED.value,
         )
 
         if response_text_factory is not None:
@@ -282,10 +295,10 @@ class HITLOrchestrator:
             request=request,
             request_data={
                 "id": request.id,
-                "type": "approval",
+                "type": HumanRequestType.APPROVAL.value,
                 "prompt": prompt,
                 "context": context,
-                "default_value": "REJECTED",
+                "default_value": HITLDecision.REJECTED.value,
                 "risk_level": risk_level,
             },
             project_id=project_id,
@@ -325,7 +338,7 @@ class HITLOrchestrator:
             thread_id=thread_id,
             request_id=request_id,
             tool_call_id=tool_call["id"],
-            status="completed",
+            status=HITLRequestStatus.COMPLETED.value,
             response=normalized,
             sibling_key=sibling_key,
         )
@@ -348,11 +361,11 @@ class HITLOrchestrator:
             thread_id=thread_id,
             request_id=request_id,
             tool_call_id=tool_call["id"],
-            status="cancelled",
+            status=HITLRequestStatus.CANCELLED.value,
             sibling_key=sibling_key,
         )
         await activity_monitor.clear_human_request(thread_id)
-        return "CANCELLED"
+        return HITLDecision.CANCELLED.value
 
     @staticmethod
     async def persist_hitl_user_message(
@@ -380,7 +393,7 @@ class HITLOrchestrator:
                 content=user_content,
                 category="user",
                 action_type="text",
-                status="completed",
+                status=HITLRequestStatus.COMPLETED.value,
             )
             # 实时推送到当前会话渠道（SSE 等）：与 persist_user_message 一致，
             # 否则 human 消息只落库、SSE 流收不到（前端仅历史加载才显示）。
@@ -394,7 +407,7 @@ class HITLOrchestrator:
                     role="human",
                     content=user_content,
                     category="user",
-                    status="completed",
+                    status=HITLRequestStatus.COMPLETED.value,
                     message_id=msg_id,
                 )
                 publisher = MessagePublisher(thread_id=thread_id, project_id=project_id)
@@ -469,7 +482,7 @@ class HITLOrchestrator:
         grant_id = tool_args.get("grant_id")
         if grant_id:
             request_id = pending_tool.get("request_id")
-            if isinstance(fallback_result, str) and fallback_result.upper() == "APPROVED":
+            if isinstance(fallback_result, str) and fallback_result.upper() == HITLDecision.APPROVED.value:
                 grant = approve_grant_by_request_id(request_id) if request_id else None
                 if grant:
                     return i18n.get(
@@ -478,7 +491,7 @@ class HITLOrchestrator:
                         count=len(grant.operations),
                     )
                 return i18n.get("hitl.batch_approved_fallback")
-            if isinstance(fallback_result, str) and fallback_result.upper() == "REJECTED":
+            if isinstance(fallback_result, str) and fallback_result.upper() == HITLDecision.REJECTED.value:
                 reject_grant_by_request_id(request_id)
                 return i18n.get("hitl.batch_rejected")
             return fallback_result
@@ -491,7 +504,7 @@ class HITLOrchestrator:
             return fallback_result
 
         # 用户拒绝（授权门控）：不授权、不重执行，返回明确拒绝说明。
-        if isinstance(fallback_result, str) and fallback_result.upper() == "REJECTED":
+        if isinstance(fallback_result, str) and fallback_result.upper() == HITLDecision.REJECTED.value:
             resource_path = authorization.get("resource_path", "")
             return i18n.get("hitl.access_rejected", path=resource_path)
 
@@ -505,7 +518,7 @@ class HITLOrchestrator:
                 await AuthorizationService(project_id).grant_permission(
                     resource_path=authorization.get("resource_path", ""),
                     action=authorization.get("action", "read"),
-                    granted_by="hitl-approval",
+                    granted_by=DEFAULT_GRANTED_BY,
                 )
             except Exception as e:
                 logger.warning(f"[HITL] grant_permission failed for approval: {e}")
@@ -577,10 +590,10 @@ class HITLOrchestrator:
 
         request = await create_request(
             thread_id=thread_id,
-            request_type="approval",
+            request_type=HumanRequestType.APPROVAL.value,
             prompt=action_description,
             context=context,
-            default_value="REJECTED",
+            default_value=HITLDecision.REJECTED.value,
         )
 
         response_text = i18n.get(
@@ -593,10 +606,10 @@ class HITLOrchestrator:
             thread_id=thread_id,
             request=request,
             request_data={
-                "type": "approval",
+                "type": HumanRequestType.APPROVAL.value,
                 "prompt": action_description,
                 "context": context,
-                "default_value": "REJECTED",
+                "default_value": HITLDecision.REJECTED.value,
                 "risk_level": risk_level,
                 "resource_path": resource_path,
             },

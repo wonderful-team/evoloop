@@ -12,6 +12,9 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from app.core.hitl.constants import DEFAULT_BATCH_GRANT_TTL_SECONDS
+from app.core.hitl.types import BatchGrantStatus
+
 logger = logging.getLogger(__name__)
 
 
@@ -46,7 +49,7 @@ def _clean_expired() -> None:
     now = datetime.now(timezone.utc)
     for grant_id, grant in list(_grants.items()):
         if grant.expires_at < now:
-            grant.status = "expired"
+            grant.status = BatchGrantStatus.EXPIRED.value
             _grants.pop(grant_id, None)
 
 
@@ -55,7 +58,7 @@ def create_pending_grant(
     thread_id: str,
     request_id: str,
     operations: list[dict[str, Any]],
-    ttl_seconds: int = 300,
+    ttl_seconds: int = DEFAULT_BATCH_GRANT_TTL_SECONDS,
 ) -> BatchGrant:
     """Create a pending batch grant from a list of raw operation dicts."""
     _clean_expired()
@@ -75,7 +78,7 @@ def create_pending_grant(
         thread_id=thread_id,
         request_id=request_id,
         operations=parsed_ops,
-        status="pending",
+        status=BatchGrantStatus.PENDING.value,
         expires_at=datetime.now(timezone.utc) + timedelta(seconds=ttl_seconds),
     )
     _grants[grant_id] = grant
@@ -92,7 +95,7 @@ def create_pending_grant(
 def update_grant_request_id(grant_id: str, request_id: str) -> bool:
     """Link a pending grant to the HITL request created after it."""
     grant = _grants.get(grant_id)
-    if grant and grant.status == "pending":
+    if grant and grant.status == BatchGrantStatus.PENDING.value:
         grant.request_id = request_id
         return True
     return False
@@ -101,8 +104,8 @@ def update_grant_request_id(grant_id: str, request_id: str) -> bool:
 def approve_grant_by_request_id(request_id: str) -> BatchGrant | None:
     """Approve the pending grant associated with the given HITL request_id."""
     for grant in _grants.values():
-        if grant.request_id == request_id and grant.status == "pending":
-            grant.status = "approved"
+        if grant.request_id == request_id and grant.status == BatchGrantStatus.PENDING.value:
+            grant.status = BatchGrantStatus.APPROVED.value
             logger.info(
                 "[BatchGrant] Approved grant=%s request_id=%s operations=%d",
                 grant.id,
@@ -116,8 +119,8 @@ def approve_grant_by_request_id(request_id: str) -> BatchGrant | None:
 def reject_grant_by_request_id(request_id: str) -> BatchGrant | None:
     """Mark the pending grant associated with the given HITL request_id as expired."""
     for grant in _grants.values():
-        if grant.request_id == request_id and grant.status == "pending":
-            grant.status = "expired"
+        if grant.request_id == request_id and grant.status == BatchGrantStatus.PENDING.value:
+            grant.status = BatchGrantStatus.EXPIRED.value
             logger.info(
                 "[BatchGrant] Rejected grant=%s request_id=%s",
                 grant.id,
@@ -151,10 +154,10 @@ def is_operation_granted(
     now = datetime.now(timezone.utc)
     call_params = _normalize_params(params)
     for grant in list(_grants.values()):
-        if grant.status != "approved":
+        if grant.status != BatchGrantStatus.APPROVED.value:
             continue
         if grant.expires_at < now:
-            grant.status = "expired"
+            grant.status = BatchGrantStatus.EXPIRED.value
             continue
         if grant.thread_id != thread_id:
             continue

@@ -94,9 +94,7 @@ class SchedulerService:
             from app.core.engine.tasks import run_autonomous_task_execution
 
             # Dispatch as Celery task
-            run_autonomous_task_execution.delay(
-                task_id=task.id, project_id=task.project_id
-            )
+            run_autonomous_task_execution.delay(task_id=task.id, project_id=task.project_id)
 
             logger.info(f"[Scheduler] Dispatched task {task.id} (next run: {task.next_run_at})")
 

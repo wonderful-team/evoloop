@@ -15,7 +15,11 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, update
 
 from app.core.exceptions import AgentHumanInterruptException
-from app.core.hitl.types import HumanRequestType
+from app.core.hitl.constants import (
+    MESSAGE_CATEGORY_HITL_REQUEST,
+    MESSAGE_STATUS_WAITING_HUMAN,
+)
+from app.core.hitl.types import HITLRequestStatus, HumanRequestType
 from app.core.monitoring.activity import activity_monitor
 from app.infrastructure.database import session_scope
 from app.models import Message
@@ -41,6 +45,7 @@ class HumanInputRequest(BaseModel):
     request_type: Literal[
         "text",
         "choice",
+        "multi_choice",
         "confirmation",
         "approval",
         "project_switch",
@@ -51,7 +56,7 @@ class HumanInputRequest(BaseModel):
     context: str | None = None
     default_value: str | None = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
-    status: Literal["pending", "completed", "timeout", "cancelled"] = "pending"
+    status: Literal["pending", "completed", "timeout", "cancelled"] = HITLRequestStatus.PENDING.value
     response: Any | None = None
 
     @classmethod
@@ -101,7 +106,7 @@ async def create_request(
             options=options,
             context=context,
             default_value=default_value,
-            status="pending",
+            status=HITLRequestStatus.PENDING.value,
         )
         session.add(db_request)
         await session.flush()
@@ -117,7 +122,8 @@ async def get_pending_requests_for_thread(thread_id: str) -> list[HumanInputRequ
         stmt = (
             select(HumanRequest)
             .where(
-                HumanRequest.thread_id == thread_id, HumanRequest.status == "pending"
+                HumanRequest.thread_id == thread_id,
+                HumanRequest.status == HITLRequestStatus.PENDING.value,
             )
             .order_by(HumanRequest.created_at.asc())
         )
@@ -132,9 +138,9 @@ async def cancel_request(request_id: str) -> bool:
             update(HumanRequest)
             .where(
                 HumanRequest.id == request_id,
-                HumanRequest.status == "pending",
+                HumanRequest.status == HITLRequestStatus.PENDING.value,
             )
-            .values(status="cancelled")
+            .values(status=HITLRequestStatus.CANCELLED.value)
         )
         result = await session.execute(stmt)
         success = result.rowcount > 0
@@ -174,7 +180,7 @@ async def finalize_request(
                 update(HumanRequest)
                 .where(
                     HumanRequest.id == request_id,
-                    HumanRequest.status == "pending",
+                    HumanRequest.status == HITLRequestStatus.PENDING.value,
                 )
                 .values(status=status, result=str(response) if response is not None else None)
             )
@@ -190,7 +196,7 @@ async def finalize_request(
             )
             updated_message = (await session.execute(msg_stmt)).rowcount > 0
 
-        if tool_call_id and status == "completed" and sibling_key:
+        if tool_call_id and status == HITLRequestStatus.COMPLETED.value and sibling_key:
             await _close_sibling_requests(session, thread_id, tool_call_id, status, sibling_key)
 
         logger.info(
@@ -223,8 +229,8 @@ async def _close_sibling_requests(
             select(Message).where(
                 Message.thread_id == thread_id,
                 Message.role == "system",
-                Message.category == "hitl_request",
-                Message.status == "waiting_human",
+                Message.category == MESSAGE_CATEGORY_HITL_REQUEST,
+                Message.status == MESSAGE_STATUS_WAITING_HUMAN,
                 Message.tool_call_id != tool_call_id,
             )
         )
@@ -247,7 +253,7 @@ async def _close_sibling_requests(
                     update(HumanRequest)
                     .where(
                         HumanRequest.id == s_req_id,
-                        HumanRequest.status == "pending",
+                        HumanRequest.status == HITLRequestStatus.PENDING.value,
                     )
                     .values(status=status)
                 )
@@ -285,8 +291,8 @@ async def _find_pending_by_key(thread_id: str, tool_name: str, tool_args: dict) 
                 .where(
                     Message.thread_id == thread_id,
                     Message.role == "system",
-                    Message.category == "hitl_request",
-                    Message.status == "waiting_human",
+                    Message.category == MESSAGE_CATEGORY_HITL_REQUEST,
+                    Message.status == MESSAGE_STATUS_WAITING_HUMAN,
                 )
                 .order_by(Message.sequence_number.desc())
             )
@@ -329,8 +335,8 @@ async def find_recently_approved_by_key(
                 .where(
                     Message.thread_id == thread_id,
                     Message.role == "system",
-                    Message.category == "hitl_request",
-                    Message.status.in_(["completed"]),
+                    Message.category == MESSAGE_CATEGORY_HITL_REQUEST,
+                    Message.status.in_([HITLRequestStatus.COMPLETED.value]),
                     Message.updated_at >= cutoff,
                 )
                 .order_by(Message.updated_at.desc())

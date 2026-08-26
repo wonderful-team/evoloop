@@ -496,12 +496,14 @@ async def resume_chat(
         # 落为 human 消息（用户可见）+ 更新原 tool 消息结果（Agent 可见），
         # 而非新增 tool 消息——避免同一 tool_call 双 tool 结果导致 LLM 重建
         # 上下文取到空的旧 tool_output（HITL 选项未被 Agent 消费的问题）。
+        # 用户可见文案按"点了什么存什么"：中文界面落中文（批准/拒绝），英文
+        # 界面落英文（Approve/Reject）；normalized 只用于内部决策。
         await HITLOrchestrator.persist_hitl_user_message(
             thread_id=req.thread_id,
             project_id=req.project_id,
             member_id=_current_user.id if _current_user else 0,
             tool_call_id=pending_tool["id"],
-            user_content=normalized_input,
+            user_content=req.user_input or normalized_input,
             final_result=final_result,
         )
 

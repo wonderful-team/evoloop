@@ -56,6 +56,7 @@ class InternalLLMService:
         temperature: float = 0.3,
         max_tokens: int = 500,
         model_name: str | None = None,
+        extra_body: dict[str, Any] | None = None,
         **kwargs,
     ) -> Any:
         """
@@ -68,6 +69,9 @@ class InternalLLMService:
             temperature: 温度参数
             max_tokens: 最大 token 数
             model_name: 指定模型（可选，默认使用系统配置）
+            extra_body: 附加请求体参数（可选），例如
+                ``{"enable_thinking": False, "return_reasoning": False}``
+                可对推理模型关闭思考。调用方覆盖默认 ThinkingConfig。
             **kwargs: 其他参数传递给 LLM
 
         Returns:
@@ -81,11 +85,15 @@ class InternalLLMService:
         from app.infrastructure.llm.factory import get_default_llm
 
         # 获取 LLM 实例
-        llm = await get_default_llm(
-            temperature=temperature,
-            max_tokens=max_tokens,
-            model_name=model_name,
-        )
+        llm_kwargs: dict[str, Any] = {
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "model_name": model_name,
+        }
+        # 仅当调用方显式传了 extra_body 才透传（LLMConfig.extra_body 不接受 None）
+        if extra_body is not None:
+            llm_kwargs["extra_body"] = extra_body
+        llm = await get_default_llm(**llm_kwargs)
 
         # 关键：禁用所有回调，防止消息泄露
         config = {
