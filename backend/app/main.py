@@ -21,14 +21,9 @@ logging.basicConfig(level=settings.LOG_LEVEL)
 logging.getLogger("sqlalchemy.engine.Engine").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
-# Global app reference for lifespan access
-_app = None
-
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
-    global _app
-    _app = app
+async def lifespan(app: FastAPI):  # noqa: ARG001
 
     # Voice channel requires loopback binding (defence in depth lives in deps.py).
     _host = os.getenv("HOST", "127.0.0.1")
@@ -51,7 +46,7 @@ async def lifespan(app: FastAPI):
 
         await shared_state.reload_persisted()
     except Exception as e:
-        logger.warning(f"Failed to reload SharedState persisted project: {e}", exc_info=True)
+        logger.warning(f"Failed to reload SharedState persisted project: {e}")
 
     # Channel Registry - register built-in transports (SSE + Mobile)
     try:
@@ -60,17 +55,7 @@ async def lifespan(app: FastAPI):
         register_default_channels()
         logger.info("Channel registry initialized (SSE + Mobile).")
     except Exception as e:
-        logger.warning(f"Failed to initialize Channel registry: {e}", exc_info=True)
-
-    # Memory System Init
-    try:
-        from app.core.memory.lifespan import MemoryLifespanManager
-
-        memory_container = await MemoryLifespanManager.ainitialize()
-        _app.state.memory_container = memory_container
-        logger.info("Memory Service initialized via MemoryLifespanManager.")
-    except Exception as e:
-        logger.warning(f"Failed to initialize Memory Service: {e}", exc_info=True)
+        logger.warning(f"Failed to initialize Channel registry: {e}")
 
     # Agent Awakening - Discovery & Lifecycle Handlers
     try:
@@ -79,7 +64,7 @@ async def lifespan(app: FastAPI):
         auto_discover_handlers()
         logger.info("Discovery and registration of all domain lifecycle handlers complete.")
     except Exception as e:
-        logger.warning(f"Agent Awakening/Discovery failed (non-critical): {e}", exc_info=True)
+        logger.warning(f"Agent Awakening/Discovery failed (non-critical): {e}")
 
     # Publish Application Started Event
     from app.core.events.publishers import publish_app_started
@@ -119,18 +104,8 @@ async def lifespan(app: FastAPI):
             "[Startup] VoiceChannel wiring failed (non-critical): %s", e, exc_info=True
         )
 
-    # Migrate legacy deterministic LearnedSkill rows -> macros table (idempotent).
-    # Runs after DB init so the macros table exists. Non-fatal: migration errors
-    # are logged but do not prevent the server from starting.
-    try:
-
-        stats = await migrate_deterministic_skills()
-        logger.info(
-            "[Startup] Macro migration complete: migrated=%d skipped=%d failed=%d",
-            stats.get("migrated", 0),
-            stats.get("skipped", 0),
-            stats.get("failed", 0),
-        )
+        scheduler_task = asyncio.create_task(_scheduler_loop())
+        logger.info("[Startup] 值守/自主调度循环已启动 (API 进程)")
     except Exception as e:
         logger.warning(f"[Startup] Macro migration failed (non-critical): {e}", exc_info=True)
 
