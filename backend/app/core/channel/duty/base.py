@@ -20,6 +20,7 @@ import asyncio
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from app.core.channel.base import IncomingMessage, InputChannel
@@ -114,12 +115,7 @@ class DutyChannel(InputChannel, ABC):
 
         返回本轮成功发送并更新 next_run_at 的任务数。
         """
-        from datetime import datetime, timedelta, timezone
-
-        from app.core.channel.duty.config import (
-            load_duty_config,
-            save_business_poll_prompts,
-        )
+        from app.core.channel.duty.config import load_duty_config, save_business_poll_prompts
         from app.core.state import shared_state
 
         cfg = await load_duty_config(project_id)
@@ -249,9 +245,7 @@ class DutyChannel(InputChannel, ABC):
 
     # InputChannel.receive 不适用于主动轮巡，置为显式不可用
     async def receive(self, raw: Any, **kwargs: Any) -> IncomingMessage | None:  # type: ignore[override]
-        raise NotImplementedError(
-            "DutyChannel is poll-driven; call poll_once() instead of receive()."
-        )
+        raise NotImplementedError("DutyChannel is poll-driven; call poll_once() instead of receive().")
 
     # 值守渠道被注册为输出 channel（安抚回复 send()），HITL 请求无交互 UI，
     # 显式 no-op（与 VoiceChannel 同语义：HITL 以状态变化呈现，不推送）。
