@@ -169,7 +169,7 @@ def normalize_hitl_input(tool_call: dict, user_input: str | None, request_type: 
     the tool's ``name`` and ``authorization`` metadata are used as a fallback:
     authorization-gated tools and standard confirmation tools still normalize.
     """
-    if request_type in ("confirmation", "approval"):
+    if request_type in (HumanRequestType.CONFIRMATION.value, HumanRequestType.APPROVAL.value):
         is_approval = True
     elif request_type in _FREE_TEXT_REQUEST_TYPES:
         is_approval = False
@@ -203,7 +203,7 @@ def normalize_hitl_input(tool_call: dict, user_input: str | None, request_type: 
     return user_input
 
 
-async def close_hitl_message(thread_id: str, tool_call_id: str, status: str = "completed") -> None:
+async def close_hitl_message(thread_id: str, tool_call_id: str, status: str = HITLRequestStatus.COMPLETED.value) -> None:
     """
     Update the status of the HITL request message in the database (single-track).
 

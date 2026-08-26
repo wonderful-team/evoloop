@@ -186,7 +186,7 @@ def revoke_grant(grant_id: str) -> bool:
     """Explicitly revoke a batch grant by id."""
     grant = _grants.pop(grant_id, None)
     if grant:
-        grant.status = "expired"
+        grant.status = BatchGrantStatus.EXPIRED.value
         logger.info("[BatchGrant] Revoked grant=%s", grant_id)
         return True
     return False
