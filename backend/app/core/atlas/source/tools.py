@@ -1,8 +1,4 @@
-"""Agent tools for AppMap generation (write / read / list / generate-macros).
-
-write_app_map only persists the surveyed map — macro synthesis is a separate
-explicit step via generate_macros_from_app_map.
-"""
+"""Agent tools for AppMap generation (write / read / list)."""
 
 from __future__ import annotations
 
@@ -10,7 +6,6 @@ import logging
 from typing import Annotated
 
 from app.core.atlas.source import persistence
-from app.core.atlas.source.event import publish_app_map_generate_completed
 from app.core.atlas.source.schemas import AppMapPayload
 from app.core.atlas.source.validate import validate_app_map
 from app.core.context.manager import ContextManager
@@ -39,8 +34,7 @@ async def write_app_map(
     extra: dict | None = None,
     config: Annotated[RunnableConfig, InjectedToolArg] = None,
 ) -> str:
-    """Save the surveyed AppMap for one entity. Does NOT generate macros —
-    call generate_macros_from_app_map after self-reviewing completeness.
+    """Save the surveyed AppMap for one entity.
 
     `extra` carries site-level facts discovered during survey, notably
     {"base_url": "http://host:port"} when the admin site's origin is known
@@ -96,7 +90,7 @@ async def write_app_map(
         )
     return ControllerResponse.success(
         f"AppMap for '{entity}' saved as v{map_version} (id={app_map_id}).",
-        note="Self-review completeness, then call generate_macros_from_app_map to produce macros.",
+        note="Survey complete; the map is now active.",
     )
 
 
@@ -140,31 +134,6 @@ async def list_app_maps(project_id: int | None = None) -> str:
             f"- #{m.id} {m.entity} v{m.map_version} [{m.platform}] "
             f"actions={len(m.actions)} routes={len(m.routes)}"
         )
-    return ControllerResponse.success("\n".join(lines))
-
-
-@evoloop_tool(is_state_mutating=True, summary_template="evoloop.tool_summary.generate_macros")
-async def generate_macros_from_app_map(app_map_id: int) -> str:
-    """Request macro synthesis for one AppMap.
-
-    Call this ONLY after self-reviewing that the AppMap is complete and
-    accurate. The macro module will pick up the request event and produce
-    pending_review macro candidates in the background.
-    """
-    app_map = await persistence.get_app_map(app_map_id)
-    if app_map is None:
-        return ControllerResponse.not_found(f"id={app_map_id}", item_type="app_map")
-    if app_map.status != "active":
-        return ControllerResponse.error(
-            f"AppMap #{app_map_id} is {app_map.status}; only active maps can generate macros."
-        )
-
-    await publish_app_map_generate_completed(
-        app_map_id=app_map_id,
-        project_id=app_map.project_id,
-        member_id=app_map.member_id,
-    )
     return ControllerResponse.success(
-        f"Macro generation requested for AppMap #{app_map_id} ({app_map.entity}).",
-        note="Candidates will appear as pending_review in the macro library.",
+        "\n".join(lines)
     )

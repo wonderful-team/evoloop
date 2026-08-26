@@ -40,11 +40,8 @@ class AppMapElement(DynamicBaseModel):
     # templates fall back to a "#name, [name='name']" union guess.
     selector_type: str | None = None
 
-    # Runtime verification markers (written by runtime_verify, see v3.1 design):
-    #   runtime_fixed: selector was repaired against live DOM (name/selector_type
-    #       updated to a working runtime selector).
-    #   runtime_absent: no working selector found on the live page — templates
-    #       skip this element (honest coverage gap, never fabricate).
+    # Runtime repair markers (historical, from the removed runtime-verify
+    # pipeline; retained on the schema for data compatibility).
     runtime_fixed: bool = False
     runtime_absent: bool = False
 

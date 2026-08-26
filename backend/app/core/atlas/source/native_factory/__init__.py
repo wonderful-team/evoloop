@@ -13,7 +13,7 @@ Macro kinds (design doc v0.3 G2):
      confirm step ("address bar -> navigate"). Fields inside outline/table
      containers are rejected (M1.5 file-name-cell trap).
 
-Persistence mirrors persist_candidates but self-contained:
+Persistence is self-contained via the macro module's persist_native_macros:
 app_map_id=None (native surveys are not web app_maps), namespace=NATIVE_NS.
 """
 
@@ -22,13 +22,6 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass, field
-
-from app.core.events.publishers import publish_macro_mutated
-from app.core.execution.macro import (
-    MacroScript,
-)
-from app.infrastructure.database import session_scope
-from app.models.macro import Macro
 
 logger = logging.getLogger(__name__)
 
@@ -284,22 +277,3 @@ def generate_for_atlas_app(bundle_id: str, app_name: str, states: dict[str, dict
             continue
         candidates.extend(generate_field_macros(bundle_id, app_name, state["elements"]))
     return candidates
-
-
-async def persist_native_macros(
-    candidates: list[NativeMacroCandidate],
-    project_id: int | None = None,
-    member_id: int = 0,
-) -> list[int]:
-    """Insert as pending_review macros (namespace=native_macos) + publish.
-
-    Delegates to the macro module's unified batch-replace implementation.
-    """
-    from app.core.execution.macro import persist_native_macros as _persist
-
-    return await _persist(
-        candidates,
-        project_id=project_id,
-        member_id=member_id,
-        namespace=NATIVE_NS,
-    )
