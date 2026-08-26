@@ -6,7 +6,7 @@ from app.core.engine.message.classifier import MessageClassifier
 from app.core.engine.message.persistence import MessagePersistencePolicy
 from app.core.engine.message.schemas import MessageHandlerResult
 from app.core.engine.message.stream import MessageStreamPolicy
-from app.core.tools.registry import get_tool_metadata
+from app.core.tools.registry import get_tool_affected_paths, get_tool_metadata
 
 logger = logging.getLogger(__name__)
 
@@ -30,9 +30,13 @@ class ToolMessageMixin:
         )
 
         display_name = metadata.get_display_name(tool_name, input_data)
+        # 解析实际受影响路径（覆盖 affected_path_keys 与 affected_path_extractor），
+        # 供前端展示"工具在操作哪个文件"——前端不再依赖原始 keys 契约。
+        affected_paths = get_tool_affected_paths(tool_name, input_data or {})
         tool_meta = {
             "display_name": display_name,
             "affected_path_keys": metadata.affected_path_keys,
+            "affected_paths": affected_paths,
         }
 
         message_id = None

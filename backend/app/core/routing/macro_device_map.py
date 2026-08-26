@@ -78,7 +78,7 @@ class MacroDeviceMap:
                 self._refreshing = False
 
     async def _load(self) -> tuple[dict[int, DeviceKind], dict[int, int]]:
-        from app.core.execution.macro import list_macros
+        from app.core.learning.macro.service import MacroService
 
         markers = tuple(get_store().device_markers or [])
         marker_tokens = _marker_tokens(markers)

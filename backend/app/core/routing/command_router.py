@@ -45,10 +45,6 @@ from app.core.routing.domain_classifier import (
 from app.core.routing.intent_resolution import IntentResolver
 from app.core.routing.macro_device_map import get_macro_device_map
 from app.core.routing.matcher_cache import matcher_cache
-from app.core.routing.navigation_macro_cache import (
-    NavigationMacroCache,
-    get_navigation_macro_cache,
-)
 from app.core.routing.routing_data import get_store
 from app.core.routing.schemas import (
     DOMAIN_AMBIGUOUS,
@@ -70,10 +66,8 @@ class CommandRouter:
     def __init__(
         self,
         intent_resolver: IntentResolver | None = None,
-        nav_macro_cache: NavigationMacroCache | None = None,
     ) -> None:
         self._intent_resolver = intent_resolver or IntentResolver()
-        self._nav_macro_cache = nav_macro_cache or get_navigation_macro_cache()
 
     async def resolve(
         self,
@@ -115,13 +109,16 @@ class CommandRouter:
             return decision
 
         # 1. Direct navigation macros (exact phrase match against DB presets).
-        nav_macro = await self._nav_macro_cache.get(text)
+        from app.core.learning.macro.service import MacroService
+
+        nav_macro = await MacroService.resolve_navigation_macro(text)
         if nav_macro is not None:
+            nav_id, nav_route, nav_feedback = nav_macro
             decision = RouteDecision(
                 status="routed",
                 target_type="macro",
-                target={"type": "macro", "id": nav_macro.id},
-                params={"route": nav_macro.route, "feedback": nav_macro.feedback},
+                target={"type": "macro", "id": nav_id},
+                params={"route": nav_route, "feedback": nav_feedback},
                 confidence=1.0,
                 intent_hint=IntentHint(
                     intent=INTENT_MACRO_TASK,

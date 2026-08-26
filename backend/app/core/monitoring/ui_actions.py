@@ -11,6 +11,7 @@ from app.core.monitoring.schemas import (
     ConfirmRequest,
     FileSelectPayload,
     FileSelectRequest,
+    HumanRequestData,
     HumanRequestType,
     ProjectSwitchPayload,
     ProjectSwitchRequest,
@@ -154,16 +155,18 @@ async def resolve_project_with_hitl(
     # No temp project - request human interaction
     user_prompt = prompt or get_global_mode_message(tool_category)
 
-    await activity_monitor.request_human_interaction(
+    await activity_monitor.set_human_request(
         thread_id=ctx.thread_id,
-        request_type=HumanRequestType.PROJECT_SWITCH,
-        prompt=user_prompt,
-        payload={
-            "allow_global": False,
-            "show_project_list": True,
-            "temporary": temporary,
-        },
-        allow_cancel=True,
+        request_data=HumanRequestData(
+            type=HumanRequestType.PROJECT_SWITCH,
+            prompt=user_prompt,
+            payload={
+                "allow_global": False,
+                "show_project_list": True,
+                "temporary": temporary,
+            },
+            allow_cancel=True,
+        ),
     )
 
     # This line is only reached if user cancels

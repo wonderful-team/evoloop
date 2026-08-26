@@ -1,22 +1,20 @@
-import logging
-
-"""
-Tool execution state management for the context module.
+"""Tool execution state management for the context module.
 
 Provides centralized tool state tracking per thread to avoid duplication
 across multiple callback handlers.
 
 Usage:
     from app.core.context import tool_state_store, ToolState
-    
+
     # In callback handler
     state = tool_state_store.start_tool(thread_id, run_id, tool_name, args)
     ...
     state = tool_state_store.end_tool(thread_id, run_id)
     if state:
-        summary, is_file = state.get_summary(output)
+        summary = state.get_summary(output)
 """
 
+import logging
 import time
 from threading import Lock
 from typing import Any
@@ -28,8 +26,6 @@ from app.i18n.service import i18n
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
-
-logger = __import__("logging").getLogger(__name__)
 
 
 class ToolState(DynamicBaseModel):

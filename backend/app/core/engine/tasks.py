@@ -10,10 +10,8 @@ from sqlalchemy import desc, func, select
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
 from app.core.context.manager import ContextManager, EvoContext
-from app.core.execution.macro import (
-    MacroScriptCompiler,
-    create_macro_from_synthesis,
-)
+from app.core.learning.macro import MacroScriptCompiler
+from app.core.learning.macro.service import MacroService
 from app.core.learning.trace.recorder import sync_thread_to_graph
 from app.infrastructure.database import session_scope
 from app.infrastructure.queue.factory import periodic_task, shared_task
@@ -480,49 +478,20 @@ async def reconcile_skill_macro_task(skill_id: int, thread_id: str, model: str |
             if original_skill:
                 healed = True
                 if repaired_skill.skill and repaired_skill.skill.instructions:
-                    await patch_skill(
-                        original_skill, instructions=repaired_skill.skill.instructions
-                    )
+                    await patch_skill(original_skill, instructions=repaired_skill.skill.instructions)
 
                 # Chain-heal paired flywheel macros (macros table is the
                 # authoritative store for deterministic scripts).
-                from app.core.execution.macro import (
-                    create_macro_from_synthesis,
-                    list_macros,
-                    update_macro,
-                )
+                from app.core.learning.macro.service import MacroService
 
-                if original_skill.macro_id:
-                    if await update_macro(
-                        original_skill.macro_id, {"macro_script": macro_script}, db=session
-                    ):
-                        healed_macro_ids.append(original_skill.macro_id)
-                else:
-                    existing_rows = await list_macros(
-                        fallback_skill_id=skill_id, db=session
+                healed_macro_ids.append(
+                    await MacroService.reconcile_for_skill(
+                        session,
+                        original_skill,
+                        macro_script,
+                        source_thread_id=original_skill.source_thread_id,
                     )
-                    existing = existing_rows[0] if existing_rows else None
-                    if existing is not None:
-                        await update_macro(
-                            existing.id, {"macro_script": macro_script}, db=session
-                        )
-                        await patch_skill(original_skill, macro_id=existing.id)
-                        healed_macro_ids.append(existing.id)
-                    else:
-                        new_macro = await create_macro_from_synthesis(
-                            session,
-                            name=original_skill.name,
-                            description=original_skill.description or "",
-                            trigger_patterns=original_skill.trigger_patterns or [],
-                            parameters=original_skill.parameters or [],
-                            macro_script=macro_script,
-                            fallback_skill_id=original_skill.id,
-                            source_thread_id=original_skill.source_thread_id,
-                            project_id=original_skill.project_id,
-                            member_id=original_skill.member_id,
-                        )
-                        await patch_skill(original_skill, macro_id=new_macro.id)
-                        healed_macro_ids.append(new_macro.id)
+                )
 
         # Publish AFTER commit: subscribers re-query the row in a new session
         # (file export + route-index upsert) and must see the patched macro.

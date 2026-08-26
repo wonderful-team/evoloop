@@ -29,7 +29,7 @@ from pathlib import Path
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
 from app.core.engine.message.native_classes import HumanMessage, SystemMessage
-from app.core.execution.macro import (
+from app.core.learning.macro import (
     MacroScriptCompiler,
     MacroVerificationResult,
     cleanup_macro_steps,

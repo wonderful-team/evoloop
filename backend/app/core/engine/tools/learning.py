@@ -5,21 +5,13 @@ from pydantic import Field
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.context.manager import ContextManager
-from app.core.execution.macro import (
-    MacroCreatorService,
-)
-from app.core.execution.macro.lifecycle import (
+from app.core.learning.macro import MacroCreatorService
+from app.core.learning.macro.lifecycle import (
     confirm_macro,
     create_macro_from_synthesis,
     find_macro_by_name,
 )
-from app.core.execution.macro.schemas import (
-    DEFAULT_ALLOWED_FAMILIES,
-    MacroScript,
-    compute_max_risk,
-    scan_step_families,
-)
-from app.core.execution.macro.utils import cleanup_macro_steps, verify_macro_script
+from app.core.learning.macro.schemas import MacroScript
 from app.core.tools import evoloop_tool
 from app.infrastructure.database import session_scope
 from app.infrastructure.pydantic_base import DynamicBaseModel

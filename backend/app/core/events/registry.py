@@ -85,7 +85,7 @@ class ArtifactValidationEvent(BaseEvent):
 
 # Note: Module-specific event types are defined in their respective modules:
 # - AgentEventType -> app.core.engine.event.types
-# - MacroEventType -> app.core.execution.macro.event.types
+# - MacroEventType -> app.core.learning.macro.event.types
 # - RewindEventType -> app.core.engine.rewind.event.types
 # - Environment EventType -> app.core.environment.event.types
 # - ProjectEventType -> app.core.project.event.types

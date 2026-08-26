@@ -6,7 +6,6 @@ Uses ActivityStateService for state persistence and Cache for Pub/Sub.
 """
 
 import asyncio
-import json
 import logging
 import time
 from collections.abc import AsyncGenerator
@@ -24,7 +23,7 @@ from app.core.monitoring.schemas import (
 )
 
 if TYPE_CHECKING:
-    from app.core.tools.background.models import BackgroundTask
+    from app.core.execution.terminal.background.models import BackgroundTask
 from app.core.monitoring.activity_state import ActivityStateService
 from app.infrastructure.cache import cache
 from app.infrastructure.database import session_scope
@@ -208,14 +207,9 @@ class ActivityMonitor:
         if await self._state_service.check_cancellation(thread_id, session=session):
             raise AgentCancelledException(f"Run {thread_id} cancelled by user")
 
-    async def set_interrupted(self, thread_id: str, reason: str = "awaiting_human_input"):
-        """Mark a run as interrupted (paused for human input)."""
-        await self._state_service.set_interrupted(thread_id, reason)
-
     async def set_human_request(self, thread_id: str, request_data: HumanRequestData):
         """
         Store a structured Human Request (HITL).
-        Replaces simple 'set_interrupted' for rich interactions.
         """
         request_dict = (
             request_data.model_dump()
@@ -255,85 +249,6 @@ class ActivityMonitor:
             await system_bus.publish(
                 SystemStatusEvent(thread_id=thread_id, status="idle")
             )
-
-    async def request_human_interaction(
-        self,
-        thread_id: str,
-        request_type: str,
-        prompt: str,
-        payload: dict[str, Any] | None = None,
-        allow_cancel: bool = True,
-    ) -> None:
-        """
-        Request interaction from human user and PAUSE agent execution.
-
-        This unifies HITL and UI actions into a single interface.
-        The agent will be in 'interrupted' state until user responds.
-
-        Args:
-            thread_id: The thread ID
-            request_type: Type of interaction (e.g., "text", "project_switch", "confirmation")
-            prompt: Message shown to user explaining what's needed
-            payload: Additional data for the interaction (type-specific)
-            allow_cancel: Whether user can cancel this request
-        """
-        from app.core.monitoring.ui_actions import HumanRequestType
-
-        # Validate request type
-        valid_types = [t.value for t in HumanRequestType]
-        if request_type not in valid_types:
-            logger.warning(f"[ActivityMonitor] Unknown request type: {request_type}")
-
-        # Store the request
-        request_data = HumanRequestData(
-            type=request_type,
-            prompt=prompt,
-            allow_cancel=allow_cancel,
-            payload=payload or {},
-        )
-
-        success = await self._state_service.set_human_request(thread_id, request_data.model_dump())
-
-        if success:
-            await system_bus.publish(
-                HumanRequestEvent(
-                    thread_id=thread_id,
-                    action="create",
-                    prompt=request_data.prompt,
-                    request_type=request_data.type,
-                    allow_cancel=request_data.allow_cancel,
-                    payload=request_data.payload,
-                )
-            )
-            await system_bus.publish(
-                SystemStatusEvent(thread_id=thread_id, status="interrupted")
-            )
-
-    async def set_active_memory(self, thread_id: str, memory_id: str, memory_name: str):
-        """Track which memory is currently being accessed by the Agent."""
-        key = f"activity:{thread_id}"
-        if not await cache.exists(key):
-            return
-
-        memories_json = await cache.hget(key, "active_memories")
-        memories = json.loads(memories_json) if memories_json else []
-
-        # Add if not already in list
-        if not any(m.get("id") == memory_id for m in memories):
-            memories.append({"id": memory_id, "name": memory_name})
-            await cache.hset(
-                key,
-                mapping={
-                    "active_memories": json.dumps(memories),
-                    "updated_at": str(time.time()),
-                },
-            )
-
-    async def clear_active_memories(self, thread_id: str):
-        """Clear active memory highlights at end of run."""
-        key = f"activity:{thread_id}"
-        if await cache.exists(key):
-            await cache.hset(key, "active_memories", json.dumps([]))
 
     async def update_agent_state(
         self,
@@ -469,7 +384,7 @@ class ActivityMonitor:
         frontend activity indicator reflects ongoing background work (e.g.
         long-running shell commands, file operations).
         """
-        from app.core.tools.schemas import TaskStatus
+        from app.core.execution.terminal.background.schemas import TaskStatus
 
         thread_id = task.thread_id
         if not thread_id:

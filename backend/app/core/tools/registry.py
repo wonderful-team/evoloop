@@ -10,7 +10,6 @@ import importlib
 import inspect
 import logging
 import pkgutil
-import re
 import threading
 from datetime import datetime, timezone
 from functools import lru_cache
@@ -158,8 +157,13 @@ def _ensure_scanned():
 
         REGISTRY.scan("app.core.atlas.tools")
         REGISTRY.scan("app.core.engine.tools")
-
-        # Scan Core Memory Tools
+        REGISTRY.scan("app.core.environment.tools")
+        REGISTRY.scan("app.core.execution.terminal.tools")
+        REGISTRY.scan("app.core.learning.macro.tools")
+        REGISTRY.scan("app.core.file.tools")
+        REGISTRY.scan("app.core.hitl")
+        REGISTRY.scan("app.core.learning.tools")
+        REGISTRY.scan("app.core.mcp.tools")
         REGISTRY.scan("app.core.memory.tools")
         REGISTRY.scan("app.core.project.tools")
 
@@ -187,15 +191,6 @@ def _invalidate_caches() -> None:
     global _cached_tool_map
     _cached_tool_map = None
     _cached_node_tools.clear()
-
-
-def clear_registry_cache():
-    """Clear all internal caches and reset scan state (e.g. after dynamic skill import)."""
-    global _registry_scanned
-    _registry_scanned = False
-    REGISTRY._scanned_packages.clear()
-    _invalidate_caches()
-    _load_yaml_config.cache_clear()
 
 
 def get_tool_map() -> dict[str, BaseTool]:
@@ -329,16 +324,6 @@ def get_tool_bundle(bundle_name: str, config_path: str | None = None) -> list[st
     return config.get("tool_bundles", {}).get(bundle_name, [])
 
 
-# --- Convenience Accessors ---
-
-
-async def get_supervisor_tools() -> list[BaseTool]:
-    """Return tools for the Supervisor agent."""
-    from app.core.tools.manager import tool_manager
-
-    return await tool_manager.get_node_tools("supervisor")
-
-
 # --- Utility Functions ---
 
 
@@ -349,14 +334,6 @@ def is_state_mutating_tool(tool_name: str) -> bool:
         return False
     # Check custom EvoLoop metadata injected via @evoloop_tool(is_state_mutating=True)
     return tool_map[tool_name].metadata.get("is_state_mutating", False)
-
-
-def is_hitl_tool(tool_name: str) -> bool:
-    """Return True if the tool triggers a human-in-the-loop request."""
-    tool_map = get_tool_map()
-    if tool_name not in tool_map:
-        return False
-    return tool_map[tool_name].metadata.get("is_hitl", False)
 
 
 def get_tool_metadata(tool_name: str) -> EvoLoopToolConfig:
@@ -380,14 +357,15 @@ def get_tool_affected_paths(tool_name: str, tool_args: dict) -> list[str]:
     if tool_name in tool_map:
         tool = tool_map[tool_name]
 
-        # Generic extension point: tools can define their own path extractor
-        custom_extractor = getattr(tool, "get_affected_paths", None)
+        # Generic extension point: tools declare their own path extractor
+        # (via @evoloop_tool(affected_path_extractor=...)) in their owning module.
+        custom_extractor = getattr(tool, "affected_path_extractor", None)
         if custom_extractor is not None:
             try:
                 return custom_extractor(tool_args)
             except (TypeError, ValueError, RuntimeError):
                 logger.warning(
-                    "[registry] custom get_affected_paths failed for %s, using generic",
+                    "[registry] custom affected_path_extractor failed for %s, using generic",
                     tool_name,
                     exc_info=True,
                 )
@@ -403,15 +381,6 @@ def get_tool_affected_paths(tool_name: str, tool_args: dict) -> list[str]:
     # Legacy fallback and robust extraction
     # We check common keys if the tool is state-mutating
     mutating = is_state_mutating_tool(tool_name)
-
-    # Specialized heuristic for execute_command (rm)
-    if tool_name == "execute_command" and not snapshot_paths:
-        cmd = tool_args.get("command", "")
-        # Heuristic for rm [flags] path
-        rm_match = re.search(r"\brm\s+(?:-[a-zA-Z]+\s+)?([^\s;\|]+)", cmd)
-        if rm_match:
-            path = rm_match.group(1).strip("'\"")
-            snapshot_paths.append(path)
 
     if not snapshot_paths and mutating:
         for key in ["path", "file_path", "TargetFile"]:

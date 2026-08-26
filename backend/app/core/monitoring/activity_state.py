@@ -289,23 +289,6 @@ class ActivityStateService:
         )
         return is_cancelled
 
-    async def set_interrupted(self, thread_id: str, reason: str = "awaiting_human_input") -> bool:
-        """Mark run as interrupted."""
-        async with self._get_session_scope()() as session:
-            activity = await session.get(AgentActivity, thread_id)
-            if activity is None:
-                return False
-            activity.status = "interrupted"
-            existing_hr = activity.human_request_json
-            if existing_hr:
-                try:
-                    hr = json.loads(existing_hr)
-                    hr["interrupt_reason"] = reason
-                    activity.human_request_json = json.dumps(hr)
-                except (json.JSONDecodeError, TypeError):
-                    pass
-        return True
-
     async def set_human_request(self, thread_id: str, request_data: dict) -> bool:
         """Store structured human request."""
         async with self._get_session_scope()() as session:

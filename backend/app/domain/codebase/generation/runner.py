@@ -248,13 +248,13 @@ async def _run_appmap(project_id: int) -> None:
             entities_to_write = entities
 
         logger.info("[AppMap] Index-based builder found %d entities", len(entities_to_write))
-        logger.info("[AppMap] Writing AppMaps and generating macros...")
+        logger.info("[AppMap] Writing AppMaps...")
         result = await batch_write_appmaps(
             project_id=project_id, entities=entities_to_write, member_id=0
         )
         logger.info(
-            "[AppMap] Batch write: %d written, %d skipped, %d failed, %d macros",
-            result["written"], result["skipped"], result["failed"], result["macros_generated"],
+            "[AppMap] Batch write: %d written, %d skipped, %d failed",
+            result["written"], result["skipped"], result["failed"],
         )
     else:
         logger.info("[AppMap] Index-based builder returned no entities, skipping batch write")
@@ -296,7 +296,6 @@ async def _run_appmap(project_id: int) -> None:
                 "read_app_map",
                 "write_app_map",
                 "execute_command",
-                "generate_macros_from_app_map",
             ] + read_only_tools,
         ),
     )
@@ -304,54 +303,6 @@ async def _run_appmap(project_id: int) -> None:
     result.inputs["metadata"]["task_type"] = "app_map_generation"
     result.inputs["metadata"]["initial_node"] = "worker"
     await run_agent_background(thread_id, result.inputs)
-
-    # After Agent verification, regenerate macros for active AppMaps to pick up
-    # any Chinese aliases / elements / db_tables the Agent's collector added.
-    await _regenerate_macros(project_id)
-
-
-async def _regenerate_macros(project_id: int) -> None:
-    """Regenerate macros for all active AppMaps that have Chinese aliases."""
-    from sqlalchemy import select
-
-    from app.infrastructure.database import session_scope
-    from app.models.app_map import AppMap
-    from app.core.execution.macro import synthesize_macros_task as _wrapped
-
-    _raw = getattr(_wrapped, "func", _wrapped)
-    import inspect
-
-    if not inspect.iscoroutinefunction(_raw):
-        for _cell in getattr(_raw, "__closure__", None) or []:
-            if inspect.iscoroutinefunction(_cell.cell_contents):
-                _raw = _cell.cell_contents
-                break
-
-    async with session_scope() as session:
-        result = await session.execute(
-            select(AppMap).where(
-                AppMap.project_id == project_id,
-                AppMap.status == "active",
-            )
-        )
-        app_maps = list(result.scalars().all())
-
-        r = await session.execute(
-            text("SELECT app_map_id, COUNT(*) FROM macros WHERE project_id = :pid GROUP BY app_map_id"),
-            {"pid": project_id},
-        )
-        existing_macros = dict(r.all())
-
-    for am in app_maps:
-        has_cn = any(("\u4e00" <= c <= "\u9fff") for alias in (am.aliases or []) for c in alias) if am.aliases else False
-        if not has_cn:
-            continue
-        if existing_macros.get(am.id, 0) > 0:
-            continue
-        try:
-            await _raw(app_map_id=am.id, project_id=project_id, member_id=0)
-        except Exception:
-            logger.debug("[Macro] regenerate failed for app_map %s", am.id)
 
 
 def _classify_action(name: str) -> tuple[str, str]:
@@ -458,21 +409,10 @@ async def build_entities_from_index(project_id: int, groups: dict) -> dict:
 
 
 async def batch_write_appmaps(project_id: int, entities: dict, member_id: int = 0) -> dict:
-    """Batch-write AppMap records and generate macros."""
-    import inspect
-
+    """Batch-write AppMap records."""
     from app.core.atlas.source.persistence import save_app_map
 
-    from app.core.execution.macro import synthesize_macros_task as _raw_sync
-
-    _raw = getattr(_raw_sync, "func", _raw_sync)
-    if not inspect.iscoroutinefunction(_raw):
-        for _cell in getattr(_raw, "__closure__", None) or []:
-            if inspect.iscoroutinefunction(_cell.cell_contents):
-                _raw = _cell.cell_contents
-                break
-
-    written = skipped = failed = macros_generated = 0
+    written = skipped = failed = 0
 
     for entity_name, data in sorted(entities.items()):
         try:
@@ -494,30 +434,18 @@ async def batch_write_appmaps(project_id: int, entities: dict, member_id: int = 
             else:
                 skipped += 1
 
-            if _raw is not None:
-                try:
-                    result = await _raw(
-                        app_map_id=app_map_id,
-                        project_id=project_id,
-                        member_id=member_id,
-                    )
-                    macros_generated += result.get("candidates", 0)
-                except Exception as exc:
-                    logger.warning("[MACRO] %s macro generation failed: %s", entity_name, exc)
-
         except Exception as exc:
             failed += 1
             logger.error("[FAIL] %s: %s", entity_name, exc)
 
     logger.info(
-        "Batch complete: %d written, %d skipped, %d failed, %d macros",
-        written, skipped, failed, macros_generated,
+        "Batch complete: %d written, %d skipped, %d failed",
+        written, skipped, failed,
     )
     return {
         "written": written,
         "skipped": skipped,
         "failed": failed,
-        "macros_generated": macros_generated,
     }
 
 

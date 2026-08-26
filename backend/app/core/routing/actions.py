@@ -14,7 +14,7 @@ from typing import Any
 
 from app.core.engine.worker_registry import WorkerRegistry
 from app.core.engine.worker_registry import worker_registry as _worker_registry
-from app.core.execution.macro import (
+from app.core.learning.macro import (
     VOICE_POLICY,
     WEB_POLICY,
     MacroEngine,

@@ -18,7 +18,7 @@ from app.core.context.cache import LayeredContextCache
 from app.core.engine.domain_mapping import resolve_domain
 from app.core.engine.hooks import HookContext, HookEvent, hook_system
 from app.core.engine.message.native_classes import RunnableConfig
-from app.core.execution.macro import list_active_macro_index
+from app.core.learning.macro import list_active_macro_index
 from app.core.routing.conversation_state import ConversationState
 from app.core.routing.schemas import (
     DOMAIN_AMBIGUOUS,

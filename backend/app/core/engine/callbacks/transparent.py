@@ -328,13 +328,6 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
                             fname,
                         )
 
-            if metadata.get("is_memory_tool"):
-                args = data if isinstance(data, dict) else {}
-                action = args.get("action", "")
-                key = args.get("key") or args.get("query") or args.get("name") or "Unknown"
-                memory_name = f"{action or tool_name}: {key[:30]}"
-                await self.monitor.set_active_memory(self.thread_id, f"tool-{tool_name}", memory_name)
-
     async def on_tool_end(self, output: str, **kwargs: Any) -> None:
         """Run when tool ends running."""
         run_id = str(kwargs.get("run_id", "default"))

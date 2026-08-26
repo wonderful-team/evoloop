@@ -35,6 +35,22 @@ class MemoryLifecycleSubscriber:
     Handles application-level lifecycle events for the Memory domain.
     """
 
+    @event_subscribe(SystemEventType.APP_STARTED)
+    async def on_application_started(self, event):
+        """Handle APP_STARTED - eagerly initialize the memory container.
+
+        Consumers access memory via ``MemoryLifespanManager`` (singleton) with a
+        lazy ``is_initialized() -> ainitialize()`` guard, so eager init here is a
+        warm-up only; anything needing memory before this handler is safe.
+        """
+        try:
+            from app.core.memory.lifespan import MemoryLifespanManager
+
+            await MemoryLifespanManager.ainitialize()
+            logger.info("[Memory] Memory container initialized")
+        except Exception as e:
+            logger.warning(f"[Memory] Failed to initialize memory container: {e}", exc_info=True)
+
     @event_subscribe(SystemEventType.APP_STOPPING)
     async def on_application_stopping(self, event):
         """Handle APP_STOPPING event - shutdown memory container."""

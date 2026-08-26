@@ -20,7 +20,7 @@ from app.core.events.schemas import (
 # Event model comes from the lightweight macro-event submodule (this module is a
 # low-level producer imported by embedding/config infra; importing the full macro
 # facade here would pull the whole execution engine into infra load and cycle).
-from app.core.execution.macro.event import MacroMutatedEvent
+from app.core.learning.macro.event import MacroMutatedEvent
 
 
 async def publish_app_started(startup_time: float) -> None:

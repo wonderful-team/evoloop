@@ -55,7 +55,7 @@ class MacroResolver:
         consistent with the Init Spec (which also keeps the newest macro for a
         repeated pattern).
         """
-        from app.core.execution.macro import list_macros
+        from app.core.learning.macro.service import MacroService
 
         macros = await list_macros(status="verified", is_active=True)
         macros = [
