@@ -1,5 +1,6 @@
 """Health checking for MCP connections."""
 
+import asyncio
 import logging
 import time
 
@@ -40,8 +41,13 @@ class McpHealthChecker:
         start_time = time.time()
 
         try:
-            # Use list_tools as health check
-            await session.list_tools()
+            # Use list_tools as health check。注意：退化会话上 list_tools 会挂起
+            # （"ping 通但会话已退化"），必须加超时，否则死会话上的健康检查会
+            # 永久阻塞调用方（如推送轮巡），拖死整个值守调度器。
+            await asyncio.wait_for(
+                session.list_tools(),
+                timeout=self.timeout_seconds,
+            )
 
             response_time = (time.time() - start_time) * 1000
             self._last_check[server_name] = time.time()

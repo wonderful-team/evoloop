@@ -41,7 +41,7 @@ async def cancel_hitl_request(req: CancelHITLRequest, bg_tasks: BackgroundTasks)
         else:
             # 无 DB 请求但 activity 可能残留 → 手动清理状态
             await activity_monitor.clear_human_request(req.thread_id)
-        session.inject_resume("CANCELLED", is_cancel=True)
+        session.inject_resume(HITLDecision.CANCELLED.value, is_cancel=True)
         return CancelHITLResponse(
             status="cancelled",
             thread_id=req.thread_id,

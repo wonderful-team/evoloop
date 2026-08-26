@@ -4,6 +4,10 @@ import logging
 from app.core.engine.message.category import MessageCategory
 from app.core.engine.message.publisher import MessagePublisher
 from app.core.engine.message.schemas import MessageHandlerResult
+from app.core.hitl.constants import (
+    MESSAGE_ACTION_TYPE_HUMAN_REQUEST,
+    MESSAGE_STATUS_WAITING_HUMAN,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -58,8 +62,8 @@ class UserMessageMixin:
             role="system",
             content=content,
             category=MessageCategory.HITL_REQUEST.value,
-            action_type="human_request",
-            status="waiting_human",
+            action_type=MESSAGE_ACTION_TYPE_HUMAN_REQUEST,
+            status=MESSAGE_STATUS_WAITING_HUMAN,
             is_visible=True,
             content_type="json",
             tool_call_id=tool_call_id or request_id,
@@ -73,7 +77,7 @@ class UserMessageMixin:
             role="system",
             content=content,
             category=MessageCategory.HITL_REQUEST.value,
-            status="waiting_human",
+            status=MESSAGE_STATUS_WAITING_HUMAN,
             sequence_number=seq,
             tool_name=tool_name,
             tool_call_id=tool_call_id or request_id,

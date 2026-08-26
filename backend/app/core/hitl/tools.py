@@ -2,7 +2,7 @@
 Human-in-the-Loop Tools for Agent collaboration with users.
 Enables the agent to pause execution, request user input, and seek approval for actions.
 
-This module is now a thin wrapper around app.core.hitl; the shared HITL primitives
+This module is a thin wrapper around app.core.hitl; the shared HITL primitives
 live there so they can also be used by the authorization framework.
 """
 
@@ -12,10 +12,16 @@ from typing import Any, Literal
 from pydantic import BaseModel
 
 from app.core.hitl.batch_grants import create_pending_grant, update_grant_request_id
-from app.core.hitl.core import create_request, push_hitl_notification, raise_hitl_interrupt
+from app.core.hitl.constants import DEFAULT_BATCH_GRANT_TTL_SECONDS
+from app.core.hitl.core import (
+    create_request,
+    push_hitl_notification,
+    raise_hitl_interrupt,
+)
 from app.core.hitl.prompts import build_approval_context, resolve_tool_context
+from app.core.hitl.schemas import RequestApprovalArgs, RequestHumanInputArgs
+from app.core.hitl.types import HITLDecision, HumanRequestType
 from app.core.tools import evoloop_tool
-from app.domain.tools.schemas import RequestApprovalArgs, RequestHumanInputArgs
 from app.i18n.service import i18n
 from app.utils.id import gen_uuid
 
@@ -247,15 +253,15 @@ async def ask_confirm(
         thread_id=thread_id,
         request_id="",
         operations=ops,
-        ttl_seconds=300,
+        ttl_seconds=DEFAULT_BATCH_GRANT_TTL_SECONDS,
     )
 
     request = await create_request(
         thread_id=thread_id,
-        request_type="approval",
+        request_type=HumanRequestType.APPROVAL.value,
         prompt=action_description,
         context=approval_context,
-        default_value="REJECTED",
+        default_value=HITLDecision.REJECTED.value,
     )
 
     update_grant_request_id(grant_id, request.id)
@@ -265,10 +271,10 @@ async def ask_confirm(
         request=request,
         request_data={
             "id": request.id,
-            "type": "approval",
+            "type": HumanRequestType.APPROVAL.value,
             "prompt": action_description,
             "context": approval_context,
-            "default_value": "REJECTED",
+            "default_value": HITLDecision.REJECTED.value,
             "risk_level": risk_level,
             "batch_grant_id": grant_id,
             "operations": ops,

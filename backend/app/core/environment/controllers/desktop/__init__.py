@@ -1,7 +1,7 @@
 """
 Desktop Controller — Core macOS desktop automation.
 
-Extracted from app.domain.tools.environment.desktop to allow:
+Extracted from app.core.environment.tools.desktop to allow:
   1. Direct invocation by MacroEngine without @evoloop_tool overhead.
   2. Clean separation between capability logic (here) and Agent-facing
      tool interface (domain/tools/environment/desktop.py thin wrapper).

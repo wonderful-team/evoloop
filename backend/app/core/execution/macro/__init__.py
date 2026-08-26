@@ -49,7 +49,6 @@ __all__ = [
     # 编译 / 创建 / 迁移
     "MacroScriptCompiler",
     "MacroCreatorService",
-    "migrate_deterministic_skills",
     # 任务 / 工具
     "synthesize_macros_task",
     "native_macro_maintenance",
@@ -102,7 +101,6 @@ _SYMBOL_MODULES: dict[str, str] = {
     # 编译 / 创建 / 迁移
     "MacroScriptCompiler": "app.core.execution.macro.compiler",
     "MacroCreatorService": "app.core.execution.macro.macro_creator_service",
-    "migrate_deterministic_skills": "app.core.execution.macro.migration",
     # 任务 / 工具
     "synthesize_macros_task": "app.core.execution.macro.tasks",
     "native_macro_maintenance": "app.core.execution.macro.maintenance",

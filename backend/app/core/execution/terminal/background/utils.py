@@ -22,9 +22,7 @@ def get_thread_id(config: RunnableConfig | None) -> str:
     return ctx.thread_id or ctx.request_id or "default"
 
 
-def format_command_result(
-    stdout: str, stderr: str, returncode: int, command: str = ""
-) -> str:
+def format_command_result(stdout: str, stderr: str, returncode: int, command: str = "") -> str:
     if stdout.count("\n") + stderr.count("\n") > MAX_OUTPUT_LINES:
         stdout_lines = stdout.split("\n")
         stderr_lines = stderr.split("\n")
@@ -57,7 +55,7 @@ def format_command_result(
     except Exception:
         output_details = f"STDOUT:\n{stdout}\n\nSTDERR:\n{stderr}"
 
-    if returncode == 0:
-        return ControllerResponse.success(status_msg, details=output_details)
-    else:
+    if returncode != 0:
         return ControllerResponse.error(status_msg, details=output_details)
+
+    return ControllerResponse.success(status_msg, details=output_details)

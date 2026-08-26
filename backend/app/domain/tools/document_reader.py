@@ -6,7 +6,7 @@ from app.core.context.manager import ContextManager
 from app.core.file import ensure_local_path, read_file, resolve_path
 from app.core.file.document_reader import document_reader_service
 from app.core.tools import evoloop_tool
-from app.domain.tools.files.formatting import format_file_content, format_spreadsheet
+from app.core.file.tools.formatting import format_file_content, format_spreadsheet
 from app.domain.tools.schemas import (
     DocxHeading,
     DocxInspectionResult,
@@ -119,7 +119,7 @@ async def query_excel_sql(file_path: str, sql_query: str) -> str:
         query_excel_sql(file_path="sales_data.xlsx", sql_query="SELECT * FROM data WHERE revenue > 10000")
     """
     # Import here to avoid circular imports
-    from app.domain.tools.files.utils import resolve_and_validate_path
+    from app.core.file.tools.utils import resolve_and_validate_path
 
     try:
         # Resolve and validate path for security

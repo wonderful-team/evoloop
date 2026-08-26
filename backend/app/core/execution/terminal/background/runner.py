@@ -8,12 +8,12 @@ import signal
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.context import ContextManager
 from app.core.engine.message.native_classes import RunnableConfig
+from app.core.execution.terminal.background import CreateBackgroundTaskRequest, TaskType, task_manager
+from app.core.execution.terminal.background.utils import format_command_result, get_thread_id
 from app.core.project.utils import get_workspace_root
 from app.core.security.command import has_workspace_escape, is_dangerous_command
 from app.core.security.path import get_allowed_roots
 from app.core.tools import get_working_directory
-from app.core.tools.background import CreateBackgroundTaskRequest, TaskType, task_manager
-from app.domain.tools.execution._utils import format_command_result, get_thread_id
 
 logger = logging.getLogger(__name__)
 
@@ -35,11 +35,7 @@ def _terminate_process_group(process: asyncio.subprocess.Process) -> None:
         pass
 
 
-async def execute_in_background(
-    command: str,
-    timeout: int,
-    config: RunnableConfig | None,
-) -> str:
+async def execute_in_background(command: str, timeout: int, config: RunnableConfig | None) -> str:
     thread_id = get_thread_id(config)
 
     task = await task_manager.create_task(
@@ -66,12 +62,7 @@ async def execute_in_background(
     )
 
 
-async def run_command_background(
-    task,
-    command: str,
-    timeout: int,
-    config: RunnableConfig | None,
-):
+async def run_command_background(task, command: str, timeout: int, config: RunnableConfig | None):
     try:
         ctx = ContextManager.current()
         working_dir = get_working_directory(config)
@@ -143,10 +134,7 @@ async def run_command_background(
             if exit_code == 0:
                 await task_manager.complete_task(task.task_id, result={"exit_code": 0})
             else:
-                await task_manager.fail_task(
-                    task.task_id,
-                    error=f"Command exited with code {exit_code}",
-                )
+                await task_manager.fail_task(task.task_id, error=f"Command exited with code {exit_code}")
         except asyncio.TimeoutError:
             try:
                 os.killpg(os.getpgid(process.pid), signal.SIGKILL)
@@ -159,11 +147,7 @@ async def run_command_background(
         await task_manager.fail_task(task.task_id, error=str(e))
 
 
-async def execute_smart(
-    command: str,
-    timeout: int,
-    config: RunnableConfig | None,
-) -> str:
+async def execute_smart(command: str, timeout: int, config: RunnableConfig | None) -> str:
     thread_id = get_thread_id(config)
     quick_timeout = min(timeout, 60)
 
@@ -186,9 +170,7 @@ async def execute_smart(
     ctx = ContextManager.current()
     working_dir = get_working_directory(config)
 
-    if ctx.project_id == DEFAULT_PROJECT_ID or (
-        ctx.project_id is None and working_dir == "."
-    ):
+    if ctx.project_id == DEFAULT_PROJECT_ID or (ctx.project_id is None and working_dir == "."):
         workspace_root = get_workspace_root()
         if workspace_root:
             working_dir = workspace_root
@@ -290,13 +272,9 @@ async def execute_smart(
                 await asyncio.wait_for(read_task, timeout=remaining)
                 exit_code = await asyncio.wait_for(process.wait(), timeout=5.0)
                 if exit_code == 0:
-                    await task_manager.complete_task(
-                        task.task_id, result={"exit_code": 0}
-                    )
+                    await task_manager.complete_task(task.task_id, result={"exit_code": 0})
                 else:
-                    await task_manager.fail_task(
-                        task.task_id, error=f"Exit code: {exit_code}"
-                    )
+                    await task_manager.fail_task(task.task_id, error=f"Exit code: {exit_code}")
             except asyncio.TimeoutError:
                 try:
                     os.killpg(os.getpgid(process.pid), signal.SIGKILL)

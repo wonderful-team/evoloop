@@ -37,6 +37,16 @@ async def triage_app_batch(app_ids: list[str]) -> dict[str, dict]:
         purpose="environment_exploration",
         temperature=0,
         max_tokens=4000,
+        # 分类任务不需要深度思考：
+        # - thinking:{type:disabled} 是 DeepSeek 官方关思考的参数（网关已透传）；
+        # - enable_thinking/return_reasoning 兜底 DashScope 风格兼容上游，
+        #   并中和 evoloop 默认注入的 enable_thinking=true，避免冲突。
+        # 避免推理把 max_tokens 预算全耗在 reasoning_content 上、答案为空。
+        extra_body={
+            "thinking": {"type": "disabled"},
+            "enable_thinking": False,
+            "return_reasoning": False,
+        },
     )
 
     content = response.content.strip()

@@ -245,20 +245,21 @@ cleanup_interval=300  # 5分钟清理一次，可调
 ```python
 # app/domain/tools/execution.py
 
-from app.core.tools.background import task_manager, TaskType
+from app.core.execution.terminal.background import task_manager, TaskType
+
 
 async def execute_command(
-    command: str,
-    background: bool = False,
-    timeout: int = 60,
-    config: RunnableConfig = None,
+        command: str,
+        background: bool = False,
+        timeout: int = 60,
+        config: RunnableConfig = None,
 ) -> str:
     thread_id = _get_thread_id(config)
-    
+
     if not background:
         # 原有同步逻辑
         return await _execute_sync(command, timeout)
-    
+
     # 后台模式
     task = await task_manager.create_task(
         task_type=TaskType.COMMAND,
@@ -267,10 +268,10 @@ async def execute_command(
         thread_id=thread_id,
         timeout_seconds=timeout,
     )
-    
+
     # 启动后台执行
     asyncio.create_task(_run_in_background(task, command))
-    
+
     return (
         f"🚀 后台任务已启动\n"
         f"任务ID: `{task.task_id}`\n"
@@ -286,31 +287,32 @@ async def _run_in_background(task: BackgroundTask, command: str):
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
-    
+
     # 标记开始
     await task_manager.start_task(task.task_id, process.pid)
-    
+
     # 设置取消回调
     def cancel():
         process.terminate()
+
     task.set_cancel_callback(cancel)
-    
+
     # 读取输出
     while True:
         line = await process.stdout.readline()
         if not line:
             break
         task_manager.append_output(task.task_id, line.decode())
-    
+
     # 等待完成
     await process.wait()
-    
+
     # 标记完成
     if process.returncode == 0:
         await task_manager.complete_task(task.task_id)
     else:
         await task_manager.fail_task(
-            task.task_id, 
+            task.task_id,
             f"Exit code: {process.returncode}"
         )
 ```

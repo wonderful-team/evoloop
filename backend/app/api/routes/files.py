@@ -49,7 +49,7 @@ def _assert_path_allowed(target_path: str) -> None:
     if normalized.startswith(upload_dir):
         return
 
-    # Allow all ALLOWED_PATH_PREFIXES (same as resolve_and_validate_path)
+    # Allow all ALLOWED_PATH_PREFIXES
     for prefix in settings.ALLOWED_PATH_PREFIXES:
         expanded = os.path.realpath(os.path.expanduser(prefix))
         if normalized.startswith(expanded):

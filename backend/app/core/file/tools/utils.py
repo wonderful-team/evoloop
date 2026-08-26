@@ -8,9 +8,7 @@ from app.core.tools import get_working_directory
 from app.i18n.service import i18n
 
 
-async def resolve_and_validate_path(
-    path: str, config: RunnableConfig | None = None
-) -> str:
+async def resolve_and_validate_path(path: str, config: RunnableConfig | None = None) -> str:
     """
     Resolve path and perform security check.
 
@@ -25,7 +23,7 @@ async def resolve_and_validate_path(
     Raises ValueError on security violation or resolution failure.
     """
     if path.strip() in ("/", ""):
-        path = "."
+        path = ""
 
     normalized_path = path.lstrip("/")
 
@@ -83,9 +81,7 @@ async def _resolve_uploads_path(path: str, config: RunnableConfig | None = None)
 
     # 优先级 1: 会话隔离目录 (~/.evoloop/uploads/{thread_id}/)
     if thread_id:
-        thread_isolated_path = os.path.join(
-            settings.CHAT_UPLOAD_DIR, thread_id, filename
-        )
+        thread_isolated_path = os.path.join(settings.CHAT_UPLOAD_DIR, thread_id, filename)
         if os.path.exists(thread_isolated_path):
             return thread_isolated_path
 

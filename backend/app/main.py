@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import time
@@ -15,9 +16,6 @@ from app.core.config import settings
 from app.core.context.middleware import ContextMiddleware
 from app.core.routing.deps import is_loopback_host
 from app.infrastructure.database.resource_manager import db_resource_manager
-from app.core.execution.macro import (
-    migrate_deterministic_skills,
-)
 
 logging.basicConfig(level=settings.LOG_LEVEL)
 logging.getLogger("sqlalchemy.engine.Engine").setLevel(logging.WARNING)

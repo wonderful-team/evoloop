@@ -10,7 +10,7 @@ import unicodedata
 # Add backend to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.domain.tools.environment.mobile import mobile_control
+from app.core.environment.tools.mobile import mobile_control
 from app.infrastructure.drivers.adb import adb_driver
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')

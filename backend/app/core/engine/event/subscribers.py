@@ -30,6 +30,7 @@ from app.core.events.decorators import event_register, event_subscribe
 from app.core.evocloud.bridge.conversation_sync import get_conversation_sync_manager
 from app.core.evocloud.manager import evocloud_manager
 from app.core.evocloud.schemas import RemoteCommand
+from app.core.hitl.types import HITLDecision
 from app.core.identity import identity_service
 from app.core.schemas.canonical import MessageType
 from app.infrastructure.database import session_scope

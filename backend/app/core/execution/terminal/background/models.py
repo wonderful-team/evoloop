@@ -3,6 +3,7 @@ Data models for background task management.
 """
 
 import asyncio
+import logging
 from collections import deque
 from collections.abc import Callable
 from datetime import datetime
@@ -10,8 +11,14 @@ from typing import Any
 
 from pydantic import ConfigDict, Field
 
-from app.core.tools.schemas import TaskMetadata, TaskStatus, TaskType
+from app.core.execution.terminal.background.schemas import (
+    TaskMetadata,
+    TaskStatus,
+    TaskType,
+)
 from app.infrastructure.pydantic_base import DynamicBaseModel
+
+logger = logging.getLogger(__name__)
 
 
 class BackgroundTask(DynamicBaseModel):
@@ -180,10 +187,7 @@ class BackgroundTask(DynamicBaseModel):
                 else:
                     self.cancel_fn()
             except (TypeError, ValueError, RuntimeError, OSError) as e:
-                # Log but don't fail
-                import logging
-
-                logging.getLogger(__name__).warning(f"Cancel callback failed: {e}")
+                logger.warning(f"Cancel callback failed: {e}")
 
         self.completed_at = datetime.now()
         return True

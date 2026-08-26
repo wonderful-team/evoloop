@@ -27,9 +27,7 @@ def _resolve_project_id() -> int | None:
     return ContextManager.resolve_project_id(allow_global=False, request_temp=True)
 
 
-@evoloop_tool(
-    is_state_mutating=True, summary_template="evoloop.tool_summary.write_app_map"
-)
+@evoloop_tool(is_state_mutating=True, summary_template="evoloop.tool_summary.write_app_map")
 async def write_app_map(
     entity: str,
     platform: str,
@@ -145,9 +143,7 @@ async def list_app_maps(project_id: int | None = None) -> str:
     return ControllerResponse.success("\n".join(lines))
 
 
-@evoloop_tool(
-    is_state_mutating=True, summary_template="evoloop.tool_summary.generate_macros"
-)
+@evoloop_tool(is_state_mutating=True, summary_template="evoloop.tool_summary.generate_macros")
 async def generate_macros_from_app_map(app_map_id: int) -> str:
     """Request macro synthesis for one AppMap.
 

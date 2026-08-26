@@ -5,7 +5,7 @@ Provides lightweight task management for long-running tool operations.
 This is a pragmatic implementation - not a full job queue system.
 
 Usage:
-    from app.core.tools.background import BackgroundTaskManager, TaskType
+    from app.core.execution.terminal.background import BackgroundTaskManager, TaskType
 
     # Create task
     task = await task_manager.create_task(
@@ -21,16 +21,25 @@ Usage:
     status = task_manager.get_task(task.task_id)
 """
 
-from .manager import BackgroundTaskManager, CreateBackgroundTaskRequest
-from .models import BackgroundTask, TaskStatus, TaskType
+from .manager import BackgroundTaskManager
+from .models import BackgroundTask
+from .schemas import (
+    BackgroundTaskManagerStats,
+    CreateBackgroundTaskRequest,
+    TaskMetadata,
+    TaskStatus,
+    TaskType,
+)
 
 task_manager = BackgroundTaskManager()
 
 __all__ = [
     "BackgroundTaskManager",
     "BackgroundTask",
+    "TaskMetadata",
     "TaskStatus",
     "TaskType",
     "task_manager",
     "CreateBackgroundTaskRequest",
+    "BackgroundTaskManagerStats",
 ]

@@ -111,8 +111,6 @@ async def _run_duty_poll_impl(project_id: int, kind: str | None = None) -> int:
     Args:
         kind: 指定执行种类；None 则按 active_channels 顺序执行各渠道线 + 业务巡检（兼容旧调度）。
     """
-    # 初始化 evocloud_manager，确保 worker 里 Agent LLM 调用有 Gateway token
-    # （否则 get_token() 空，LLM 推理挂起）
     from app.core.evocloud.manager import evocloud_manager
 
     _ = evocloud_manager.api  # 触发 initialize

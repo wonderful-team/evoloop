@@ -205,10 +205,6 @@ async def _request_macro_confirmation(macro, thread_id, original_args: dict) -> 
     current_tool_call_id = ctx_fields["tool_call_id"]
     last_ai_message_id = ctx_fields["parent_id"]
 
-    action_description = i18n.get(
-        "domain_tools.human_input.macro_action", name=macro.name, id=macro.id
-    )
-
     # 展开宏参数到确认信息：运营批准前需看到具体操作对象与值
     # （如改库存：query=片片, new_stock=555），而非仅有宏名。
     # 宏名/参数是业务数据（不翻译），其余文案走 i18n。
@@ -237,12 +233,7 @@ async def _request_macro_confirmation(macro, thread_id, original_args: dict) -> 
         f"ID：{macro.id}",
     ]
     if param_lines:
-        extra_lines.append(
-            i18n.get(
-                "domain_tools.human_input.macro_params",
-                params="，".join(param_lines),
-            )
-        )
+        extra_lines.append(i18n.get("domain_tools.human_input.macro_params", params="，".join(param_lines)))
     extra_lines.append(i18n.get("domain_tools.human_input.macro_confirm_prompt"))
 
     approval_context = build_approval_context(
@@ -252,10 +243,7 @@ async def _request_macro_confirmation(macro, thread_id, original_args: dict) -> 
     )
 
     # 源头去重：复用同线程同宏同参数的已有 pending 请求。
-    from app.core.hitl.core import (
-        _find_pending_by_key,
-        find_recently_approved_by_key,
-    )
+    from app.core.hitl.core import _find_pending_by_key, find_recently_approved_by_key
 
     existing = await _find_pending_by_key(thread_id, "run_macro", original_args)
     if existing:
@@ -275,9 +263,7 @@ async def _request_macro_confirmation(macro, thread_id, original_args: dict) -> 
     # 循环重试去重：同宏同参数最近已批准（窗口内 completed）时，不再创建新的
     # approval 请求——Supervisor 在批准后若因未收到结束信号反复发起同一宏，
     # 应复用已批准语义，避免对运营轰炸重复确认请求。
-    recently_approved = await find_recently_approved_by_key(
-        thread_id, "run_macro", original_args
-    )
+    recently_approved = await find_recently_approved_by_key(thread_id, "run_macro", original_args)
     if recently_approved:
         logger.info(
             "[run_macro] Skipping repeat confirmation for macro=%s (id=%s), "

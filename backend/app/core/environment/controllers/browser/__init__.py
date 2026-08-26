@@ -1,7 +1,7 @@
 """
 Browser Controller — Core Playwright-based browser automation.
 
-Extracted from app.domain.tools.environment.browser to allow:
+Extracted from app.core.environment.tools.browser to allow:
   1. Direct invocation by MacroEngine without @evoloop_tool overhead.
   2. Clean separation between capability logic (here) and Agent-facing
      tool interface (domain/tools/environment/browser.py thin wrapper).

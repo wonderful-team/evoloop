@@ -7,6 +7,7 @@ from app.constants import DEFAULT_PROJECT_ID
 from app.core.context.manager import ContextManager
 from app.core.evocloud.manager import evocloud_manager
 from app.core.evocloud.schemas import AgentTask, AgentTaskResult, TaskAttachment
+from app.core.hitl.constants import MESSAGE_CATEGORY_HITL_REQUEST
 from app.core.tools import evoloop_tool
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.pydantic_base import DynamicBaseModel
@@ -190,7 +191,7 @@ async def send_agent_task(
     await repo.persist(
         role="system",
         content=f"Waiting for A2A subtask callback from device {target_device_key}...",
-        category="hitl_request",
+        category=MESSAGE_CATEGORY_HITL_REQUEST,
         tool_call_id=tool_call_id,
         tool_name="SendAgentTaskTool",
         is_visible=True,

@@ -1,5 +1,6 @@
 """Transport layer for MCP connections (stdio and SSE)."""
 
+import asyncio
 import logging
 import os
 import sys
@@ -138,7 +139,12 @@ class McpTransport:
         return TransportContext(config)
 
     @staticmethod
-    async def create_session(read_stream: Any, write_stream: Any, message_handler: Any | None = None) -> ClientSession:
+    async def create_session(
+        read_stream: Any,
+        write_stream: Any,
+        message_handler: Any | None = None,
+        timeout: float | None = None,
+    ) -> ClientSession:
         """
         Create and initialize a ClientSession.
 
@@ -150,10 +156,16 @@ class McpTransport:
         method 会在类型校验阶段抛异常被丢弃。这里 monkey-patch 一个宽松类型，
         使自定义 notification 能通过校验并分发到 ``message_handler``。
 
+        注意：``__aenter__``（启动接收循环任务组）必须在**当前任务**执行——
+        放进 ``asyncio.wait_for`` 子任务会在退出时跨任务销毁 cancel scope，
+        杀死接收循环、导致后续所有工具调用失败。因此这里只给 ``initialize()``
+        加超时（它是唯一可能挂起、且不创建任务组的调用）。
+
         Args:
             read_stream: Read stream from transport
             write_stream: Write stream from transport
             message_handler: 可选入站消息处理器（mcp ClientSession.message_handler）。
+            timeout: initialize() 超时秒数；None 不超时。
 
         Returns:
             Initialized ClientSession
@@ -162,5 +174,18 @@ class McpTransport:
 
         session = ClientSession(read_stream, write_stream, message_handler=message_handler)
         await session.__aenter__()
-        await session.initialize()
+        try:
+            if timeout is not None:
+                await asyncio.wait_for(session.initialize(), timeout=timeout)
+            else:
+                await session.initialize()
+        except BaseException:
+            # initialize 失败（含超时被 wait_for 取消）时，session 的 receive-loop
+            # task group（cancel scope）已经在本任务进入。若不在本函数内先退出
+            # session，调用方（如 manager）的 transport 退出会因"当前 cancel scope
+            # 不是自己的"而报 "Attempted to exit a cancel scope..."。这里先退出
+            # session、弹出其 scope，再把原异常抛给调用方。
+            exc_info = sys.exc_info()
+            await session.__aexit__(*exc_info)
+            raise
         return session

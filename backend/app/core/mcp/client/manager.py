@@ -1,5 +1,6 @@
 """MCP Client Manager - manages connections to external MCP servers."""
 
+import asyncio
 import json
 import logging
 import os
@@ -7,6 +8,8 @@ from contextlib import AsyncExitStack
 from typing import Any
 
 from sqlalchemy import select
+
+from mcp import ClientSession
 
 from app.core.events.base import BaseEvent, EventData, system_bus
 from app.core.events.registry import SystemEventType

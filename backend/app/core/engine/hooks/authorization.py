@@ -18,6 +18,7 @@ from app.core.hitl.authorization import AuthorizationDecision, AuthorizationServ
 from app.core.hitl.policies import AuthorizationPolicy
 from app.core.project.utils import get_project_path
 from app.core.security.path import is_path_safe, is_project_metadata_path
+from app.i18n.service import i18n
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,7 @@ def _path_contains_evoloop(tool_input: ToolInput | None) -> bool:
 
     The global EvoLoop app data directory (``~/.evoloop``) is explicitly allowed;
     only ``.evoloop`` directories inside project workspaces are protected.
+    Also scans ``execute_command`` command text: shell 访问项目元数据同样禁止。
     """
     if tool_input is None:
         return False
@@ -52,8 +54,8 @@ def _extract_path_from_input(tool_name: str, tool_input: ToolInput | None) -> tu
     if tool_input is None:
         return None
     path = tool_input.path
+    action = "write" if "write" in tool_name or "replace" in tool_name else "read"
     if path:
-        action = "write" if "write" in tool_name or "replace" in tool_name else "read"
         return str(path), action
     if tool_input.args:
         for key in (
@@ -66,7 +68,6 @@ def _extract_path_from_input(tool_name: str, tool_input: ToolInput | None) -> tu
         ):
             val = tool_input.args.get(key)
             if val and isinstance(val, str):
-                action = "write" if "write" in tool_name or "replace" in tool_name else "read"
                 return val, action
     return None
 
@@ -99,7 +100,7 @@ async def authorization_gate(context: HookContext) -> HookResult:
     if _path_contains_evoloop(context.tool_input):
         return HookResult(
             block=True,
-            message="[SECURITY VIOLATION] Access to project metadata (.evoloop) is prohibited.",
+            message=i18n.get("engine.authorization.metadata_access_prohibited"),
         )
 
     auth_service = AuthorizationService(context.project_id)
@@ -156,12 +157,18 @@ async def authorization_gate(context: HookContext) -> HookResult:
                     patterns=[resource_path],
                     requires_approval=True,
                     risk_level="high",
-                    description=f"Sensitive file access outside allowed workspace boundaries: {resource_path}",
+                    description=i18n.get(
+                        "engine.authorization.outside_workspace_description",
+                        resource_path=resource_path,
+                    ),
                 )
                 decision = AuthorizationDecision(
                     approved=False,
                     requires_hitl=True,
-                    reason=f"Access to {resource_path} requires user approval (outside workspace/allowed boundaries)",
+                    reason=i18n.get(
+                        "engine.authorization.outside_workspace_reason",
+                        resource_path=resource_path,
+                    ),
                     policy=policy,
                     resource_path=resource_path,
                     action=action,
@@ -227,5 +234,9 @@ async def authorization_gate(context: HookContext) -> HookResult:
     # Block without HITL (policy match but approval not available / error path)
     return HookResult(
         block=True,
-        message=f"[AUTHORIZATION DENIED] {decision.reason}",
+        message=i18n.get(
+            "engine.authorization.denied_message",
+            default=f"[AUTHORIZATION DENIED] {decision.reason}",
+            reason=decision.reason,
+        ),
     )

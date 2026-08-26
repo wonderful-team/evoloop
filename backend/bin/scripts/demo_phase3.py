@@ -7,7 +7,7 @@ This demonstrates the menu and dock control capabilities of EvoLoop.
 import asyncio
 
 from app.infrastructure.drivers.macos_menu import macos_menu_driver
-from app.domain.tools.environment.dock import list_dock_icons
+from app.core.environment.tools.dock import list_dock_icons
 
 
 def demo_menu_structure():

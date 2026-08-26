@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from typing import Any
@@ -39,6 +40,11 @@ class MpcKfChannel(DutyChannel):
 
     # 企微微信客服单条消息长度上限（复用 GUI 线实测值，取安全余量）
     MAX_MESSAGE_LEN = 1500
+
+    # 单次 Agent delivery 上限（秒）：防上一轮 Agent（长任务/HITL）把 poll 无限阻塞，
+    # 导致在飞登记长期占住、后续每 60s 的轮巡被跳过（"客服不主动轮询"）。
+    # 超时后会话在后台继续跑，回复经 on_session_completed 事件到达（见下方处理器）。
+    DUTY_KF_DELIVERY_TIMEOUT = 60
 
     _instance: MpcKfChannel | None = None
 

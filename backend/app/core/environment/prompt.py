@@ -79,7 +79,7 @@ class AppEnvironmentPrompt:
 def _get_active_background_tasks() -> list[dict]:
     try:
         from app.core.context import ContextManager
-        from app.core.tools.background import task_manager
+        from app.core.execution.terminal.background import task_manager
 
         ctx = ContextManager.current()
         thread_id = ctx.thread_id

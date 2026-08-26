@@ -39,14 +39,14 @@ import logging
 from datetime import datetime, timedelta
 from typing import Any
 
-from app.core.tools.schemas import (
+from app.core.events import system_bus
+from app.core.execution.terminal.background.schemas import (
     BackgroundTaskManagerStats,
     CreateBackgroundTaskRequest,
 )
+from app.core.tools.event import BackgroundTaskEvent, BackgroundTaskOutputEvent
 from app.utils.id import gen_uuid_hex
 
-from ...events import system_bus
-from ..event import BackgroundTaskEvent, BackgroundTaskOutputEvent
 from .models import BackgroundTask, TaskStatus
 
 logger = logging.getLogger(__name__)
@@ -143,10 +143,7 @@ class BackgroundTaskManager:
 
     # ==================== Task Lifecycle ====================
 
-    async def create_task(
-        self,
-        request: CreateBackgroundTaskRequest,
-    ) -> BackgroundTask:
+    async def create_task(self, request: CreateBackgroundTaskRequest) -> BackgroundTask:
         """
         Create a new background task.
 

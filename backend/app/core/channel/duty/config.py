@@ -14,7 +14,7 @@ import json
 import logging
 import os
 
-from app.core.project.utils import get_project_path, read_project_json
+from app.core.project.utils import get_project_path, read_project_json, write_project_json
 from app.infrastructure.config.service import SystemConfigService
 
 logger = logging.getLogger(__name__)
@@ -120,13 +120,15 @@ async def load_duty_config(project_id: int) -> dict:
 
 
 async def save_business_poll_prompts(project_id: int, prompts: list[dict]) -> None:
-    """写业务巡检任务列表（含更新后的 next_run_at）到项目 project.json。"""
-    from app.core.project.utils import (
-        get_project_path,
-        read_project_json,
-        write_project_json,
-    )
+    """写业务巡检任务列表（含更新后的 next_run_at）到项目 project.json。
 
+    业务巡检任务（``business_poll_prompts``）是值守逻辑，合并语义归本模块；
+    实际读写通过 project 层的通用 I/O（``app.core.project.utils``）完成。
+
+    只更新调度字段（next_run_at/enabled/interval_minutes），**保留文件当前
+    prompt 文案**——避免 worker 读-改-写把运营手动编辑过的提示词覆盖回旧版。
+    文件当前不存在的 prompt（新任务）才整条写入。
+    """
     path = await get_project_path(project_id)
     if not path:
         return

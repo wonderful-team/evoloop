@@ -20,7 +20,7 @@ from app.core.atlas import atlas_engine
 from app.core.atlas.models import AtlasApp, AtlasElement, AtlasState
 from app.core.atlas.strategy import AtlasStrategyStore
 from app.core.environment.explorers.dynamic_apps import DynamicAppTriage
-from app.domain.tools.environment.mobile import mobile_control
+from app.core.environment.tools.mobile import mobile_control
 from app.infrastructure.drivers.adb import adb_driver, ADBError
 
 

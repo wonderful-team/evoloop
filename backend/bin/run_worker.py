@@ -15,6 +15,7 @@ import asyncio
 import logging
 import signal
 import sys
+import threading
 from pathlib import Path
 
 # Add parent directory to path
@@ -104,44 +105,27 @@ def run_huey_worker(workers: int = 1, verbose: bool = False):
     except Exception as e:
         logger.warning(f"[Worker] Failed to pre-register tools: {e}")
 
-    # Register the WeCom duty channel as an OUTPUT channel (reusing the voice
-    # MessageBlock → output-channel pipeline so Supervisor can send a brief
-    # reassurance reply before routing a task to Worker). The duty poll path
-    # instantiates WeComDutyChannel lazily; the output-channel registration must
-    # exist in the worker process where duty runs (worker does not publish
-    # APP_STARTED, so register_default_channels() in main.py never runs here).
-    logger.info("[Worker] Registering wecom_duty output channel...")
-    try:
-        from app.core.channel import channel_registry
-        from app.core.channel.duty.wecom.channel import WeComDutyChannel
+    # 注：wecom_duty 输出渠道注册已在值守搬至 API 进程后移除（run_worker.py 历史代码）。
+    # 值守 Agent 在 API 进程运行，wecom_duty 由 app.main.lifespan 注册；worker 不再需要。
 
-        channel_registry.register(WeComDutyChannel())
-        logger.info("[Worker] wecom_duty output channel registered")
-    except Exception as e:
-        logger.warning(f"[Worker] Failed to register wecom_duty output channel: {e}")
-
-    # Pre-load MCP servers inside the Huey worker thread (not the main thread).
-    # huey's on_startup hooks run in each worker thread's initialize(), so the
-    # event loop created here is the SAME loop that _run_async_task reuses for
-    # tasks. MCP sessions bound here are therefore used in-loop by Agent runs
-    # (no cross-loop AsyncExitStack hangs).
+    # 创建 worker 线程的持久事件循环（on_startup hook）并持续驱动。
     huey = scheduler.get_huey()
 
-    @huey.on_startup(name="preload_mcp_servers")
-    def _preload_mcp():
-        import asyncio as _asyncio
+    @huey.on_startup(name="setup_worker_event_loop")
+    def _setup_worker_loop():
+        """创建 worker 线程的持久事件循环并持续驱动。
 
-        logger.info("[Worker] Pre-loading MCP servers (worker thread)...")
+        值守已搬至 API 进程（MCP 初始化/连接也随之搬到 API），worker 不再需要 MCP。
+        这里只保留事件循环基础设施：_run_async_task 复用此 loop + 后台线程
+        run_forever 持续驱动，供 worker 上的非值守异步任务/Agent 会话使用。
+        """
+        logger.info("[Worker] Setting up worker event loop...")
         try:
-            from app.core.mcp import mcp_client_manager
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
 
-            loop = _asyncio.new_event_loop()
-            _asyncio.set_event_loop(loop)
-
-            async def _connect_mcp():
-                from app.infrastructure.database.resource_manager import (
-                    db_resource_manager,
-                )
+            async def _init():
+                from app.infrastructure.database.resource_manager import db_resource_manager
 
                 await db_resource_manager.initialize(create_tables=False,
                                                      seed_data=False)
@@ -149,14 +133,24 @@ def run_huey_worker(workers: int = 1, verbose: bool = False):
                 from app.core.state import shared_state
 
                 await shared_state.reload_persisted()
-                if not mcp_client_manager._configs:
-                    results = await mcp_client_manager.connect_all()
-                    ok = sum(1 for r in results if r.success)
-                    logger.info(f"[Worker] MCP servers connected: {ok}/{len(results)}")
 
-            loop.run_until_complete(_connect_mcp())
+            loop.run_until_complete(_init())
+
+            # 关键：让该事件循环**持续运行**。否则 loop 只在每个 Huey 任务执行期间
+            # 由 run_until_complete 驱动，任务间隙循环空闲——后台 asyncio 任务
+            # （如非值守 Agent 会话的 LLM 流式调用）会被冻结、拖慢上百倍。
+            def _drive_loop_forever():
+                asyncio.set_event_loop(loop)
+                loop.run_forever()
+
+            threading.Thread(
+                target=_drive_loop_forever,
+                name="worker-event-loop",
+                daemon=True,
+            ).start()
+            logger.info("[Worker] Worker event loop running continuously (run_forever)")
         except Exception as e:
-            logger.warning(f"[Worker] Failed to pre-load MCP servers: {e}")
+            logger.warning(f"[Worker] Failed to setup worker event loop: {e}")
 
     logger.info("[Worker] Initializing Huey Consumer...")
 

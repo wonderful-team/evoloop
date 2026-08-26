@@ -10,6 +10,9 @@ Cadence task lives in app/core/execution/macro/tasks.py (Huey).
 from __future__ import annotations
 
 import logging
+import os
+
+from sqlalchemy import select
 
 from app.core.atlas.source.native_factory import generate_for_atlas_app
 from app.core.atlas.surveyor import AtlasSurveyor, SurveyPolicy
@@ -28,8 +31,6 @@ DEFAULT_APPS: list[tuple[str, str]] = []
 
 
 def configured_apps() -> list[tuple[str, str]]:
-    import os
-
     raw = os.environ.get("EVO_NATIVE_SURVEY_APPS", "").strip()
     if not raw:
         return DEFAULT_APPS
@@ -96,8 +97,6 @@ async def verify_safe_native_macros() -> int:
     Uses the macro module's confirm_bulk inside the caller's transaction so
     the lifecycle event is published and the L0 / navigation caches refresh.
     """
-    from sqlalchemy import select
-
     from app.core.execution.macro.lifecycle import confirm_bulk
     from app.infrastructure.database import session_scope
     from app.models.macro import Macro

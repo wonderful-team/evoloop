@@ -22,13 +22,10 @@ from datetime import datetime
 sys.path.insert(0, '/Users/huangjinhuan/项目/develop-assistant.cn/evoloop/backend')
 
 from app.core.atlas import atlas_engine
-from app.core.atlas.models import AtlasApp, AtlasElement, AtlasState
 from app.core.atlas.strategy import AtlasStrategyStore, init_default_strategies
-from app.core.environment.events import UiTreeObservedEvent, event_bus
-from app.core.environment.explorers.dynamic_apps import DynamicAppTriage
-from app.domain.tools.environment.desktop import desktop_control
-from app.domain.tools.environment.browser import browser_control
-from app.domain.tools.environment.mobile import mobile_control
+from app.core.environment.tools.desktop import desktop_control
+from app.core.environment.tools.browser import browser_control
+from app.core.environment.tools.mobile import mobile_control
 from app.core.vision import vision_engine, VisionTask
 from app.infrastructure.drivers.adb import adb_driver
 from app.infrastructure.drivers.macos import macos_driver
