@@ -40,10 +40,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from app.core.events import system_bus
-from app.core.execution.terminal.background.schemas import (
-    BackgroundTaskManagerStats,
-    CreateBackgroundTaskRequest,
-)
+from app.core.execution.terminal.background.schemas import BackgroundTaskManagerStats, CreateBackgroundTaskRequest
 from app.core.tools.event import BackgroundTaskEvent, BackgroundTaskOutputEvent
 from app.utils.id import gen_uuid_hex
 
@@ -473,15 +470,24 @@ class BackgroundTaskManager:
 
         system_bus delivers to both in-process Python subscribers (e.g. EvoCloudSync)
         and, via UniversalBridgeSubscriber, to Redis SSE for frontend consumption.
+        Event delivery must never break the task state machine, so publish failures
+        are logged and swallowed.
         """
-        await system_bus.publish(
-            BackgroundTaskEvent(
-                thread_id=task.thread_id,
-                task_id=task.task_id,
-                action=event_type,
-                task_data=task.to_dict(include_output=False),
+        try:
+            await system_bus.publish(
+                BackgroundTaskEvent(
+                    thread_id=task.thread_id,
+                    task_id=task.task_id,
+                    action=event_type,
+                    task_data=task.to_dict(include_output=False),
+                )
             )
-        )
+        except Exception:
+            logger.exception(
+                "[background] failed to publish %s event for task %s",
+                event_type,
+                task.task_id,
+            )
 
         # Log to activity monitor
         try:

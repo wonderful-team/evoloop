@@ -3,7 +3,7 @@ import logging
 import os
 import re
 
-from app.core.execution.macro.schemas import MacroSource
+from app.core.learning.macro.schemas import MacroSource
 from app.core.monitoring.activity import activity_monitor
 
 logger = logging.getLogger(__name__)

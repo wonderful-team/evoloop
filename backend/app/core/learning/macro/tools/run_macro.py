@@ -8,7 +8,7 @@ import logging
 from typing import Annotated, Any
 
 from app.core.engine.message.native_classes import RunnableConfig
-from app.core.execution.macro import (
+from app.core.learning.macro import (
     WEB_POLICY,
     MacroEngine,
     find_macro_by_name,

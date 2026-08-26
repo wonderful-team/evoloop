@@ -10,7 +10,7 @@ Decision hierarchy (all must be True for healing to be allowed):
 3. Execution-level: execution_params.get("_allow_self_healing", True)
 
 Usage:
-    from app.core.execution.macro.healing_policy import SelfHealingPolicy
+    from app.core.learning.macro.healing_policy import SelfHealingPolicy
 
     # Check if healing is allowed
     if SelfHealingPolicy.is_allowed(macro=macro, execution_params=params):
@@ -25,7 +25,7 @@ Usage:
 from typing import Any
 
 from app.core.config import settings
-from app.core.execution.macro.schemas import HealingDecision
+from app.core.learning.macro.schemas import HealingDecision
 from app.models.macro import Macro
 
 

@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import select
 
 from app.core.config import settings
-from app.core.execution.macro.compiler import ALLOWED_UI_ACTIONS
+from app.core.learning.macro.compiler import ALLOWED_UI_ACTIONS
 from app.infrastructure.database import session_scope
 from app.models import AgentActivity, Message, TraceEvent
 
@@ -163,8 +163,8 @@ class MacroCreatorService:
             return None
 
         try:
-            from app.core.execution.macro.compiler import MacroScriptCompiler
-            from app.core.execution.macro.lifecycle import create_macro_from_synthesis
+            from app.core.learning.macro.compiler import MacroScriptCompiler
+            from app.core.learning.macro.lifecycle import create_macro_from_synthesis
             from app.core.learning.trace.parser import TraceParser
             from app.core.learning.workflow_synthesizer import WorkflowSynthesizer
             from app.utils.parameters import normalize_parameters

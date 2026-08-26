@@ -10,8 +10,8 @@ import logging
 
 from pydantic import Field
 
-from app.core.execution.macro import delete_macro as lifecycle_delete_macro
-from app.core.execution.macro import load_macro
+from app.core.learning.macro import delete_macro as lifecycle_delete_macro
+from app.core.learning.macro import load_macro
 from app.core.tools import evoloop_tool
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils.controller_response import ControllerResponse

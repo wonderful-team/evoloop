@@ -12,7 +12,7 @@ from collections.abc import Iterable
 from sqlalchemy import Text, delete, func, literal, or_, select
 
 from app.core.events.publishers import publish_macro_mutated
-from app.core.execution.macro.schemas import MacroScript
+from app.core.learning.macro.schemas import MacroScript
 from app.infrastructure.database import session_scope
 from app.models.macro import Macro
 
@@ -21,55 +21,6 @@ logger = logging.getLogger(__name__)
 
 def macro_to_yaml(candidate) -> str:
     return MacroScript(steps=candidate.macro_script).to_yaml()
-
-
-async def persist_candidates(
-    *,
-    app_map_id: int,
-    entity: str,
-    project_id: int,
-    candidates: Iterable,
-    member_id: int = 0,
-    db=None,
-) -> list[int]:
-    """Batch-insert template-factory candidates as pending_review macros.
-
-    ``db`` optional: pass a session to run inside the caller's transaction.
-    """
-    ids: list[int] = []
-
-    async def _apply(session):
-        for c in candidates:
-            macro = Macro(
-                app_map_id=app_map_id,
-                entity=entity,
-                name=c.name,
-                description=c.description,
-                trigger_patterns=c.trigger_patterns,
-                parameters=c.parameters,
-                macro_script=macro_to_yaml(c),
-                risk_tier=c.risk_tier,
-                requires_confirmation=c.requires_confirmation,
-                status="pending_review",
-                is_active=False,
-                app_map_version=c.app_map_version,
-                project_id=project_id,
-                member_id=member_id,
-            )
-            session.add(macro)
-            await session.flush()
-            ids.append(macro.id)
-
-    if db is not None:
-        await _apply(db)
-    else:
-        async with session_scope() as _db:
-            await _apply(_db)
-
-    for macro_id in ids:
-        await publish_macro_mutated(macro_id, action="create")
-    logger.info("[Macro] persisted %d candidates for app_map=%s", len(ids), app_map_id)
-    return ids
 
 
 async def deduplicate_macro_name(db, name: str) -> str:

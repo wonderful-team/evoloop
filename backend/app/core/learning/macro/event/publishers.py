@@ -11,11 +11,11 @@ from .schemas import MacroExecutionFailedEvent
 
 
 async def publish_macro_execution_failed(
-    skill_id: int | None,
-    skill_name: str,
-    error_message: str,
-    fallback_context: dict | None,
-    thread_id: str,
+    macro_id: int | None = None,
+    macro_name: str | None = None,
+    error_message: str = "",
+    fallback_context: dict | None = None,
+    thread_id: str = "default",
 ) -> MacroExecutionFailedEvent:
     """
     Publish a macro execution failed event.
@@ -23,8 +23,8 @@ async def publish_macro_execution_failed(
     Returns the event instance so callers can read suggestions appended by listeners.
     """
     event = MacroExecutionFailedEvent(
-        skill_id=skill_id,
-        skill_name=skill_name,
+        macro_id=macro_id,
+        macro_name=macro_name,
         error_message=error_message,
         fallback_context=fallback_context,
         thread_id=thread_id,

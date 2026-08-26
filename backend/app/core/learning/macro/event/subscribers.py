@@ -7,18 +7,15 @@ Event subscribers for macro execution lifecycle.
 
 import logging
 
-from app.core.atlas.source.event.types import AppMapEventType
 from app.core.events.decorators import event_register, event_subscribe
 from app.core.events.registry import SystemEventType
-from app.core.execution.macro import (
+from app.core.learning.macro import (
     invalidate_macro_cache,
     mark_obsolete_by_app_map,
-    synthesize_macros_task,
 )
-from app.core.execution.macro.event import MacroEventType, MacroExecutionFailedEvent
-from app.core.execution.macro.healing_policy import SelfHealingPolicy
+from app.core.learning.macro.event import MacroEventType, MacroExecutionFailedEvent
+from app.core.learning.macro.healing_policy import SelfHealingPolicy
 from app.core.routing.matcher_cache import matcher_cache
-from app.core.routing.navigation_macro_cache import get_navigation_macro_cache
 
 logger = logging.getLogger(__name__)
 
@@ -34,34 +31,6 @@ class MacroAppMapSubscriber:
         if not app_map_id:
             return
         await mark_obsolete_by_app_map(int(app_map_id))
-
-
-@event_register()
-class MacroAppMapGenerateCompletedSubscriber:
-    """Schedule macro synthesis when an AppMap is marked complete."""
-
-    @event_subscribe(AppMapEventType.GENERATE_COMPLETED)
-    async def on_app_map_generate_completed(self, event) -> None:
-        data = event.data or {}
-        app_map_id = data.get("app_map_id")
-        project_id = data.get("project_id")
-        member_id = data.get("member_id") or 0
-        if not app_map_id or not project_id:
-            logger.warning(
-                "[Macro] generate_completed event missing app_map_id/project_id"
-            )
-            return
-
-        synthesize_macros_task.delay(
-            app_map_id=int(app_map_id),
-            project_id=int(project_id),
-            member_id=int(member_id),
-        )
-        logger.info(
-            "[Macro] Dispatched synthesis for AppMap %s (project %s)",
-            app_map_id,
-            project_id,
-        )
 
 
 @event_register()
@@ -98,11 +67,11 @@ class MacroSelfHealingAdvisor:
         # Success Case: Suggest recovery with contextual information
         logger.info(
             "[Self-Healing] Suggesting perceptual recovery for macro '%s'",
-            event.skill_name,
+            event.macro_name,
         )
         event.suggestions.append(
             SelfHealingPolicy.get_enabled_message(
-                macro_name=event.skill_name, error_message=event.error_message
+                macro_name=event.macro_name, error_message=event.error_message
             )
         )
 
@@ -142,12 +111,6 @@ class MacroL0MatcherSubscriber:
         macro_id = self._macro_id_from_event(event)
         invalidate_macro_cache(macro_id)
         await matcher_cache.invalidate_and_schedule_rebuild()
-        try:
-            await get_navigation_macro_cache().refresh()
-        except Exception:
-            logger.warning(
-                "[L0Matcher] navigation macro cache refresh failed", exc_info=True
-            )
 
         logger.info(
             "[L0Matcher] scheduled debounced rebuild and navigation cache refresh after macro lifecycle event: %s (macro_id=%s)",

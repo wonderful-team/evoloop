@@ -1,6 +1,7 @@
 """Core command execution — synchronous and tool-level interfaces."""
 
 import logging
+import shlex
 from typing import Annotated
 
 from app.core.engine.message.native_classes import RunnableConfig
@@ -13,9 +14,76 @@ from app.core.tools.base import InjectedToolArg
 
 logger = logging.getLogger(__name__)
 
+#: 已知会改写文件的 shell 命令（用于定位 sudo/env 前缀后的真实命令）
+_WRITE_COMMANDS = ("rm", "mv", "cp", "sed")
+
+
+def _parse_command_targets(args: dict) -> list[str]:
+    """Extract file paths a shell command may mutate.
+
+    归属执行中心（execute_command 自身的路径声明）。启发式覆盖：
+    - ``rm`` / ``mv`` / ``cp``：非 flag 的路径参数（mv/cp 的源与目标都受影响）
+    - ``sed -i``：原地修改，取脚本之后的文件参数
+    - ``echo`` / ``printf`` 等重定向目标（``>`` / ``>>``，支持多重定向）
+    - ``sudo`` / ``env`` 前缀：跳过其 flag/参数，定位到真实命令
+
+    尽力而为：无法可靠解析时返回空列表（最多少一次 diff 快照，不影响执行）。
+    """
+    command = (args or {}).get("command", "")
+    if not isinstance(command, str) or not command.strip():
+        return []
+
+    # background 命令在后台异步执行，工具返回时文件可能尚未改完——
+    # 此时算 diff 时序不确定（快则落、慢则不落）。明确不进入 diff 追踪，
+    # 避免半成品/不完整变更被记录进 changeset。
+    if (args or {}).get("background"):
+        return []
+
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        return []
+    if not tokens:
+        return []
+
+    cmd, rest = _resolve_command(tokens)
+    if cmd in ("rm", "mv", "cp"):
+        return [t for t in rest[1:] if not t.startswith("-")]
+
+    if cmd == "sed":
+        # 仅 -i（原地修改）才影响文件
+        if not any(t == "-i" or (t.startswith("-i") and len(t) > 2) for t in rest):
+            return []
+        non_flag = [t for t in rest[1:] if not t.startswith("-")]
+        # 第一个非 flag 是 sed 脚本（或空后缀），其后才是文件
+        return non_flag[1:] if non_flag else []
+
+    # 重定向目标（echo / printf 等），收集全部
+    targets = []
+    for i, t in enumerate(rest):
+        if t in (">>", ">") and i + 1 < len(rest):
+            targets.append(rest[i + 1])
+    return targets
+
+
+def _resolve_command(tokens: list[str]) -> tuple[str, list[str]]:
+    """定位真实命令：剥离 sudo/env 前缀及其 flag/参数。"""
+    base = tokens[0].rsplit("/", 1)[-1]
+    if base not in ("sudo", "env"):
+        return base, tokens
+
+    tail = tokens[1:]
+    for i, t in enumerate(tail):
+        b = t.rsplit("/", 1)[-1]
+        if b in _WRITE_COMMANDS:
+            return b, tail[i:]
+    # sudo/env 后未找到已知写命令 → 视为非写命令
+    return "", []
+
 
 @evoloop_tool(
     is_state_mutating=True,
+    affected_path_extractor=_parse_command_targets,
     summary_template="evoloop.tool_summary.execute_command",
 )
 async def execute_command(

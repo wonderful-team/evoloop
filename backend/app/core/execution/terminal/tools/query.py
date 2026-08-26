@@ -6,8 +6,8 @@ import signal
 from typing import Annotated
 
 from app.core.engine.message.native_classes import RunnableConfig
-from app.core.tools import evoloop_tool
 from app.core.execution.terminal.background import TaskStatus, task_manager
+from app.core.tools import evoloop_tool
 from app.core.tools.base import InjectedToolArg
 
 logger = logging.getLogger(__name__)
@@ -21,7 +21,7 @@ async def query_command_status(
     task_id: str,
     include_output: bool = True,
     output_lines: int = 50,
-    config: Annotated[RunnableConfig, InjectedToolArg] = None,
+    config: Annotated[RunnableConfig, InjectedToolArg] = None,  # noqa: ARG001
 ) -> str:
     task = task_manager.get_task(task_id)
 
@@ -88,7 +88,7 @@ async def query_command_status(
 async def cancel_command(
     task_id: str,
     force: bool = False,
-    config: Annotated[RunnableConfig, InjectedToolArg] = None,
+    config: Annotated[RunnableConfig, InjectedToolArg] = None,  # noqa: ARG001
 ) -> str:
     task = task_manager.get_task(task_id)
 

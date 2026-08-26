@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, cast
 
-from app.core.execution.macro.schemas import (
+from app.core.learning.macro.schemas import (
     ExtractType,
     MacroActionType,
     MacroScript,
@@ -19,7 +19,7 @@ from app.core.execution.macro.schemas import (
     MacroStep,
     MacroStepType,
 )
-from app.core.execution.macro.utils import cleanup_macro_steps
+from app.core.learning.macro.utils import cleanup_macro_steps
 
 if TYPE_CHECKING:
     from app.core.learning.schemas.migrated import TraceStep

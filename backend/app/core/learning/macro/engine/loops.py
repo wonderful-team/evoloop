@@ -4,7 +4,7 @@ import logging
 import os
 from datetime import datetime
 
-from app.core.execution.macro.schemas import MacroSource
+from app.core.learning.macro.schemas import MacroSource
 from app.core.monitoring.activity import activity_monitor
 from app.utils.geometry import parse_bounds
 

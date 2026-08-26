@@ -608,7 +608,7 @@ class HealingDecision(DynamicBaseModel):
     allowed: bool
     reason: str
     # Source of the decision for debugging
-    source: str  # "global" | "skill" | "execution" | "allowed"
+    source: str  # "global" | "macro" | "execution" | "allowed"
 
 
 class MacroRunResult(DynamicBaseModel):

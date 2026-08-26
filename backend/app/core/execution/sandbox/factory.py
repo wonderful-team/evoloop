@@ -1,43 +1,57 @@
+import asyncio
 import logging
 
 from app.core.config import settings
 from app.core.execution.sandbox.base import Sandbox
 from app.core.execution.sandbox.local import LocalSandbox
 
-# Defer import of DockerSandbox to prevent failure if docker not installed?
-# Or just import it.
-
 logger = logging.getLogger(__name__)
 
 
 class SandboxFactory:
     _instance: Sandbox | None = None
+    _init_lock = asyncio.Lock()
 
     @classmethod
-    def get_sandbox(cls) -> Sandbox:
+    async def get_sandbox(cls) -> Sandbox:
+        """Return the sandbox singleton, initializing it off the event loop.
+
+        Docker init (``docker.from_env`` + container start) is a blocking
+        network/daemon call, so it runs in a worker thread to avoid stalling
+        the event loop. If docker mode fails, falls back to LocalSandbox.
+        """
         if cls._instance:
             return cls._instance
 
-        mode = settings.EXECUTION_MODE.lower()
-        image = settings.SANDBOX_IMAGE
+        async with cls._init_lock:
+            if cls._instance:
+                return cls._instance
 
-        logger.info(f"Initializing Sandbox in mode: {mode}")
+            mode = settings.EXECUTION_MODE.lower()
+            image = settings.SANDBOX_IMAGE
 
-        if mode == "docker":
-            try:
-                from app.core.execution.sandbox.docker import DockerSandbox
+            logger.info(f"Initializing Sandbox in mode: {mode}")
 
-                cls._instance = DockerSandbox(image_name=image)
-            except Exception as e:
-                logger.exception(f"Failed to initialize Docker Sandbox, falling back to Local: {e}")
+            if mode == "docker":
+                try:
+                    from app.core.execution.sandbox.docker import DockerSandbox
+
+                    cls._instance = await asyncio.to_thread(DockerSandbox, image)
+                except Exception as e:
+                    logger.exception(
+                        f"Failed to initialize Docker Sandbox, falling back to Local: {e}"
+                    )
+                    cls._instance = LocalSandbox()
+            else:
                 cls._instance = LocalSandbox()
-        else:
-            cls._instance = LocalSandbox()
 
         return cls._instance
 
     @classmethod
     def reset(cls):
         if cls._instance:
-            cls._instance.teardown()
+            try:
+                cls._instance.teardown()
+            except Exception as e:
+                logger.warning(f"Sandbox teardown failed: {e}", exc_info=True)
             cls._instance = None

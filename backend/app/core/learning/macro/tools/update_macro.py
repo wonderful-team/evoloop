@@ -12,15 +12,8 @@ import logging
 
 from pydantic import Field
 
-from app.core.execution.macro import confirm_macro, downgrade_macro, load_macro
-from app.core.execution.macro import update_macro as lifecycle_update_macro
-from app.core.execution.macro.schemas import (
-    DEFAULT_ALLOWED_FAMILIES,
-    MacroScript,
-    compute_max_risk,
-    scan_step_families,
-)
-from app.core.execution.macro.utils import cleanup_macro_steps, verify_macro_script
+from app.core.learning.macro import confirm_macro, downgrade_macro, load_macro
+from app.core.learning.macro import update_macro as lifecycle_update_macro
 from app.core.tools import evoloop_tool
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils.controller_response import ControllerResponse
@@ -55,38 +48,13 @@ async def _verify_new_script(
     macro_id: int,
     project_id: int,
     macro_script: str,
-) -> tuple[bool, str, list[dict] | None]:
+):
     """Parse, gate, and dry-run a rewritten macro script."""
-    try:
-        parsed = MacroScript.from_yaml(macro_script)
-        steps = parsed.model_dump().get("steps", [])
-    except Exception as e:
-        return False, f"Invalid macro script: {e}", None
+    from app.core.learning.macro.authoring import validate_script
 
-    cleaned, _ = cleanup_macro_steps(steps)
-
-    try:
-        MacroScript.model_validate({"steps": cleaned})
-    except Exception as e:
-        return False, f"Invalid macro script after cleanup: {e}", None
-
-    reason = scan_step_families(cleaned, DEFAULT_ALLOWED_FAMILIES)
-    if reason:
-        return False, f"Risk gate rejected: {reason}", None
-
-    result = await verify_macro_script(
-        cleaned,
-        thread_id=f"rewrite-{macro_id}",
-        _project_id=project_id,
+    return await validate_script(
+        macro_script, thread_id=f"rewrite-{macro_id}", project_id=project_id
     )
-    if not result.success:
-        return (
-            False,
-            f"Macro verification failed: {result.error or result.status}",
-            None,
-        )
-
-    return True, "", cleaned
 
 
 @evoloop_tool(
@@ -182,14 +150,14 @@ async def update_macro(
             logger.exception("Failed to load macro %s for rewrite: %s", macro_id, e)
             return ControllerResponse.error(f"Failed to load macro: {e}")
 
-        ok, msg, cleaned = await _verify_new_script(macro_id, macro.project_id, macro_script)
-        if not ok:
-            return ControllerResponse.error(msg)
+        validation = await _verify_new_script(macro_id, macro.project_id, macro_script)
+        if not validation.ok:
+            return ControllerResponse.error(validation.error)
 
-        max_risk = compute_max_risk(cleaned)
+        max_risk = validation.max_risk
         fields["macro_script"] = macro_script
         fields["risk_tier"] = max_risk
-        fields["requires_confirmation"] = max_risk in {"money", "escape"}
+        fields["requires_confirmation"] = validation.requires_confirmation
         fields["allow_self_healing"] = True
 
         # Keep declared parameters if the caller provided them; otherwise

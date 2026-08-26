@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 
-from app.core.execution.macro import find_macro_by_name, load_macro
+from app.core.learning.macro import find_macro_by_name, load_macro
 from app.core.tools import evoloop_tool
 from app.utils.controller_response import ControllerResponse
 

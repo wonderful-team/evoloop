@@ -33,8 +33,8 @@ class MacroExecutionFailedEvent(MacroEvent):
     """
 
     event_type: str = "macro.execution_failed"
-    skill_id: int | None = None
-    skill_name: str | None = None
+    macro_id: int | None = None
+    macro_name: str | None = None
     error_message: str = ""
     fallback_context: dict | None = None
     thread_id: str = "default"
@@ -44,8 +44,8 @@ class MacroExecutionFailedEvent(MacroEvent):
 
     def model_post_init(self, __context: Any) -> None:
         self.data = {
-            "skill_id": self.skill_id,
-            "skill_name": self.skill_name,
+            "macro_id": self.macro_id,
+            "macro_name": self.macro_name,
             "error_message": self.error_message,
             "fallback_context": self.fallback_context,
             "thread_id": self.thread_id,

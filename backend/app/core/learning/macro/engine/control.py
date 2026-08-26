@@ -1,6 +1,6 @@
 import logging
 
-from app.core.execution.macro.schemas import MacroSource, MacroStepType
+from app.core.learning.macro.schemas import MacroSource, MacroStepType
 
 logger = logging.getLogger(__name__)
 

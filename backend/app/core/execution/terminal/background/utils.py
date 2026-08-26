@@ -22,7 +22,7 @@ def get_thread_id(config: RunnableConfig | None) -> str:
     return ctx.thread_id or ctx.request_id or "default"
 
 
-def format_command_result(stdout: str, stderr: str, returncode: int, command: str = "") -> str:
+def format_command_result(stdout: str, stderr: str, returncode: int) -> str:
     if stdout.count("\n") + stderr.count("\n") > MAX_OUTPUT_LINES:
         stdout_lines = stdout.split("\n")
         stderr_lines = stderr.split("\n")

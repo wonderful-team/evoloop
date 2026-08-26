@@ -4,14 +4,14 @@ import re
 from typing import Any
 
 from app.core.context import ContextManager, EvoContext
-from app.core.execution.macro.engine._bash import BashMixin
-from app.core.execution.macro.engine._control import ControlMixin
-from app.core.execution.macro.engine._dump import DumpMixin
-from app.core.execution.macro.engine._executors import ExecutorMixin
-from app.core.execution.macro.engine._extraction import ExtractionMixin
-from app.core.execution.macro.engine._loops import LoopMixin
-from app.core.execution.macro.engine._native import NativeMixin
-from app.core.execution.macro.schemas import (
+from app.core.learning.macro.engine.bash import BashMixin
+from app.core.learning.macro.engine.control import ControlMixin
+from app.core.learning.macro.engine.dump import DumpMixin
+from app.core.learning.macro.engine.executors import ExecutorMixin
+from app.core.learning.macro.engine.extraction import ExtractionMixin
+from app.core.learning.macro.engine.loops import LoopMixin
+from app.core.learning.macro.engine.native import NativeMixin
+from app.core.learning.macro.schemas import (
     MacroRunResult,
     MacroScript,
     MacroSource,
@@ -59,7 +59,7 @@ class MacroEngine(
     @classmethod
     async def validate(cls, macro, params: dict | None = None) -> MacroScript:
         """运行前门禁：状态/参数/解析检查。返回可执行脚本，失败抛 MacroGateError。"""
-        from app.core.execution.macro.runner import preflight
+        from app.core.learning.macro.runner import preflight
 
         return preflight(macro, params)
 
@@ -72,7 +72,6 @@ class MacroEngine(
         params: dict[str, Any] | None = None,
         project_id: int = 0,
         policy=None,
-        skill_name: str | None = None,
         skip_activity_log: bool = False,
         skip_recording: bool = False,
     ) -> MacroRunResult:
@@ -85,7 +84,7 @@ class MacroEngine(
         - None：正常成功/失败
         """
         from app.core.exceptions import AgentCancelledException
-        from app.core.execution.macro.runner import (
+        from app.core.learning.macro.runner import (
             WEB_POLICY,
             MacroGateError,
             preflight,
@@ -128,7 +127,6 @@ class MacroEngine(
                 project_id=project_id,
                 script=script,
                 policy=policy,
-                skill_name=skill_name,
                 skip_activity_log=skip_activity_log,
                 skip_recording=skip_recording,
             )
@@ -172,9 +170,7 @@ class MacroEngine(
             params=params,
             extracted_data=extracted_data,
             disable_ocr=disable_ocr,
-            active_bundle_id=params.get("package_name") or params.get("bundle_id")
-            if params
-            else None,
+            active_bundle_id=params.get("package_name") or params.get("bundle_id") if params else None,
             skip_activity_log=skip_activity_log,
             skip_recording=skip_recording,
         )
@@ -277,9 +273,7 @@ class MacroEngine(
                 desc += f"(command='{str(payload.get('command', ''))[:60]}')"
 
             if not skip_activity_log:
-                await activity_monitor.log_event(
-                    "macro_thought", {"text": desc}, thread_id
-                )
+                await activity_monitor.log_event("macro_thought", {"text": desc}, thread_id)
             logger.info(f"[{thread_id}] {desc}")
 
             if step.type in (
@@ -496,9 +490,7 @@ class MacroEngine(
                     )
                     if new_pkg:
                         active_bundle_id = new_pkg
-                        logger.info(
-                            f"[{thread_id}] Active package updated to: {active_bundle_id}"
-                        )
+                        logger.info(f"[{thread_id}] Active package updated to: {active_bundle_id}")
 
                 retry = int(payload.get("retry") or 0)
                 retry_interval_ms = int(payload.get("retry_interval") or 1000)
@@ -588,12 +580,8 @@ class MacroEngine(
             return None
 
     @classmethod
-    async def _handle_action_error(
-        cls, thread_id, step_num, event_type, error_msg, screenshot_path=None
-    ):
-        logger.error(
-            f"[{thread_id}] Step {step_num} ({event_type}) failed: {error_msg}"
-        )
+    async def _handle_action_error(cls, thread_id, step_num, event_type, error_msg, screenshot_path=None):
+        logger.error(f"[{thread_id}] Step {step_num} ({event_type}) failed: {error_msg}")
         await activity_monitor.log_event(
             "macro_thought",
             {"text": f"Step {step_num} failed: {error_msg[:200]}"},

@@ -6,8 +6,8 @@ import logging
 from typing import Any, cast
 
 from app.constants import DEFAULT_PROJECT_ID
-from app.core.execution.macro.schemas import MacroVerificationResult
-from app.core.execution.macro.service import MacroService
+from app.core.learning.macro.schemas import MacroVerificationResult
+from app.core.learning.macro.service import MacroService
 from app.utils.yaml import macro_from_yaml
 
 logger = logging.getLogger(__name__)
@@ -44,7 +44,7 @@ async def verify_macro_script(
         # 占位符/相对路径直接进 page.goto → "Cannot navigate to invalid URL"，
         # 导致 Agent 造宏验证必败且报错无细节。
         if "base_url" not in default_params and _project_id:
-            from app.core.execution.macro.runner import resolve_project_base_url
+            from app.core.learning.macro.runner import resolve_project_base_url
 
             base_url = await resolve_project_base_url(_project_id)
             if base_url:

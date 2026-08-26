@@ -22,12 +22,10 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
-from app.core.execution.macro.engine import MacroEngine
-from app.core.execution.macro.lifecycle import (
-    invalidate_macro_cache as _invalidate_lifecycle_cache,
-)
-from app.core.execution.macro.lifecycle import load_macro as _load_macro
-from app.core.execution.macro.schemas import (
+from app.core.learning.macro.engine import MacroEngine
+from app.core.learning.macro.lifecycle import invalidate_macro_cache as _invalidate_lifecycle_cache
+from app.core.learning.macro.lifecycle import load_macro as _load_macro
+from app.core.learning.macro.schemas import (
     RISK_TIER_ORDER,
     MacroScript,
     action_risk,
@@ -42,6 +40,7 @@ from app.utils.yaml import YAMLError, macro_from_yaml
 logger = logging.getLogger(__name__)
 
 _PARSE_ERRORS = (ValueError, OSError, RuntimeError, TypeError, KeyError, YAMLError)
+
 
 def invalidate_macro_cache(macro_id: int | None = None) -> None:
     """No-op cache invalidation（宏缓存已移除，见 lifecycle.invalidate_macro_cache）。"""
@@ -131,6 +130,39 @@ def get_navigation_info(macro: Macro) -> tuple[str, str] | None:
                     else:
                         feedback = payload.get("feedback", "")
                     return str(route), str(feedback)
+    return None
+
+
+def extract_navigation_url(macro: Macro) -> str | None:
+    """Extract the navigation URL from a macro script, if any.
+
+    Handles both navigation step shapes: ``frontend_navigate`` (route field)
+    and ``navigate``/``goto`` (url field). Callers that previously hand-rolled
+    ``re.search(r"url:\\s*(\\S+)", macro.macro_script)`` should use this
+    instead of parsing the raw YAML themselves.
+    """
+    script = macro.macro_script
+    if not isinstance(script, str):
+        return None
+    try:
+        steps = macro_from_yaml(script)
+    except (YAMLError, ValueError, TypeError, AttributeError):
+        return None
+    if not isinstance(steps, list):
+        return None
+    for step in steps:
+        if not isinstance(step, dict):
+            continue
+        payload = step.get("payload") if isinstance(step.get("payload"), dict) else {}
+        event_type = str(step.get("event_type") or "")
+        if event_type == "frontend_navigate":
+            route = payload.get("route")
+            if route:
+                return str(route)
+        elif event_type in ("navigate", "goto"):
+            url = payload.get("url")
+            if url:
+                return str(url)
     return None
 
 
@@ -282,7 +314,6 @@ async def run_deterministic(
     project_id: int,
     script: MacroScript,
     policy: ExecutionPolicy,
-    skill_name: str | None = None,
     skip_activity_log: bool = False,
     skip_recording: bool = False,
 ) -> ExecutionOutcome:
@@ -324,7 +355,6 @@ async def run_deterministic(
             script=script,
             params=params,
             project_id=project_id,
-            skill_name=skill_name,
         )
         # 自愈路径未带回 step_log 时，用 fast path 已收集的 step_log 兜底，
         # 保证 Agent 在失败场景也能拿到步骤级诊断（步骤号/成败/错误）。
@@ -352,18 +382,16 @@ async def _run_with_self_heal(
     script: MacroScript,
     params: dict[str, Any] | None,
     project_id: int,
-    skill_name: str | None = None,
 ) -> ExecutionOutcome:
     """MacroService run with the unified self-healing fallback (web policy)."""
     from app.core.engine.background_agent import run_agent_background
     from app.core.engine.dispatch import dispatch_agent_run
-    from app.core.execution.macro.service import MacroService
+    from app.core.learning.macro.service import MacroService
     from app.utils.template import render_template
 
     exec_params = dict(params or {})
     exec_params["_macro_id"] = macro.id
     exec_params["_macro_name"] = macro.name
-    exec_params["_skill_name"] = skill_name or macro.name
 
     result = await MacroService.run(thread_id=thread_id, script_input=script, params=exec_params, macro=macro)
 
@@ -393,7 +421,7 @@ async def _run_with_self_heal(
         failure_context.setdefault("error_message", result["message"])
     fallback_msg = render_template(
         "core/learning/self_healing.prompt.j2",
-        skill_name=skill_name or macro.name,
+        skill_name=macro.name,
         failure_context=failure_context,
     )
     dispatched = await dispatch_agent_run(

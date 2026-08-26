@@ -56,12 +56,8 @@ from app.core.learning.skills.lifecycle import (
     create_from_synthesis,
     deduplicate_name,
 )
-from app.core.learning.skills.lifecycle import (
-    delete_skill as delete_skill_record,
-)
-from app.core.learning.skills.lifecycle import (
-    update_skill as update_skill_record,
-)
+from app.core.learning.skills.lifecycle import delete_skill as delete_skill_record
+from app.core.learning.skills.lifecycle import update_skill as update_skill_record
 from app.core.learning.skills.repository import skill_repository
 from app.core.learning.skills.validator import SkillValidator
 from app.core.learning.trace.parser import TraceParser

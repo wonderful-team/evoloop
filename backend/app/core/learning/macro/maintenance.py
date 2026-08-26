@@ -4,7 +4,7 @@ Owned by the macro module (macro table writes must go through the macro DAO).
 Atlas provides the survey (UI element capture) and the generation factory;
 this module orchestrates the pass and persists via the macro lifecycle.
 
-Cadence task lives in app/core/execution/macro/tasks.py (Huey).
+Cadence task lives in app/core/learning/macro/tasks.py (Huey).
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from sqlalchemy import select
 
 from app.core.atlas.source.native_factory import generate_for_atlas_app
 from app.core.atlas.surveyor import AtlasSurveyor, SurveyPolicy
-from app.core.execution.macro.lifecycle import persist_native_macros
+from app.core.learning.macro.lifecycle import persist_native_macros
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +97,7 @@ async def verify_safe_native_macros() -> int:
     Uses the macro module's confirm_bulk inside the caller's transaction so
     the lifecycle event is published and the L0 / navigation caches refresh.
     """
-    from app.core.execution.macro.lifecycle import confirm_bulk
+    from app.core.learning.macro.lifecycle import confirm_bulk
     from app.infrastructure.database import session_scope
     from app.models.macro import Macro
 

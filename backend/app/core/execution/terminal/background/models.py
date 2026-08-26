@@ -11,11 +11,7 @@ from typing import Any
 
 from pydantic import ConfigDict, Field
 
-from app.core.execution.terminal.background.schemas import (
-    TaskMetadata,
-    TaskStatus,
-    TaskType,
-)
+from app.core.execution.terminal.background.schemas import TaskMetadata, TaskStatus, TaskType
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)

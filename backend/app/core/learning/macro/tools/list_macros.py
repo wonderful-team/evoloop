@@ -4,8 +4,8 @@ import logging
 from typing import Annotated
 
 from app.core.engine.state.config import RunnableConfigMetadata
-from app.core.execution.macro import list_macros as list_macros_dao
-from app.core.execution.macro import load_macro
+from app.core.learning.macro import list_macros as list_macros_dao
+from app.core.learning.macro import load_macro
 from app.core.tools import evoloop_tool
 from app.core.tools.base import InjectedToolArg
 from app.utils.controller_response import ControllerResponse
