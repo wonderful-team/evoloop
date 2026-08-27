@@ -17,11 +17,3 @@ All relative paths in this SOP are relative to `{{ skill.resource_path }}`. Befo
 {% if skill.instructions %}
 {{ skill.instructions }}{{ '\n' }}
 {% endif %}
-
-{% if skill.macro_id %}
-**NOTE**: This skill has an automated macro script. DO NOT manually replicate the steps with `browser_control` or other primitive tools. Instead, call **`run_macro(skill_id={{ skill.id }})`** to execute the entire workflow as a single unit.
-{% set required_params = skill.parameters | selectattr('required', 'equalto', true) | list %}
-{% if required_params %}
-  **Required Parameters**: `{ {% for p in required_params %}{{ p.name }}{% if not loop.last %}, {% endif %}{% endfor %} }`. Before calling `run_macro`, if you don't already know these values, call **`ask_human("请提供参数：...")`** to request them from the user. Then call **`run_macro(skill_id={{ skill.id }}, params={"{{ required_params[0].name }}": "...", ...})`**.
-{% endif %}
-{% endif %}

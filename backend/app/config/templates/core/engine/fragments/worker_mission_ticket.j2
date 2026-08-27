@@ -68,7 +68,7 @@ The Supervisor strongly recommends you to examine the following {{ focus_paths |
 > **ACTION REQUIRED**: Use your file reading tools (e.g. `read_file`, `grep_search`) to retrieve the latest contents of these files immediately. DO NOT guess their contents.
 {%- endif %}
 
-{%- if knowledge_blocks %}
+{%- if knowledge_blocks and not is_duty %}
 ## Attached SOPs
 The following Standard Operating Procedures are attached to this mission. You MUST strictly adhere to them.
 

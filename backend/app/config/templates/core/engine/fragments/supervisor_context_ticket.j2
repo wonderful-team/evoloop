@@ -17,7 +17,7 @@
 - **Instruction**: User explicitly selected these skills as the primary intent for the ENTIRE task. Route the full task to worker using `skill_ids={{ explicit_skills|map(attribute='id')|list }}`. Do not decompose, do not route to chat — the Worker's SOP handles all clarifications via ask_human as part of the task.
 {%- endif %}
 
-{%- if active_skills %}
+{%- if active_skills and not is_duty %}
 {%- set total_active_skills = active_skills|length %}
 {%- set displayed_skills = active_skills[:20] %}
 ## Available Skills (Direct Match)

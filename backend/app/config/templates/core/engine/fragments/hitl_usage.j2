@@ -17,3 +17,8 @@ When a single user request requires multiple risky/state-changing operations of 
 3. **Provide a `risk_note`**: explain why bulk execution is acceptable, what could go wrong, and how many items are affected. This is required for batch approvals.
 4. **Wait for operator approval**. Once approved, execute the listed operations in subsequent turns. Approved operations are covered by a short-lived grant and will not trigger per-call confirmation again.
 5. **Scope is strict**: the grant only covers the exact `tool_name + params` pairs in the list. Any operation added outside the batch still requires its own confirmation.
+
+### Rejection Handling (REJECTED)
+When an `approval` / `confirmation` comes back REJECTED (user clicked reject in the UI):
+- The operation was **NOT executed**. Stop it immediately — do NOT retry, do NOT re-route it as a new ticket, and do NOT start other write operations.
+- Report the rejection honestly to the user and wait for their next instruction. Stay on the current topic; never re-plan or drift into unrelated work.
