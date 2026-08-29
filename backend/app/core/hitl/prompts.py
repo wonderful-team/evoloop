@@ -12,17 +12,10 @@ import logging
 from typing import Any
 
 from app.core.context.manager import ContextManager
+from app.core.hitl.constants import RISK_EMOJI
 from app.i18n.service import i18n
 
 logger = logging.getLogger(__name__)
-
-#: 标准风险等级 → emoji（与前端 HumanRequestCard 展示一致）
-RISK_EMOJI = {
-    "low": "🟢",
-    "medium": "🟡",
-    "high": "🟠",
-    "critical": "🔴",
-}
 
 
 def format_risk_header(risk_level: str) -> str:

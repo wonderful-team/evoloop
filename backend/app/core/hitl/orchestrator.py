@@ -10,7 +10,10 @@ import logging
 from sqlalchemy import select
 
 from app.core.hitl.activity_sink import get_activity_sink
-from app.core.hitl.batch_grants import approve_grant_by_request_id, reject_grant_by_request_id
+from app.core.hitl.batch_grants import (
+    approve_grant_by_request_id,
+    reject_grant_by_request_id,
+)
 from app.core.hitl.constants import (
     DEFAULT_GRANTED_BY,
     MESSAGE_CATEGORY_HITL_REQUEST,
@@ -150,7 +153,9 @@ _REJECTION_SYNONYMS = frozenset(
 )
 
 
-def normalize_hitl_input(tool_call: dict, user_input: str | None, request_type: str | None = None) -> str:
+def normalize_hitl_input(
+    tool_call: dict, user_input: str | None, request_type: str | None = None
+) -> str:
     """
     Normalizes raw user input into a format expected by approval-style HITL tools
     (``confirmation`` / ``approval``, incl. authorization-gated tools): converts
@@ -169,7 +174,10 @@ def normalize_hitl_input(tool_call: dict, user_input: str | None, request_type: 
     the tool's ``name`` and ``authorization`` metadata are used as a fallback:
     authorization-gated tools and standard confirmation tools still normalize.
     """
-    if request_type in (HumanRequestType.CONFIRMATION.value, HumanRequestType.APPROVAL.value):
+    if request_type in (
+        HumanRequestType.CONFIRMATION.value,
+        HumanRequestType.APPROVAL.value,
+    ):
         is_approval = True
     elif request_type in _FREE_TEXT_REQUEST_TYPES:
         is_approval = False
@@ -182,7 +190,10 @@ def normalize_hitl_input(tool_call: dict, user_input: str | None, request_type: 
         name = (
             (tool_call.get("name") or "").lower() if isinstance(tool_call, dict) else ""
         )
-        is_approval = bool(tool_call.get("authorization")) or name in ("ask_confirm", "request_approval")
+        is_approval = bool(tool_call.get("authorization")) or name in (
+            "ask_confirm",
+            "request_approval",
+        )
 
     if not is_approval:
         # 自由文本类型：原样返回（含空输入——文本输入可能合法为空）
@@ -203,7 +214,9 @@ def normalize_hitl_input(tool_call: dict, user_input: str | None, request_type: 
     return user_input
 
 
-async def close_hitl_message(thread_id: str, tool_call_id: str, status: str = HITLRequestStatus.COMPLETED.value) -> None:
+async def close_hitl_message(
+    thread_id: str, tool_call_id: str, status: str = HITLRequestStatus.COMPLETED.value
+) -> None:
     """
     Update the status of the HITL request message in the database (single-track).
 
@@ -213,11 +226,15 @@ async def close_hitl_message(thread_id: str, tool_call_id: str, status: str = HI
     row (its HITL request came from ``send_agent_task``).
     """
     try:
-        success = await get_runtime().close_hitl_message(thread_id, tool_call_id, status)
+        success = await get_runtime().close_hitl_message(
+            thread_id, tool_call_id, status
+        )
         if success:
             logger.debug(f"HITL message {tool_call_id} closed as {status}")
         else:
-            logger.warning(f"Failed to find HITL message for tool_call_id: {tool_call_id}")
+            logger.warning(
+                f"Failed to find HITL message for tool_call_id: {tool_call_id}"
+            )
     except Exception as e:
         logger.exception(f"Error closing HITL message: {e}")
 
@@ -285,7 +302,9 @@ class HITLOrchestrator:
             # 不能直接 .format()：宏名/指令可能含 {query} 等花括号模板，
             # str.format 会误当占位符抛 KeyError（如宏『完成退款{query}』）。
             # 只精确替换 {id}/{prompt}，其它花括号原样保留。
-            response_text = response_template.replace("{id}", request.id).replace("{prompt}", prompt)
+            response_text = response_template.replace("{id}", request.id).replace(
+                "{prompt}", prompt
+            )
         else:
             response_text = i18n.get("hitl.approval_default", id=request.id)
 
@@ -317,7 +336,9 @@ class HITLOrchestrator:
         return response_text  # unreachable
 
     @staticmethod
-    async def handle_resume(thread_id: str, tool_call: dict, user_input: str | None) -> str:
+    async def handle_resume(
+        thread_id: str, tool_call: dict, user_input: str | None
+    ) -> str:
         """Processes resume logic: normalization, atomic dual-track closure, activity cleanup."""
         from app.core.hitl.core import finalize_request
 
@@ -462,7 +483,10 @@ class HITLOrchestrator:
         grant_id = tool_args.get("grant_id")
         if grant_id:
             request_id = pending_tool.get("request_id")
-            if isinstance(fallback_result, str) and fallback_result.upper() == HITLDecision.APPROVED.value:
+            if (
+                isinstance(fallback_result, str)
+                and fallback_result.upper() == HITLDecision.APPROVED.value
+            ):
                 grant = approve_grant_by_request_id(request_id) if request_id else None
                 if grant:
                     return i18n.get(
@@ -471,7 +495,10 @@ class HITLOrchestrator:
                         count=len(grant.operations),
                     )
                 return i18n.get("hitl.batch_approved_fallback")
-            if isinstance(fallback_result, str) and fallback_result.upper() == HITLDecision.REJECTED.value:
+            if (
+                isinstance(fallback_result, str)
+                and fallback_result.upper() == HITLDecision.REJECTED.value
+            ):
                 reject_grant_by_request_id(request_id)
                 return i18n.get("hitl.batch_rejected")
             return fallback_result
@@ -491,7 +518,7 @@ class HITLOrchestrator:
                 HumanRequestType.APPROVAL.value,
             )
             # 未知/缺失 request_type（legacy pending）：退回按工具名启发式判定
-            #（与 normalize_hitl_input 的 fallback 一致）。
+            # （与 normalize_hitl_input 的 fallback 一致）。
             if request_type is None:
                 name = (tool_name or "").lower()
                 is_approval = name in ("ask_confirm", "request_approval")
@@ -504,7 +531,10 @@ class HITLOrchestrator:
             return fallback_result
 
         # 用户拒绝（授权门控）：不授权、不重执行，返回明确拒绝说明。
-        if isinstance(fallback_result, str) and fallback_result.upper() == HITLDecision.REJECTED.value:
+        if (
+            isinstance(fallback_result, str)
+            and fallback_result.upper() == HITLDecision.REJECTED.value
+        ):
             resource_path = authorization.get("resource_path", "")
             return i18n.get("hitl.access_rejected", path=resource_path)
 
@@ -610,9 +640,7 @@ class HITLOrchestrator:
             # action 用规范值（如 "read"/"write"），而非本地化描述的首词——
             # 否则 grant 存的 action（如 "读取"）与授权钩子比对的规范 action（"read"）
             # 永不匹配，导致敏感路径批准后重执行再次触发审批 → 无限循环。
-            action=action or (
-                action_description.split(" ", 1)[0] if action_description else ""
-            ),
+            action=action or (action_description.split(" ", 1)[0] if action_description else ""),
         )
 
         raise_hitl_interrupt(request.id, response_text)

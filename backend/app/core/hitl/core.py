@@ -93,7 +93,9 @@ class HumanInputRequest(BaseModel):
     context: str | None = None
     default_value: str | None = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
-    status: Literal["pending", "completed", "timeout", "cancelled"] = HITLRequestStatus.PENDING.value
+    status: Literal["pending", "completed", "timeout", "cancelled"] = (
+        HITLRequestStatus.PENDING.value
+    )
     response: Any | None = None
 
     @classmethod
@@ -219,7 +221,10 @@ async def finalize_request(
                     HumanRequest.id == request_id,
                     HumanRequest.status == HITLRequestStatus.PENDING.value,
                 )
-                .values(status=status, result=str(response) if response is not None else None)
+                .values(
+                    status=status,
+                    result=str(response) if response is not None else None,
+                )
             )
             updated_request = (await session.execute(req_stmt)).rowcount > 0
 
@@ -234,7 +239,9 @@ async def finalize_request(
             updated_message = (await session.execute(msg_stmt)).rowcount > 0
 
         if tool_call_id and status == HITLRequestStatus.COMPLETED.value and sibling_key:
-            await _close_sibling_requests(session, thread_id, tool_call_id, status, sibling_key)
+            await _close_sibling_requests(
+                session, thread_id, tool_call_id, status, sibling_key
+            )
 
         logger.info(
             "[HITL] finalized request=%s tool=%s status=%s (human_requests=%s, messages=%s)",
@@ -312,7 +319,9 @@ async def _close_sibling_requests(
 # ============ Request Dedup Helpers ============
 
 
-async def _find_pending_by_key(thread_id: str, tool_name: str, tool_args: dict) -> dict | None:
+async def _find_pending_by_key(
+    thread_id: str, tool_name: str, tool_args: dict
+) -> dict | None:
     """查找同线程下同工具+同参数的已有 pending approval 请求。
 
     避免 Agent 重试同一写操作时产生重复 approval 请求（源头去重）：

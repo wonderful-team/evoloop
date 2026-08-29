@@ -6,3 +6,11 @@ DEFAULT_SCAN_ROOTS = [
     "app.domain",
     "app.infrastructure",
 ]
+
+#: A2A lifecycle event type
+A2A_LIFECYCLE = "a2a"
+
+#: Subagent lifecycle event types
+SUBAGENT_LIFECYCLE = "subagent"
+SUBAGENT_COMPLETED = "subagent.completed"
+SUBAGENT_HITL_REQUEST = "subagent.hitl_request"

@@ -24,3 +24,11 @@ DEFAULT_DECISION = HITLDecision.REJECTED.value
 DEFAULT_GRANTED_BY = "hitl-approval"
 DEFAULT_AUTHORIZATION_TTL_DAYS = 7
 DEFAULT_BATCH_GRANT_TTL_SECONDS = 300
+
+#: 标准风险等级 → emoji（与前端 HumanRequestCard 展示一致）
+RISK_EMOJI = {
+    "low": "🟢",
+    "medium": "🟡",
+    "high": "🟠",
+    "critical": "🔴",
+}

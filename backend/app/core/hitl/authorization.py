@@ -15,8 +15,15 @@ from typing import Any
 
 from app.core.hitl.constants import DEFAULT_AUTHORIZATION_TTL_DAYS
 from app.core.hitl.orchestrator import HITLOrchestrator
-from app.core.security.authorization import AuthorizationDecision, AuthorizationEvaluator
-from app.core.security.policy_loader import AuthorizationPolicy, GrantedPermission, PolicyLoader
+from app.core.security.authorization import (
+    AuthorizationDecision,
+    AuthorizationEvaluator,
+)
+from app.core.security.policy_loader import (
+    AuthorizationPolicy,
+    GrantedPermission,
+    PolicyLoader,
+)
 from app.i18n.service import i18n
 
 logger = logging.getLogger(__name__)

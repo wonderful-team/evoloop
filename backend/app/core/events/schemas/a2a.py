@@ -10,8 +10,7 @@ caller thread so the SSE stream shows it next to the subagent panel.
 """
 
 from app.core.events.base import BaseEvent
-
-A2A_LIFECYCLE = "a2a"
+from app.core.events.constants import A2A_LIFECYCLE
 
 
 class A2ALifecycleEvent(BaseEvent):

@@ -13,10 +13,11 @@ from typing import Any
 
 from app.core.engine.state.subagent_schemas import SubagentNeedInput
 from app.core.events.base import BaseEvent
-
-SUBAGENT_COMPLETED = "subagent.completed"
-SUBAGENT_HITL_REQUEST = "subagent.hitl_request"
-SUBAGENT_LIFECYCLE = "subagent"
+from app.core.events.constants import (
+    SUBAGENT_COMPLETED,
+    SUBAGENT_HITL_REQUEST,
+    SUBAGENT_LIFECYCLE,
+)
 
 
 class SubagentLifecycleEvent(BaseEvent):

@@ -104,7 +104,10 @@ def update_grant_request_id(grant_id: str, request_id: str) -> bool:
 def approve_grant_by_request_id(request_id: str) -> BatchGrant | None:
     """Approve the pending grant associated with the given HITL request_id."""
     for grant in _grants.values():
-        if grant.request_id == request_id and grant.status == BatchGrantStatus.PENDING.value:
+        if (
+            grant.request_id == request_id
+            and grant.status == BatchGrantStatus.PENDING.value
+        ):
             grant.status = BatchGrantStatus.APPROVED.value
             logger.info(
                 "[BatchGrant] Approved grant=%s request_id=%s operations=%d",
@@ -119,7 +122,10 @@ def approve_grant_by_request_id(request_id: str) -> BatchGrant | None:
 def reject_grant_by_request_id(request_id: str) -> BatchGrant | None:
     """Mark the pending grant associated with the given HITL request_id as expired."""
     for grant in _grants.values():
-        if grant.request_id == request_id and grant.status == BatchGrantStatus.PENDING.value:
+        if (
+            grant.request_id == request_id
+            and grant.status == BatchGrantStatus.PENDING.value
+        ):
             grant.status = BatchGrantStatus.EXPIRED.value
             logger.info(
                 "[BatchGrant] Rejected grant=%s request_id=%s",

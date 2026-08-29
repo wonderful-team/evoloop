@@ -13,9 +13,11 @@ from collections import defaultdict
 
 from app.core.engine.session.gate import GateEvent
 from app.core.engine.session.manager import session_manager
-from app.core.events.schemas.subagent import (
+from app.core.events.constants import (
     SUBAGENT_COMPLETED,
     SUBAGENT_HITL_REQUEST,
+)
+from app.core.events.schemas.subagent import (
     SubagentCompletedEvent,
     SubagentHITLRequestEvent,
 )

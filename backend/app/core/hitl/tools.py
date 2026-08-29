@@ -42,7 +42,15 @@ logger = logging.getLogger(__name__)
 )
 async def ask_human(
     prompt: str,
-    input_type: Literal["text", "choice", "multi_choice", "confirmation", "approval", "project_switch", "file_select"] = "text",
+    input_type: Literal[
+        "text",
+        "choice",
+        "multi_choice",
+        "confirmation",
+        "approval",
+        "project_switch",
+        "file_select",
+    ] = "text",
     options: list[str] | None = None,
     context: str | None = None,
     default_value: str | None = None,
@@ -68,7 +76,9 @@ async def ask_human(
     """
     # EXECUTION_MODE=docker：无人值守流水线不挂起，走自动应答（沙箱隔离兜底）。
     if not hitl_enabled():
-        answer = auto_hitl_response(input_type, default_value=default_value, options=options)
+        answer = auto_hitl_response(
+            input_type, default_value=default_value, options=options
+        )
         logger.info(
             "[HITL] docker mode: ask_human auto-answered type=%s (sandbox isolation)",
             input_type,
@@ -83,7 +93,7 @@ async def ask_human(
     last_ai_message_id = ctx_fields["parent_id"]
 
     # input_type 是 Literal 受限字符串，其值即标准 request_type
-    #（与 HumanRequestType 枚举值一致），直接透传给 create_request 校验。
+    # （与 HumanRequestType 枚举值一致），直接透传给 create_request 校验。
 
     # Validate choice options
     if input_type in ("choice", "multi_choice") and not options:
@@ -219,8 +229,12 @@ async def ask_confirm(
             elif macro_id:
                 desc = f"{desc} (macro_id={macro_id})"
             params = op.get("params") or {}
-            params_str = ", ".join(f"{k}={v}" for k, v in params.items() if not k.startswith("_"))
-            detail_lines.append(f"{i}. {desc}" + (f" ({params_str})" if params_str else ""))
+            params_str = ", ".join(
+                f"{k}={v}" for k, v in params.items() if not k.startswith("_")
+            )
+            detail_lines.append(
+                f"{i}. {desc}" + (f" ({params_str})" if params_str else "")
+            )
         batch_details = "\n".join(detail_lines)
         combined_details = "\n\n".join(filter(None, [details, batch_details]))
         combined_consequences = "\n\n".join(filter(None, [consequences, risk_note]))
