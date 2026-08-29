@@ -36,7 +36,7 @@ def sql_query(db_uri: str, sql: str) -> str:
         # 1. Physical Read-Only Guard
         if re.search(DANGEROUS_KEYWORDS, sql, re.IGNORECASE):
             return json.dumps({
-                "status": "error", 
+                "status": "error",
                 "message": f"Execution Blocked: The query contains forbidden DML/DDL operations. Only SELECT queries are permitted in this tool. SQL provided: {sql}"
             })
 
@@ -81,8 +81,8 @@ def sql_query(db_uri: str, sql: str) -> str:
                 data.append(row_dict)
 
             response = {
-                "status": "success", 
-                "row_count": len(data), 
+                "status": "success",
+                "row_count": len(data),
                 "data": data
             }
             if more_rows:

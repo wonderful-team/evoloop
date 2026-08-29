@@ -75,7 +75,7 @@ class VoiceInputChannel(InputChannel):
     async def _inject_has_running_worker(self, thread_id: str, meta: dict[str, Any], raw: dict[str, Any]) -> None:
         """has_running_worker 数据源：优先会话状态（session.worker），fallback 到 metadata 标记。"""
         try:
-            from app.core.session.manager import session_manager
+            from app.core.engine.session.manager import session_manager
 
             session = session_manager.get(thread_id)
             if session is not None and session.worker is not None and not session.worker.done:

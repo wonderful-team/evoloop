@@ -2,7 +2,6 @@ import asyncio
 import logging
 import os
 import threading
-import time
 
 from sqlalchemy import delete, select
 
@@ -18,6 +17,7 @@ from app.domain.watchers import RepoWatcher
 from app.infrastructure.cache import cache
 from app.infrastructure.database import session_scope
 from app.models import Repository, SecurityFinding, SourceFile
+from app.utils.id import unique_id
 
 logger = logging.getLogger(__name__)
 
@@ -613,7 +613,7 @@ class IndexingManager:
             from app.core.engine.background_agent import run_agent_background
             from app.core.engine.dispatch import dispatch_agent_run
 
-            thread_id = f"codebase-agent-{repo_id}-{int(time.time())}"
+            thread_id = unique_id("codebase-agent", repo_id)
             from app.core.context.manager import ContextManager, EvoContext
 
             ctx = EvoContext(

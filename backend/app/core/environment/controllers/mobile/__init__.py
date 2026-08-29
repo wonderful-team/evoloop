@@ -29,6 +29,7 @@ from app.infrastructure.vision.providers.native.android_a11y import (
 )
 from app.utils.controller_response import ControllerResponse
 from app.utils.text import normalize_text
+from app.utils.time import elapsed_ms
 
 from ._advanced import MobileAdvancedMixin
 from ._app import MobileAppMixin
@@ -63,8 +64,8 @@ class MobileController(
         cache_entry = cls._package_cache.get(device_id)
         if cache_entry:
             package, timestamp = cache_entry
-            elapsed_ms = (time.time() - timestamp) * 1000
-            if elapsed_ms < cls._package_cache_ttl_ms:
+            e_ms = elapsed_ms(timestamp)
+            if e_ms < cls._package_cache_ttl_ms:
                 logger.debug(f"[MobileController] Using cached package '{package}' for {device_id}")
                 return package
         return None

@@ -19,25 +19,16 @@ from app.utils.json import dumps
 mcp = FastMCP("EvoLoop MCP Server")
 
 
-def _truncate(text: str, max_chars: int = 20000) -> str:
-    """Safely truncate text to avoid blowing up context window."""
-    if not isinstance(text, str):
-        return str(text)
-    if len(text) <= max_chars:
-        return text
-    return text[:max_chars] + f"\n... [Truncated. Total length: {len(text)} chars. Use specific tools to read more.]"
-
-
 # Phase 18: Atomic File Tools for MCP
 @mcp.tool()
 async def read_file_ops(path: str, start_line: int = None, end_line: int = None) -> str:
     """Read a file's contents. Optionally specify line range."""
     try:
-        return _truncate(await read_file.ainvoke({
+        return await read_file.ainvoke({
             "path": path,
             "start_line": start_line,
             "end_line": end_line
-        }))
+        })
     except Exception as e:
         return f"Error: {e}"
 
@@ -73,11 +64,11 @@ async def edit_file_ops(path: str, target: str, replacement: str, allow_multiple
 async def list_dir_ops(path: str, depth: int = 3, tree: bool = True) -> str:
     """List directory contents up to a specific depth."""
     try:
-        return _truncate(await list_dir.ainvoke({
+        return await list_dir.ainvoke({
             "path": path,
             "depth": depth,
             "tree": tree
-        }))
+        })
     except Exception as e:
         return f"Error: {e}"
 
@@ -86,10 +77,10 @@ async def list_dir_ops(path: str, depth: int = 3, tree: bool = True) -> str:
 async def find_symbol_ops(name: str, file_pattern: str = None) -> str:
     """Find definition of a class or function in the codebase."""
     try:
-        return _truncate(await find_symbol.ainvoke({
+        return await find_symbol.ainvoke({
             "name": name,
             "file_pattern": file_pattern
-        }))
+        })
     except Exception as e:
         return f"Error: {e}"
 
@@ -98,10 +89,10 @@ async def find_symbol_ops(name: str, file_pattern: str = None) -> str:
 async def search_code_ops(pattern: str, path: str = None) -> str:
     """Search code with regex pattern."""
     try:
-        return _truncate(await search_code.ainvoke({
+        return await search_code.ainvoke({
             "pattern": pattern,
             "path": path
-        }))
+        })
     except Exception as e:
         return f"Error: {e}"
 
@@ -110,16 +101,7 @@ async def search_code_ops(pattern: str, path: str = None) -> str:
 async def ask_codebase_ops(question: str) -> str:
     """Ask a natural language question about the codebase."""
     try:
-        return _truncate(await ask_codebase.ainvoke({"question": question}))
-    except Exception as e:
-        return f"Error: {e}"
-
-
-@mcp.tool()
-async def execute_command_ops(command: str) -> str:
-    """Execute shell command including Git operations."""
-    try:
-        return _truncate(await execute_command.ainvoke({"command": command}))
+        return await ask_codebase.ainvoke({"question": question})
     except Exception as e:
         return f"Error: {e}"
 
@@ -130,7 +112,7 @@ async def read_document(path: str) -> str:
     try:
         from app.domain.tools.document_reader import read_document as read_doc_tool
 
-        return _truncate(await read_doc_tool.ainvoke({"file_path": path}))
+        return await read_doc_tool.ainvoke({"file_path": path})
     except Exception as e:
         return f"Error reading document: {e}"
 
@@ -173,7 +155,7 @@ async def get_annotated_tree(path: str = ".") -> str:
             return f"Error: Path {path} not found."
 
         generator = AnnotatedTreeGenerator(target_path, file_limit=30)
-        return _truncate(await generator.generate())
+        return await generator.generate()
     except Exception as e:
         return f"Error generating tree: {e}"
 

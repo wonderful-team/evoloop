@@ -8,6 +8,7 @@ differences between file versions using unified diff format.
 import difflib
 import logging
 import os
+import threading
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +59,7 @@ class DiffTracker:
 
     def __init__(self):
         self._snapshots: dict[str, str] = {}
+        self._lock = threading.Lock()
 
     def capture_snapshot(self, path: str, thread_id: str = "default") -> None:
         """
@@ -74,12 +76,16 @@ class DiffTracker:
         key = f"{thread_id}:{path}"
         try:
             with open(path, encoding="utf-8") as f:
-                self._snapshots[key] = f.read()
+                content = f.read()
         except FileNotFoundError:
             # File might mean to be created
-            self._snapshots[key] = ""
+            content = ""
         except (OSError, TypeError, ValueError) as e:
             logger.warning(f"Failed to capture snapshot for {path} (thread {thread_id}): {e}", exc_info=True)
+            return
+
+        with self._lock:
+            self._snapshots[key] = content
 
     def compute_diff(
         self, path: str, thread_id: str = "default", context_lines: int = 2
@@ -103,10 +109,10 @@ class DiffTracker:
             return "", "", None
 
         key = f"{thread_id}:{path}"
-        if key not in self._snapshots:
+        with self._lock:
+            old_content = self._snapshots.pop(key, None)  # Consume snapshot
+        if old_content is None:
             return "", "", None
-
-        old_content = self._snapshots.pop(key)  # Consume snapshot
 
         try:
             with open(path, encoding="utf-8") as f:
@@ -144,7 +150,23 @@ class DiffTracker:
     def has_snapshot(self, path: str, thread_id: str = "default") -> bool:
         """Check if a snapshot exists for the given path and thread."""
         key = f"{thread_id}:{path}"
-        return key in self._snapshots
+        with self._lock:
+            return key in self._snapshots
+
+    def get_snapshot(self, path: str, thread_id: str = "default") -> str | None:
+        """Read the stored snapshot WITHOUT consuming it.
+
+        Returns ``None`` when no snapshot exists；空文件快照存的是 ``""``。
+        """
+        key = f"{thread_id}:{path}"
+        with self._lock:
+            return self._snapshots.get(key)
+
+    def drop_snapshot(self, path: str, thread_id: str = "default") -> None:
+        """Remove a snapshot without computing a diff."""
+        key = f"{thread_id}:{path}"
+        with self._lock:
+            self._snapshots.pop(key, None)
 
     def clear(self, thread_id: str | None = None) -> None:
         """
@@ -154,13 +176,14 @@ class DiffTracker:
             thread_id: If provided, only clear snapshots for this thread.
                       If None, clear all snapshots.
         """
-        if thread_id is None:
-            self._snapshots.clear()
-        else:
-            prefix = f"{thread_id}:"
-            keys_to_remove = [k for k in self._snapshots if k.startswith(prefix)]
-            for key in keys_to_remove:
-                del self._snapshots[key]
+        with self._lock:
+            if thread_id is None:
+                self._snapshots.clear()
+            else:
+                prefix = f"{thread_id}:"
+                for key in list(self._snapshots):
+                    if key.startswith(prefix):
+                        del self._snapshots[key]
 
     def get_snapshot_count(self, thread_id: str | None = None) -> int:
         """
@@ -172,10 +195,11 @@ class DiffTracker:
         Returns:
             Number of snapshots
         """
-        if thread_id is None:
-            return len(self._snapshots)
-        prefix = f"{thread_id}:"
-        return sum(1 for k in self._snapshots if k.startswith(prefix))
+        with self._lock:
+            if thread_id is None:
+                return len(self._snapshots)
+            prefix = f"{thread_id}:"
+            return sum(1 for k in self._snapshots if k.startswith(prefix))
 
 
 def compute_text_diff(

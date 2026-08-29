@@ -16,6 +16,7 @@ project metadata and remain protected.
 from __future__ import annotations
 
 import os
+import re
 
 from app.core.config import settings
 from app.core.project.utils import get_workspace_root

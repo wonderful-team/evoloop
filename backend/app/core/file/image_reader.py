@@ -22,7 +22,7 @@ class ImageReaderService:
             texts = [el.text for el in result.elements if el.text]
             if not texts:
                 return f"[Image Asset: {os.path.basename(path)} - No text found via OCR]"
-                
+
             return f"### OCR Results ({os.path.basename(path)})\n\n" + "\n".join(texts)
         except Exception as e:
             logger.exception(f"OCR failed for {path}: {e}")

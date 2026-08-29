@@ -17,6 +17,7 @@ from app.core.file import cleanup_file
 from app.utils.geometry import normalize_coordinates
 from app.utils.template import render_template
 from app.utils.text import normalize_text, truncate_output
+from app.utils.time import elapsed_ms
 
 logger = logging.getLogger(__name__)
 
@@ -135,7 +136,7 @@ class BatchExecutor:
 
             try:
                 result = await executor_func(action_dict)
-                latency = int((time.time() - step_start) * 1000)
+                latency = int(elapsed_ms(step_start))
                 self.results.append(
                     BatchStepResult(
                         step=i,
@@ -148,7 +149,7 @@ class BatchExecutor:
                     )
                 )
             except Exception as e:
-                latency = int((time.time() - step_start) * 1000)
+                latency = int(elapsed_ms(step_start))
                 self.results.append(
                     BatchStepResult(
                         step=i,

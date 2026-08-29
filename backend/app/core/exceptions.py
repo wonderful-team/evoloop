@@ -25,6 +25,19 @@ class AgentHumanInterruptException(BaseException):
         super().__init__(message)
 
 
+class AgentA2AInterruptException(AgentHumanInterruptException):
+    """
+    Raised when an A2A subtask is dispatched and the caller must pause until the
+    remote callback returns (worker-delegation-design.md Phase B).
+
+    The Worker rollout treats this as a suspend-wait-resume (not a terminal
+    HITL): it parks until the remote callback result is written to DB, reloads
+    its state, and continues the ReAct loop.
+    """
+
+    pass
+
+
 class GlobalModeError(Exception):
     """
     Raised when a tool/operation requires a specific project but the current

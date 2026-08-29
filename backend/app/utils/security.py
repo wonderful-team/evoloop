@@ -1,8 +1,8 @@
 """General security-related utilities that do not fit into a dedicated domain.
 
 Crypto/token helpers have moved to ``app.core.security.crypto``.
-Secret redaction helpers have moved to ``app.core.security.redaction``.
-Path traversal helpers are available in ``app.core.file.path_utils`` and
+Secret redaction helpers have moved to ``app.utils.redact``.
+Path traversal helpers are available in ``app.utils.path`` and
 ``app.core.security.path``.
 
 This module is kept as a compatibility/utility layer for:
@@ -12,7 +12,6 @@ This module is kept as a compatibility/utility layer for:
 - a simple in-memory rate limiter
 """
 
-import os
 import re
 
 # Backward-compatible re-exports for code that has not migrated yet.
@@ -24,7 +23,8 @@ from app.core.security.crypto import (
     get_password_hash,
     verify_password,
 )
-from app.core.security.redaction import (
+from app.utils.filename import sanitize_filename
+from app.utils.redact import (
     mask_sensitive_data,
     redact_secrets,
     sanitize_string,
@@ -46,64 +46,6 @@ __all__ = [
     "validate_package_name",
     "verify_password",
 ]
-
-
-def sanitize_filename(filename: str, replacement: str = "_") -> str:
-    """
-    Sanitize a filename by removing or replacing unsafe characters.
-
-    Args:
-        filename: Original filename
-        replacement: Character to replace unsafe characters with
-
-    Returns:
-        Sanitized filename safe for use in filesystem
-    """
-    # Remove path separators and null bytes
-    unsafe = ["\\", "/", "\x00", "\n", "\r", "\t"]
-    result = filename
-    for char in unsafe:
-        result = result.replace(char, replacement)
-
-    # Remove other special characters
-    result = re.sub(r'[<>:"|?*]', replacement, result)
-
-    # Limit length
-    if len(result) > 255:
-        name, ext = os.path.splitext(result)
-        result = name[: 255 - len(ext)] + ext
-
-    # Don't allow hidden files or reserved names on Windows
-    reserved = {
-        "CON",
-        "PRN",
-        "AUX",
-        "NUL",
-        "COM1",
-        "COM2",
-        "COM3",
-        "COM4",
-        "COM5",
-        "COM6",
-        "COM7",
-        "COM8",
-        "COM9",
-        "LPT1",
-        "LPT2",
-        "LPT3",
-        "LPT4",
-        "LPT5",
-        "LPT6",
-        "LPT7",
-        "LPT8",
-        "LPT9",
-    }
-
-    base = os.path.splitext(result)[0].upper()
-    if base in reserved:
-        result = replacement + result
-
-    return result
 
 
 def is_path_within_base(base_path: str, target_path: str) -> bool:

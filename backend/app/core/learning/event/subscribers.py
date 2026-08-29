@@ -12,9 +12,9 @@ from app.core.engine.rewind import REWIND_REQUESTED, RewindRequestedEvent
 from app.core.events.base import BaseEvent
 from app.core.events.decorators import event_register, event_subscribe
 from app.core.events.registry import SystemEventType
-from app.core.learning.macro import MacroMutatedEvent
 from app.core.learning.event.schemas import SkillMutatedEvent
 from app.core.learning.event.types import SkillEventType
+from app.core.learning.macro import MacroMutatedEvent
 from app.core.learning.skills.sync_service import skill_sync_service
 from app.infrastructure.database import session_scope
 

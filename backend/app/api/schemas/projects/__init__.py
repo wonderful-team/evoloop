@@ -30,6 +30,7 @@ class ImportProjectByPathRequest(DynamicBaseModel):
 class ImportProjectByPathResponse(BaseAPIResponse):
     status: str
     repo_id: int
+    project_id: int | None = None
     name: str
 
 

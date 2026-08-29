@@ -15,6 +15,7 @@ from pathlib import Path
 from app.core.config import settings
 from app.core.memory.lifespan import MemoryLifespanManager
 from app.infrastructure.queue.factory import periodic_task
+from app.utils.id import stamped_id
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +29,7 @@ class MemoryMaintenanceAgent:
     """
 
     def __init__(self):
-        self.thread_id = f"maint_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        self.thread_id = stamped_id("maint")
         self.log_file = Path(settings.BRAIN_MEMORY_ROOT) / ".maintenance"
 
     async def run(self):

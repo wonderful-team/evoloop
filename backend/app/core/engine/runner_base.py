@@ -9,7 +9,6 @@
 from __future__ import annotations
 
 import logging
-import time
 from typing import Any
 
 from app.constants import DEFAULT_PROJECT_ID
@@ -19,6 +18,7 @@ from app.core.engine.background_agent.models import BackgroundAgentInputs
 from app.core.engine.callbacks.database_logger import DatabaseCallbackHandler
 from app.core.engine.callbacks.transparent import TransparentCallbackHandler
 from app.core.engine.message.converter import EvoMessageConverter
+from app.utils.id import unique_id
 
 logger = logging.getLogger(__name__)
 
@@ -40,11 +40,11 @@ async def build_ctx(
             working_directory=working_dir,
             active_model=inputs.model,
             command_id=inputs.command_id,
-            request_id=run_id or f"bg-{thread_id}-{int(time.time())}",
+            request_id=run_id or unique_id("bg", thread_id),
         )
     else:
         ctx = loaded_ctx
-        ctx.request_id = run_id or f"bg-{thread_id}-{int(time.time())}"
+        ctx.request_id = run_id or unique_id("bg", thread_id)
         ctx.working_directory = working_dir
         ctx.command_id = inputs.command_id
         ctx.active_model = inputs.model or ctx.active_model

@@ -31,6 +31,7 @@ from typing import Any
 from app.core.memory.models import MemoryEntry, MemoryType
 from app.core.memory.schemas import RetrievalContext
 from app.utils.template import render_template
+from app.utils.time import elapsed_ms
 
 logger = logging.getLogger(__name__)
 
@@ -126,7 +127,7 @@ class MemoryRetriever:
         scored.sort(key=lambda x: x[1], reverse=True)
 
         selected = [c for c, s in scored[:limit]]
-        elapsed = (time.time() - total_start) * 1000
+        elapsed = elapsed_ms(total_start)
         logger.info(f"[MemoryRetriever] ✓ Retrieved {len(selected)} memories in {elapsed:.1f}ms")
         return selected
 

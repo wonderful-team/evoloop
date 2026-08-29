@@ -36,7 +36,7 @@ class GraphSchemaManager:
             await self._create_index(session, "memory_project", "Memory", "project_id")
             await self._create_index(session, "memory_type", "Memory", "type")
             await self._create_index(session, "memory_source", "Memory", "source_message_id")
-            
+
             # 2. Codebase Domain
             await self._create_constraint(session, "file_path", "File", "path")
             await self._create_index(session, "file_project", "File", "project_id")
@@ -44,17 +44,17 @@ class GraphSchemaManager:
             await self._create_index(session, "code_entity_project", "CodeEntity", "project_id")
             await self._create_index(session, "directory_path", "Directory", "path")
             await self._create_index(session, "directory_project", "Directory", "project_id")
-            
+
             # 3. Atlas Domain
             await self._create_constraint(session, "atlas_app_bundle", "App", "bundle_id")
             await self._create_constraint(session, "atlas_state_id", "State", "state_id")
-            
+
             # 4. Concept Domain (Unified)
             await self._create_constraint(session, "concept_id", "Concept", "id")
             await self._create_index(session, "concept_name", "Concept", "name")
             await self._create_index(session, "concept_title", "Concept", "title")
             await self._create_index(session, "concept_project", "Concept", "project_id")
-            
+
             # 5. Vector Indexes (Conditional)
             if settings.EMBEDDING_DIMENSIONS:
                 dimensions = int(settings.EMBEDDING_DIMENSIONS)

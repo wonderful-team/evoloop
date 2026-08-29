@@ -62,9 +62,11 @@ class SupervisorPromptBuilder(BasePromptBuilder):
         # has_running_worker 数据源：优先会话状态（session.worker），fallback 到 metadata 标记
         has_running_worker = False
         running_worker_desc = ""
-        try:
-            from app.core.session.manager import session_manager
+        # 惰性：session ↔ nodes.prompts 存在内部循环（session → background_agent →
+        # nodes.worker → prompts），此处是唯一引爆边，放函数内避免 import 期成环。
+        from app.core.engine.session.manager import session_manager
 
+        try:
             session = session_manager.get(ctx.thread_id) if ctx.thread_id else None
             if session is not None and session.worker is not None and not session.worker.done:
                 has_running_worker = True

@@ -13,7 +13,6 @@ import asyncio
 import json
 import logging
 import ssl
-import struct
 import uuid
 from collections.abc import AsyncIterator
 from typing import Any
@@ -41,15 +40,6 @@ def _frame(event: int, payload: dict[str, Any], session_id: str = "") -> bytes:
     frame.extend(len(payload_bytes).to_bytes(4, "big"))
     frame.extend(payload_bytes)
     return bytes(frame)
-
-
-def s16le_to_f32le(data: bytes) -> bytes:
-    """把火山 'pcm' 格式（s16le, 24kHz 单声道）转成 f32le，匹配 Rust 语音客户端契约。"""
-    if not data:
-        return b""
-    count = len(data) // 2
-    samples = struct.unpack(f"<{count}h", data)
-    return struct.pack(f"<{count}f", *(s / 32768.0 for s in samples))
 
 
 class VolcTtsClient:

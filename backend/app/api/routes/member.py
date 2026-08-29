@@ -207,7 +207,7 @@ async def check_benefits_batch(req: BatchCheckRequest, token: TokenDep):
 
     # 批量检查权益
     results = await benefit_service.check_multiple_benefits(req.benefit_codes, member_id)
-    
+
     # 获取额外信息
     benefits_data = await benefit_service.get_member_entitlements(member_id)
 

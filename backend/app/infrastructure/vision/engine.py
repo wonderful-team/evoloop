@@ -4,6 +4,7 @@ import time
 from app.core.environment import get_current_app_context
 from app.infrastructure.vision.router import get_vision_router
 from app.infrastructure.vision.types import VisionResult, VisionTask
+from app.utils.time import elapsed_ms
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +79,7 @@ class VisionEngine:
                 result = VisionResult(task=task, success=False, metadata={"error": str(e)})
 
         # 4. Finalize
-        result.latency_ms = (time.time() - start_time) * 1000
+        result.latency_ms = elapsed_ms(start_time)
 
         # 5. Passive Atlas Learning for non-DETECT tasks
         # Skip Atlas learning for browser contexts (dynamic web pages don't benefit from Atlas)

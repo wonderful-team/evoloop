@@ -12,6 +12,7 @@ from app.infrastructure.drivers.macos._workspace import (
     ax_value_size,
     frontmost_application,
 )
+from app.utils.text import normalize_compact
 
 logger = logging.getLogger(__name__)
 
@@ -22,11 +23,6 @@ _APP_DIRECTORIES = [
 ]
 
 _STRINGS_KEYS = ("CFBundleDisplayName", "CFBundleName")
-
-
-def _normalize_app_name(name: str) -> str:
-    """Normalize an app name for cross-source matching (spaces/hyphens/underscores)."""
-    return re.sub(r"[\s\-_]+", "", name).lower()
 
 
 def _preferred_languages() -> list[str]:
@@ -126,7 +122,7 @@ class AppMixin:
             if paths:
                 return paths[0]
         # 目录扫描兜底：归一化匹配（不依赖 Spotlight 索引）
-        needle = _normalize_app_name(app_name)
+        needle = normalize_compact(app_name)
         for root in _APP_DIRECTORIES:
             try:
                 entries = os.listdir(root)
@@ -137,7 +133,7 @@ class AppMixin:
                     continue
                 app_path = os.path.join(root, entry)
                 candidates = [entry[:-4], _bundle_info_name(app_path)]
-                if any(_normalize_app_name(c) == needle for c in candidates if c):
+                if any(normalize_compact(c) == needle for c in candidates if c):
                     return app_path
         return None
 

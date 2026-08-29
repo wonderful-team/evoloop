@@ -4,7 +4,6 @@ Handles CRUD for Project Tasks (Tickets/Requirements).
 """
 
 import logging
-import time
 
 from fastapi import APIRouter, BackgroundTasks, Header, HTTPException
 
@@ -19,6 +18,7 @@ from app.constants import DEFAULT_PROJECT_ID
 from app.core.engine.background_agent import run_agent_background
 from app.core.engine.dispatch import dispatch_agent_run
 from app.core.evocloud import evocloud_manager
+from app.utils.id import unique_id
 from app.utils.template import render_template
 
 logger = logging.getLogger(__name__)
@@ -169,7 +169,7 @@ async def execute_task(
 
     # 3. Generate Thread ID
     # Use task ID in thread ID to allow resuming/tracking specific to this task
-    thread_id = f"task-{task_id}-{int(time.time())}"
+    thread_id = unique_id("task", task_id)
 
     # 4. Trigger Unified Dispatcher
     result = await dispatch_agent_run(

@@ -349,6 +349,33 @@ def truncate_output(text: str, max_len: int = 6000, suffix: str = "...") -> str:
     return text[:max_len] + f"\n{suffix} [truncated, total {len(text)} chars]"
 
 
+def chunk_text(text: str, limit: int) -> list[str]:
+    """Split a long reply into chunks not exceeding ``limit`` characters.
+
+    Prefers newline boundaries, then sentence period, then a hard cut at the
+    half-way point. No content is dropped.
+    """
+    text = (text or "").strip()
+    if not text:
+        return []
+    if len(text) <= limit:
+        return [text]
+
+    chunks: list[str] = []
+    remaining = text
+    while len(remaining) > limit:
+        cut = remaining.rfind("\n", 0, limit)
+        if cut < limit // 2:
+            cut = remaining.rfind("。", 0, limit)
+        if cut <= 0:
+            cut = limit
+        chunks.append(remaining[:cut].strip())
+        remaining = remaining[cut:].strip()
+    if remaining:
+        chunks.append(remaining)
+    return chunks
+
+
 # ============================================================================
 # Text Normalization
 # ============================================================================
@@ -473,3 +500,16 @@ def strip_markdown_for_tts(text: str) -> str:
     text = re.sub(r"[ \t]{2,}", " ", text)
 
     return text.strip()
+
+
+def normalize_ws(text: str) -> str:
+    """Collapse any run of whitespace to a single space."""
+    return " ".join(text.split())
+
+
+def normalize_compact(text: str | None) -> str:
+    """Normalize app/process names for cross-source matching.
+
+    Strips runs of whitespace, hyphens and underscores, then lowercases.
+    """
+    return re.sub(r"[\s\-_]+", "", text or "").lower()

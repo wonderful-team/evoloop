@@ -16,7 +16,7 @@ from app.core.learning.trace.recorder import sync_thread_to_graph
 from app.infrastructure.database import session_scope
 from app.infrastructure.queue.factory import periodic_task, shared_task
 from app.models import FileOperation, Message
-from app.utils.parameters import normalize_parameters
+from app.utils.id import unique_id
 from app.utils.pydantic_helpers import clean_none_values
 
 logger = logging.getLogger(__name__)

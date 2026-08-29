@@ -5,6 +5,7 @@ import time
 from app.infrastructure.drivers.macos import macos_driver
 from app.infrastructure.vision.providers.base import VisionProvider
 from app.infrastructure.vision.types import ElementType, UIElement, VisionResult, VisionTask
+from app.utils.time import elapsed_ms
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +122,7 @@ class MacOSVisionOCRProvider(VisionProvider):
                 )
                 elements.append(element)
 
-            latency = (time.time() - start_time) * 1000
+            latency = elapsed_ms(start_time)
             result = VisionResult(
                 task=task,
                 success=True,

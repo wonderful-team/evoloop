@@ -6,8 +6,13 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING, Any
 
+from app.core.context.manager import ContextManager
+from app.core.context.thread_store import thread_context_store
+from app.core.engine.worker_registry import worker_registry
+from app.core.monitoring.activity import activity_monitor
+
 if TYPE_CHECKING:
-    from app.core.session.session import AgentSession
+    from app.core.engine.session.session import AgentSession
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +33,7 @@ class SessionManager:
         if existing is not None and existing.lifecycle == "running":
             return existing
 
-        from app.core.session.session import AgentSession, run_agent_session
+        from app.core.engine.session.session import AgentSession, run_agent_session
 
         async with self._lock:
             existing = self._sessions.get(thread_id)
@@ -56,8 +61,6 @@ class SessionManager:
             self._sessions.pop(thread_id, None)
             return True
 
-        from app.core.engine.worker_registry import worker_registry
-        from app.core.monitoring.activity import activity_monitor
 
         stopped = False
         if await worker_registry.cancel_worker(thread_id):
@@ -79,7 +82,6 @@ class SessionManager:
         返回停止的会话数。逐个走 ``stop_agent``（有会话 → session.stop；
         无会话 → stop_run + cancel_worker 双兜底），语义与单端停止一致。
         """
-        from app.core.context.thread_store import thread_context_store
 
         stopped = 0
         for tid in list(self._sessions.keys()):
@@ -99,7 +101,6 @@ class SessionManager:
 
     async def _session_member_id(self, thread_id: str) -> int | None:
         """从会话 ctx 取 member_id（用于 stop_all 按用户过滤）。"""
-        from app.core.context.manager import ContextManager
 
         ctx = await ContextManager.load(thread_id)
         return ctx.member_id if ctx else None

@@ -12,6 +12,7 @@ import time
 from collections.abc import Callable
 
 from app.core.environment.schemas import AndroidEvent, AndroidTraceEvent, DebounceConfig
+from app.utils.time import elapsed_ms
 
 logger = logging.getLogger(__name__)
 
@@ -152,7 +153,7 @@ class AndroidEventRecorder:
                 if self._kernel_time_base is None:
                     # Fallback if _calibrate_clocks hasn't finished yet or failed
                     self._kernel_time_base = kernel_timestamp
-                    self._relative_offset_ms = (time.time() - self._start_time) * 1000.0
+                    self._relative_offset_ms = elapsed_ms(self._start_time)
                     relative_ts_ms = self._relative_offset_ms
                     logger.debug(f"[AndroidEventRecorder] Lazy calibration on first event: offset={self._relative_offset_ms:.1f}ms")
                 else:
@@ -161,7 +162,7 @@ class AndroidEventRecorder:
                     relative_ts_ms = elapsed_kernel_ms + self._relative_offset_ms
             else:
                 # No kernel timestamp (unlikely with -t), use host time
-                relative_ts_ms = (time.time() - self._start_time) * 1000.0
+                relative_ts_ms = elapsed_ms(self._start_time)
 
             if ev_type == 0x03:
                 if ev_code == 0x35:

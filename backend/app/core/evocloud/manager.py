@@ -9,6 +9,7 @@ from app.core.evocloud.backends.websocket_link import EvoCloudWebSocketLink
 from app.core.evocloud.schemas import EvoCloudConfig, EvoCloudProjectSummary
 from app.models.schemas.auth import LoginResult
 from app.utils.async_utils import LoopBoundResource
+from app.utils.time import elapsed_ms
 
 logger = logging.getLogger(__name__)
 
@@ -242,7 +243,7 @@ class EvoCloudManager:
         try:
             start_time = time.time()
             projects = await self._fetch_projects_from_api()
-            fetch_time = (time.time() - start_time) * 1000
+            fetch_time = elapsed_ms(start_time)
 
             # Update cache
             self._projects_cache = projects

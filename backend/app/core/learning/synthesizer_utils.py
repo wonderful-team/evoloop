@@ -17,7 +17,6 @@ from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models.learning import LearnedSkill
 from app.utils.extract import extract_section as _extract_section
 from app.utils.extract import extract_yaml_block as _extract_yaml_block
-from app.utils.time import normalize_timestamp_ms_to_sec as _normalize_timestamp
 from app.utils.yaml import safe_yaml_dumps
 
 logger = logging.getLogger(__name__)
@@ -123,24 +122,6 @@ def extract_instructions_section(text: str) -> str:
         "## Skill Instructions",
     ]
     return _extract_section(text, markers)
-
-
-def normalize_timestamp_to_seconds(timestamp: float) -> float:
-    """
-    将相对毫秒时间戳转换为秒
-
-    所有录制源（Android/DOM/Global）都统一使用相对毫秒时间戳，
-    即相对于视频录制开始的毫秒数。
-
-    Args:
-        timestamp: 相对毫秒时间戳（从视频开始计算的毫秒数）
-
-    Returns:
-        float: 相对秒数（从视频开始计算的秒数）
-
-    Note: Delegates to app.utils.time.normalize_timestamp_ms_to_sec for the actual implementation.
-    """
-    return _normalize_timestamp(timestamp)
 
 
 def describe_normalized_position(norm_x: float, norm_y: float) -> str:

@@ -265,7 +265,7 @@ async def read_file(
         effective_end = e if e is not None else default_end
 
     res = await handle_read(path, effective_start, effective_end, config=config, include_metadata=include_metadata)
-    
+
     if isinstance(res, tuple):
         result_str, meta = res
     else:

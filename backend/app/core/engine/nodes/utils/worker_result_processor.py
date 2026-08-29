@@ -8,10 +8,7 @@ MCP interception, and subtask result collection.
 import json
 import logging
 
-from app.core.engine.message.native_classes import (
-    AIMessage,
-    RunnableConfig,
-)
+from app.core.engine.message.native_classes import AIMessage, RunnableConfig
 from app.core.engine.message.utils import get_message_text
 from app.core.engine.schemas import EngineResult
 from app.core.engine.state import AgentState, StateUpdate
@@ -32,21 +29,21 @@ async def process_worker_result(
     config: RunnableConfig = None,  # noqa: ARG001
 ) -> StateUpdate:
     if not engine_result.messages:
-        content = ""
+        worker_content = ""
     else:
         last_msg = engine_result.messages[-1]
         last_role = last_msg.role
-        content = get_message_text(last_msg) if last_role in ("assistant", "ai") else ""
+        worker_content = get_message_text(last_msg) if last_role in ("assistant", "ai") else ""
 
     tool_history = engine_result.tool_history or []
 
-    if not content and engine_result.messages:
+    if not worker_content and engine_result.messages:
         for msg in reversed(engine_result.messages):
             if msg.role == "tool":
-                content = get_message_text(msg)
+                worker_content = get_message_text(msg)
                 break
 
-    logger.info(f"[Worker][{role_name}] Loop finished. Content len: {len(content)}, Tools used: {len(tool_history)}")
+    logger.info(f"[Worker][{role_name}] Loop finished. Content len: {len(worker_content)}, Tools used: {len(tool_history)}")
 
     outcome = engine_result.outcome
     if outcome and outcome.status == "truncated":
@@ -57,7 +54,7 @@ async def process_worker_result(
         worker_outcome = "failed"
         if execution_ticket:
             execution_ticket.is_resuming = False
-    elif "[ERROR:" in content or content.strip().startswith("Error:"):
+    elif "[ERROR:" in worker_content or worker_content.strip().startswith("Error:"):
         worker_outcome = "failed"
         if execution_ticket:
             execution_ticket.is_resuming = False
@@ -65,14 +62,6 @@ async def process_worker_result(
         worker_outcome = "success"
         if execution_ticket:
             execution_ticket.is_resuming = False
-
-    parameters = execution_ticket.parameters
-    verbose_output = parameters.verbose_output if parameters else True
-
-    if verbose_output:
-        worker_content = content if content else f"{role_name} completed."
-    else:
-        worker_content = f"{role_name} completed."
 
     out_outcome = worker_outcome
 

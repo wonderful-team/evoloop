@@ -94,6 +94,11 @@ class DatabaseResourceManager:
         return self._session_factories.get(self._current_loop_id())
 
     @property
+    def is_ready(self) -> bool:
+        """True when any engine has been initialized (sync or current-loop async)."""
+        return self._sync_engine is not None or self.engine is not None
+
+    @property
     def vector_store(self):
         """Return the vector store for the current event loop."""
         return self._vector_stores.get(self._current_loop_id())

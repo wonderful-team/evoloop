@@ -262,7 +262,7 @@ async def _handle_route(body: dict[str, Any], conn_id: str) -> None:
             return
 
         # 会话模式（voice 先行）：统一走 session_manager.submit 注入会话主循环
-        from app.core.session.manager import session_manager
+        from app.core.engine.session.manager import session_manager
 
         await session_manager.submit(thread_id, dispatch_result.inputs)
         _is_sending_chat_tts_text.pop(thread_id, None)
@@ -1085,7 +1085,7 @@ async def run_agent_pipeline(websocket: WebSocket, thread_id: str, text: str) ->
                 return
 
             # 会话模式（voice 先行）：统一走 session_manager.submit 注入会话主循环
-            from app.core.session.manager import session_manager
+            from app.core.engine.session.manager import session_manager
 
             await session_manager.submit(thread_id, dispatch_result.inputs)
     except Exception as e:
@@ -1377,7 +1377,7 @@ async def voice_ws(websocket: WebSocket) -> None:
                 thread_id = str(body.get("thread_id", "")).strip()
                 if thread_id:
                     # 统一走 session_manager.stop_agent（有会话 → session.stop；无会话 → 双兜底）
-                    from app.core.session.manager import session_manager
+                    from app.core.engine.session.manager import session_manager
 
                     await session_manager.stop_agent(thread_id, "voice_cancel")
                     # 原 voice_input.handle_cancelled 负责的 cancelled route_result 推送：

@@ -181,8 +181,8 @@ class TodoRepository:
         return todo
 
     async def get_by_project(
-        self, 
-        project_id: int, 
+        self,
+        project_id: int,
         statuses: list[TodoStatus] | None = None,
         limit: int = 50
     ) -> Sequence[TodoItem]:
@@ -200,7 +200,7 @@ class TodoRepository:
         query = select(TodoItem).where(
             TodoItem.project_id == project_id
         ).order_by(desc(TodoItem.created_at)).limit(limit)
-        
+
         if statuses:
             query = query.where(TodoItem.status.in_(statuses))
 

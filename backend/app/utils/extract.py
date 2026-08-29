@@ -132,6 +132,8 @@ def extract_section(text: str, markers: list[str]) -> str:
 def _extract_json_bounds(text: str) -> str | None:
     """Extract the outermost JSON object/array using brace matching.
 
+    String-aware: braces/commas inside quoted strings are skipped, so
+    instructions containing literal ``{``/``}`` do not break the match.
     Handles cases where the LLM output has extra text or truncation.
     """
     text = text.strip()
@@ -144,10 +146,22 @@ def _extract_json_bounds(text: str) -> str | None:
         return None
 
     stack = []
+    in_string = False
+    escaped = False
     end = -1
     for i in range(start, len(text)):
         c = text[i]
-        if c in "{[":
+        if in_string:
+            if escaped:
+                escaped = False
+            elif c == "\\":
+                escaped = True
+            elif c == '"':
+                in_string = False
+            continue
+        if c == '"':
+            in_string = True
+        elif c in "{[":
             stack.append(c)
         elif c == "}":
             if stack and stack[-1] == "{":
@@ -203,7 +217,68 @@ def _repair_json(text: str) -> str | None:
     # 5. Unquoted field names (word chars before colon, not inside a string)
     text = regex.sub(r"(?<=[\{,]\s*)([A-Za-z_]\w*)\s*:", r'"\1":', text)
 
+    # 6. Unterminated string at the end (truncated output): if the text ends
+    #    inside an open double-quoted string, close it with a trailing quote.
+    if _ends_inside_string(text):
+        text = text + '"'
+
+    # 7. Close any unclosed brackets at the end (truncated output).
+    text = _close_unclosed_brackets(text)
+
     return text
+
+
+def _close_unclosed_brackets(text: str) -> str:
+    """Append closing brackets for any unclosed ``{[`` at the end of ``text``.
+
+    Only used on truncated LLM output that has already been given a closing
+    string quote — appends ``}``/``]`` until the bracket stack is empty.
+    """
+    stack = []
+    in_string = False
+    escaped = False
+    for c in text:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif c == "\\":
+                escaped = True
+            elif c == '"':
+                in_string = False
+            continue
+        if c == '"':
+            in_string = True
+        elif c in "{[":
+            stack.append(c)
+        elif c == "}" and stack and stack[-1] == "{":
+            stack.pop()
+        elif c == "]" and stack and stack[-1] == "[":
+            stack.pop()
+    if not stack:
+        return text
+    return text + "".join("}" if b == "{" else "]" for b in reversed(stack))
+
+
+def _ends_inside_string(text: str) -> bool:
+    """True if ``text`` ends while inside an open double-quoted string.
+
+    Walks the text tracking string state (JSON-style escapes) and reports
+    whether the last character is inside a string that is not yet closed.
+    """
+    in_string = False
+    escaped = False
+    for c in text:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif c == "\\":
+                escaped = True
+            elif c == '"':
+                in_string = False
+            continue
+        if c == '"':
+            in_string = True
+    return in_string
 
 
 def safe_parse_json_value(text: str) -> Any | None:

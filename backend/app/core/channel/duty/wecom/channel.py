@@ -22,6 +22,7 @@ from app.core.channel.duty.base import (
 from app.core.engine.message.schemas import MessageBlock
 from app.core.events.decorators import event_register, event_subscribe
 from app.core.events.registry import SystemEventType
+from app.utils.text import chunk_text
 
 from .read import run as read_run
 from .reply import run as reply_run
@@ -41,6 +42,22 @@ class WeComDutyChannel(DutyChannel):
     name = "wecom_duty"
 
     _instance: WeComDutyChannel | None = None
+
+    # 输出管道属性（复用语音链路 MessageBlock → 输出 Channel 的机制）：
+    # Supervisor 在 route_to Worker 前输出的安抚文本会作为 AI MessageBlock
+    # 经 OutputChannelPolicy 路由到 wecom_duty，这里负责把它发送到企微。
+    accepts_blocks = True
+    accepts_stream_events = False
+    # 场景标识：source="duty"（值守场景）。policy 用场景名路由到本渠道，
+    # 使「场景」（duty）与「渠道实现」（wecom）解耦。
+    scenes = {"duty"}
+
+    # 企微单条消息长度上限（实测 5201 字符被拦截；取安全余量）
+    WECOM_MAX_MESSAGE_LEN = 1500
+
+    # 企微线单次 Agent delivery 上限（秒）：HITL/长任务不至于永久钉死 worker 线程。
+    # 超时后会话仍在后台跑，回复经 on_session_completed 事件到达；本轮先继续。
+    DUTY_WECOM_DELIVERY_TIMEOUT = 60
 
     def __new__(cls, *args, **kwargs):
         if cls._instance is None:
@@ -68,20 +85,7 @@ class WeComDutyChannel(DutyChannel):
 
     # ---- 输出 Channel 能力：接收 Supervisor 派活前的安抚回复 ----
 
-    # 输出管道属性（复用语音链路 MessageBlock → 输出 Channel 的机制）：
-    # Supervisor 在 route_to Worker 前输出的安抚文本会作为 AI MessageBlock
-    # 经 OutputChannelPolicy 路由到 wecom_duty，这里负责把它发送到企微。
-    accepts_blocks = True
-    accepts_stream_events = False
-    # 场景标识：source="duty"（值守场景）。policy 用场景名路由到本渠道，
-    # 使「场景」（duty）与「渠道实现」（wecom）解耦。
-    scenes = {"duty"}
-
-    async def send(
-        self,
-        payload: MessageBlock,
-        ctx: ChannelContext,
-    ) -> None:
+    async def send(self, payload: MessageBlock, ctx: ChannelContext) -> None:
         """处理路由到 wecom_duty 的 MessageBlock（安抚回复）。
 
         仅处理「Supervisor 派活前」的安抚文本：AI 角色、带 route_to 工具调用
@@ -133,6 +137,10 @@ class WeComDutyChannel(DutyChannel):
         # 继续取下一个 —— 每次只点开当前这一个，处理完再取下一个。
         for candidate, unread_count in replyable:
             base = self.normalize_contact(candidate)
+            # 该联系人已有运行中的值守会话（上轮派发未完成/HITL 等人工）→ 跳过，
+            # 避免同一批消息被重复派发给 Agent。
+            if self._session_alive(base):
+                continue
             customer_msgs = await self._read_customer_messages(base, unread_count)
             if not customer_msgs:
                 continue
@@ -141,9 +149,7 @@ class WeComDutyChannel(DutyChannel):
             return [ContactDelta(contact=base, raws=raws)]
         return []
 
-    async def _read_customer_messages(
-        self, contact: str, unread_count: int = 0
-    ) -> list[str]:
+    async def _read_customer_messages(self, contact: str, unread_count: int = 0) -> list[str]:
         """读取联系人的新增客户消息（收编模块内联调用）。"""
         try:
             return await read_run(self._history_dir, contact, unread_count)
@@ -155,6 +161,16 @@ class WeComDutyChannel(DutyChannel):
     def normalize_contact(contact: str) -> str:
         """归一化联系人名：去掉 " @微信"/"◎微信"/"®微信" 等后缀，统一用纯名。"""
         return contact.split("@")[0].split("◎")[0].split("®")[0].strip()
+
+    def _session_alive(self, contact: str) -> bool:
+        """该联系人是否已有运行中的值守会话（防同联系人重复派发）。"""
+        if not self._project_id:
+            return False
+        thread_id = self._thread_for(self._project_id, contact)
+        from app.core.engine.session.manager import session_manager
+
+        sess = session_manager.get(thread_id)
+        return sess is not None and getattr(sess, "lifecycle", None) == "running"
 
     async def _to_incoming(self, raw: RawInbound, project_id: int) -> IncomingMessage:
         """把一条原始客户消息归一化为 IncomingMessage（与文字链路一致）。
@@ -169,6 +185,7 @@ class WeComDutyChannel(DutyChannel):
             thread_id=self._thread_for(project_id, raw.contact),
             text=raw.text,
             project_id=project_id,
+            member_id=await self._duty_member_id(),
             metadata={
                 "source": "duty",
                 "channel": "wecom",
@@ -177,36 +194,6 @@ class WeComDutyChannel(DutyChannel):
                 "reply_to": raw.contact,
             },
         )
-
-    # 企微单条消息长度上限（实测 5201 字符被拦截；取安全余量）
-    WECOM_MAX_MESSAGE_LEN = 1500
-
-    @staticmethod
-    def _chunk_reply(text: str, limit: int | None = None) -> list[str]:
-        """把长回复拆分为企微可发送的多个分段（不丢内容）。
-
-        优先在换行处拆分，保证每段不超过 limit（默认单条上限）。
-        """
-        limit = limit or WeComDutyChannel.WECOM_MAX_MESSAGE_LEN
-        text = (text or "").strip()
-        if not text:
-            return []
-        if len(text) <= limit:
-            return [text]
-
-        chunks: list[str] = []
-        remaining = text
-        while len(remaining) > limit:
-            cut = remaining.rfind("\n", 0, limit)
-            if cut < limit // 2:
-                cut = remaining.rfind("。", 0, limit)
-            if cut <= 0:
-                cut = limit
-            chunks.append(remaining[:cut].strip())
-            remaining = remaining[cut:].strip()
-        if remaining:
-            chunks.append(remaining)
-        return chunks
 
     async def _send_reply(self, contact: str, text: str, project_id: int = 0) -> bool:
         """发送回复到企微（收编模块内联调用，返回是否成功）。
@@ -217,7 +204,7 @@ class WeComDutyChannel(DutyChannel):
         不依赖单例实例状态（事件回调可能在轮巡结束后触发，实例 history_dir
         已被下一轮覆盖）。
         """
-        chunks = self._chunk_reply(text)
+        chunks = chunk_text(text, WeComDutyChannel.WECOM_MAX_MESSAGE_LEN)
         if not chunks:
             return False
         sent_all = True
@@ -326,7 +313,7 @@ class WeComDutyChannel(DutyChannel):
                 # 标准链路：Agent 引擎完整推理（await 等 Agent 跑完，回复经事件到 send()）。
                 # 统一走 session_manager.submit（与 voice/web/mobile 同一生命周期路径），
                 # await_completion 保持值守"取一条回一条"的串行阻塞语义。
-                from app.core.session.manager import session_manager
+                from app.core.engine.session.manager import session_manager
 
                 await session_manager.submit(
                     thread_id,

@@ -156,7 +156,7 @@ class Neo4jDriver(IGraphDriver):
             **{f"s_{k}": v for k, v in start_filters.items()},
             "limit": limit
         }
-        
+
         async with self.session() as session:
             result = await session.run(query, **params)
             data = await result.data()

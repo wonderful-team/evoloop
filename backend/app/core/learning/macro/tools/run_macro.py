@@ -8,6 +8,9 @@ import logging
 from typing import Annotated, Any
 
 from app.core.engine.message.native_classes import RunnableConfig
+from app.core.hitl.batch_grants import is_operation_granted
+from app.core.hitl.core import hitl_enabled, raise_hitl_interrupt
+from app.core.hitl.prompts import build_approval_context, resolve_tool_context
 from app.core.learning.macro import (
     WEB_POLICY,
     MacroEngine,
@@ -15,9 +18,6 @@ from app.core.learning.macro import (
     load_macro,
     resolve_project_base_url,
 )
-from app.core.hitl.batch_grants import is_operation_granted
-from app.core.hitl.core import raise_hitl_interrupt
-from app.core.hitl.prompts import build_approval_context, resolve_tool_context
 from app.core.tools import evoloop_tool
 from app.core.tools.base import InjectedToolArg
 from app.i18n.service import i18n

@@ -20,6 +20,7 @@ from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
 from app.core.engine.background_agent import run_agent_background
 from app.core.engine.dispatch import dispatch_agent_run
+from app.core.engine.session.manager import session_manager
 from app.core.evocloud.manager import evocloud_manager
 from app.core.evocloud.schemas import AgentTask, AgentTaskResult, RemoteCommand
 from app.core.file import compute_file_hash
@@ -264,7 +265,6 @@ class A2ACommandHandler:
         # 无活会话 → 回落 run_agent_background 单发入口（兜底）。
         from app.core.context.manager import ContextManager
         from app.core.engine.background_agent import BackgroundAgentInputs
-        from app.core.session.manager import session_manager
 
         loaded_ctx = await ContextManager.load(caller_thread_id)
         model = loaded_ctx.active_model if loaded_ctx else None

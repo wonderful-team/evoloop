@@ -11,6 +11,7 @@ from app.core.project.event.subscribers import (  # noqa: F401 — 导入以触�
     ProjectLifecycleSubscriber,
     ProjectSwitchWebSocketSubscriber,
 )
+
 from .schemas import (
     ProjectCreatedEvent,
     ProjectDeletedEvent,

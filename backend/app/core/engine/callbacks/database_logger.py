@@ -17,6 +17,7 @@ from uuid import UUID, uuid4
 from app.core.engine.callbacks.base import AsyncCallbackHandler, LLMResult
 from app.core.engine.message import MessageHandler
 from app.core.engine.message.utils import parse_tool_input
+from app.utils.redact import redact_secrets
 
 current_node_source: contextvars.ContextVar[str | None] = contextvars.ContextVar("db_node_source", default=None)
 
@@ -26,7 +27,6 @@ logger = logging.getLogger(__name__)
 def censor_secrets(val: Any) -> Any:
     """Censor any raw secrets stored in the EvoContext's injected_secrets."""
     from app.core.context.manager import ContextManager
-    from app.core.security.redaction import redact_secrets
 
     ctx = ContextManager.current()
     return redact_secrets(val, ctx.injected_secrets or [])

@@ -1,12 +1,9 @@
+"""
+Path utilities: normalization, traversal-safe joining, and existence checks.
+"""
+
 import logging
-
-"""
-Path-specific utilities for the File Center.
-Consolidated from app.utils.path and other legacy locations.
-"""
-
 import os
-import re
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -37,25 +34,6 @@ def is_safe_path(base_path: str, target_path: str) -> bool:
         return str(target).startswith(str(base))
     except (ValueError, OSError):
         return False
-
-
-def sanitize_filename(filename: str, replacement: str = "_") -> str:
-    """Sanitize filename by removing or replacing unsafe characters."""
-    # Remove path separators and null bytes
-    unsafe = ["\\", "/", "\x00", "\n", "\r", "\t"]
-    result = filename
-    for char in unsafe:
-        result = result.replace(char, replacement)
-
-    # Remove other special characters
-    result = re.sub(r'[<>:"|?*]', replacement, result)
-
-    # Limit length (standard 255 for most FS)
-    if len(result) > 255:
-        name, ext = os.path.splitext(result)
-        result = name[: 255 - len(ext)] + ext
-
-    return result
 
 
 def get_unique_filename(directory: str, filename: str) -> str:

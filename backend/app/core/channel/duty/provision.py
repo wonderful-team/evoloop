@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 
@@ -333,9 +334,7 @@ async def _cancel_running_agents(project_id: int) -> None:
     （done/cancelled/failed），确保"停止"真正完成才返回（供前端 HUD
     显示"已停止"）。
     """
-    import asyncio
-
-    from app.core.session.manager import session_manager
+    from app.core.engine.session.manager import session_manager
 
     thread_ids = await _duty_thread_ids(project_id)
     if not thread_ids:

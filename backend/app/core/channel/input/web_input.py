@@ -57,7 +57,7 @@ class WebInputChannel(InputChannel):
 
         meta: dict[str, Any] = {}
         try:
-            from app.core.session.manager import session_manager
+            from app.core.engine.session.manager import session_manager
 
             session = session_manager.get(thread_id)
             if session is not None and session.worker is not None and not session.worker.done:

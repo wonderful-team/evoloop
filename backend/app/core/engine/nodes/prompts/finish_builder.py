@@ -76,14 +76,6 @@ class FinishPromptBuilder(BasePromptBuilder):
                 "a concise summary of what was accomplished."
             )
 
-    def _has_skill_used(self) -> bool:
-        """Return True if the session involved a LearnedSkill execution."""
-        if self.metadata and self.metadata.get("original_skill_id"):
-            return True
-        if self.action_context and "run_skill" in self.action_context:
-            return True
-        return False
-
     def build_audit_ticket(self) -> str:
         """Builds the DYNAMIC audit ticket to be injected as a HumanMessage."""
         plan_data = self.current_plan

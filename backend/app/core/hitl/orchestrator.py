@@ -20,6 +20,7 @@ from app.core.hitl.core import (
     push_hitl_notification,
     raise_hitl_interrupt,
 )
+from app.core.hitl.engine_runtime import get_runtime
 from app.core.hitl.types import HITLDecision, HITLRequestStatus, HumanRequestType
 from app.i18n.service import i18n
 
@@ -34,11 +35,6 @@ async def get_pending_hitl_call(config: dict) -> dict | None:
     try:
         thread_id = config.get("configurable", {}).get("thread_id")
         if thread_id:
-            from sqlalchemy import select
-
-            from app.infrastructure.database import session_scope
-            from app.models import Message
-
             async with session_scope() as session:
                 stmt = (
                     select(Message)

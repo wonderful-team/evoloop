@@ -33,8 +33,8 @@ class FileContentExtractor:
         # 1. Documents (PDF, Docx, Excel, HTML)
         if ext in [".pdf", ".docx", ".doc", ".xlsx", ".xls", ".html"]:
             return await document_reader_service.read_document(
-                file_path=file_path, 
-                start_page=start_range, 
+                file_path=file_path,
+                start_page=start_range,
                 end_page=end_range
             )
 
@@ -50,8 +50,8 @@ class FileContentExtractor:
         # We use the core io.read_file which supports pagination
         result = read_file(file_path, start_line=start_range, end_line=end_range)
         if not result.success:
-            raise IOError(result.error_message or f"Failed to read text file: {file_path}")
-        
+            raise OSError(result.error_message or f"Failed to read text file: {file_path}")
+
         return result.content
 
 

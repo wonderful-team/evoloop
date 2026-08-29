@@ -3,10 +3,10 @@ import os
 import subprocess
 import tempfile
 import time
-from datetime import datetime
 
 from app.infrastructure.drivers.adb._exceptions import ADBError
-from app.utils.id import gen_uuid_hex
+from app.utils.id import gen_uuid_hex, stamped_id
+from app.utils.time import elapsed_ms
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ class UIMixin:
             )
         except Exception as e:
             logger.warning(f"[ADB] Failed to use hierarchical storage: {e}, using temp", exc_info=True)
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            timestamp = stamped_id()
             filename = f"android_screenshot_{timestamp}.png"
             filepath = os.path.join(tempfile.gettempdir(), filename)
 
@@ -68,7 +68,7 @@ class UIMixin:
                     d = u2.connect(device_id) if device_id else u2.connect()
                     xml_content = d.dump_hierarchy()
                     if xml_content and "<hierarchy" in xml_content:
-                        logger.info(f"Dumped UI hierarchy in {(time.time()-start)*1000:.0f}ms (uiautomator2, cached)")
+                        logger.info(f"Dumped UI hierarchy in {elapsed_ms(start):.0f}ms (uiautomator2, cached)")
                         return xml_content
                 except Exception as e:
                     logger.warning(f"[ADB] Cached uiautomator2 failed: {e}, will retry", exc_info=True)
@@ -89,7 +89,7 @@ class UIMixin:
                             "uiautomator2": True,
                             "native_uiautomator": False,
                         }
-                    logger.info(f"Dumped UI hierarchy in {(time.time() - start) * 1000:.0f}ms (uiautomator2, auto-detected)")
+                    logger.info(f"Dumped UI hierarchy in {elapsed_ms(start):.0f}ms (uiautomator2, auto-detected)")
                     return xml_content
             except Exception:
                 logger.debug("[ADB] uiautomator2 dump failed, trying native", exc_info=True)
@@ -121,7 +121,7 @@ class UIMixin:
                             "native_uiautomator": True,
                             "uiautomator2": False,
                         }
-                    logger.info(f"Dumped UI hierarchy in {(time.time() - start_time) * 1000:.0f}ms (native exec-out)")
+                    logger.info(f"Dumped UI hierarchy in {elapsed_ms(start_time):.0f}ms (native exec-out)")
                     return stdout[xml_start:]
             except Exception:
                 continue
@@ -147,7 +147,7 @@ class UIMixin:
                     "native_uiautomator": True,
                     "uiautomator2": False,
                 }
-            logger.info(f"Dumped UI hierarchy in {(time.time() - start_time) * 1000:.0f}ms (native file)")
+            logger.info(f"Dumped UI hierarchy in {elapsed_ms(start_time):.0f}ms (native file)")
             return stdout
         except Exception as e:
             raise ADBError(f"Native uiautomator failed: {e}")

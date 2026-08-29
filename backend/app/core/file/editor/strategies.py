@@ -1,5 +1,7 @@
 from collections.abc import Generator
 
+from app.utils.text import normalize_ws
+
 from .algorithms import levenshtein
 
 # Similarity thresholds
@@ -149,9 +151,6 @@ def block_anchor_replacer(content: str, find: str) -> Generator[str, None, None]
 
 def whitespace_normalized_replacer(content: str, find: str) -> Generator[str, None, None]:
     """Matches content treating all whitespace sequences as a single space."""
-
-    def normalize_ws(text: str) -> str:
-        return " ".join(text.split())
 
     normalized_find = normalize_ws(find)
 

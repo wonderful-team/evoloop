@@ -3,6 +3,7 @@ import subprocess
 import time
 
 from app.infrastructure.drivers.adb._exceptions import ADBError
+from app.utils.time import elapsed_ms
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +87,7 @@ class ActionMixin:
                     ["shell", "input", "text", processed_text], device_id=device_id
                 )
                 logger.info(
-                    f"Input text '{text[:10]}...' in {(time.time() - start) * 1000:.0f}ms"
+                    f"Input text '{text[:10]}...' in {elapsed_ms(start):.0f}ms"
                 )
                 return
             except Exception as e:
@@ -94,7 +95,7 @@ class ActionMixin:
 
         if _try_paste_fallback():
             logger.info(
-                f"Successfully input text via clipboard fallback in {(time.time() - start) * 1000:.0f}ms"
+                f"Successfully input text via clipboard fallback in {elapsed_ms(start):.0f}ms"
             )
             return
 

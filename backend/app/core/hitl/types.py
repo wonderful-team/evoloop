@@ -4,8 +4,8 @@ HITL 类型同时被以下子系统消费，作为双方共享的契约：
 - ``app.core.hitl``：请求生命周期（create/resume/finalize）的校验；
 - ``app.core.monitoring``：向前端推送 HITL 通知时的 payload 类型。
 
-保持本模块为叶子（不 import 任何 app 模块），以便 monitoring → hitl 的
-依赖方向不会触发 ``hitl`` 包初始化时对 ``monitoring.activity`` 的循环导入。
+保持本模块为叶子（不 import 任何 app 模块），monitoring → hitl 是合法
+单向依赖（观测领域类型）。
 """
 
 from enum import Enum

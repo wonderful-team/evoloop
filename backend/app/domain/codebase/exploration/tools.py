@@ -121,7 +121,7 @@ async def ask_codebase(
         # Format concept results
         lines = [f"- {r.get('name')}: {r.get('description', '')}" for r in results[:10]]
         return f"Relevant concepts for '{question}':\n" + "\n".join(lines), {"count": len(results)}
-        
+
     except Exception as e:
         logger.exception(f"Ask codebase failed: {e}")
         return f"Error searching codebase: {e}"

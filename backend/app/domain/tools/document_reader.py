@@ -5,8 +5,8 @@ import sqlite3
 from app.core.context.manager import ContextManager
 from app.core.file import ensure_local_path, read_file, resolve_path
 from app.core.file.document_reader import document_reader_service
-from app.core.tools import evoloop_tool
 from app.core.file.tools.formatting import format_file_content, format_spreadsheet
+from app.core.tools import evoloop_tool
 from app.domain.tools.schemas import (
     DocxHeading,
     DocxInspectionResult,
@@ -197,56 +197,6 @@ async def read_document(file_path: str, start_page: int | None = None, end_page:
 # --- core Logic Helpers ---
 
 
-def _resolve_and_validate(file_path: str) -> tuple[str | None, str | None]:
-    """
-    Resolves the path and checks existence.
-    Returns (real_path, None) if successful.
-    Returns (None, error_message) if failed (with fuzzy suggestion).
-    """
-    try:
-        resolved_path = _resolve_project_path(file_path)
-        real_path = ensure_local_path(resolved_path)
-    except Exception as e:
-        return None, f"Error resolving path: {str(e)}"
-
-    if os.path.exists(real_path):
-        return real_path, None
-
-    # Smart Fuzzy Check for Typo/Case sensitivity
-    dir_name = os.path.dirname(real_path)
-    base_name = os.path.basename(real_path)
-    suggestion = ""
-    parent_listing_info = ""
-
-    if os.path.exists(dir_name) and os.path.isdir(dir_name):
-        try:
-            from app.core.file import FileTraverser
-
-            entries = FileTraverser.list_entries(dir_name)
-            visible_entries = [e for e in entries if not e.name.startswith(".")]
-
-            # 1. Exact case-insensitive match
-            for e in entries:
-                if e.name.lower() == base_name.lower():
-                    suggestion = f" (Did you mean '{e.name}'?)"
-                    break
-
-            # 2. Provide context (Parent Listing)
-            list_str = ", ".join([e.name for e in visible_entries[:20]])
-            if len(visible_entries) > 20:
-                list_str += ", ..."
-
-            parent_listing_info = (
-                f"\n\nCONTEXT HELP: The directory '{os.path.basename(dir_name)}/' exists and contains these files:\n"
-                f"[{list_str}]\n"
-                f"Please check the spelling or choose an existing file from the list."
-            )
-        except Exception as e:
-            logger.debug("Suppressed error: %s", e, exc_info=True)
-
-    return None, f"Error: File not found: {real_path}{suggestion} (Resolved from {file_path}){parent_listing_info}"
-
-
 def _list_directory(real_path: str) -> str:
     """Returns a standardized formatted listing of the directory using unified traverser."""
     try:
@@ -271,32 +221,6 @@ def _list_directory(real_path: str) -> str:
         )
     except Exception as e:
         return f"Error listing directory: {e}"
-
-
-def _read_file_content(real_path: str, start: int | None, end: int | None) -> str:
-    """Dispatches reading logic based on file extension."""
-    _ext = os.path.splitext(real_path)[1].lower()
-
-    if _ext in [".xlsx", ".xls"]:
-        return _read_excel(real_path)
-    elif _ext in [".docx", ".doc"]:
-        return _read_docx(real_path)
-    elif _ext == ".pdf":
-        return _read_pdf(real_path, start, end)
-    elif _ext == ".html":
-        return _read_html(real_path)
-    else:
-        # Code/Text Fallback. Using utils reading.
-        result = read_file(real_path)
-        content = result.content
-        lang = detect_language(real_path)
-        return _wrap_code_block(real_path, content, lang)
-
-
-def _wrap_code_block(path: str, content: str, lang: str) -> str:
-    """Reads a text file and returns it wrapped in a markdown code block."""
-    filename = os.path.basename(path)
-    return format_file_content(filename, content, lang)
 
 
 # --- Inspection Helpers ---

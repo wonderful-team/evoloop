@@ -41,7 +41,6 @@ from app.core.learning.synthesizer_utils import (
     describe_normalized_position,
     extract_instructions_section,
     extract_yaml_block,
-    normalize_timestamp_to_seconds,
 )
 from app.core.learning.workflow_synthesizer import SynthesizedSkill
 from app.infrastructure.config.service import SystemConfigService
@@ -59,6 +58,7 @@ from app.infrastructure.video.schemas import (
 )
 from app.models import TraceEvent
 from app.utils.template import render_template
+from app.utils.time import normalize_timestamp_ms_to_sec
 from app.utils.yaml import YAMLError, safe_yaml_dumps, safe_yaml_loads
 
 logger = logging.getLogger(__name__)
@@ -396,7 +396,7 @@ class MultimodalSkillSynthesizer:
 
         for event in events:
             if event.timestamp is not None:
-                event.timestamp = normalize_timestamp_to_seconds(event.timestamp)
+                event.timestamp = normalize_timestamp_ms_to_sec(event.timestamp)
 
         if events:
             timestamps = [e.timestamp for e in events if e.timestamp is not None]

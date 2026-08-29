@@ -139,19 +139,3 @@ async def reload_mcp_for_workspace_change() -> dict[str, str]:
         results["error"] = str(e)
 
     return results
-
-
-async def _add_mcp_server_to_db(name: str, details: dict) -> None:
-    """Add MCP server configuration to DB without connecting."""
-    async with session_scope() as session:
-        args_json = json.dumps(details.get("args", []))
-        env_json = json.dumps(details.get("env", {}))
-
-        server = McpServer(
-            name=name,
-            command=details.get("command"),
-            args=args_json,
-            env=env_json,
-            enabled=True,
-        )
-        session.add(server)

@@ -8,6 +8,11 @@ def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def elapsed_ms(start: float, end: float | None = None) -> float:
+    """Wall-clock milliseconds between ``start`` and ``end`` (defaults to now)."""
+    return ((end if end is not None else time.time()) - start) * 1000
+
+
 def ts_from_dt(dt: datetime | None, default: int = 0) -> int:
     """Safely convert a naive-UTC or tz-aware datetime to Unix timestamp.
 

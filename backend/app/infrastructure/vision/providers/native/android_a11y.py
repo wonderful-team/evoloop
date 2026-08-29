@@ -13,6 +13,7 @@ from app.infrastructure.drivers.adb import ADBError, adb_driver
 from app.infrastructure.vision.providers.base import VisionProvider
 from app.infrastructure.vision.types import ElementType, UIElement, VisionResult, VisionTask
 from app.utils.geometry import parse_bounds
+from app.utils.time import elapsed_ms
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +112,7 @@ class AndroidA11yProvider(VisionProvider):
 
         elements = self._parse_xml(xml_content)
 
-        latency = (time.time() - start) * 1000
+        latency = elapsed_ms(start)
         logger.info(f"[AndroidA11y] Extracted {len(elements)} elements in {latency:.0f}ms")
 
         return VisionResult(

@@ -318,7 +318,7 @@ class ReferenceService:
             ]
             if snippets:
                 sections.append("Directory Files Content (Truncated):\n" + "\n\n".join(snippets))
-                
+
             combined_content = "\n\n".join(sections)
             return combined_content, f"Referencing Directory: {name} (Path: {dir_path})"
 

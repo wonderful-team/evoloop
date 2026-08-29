@@ -43,6 +43,7 @@ from app.core.schemas.canonical import Endpoint, MessageType, create_envelope
 from app.core.voice import executor as voice_executor
 from app.core.voice.state_machine import VoiceSessionState, voice_state_machine
 from app.utils.text import strip_markdown_for_tts
+from app.utils.time import elapsed_ms
 
 from ..base import Channel, ChannelContext
 
@@ -529,7 +530,7 @@ class VoiceChannel(Channel):
             # confirmation TTS path because streaming TTS is already handled.
             t0 = time.time()
             await VoiceChannel.push_voice_result(thread_id, "done", final_text, skip_tts=True)
-            elapsed = (time.time() - t0) * 1000
+            elapsed = elapsed_ms(t0)
             logger.info(
                 "[voice-perf] %s agent_done push=%.0fms agent_duration=%.0fms",
                 thread_id,

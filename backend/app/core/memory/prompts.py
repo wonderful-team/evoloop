@@ -48,7 +48,7 @@ class MemoryExtractionPromptBuilder:
         }
 
         rendered = render_template("core/memory/auto_extraction.prompt.j2", **template_vars)
-        
+
         return [
             {"role": "system", "content": "You are a Senior Knowledge Architect. Extract high-impact strategic memories while strictly avoiding redundancy and pollution."},
             {"role": "user", "content": rendered}

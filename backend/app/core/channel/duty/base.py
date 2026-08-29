@@ -178,7 +178,7 @@ class DutyChannel(InputChannel, ABC):
                     )
                     updated_prompts.append(p)
                     continue
-                from app.core.session.manager import session_manager
+                from app.core.engine.session.manager import session_manager
 
                 session = await session_manager.submit(
                     task_thread_id, result.inputs, await_completion=False

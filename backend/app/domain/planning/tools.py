@@ -7,7 +7,8 @@ from sqlalchemy import delete, select
 from app.core.context.manager import ContextManager
 from app.core.engine.message.native_classes import RunnableConfig
 from app.core.tools import evoloop_tool
-from app.core.tools.base import EvoLoopTool as BaseTool, InjectedToolArg
+from app.core.tools.base import EvoLoopTool
+from app.core.tools.base import InjectedToolArg
 
 from ...constants import DEFAULT_PROJECT_ID
 from .schemas import Plan, Step
@@ -28,7 +29,7 @@ def _render_analysis_prompt(plan: str, context: str, tree: str, user_lang: str) 
     )
 
 
-class PlanningTool(BaseTool):
+class PlanningTool(EvoLoopTool):
     name: str = "planning_tool"
     description: str = "Create or update a plan. Use this tool BEFORE starting any complex task to outline your steps."
 

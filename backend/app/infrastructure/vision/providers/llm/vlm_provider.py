@@ -6,6 +6,7 @@ from app.infrastructure.llm.vision import VisionLLMFactory, get_vision_llm_async
 from app.infrastructure.vision.providers.base import VisionProvider
 from app.infrastructure.vision.types import VisionResult, VisionTask
 from app.utils.template import render_template
+from app.utils.time import elapsed_ms
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +71,7 @@ class MultimodalVLMProvider(VisionProvider):
             summary=response.content,
             raw_output=response,
             screenshot_path=image_source,
-            latency_ms=(time.time() - start_time) * 1000,
+            latency_ms=elapsed_ms(start_time),
         )
 
         return result

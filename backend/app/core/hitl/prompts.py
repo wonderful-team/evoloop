@@ -11,6 +11,7 @@ low/medium/high/critical 的 i18n 文案，由调用方自行拼接。
 import logging
 from typing import Any
 
+from app.core.context.manager import ContextManager
 from app.i18n.service import i18n
 
 logger = logging.getLogger(__name__)
@@ -41,8 +42,6 @@ def resolve_tool_context() -> dict[str, Any]:
     统一 ask_human / ask_confirm / run_macro 确认重复的 ctx 读取。
     缺少 thread_id 时抛 ValueError（fail-fast，HITL 必须在会话上下文内发起）。
     """
-    from app.core.context.manager import ContextManager
-
     ctx = ContextManager.current()
     if not ctx.thread_id:
         raise ValueError("HITL tool requires a thread_id in the current EvoContext")

@@ -109,7 +109,7 @@ You can track progress by asking "show task tree {task.id[:8]}".
 I've set this as your current active task.""", {"id": task.id, "count": subtask_count}
         else:
             return f"Created task \"{title}\"\n\nTask ID: {task.id[:8]}\n\nI've set this as your current active task.", {"id": task.id}
-            
+
     except json.JSONDecodeError:
         return 'Error: subtasks_json is not valid JSON. Format: [{"title": "...", "estimated_hours": n}]'
     except Exception as e:

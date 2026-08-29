@@ -46,7 +46,7 @@ TAPLO_SHA256_CHECKSUMS: dict[str, str] = {
 
 def _verify_sha256(file_path: str, expected_hash: str) -> bool:
     """Verify SHA256 checksum of a downloaded file."""
-    from app.core.file.hash import compute_file_hash
+    from app.utils.hash import compute_file_hash
     actual_hash = compute_file_hash(file_path, algo="sha256", chunk_size=8192)
     return actual_hash.lower() == expected_hash.lower()
 

@@ -7,6 +7,7 @@ import time
 from mcp import ClientSession
 
 from app.core.mcp.schemas import HealthStatus
+from app.utils.time import elapsed_ms
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +50,7 @@ class McpHealthChecker:
                 timeout=self.timeout_seconds,
             )
 
-            response_time = (time.time() - start_time) * 1000
+            response_time = elapsed_ms(start_time)
             self._last_check[server_name] = time.time()
 
             return HealthStatus(
@@ -60,7 +61,7 @@ class McpHealthChecker:
             )
 
         except Exception as e:
-            response_time = (time.time() - start_time) * 1000
+            response_time = elapsed_ms(start_time)
             logger.warning(f"Health check failed for MCP server '{server_name}': {e}", exc_info=True)
 
             return HealthStatus(

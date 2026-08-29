@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from app.core.config import settings
+from app.utils.id import stamped_id
 
 from .distiller import DeepDreamDistiller
 from .schemas import DreamRecord
@@ -74,7 +75,7 @@ class DreamScheduler:
 
         started = datetime.now()
         record = DreamRecord(
-            id=f"dream_cross_{started.strftime('%Y%m%d_%H%M%S')}",
+            id=stamped_id("dream_cross", started),
             started_at=started.isoformat(),
         )
 
@@ -129,7 +130,7 @@ class DreamScheduler:
 
         started = datetime.now()
         record = DreamRecord(
-            id=f"dream_{started.strftime('%Y%m%d_%H%M%S')}",
+            id=stamped_id("dream", started),
             started_at=started.isoformat(),
         )
 

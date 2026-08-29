@@ -8,7 +8,6 @@ following the same pattern as project_profile discovery.
 
 import logging
 import os
-import time
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy import delete
@@ -28,6 +27,7 @@ from app.domain.wiki.schemas import (
 from app.domain.wiki.service import wiki_service
 from app.i18n.service import i18n
 from app.infrastructure.config.service import SystemConfigService
+from app.utils.id import unique_id
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +69,7 @@ async def generate_wiki(
     if not os.path.isdir(path):
         raise HTTPException(400, f"Project path does not exist: {path}")
 
-    thread_id = f"wiki-gen-{req.project_id}-{int(time.time())}"
+    thread_id = unique_id("wiki-gen", req.project_id)
 
     skill = await _ensure_wiki_generation_skill()
     if not skill:

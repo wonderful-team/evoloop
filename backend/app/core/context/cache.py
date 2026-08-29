@@ -19,6 +19,7 @@ from pydantic import Field
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.utils.time import elapsed_ms
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +111,7 @@ class LayeredContextCache:
 
         start_time = time.time()
         static_data = await loader_fn()
-        load_time = (time.time() - start_time) * 1000
+        load_time = elapsed_ms(start_time)
 
         # Create cached layer
         layer = StaticContextLayer(

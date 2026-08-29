@@ -48,9 +48,7 @@ async def resolve_and_validate_path(path: str, config: RunnableConfig | None = N
                 break
 
     if not is_safe:
-        raise ValueError(
-            i18n.get("domain_tools.files.security_violation", path=path, root=root)
-        )
+        raise ValueError(i18n.get("domain_tools.files.security_violation", path=path, root=root))
 
     # Protect project-local metadata directory from agent file tools, while allowing
     # access to the global EvoLoop app data directory (~/.evoloop).

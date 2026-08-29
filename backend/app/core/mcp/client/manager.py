@@ -7,9 +7,8 @@ import os
 from contextlib import AsyncExitStack
 from typing import Any
 
-from sqlalchemy import select
-
 from mcp import ClientSession
+from sqlalchemy import select
 
 from app.core.events.base import BaseEvent, EventData, system_bus
 from app.core.events.registry import SystemEventType

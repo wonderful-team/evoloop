@@ -29,6 +29,7 @@ from app.core.exceptions import InferenceError
 from app.infrastructure.llm.factory import LLMConfig, LLMFactory
 from app.infrastructure.llm.thinking_adapter import is_reasoning_model
 from app.utils.extract import safe_parse_json
+from app.utils.redact import redact_secrets
 
 logger = logging.getLogger(__name__)
 
@@ -214,7 +215,6 @@ class InferenceEngine:
         # 工具输出已由 sensitive_file_censorship_gate 打码，但 AI 文本不受其覆盖，
         # 必须在落库/下发前用 injected_secrets 统一打码。
         from app.core.context.manager import ContextManager
-        from app.core.security.redaction import redact_secrets
 
         injected_secrets = ContextManager.current().injected_secrets or []
         content = redact_secrets(response.content or "", injected_secrets)

@@ -12,6 +12,7 @@ import time
 from app.infrastructure.drivers.macos import macos_driver
 from app.infrastructure.vision.providers.base import VisionProvider
 from app.infrastructure.vision.types import ElementType, UIElement, VisionResult, VisionTask
+from app.utils.time import elapsed_ms
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +78,7 @@ class MacOSAxProvider(VisionProvider):
 
         elements = self._parse_ax_output(ax_output)
 
-        latency = (time.time() - start) * 1000
+        latency = elapsed_ms(start)
         logger.info(f"[MacOSAx] Extracted {len(elements)} elements in {latency:.0f}ms")
 
         return VisionResult(

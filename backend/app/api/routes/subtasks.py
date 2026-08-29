@@ -164,7 +164,7 @@ async def list_root_tasks(
             ProjectTask.project_id == project_id,
             ProjectTask.parent_id.is_(None)
         ).order_by(ProjectTask.created_at.desc()).limit(limit)
-        
+
         if status:
             query = query.where(ProjectTask.status == status)
         if current_user is not None:

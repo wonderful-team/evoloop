@@ -9,11 +9,12 @@ Models:
 import asyncio
 import logging
 import os
-import requests
 import shutil
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Any
+
+import requests
 
 from app.core.config import settings
 

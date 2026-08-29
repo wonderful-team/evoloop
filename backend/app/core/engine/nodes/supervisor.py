@@ -283,10 +283,7 @@ class SupervisorNode(BaseAgentNode):
             ai_content = str(last_msg.content).strip()
 
         if ai_content:
-            if (
-                last_msg.additional_kwargs.get("is_truncated")
-                and original_state.worker_outcome == "truncated"
-            ):
+            if last_msg.additional_kwargs.get("is_truncated") and original_state.worker_outcome == "truncated":
                 return StateUpdate(
                     messages=new_messages,
                     next_node=RoutingTarget.WORKER,

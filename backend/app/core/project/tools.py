@@ -57,7 +57,7 @@ async def create_project_tasks(
         # Trigger background sync to EvoCloud
         if created_task_ids:
             sync_tasks_to_evocloud_task.delay(task_ids=created_task_ids)
-            
+
         return json.dumps({
             "success": True,
             "created_count": len(tasks),

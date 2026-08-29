@@ -28,6 +28,7 @@ from app.core.routing.schemas import (
     INTENT_WORKER_TASK,
     IntentHint,
 )
+from app.utils.time import elapsed_ms
 
 logger = logging.getLogger(__name__)
 
@@ -350,7 +351,7 @@ class AgentContextHydrator:
             if hasattr(state, "shadow_audit"):
                 state.shadow_audit = None
 
-        duration_ms = (time.time() - start_time) * 1000
+        duration_ms = elapsed_ms(start_time)
         if duration_ms > 100:
             logger.info(
                 f"[AgentContextHydrator] Hydration completed in {duration_ms:.1f}ms"

@@ -167,36 +167,6 @@ async def _search_wikipedia(query: str) -> list[str] | None:
         return None
 
 
-async def _fetch_wikipedia_summary(title: str, lang: str = "en") -> str | None:
-    """获取 Wikipedia 条目的摘要（纯文本）。"""
-
-    api_url = f"https://{lang}.wikipedia.org/w/api.php"
-    params = {
-        "action": "query",
-        "prop": "extracts",
-        "titles": title,
-        "exintro": 1,
-        "explaintext": 1,
-        "format": "json",
-    }
-
-    try:
-        loop = asyncio.get_running_loop()
-        response = await loop.run_in_executor(None, lambda: requests.get(api_url, params=params, timeout=15))
-        response.raise_for_status()
-        data = response.json()
-
-        pages = data.get("query", {}).get("pages", {})
-        for _page_id, page_data in pages.items():
-            extract = page_data.get("extract", "")
-            if extract:
-                return extract.strip()
-        return None
-    except Exception as e:
-        logger.debug("Suppressed error: %s", e, exc_info=True)
-        return None
-
-
 _SEARCH_PARALLEL_TIMEOUT: float = 8.0
 
 

@@ -10,13 +10,11 @@ SSE 流式事件 Schema —— 全系统通用事件定义。
 - 消息/引擎特定事件 → app.core.engine.message.schemas
 """
 
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import model_validator
 
 from app.core.events.base import BaseEvent
-
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from app.core.engine.message.schemas import MessageBlock

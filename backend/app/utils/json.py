@@ -28,3 +28,24 @@ def loads(s: str | bytes, **kwargs) -> Any:
     Wrapper for consistency.
     """
     return json.loads(s, **kwargs)
+
+
+def safe_load_json_list(value: str | list | None, max_decode: int = 2) -> list:
+    """Parse a JSON string (possibly double-encoded) into a list.
+
+    Handles empty/None input, direct lists, and single- or double-encoded
+    JSON strings (legacy rows store ``json.dumps`` inside a JSON column which
+    deserializes back to a ``str``). Non-list JSON or unparseable input yields
+    an empty list.
+    """
+    if not value:
+        return []
+    data = value
+    for _ in range(max_decode):
+        if not isinstance(data, str):
+            break
+        try:
+            data = json.loads(data)
+        except (json.JSONDecodeError, TypeError):
+            return []
+    return data if isinstance(data, list) else []

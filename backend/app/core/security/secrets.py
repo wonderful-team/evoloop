@@ -16,8 +16,8 @@ import logging
 import re
 from typing import Any
 
-from app.core.security.redaction import redact_secrets
 from app.infrastructure.config.vault import SecureVaultService
+from app.utils.redact import redact_secrets
 
 logger = logging.getLogger(__name__)
 

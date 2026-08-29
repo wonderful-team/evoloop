@@ -138,11 +138,6 @@ def _get_default_qwen3_dir() -> Path:
     return Path(os.path.expanduser("~/.evoloop/models")) / "qwen3-asr"
 
 
-def _get_bundled_qwen3_models_path() -> Path | None:
-    """Backwards-compatible alias for finding the Qwen3-ASR model directory."""
-    return _find_qwen3_model_dir()
-
-
 def _load_audio_samples_16k(file_path: str) -> list[float]:
     """读取或转换音频文件为 16kHz 单声道 f32 浮点数组"""
     # 尝试 1: 原生 wave 模块 (支持 16kHz PCM wav)

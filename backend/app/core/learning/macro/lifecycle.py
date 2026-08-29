@@ -7,7 +7,6 @@ rebuilt by the debounced worker subscriber (single-writer contract).
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterable
 
 from sqlalchemy import Text, delete, func, literal, or_, select
 

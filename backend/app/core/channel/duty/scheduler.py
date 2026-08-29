@@ -188,7 +188,7 @@ def _build_channel(cls_name: str, cfg: dict):
     return channel
 
 
-async def _run_duty_poll_with_release(project_id: int, kind: str | None) -> int:
+async def run_duty_poll_with_release(project_id: int, kind: str | None) -> int:
     """run_duty_poll 内部实现：执行轮巡并在 finally 释放在飞登记。"""
     try:
         return await _run_duty_poll_impl(project_id=project_id, kind=kind)
@@ -201,16 +201,6 @@ async def _run_duty_poll_with_release(project_id: int, kind: str | None) -> int:
             release_inflight(project_id, KIND_BUSINESS_POLL)
         else:
             release_inflight(project_id, kind)
-
-
-@shared_task(name="run_duty_poll")
-async def run_duty_poll(project_id: int, kind: str | None = None) -> int:
-    """执行一次值守轮巡，返回处理的消息数（0 = 无新消息快速路径）。
-
-    Args:
-        kind: 指定执行种类；None 则同时执行企微线 + 业务巡检。
-    """
-    return await _run_duty_poll_with_release(project_id=project_id, kind=kind)
 
 
 def task_is_duty(task_params: dict | None) -> bool:

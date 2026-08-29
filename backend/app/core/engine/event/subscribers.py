@@ -25,6 +25,7 @@ from app.core.engine.event.schemas import (
     ConversationDeletedEvent,
     WebSocketMessageReceivedEvent,
 )
+from app.core.engine.session.manager import session_manager
 from app.core.events import SystemEventType
 from app.core.events.decorators import event_register, event_subscribe
 from app.core.evocloud.bridge.conversation_sync import get_conversation_sync_manager
@@ -311,7 +312,6 @@ class EngineCommandSubscriber:
 
         # 会话模式：统一走 session_manager.submit（is_resume）—— 有活会话注入
         # gate 恢复，无活会话创建并启动；不再回落到 run_agent_background。
-        from app.core.session.manager import session_manager
 
         await session_manager.submit(thread_id, response, is_resume=True)
 
@@ -330,9 +330,6 @@ class EngineCommandSubscriber:
         from app.core.monitoring.activity import activity_monitor
 
         await activity_monitor.clear_human_request(thread_id)
-
-        # 会话模式：统一走 session_manager.submit（is_resume + is_cancel）
-        from app.core.session.manager import session_manager
 
         await session_manager.submit(
             thread_id,
@@ -416,10 +413,7 @@ class EngineCommandSubscriber:
                     raise RuntimeError(f"Agent dispatch failed: {inputs.error}")
                 return
 
-            # 会话模式：统一走 session_manager.submit —— 有活会话注入，
             # 无活会话创建并启动；不再回落到 run_agent_background。
-            from app.core.session.manager import session_manager
-
             await session_manager.submit(thread_id, inputs.inputs)
 
     async def _handle_stop(self, command: RemoteCommand) -> None:
@@ -429,10 +423,7 @@ class EngineCommandSubscriber:
             logger.warning("[EngineCommand] Stop command missing thread_id, skipping")
             return
         logger.info(f"[EngineCommand] Stopping run for thread {thread_id}")
-        # 会话模式：统一走 session_manager.stop_agent（有会话 → session.stop；
         # 无会话 → stop_run + cancel_worker 双兜底）
-        from app.core.session.manager import session_manager
-
         await session_manager.stop_agent(thread_id, "mobile_stop")
 
     async def _handle_retry(self, command: RemoteCommand) -> None:
@@ -556,10 +547,7 @@ class EngineCommandSubscriber:
             logger.error(f"[EngineCommand] Retry dispatch failed: {result.error}")
             return
 
-        # 会话模式：统一走 session_manager.submit —— 有活会话注入（会话重建 state
         # 反映 rewind 后的 DB）；无活会话创建并启动，不再回落到 run_agent_background。
-        from app.core.session.manager import session_manager
-
         await session_manager.submit(thread_id, result.inputs)
 
 

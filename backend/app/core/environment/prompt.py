@@ -17,6 +17,7 @@ from app.core.tools.manager import tool_manager
 from app.infrastructure.drivers.browser import browser_manager
 from app.infrastructure.drivers.system import get_disk_usage, get_listening_ports
 from app.utils.template import render_template
+from app.utils.text import normalize_compact
 
 logger = logging.getLogger(__name__)
 
@@ -168,11 +169,6 @@ def _docker_label(c: dict) -> str:
     return f"{name}: (无外部端口)"
 
 
-def _normalize_app_name(name: str) -> str:
-    """Normalize a process/app name for cross-source matching."""
-    return re.sub(r"[\s\-_]+", "", name).lower()
-
-
 def _get_active_window() -> str | None:
     """Best-effort fetch of the current foreground window/app name."""
     try:
@@ -242,11 +238,11 @@ def build_environment_summaries(relevance: str = "auto", include_full_apps: bool
                         ]
                 if include_full_apps:
                     running_norm = {
-                        _normalize_app_name(a) for a in host_info["running_apps"]
+                        normalize_compact(a) for a in host_info["running_apps"]
                     }
                     host_info["installed_apps"] = [
                         a for a in (state.host.installed_apps or [])
-                        if _normalize_app_name(a) not in running_norm
+                        if normalize_compact(a) not in running_norm
                     ]
                 if state.host.os_name == "macOS":
                     host_info["active_window"] = _get_active_window()
@@ -341,10 +337,10 @@ def build_environment_summaries(relevance: str = "auto", include_full_apps: bool
             s.app_name for s in (state.host.app_usage_stats or []) if s.is_running
         }
         if running_apps:
-            running_normalized = {_normalize_app_name(n) for n in running_apps}
+            running_normalized = {normalize_compact(n) for n in running_apps}
             data["active_ports"] = [
                 svc for svc in data["active_ports"]
-                if _normalize_app_name(svc["process"]) not in running_normalized
+                if normalize_compact(svc["process"]) not in running_normalized
             ]
         # Group ports per process instance for compact rendering (one line per service)
         by_process: dict[tuple[str, int | None], list[int]] = {}

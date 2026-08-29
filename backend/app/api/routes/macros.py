@@ -7,27 +7,16 @@ from pydantic import BaseModel
 
 from app.api.deps import TokenDep
 from app.core.events.publishers import publish_macro_mutated
-from app.core.execution.macro import (
+from app.core.learning.macro import (
     MacroEngine,
-    MacroScript,
     create_macro_from_synthesis,
     load_macro,
 )
-from app.core.execution.macro import (
-    confirm_bulk as confirm_bulk_dao,
-)
-from app.core.execution.macro import (
-    confirm_macro as confirm_macro_dao,
-)
-from app.core.execution.macro import (
-    delete_macro as delete_macro_dao,
-)
-from app.core.execution.macro import (
-    list_macros as list_macros_dao,
-)
-from app.core.execution.macro import (
-    update_macro as update_macro_dao,
-)
+from app.core.learning.macro import confirm_bulk as confirm_bulk_dao
+from app.core.learning.macro import confirm_macro as confirm_macro_dao
+from app.core.learning.macro import delete_macro as delete_macro_dao
+from app.core.learning.macro import list_macros as list_macros_dao
+from app.core.learning.macro import update_macro as update_macro_dao
 from app.infrastructure.database import session_scope
 from app.models.macro import Macro
 
@@ -163,10 +152,11 @@ async def get_macro(macro_id: int, _token: TokenDep):
 @router.put("/{macro_id}", response_model=MacroDTO)
 async def update_macro(macro_id: int, req: MacroUpdateRequest, _token: TokenDep):
     if req.macro_script is not None:
-        try:
-            MacroScript.from_yaml(req.macro_script)
-        except (ValueError, TypeError, KeyError) as e:
-            raise HTTPException(400, f"Invalid macro YAML: {e}")
+        from app.core.learning.macro.authoring import validate_macro_structure
+
+        ok, error, _ = validate_macro_structure(req.macro_script)
+        if not ok:
+            raise HTTPException(400, f"Invalid macro YAML: {error}")
     fields = req.model_dump(exclude_unset=True)
     ok = await update_macro_dao(macro_id, fields)
     if not ok:
@@ -239,7 +229,7 @@ async def trigger_macro_maintenance(req: MacroMaintenanceRequest | None = None, 
     ``apps`` optionally limits the pass to specific "bundle:Name" pairs.
     """
     from app.api.schemas.responses import DataResponse
-    from app.core.execution.macro.tasks import native_macro_maintenance_task
+    from app.core.learning.macro.tasks import native_macro_maintenance_task
 
     apps = None
     if req is not None and req.apps:

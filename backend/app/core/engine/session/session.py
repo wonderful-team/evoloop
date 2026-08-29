@@ -22,11 +22,24 @@ from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
 from app.core.context.manager import ContextManager, EvoContext
 from app.core.engine.background_agent.models import BackgroundAgentInputs
+from app.core.engine.background_agent.worker_rollout import (
+    _reload_worker_state,
+    run_worker_rollout,
+)
+from app.core.engine.context_hydrator import AgentContextHydrator
 from app.core.engine.loop import run_node_loop
-from app.core.engine.runner_base import build_agent_state
+from app.core.engine.message.native_classes import HumanMessage
+from app.core.engine.routers import RoutingTarget
+from app.core.engine.runner_base import (
+    build_agent_state,
+    build_ctx,
+    build_execution_config,
+)
+from app.core.engine.session.gate import GateEvent, ThreadGate
 from app.core.exceptions import AgentCancelledException, AgentHumanInterruptException
+from app.core.hitl.orchestrator import HITLOrchestrator
 from app.core.monitoring.activity import activity_monitor
-from app.core.session.gate import GateEvent, ThreadGate
+from app.utils.id import unique_id
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +49,7 @@ class RolloutHandle:
     """Current background rollout (single Worker ReAct loop) for the session."""
 
     task: asyncio.Task[Any]
-    rollout_id: str = field(default_factory=lambda: f"ro-{int(time.time() * 1000)}")
+    rollout_id: str = field(default_factory=lambda: unique_id("ro", use_ms=True))
     description: str = ""
 
     @property
@@ -142,7 +155,7 @@ async def run_agent_session(session: AgentSession) -> None:
     if ctx is None:
         ctx = EvoContext(
             thread_id=session.thread_id,
-            request_id=f"req-{session.thread_id}-{int(time.time())}",
+            request_id=unique_id("req", session.thread_id),
         )
     ContextManager.set(ctx)
 
@@ -182,6 +195,25 @@ async def run_agent_session(session: AgentSession) -> None:
             if ev.kind == "worker_completed":
                 if not _is_current_rollout(session, ev):
                     continue  # 旧 rollout 的迟到事件（被 cancel），忽略
+                # Worker 报告已在 rollout 中落库并推送，不再触发聚合 delivery
+                # （避免 Supervisor 聚合轮二次回复用户）。_run_turn 内部通常已
+                # 消费该事件；此处为兜底：仅通知 delivery 完成，会话等待新消息。
+                _notify_delivery_done(session)
+                continue
+            if ev.kind == "subagent_completed":
+                # subagent 完成事件（见 subagent_events._wake_session）：以聚合轮重进图。
+                # 若仍在下发流程中则忽略，由 prepare_state 下一次调度统一消费。
+                if getattr(session, "worker", None) is not None and not session.worker.done:
+                    continue
+                # 标记聚合轮：Supervisor 据此在"还有 subagent 在跑"时跳过 LLM 直接
+                # 等待，避免陈旧上下文抢跑（重复委派 / 误 cancel）。
+                await _run_delivery(session, inputs=None, aggregation_turn=True)
+                _notify_delivery_done(session)
+                continue
+            if ev.kind == "subagent_hitl_request":
+                # subagent HITL 透传事件：Supervisor 需跑 LLM 处理透传。
+                if getattr(session, "worker", None) is not None and not session.worker.done:
+                    continue
                 await _run_delivery(session, inputs=None)
                 _notify_delivery_done(session)
                 continue
@@ -244,8 +276,36 @@ async def _rollout_outcome(session: AgentSession) -> str:
         return ""
 
 
-async def _run_delivery(session: AgentSession, inputs: BackgroundAgentInputs | None) -> None:
-    """One delivery (run_scope). ``inputs is None`` ⇒ aggregation turn after a rollout."""
+def _should_run_finish_audit(state: Any | None) -> bool:
+    """监察决策（Phase C.5）：仅当委托时 Supervisor 显式设置 needs_audit=true，
+    Worker 交付才经监察者（Finish）验收；默认 false 直接呈现。"""
+    return bool(state and state.ticket and state.ticket.needs_audit)
+
+
+async def _reload_session_state(
+    session: AgentSession, state: Any, config: dict
+) -> Any | None:
+    """重载 Worker 完成后的 state（DB 为准，含 A2A 回调结果写入的工具消息），
+    并保留审计必需的 tool_history / worker_outcome。"""
+
+    reloaded = await _reload_worker_state(state, config, session.thread_id)
+    if reloaded is None:
+        return None
+    reloaded.tool_history = list(state.tool_history or [])
+    reloaded.worker_outcome = state.worker_outcome
+    return reloaded
+
+
+async def _run_delivery(
+    session: AgentSession,
+    inputs: BackgroundAgentInputs | None,
+    aggregation_turn: bool = False,
+) -> None:
+    """One delivery (run_scope). ``inputs is None`` ⇒ aggregation turn after a rollout.
+
+    ``aggregation_turn=True``：subagent_completed 唤醒（无用户新消息），在 state 上
+    打标记，Supervisor 据此在"还有 subagent 在跑"时跳过 LLM 等待聚合。
+    """
     project_id = inputs.project_id if inputs else DEFAULT_PROJECT_ID
     main_goal = inputs.goal if inputs and inputs.goal else (session.state.session_goal if session.state else "session turn")
 
@@ -253,6 +313,8 @@ async def _run_delivery(session: AgentSession, inputs: BackgroundAgentInputs | N
         session.thread_id, main_goal, task_type="session", project_id=project_id
     ) as scope_run_id:
         try:
+            if aggregation_turn and session.state is not None:
+                session.state.subagent_aggregation_turn = True
             if inputs is not None:
                 await _refresh_session_ctx(session, inputs)
                 session.state = await build_agent_state(session.thread_id, inputs)
@@ -270,7 +332,6 @@ async def _run_delivery(session: AgentSession, inputs: BackgroundAgentInputs | N
             # 上下文水合（与单发 run_agent_background 一致）：填充 ctx.metadata 的
             # project_concepts / active_skills / memory raw 等，供 Supervisor/Worker
             # prompt 构建读取。缺失会导致会话场景 prompt 缺项目/技能/记忆上下文。
-            from app.core.engine.context_hydrator import AgentContextHydrator
 
             ctx = ContextManager.current()
             lc_config = {
@@ -346,12 +407,28 @@ async def _run_turn(
                     if not _is_current_rollout(session, ev):
                         continue  # 旧 rollout 迟到事件，忽略
                     # rollout 若因 HITL（敏感文件批准等）中断：请求已注册，
-                    # 挂起等待 _handle_resume 注入批准/拒绝。
+                    # 挂起等待 _handle_resume 注入批准/拒绝。恢复后 break 出内层
+                    # 循环，由外层 loop 顶部消费 pending_resume 继续执行——
+                    # 否则 pending_resume 设了但没有新 delivery 会挂起。
                     rollout_outcome = await _rollout_outcome(session)
                     if rollout_outcome == "interrupted":
                         await _hang_for_resume(session)
-                    state.next_node = "supervisor"
-                    break  # 同 scope 聚合：Supervisor 重进图
+                        break
+                    # needs_audit=true：Worker 交付需经监察者（Finish）验收后再呈现。
+                    # 重载 state（DB 为准，含 A2A 回调结果）+ 保留 tool_history/worker_outcome
+                    # → 置 next_node=finish → 跳出内层循环，由外层 run_node_loop 跑验收
+                    # （session_mode=True 保障 INCOMPLETE 回 Supervisor 时的 handoff 语义）。
+                    if rollout_outcome == "done" and _should_run_finish_audit(state):
+                        reloaded = await _reload_session_state(session, state, config)
+                        if reloaded is not None:
+                            session.state = reloaded
+                            state = reloaded
+                            state.next_node = RoutingTarget.FINISH
+                            break
+                    # 默认（needs_audit=false）：Worker 报告已在 rollout 中落库并推送给
+                    # 用户 —— 这就是本轮交付的终点。不再回 Supervisor 聚合（避免
+                    # Supervisor 把已完成任务误判为新任务重复派发 / 二次回复用户）。
+                    return
                 if ev.kind == "user_message":
                     state.next_node = "supervisor"
                     await _append_turn_input(state, ev)
@@ -407,7 +484,6 @@ async def _handle_resume(
     inputs: BackgroundAgentInputs,
 ) -> None:
     """HITL/A2A resume: close the pending request and write the tool result back (runner-equivalent)."""
-    from app.core.hitl.orchestrator import HITLOrchestrator
 
     ctx = ContextManager.current()
     thread_id = session.thread_id
@@ -437,7 +513,6 @@ async def _append_turn_input(state: Any | None, ev: GateEvent) -> None:
     if raw is None:
         return
     inputs = raw if isinstance(raw, BackgroundAgentInputs) else BackgroundAgentInputs(**raw)
-    from app.core.engine.message.native_classes import HumanMessage
 
     state.messages.append(HumanMessage(content=inputs.goal or ""))
 
@@ -451,6 +526,10 @@ async def _handle_session_cancel(session: AgentSession) -> None:
 async def _close_session(session: AgentSession) -> None:
     await _cancel_rollout(session)
     session.lifecycle = "closed"
+    # 唤醒阻塞在 wait_delivery_complete 上的调用方（如值守串行等待）：
+    # 会话被停止/关闭/崩溃时也要让等待返回，否则值守扫描永久挂起，
+    # next_run_at 不落盘 → 重启后任务又被重新派发。
+    _notify_delivery_done(session)
     logger.info(f"[Session] {session.thread_id} session closed")
 
 
@@ -474,7 +553,6 @@ async def _refresh_session_ctx(session: AgentSession, inputs: BackgroundAgentInp
 
     复用共享 ``runner_base.build_ctx``（加载/刷新 EvoContext），并补充 token 旋转。
     """
-    from app.core.engine.runner_base import build_ctx
 
     ctx = await build_ctx(session.thread_id, inputs)
     if inputs.metadata and inputs.metadata.get("token"):
@@ -492,7 +570,6 @@ async def _build_session_config(
     聚合轮（worker 完成后 inputs=None）用当前模型构造占位 inputs；
     会话轮直接用传入 inputs。
     """
-    from app.core.engine.runner_base import build_execution_config
 
     ctx = ContextManager.current()
     if inputs is None:
@@ -512,7 +589,6 @@ async def _start_rollout(session: AgentSession, state: Any, config: dict[str, An
         logger.info(f"[Session] {session.thread_id} cancelling previous rollout before handoff")
         await _cancel_rollout(session)
 
-    from app.core.engine.background_agent.worker_rollout import run_worker_rollout
 
     task = asyncio.create_task(run_worker_rollout(state, config, session.thread_id))
     handle = RolloutHandle(task=task, description=state.session_goal or "")

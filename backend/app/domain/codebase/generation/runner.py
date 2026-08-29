@@ -17,6 +17,7 @@ from app.domain.codebase.generation.scheduler import (
     mark_generation_completed,
     mark_generation_failed,
 )
+from app.utils.id import unique_id
 
 _MONEY_KEYWORDS = frozenset(
     {
@@ -85,7 +86,7 @@ async def _run_wiki(project_id: int) -> None:
     except Exception:
         module_summary = ""
 
-    thread_id = f"wiki-gen-{project_id}-{int(time.time())}"
+    thread_id = unique_id("wiki-gen", project_id)
     from app.core.context import thread_context_store
 
     thread_context_store.set_working_directory(thread_id, path)
@@ -259,7 +260,7 @@ async def _run_appmap(project_id: int) -> None:
     else:
         logger.info("[AppMap] Index-based builder returned no entities, skipping batch write")
 
-    thread_id = f"appmap-gen-{project_id}-{int(time.time())}"
+    thread_id = unique_id("appmap-gen", project_id)
     from app.core.context import thread_context_store
 
     thread_context_store.set_working_directory(thread_id, path)

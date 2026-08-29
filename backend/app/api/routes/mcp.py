@@ -62,7 +62,7 @@ async def connect_mcp_server(name: str):
         success = await mcp_client_manager.ensure_connected(name)
         if not success:
             raise HTTPException(status_code=400, detail=f"Failed to connect to MCP server '{name}'")
-        
+
         # Get current tools to return verification
         tools = await mcp_client_manager.get_tools(name)
         return McpConnectResponse(
