@@ -16,13 +16,10 @@ from sqlalchemy import select
 
 from app.core.atlas.source.native_factory import generate_for_atlas_app
 from app.core.atlas.surveyor import AtlasSurveyor, SurveyPolicy
+from app.core.learning.constants import MAX_MACROS_PER_APP
 from app.core.learning.macro.lifecycle import persist_native_macros
 
 logger = logging.getLogger(__name__)
-
-# Guardrail: sane upper bound per app (Chrome hits ~170; >500 means the
-# filters regressed — keep data, but scream in logs).
-MAX_MACROS_PER_APP = 500
 
 # Default survey set — TODO: 原为 "high-frequency pilot"（Chrome/iTerm2/微信/飞书），
 # 因固定试点集合意义有限且定时扫描会启动应用打扰用户，已清空。
@@ -114,7 +111,9 @@ async def verify_safe_native_macros() -> int:
         return await confirm_bulk(ids, db=db)
 
 
-async def native_macro_maintenance(apps: list[tuple[str, str]] | None = None) -> list[dict]:
+async def native_macro_maintenance(
+    apps: list[tuple[str, str]] | None = None,
+) -> list[dict]:
     """Full pass over the configured set; reindex once if anything changed."""
     results: list[dict] = []
     for bundle_id, app_name in apps or configured_apps():

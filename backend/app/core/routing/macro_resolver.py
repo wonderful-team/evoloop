@@ -31,7 +31,9 @@ def _normalize_trigger_patterns(macro: Macro) -> list[str]:
     return []
 
 
-def _extract_slots(intent_name: str, text: str, slot_prefixes: list[str]) -> dict[str, str]:
+def _extract_slots(
+    intent_name: str, text: str, slot_prefixes: list[str]
+) -> dict[str, str]:
     """Simple slot extraction from raw text by stripping known prefixes."""
     del intent_name  # kept for API symmetry; actual extraction is prefix-based
     for prefix in slot_prefixes:
@@ -61,8 +63,7 @@ class MacroResolver:
         return [
             m
             for m in macros
-            if m.name == name
-            and (m.project_id is None or m.project_id == project_id)
+            if m.name == name and (m.project_id is None or m.project_id == project_id)
         ]
 
     def _extract_slot_name(self, macro: Macro) -> str | None:
@@ -171,7 +172,7 @@ class MacroResolver:
                             slot_val = strip_filler_words(
                                 slot_val,
                                 self._routing_store.slot_filler_prefixes,
-                                self._routing_store.slot_filler_suffixes
+                                self._routing_store.slot_filler_suffixes,
                             )
                         args = self._build_args(macro, text, slot_val, slot_name)
                         return f"macro:{macro.id}", args
@@ -189,14 +190,16 @@ class MacroResolver:
         t = text.strip()
         for p in sorted(self._routing_store.polite_prefixes, key=len, reverse=True):
             if t.startswith(p):
-                t = t[len(p):].strip()
+                t = t[len(p) :].strip()
                 break
         for s in sorted(self._routing_store.polite_suffixes, key=len, reverse=True):
             if t.endswith(s):
-                t = t[:-len(s)].strip()
+                t = t[: -len(s)].strip()
         return t
 
-    def _resolve_args_loose(self, macro: Macro, text: str, slot_name: str | None) -> dict[str, Any] | None:
+    def _resolve_args_loose(
+        self, macro: Macro, text: str, slot_name: str | None
+    ) -> dict[str, Any] | None:
         """意图名命中后做宽松槽位提取。
 
         无参数宏直接命中（返回 {}）；参数化宏需要能从文本中提取到槽位值，
@@ -219,7 +222,7 @@ class MacroResolver:
             val = strip_filler_words(
                 m.group(1),
                 self._routing_store.slot_filler_prefixes,
-                self._routing_store.slot_filler_suffixes
+                self._routing_store.slot_filler_suffixes,
             )
             if val and not self._is_noise_slot(val):
                 return {slot_name: val}
@@ -231,8 +234,7 @@ class MacroResolver:
         词表数据化复用 ``free_text_reject_markers``（与 LocalMatcher 一致）。
         """
         return any(
-            marker in value
-            for marker in self._routing_store.free_text_reject_markers
+            marker in value for marker in self._routing_store.free_text_reject_markers
         )
 
 

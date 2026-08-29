@@ -6,6 +6,8 @@ import re
 from app.core.learning.macro.schemas import MacroSource
 from app.core.monitoring.activity import activity_monitor
 
+import app.core.learning.constants as _mc
+
 logger = logging.getLogger(__name__)
 
 
@@ -22,7 +24,7 @@ def _unwrap_controller_value(res):
     if res.startswith("❌"):
         return None
     if res.startswith("JS result: "):
-        return res[len("JS result: "):]
+        return res[len("JS result: ") :]
     if res.startswith("✅"):
         return res.split("\n\n", 1)[1].strip() if "\n\n" in res else ""
     return res
@@ -30,7 +32,9 @@ def _unwrap_controller_value(res):
 
 class ExtractionMixin:
     @classmethod
-    async def handle_extraction(cls, thread_id, step, selector, payload, params, extracted_data):
+    async def handle_extraction(
+        cls, thread_id, step, selector, payload, params, extracted_data
+    ):
         from app.core.environment.controllers.browser import BrowserController
         from app.core.environment.controllers.desktop import DesktopController
         from app.core.environment.controllers.mobile import MobileController
@@ -43,24 +47,34 @@ class ExtractionMixin:
 
         if step.source == MacroSource.DOM:
             call_kwargs = {"action": extract_type, "selector": selector}
-            if extract_type == "get_attribute" and "attribute" in payload:
+            if extract_type == _mc.GET_ATTRIBUTE and "attribute" in payload:
                 call_kwargs["attribute"] = payload["attribute"]
-            elif extract_type in ("run_js", "evaluate") and ("script" in payload or "expression" in payload):
-                call_kwargs["action"] = "run_js"
-                call_kwargs["script"] = payload.get("script") or payload.get("expression")
+            elif extract_type in (_mc.RUN_JS, _mc.EVALUATE) and (
+                "script" in payload or "expression" in payload
+            ):
+                call_kwargs["action"] = _mc.RUN_JS
+                call_kwargs["script"] = payload.get("script") or payload.get(
+                    "expression"
+                )
             if payload.get("state"):
                 call_kwargs["state"] = payload["state"]
 
             res = await BrowserController.execute(**call_kwargs)
-            if extract_type in ("run_js", "evaluate") and isinstance(res, str) and res.startswith("❌"):
+            if (
+                extract_type in (_mc.RUN_JS, _mc.EVALUATE)
+                and isinstance(res, str)
+                and res.startswith("❌")
+            ):
                 raise ValueError(res)
-            if extract_type == "screenshot":
+            if extract_type == _mc.SCREENSHOT:
                 match = re.search(r"(/.*\.png)", str(res))
                 extracted_data[key] = match.group(1) if match else res
             else:
                 res = _unwrap_controller_value(res)
                 try:
-                    if isinstance(res, str) and (res.startswith("[") or res.startswith("{")):
+                    if isinstance(res, str) and (
+                        res.startswith("[") or res.startswith("{")
+                    ):
                         extracted_data[key] = json.loads(res)
                     else:
                         extracted_data[key] = res
@@ -68,22 +82,32 @@ class ExtractionMixin:
                     logger.exception(f"Macro extraction error: {e}")
                     extracted_data[key] = res
 
-        elif step.source in (MacroSource.MOBILE, MacroSource.GLOBAL, MacroSource.DESKTOP):
-            if extract_type == "gui_extract":
-                await cls._handle_gui_extract(thread_id, step, selector, payload, params, extracted_data)
+        elif step.source in (
+            MacroSource.MOBILE,
+            MacroSource.GLOBAL,
+            MacroSource.DESKTOP,
+        ):
+            if extract_type == _mc.GUI_EXTRACT:
+                await cls._handle_gui_extract(
+                    thread_id, step, selector, payload, params, extracted_data
+                )
                 return
 
-            if extract_type == "dump_ui":
+            if extract_type == _mc.DUMP_UI:
                 if step.source == MacroSource.DESKTOP:
-                    res = await DesktopController.execute(action="dump_ui")
+                    res = await DesktopController.execute(action=_mc.DUMP_UI)
                 else:
-                    res = await MobileController.execute(action="dump_ui")
+                    res = await MobileController.execute(action=_mc.DUMP_UI)
                 extracted_data[key] = res
-            elif extract_type == "screenshot":
+            elif extract_type == _mc.SCREENSHOT:
                 if step.source == MacroSource.DESKTOP:
-                    res = await DesktopController.execute(action="screenshot", region=payload.get("region"))
+                    res = await DesktopController.execute(
+                        action=_mc.SCREENSHOT, region=payload.get("region")
+                    )
                 else:
-                    res = await MobileController.execute(action="screenshot", region=payload.get("region"))
+                    res = await MobileController.execute(
+                        action=_mc.SCREENSHOT, region=payload.get("region")
+                    )
 
                 match = re.search(r"(/.*\.png)", str(res))
                 filepath = match.group(1) if match else str(res)
@@ -93,33 +117,40 @@ class ExtractionMixin:
                 extracted_data[key] = filepath
 
     @classmethod
-    async def _handle_gui_extract(cls, thread_id, step, selector, payload, params, extracted_data):
+    async def _handle_gui_extract(
+        cls, thread_id, step, selector, payload, params, extracted_data
+    ):
         from app.core.environment.controllers.desktop import DesktopController
         from app.core.environment.controllers.mobile import MobileController
 
         key = cls._inject_params(step.key, params) or "extracted_text"
-        pos = payload.get("relative_position") or {"x": payload.get("x", 0.5), "y": payload.get("y", 0.5)}
+        pos = payload.get("relative_position") or {
+            "x": payload.get("x", 0.5),
+            "y": payload.get("y", 0.5),
+        }
         region = payload.get("region")
 
         try:
             if step.source == MacroSource.DESKTOP:
                 res = await DesktopController.execute(
-                    action="gui_extract",
+                    action=_mc.GUI_EXTRACT,
                     x=pos.get("x"),
                     y=pos.get("y"),
-                    region=region
+                    region=region,
                 )
                 extracted_data[key] = res
             elif step.source == MacroSource.MOBILE:
                 res = await MobileController.execute(
-                    action="gui_extract",
+                    action=_mc.GUI_EXTRACT,
                     x=pos.get("x"),
                     y=pos.get("y"),
                     region=region,
-                    extraction_method=payload.get("extraction_method")
+                    extraction_method=payload.get("extraction_method"),
                 )
 
-                if isinstance(res, str) and (res.startswith("[") or res.startswith("{")):
+                if isinstance(res, str) and (
+                    res.startswith("[") or res.startswith("{")
+                ):
                     try:
                         extracted_data[key] = json.loads(res)
                     except (json.JSONDecodeError, TypeError, ValueError):
@@ -142,17 +173,30 @@ class ExtractionMixin:
             )
             from app.infrastructure.vision.types import VisionTask
 
-            def _norm(t): return re.sub(r'\s+', '', t).lower() if t else ""
-            a11y_res = await android_a11y_provider.process(VisionTask.DETECT, "", device_id=None)
+            def _norm(t):
+                return re.sub(r"\s+", "", t).lower() if t else ""
+
+            a11y_res = await android_a11y_provider.process(
+                VisionTask.DETECT, "", device_id=None
+            )
 
             if a11y_res.success:
                 target_norm = _norm(selector)
                 for el in a11y_res.elements:
-                    if _norm(el.text) == target_norm or target_norm in _norm(el.metadata.get("resource_id", "")):
-                        bounds = (el.x - el.width//2, el.y - el.height//2, el.x + el.width//2, el.y + el.height//2)
+                    if _norm(el.text) == target_norm or target_norm in _norm(
+                        el.metadata.get("resource_id", "")
+                    ):
+                        bounds = (
+                            el.x - el.width // 2,
+                            el.y - el.height // 2,
+                            el.x + el.width // 2,
+                            el.y + el.height // 2,
+                        )
                         with Image.open(filepath) as img:
                             cropped = img.crop(bounds)
-                            new_path = filepath.replace(".png", f"_crop_{_norm(selector)[:15]}.png")
+                            new_path = filepath.replace(
+                                ".png", f"_crop_{_norm(selector)[:15]}.png"
+                            )
                             cropped.save(new_path)
                             os.remove(filepath)
                             return new_path

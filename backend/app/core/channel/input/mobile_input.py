@@ -21,7 +21,9 @@ class MobileInputChannel(InputChannel):
 
     name = "mobile"
 
-    async def receive(self, raw: dict[str, Any], **kwargs: Any) -> IncomingMessage | None:
+    async def receive(
+        self, raw: dict[str, Any], **kwargs: Any
+    ) -> IncomingMessage | None:
         """
         Build an IncomingMessage from a mobile chat payload.
 
@@ -52,7 +54,10 @@ class MobileInputChannel(InputChannel):
 
             pid = await shared_state.get_active_project_id()
             if not pid:
-                pid = thread_context_store.get_active_project("remote-default") or DEFAULT_PROJECT_ID
+                pid = (
+                    thread_context_store.get_active_project("remote-default")
+                    or DEFAULT_PROJECT_ID
+                )
         member_id = kwargs.get("member_id") or raw.get("member_id") or 0
         command_id = kwargs.get("command_id") or raw.get("command_id")
         message_id = kwargs.get("message_id") or raw.get("message_id")
@@ -62,7 +67,11 @@ class MobileInputChannel(InputChannel):
             from app.core.engine.session.manager import session_manager
 
             session = session_manager.get(thread_id)
-            if session is not None and session.worker is not None and not session.worker.done:
+            if (
+                session is not None
+                and session.worker is not None
+                and not session.worker.done
+            ):
                 meta["has_running_worker"] = "true"
                 meta["running_worker_desc"] = session.worker.description
         except Exception:

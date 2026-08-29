@@ -28,7 +28,9 @@ async def _search_concepts(
         if not MemoryLifespanManager.is_initialized():
             await MemoryLifespanManager.ainitialize()
         container = MemoryLifespanManager.get_container()
-        concepts = await container.memory_manager.search_concepts(query or "", project_id=project_id, limit=limit)
+        concepts = await container.memory_manager.search_concepts(
+            query or "", project_id=project_id, limit=limit
+        )
         source = "global" if project_id == DEFAULT_PROJECT_ID else "project"
         return [
             {"name": c.name, "description": c.description, "source": source}
@@ -64,8 +66,12 @@ async def query_concepts(
     if not project_id or project_id == DEFAULT_PROJECT_ID:
         return "Global mode: no project knowledge available. Switch to a project first."
 
-    concepts = await _search_concepts(query if query else None, project_id=project_id, limit=5)
-    global_concepts = await _search_concepts(query if query else None, project_id=DEFAULT_PROJECT_ID, limit=3)
+    concepts = await _search_concepts(
+        query if query else None, project_id=project_id, limit=5
+    )
+    global_concepts = await _search_concepts(
+        query if query else None, project_id=DEFAULT_PROJECT_ID, limit=3
+    )
 
     sections = []
 
@@ -75,7 +81,10 @@ async def query_concepts(
 
     if global_concepts:
         lines = [f"- **{c['name']}**: {c['description']}" for c in global_concepts]
-        sections.append(f"## Global Concepts (cross-project, {len(global_concepts)})\n" + "\n".join(lines))
+        sections.append(
+            f"## Global Concepts (cross-project, {len(global_concepts)})\n"
+            + "\n".join(lines)
+        )
 
     if not sections:
         return f"No concept knowledge found for project {project_id}."

@@ -17,6 +17,10 @@ def format_wiki_pages(pages: list) -> str:
         Rendered string using the core/vision/perceptions.prompt.j2 template.
     """
     if not pages:
-        return render_template("core/vision/perceptions.prompt.j2", type="wiki_pages", items=[])
+        return render_template(
+            "core/vision/perceptions.prompt.j2", type="wiki_pages", items=[]
+        )
     items = [f"{p.title} (slug: {p.slug})" for p in pages]
-    return render_template("core/vision/perceptions.prompt.j2", type="wiki_pages", items=items)
+    return render_template(
+        "core/vision/perceptions.prompt.j2", type="wiki_pages", items=items
+    )

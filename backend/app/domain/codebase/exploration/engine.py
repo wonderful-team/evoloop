@@ -4,6 +4,7 @@ Code Exploration Engine - Automatic Backend Selection
 Intelligently chooses between Knowledge Graph, LSP, and unified Search Center
 based on data availability and query characteristics.
 """
+
 import asyncio
 import logging
 import re
@@ -47,10 +48,7 @@ class CodeExplorationEngine:
             results = await retriever.find_symbol_definition(name, project_id)
             if results:
                 logger.info(f"[Engine] Found '{name}' via SQL retrieval")
-                return {
-                    "source": "sql",
-                    "results": results
-                }
+                return {"source": "sql", "results": results}
         except Exception as e:
             logger.debug(f"[Engine] SQL lookup failed: {e}", exc_info=True)
 
@@ -58,20 +56,14 @@ class CodeExplorationEngine:
             results = await self._grep_find_symbol(name, repo_path)
             if results:
                 logger.info(f"[Engine] Found '{name}' via Search Center fallback")
-                return {
-                    "source": "search_center",
-                    "results": results
-                }
+                return {"source": "search_center", "results": results}
         except Exception as e:
             logger.debug(f"[Engine] Search center lookup failed: {e}", exc_info=True)
 
         return None
 
     async def search_code(
-        self,
-        pattern: str,
-        scope: str | None = None,
-        repo_path: str | None = None
+        self, pattern: str, scope: str | None = None, repo_path: str | None = None
     ) -> list[dict[str, Any]]:
         """Search code using unified FileSearcher."""
         if not repo_path:
@@ -82,14 +74,13 @@ class CodeExplorationEngine:
         results = await FileSearcher.search_content(pattern, repo_path, scope=scope)
 
         return [
-            {
-                "file_path": r["file"],
-                "line": r["line"],
-                "content": r["content"]
-            } for r in results
+            {"file_path": r["file"], "line": r["line"], "content": r["content"]}
+            for r in results
         ]
 
-    async def _grep_find_symbol(self, name: str, repo_path: str | None) -> list[dict[str, Any]]:
+    async def _grep_find_symbol(
+        self, name: str, repo_path: str | None
+    ) -> list[dict[str, Any]]:
         """Use unified FileSearcher to find symbol definition."""
         if not repo_path:
             from app.core.tools import get_working_directory
@@ -101,13 +92,14 @@ class CodeExplorationEngine:
 
         results = await FileSearcher.search_content(pattern, repo_path, limit=10)
 
-        return [{
-            "file_path": r["file"],
-            "line": r["line"],
-            "content": r["content"]
-        } for r in results]
+        return [
+            {"file_path": r["file"], "line": r["line"], "content": r["content"]}
+            for r in results
+        ]
 
-    async def check_types(self, file_path: str, repo_path: str | None = None) -> list[dict[str, Any]]:
+    async def check_types(
+        self, file_path: str, repo_path: str | None = None
+    ) -> list[dict[str, Any]]:
         """Check for type errors using LSP."""
         if not repo_path:
             repo_path = str(Path(file_path).parent)
@@ -137,7 +129,9 @@ class CodeExplorationEngine:
             logger.exception(f"[Engine] Type check failed: {e}")
             return [{"error": str(e)}]
 
-    async def analyze_impact(self, symbol: str, project_id: int = DEFAULT_PROJECT_ID) -> list[dict[str, Any]]:
+    async def analyze_impact(
+        self, symbol: str, project_id: int = DEFAULT_PROJECT_ID
+    ) -> list[dict[str, Any]]:
         """Analyze symbol impact using SQL retrieval."""
         from app.domain.codebase.retrieval.service import RetrievalService
 
@@ -172,12 +166,14 @@ class CodeExplorationEngine:
         """Format LSP diagnostics for engine output."""
         formatted = []
         for d in diagnostics:
-            formatted.append({
-                "severity": d.get("severity"),
-                "message": d.get("message"),
-                "range": d.get("range"),
-                "source": d.get("source", "lsp")
-            })
+            formatted.append(
+                {
+                    "severity": d.get("severity"),
+                    "message": d.get("message"),
+                    "range": d.get("range"),
+                    "source": d.get("source", "lsp"),
+                }
+            )
         return formatted
 
 

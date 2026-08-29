@@ -29,10 +29,14 @@ async def publish_file_removed(repo_id: int, file_path: str) -> None:
 
 async def publish_file_moved(repo_id: int, src_path: str, dest_path: str) -> None:
     """Publish a file moved event."""
-    await system_bus.publish(FileMovedEvent(repo_id=repo_id, src_path=src_path, dest_path=dest_path))
+    await system_bus.publish(
+        FileMovedEvent(repo_id=repo_id, src_path=src_path, dest_path=dest_path)
+    )
 
 
-async def publish_indexing_status_changed(project_id: int, status: str, repo_id: int | None = None) -> None:
+async def publish_indexing_status_changed(
+    project_id: int, status: str, repo_id: int | None = None
+) -> None:
     """Publish a public indexing status change event (bridged to frontend SSE)."""
     await system_bus.publish(
         IndexingStatusChangedEvent(

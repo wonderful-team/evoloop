@@ -70,7 +70,9 @@ class AuditInputData(DynamicBaseModel):
     """Structured audit input — replaces full message history for comprehensive audit."""
 
     original_goal: str = ""
-    plan_summary: dict = Field(default_factory=dict)   # {total: N, completed: N, remaining: N}
+    plan_summary: dict = Field(
+        default_factory=dict
+    )  # {total: N, completed: N, remaining: N}
     progress: ProgressMetrics = Field(default_factory=ProgressMetrics)
     deliverables: list[TaskDeliverable] = Field(default_factory=list)
     tool_stats: dict[str, int] = Field(default_factory=dict)

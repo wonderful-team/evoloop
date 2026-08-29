@@ -176,7 +176,9 @@ async def list_macros(
                         or_(
                             Macro.name.ilike(q),
                             Macro.description.ilike(q),
-                            func.coalesce(Macro.trigger_patterns, literal("[]")).cast(Text).ilike(q),
+                            func.coalesce(Macro.trigger_patterns, literal("[]"))
+                            .cast(Text)
+                            .ilike(q),
                         )
                     )
                 stmt = stmt.where(or_(*keyword_conditions))
@@ -220,9 +222,7 @@ async def list_macros(
         return await _query(_db)
 
 
-async def list_active_macro_index(
-    project_id: int | None = None, db=None
-) -> list[dict]:
+async def list_active_macro_index(project_id: int | None = None, db=None) -> list[dict]:
     """Lightweight index of routable macros for Agent context injection."""
     macros = await list_macros(project_id=project_id, status="verified", db=db)
     return [
@@ -245,6 +245,7 @@ async def confirm_macro(macro_id: int, db=None) -> bool:
     Returns True when the macro is verified afterwards (including an already
     verified no-op), but only publishes an event when the status actually
     changed."""
+
     async def _apply(session) -> tuple[bool, bool]:
         macro = await session.get(Macro, macro_id)
         if macro is None:
@@ -334,6 +335,7 @@ async def downgrade_macro(macro_id: int, db=None) -> bool:
     Used when runtime verification fails for a macro (e.g. stale script).
     ``db`` optional: pass a session to run inside the caller's transaction.
     """
+
     async def _apply(session) -> bool:
         macro = await session.get(Macro, macro_id)
         if macro is None:
@@ -378,6 +380,7 @@ async def purge_obsolete_macros(db=None) -> int:
     Single transaction + single cache invalidation — avoids per-row
     publish storms when bulk-cleaning. Returns the deleted count.
     """
+
     async def _apply(session) -> int:
         stmt = delete(Macro).where(Macro.status == "obsolete")
         result = await session.execute(stmt)
@@ -396,6 +399,7 @@ async def purge_obsolete_macros(db=None) -> int:
 
 async def obsolete_macro(macro_id: int, db=None) -> bool:
     """Mark a macro obsolete (terminal state) + inactive."""
+
     async def _apply(session) -> bool:
         macro = await session.get(Macro, macro_id)
         if macro is None:
@@ -475,6 +479,7 @@ async def mark_obsolete_by_app_map(app_map_id: int, db=None) -> int:
 
     ``db`` optional: pass a session to run inside the caller's transaction.
     """
+
     async def _apply(session) -> list[int]:
         stmt = select(Macro).where(
             Macro.app_map_id == app_map_id,

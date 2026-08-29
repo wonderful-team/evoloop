@@ -32,7 +32,10 @@ class WikiContextPlugin(ContextPlugin):
         try:
             ctx.wiki_index = wiki_service.get_wiki_index(project_id)
         except DBAPIError:
-            logger.exception("[WikiContextPlugin] Failed to load wiki index for project %s", project_id)
+            logger.exception(
+                "[WikiContextPlugin] Failed to load wiki index for project %s",
+                project_id,
+            )
             ctx.wiki_index = []
 
 

@@ -23,8 +23,11 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.core.learning.macro.engine import MacroEngine
-from app.core.learning.macro.lifecycle import invalidate_macro_cache as _invalidate_lifecycle_cache
+from app.core.learning.macro.lifecycle import (
+    invalidate_macro_cache as _invalidate_lifecycle_cache,
+)
 from app.core.learning.macro.lifecycle import load_macro as _load_macro
+from app.core.learning.constants import ExecutionPolicy
 from app.core.learning.macro.schemas import (
     RISK_TIER_ORDER,
     MacroScript,
@@ -36,6 +39,8 @@ from app.infrastructure.config.vault import SecureVaultService
 from app.models.macro import Macro
 from app.utils.parameters import missing_required_params
 from app.utils.yaml import YAMLError, macro_from_yaml
+
+import app.core.learning.constants as _mc
 
 logger = logging.getLogger(__name__)
 
@@ -70,23 +75,8 @@ class MacroGateError(Exception):
         self.message = message
 
 
-@dataclass(frozen=True)
-class ExecutionPolicy:
-    allow_self_heal: bool
-    allowed_sources: frozenset[str] | None = None  # None = unrestricted
-    allowed_families: frozenset[str] | None = None  # None = unrestricted; "act","control","observe","escape"
-    max_risk_tier: str | None = None  # None = unrestricted; ordered: observe<act<data<money<escape
-
-
-WEB_POLICY = ExecutionPolicy(allow_self_heal=True)
-# 语音策略：快速失败（不自动恢复，语音用户不能等静默的 agentic 重试）。
-# allowed_sources 放开 desktop + dom（浏览器宏，如登录后台 #958）；dom
-# 宏含 run_js（escape 风险）为高，但不设 max_risk_tier —— 保持与 web 一致，
-# 语音宏的安全性由宏的 requires_confirmation 字段 + 审核流程保证。
-VOICE_POLICY = ExecutionPolicy(
-    allow_self_heal=False,
-    allowed_sources=frozenset({"desktop", "dom"}),
-)
+# ExecutionPolicy / WEB_POLICY / VOICE_POLICY live in constants.py so other
+# modules can reference them without importing the full runner.
 
 
 @dataclass
@@ -96,7 +86,9 @@ class ExecutionOutcome:
     fell_back: bool = False  # macro failed and an agentic recovery run took over
     extracted_data: dict[str, Any] | None = None  # data captured by EXTRACT steps
     step_log: list[dict[str, Any]] | None = None  # per-step execution records
-    execution_warnings: list[str] | None = None  # non-fatal signals (e.g. zero-iteration loop)
+    execution_warnings: list[str] | None = (
+        None  # non-fatal signals (e.g. zero-iteration loop)
+    )
 
 
 def is_navigation_macro(macro: Macro) -> str | None:
@@ -119,7 +111,7 @@ def get_navigation_info(macro: Macro) -> tuple[str, str] | None:
     if not isinstance(steps, list):
         return None
     for step in steps:
-        if isinstance(step, dict) and step.get("event_type") == "frontend_navigate":
+        if isinstance(step, dict) and step.get("event_type") == _mc.FRONTEND_NAVIGATE:
             payload = step.get("payload", {})
             if isinstance(payload, dict):
                 route = payload.get("route")
@@ -155,11 +147,11 @@ def extract_navigation_url(macro: Macro) -> str | None:
             continue
         payload = step.get("payload") if isinstance(step.get("payload"), dict) else {}
         event_type = str(step.get("event_type") or "")
-        if event_type == "frontend_navigate":
+        if event_type == _mc.FRONTEND_NAVIGATE:
             route = payload.get("route")
             if route:
                 return str(route)
-        elif event_type in ("navigate", "goto"):
+        elif event_type in (_mc.NAVIGATE, _mc.GOTO):
             url = payload.get("url")
             if url:
                 return str(url)
@@ -206,7 +198,11 @@ async def resolve_project_base_url(project_id: int | None) -> str | None:
             pj = read_project_json(proj_path)
             return pj.get("url")
     except (OSError, ValueError):
-        logger.warning("[Macro] failed to resolve project url for project %s", project_id, exc_info=True)
+        logger.warning(
+            "[Macro] failed to resolve project url for project %s",
+            project_id,
+            exc_info=True,
+        )
     return None
 
 
@@ -232,7 +228,9 @@ def vault_fill_params(macro: Macro, missing: list[str], params: dict[str, Any]) 
                     filled += 1
                     break
     except Exception:
-        logger.warning("[Macro] vault auto-fill failed for %s", macro.name, exc_info=True)
+        logger.warning(
+            "[Macro] vault auto-fill failed for %s", macro.name, exc_info=True
+        )
     return filled
 
 
@@ -257,13 +255,13 @@ def _step_requires_ui(step: Any) -> bool:
     """
     step_type = getattr(step, "type", None)
     st = str(getattr(step_type, "value", step_type)).lower() if step_type else ""
-    if st in ("native", "bash"):
+    if st in (_mc.NATIVE, _mc.BASH):
         return False
-    if st in ("control", "if", "loop"):
+    if st in (_mc.CONTROL, _mc.IF, _mc.LOOP):
         return False
     event = getattr(step, "event_type", None)
     et = str(getattr(event, "value", event)).lower() if event else ""
-    if et in ("wait", "wait_for"):
+    if et in (_mc.WAIT, _mc.WAIT_FOR):
         return False
     return True
 
@@ -274,7 +272,10 @@ def _scan_steps_risk(steps: list[Any], policy: ExecutionPolicy) -> str | None:
     Returns None if all steps pass, or a human-readable rejection reason.
     """
     for family, step_type, event_type in iter_macro_steps(steps):
-        if policy.allowed_families is not None and family not in policy.allowed_families:
+        if (
+            policy.allowed_families is not None
+            and family not in policy.allowed_families
+        ):
             return f"disallowed family '{family}'"
         if policy.max_risk_tier is not None:
             risk = action_risk(event_type)
@@ -364,7 +365,9 @@ async def run_deterministic(
 
     # 失败时把失败步骤信息并入 message，委托 Agent 时传递失败上下文
     if not ok and data and data.get("step_number"):
-        step_note = f"第{data.get('step_number')}步({data.get('event_type') or 'action'})失败"
+        step_note = (
+            f"第{data.get('step_number')}步({data.get('event_type') or 'action'})失败"
+        )
         msg = f"{step_note}: {msg}" if msg else step_note
     return ExecutionOutcome(
         ok,
@@ -393,10 +396,20 @@ async def _run_with_self_heal(
     exec_params["_macro_id"] = macro.id
     exec_params["_macro_name"] = macro.name
 
-    result = await MacroService.run(thread_id=thread_id, script_input=script, params=exec_params, macro=macro)
+    result = await MacroService.run(
+        thread_id=thread_id, script_input=script, params=exec_params, macro=macro
+    )
 
-    result_step_log = (result or {}).get("step_log") if isinstance(result, dict) else getattr(result, "step_log", None)
-    result_warnings = (result or {}).get("execution_warnings") if isinstance(result, dict) else getattr(result, "execution_warnings", None)
+    result_step_log = (
+        (result or {}).get("step_log")
+        if isinstance(result, dict)
+        else getattr(result, "step_log", None)
+    )
+    result_warnings = (
+        (result or {}).get("execution_warnings")
+        if isinstance(result, dict)
+        else getattr(result, "execution_warnings", None)
+    )
 
     if result.get("status") != "fallback_required":
         return ExecutionOutcome(
@@ -413,7 +426,9 @@ async def _run_with_self_heal(
             thread_id,
             result.get("healing_disabled_reason", "unknown"),
         )
-        return ExecutionOutcome(False, result.get("message") or "", step_log=result_step_log)
+        return ExecutionOutcome(
+            False, result.get("message") or "", step_log=result_step_log
+        )
 
     logger.warning("[%s] Macro failed, triggering agentic fallback", thread_id)
     failure_context = dict(result.get("fallback_context") or {})
@@ -433,9 +448,15 @@ async def _run_with_self_heal(
     )
     if dispatched.status == "failed":
         logger.error("[MacroFallback] Dispatch failed: %s", dispatched.error)
-        return ExecutionOutcome(False, f"Self-healing dispatch failed: {dispatched.error}", step_log=result_step_log)
+        return ExecutionOutcome(
+            False,
+            f"Self-healing dispatch failed: {dispatched.error}",
+            step_log=result_step_log,
+        )
 
     # 后台派发 Agent 恢复：立即返回 fell_back=True，不阻塞 web/chat 的 HTTP 响应
-    #（原实现 await run_agent_background，会把宏失败的自愈拖到几分钟级，导致请求挂死）。
+    # （原实现 await run_agent_background，会把宏失败的自愈拖到几分钟级，导致请求挂死）。
     asyncio.create_task(run_agent_background(thread_id, dispatched.inputs))
-    return ExecutionOutcome(False, result.get("message") or "", fell_back=True, step_log=result_step_log)
+    return ExecutionOutcome(
+        False, result.get("message") or "", fell_back=True, step_log=result_step_log
+    )

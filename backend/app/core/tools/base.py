@@ -50,7 +50,10 @@ def get_working_directory(config: dict | None = None) -> str:
                 if managed_cwd:
                     return managed_cwd
             except Exception as e:
-                logger.warning(f"Failed to fetch working directory from thread_context_store: {e}", exc_info=True)
+                logger.warning(
+                    f"Failed to fetch working directory from thread_context_store: {e}",
+                    exc_info=True,
+                )
 
     if ctx.thread_id:
         try:
@@ -60,7 +63,10 @@ def get_working_directory(config: dict | None = None) -> str:
             if managed_cwd:
                 return managed_cwd
         except Exception as e:
-            logger.warning(f"Failed to fetch working directory from thread_context_store: {e}", exc_info=True)
+            logger.warning(
+                f"Failed to fetch working directory from thread_context_store: {e}",
+                exc_info=True,
+            )
 
     try:
         from app.core.project.utils import get_workspace_root
@@ -69,7 +75,9 @@ def get_working_directory(config: dict | None = None) -> str:
         if workspace_root:
             return workspace_root
     except (OSError, RuntimeError, TypeError, ValueError) as e:
-        logger.warning(f"Failed to fetch WORKSPACE_ROOT for tool fallback: {e}", exc_info=True)
+        logger.warning(
+            f"Failed to fetch WORKSPACE_ROOT for tool fallback: {e}", exc_info=True
+        )
 
     return os.getcwd()
 
@@ -103,7 +111,9 @@ class EvoLoopTool(StructuredTool):
     A native, SDK-free tool implementation serving as the native tool base class.
     """
 
-    def __init__(self, func, name: str = None, description: str = None, args_schema: Any = None):
+    def __init__(
+        self, func, name: str = None, description: str = None, args_schema: Any = None
+    ):
         self.func = func
         self.coroutine = func if inspect.iscoroutinefunction(func) else None
         self.name = name or func.__name__
@@ -191,10 +201,16 @@ def evoloop_tool(
                             ctx.member_id, config.required_benefit
                         )
                         if not has_benefit:
-                            error_detail = create_benefit_error_detail(config.required_benefit)
-                            display_name = config.get_display_name(func_name, args=input_data)
+                            error_detail = create_benefit_error_detail(
+                                config.required_benefit
+                            )
+                            display_name = config.get_display_name(
+                                func_name, args=input_data
+                            )
                             return ToolResult(
-                                json.dumps(error_detail.model_dump(), ensure_ascii=False),
+                                json.dumps(
+                                    error_detail.model_dump(), ensure_ascii=False
+                                ),
                                 meta={"status": "error", "error": "permission_denied"},
                                 display_name=display_name,
                             )
@@ -242,7 +258,9 @@ def evoloop_tool(
                 else:
                     result = str(result)
 
-            display_name = config.get_display_name(func_name, args={**input_data, **result_meta})
+            display_name = config.get_display_name(
+                func_name, args={**input_data, **result_meta}
+            )
 
             return ToolResult(result, meta=result_meta, display_name=display_name)
 
@@ -250,7 +268,11 @@ def evoloop_tool(
 
             @functools.wraps(func)
             async def wrapper(*args_f, **kwargs_f):
-                input_data = {k: v for k, v in kwargs_f.items() if k != "config" and not k.startswith("_")}
+                input_data = {
+                    k: v
+                    for k, v in kwargs_f.items()
+                    if k != "config" and not k.startswith("_")
+                }
                 perm_error = await _check_permission(func.__name__, input_data)
                 if perm_error:
                     return perm_error
@@ -259,19 +281,35 @@ def evoloop_tool(
                     result = await func(*args_f, **kwargs_f)
                     return _process_result(result, func.__name__, input_data)
                 except Exception as e:
-                    display_name = config.get_display_name(func.__name__, args=input_data)
-                    return ToolResult(f"Error: {str(e)}", meta={"status": "error", "error": str(e)}, display_name=display_name)
+                    display_name = config.get_display_name(
+                        func.__name__, args=input_data
+                    )
+                    return ToolResult(
+                        f"Error: {str(e)}",
+                        meta={"status": "error", "error": str(e)},
+                        display_name=display_name,
+                    )
         else:
 
             @functools.wraps(func)
             def wrapper(*args_f, **kwargs_f):
-                input_data = {k: v for k, v in kwargs_f.items() if k != "config" and not k.startswith("_")}
+                input_data = {
+                    k: v
+                    for k, v in kwargs_f.items()
+                    if k != "config" and not k.startswith("_")
+                }
                 try:
                     result = func(*args_f, **kwargs_f)
                     return _process_result(result, func.__name__, input_data)
                 except Exception as e:
-                    display_name = config.get_display_name(func.__name__, args=input_data)
-                    return ToolResult(f"Error: {str(e)}", meta={"status": "error", "error": str(e)}, display_name=display_name)
+                    display_name = config.get_display_name(
+                        func.__name__, args=input_data
+                    )
+                    return ToolResult(
+                        f"Error: {str(e)}",
+                        meta={"status": "error", "error": str(e)},
+                        display_name=display_name,
+                    )
 
         wrapper.is_evoloop_active = True
         wrapper.evoloop_module = func.__module__

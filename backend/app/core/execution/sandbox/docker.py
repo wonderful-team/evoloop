@@ -28,7 +28,9 @@ def _to_container_path(host_path: str, workspace_root: str) -> str | None:
 class DockerSandboxProcess(SandboxProcess):
     """Handle to a command running via ``exec`` inside the sandbox container."""
 
-    def __init__(self, client, container_name: str, exec_id: str, stream_task: asyncio.Task):
+    def __init__(
+        self, client, container_name: str, exec_id: str, stream_task: asyncio.Task
+    ):
         self._client = client
         self._container_name = container_name
         self._exec_id = exec_id
@@ -155,7 +157,11 @@ class DockerSandbox(Sandbox):
                     f"({self.workspace_root!r}) and not mounted in the sandbox"
                 )
 
-        wrapped = f"cd {container_wd} && {command}" if container_wd != "/workspace" else command
+        wrapped = (
+            f"cd {container_wd} && {command}"
+            if container_wd != "/workspace"
+            else command
+        )
 
         loop = asyncio.get_running_loop()
         exec_id = self.client.api.exec_create(
@@ -181,7 +187,9 @@ class DockerSandbox(Sandbox):
                         loop.call_soon_threadsafe(on_output, "[stderr] " + text)
 
         stream_task = asyncio.create_task(asyncio.to_thread(_stream))
-        return DockerSandboxProcess(self.client, self.container_name, exec_id, stream_task)
+        return DockerSandboxProcess(
+            self.client, self.container_name, exec_id, stream_task
+        )
 
     def upload_file(self, local_path: str, remote_path: str) -> None:
         # Bind mount covers WORKSPACE_ROOT automatically; manual copies for the

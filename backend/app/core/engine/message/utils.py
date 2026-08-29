@@ -80,9 +80,7 @@ def to_base_message(msg: Any) -> BaseMessage | None:
         message = None
         if role == "human" or role == "user":
             message = HumanMessage(
-                content=content,
-                id=msg_id,
-                additional_kwargs=additional_kwargs
+                content=content, id=msg_id, additional_kwargs=additional_kwargs
             )
         elif role == "ai" or role == "assistant":
             tc_source = _msg_field(msg, "tool_calls", [])
@@ -103,19 +101,23 @@ def to_base_message(msg: Any) -> BaseMessage | None:
             )
         elif role == "system":
             message = SystemMessage(
-                content=content,
-                id=msg_id,
-                additional_kwargs=additional_kwargs
+                content=content, id=msg_id, additional_kwargs=additional_kwargs
             )
 
         if message:
             message.metadata = additional_kwargs
-            is_err = additional_kwargs.get("status") == "error" or additional_kwargs.get("is_error") or False
+            is_err = (
+                additional_kwargs.get("status") == "error"
+                or additional_kwargs.get("is_error")
+                or False
+            )
             if is_err:
                 message.metadata["is_error"] = True
             return message
     except (ValueError, TypeError, AttributeError) as e:
-        logger.warning(f"[to_base_message] Failed to convert msg role={role}: {e}", exc_info=True)
+        logger.warning(
+            f"[to_base_message] Failed to convert msg role={role}: {e}", exc_info=True
+        )
         return None
 
     return None

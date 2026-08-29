@@ -77,7 +77,10 @@ class IndexingLifecycleSubscriber:
                     f"[Indexing] ✓ Active project indexing started: {default_path}"
                 )
         except Exception as e:
-            logger.warning(f"[Indexing] Failed to start active project indexing: {e}", exc_info=True)
+            logger.warning(
+                f"[Indexing] Failed to start active project indexing: {e}",
+                exc_info=True,
+            )
 
     @event_subscribe(SystemEventType.APP_STOPPING)
     async def on_application_stopping(self, event):
@@ -88,7 +91,9 @@ class IndexingLifecycleSubscriber:
             await indexing_manager.stop_all()
             logger.info("[Indexing] All indexing watchers and tasks stopped")
         except Exception as e:
-            logger.warning(f"[Indexing] Failed to stop indexing manager: {e}", exc_info=True)
+            logger.warning(
+                f"[Indexing] Failed to stop indexing manager: {e}", exc_info=True
+            )
 
 
 @event_register()
@@ -197,7 +202,9 @@ class IndexingEventSubscriber:
 
             logger.info(f"[IndexingHandler] Stopped watching: {event.path}")
         except Exception as e:
-            logger.exception(f"[IndexingHandler] Failed to stop watching {event.path}: {e}")
+            logger.exception(
+                f"[IndexingHandler] Failed to stop watching {event.path}: {e}"
+            )
 
     @event_subscribe(ProjectEventType.PROJECT_MOVED)
     async def on_project_moved(self, event: BaseEvent) -> None:

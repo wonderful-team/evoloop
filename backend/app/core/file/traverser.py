@@ -32,7 +32,9 @@ class FileTraverser:
     """
 
     @staticmethod
-    def _resolve_gitignore_root(root_path: str, explicit_root: str | None) -> str | None:
+    def _resolve_gitignore_root(
+        root_path: str, explicit_root: str | None
+    ) -> str | None:
         """Resolve the gitignore root: explicit > auto-detect (walk up)."""
         if explicit_root:
             explicit_root = os.path.abspath(explicit_root)
@@ -68,7 +70,9 @@ class FileTraverser:
         root_path = os.path.abspath(root_path)
         base_depth = root_path.rstrip(os.sep).count(os.sep)
 
-        gitignore_root = FileTraverser._resolve_gitignore_root(root_path, options.gitignore_root)
+        gitignore_root = FileTraverser._resolve_gitignore_root(
+            root_path, options.gitignore_root
+        )
         gitignore_matcher = None
         if gitignore_root:
             gitignore_matcher = FileTraverser._create_gitignore_matcher(gitignore_root)
@@ -87,7 +91,9 @@ class FileTraverser:
                 if options.follow_ignore:
                     if d in exclude_dirs or is_ignored_path(d):
                         continue
-                    if gitignore_matcher and gitignore_matcher.should_ignore(d_path, is_dir=True):
+                    if gitignore_matcher and gitignore_matcher.should_ignore(
+                        d_path, is_dir=True
+                    ):
                         continue
                 if options.dir_filter:
                     if not options.dir_filter(d_path):
@@ -105,7 +111,9 @@ class FileTraverser:
                     continue
 
                 full_path = os.path.join(root, f)
-                if gitignore_matcher and gitignore_matcher.should_ignore(full_path, is_dir=False):
+                if gitignore_matcher and gitignore_matcher.should_ignore(
+                    full_path, is_dir=False
+                ):
                     continue
                 if options.filter_func:
                     if options.filter_func(full_path):
@@ -141,7 +149,9 @@ class FileTraverser:
                             continue
                         if entry.is_dir() and entry.name in exclude_dirs:
                             continue
-                        if gitignore_matcher and gitignore_matcher.should_ignore(entry.path, is_dir=entry.is_dir()):
+                        if gitignore_matcher and gitignore_matcher.should_ignore(
+                            entry.path, is_dir=entry.is_dir()
+                        ):
                             continue
                     yield entry
         except (PermissionError, OSError) as e:

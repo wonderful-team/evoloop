@@ -45,7 +45,9 @@ async def _summarize_project_logic(name: str, path: str, module_graph: str = "")
     # Start Activity
     sys_tid = f"sys:{project_id}:summarization"
     await activity_monitor.start_run(sys_tid, f"Summarize Project: {name}")
-    await activity_monitor.update_agent_state(sys_tid, "Summarizing", "Project Analysis", "Gathering Context...")
+    await activity_monitor.update_agent_state(
+        sys_tid, "Summarizing", "Project Analysis", "Gathering Context..."
+    )
 
     container = None
     try:
@@ -67,10 +69,7 @@ async def _summarize_project_logic(name: str, path: str, module_graph: str = "")
 
         # Update Status
         await activity_monitor.update_agent_state(
-            sys_tid,
-            "Summarizing",
-            "Project Analysis",
-            "Reading Files & Context..."
+            sys_tid, "Summarizing", "Project Analysis", "Reading Files & Context..."
         )
 
         # 1. Gather Context (Files)
@@ -82,16 +81,16 @@ async def _summarize_project_logic(name: str, path: str, module_graph: str = "")
                 if entry.is_file():
                     files.append(entry.name)
         except Exception as e:
-            logger.debug(f"[ProjectSummarizer] Directory scan failed for {path}: {e}", exc_info=True)
+            logger.debug(
+                f"[ProjectSummarizer] Directory scan failed for {path}: {e}",
+                exc_info=True,
+            )
 
         readme_content = project_context_manager.extract_description_from_readme(path)
 
         # Update Status
         await activity_monitor.update_agent_state(
-            sys_tid,
-            "Summarizing",
-            "Project Analysis",
-            "Generating Summary with LLM..."
+            sys_tid, "Summarizing", "Project Analysis", "Generating Summary with LLM..."
         )
 
         # 2. Call LLM
@@ -133,7 +132,9 @@ async def _summarize_project_logic(name: str, path: str, module_graph: str = "")
 
         result = parse_json_markdown(response.content)
         if result is None:
-            logger.error("[ProjectSummarizer] Failed to parse LLM response, using fallback")
+            logger.error(
+                "[ProjectSummarizer] Failed to parse LLM response, using fallback"
+            )
             return
 
         # 3. Save Result
@@ -158,7 +159,9 @@ async def _summarize_project_logic(name: str, path: str, module_graph: str = "")
         # We can reuse project_id resolved above.
 
         if project_id is not None:
-            logger.info(f"[ProjectSummarizer] Resolved Project ID {project_id} for {name}")
+            logger.info(
+                f"[ProjectSummarizer] Resolved Project ID {project_id} for {name}"
+            )
 
             # Upload Summary
             if description:
@@ -171,7 +174,9 @@ async def _summarize_project_logic(name: str, path: str, module_graph: str = "")
                 except Exception as up_e:
                     logger.exception(f"Failed to upload summary: {up_e}")
         else:
-            logger.warning(f"[ProjectSummarizer] Could not resolve Project ID for {name}, using default 1")
+            logger.warning(
+                f"[ProjectSummarizer] Could not resolve Project ID for {name}, using default 1"
+            )
 
         # 5. Save Concepts to Memory
         from app.core.memory.lifespan import MemoryLifespanManager
@@ -225,13 +230,6 @@ class ProjectSummarizer:
 
     def __init__(self):
         self._processed = set()
-
-    async def start_worker(self):
-        """Deprecated: Worker is now managed by Celery."""
-        logger.info("[ProjectSummarizer] Worker is managed by Celery. No internal loop needed.")
-
-    def stop_worker(self):
-        pass
 
     async def add_project(self, name: str, path: str):
         """Add a project to the processing queue (Celery)."""

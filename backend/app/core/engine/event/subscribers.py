@@ -18,6 +18,7 @@ from sqlalchemy.orm import selectinload
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.channel.input.mobile_input import mobile_input
+from app.core.engine.constants import ENGINE_ACTIONS
 from app.core.engine.dispatch import dispatch_agent_run
 from app.core.engine.event import AgentEventType, ConversationEventType
 from app.core.engine.event.handlers import A2ACommandHandler, MemoryCommandHandler
@@ -45,21 +46,6 @@ from app.models import (
 )
 
 logger = logging.getLogger(__name__)
-
-# 引擎域仅处理以下核心指令，其余指令（如 project_switch）由各自域的订阅者认领
-ENGINE_ACTIONS = {
-    "chat",
-    "stop",
-    "retry",
-    "rewind",
-    "hitl_response",
-    "hitl_cancel",
-    "memory_add",
-    "memory_update",
-    "memory_delete",
-    "a2a_task",
-    "a2a_callback",
-}
 
 # 信封类型 → 引擎动作。command.relay 的动作在 body.action 中；其余类型
 # 由信封类型本身决定（对应 schemas/types/ 下各自的独立 envelope 类型）。
@@ -135,10 +121,15 @@ class EngineCommandSubscriber:
 
         async def _trigger_sync() -> None:
             try:
-                manager = get_conversation_sync_manager(evocloud_manager.api, evocloud_manager.link.device_key)
+                manager = get_conversation_sync_manager(
+                    evocloud_manager.api, evocloud_manager.link.device_key
+                )
                 await manager.incremental_sync()
             except (ConnectionError, TimeoutError, OSError) as e:
-                logger.warning(f"[EngineCommand] Failed to trigger conversation sync: {e}", exc_info=True)
+                logger.warning(
+                    f"[EngineCommand] Failed to trigger conversation sync: {e}",
+                    exc_info=True,
+                )
 
         if action == "conversation_update":
             # Mobile sends metadata inside the payload/content field.
@@ -181,17 +172,25 @@ class EngineCommandSubscriber:
 
             # Sync deletion to MC before removing the local row.
             try:
-                await evocloud_manager.api.sync_delete_conversation(evocloud_manager.link.device_key, thread_id)
-                logger.info(f"[EngineCommand] conversation_delete synced to MC: thread_id={thread_id}")
+                await evocloud_manager.api.sync_delete_conversation(
+                    evocloud_manager.link.device_key, thread_id
+                )
+                logger.info(
+                    f"[EngineCommand] conversation_delete synced to MC: thread_id={thread_id}"
+                )
             except (ConnectionError, TimeoutError, OSError) as e:
-                logger.warning(f"[EngineCommand] Failed to sync conversation_delete to MC: thread_id={thread_id}, error={e}")
+                logger.warning(
+                    f"[EngineCommand] Failed to sync conversation_delete to MC: thread_id={thread_id}, error={e}"
+                )
 
             # Delete the Conversation row itself (ORM cascade covers messages, plan, etc.)
             async with session_scope() as session:
                 conv = await session.get(Conversation, thread_id)
                 if conv:
                     await session.delete(conv)
-            logger.info(f"[EngineCommand] conversation_delete applied: thread_id={thread_id}")
+            logger.info(
+                f"[EngineCommand] conversation_delete applied: thread_id={thread_id}"
+            )
 
     async def _execute_with_guardrails(self, cmd_data: dict) -> None:
         """
@@ -204,17 +203,25 @@ class EngineCommandSubscriber:
 
         async def _run() -> None:
             if link is None:
-                logger.error(f"[EngineCommand] No link available for command execution: cmd_id={cmd_id}")
+                logger.error(
+                    f"[EngineCommand] No link available for command execution: cmd_id={cmd_id}"
+                )
                 return
 
             async with link._command_semaphore:
                 try:
                     command = RemoteCommand.model_validate(cmd_data)
                     await self._handle_command(command)
-                    logger.info(f"[EngineCommand] Command execution SUCCESS: cmd_id={cmd_id}")
-                    await self._send_ack(cmd_id, "completed", thread_id=command.thread_id)
+                    logger.info(
+                        f"[EngineCommand] Command execution SUCCESS: cmd_id={cmd_id}"
+                    )
+                    await self._send_ack(
+                        cmd_id, "completed", thread_id=command.thread_id
+                    )
                 except Exception as e:
-                    logger.error("[EngineCommand] Command execution FAILED: cmd_id={cmd_id}, error={e}")
+                    logger.error(
+                        "[EngineCommand] Command execution FAILED: cmd_id={cmd_id}, error={e}"
+                    )
                     await self._send_ack(
                         cmd_id,
                         "failed",
@@ -225,7 +232,9 @@ class EngineCommandSubscriber:
         try:
             await asyncio.wait_for(_run(), timeout=30.0)
         except asyncio.TimeoutError:
-            logger.exception(f"[EngineCommand] Command execution TIMEOUT: cmd_id={cmd_id}")
+            logger.exception(
+                f"[EngineCommand] Command execution TIMEOUT: cmd_id={cmd_id}"
+            )
             if link:
                 await link._force_reconnect()
 
@@ -249,7 +258,9 @@ class EngineCommandSubscriber:
         if error:
             body["error"] = error
         await ch.send_envelope(env_type=MessageType.COMMAND_ACK, body=body)
-        logger.info(f"[EngineCommand] command.ack sent: cmd_id={cmd_id}, status={status}")
+        logger.info(
+            f"[EngineCommand] command.ack sent: cmd_id={cmd_id}, status={status}"
+        )
 
     async def _handle_command(self, command: RemoteCommand) -> None:
         action = command.get_action()
@@ -288,11 +299,15 @@ class EngineCommandSubscriber:
         # schema hitl.response body: {request_id, action: confirm|choice|text,
         # value}.  value 即用户答复。旧版 command.relay 形态把答复放在
         # content.response。
-        response = command.get("value") or payload.get("value") or payload.get("response")
+        response = (
+            command.get("value") or payload.get("value") or payload.get("response")
+        )
         response_action = command.get("response_action") or payload.get("action")
 
         if not thread_id or response is None:
-            logger.debug("[EngineCommand] HITL response missing thread_id or response, skipping")
+            logger.debug(
+                "[EngineCommand] HITL response missing thread_id or response, skipping"
+            )
             return
 
         logger.info(
@@ -324,7 +339,9 @@ class EngineCommandSubscriber:
             logger.warning("[EngineCommand] HITL cancel missing thread_id, skipping")
             return
 
-        logger.info(f"[EngineCommand] Processing HITL Cancellation for thread {thread_id}")
+        logger.info(
+            f"[EngineCommand] Processing HITL Cancellation for thread {thread_id}"
+        )
 
         # [HITL Closure]: Clear human request from activity monitor
         from app.core.monitoring.activity import activity_monitor
@@ -434,11 +451,15 @@ class EngineCommandSubscriber:
         """Handle rewind command from Mobile (rewind only, no re-dispatch)."""
         await self._handle_retry_or_rewind(command, should_redispatch=False)
 
-    async def _handle_retry_or_rewind(self, command: RemoteCommand, should_redispatch: bool) -> None:
+    async def _handle_retry_or_rewind(
+        self, command: RemoteCommand, should_redispatch: bool
+    ) -> None:
         """Shared logic for retry and rewind commands."""
         thread_id = command.get("thread_id")
         if not thread_id:
-            logger.warning("[EngineCommand] Retry/Rewind command missing thread_id, skipping")
+            logger.warning(
+                "[EngineCommand] Retry/Rewind command missing thread_id, skipping"
+            )
             return
 
         payload = command.get_payload()
@@ -446,7 +467,9 @@ class EngineCommandSubscriber:
         revert_files = payload.get("revert_files", True)
         action = "retry" if should_redispatch else "rewind"
 
-        logger.info(f"[EngineCommand] Processing {action} for thread {thread_id}, target={message_id}")
+        logger.info(
+            f"[EngineCommand] Processing {action} for thread {thread_id}, target={message_id}"
+        )
 
         from app.core.context.manager import ContextManager
         from app.core.engine.rewind import perform_rewind
@@ -471,7 +494,9 @@ class EngineCommandSubscriber:
             target_msg = result.scalar_one_or_none()
 
             if not target_msg:
-                logger.error(f"[EngineCommand] No human message found for {action} thread {thread_id}")
+                logger.error(
+                    f"[EngineCommand] No human message found for {action} thread {thread_id}"
+                )
                 # Fallback: if message is missing locally, at least attempt to delete the target message from the cloud
                 if message_id and payload.get("include_target", not should_redispatch):
                     from app.core.engine.rewind import publish_messages_cleanup
@@ -515,10 +540,14 @@ class EngineCommandSubscriber:
         )
 
         if rewind_result.status != "success":
-            logger.error(f"[EngineCommand] {action} rewind failed: {rewind_result.errors}")
+            logger.error(
+                f"[EngineCommand] {action} rewind failed: {rewind_result.errors}"
+            )
             return
 
-        logger.info(f"[EngineCommand] {action} rewind completed: {rewind_result.removed_message_count} messages removed")
+        logger.info(
+            f"[EngineCommand] {action} rewind completed: {rewind_result.removed_message_count} messages removed"
+        )
 
         if not should_redispatch:
             logger.info("[EngineCommand] Rewind done, no re-dispatch required")
@@ -564,10 +593,18 @@ class EngineConversationCleanup:
 
         # 1. Delete engine-owned DB records
         async with session_scope() as session:
-            await session.execute(delete(AgentActivity).where(AgentActivity.thread_id == thread_id))
-            await session.execute(delete(ThreadSequence).where(ThreadSequence.thread_id == thread_id))
-            await session.execute(delete(HumanRequest).where(HumanRequest.thread_id == thread_id))
-            await session.execute(delete(FileOperation).where(FileOperation.thread_id == thread_id))
+            await session.execute(
+                delete(AgentActivity).where(AgentActivity.thread_id == thread_id)
+            )
+            await session.execute(
+                delete(ThreadSequence).where(ThreadSequence.thread_id == thread_id)
+            )
+            await session.execute(
+                delete(HumanRequest).where(HumanRequest.thread_id == thread_id)
+            )
+            await session.execute(
+                delete(FileOperation).where(FileOperation.thread_id == thread_id)
+            )
 
         logger.info(f"[EngineCleanup] Engine cleanup done for thread {thread_id}")
 

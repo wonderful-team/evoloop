@@ -16,9 +16,7 @@ logger = logging.getLogger(__name__)
     summary_template="evoloop.tool_summary.create_project_tasks",
 )
 async def create_project_tasks(
-    project_id: int,
-    tasks: list[dict[str, Any]],
-    source_context: str | None = None
+    project_id: int, tasks: list[dict[str, Any]], source_context: str | None = None
 ) -> str:
     """
     Create a list of project tasks and sync them to EvoCloud.
@@ -58,12 +56,14 @@ async def create_project_tasks(
         if created_task_ids:
             sync_tasks_to_evocloud_task.delay(task_ids=created_task_ids)
 
-        return json.dumps({
-            "success": True,
-            "created_count": len(tasks),
-            "total_records": len(created_task_ids),
-            "message": f"Successfully created {len(tasks)} tasks and triggered cloud sync."
-        })
+        return json.dumps(
+            {
+                "success": True,
+                "created_count": len(tasks),
+                "total_records": len(created_task_ids),
+                "message": f"Successfully created {len(tasks)} tasks and triggered cloud sync.",
+            }
+        )
 
     except Exception as e:
         logger.exception(f"Failed to create project tasks: {e}")
@@ -71,10 +71,11 @@ async def create_project_tasks(
 
 
 @evoloop_tool(
-    is_state_mutating=True,
-    summary_template="evoloop.tool_summary.create_project_task"
+    is_state_mutating=True, summary_template="evoloop.tool_summary.create_project_task"
 )
-async def create_project_task(project_id: int | None = None, task_data: str = "") -> str:
+async def create_project_task(
+    project_id: int | None = None, task_data: str = ""
+) -> str:
     """
     Create a single task in the remote project management system via EvoCloud.
     (Maintained for legacy compatibility; preferred tool is create_project_tasks)
@@ -84,7 +85,11 @@ async def create_project_task(project_id: int | None = None, task_data: str = ""
         task_data (str): JSON string representation of the task data (title, desc, priority, etc.).
     """
     ctx_pid = ContextManager.current().project_id
-    pid = project_id if project_id is not None else (ctx_pid if ctx_pid is not None else DEFAULT_PROJECT_ID)
+    pid = (
+        project_id
+        if project_id is not None
+        else (ctx_pid if ctx_pid is not None else DEFAULT_PROJECT_ID)
+    )
 
     try:
         if isinstance(task_data, str):

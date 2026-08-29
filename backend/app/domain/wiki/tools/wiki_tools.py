@@ -23,6 +23,11 @@ from app.core.monitoring.ui_actions import (
 )
 from app.core.tools import evoloop_tool, get_working_directory
 from app.core.tools.base import InjectedToolArg
+from app.domain.wiki.constants import (
+    MAX_SLUG_LENGTH,
+    WIKI_FILE_EXTENSION,
+    WIKI_SUBDIR,
+)
 from app.domain.wiki.formatting import format_wiki_pages
 from app.domain.wiki.service import wiki_service
 from app.infrastructure.database.resource_manager import db_resource_manager
@@ -30,8 +35,6 @@ from app.models.wiki import WikiPage
 from app.utils.controller_response import ControllerResponse
 
 logger = logging.getLogger(__name__)
-
-WIKI_SUBDIR = "docs/wiki"
 
 # ---------------------------------------------------------------------------
 # Internal helpers
@@ -46,7 +49,7 @@ def _generate_slug(title: str) -> str:
         for c in normalized
         if unicodedata.category(c).startswith("L") or c.isdigit() or c == " "
     )
-    slug = slug.lower().replace(" ", "-").replace("_", "-")[:50]
+    slug = slug.lower().replace(" ", "-").replace("_", "-")[:MAX_SLUG_LENGTH]
     slug = re.sub(r"-+", "-", slug).strip("-")
 
     if not slug:
@@ -60,7 +63,7 @@ def _get_wiki_dir(project_path: str) -> str:
 
 
 def _get_wiki_file_path(project_path: str, slug: str) -> str:
-    return os.path.join(_get_wiki_dir(project_path), f"{slug}.md")
+    return os.path.join(_get_wiki_dir(project_path), f"{slug}{WIKI_FILE_EXTENSION}")
 
 
 def _ensure_wiki_dir(project_path: str) -> None:
@@ -87,7 +90,9 @@ async def _resolve_wiki_project_id() -> int | None:
     return pid
 
 
-def _find_page_by_title(session: Session, project_id: int, title: str) -> WikiPage | None:
+def _find_page_by_title(
+    session: Session, project_id: int, title: str
+) -> WikiPage | None:
     """Find a wiki page by title (case-insensitive exact match, then fuzzy)."""
     stmt = select(WikiPage).where(WikiPage.project_id == project_id)
     pages = session.exec(stmt).all()
@@ -177,7 +182,9 @@ def _sync_page_to_db(
 @evoloop_tool(
     summary_template="evoloop.tool_summary.list_wiki_pages",
 )
-async def list_wiki_pages(config: Annotated[RunnableConfig, InjectedToolArg] = None,) -> str:
+async def list_wiki_pages(
+    config: Annotated[RunnableConfig, InjectedToolArg] = None,
+) -> str:
     """
     List all available Wiki pages for the current project.
     Returns a list of page titles.
@@ -198,9 +205,9 @@ async def list_wiki_pages(config: Annotated[RunnableConfig, InjectedToolArg] = N
                 if entry.is_dir():
                     continue
                 filename = entry.name
-                if not filename.endswith(".md"):
+                if not filename.endswith(WIKI_FILE_EXTENSION):
                     continue
-                slug = filename[:-3]
+                slug = filename[: -len(WIKI_FILE_EXTENSION)]
                 file_path = str(entry.path)
                 try:
                     content, _, _ = safe_read_with_hash(file_path)
@@ -232,12 +239,16 @@ async def list_wiki_pages(config: Annotated[RunnableConfig, InjectedToolArg] = N
                             )
                         )
                 except Exception as e:
-                    logger.warning(f"[Wiki] Failed to sync file {file_path}: {e}", exc_info=True)
+                    logger.warning(
+                        f"[Wiki] Failed to sync file {file_path}: {e}", exc_info=True
+                    )
             session.commit()
 
     pages = wiki_service.get_pages(project_id)
     if not pages:
-        return ControllerResponse.error(f"No Wiki pages found for project {project_id}."), {"count": 0}
+        return ControllerResponse.error(
+            f"No Wiki pages found for project {project_id}."
+        ), {"count": 0}
 
     return format_wiki_pages(pages), {"count": len(pages)}
 
@@ -245,7 +256,9 @@ async def list_wiki_pages(config: Annotated[RunnableConfig, InjectedToolArg] = N
 @evoloop_tool(
     summary_template="evoloop.tool_summary.read_wiki_page",
 )
-async def read_wiki_page(title: str, config: Annotated[RunnableConfig, InjectedToolArg] = None) -> str:
+async def read_wiki_page(
+    title: str, config: Annotated[RunnableConfig, InjectedToolArg] = None
+) -> str:
     """
     Read the content of a specific Wiki page by its title.
     """

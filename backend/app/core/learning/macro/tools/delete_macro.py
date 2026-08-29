@@ -57,7 +57,9 @@ async def delete_macro(macro_id: int, rationale: str) -> str:
             macro.name,
             rationale,
         )
-        return ControllerResponse.success(f"Macro #{macro_id} ({macro.name}) deleted. Rationale: {rationale}")
+        return ControllerResponse.success(
+            f"Macro #{macro_id} ({macro.name}) deleted. Rationale: {rationale}"
+        )
     except Exception as e:
         logger.exception("Failed to delete macro %s: %s", macro_id, e)
         return ControllerResponse.error(f"Failed to delete macro: {e}")

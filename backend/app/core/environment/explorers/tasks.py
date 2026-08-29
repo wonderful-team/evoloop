@@ -8,6 +8,7 @@ Each task processes one batch of apps and returns classification results.
 import json
 import logging
 
+from app.constants import DEFAULT_INTERNAL_LLM_TOKENS
 from app.infrastructure.queue.factory import shared_task
 
 logger = logging.getLogger(__name__)
@@ -24,8 +25,12 @@ async def triage_app_batch(app_ids: list[str]) -> dict[str, dict]:
 
     from app.utils.template import render_template
 
-    prompt = render_template("domain/planning/dynamic_app_triage.prompt.j2", app_ids=app_ids)
-    role_name = render_template("domain/planning/expert_roles.prompt.j2", role="ui_dynamics").strip()
+    prompt = render_template(
+        "domain/planning/dynamic_app_triage.prompt.j2", app_ids=app_ids
+    )
+    role_name = render_template(
+        "domain/planning/expert_roles.prompt.j2", role="ui_dynamics"
+    ).strip()
 
     from app.infrastructure.llm import InternalLLMService
 
@@ -36,7 +41,7 @@ async def triage_app_batch(app_ids: list[str]) -> dict[str, dict]:
         ],
         purpose="environment_exploration",
         temperature=0,
-        max_tokens=4000,
+        max_tokens=DEFAULT_INTERNAL_LLM_TOKENS,
         # 分类任务不需要深度思考：
         # - thinking:{type:disabled} 是 DeepSeek 官方关思考的参数（网关已透传）；
         # - enable_thinking/return_reasoning 兜底 DashScope 风格兼容上游，

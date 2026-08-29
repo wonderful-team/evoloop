@@ -20,6 +20,13 @@ from app.domain.codebase.event.schemas import (
     FileRemovedEvent,
 )
 from app.domain.codebase.event.types import IndexingEventType
+from app.domain.codebase.constants import (
+    BATCH_DEBOUNCE,
+    BATCH_INTERVAL,
+    BATCH_SIZE,
+    LEFTOVER_RETRY_DEBOUNCE,
+    MAX_PER_CYCLE,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -38,12 +45,6 @@ class DebouncedIndexHandler:
     This prevents thrashing during active editing (e.g., IDE auto-save,
     git checkout, branch switch) where many files change rapidly.
     """
-
-    BATCH_DEBOUNCE: float = 180.0
-    """Seconds of inactivity before accumulated changes are dispatched."""
-
-    PER_FILE_TIMEOUT: float = 120.0
-    """Max seconds a single index_file task may run before being abandoned."""
 
     def __init__(self):
         self._pending_modified: dict[int, set[str]] = {}
@@ -101,7 +102,7 @@ class DebouncedIndexHandler:
         if timer is not None:
             timer.cancel()
 
-        delay = debounce if debounce is not None else self.BATCH_DEBOUNCE
+        delay = debounce if debounce is not None else BATCH_DEBOUNCE
         loop = asyncio.get_running_loop()
         self._batch_timers[repo_id] = loop.call_later(
             delay,
@@ -117,7 +118,9 @@ class DebouncedIndexHandler:
 
         async with self._lock:
             if self._processing:
-                logger.debug(f"[DebouncedIndex] Skipping batch for repo {repo_id} — already processing")
+                logger.debug(
+                    f"[DebouncedIndex] Skipping batch for repo {repo_id} — already processing"
+                )
                 return
             self._processing = True
 
@@ -148,12 +151,10 @@ class DebouncedIndexHandler:
             for src, dest in moved:
                 move_file_task.delay(src, dest, repo_id)
 
-            # Chunked dispatch: 10 files per batch, 1s between batches,
-            # at most 20 files per cycle.  Leftovers are retried after 5s.
+            # Chunked dispatch: BATCH_SIZE files per batch, BATCH_INTERVAL seconds
+            # between batches, at most MAX_PER_CYCLE files per cycle. Leftovers
+            # are retried after LEFTOVER_RETRY_DEBOUNCE seconds.
             modified_list = sorted(modified)
-            MAX_PER_CYCLE = 20
-            BATCH_SIZE = 10
-            BATCH_INTERVAL = 1.0
 
             to_dispatch = modified_list[:MAX_PER_CYCLE]
             leftover = modified_list[MAX_PER_CYCLE:]
@@ -167,6 +168,6 @@ class DebouncedIndexHandler:
 
             if leftover:
                 self._pending_modified.setdefault(repo_id, set()).update(leftover)
-                self._schedule_batch(repo_id, debounce=5.0)
+                self._schedule_batch(repo_id, debounce=LEFTOVER_RETRY_DEBOUNCE)
         finally:
             self._processing = False

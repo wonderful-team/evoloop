@@ -26,7 +26,9 @@ class MessageDeduplicator:
         self._last_hash: str | None = None
         self._last_time: float = 0.0
 
-    def is_duplicate(self, category: MessageCategory, content: str, tool_calls: list | None) -> bool:
+    def is_duplicate(
+        self, category: MessageCategory, content: str, tool_calls: list | None
+    ) -> bool:
         """
         Check if the message is a duplicate of the recently processed one.
 
@@ -36,7 +38,10 @@ class MessageDeduplicator:
         content_hash = compute_md5(f"{category.value}:{content}:{str(tool_calls)}")[:16]
 
         current_time = time.time()
-        if content_hash == self._last_hash and (current_time - self._last_time) < self._window_seconds:
+        if (
+            content_hash == self._last_hash
+            and (current_time - self._last_time) < self._window_seconds
+        ):
             return True
 
         self._last_hash = content_hash

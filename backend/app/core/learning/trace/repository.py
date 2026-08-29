@@ -143,9 +143,7 @@ class TraceRepository:
 
         async def _run(session: AsyncSession) -> dict[str, int]:
             stmt = (
-                select(
-                    TraceEvent.recording_session_id, func.count(TraceEvent.id)
-                )
+                select(TraceEvent.recording_session_id, func.count(TraceEvent.id))
                 .where(TraceEvent.recording_session_id.in_(session_ids))
                 .group_by(TraceEvent.recording_session_id)
             )

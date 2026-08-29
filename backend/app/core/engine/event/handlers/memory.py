@@ -54,11 +54,13 @@ class MemoryCommandHandler:
 
         existing = None
         if source_message_id and created_by_member_id is not None:
-            rows = await manager._storage._db_search({
-                "source_message_id": source_message_id,
-                "created_by_member_id": created_by_member_id,
-                "memory_kind": "concept",
-            })
+            rows = await manager._storage._db_search(
+                {
+                    "source_message_id": source_message_id,
+                    "created_by_member_id": created_by_member_id,
+                    "memory_kind": "concept",
+                }
+            )
             if rows:
                 existing = await manager.get_memory(rows[0]["id"])
 
@@ -68,8 +70,12 @@ class MemoryCommandHandler:
                 await self._update_message_remember_state(
                     source_message_id, is_remembered=False, memory_concept_id=None
                 )
-            await self._sync_memory_to_gateway(project_id, [], deleted_names=[existing.title])
-            logger.info(f"[EngineCommand] memory_add toggled off: name={existing.title}")
+            await self._sync_memory_to_gateway(
+                project_id, [], deleted_names=[existing.title]
+            )
+            logger.info(
+                f"[EngineCommand] memory_add toggled off: name={existing.title}"
+            )
             return
 
         concept = await manager.store_concept(
@@ -103,7 +109,9 @@ class MemoryCommandHandler:
             res = await session.execute(stmt)
             msg = res.scalar_one_or_none()
             if not msg:
-                logger.warning(f"[EngineCommand] Message not found for remember update: {message_id}")
+                logger.warning(
+                    f"[EngineCommand] Message not found for remember update: {message_id}"
+                )
                 return
             msg.is_remembered = is_remembered
             msg.remembered_at = utcnow() if is_remembered else None
@@ -146,10 +154,14 @@ class MemoryCommandHandler:
         project_id = self._resolve_project_id(payload, command)
 
         if not name and not source_message_id:
-            logger.warning("[EngineCommand] memory_delete missing both name and source_message_id, skipping")
+            logger.warning(
+                "[EngineCommand] memory_delete missing both name and source_message_id, skipping"
+            )
             return
 
-        logger.info(f"[EngineCommand] Processing memory_delete: name={name}, source_message_id={source_message_id}")
+        logger.info(
+            f"[EngineCommand] Processing memory_delete: name={name}, source_message_id={source_message_id}"
+        )
         from app.core.memory.lifespan import MemoryLifespanManager
 
         manager = MemoryLifespanManager.get_manager()
@@ -169,7 +181,10 @@ class MemoryCommandHandler:
                     if await manager.delete_memory(mem.id):
                         deleted_names.append(mem.title or mem.content[:20] or "unknown")
             except Exception as e:
-                logger.warning(f"[EngineCommand] Failed to delete memories by source_message_id {source_message_id}: {e}", exc_info=True)
+                logger.warning(
+                    f"[EngineCommand] Failed to delete memories by source_message_id {source_message_id}: {e}",
+                    exc_info=True,
+                )
 
         # 按 name 兜底：兼容旧版只传 name 的调用。
         if name:
@@ -188,10 +203,16 @@ class MemoryCommandHandler:
             )
 
         if deleted_names:
-            await self._sync_memory_to_gateway(project_id, [], deleted_names=deleted_names)
-        logger.info(f"[EngineCommand] memory_delete processed: deleted_names={deleted_names}")
+            await self._sync_memory_to_gateway(
+                project_id, [], deleted_names=deleted_names
+            )
+        logger.info(
+            f"[EngineCommand] memory_delete processed: deleted_names={deleted_names}"
+        )
 
-    def _resolve_project_id(self, payload: dict[str, Any], command: RemoteCommand) -> int:
+    def _resolve_project_id(
+        self, payload: dict[str, Any], command: RemoteCommand
+    ) -> int:
         project_id = payload.get("project_id")
         if project_id is None:
             project_id = command.get("project_id")
@@ -208,7 +229,9 @@ class MemoryCommandHandler:
 
             link = evocloud_manager.link
             if not link or not link.is_connected():
-                logger.debug("[EngineCommand] Gateway link not connected, skipping memory.sync")
+                logger.debug(
+                    "[EngineCommand] Gateway link not connected, skipping memory.sync"
+                )
                 return
 
             concepts = []
@@ -231,16 +254,18 @@ class MemoryCommandHandler:
 
             if deleted_names:
                 for name in deleted_names:
-                    concepts.append({
-                        "id": f"concept_{name.lower().replace(' ', '_')}",
-                        "name": name,
-                        "description": "",
-                        "related_files": [],
-                        "project_id": project_id,
-                        "deleted": True,
-                        "created_at": 0,
-                        "updated_at": int(time.time()),
-                    })
+                    concepts.append(
+                        {
+                            "id": f"concept_{name.lower().replace(' ', '_')}",
+                            "name": name,
+                            "description": "",
+                            "related_files": [],
+                            "project_id": project_id,
+                            "deleted": True,
+                            "created_at": 0,
+                            "updated_at": int(time.time()),
+                        }
+                    )
 
             body = {
                 "project_id": project_id,
@@ -255,6 +280,8 @@ class MemoryCommandHandler:
                     body=body,
                     member_id=0,
                 )
-            logger.info(f"[EngineCommand] memory.sync sent to Gateway: concepts={len(concepts)}")
+            logger.info(
+                f"[EngineCommand] memory.sync sent to Gateway: concepts={len(concepts)}"
+            )
         except Exception as e:
             logger.exception(f"[EngineCommand] Failed to send memory.sync: {e}")

@@ -17,33 +17,37 @@ async def search_native_tools(query: str = "") -> str:
     query_lower = query.lower() if query else ""
 
     # Ecosystem buckets
-    groups = {
-        "android": [],
-        "macos": [],
-        "web": [],
-        "universal": []
-    }
+    groups = {"android": [], "macos": [], "web": [], "universal": []}
 
     for tool in all_tools:
         name = tool.name
         desc = tool.description or ""
 
-        if query_lower and query_lower not in name.lower() and query_lower not in desc.lower():
+        if (
+            query_lower
+            and query_lower not in name.lower()
+            and query_lower not in desc.lower()
+        ):
             continue
 
         # Simple prefix-based ecosystem detection
         eco = "universal"
         if any(prefix in name for prefix in ["adb_", "mobile_"]):
             eco = "android"
-        elif any(prefix in name for prefix in ["macos_", "applescript_", "click_at", "type_text"]):
+        elif any(
+            prefix in name
+            for prefix in ["macos_", "applescript_", "click_at", "type_text"]
+        ):
             eco = "macos"
         elif any(prefix in name for prefix in ["browser_", "read_url"]):
             eco = "web"
 
-        groups[eco].append({
-            "name": name,
-            "description": desc,
-        })
+        groups[eco].append(
+            {
+                "name": name,
+                "description": desc,
+            }
+        )
 
     # 构建纯文本输出（Agent 得到的是文本，不是 dict/JSON）
     lines = []

@@ -109,7 +109,9 @@ class AtlasApp(DynamicBaseModel):
                 return elem
         return None
 
-    def compute_version_hash(self, version_name: str | None = None, update_time: str | None = None) -> str:
+    def compute_version_hash(
+        self, version_name: str | None = None, update_time: str | None = None
+    ) -> str:
         """
         Compute a hash representing the current state of the app map.
         """

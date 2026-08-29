@@ -41,12 +41,12 @@ from app.infrastructure.database import session_scope
 from app.infrastructure.database.vector import get_vector_store
 from app.models import Repository
 
-from ._duty import router as duty_router
-from ._generations import router as generations_router
-from ._listing import _resolve_project_id
-from ._listing import router as listing_router
-from ._modules import router as modules_router
-from ._profiles import router as profiles_router
+from .duty import router as duty_router
+from .generations import router as generations_router
+from .listing import _resolve_project_id
+from .listing import router as listing_router
+from .modules import router as modules_router
+from .profiles import router as profiles_router
 
 logger = logging.getLogger(__name__)
 

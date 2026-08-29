@@ -48,11 +48,15 @@ class SupervisorPromptBuilder(BasePromptBuilder):
         ctx = ContextManager.current()
         await plugin_registry.ahydrate_context(ctx)
         user_lang = self.get_user_lang()
-        actual_cwd = self.get_mapped_cwd(ctx.working_directory or ctx.metadata.get("cwd", ""))
+        actual_cwd = self.get_mapped_cwd(
+            ctx.working_directory or ctx.metadata.get("cwd", "")
+        )
         mode = self.get_displayed_execution_mode()
 
         # 2. Protocol & Sys Info Prep (STATIC parts only)
-        project_profile = self.read_project_profile(ctx.working_directory, "[SupervisorPrompt]")
+        project_profile = self.read_project_profile(
+            ctx.working_directory, "[SupervisorPrompt]"
+        )
 
         # 3. Prepare Template Variables (STATIC only — no blackboard/memory/telemetry)
         is_voice = ctx.metadata.get("source") == "voice"
@@ -68,7 +72,11 @@ class SupervisorPromptBuilder(BasePromptBuilder):
 
         try:
             session = session_manager.get(ctx.thread_id) if ctx.thread_id else None
-            if session is not None and session.worker is not None and not session.worker.done:
+            if (
+                session is not None
+                and session.worker is not None
+                and not session.worker.done
+            ):
                 has_running_worker = True
                 running_worker_desc = session.worker.description
         except Exception:
@@ -97,19 +105,31 @@ class SupervisorPromptBuilder(BasePromptBuilder):
             "running_worker_desc": running_worker_desc,
             "has_file_operations": False,
             "agent_name": SystemConfigService.get_value("AGENT_NAME", "EvoLoop"),
-            "agent_company": SystemConfigService.get_value("AGENT_COMPANY", "上海方天画戟信息技术有限公司"),
-            "agent_website": SystemConfigService.get_value("AGENT_WEBSITE", "https://evoloop.cn"),
+            "agent_company": SystemConfigService.get_value(
+                "AGENT_COMPANY", "上海方天画戟信息技术有限公司"
+            ),
+            "agent_website": SystemConfigService.get_value(
+                "AGENT_WEBSITE", "https://evoloop.cn"
+            ),
         }
 
         # 4. Render Core Template (lightning or standard)
-        template = "core/engine/supervisor_lightning.prompt.j2" if is_lightning else "core/engine/supervisor.prompt.j2"
+        template = (
+            "core/engine/supervisor_lightning.prompt.j2"
+            if is_lightning
+            else "core/engine/supervisor.prompt.j2"
+        )
         base_prompt = render_template(template, **template_vars)
 
-        logger.info(f"[SupervisorPrompt] 📝 Static prompt length: {len(base_prompt)} chars")
+        logger.info(
+            f"[SupervisorPrompt] 📝 Static prompt length: {len(base_prompt)} chars"
+        )
 
         return base_prompt
 
-    async def build_context_ticket(self, config: Any = None, session_goal: str | None = None) -> str:
+    async def build_context_ticket(
+        self, config: Any = None, session_goal: str | None = None
+    ) -> str:
         """Constructs the dynamic CONTEXT TICKET for injection as a User Message.
 
         This contains per-turn state: explicit/active skills, memory snapshots,
@@ -156,7 +176,9 @@ class SupervisorPromptBuilder(BasePromptBuilder):
             "plan_approved": state.plan_approved,
             "shared_context": state.shared_context or {},
             "active_subagents": getattr(state, "active_subagents", None) or [],
-            "completed_subagents_count": len(getattr(state, "completed_subagents", None) or []),
+            "completed_subagents_count": len(
+                getattr(state, "completed_subagents", None) or []
+            ),
             "pending_need_inputs": [
                 c.get("need_input")
                 for c in (getattr(state, "completed_subagents", None) or [])
@@ -167,6 +189,8 @@ class SupervisorPromptBuilder(BasePromptBuilder):
             ),
         }
 
-        rendered = render_template("core/engine/fragments/supervisor_context_ticket.j2", **template_vars)
+        rendered = render_template(
+            "core/engine/fragments/supervisor_context_ticket.j2", **template_vars
+        )
         logger.info(f"[ContextTicket] 📋 Dynamic ticket length: {len(rendered)} chars")
         return rendered

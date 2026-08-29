@@ -74,7 +74,9 @@ async def handle_multi_edit(
             logger.debug(f"[Type Check] Failed: {e}", exc_info=True)
         template_context["diagnostics"] = diagnostics
 
-    return render_template("domain/tools/multi_edit_success.prompt.j2", **template_context), {"count": result["applied_edits"]}
+    return render_template(
+        "domain/tools/multi_edit_success.prompt.j2", **template_context
+    ), {"count": result["applied_edits"]}
 
 
 async def handle_edit(request: EditFileRequest) -> str:
@@ -116,10 +118,18 @@ async def handle_edit(request: EditFileRequest) -> str:
         "new_hash": result.get("new_hash", "")[:8] if result.get("new_hash") else None,
         "diagnostics": None,
         "message": result.get("message"),
-        "log": f"Technical details: {result.get('log')}" if result.get('log') else result.get('details'),
-        "causes": [c.format(path=request.path) for c in (i18n.get("domain_tools.files.edit_causes") or [])],
-        "hints": [h.format(path=request.path) for h in (i18n.get("domain_tools.files.edit_hints") or [])],
-        "labels": i18n.get("domain_tools.files.edit_labels") or {}
+        "log": f"Technical details: {result.get('log')}"
+        if result.get("log")
+        else result.get("details"),
+        "causes": [
+            c.format(path=request.path)
+            for c in (i18n.get("domain_tools.files.edit_causes") or [])
+        ],
+        "hints": [
+            h.format(path=request.path)
+            for h in (i18n.get("domain_tools.files.edit_hints") or [])
+        ],
+        "labels": i18n.get("domain_tools.files.edit_labels") or {},
     }
 
     if result["success"] and request.verify_types:
@@ -135,7 +145,9 @@ async def handle_edit(request: EditFileRequest) -> str:
     return render_template("domain/tools/edit_result.prompt.j2", **template_context)
 
 
-def format_preview_result(result: EditPreviewResult, path: str, target: str, replacement: str) -> str:
+def format_preview_result(
+    result: EditPreviewResult, path: str, target: str, replacement: str
+) -> str:
     """Format preview result for display."""
     from app.utils.template import render_template
 

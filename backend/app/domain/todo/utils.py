@@ -172,7 +172,9 @@ def should_remind(todo, reminder_offset_minutes: int = 0) -> bool:
     return utcnow() >= reminder_time
 
 
-def get_status_transition_allowed(current_status: TodoStatus, new_status: TodoStatus) -> bool:
+def get_status_transition_allowed(
+    current_status: TodoStatus, new_status: TodoStatus
+) -> bool:
     """
     Check if a status transition is valid.
 

@@ -26,7 +26,9 @@ class WikiService:
     Write operations are performed by the Agent via write_wiki_page tool.
     """
 
-    def get_pages(self, project_id: int, member_id: int | None = None) -> list[WikiPage]:
+    def get_pages(
+        self, project_id: int, member_id: int | None = None
+    ) -> list[WikiPage]:
         with Session(rm.sync_engine) as session:
             statement = select(WikiPage).where(WikiPage.project_id == project_id)
             if member_id is not None:
@@ -46,9 +48,11 @@ class WikiService:
         if not project_ids:
             return set()
         with Session(rm.sync_engine) as session:
-            statement = select(WikiPage.project_id).where(
-                WikiPage.project_id.in_(project_ids)
-            ).distinct()
+            statement = (
+                select(WikiPage.project_id)
+                .where(WikiPage.project_id.in_(project_ids))
+                .distinct()
+            )
             results = session.exec(statement).all()
             return set(results)
 
@@ -69,7 +73,12 @@ class WikiService:
         try:
             with Session(rm.sync_engine) as session:
                 statement = (
-                    select(WikiPage.id, WikiPage.title, WikiPage.content, WikiPage.updated_at)
+                    select(
+                        WikiPage.id,
+                        WikiPage.title,
+                        WikiPage.content,
+                        WikiPage.updated_at,
+                    )
                     .where(WikiPage.project_id == project_id)
                     .order_by(WikiPage.updated_at.desc())
                     .limit(limit)
@@ -87,10 +96,14 @@ class WikiService:
                     for row in rows
                 ]
         except DBAPIError:
-            logger.exception("[WikiService] Failed to load wiki index for project %s", project_id)
+            logger.exception(
+                "[WikiService] Failed to load wiki index for project %s", project_id
+            )
             return []
 
-    def ensure_toc_page(self, project_id: int, user_lang: str = "English") -> WikiPage | None:
+    def ensure_toc_page(
+        self, project_id: int, user_lang: str = "English"
+    ) -> WikiPage | None:
         """
         Ensure a Table of Contents page exists for the project.
         If missing, auto-generate one from existing pages.
@@ -107,7 +120,9 @@ class WikiService:
                 return existing_toc
 
             pages = session.exec(
-                select(WikiPage).where(WikiPage.project_id == project_id).order_by(WikiPage.order)
+                select(WikiPage)
+                .where(WikiPage.project_id == project_id)
+                .order_by(WikiPage.order)
             ).all()
             if not pages:
                 return None
@@ -152,7 +167,9 @@ class WikiService:
             session.add(toc_page)
             session.commit()
             session.refresh(toc_page)
-            logger.info(f"[WikiService] Auto-created TOC page for project {project_id} ({toc_title})")
+            logger.info(
+                f"[WikiService] Auto-created TOC page for project {project_id} ({toc_title})"
+            )
             return toc_page
 
 

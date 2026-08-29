@@ -10,14 +10,10 @@ import logging
 import os
 from collections.abc import Iterator
 
+from .constants import LARGE_FILE_THRESHOLD
 from .models import FileInfo, FileStatus, ReadResult, WriteResult
-from .schemas import PaginationInfo
 
 logger = logging.getLogger(__name__)
-
-# Constants
-LARGE_FILE_THRESHOLD = 10 * 1024 * 1024  # 10MB
-DEFAULT_PAGE_SIZE = 100
 
 
 # ============================================================================
@@ -213,10 +209,7 @@ def read_file(
         content = _read_lines_range(file_path, encoding, start_idx, end_idx)
 
         return ReadResult(
-            content=content,
-            encoding=encoding,
-            status=FileStatus.SUCCESS,
-            metadata=info
+            content=content, encoding=encoding, status=FileStatus.SUCCESS, metadata=info
         )
 
     except UnicodeDecodeError as e:
@@ -237,7 +230,9 @@ def read_file(
         )
 
 
-def _read_lines_range(file_path: str, encoding: str, start_idx: int = 0, end_idx: int | None = None) -> str:
+def _read_lines_range(
+    file_path: str, encoding: str, start_idx: int = 0, end_idx: int | None = None
+) -> str:
     """
     Read specific line range from file efficiently.
 
@@ -353,9 +348,7 @@ def write_file(
         )
     except Exception as e:
         return WriteResult(
-            path=file_path,
-            status=FileStatus.ERROR,
-            error_message=f"Write error: {e}"
+            path=file_path, status=FileStatus.ERROR, error_message=f"Write error: {e}"
         )
 
 
@@ -390,9 +383,7 @@ def append_to_file(
 
     except Exception as e:
         return WriteResult(
-            path=file_path,
-            status=FileStatus.ERROR,
-            error_message=f"Append error: {e}"
+            path=file_path, status=FileStatus.ERROR, error_message=f"Append error: {e}"
         )
 
 
@@ -413,31 +404,3 @@ def ensure_dir(directory: str) -> bool:
         return True
     except Exception:
         return False
-
-
-def get_pagination_info(
-    file_path: str,
-    start_line: int = 1,
-    page_size: int = DEFAULT_PAGE_SIZE,
-) -> PaginationInfo:
-    """
-    Get pagination info for a file.
-
-    Args:
-        file_path: Path to the file
-        start_line: 1-indexed starting line
-        page_size: Lines per page
-
-    Returns:
-        PaginationInfo with metadata
-    """
-    info = get_file_info(file_path)
-    end_line = min(start_line + page_size - 1, info.total_lines)
-
-    return PaginationInfo(
-        total_lines=info.total_lines,
-        start_line=start_line,
-        end_line=end_line,
-        has_more=end_line < info.total_lines,
-        page_size=page_size,
-    )

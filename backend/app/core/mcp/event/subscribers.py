@@ -3,7 +3,6 @@ MCP (Model Context Protocol) Module Lifecycle Handlers
 Handles connection initialization and global client cleanup.
 """
 
-import json
 import logging
 
 from sqlalchemy import select
@@ -64,7 +63,9 @@ class McpLifecycleSubscriber:
         new_value = event.data.get("new_value")
 
         if key == "WORKSPACE_ROOT":
-            logger.info(f"[MCP] WORKSPACE_ROOT changed to {new_value}, reloading filesystem MCP...")
+            logger.info(
+                f"[MCP] WORKSPACE_ROOT changed to {new_value}, reloading filesystem MCP..."
+            )
             await reload_mcp_for_workspace_change()
 
 

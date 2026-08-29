@@ -8,6 +8,7 @@ from typing import Any
 from app.core.channel.policy import current_session_source
 from app.core.context.manager import ContextManager
 from app.core.engine.callbacks.database_logger import current_node_source
+from app.core.engine.constants import MAX_STEPS
 from app.core.engine.context_trimmer import ContextTrimmer
 from app.core.engine.inference_engine import InferenceEngine
 from app.core.engine.schemas import EngineResult, NodeOutcome
@@ -52,7 +53,7 @@ class AgentEngine:
         config: dict,
         system_prompt: str,
         tools: list[Any],
-        max_steps: int = 5,
+        max_steps: int = MAX_STEPS,
         temperature: float = 0.7,
         name: str = "Agent",
         node_source: str = None,
@@ -61,7 +62,9 @@ class AgentEngine:
     ) -> EngineResult:
         """Executes the standard Agent ReAct loop."""
         if not model:
-            logger.info(f"[{name}] No model provided for node execution; relying on cloud gateway default model routing.")
+            logger.info(
+                f"[{name}] No model provided for node execution; relying on cloud gateway default model routing."
+            )
 
         llm, _provider = await self._inference_engine.create_llm(
             model=model,
@@ -115,8 +118,16 @@ class AgentEngine:
             outcome_status = "truncated"
         elif inference_result.get("signal"):
             outcome_status = "interrupted"
-        last_msg = inference_result.get("messages", [])[-1] if inference_result.get("messages") else None
-        if last_msg and last_msg.role == "assistant" and last_msg.additional_kwargs.get("is_error"):
+        last_msg = (
+            inference_result.get("messages", [])[-1]
+            if inference_result.get("messages")
+            else None
+        )
+        if (
+            last_msg
+            and last_msg.role == "assistant"
+            and last_msg.additional_kwargs.get("is_error")
+        ):
             outcome_status = "error"
 
         outcome = NodeOutcome(status=outcome_status)
@@ -164,11 +175,11 @@ class ToolExecutorAdapter:
         self._parallel = parallel
 
     async def execute_batch(
-        self,
-        tool_calls: list[dict],
-        local_tool_history: list[str]
+        self, tool_calls: list[dict], local_tool_history: list[str]
     ) -> tuple[list[Any], Any | None]:
-        return await self._executor.execute_batch(tool_calls, local_tool_history, parallel=self._parallel)
+        return await self._executor.execute_batch(
+            tool_calls, local_tool_history, parallel=self._parallel
+        )
 
 
 _default_engine: AgentEngine | None = None

@@ -56,7 +56,9 @@ class SkillSyncService:
         DB → File: Read a skill from DB and write its SKILL.md to disk.
         """
         if not self.acquire_sync_lock():
-            logger.debug(f"[Sync] Skipping DB→File export for skill {skill_id}: sync lock held")
+            logger.debug(
+                f"[Sync] Skipping DB→File export for skill {skill_id}: sync lock held"
+            )
             return None
 
         try:
@@ -87,7 +89,9 @@ class SkillSyncService:
         finally:
             self.release_sync_lock()
 
-    async def delete_skill_file(self, skill_id: int, namespace: str | None = None, name: str | None = None) -> bool:
+    async def delete_skill_file(
+        self, skill_id: int, namespace: str | None = None, name: str | None = None
+    ) -> bool:
         """
         DB → File: Delete a skill's physical directory from disk.
 
@@ -97,7 +101,9 @@ class SkillSyncService:
             name: The skill name (if known, saves a DB query)
         """
         if not self.acquire_sync_lock():
-            logger.debug(f"[Sync] Skipping file deletion for skill {skill_id}: sync lock held")
+            logger.debug(
+                f"[Sync] Skipping file deletion for skill {skill_id}: sync lock held"
+            )
             return False
 
         try:
@@ -115,7 +121,9 @@ class SkillSyncService:
                         actual_name = skill.name
 
             if actual_namespace and actual_name:
-                skill_dir = os.path.join(settings.SKILLS_DIR, actual_namespace, actual_name)
+                skill_dir = os.path.join(
+                    settings.SKILLS_DIR, actual_namespace, actual_name
+                )
                 if os.path.isdir(skill_dir):
                     shutil.rmtree(skill_dir)
                     logger.info(f"[Sync] Deleted skill directory: {skill_dir}")
@@ -130,7 +138,9 @@ class SkillSyncService:
                         path = skill.resource_path
                         if os.path.isdir(path):
                             shutil.rmtree(path)
-                            logger.info(f"[Sync] Deleted skill directory by resource_path: {path}")
+                            logger.info(
+                                f"[Sync] Deleted skill directory by resource_path: {path}"
+                            )
                             return True
 
             return False
@@ -148,7 +158,9 @@ class SkillSyncService:
             skill_md_path: Absolute path to a SKILL.md file
         """
         if not self.acquire_sync_lock():
-            logger.debug(f"[Sync] Skipping File→DB import for {skill_md_path}: sync lock held")
+            logger.debug(
+                f"[Sync] Skipping File→DB import for {skill_md_path}: sync lock held"
+            )
             return False
 
         try:
@@ -164,7 +176,10 @@ class SkillSyncService:
                 namespace = "misc"
 
             from pathlib import Path
-            success = await SkillImporter.import_single_skill(Path(folder), namespace=namespace)
+
+            success = await SkillImporter.import_single_skill(
+                Path(folder), namespace=namespace
+            )
 
             if success:
                 from app.core.learning.skills.discovery import skill_discovery
@@ -186,7 +201,9 @@ class SkillSyncService:
         Falls back to inferring the skill name from the parent directory name.
         """
         if not self.acquire_sync_lock():
-            logger.debug(f"[Sync] Skipping File→DB delete for {skill_md_path}: sync lock held")
+            logger.debug(
+                f"[Sync] Skipping File→DB delete for {skill_md_path}: sync lock held"
+            )
             return False
 
         try:
@@ -223,9 +240,13 @@ class SkillSyncService:
                 if skill:
                     deleted_skill_id = skill.id
                     await db.delete(skill)
-                    logger.info(f"[Sync] Deleted skill from DB: {inferred_name} ({inferred_namespace})")
+                    logger.info(
+                        f"[Sync] Deleted skill from DB: {inferred_name} ({inferred_namespace})"
+                    )
                 else:
-                    logger.warning(f"[Sync] No DB skill found for deleted file: {inferred_name} ({inferred_namespace})")
+                    logger.warning(
+                        f"[Sync] No DB skill found for deleted file: {inferred_name} ({inferred_namespace})"
+                    )
 
             if deleted_skill_id is None:
                 return False
@@ -239,7 +260,9 @@ class SkillSyncService:
             await publish_skill_mutated(skill_id=deleted_skill_id, action="delete")
             return True
         except Exception as e:
-            logger.exception(f"[Sync] Failed to delete skill by path {skill_md_path}: {e}")
+            logger.exception(
+                f"[Sync] Failed to delete skill by path {skill_md_path}: {e}"
+            )
             return False
         finally:
             self.release_sync_lock()

@@ -69,7 +69,9 @@ class DeviceWatcher:
                         current_status = None
                     else:
                         # Strip length prefix if present
-                        if len(decoded_line) > 4 and all(c in "0123456789abcdefABCDEF" for c in decoded_line[:4]):
+                        if len(decoded_line) > 4 and all(
+                            c in "0123456789abcdefABCDEF" for c in decoded_line[:4]
+                        ):
                             decoded_line = decoded_line[4:].strip()
 
                         parts = decoded_line.split()
@@ -88,12 +90,16 @@ class DeviceWatcher:
                                 last_devices.add(current_serial)
                         elif current_status in ["offline", "unauthorized"]:
                             if current_serial in last_devices:
-                                logger.info(f"Device went {current_status}: {current_serial}")
+                                logger.info(
+                                    f"Device went {current_status}: {current_serial}"
+                                )
                                 await self._handle_event(current_serial, current_status)
                                 last_devices.discard(current_serial)
 
                     if last_devices:
-                        logger.debug(f"DeviceWatcher heartbeat - active: {last_devices}")
+                        logger.debug(
+                            f"DeviceWatcher heartbeat - active: {last_devices}"
+                        )
 
                 # Cleanup on exit
                 if process.returncode is None:
@@ -125,7 +131,9 @@ class DeviceWatcher:
                 )
                 logger.info(f"✅ Device {serial} capabilities: {capabilities}")
             except Exception as e:
-                logger.warning(f"⚠️ Failed to detect capabilities for {serial}: {e}", exc_info=True)
+                logger.warning(
+                    f"⚠️ Failed to detect capabilities for {serial}: {e}", exc_info=True
+                )
 
             await mirror_manager.on_device_connected(serial)
             from app.core.environment.event.publishers import publish_device_connected

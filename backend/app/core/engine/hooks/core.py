@@ -49,38 +49,38 @@ class HookEvent(Enum):
     """Lifecycle events for hook system - matching Claude Code's architecture."""
 
     # Session lifecycle
-    SESSION_START = auto()       # Session begins
-    SESSION_END = auto()         # Session terminates
+    SESSION_START = auto()  # Session begins
+    SESSION_END = auto()  # Session terminates
 
     # User interaction
     USER_PROMPT_SUBMIT = auto()  # User sends prompt
-    NOTIFICATION = auto()        # System notification
+    NOTIFICATION = auto()  # System notification
 
     # Tool execution
-    PRE_TOOL_USE = auto()        # Before tool executes (can block)
-    POST_TOOL_USE = auto()       # After tool succeeds
+    PRE_TOOL_USE = auto()  # Before tool executes (can block)
+    POST_TOOL_USE = auto()  # After tool succeeds
     POST_TOOL_USE_FAILURE = auto()  # After tool fails
 
     # Permission
     PERMISSION_REQUEST = auto()  # Permission dialog shown
-    PERMISSION_DENIED = auto()   # Tool call denied
+    PERMISSION_DENIED = auto()  # Tool call denied
 
     # Context management
-    PRE_COMPACT = auto()         # Before context compression (CRITICAL)
-    POST_COMPACT = auto()        # After context compression
+    PRE_COMPACT = auto()  # Before context compression (CRITICAL)
+    POST_COMPACT = auto()  # After context compression
 
     # Task/Agent lifecycle
-    STOP = auto()                # Agent finishes response (quality gates)
-    SUBAGENT_START = auto()      # Subagent spawned
-    SUBAGENT_STOP = auto()       # Subagent completes
-    TASK_CREATED = auto()        # Task created
-    TASK_COMPLETED = auto()      # Task marked complete
+    STOP = auto()  # Agent finishes response (quality gates)
+    SUBAGENT_START = auto()  # Subagent spawned
+    SUBAGENT_STOP = auto()  # Subagent completes
+    TASK_CREATED = auto()  # Task created
+    TASK_COMPLETED = auto()  # Task marked complete
 
     # Error handling
-    ERROR = auto()               # Error occurred
+    ERROR = auto()  # Error occurred
 
     # Prompt Enrichment
-    PROMPT_POLISHING = auto()    # Context-aware prompt polishing (domain expert hook)
+    PROMPT_POLISHING = auto()  # Context-aware prompt polishing (domain expert hook)
 
 
 # Handler type alias
@@ -102,9 +102,7 @@ class HookSystem:
         self._hooks: dict[HookEvent, list[HookHandler]] = {
             event: [] for event in HookEvent
         }
-        self._prompts: dict[HookEvent, list[str]] = {
-            event: [] for event in HookEvent
-        }
+        self._prompts: dict[HookEvent, list[str]] = {event: [] for event in HookEvent}
         self._metrics: dict[HookEvent, dict[str, Any]] = {}
         logger.info("[HookSystem] Initialized")
 
@@ -165,7 +163,9 @@ class HookSystem:
             self._hooks[event].sort(key=lambda h: h._hook_priority)
 
             match_str = f" [matcher: {matcher}]" if matcher else ""
-            logger.debug(f"[HookSystem] Registered {func.__name__} for {event.name}{match_str}")
+            logger.debug(
+                f"[HookSystem] Registered {func.__name__} for {event.name}{match_str}"
+            )
             return func
 
         if handler is None:
@@ -195,7 +195,9 @@ class HookSystem:
         """Unregister a handler."""
         if handler in self._hooks[event]:
             self._hooks[event].remove(handler)
-            logger.debug(f"[HookSystem] Unregistered {handler.__name__} from {event.name}")
+            logger.debug(
+                f"[HookSystem] Unregistered {handler.__name__} from {event.name}"
+            )
             return True
         return False
 
@@ -246,7 +248,9 @@ class HookSystem:
 
                 # If blocking and handler says block, stop immediately
                 if blocking and result.block:
-                    logger.warning(f"[HookSystem] {event.name} blocked by {handler.__name__}: {result.message}")
+                    logger.warning(
+                        f"[HookSystem] {event.name} blocked by {handler.__name__}: {result.message}"
+                    )
                     return result
 
                 # If PermissionDenied and retry requested
@@ -312,29 +316,6 @@ class HookSystem:
 
         return result
 
-    def get_handlers(
-        self,
-        event: HookEvent,
-        matcher: str | None = None,
-    ) -> list[HookHandler]:
-        """
-        Get all handlers for an event.
-
-        Args:
-            event: The event
-            matcher: Optional filter by matcher pattern
-        """
-        handlers = self._hooks.get(event, [])
-        if matcher:
-            return [h for h in handlers if h._hook_matcher == matcher]
-        return handlers.copy()
-
-    def get_metrics(self, event: HookEvent | None = None) -> dict[HookEvent, dict[str, Any]]:
-        """Get metrics for events."""
-        if event:
-            return {event: self._metrics.get(event, {})}
-        return self._metrics.copy()
-
 
 # Global hook system instance
 hook_system = HookSystem()
@@ -358,12 +339,16 @@ def setup_default_hooks():
     )
 
     # User interaction
-    hook_system.register(HookEvent.USER_PROMPT_SUBMIT, user_prompt_submit_handler, priority=50)
+    hook_system.register(
+        HookEvent.USER_PROMPT_SUBMIT, user_prompt_submit_handler, priority=50
+    )
     hook_system.register(HookEvent.NOTIFICATION, notification_handler, priority=100)
 
     # Tool execution
     hook_system.register(HookEvent.POST_TOOL_USE, post_tool_use_logging, priority=200)
-    hook_system.register(HookEvent.POST_TOOL_USE_FAILURE, post_tool_use_failure_logging, priority=100)
+    hook_system.register(
+        HookEvent.POST_TOOL_USE_FAILURE, post_tool_use_failure_logging, priority=100
+    )
 
     # Context management
     hook_system.register(HookEvent.PRE_COMPACT, pre_compact_save_state, priority=10)

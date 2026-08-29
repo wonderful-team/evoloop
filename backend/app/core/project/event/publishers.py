@@ -10,12 +10,13 @@ from app.core.events import system_bus
 from .schemas import (
     ProjectCreatedEvent,
     ProjectDeletedEvent,
-    ProjectMovedEvent,
     ProjectSwitchedEvent,
 )
 
 
-async def publish_project_created(path: str, repo_id: int, project_id: int | None, project_name: str) -> None:
+async def publish_project_created(
+    path: str, repo_id: int, project_id: int | None, project_name: str
+) -> None:
     """Publish an event when a project is created or imported."""
     await system_bus.publish(
         ProjectCreatedEvent(
@@ -27,7 +28,9 @@ async def publish_project_created(path: str, repo_id: int, project_id: int | Non
     )
 
 
-async def publish_project_deleted(path: str, repo_id: int, project_id: int | None) -> None:
+async def publish_project_deleted(
+    path: str, repo_id: int, project_id: int | None
+) -> None:
     """Publish an event when a project is deleted or disconnected."""
     await system_bus.publish(
         ProjectDeletedEvent(
@@ -38,12 +41,9 @@ async def publish_project_deleted(path: str, repo_id: int, project_id: int | Non
     )
 
 
-async def publish_project_moved(src_path: str, dest_path: str) -> None:
-    """Publish an event when a project is moved or renamed."""
-    await system_bus.publish(ProjectMovedEvent(src_path=src_path, dest_path=dest_path))
-
-
-async def publish_project_switched(project_id: int, project_name: str, path: str) -> None:
+async def publish_project_switched(
+    project_id: int, project_name: str, path: str
+) -> None:
     """Publish an event when user switches active project context."""
     await system_bus.publish(
         ProjectSwitchedEvent(

@@ -8,6 +8,7 @@ from collections.abc import Callable
 from typing import Any
 
 from app.core.engine.callbacks.database_logger import current_node_source
+from app.core.engine.constants import MAX_STEPS
 from app.core.engine.context_trimmer import ContextTrimmer, TrimTrigger
 from app.core.engine.error_handler import (
     LLM_EXCEPTIONS,
@@ -45,8 +46,12 @@ class InferenceEngine:
         self._llm_factory = llm_factory or LLMFactory
         self._context_trimmer = context_trimmer or ContextTrimmer()
 
-    async def create_llm(self, model: str | None, temperature: float, streaming: bool = True):
-        llm = await self._llm_factory.create_llm(model_name=model, temperature=temperature, streaming=streaming)
+    async def create_llm(
+        self, model: str | None, temperature: float, streaming: bool = True
+    ):
+        llm = await self._llm_factory.create_llm(
+            model_name=model, temperature=temperature, streaming=streaming
+        )
         provider = getattr(llm, "provider", "openai")
         return llm, provider
 
@@ -158,14 +163,21 @@ class InferenceEngine:
                 )
 
                 loop_messages = trim_result.messages
-                logger.info(f"[{name}] Loop trim: {trim_result.before_count} -> {trim_result.after_count} msgs")
+                logger.info(
+                    f"[{name}] Loop trim: {trim_result.before_count} -> {trim_result.after_count} msgs"
+                )
 
             if loop_messages:
                 for i in range(len(loop_messages) - 1, -1, -1):
                     if loop_messages[i].role == "user":
                         from app.core.engine.context_monitor import ContextMonitor
 
-                        dashboard = "\n\n" + ContextMonitor.calculate(loop_messages, model=model).to_prompt()
+                        dashboard = (
+                            "\n\n"
+                            + ContextMonitor.calculate(
+                                loop_messages, model=model
+                            ).to_prompt()
+                        )
 
                         original_content = loop_messages[i].content
                         if isinstance(original_content, str):
@@ -189,7 +201,9 @@ class InferenceEngine:
             from app.core.engine.context_monitor import ContextMonitor
 
             stats = ContextMonitor.calculate(loop_messages, model=model)
-            logger.info(f"--- {name} Context: {msg_count} msgs, ~{stats.total_tokens} tokens ({stats.usage_ratio * 100:.1f}%) ---")
+            logger.info(
+                f"--- {name} Context: {msg_count} msgs, ~{stats.total_tokens} tokens ({stats.usage_ratio * 100:.1f}%) ---"
+            )
         else:
             logger.info(f"--- {name} Context: {msg_count} msgs ---")
 
@@ -200,7 +214,9 @@ class InferenceEngine:
         return f"model={llm.model or '?'}"
 
     @staticmethod
-    async def _handle_ai_response(response: BaseMessage, handler, config_metadata: dict | None = None) -> None:
+    async def _handle_ai_response(
+        response: BaseMessage, handler, config_metadata: dict | None = None
+    ) -> None:
         if not handler:
             return
         from app.core.engine.message.reasoning import extract_reasoning_from_message
@@ -247,7 +263,9 @@ class InferenceEngine:
 
         try:
             start_perf = time.perf_counter()
-            response = await self._stream_llm_response(llm_with_tools, loop_messages, config)
+            response = await self._stream_llm_response(
+                llm_with_tools, loop_messages, config
+            )
             latency = time.perf_counter() - start_perf
             logger.info(f"[{name}] LLM Latency: {latency:.2f}s")
         except LLM_EXCEPTIONS as e:
@@ -255,7 +273,9 @@ class InferenceEngine:
             cfg = config.get("configurable", {})
             lightning_base = cfg.get("lightning_base_url", "")
             # Lightning model context limit — fall back to platform model
-            if lightning_base and ("n_ctx" in err_str or "context length" in err_str.lower()):
+            if lightning_base and (
+                "n_ctx" in err_str or "context length" in err_str.lower()
+            ):
                 logger.warning(
                     f"[{name}] Lightning model context limit ({err_str[:100]}), "
                     f"falling back to default model"
@@ -264,12 +284,12 @@ class InferenceEngine:
                 if default_model:
                     fallback_llm = await self._llm_factory.create_llm(
                         LLMConfig(
-                            model_name=default_model,
-                            temperature=0.7,
-                            streaming=True
+                            model_name=default_model, temperature=0.7, streaming=True
                         ),
                     )
-                    response = await self._stream_llm_response(fallback_llm, loop_messages, config)
+                    response = await self._stream_llm_response(
+                        fallback_llm, loop_messages, config
+                    )
                     latency = time.perf_counter() - start_perf
                     logger.info(f"[{name}] Fallback LLM Latency: {latency:.2f}s")
                 else:
@@ -283,10 +303,14 @@ class InferenceEngine:
 
         handler = config.get("configurable", {}).get("message_handler")
         if handler:
-            await self._handle_ai_response(response, handler, config_metadata=config.get("metadata"))
+            await self._handle_ai_response(
+                response, handler, config_metadata=config.get("metadata")
+            )
         if handler and handler.last_persisted_message_id:
             response.id = handler.last_persisted_message_id
-            response.additional_kwargs["sequence_number"] = handler.last_persisted_sequence
+            response.additional_kwargs["sequence_number"] = (
+                handler.last_persisted_sequence
+            )
 
         thinking_content = extract_reasoning_from_message(response)
         if thinking_content:
@@ -329,7 +353,9 @@ class InferenceEngine:
 
         tool_results: list[BaseMessage] = []
         if remaining_tool_calls and tool_executor is not None:
-            res, batch_signal = await tool_executor.execute_batch(remaining_tool_calls, local_tool_history)
+            res, batch_signal = await tool_executor.execute_batch(
+                remaining_tool_calls, local_tool_history
+            )
             tool_results = res
 
             if batch_signal and pending_signal is None:
@@ -346,7 +372,7 @@ class InferenceEngine:
         system_prompt: str,
         config: dict,
         name: str,
-        max_steps: int = 5,
+        max_steps: int = MAX_STEPS,
         tool_executor: Any | None = None,
         interceptors: dict[str, Callable] | None = None,
         on_thinking: Callable | None = None,
@@ -390,7 +416,9 @@ class InferenceEngine:
         local_tool_history = []
         last_response = None
 
-        logger.info(f"[{name}] ▶️ run_react_loop START | iteration={iteration_count} | max_steps={max_steps}")
+        logger.info(
+            f"[{name}] ▶️ run_react_loop START | iteration={iteration_count} | max_steps={max_steps}"
+        )
 
         for i in range(max_steps):
             logger.info(f"[{name}] 🔄 Step {i + 1}/{max_steps}")
@@ -428,9 +456,15 @@ class InferenceEngine:
                 logger.info(f"[{name}] Finished with text response (no tool calls).")
                 break
 
-            logger.info(f"[{name}] tool_calls detected: {len(response.tool_calls)} calls")
+            logger.info(
+                f"[{name}] tool_calls detected: {len(response.tool_calls)} calls"
+            )
 
-            tool_results, pending_signal, queued_signals = await self._process_tool_executions(
+            (
+                tool_results,
+                pending_signal,
+                queued_signals,
+            ) = await self._process_tool_executions(
                 response=response,
                 name=name,
                 config=config,
@@ -456,7 +490,9 @@ class InferenceEngine:
         is_truncated = False
         if last_response and last_response.tool_calls:
             logger.error(f"[{name}] Hit max_steps ({max_steps}) with open tool calls.")
-            tools_summary = ", ".join(local_tool_history) if local_tool_history else "None"
+            tools_summary = (
+                ", ".join(local_tool_history) if local_tool_history else "None"
+            )
             truncation_msg = AIMessage(
                 content=(
                     f"[TRUNCATION] Agent reached maximum step limit ({max_steps}) "

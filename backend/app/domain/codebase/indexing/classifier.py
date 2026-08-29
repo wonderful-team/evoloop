@@ -2,7 +2,12 @@ import logging
 import os
 from enum import Enum
 
-from app.constants import EXTENSION_MAP, SOFTWARE_DIRECTORIES, SOFTWARE_INDICATORS
+from app.domain.codebase.constants import (
+    CLASSIFIER_MAX_DEPTH,
+    CODE_EXTENSIONS,
+    CODE_FILE_THRESHOLD,
+    SOFTWARE_MARKERS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -19,9 +24,6 @@ class ProjectClassifier:
     Used to gate resource-intensive indexing steps (API/DB extraction).
     """
 
-    SOFTWARE_MARKERS = SOFTWARE_INDICATORS | SOFTWARE_DIRECTORIES
-    CODE_EXTENSIONS = set(EXTENSION_MAP.keys())
-
     def classify(self, root_path: str) -> ProjectType:
         """
         Determine if the project is primarily SOFTWARE (code-based) or CONTENT (docs/images).
@@ -35,24 +37,28 @@ class ProjectClassifier:
             from app.core.file import FileTraverser
 
             entries = {entry.name for entry in FileTraverser.list_entries(root_path)}
-            intersection = self.SOFTWARE_MARKERS.intersection(entries)
+            intersection = SOFTWARE_MARKERS.intersection(entries)
 
             if intersection:
-                logger.info(f"[Classifier] Classified {root_path} as SOFTWARE (Indicators: {intersection})")
+                logger.info(
+                    f"[Classifier] Classified {root_path} as SOFTWARE (Indicators: {intersection})"
+                )
                 return ProjectType.SOFTWARE
 
             # 2. Check for Code Files (Deep Scan but shallow depth)
-            # Scan top 2 levels for code files using unified traverser.
+            # Scan top CLASSIFIER_MAX_DEPTH levels for code files using unified traverser.
             code_file_count = 0
             from app.core.file import FileTraverser, TraverseOptions
 
-            options = TraverseOptions(max_depth=2)
+            options = TraverseOptions(max_depth=CLASSIFIER_MAX_DEPTH)
             for full_path in FileTraverser.walk(root_path, options):
                 _, ext = os.path.splitext(full_path)
-                if ext in self.CODE_EXTENSIONS:
+                if ext in CODE_EXTENSIONS:
                     code_file_count += 1
-                    if code_file_count >= 3:  # Threshold
-                        logger.info(f"[Classifier] Classified {root_path} as SOFTWARE (Found code files)")
+                    if code_file_count >= CODE_FILE_THRESHOLD:  # Threshold
+                        logger.info(
+                            f"[Classifier] Classified {root_path} as SOFTWARE (Found code files)"
+                        )
                         return ProjectType.SOFTWARE
 
             logger.info(f"[Classifier] Classified {root_path} as CONTENT")

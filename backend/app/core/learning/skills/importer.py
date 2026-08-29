@@ -67,7 +67,9 @@ class SkillImporter:
                 namespace = "misc"
 
             try:
-                success = await SkillImporter.import_single_skill(folder, namespace=namespace)
+                success = await SkillImporter.import_single_skill(
+                    folder, namespace=namespace
+                )
                 if success:
                     results["imported"] += 1
                 else:
@@ -86,7 +88,9 @@ class SkillImporter:
         # 1. Validate with SkillValidator
         validation = SkillValidator.validate_folder(skill_folder)
         if not validation.is_valid:
-            logger.warning(f"Skill validation failed for {skill_folder}: {validation.errors}")
+            logger.warning(
+                f"Skill validation failed for {skill_folder}: {validation.errors}"
+            )
             return False
 
         metadata = validation.metadata
@@ -114,7 +118,9 @@ class SkillImporter:
                 existing.namespace = metadata.get("namespace", namespace)
                 existing.instructions = instructions
                 existing.resource_path = str(skill_folder.absolute())
-                existing.trigger_patterns = [metadata["name"]] + (metadata.get("trigger_patterns", []))
+                existing.trigger_patterns = [metadata["name"]] + (
+                    metadata.get("trigger_patterns", [])
+                )
                 existing.parameters = metadata.get("parameters", [])
                 existing.tools_used = _extract_tools_required(metadata)
                 await apply_validation_result(existing, validation)
@@ -126,7 +132,8 @@ class SkillImporter:
                     namespace=metadata.get("namespace", namespace),
                     instructions=instructions,
                     resource_path=str(skill_folder.absolute()),
-                    trigger_patterns=[metadata["name"]] + (metadata.get("trigger_patterns", [])),
+                    trigger_patterns=[metadata["name"]]
+                    + (metadata.get("trigger_patterns", [])),
                     parameters=metadata.get("parameters", []),
                     tools_used=_extract_tools_required(metadata),
                     skill_source="imported",

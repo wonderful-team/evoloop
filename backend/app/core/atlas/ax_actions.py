@@ -15,14 +15,14 @@ import logging
 import time
 from typing import Any
 
-from app.infrastructure.drivers.macos._workspace import (
+from app.infrastructure.drivers.macos.workspace import (
     ax_copy_attribute,
     ensure_app_running,
 )
 
-logger = logging.getLogger(__name__)
+from app.core.atlas.constants import MAX_DEPTH
 
-MAX_DEPTH = 12
+logger = logging.getLogger(__name__)
 
 
 def _hs():
@@ -136,7 +136,9 @@ def perform_by_label(pid: int, role: str, label: str, action: str) -> bool:
     return _hs().AXUIElementPerformAction(el, action) == 0
 
 
-def set_value_by_label(pid: int, role: str, label: str, text: str, verify: bool = True) -> bool:
+def set_value_by_label(
+    pid: int, role: str, label: str, text: str, verify: bool = True
+) -> bool:
     el = find_by_role_label(pid, role, label)
     if el is None:
         return False
@@ -171,7 +173,9 @@ def _menu_children(el: Any) -> list[Any]:
 
 
 def _menu_label(el: Any) -> str:
-    name = ax_copy_attribute(el, "AXTitle") or ax_copy_attribute(el, "AXDescription") or ""
+    name = (
+        ax_copy_attribute(el, "AXTitle") or ax_copy_attribute(el, "AXDescription") or ""
+    )
     return str(name).strip()
 
 
@@ -199,7 +203,11 @@ def press_menu_labels(pid: int, labels: list[str], settle_sec: float = 0.25) -> 
             return False
         err, action_names = HS.AXUIElementCopyActionNames(target, None)
         actions = [str(a) for a in action_names] if err == 0 and action_names else []
-        action = "AXPress" if "AXPress" in actions else ("AXPick" if "AXPick" in actions else None)
+        action = (
+            "AXPress"
+            if "AXPress" in actions
+            else ("AXPick" if "AXPick" in actions else None)
+        )
         if action is None:
             return False
         if HS.AXUIElementPerformAction(target, action) != 0:

@@ -56,7 +56,9 @@ def run_leiden(edges: list[tuple[str, str]]) -> dict[int, list[str]]:
     for idx, label in enumerate(labels):
         communities.setdefault(int(label), []).append(rev[idx])
 
-    logger.info("[Leiden] Found %d communities from %d edges", len(communities), len(edges))
+    logger.info(
+        "[Leiden] Found %d communities from %d edges", len(communities), len(edges)
+    )
     return communities
 
 
@@ -86,7 +88,9 @@ async def name_clusters_with_llm(
             fp = pj.get("framework_profile") or {}
             domain_vocab = fp.get("domain_vocabulary") or []
     except (OSError, ValueError):
-        logger.warning("Failed to read .evoloop/project.json for domain vocabulary", exc_info=True)
+        logger.warning(
+            "Failed to read .evoloop/project.json for domain vocabulary", exc_info=True
+        )
 
     result: dict[str, list[str]] = {}
 

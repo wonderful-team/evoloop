@@ -6,33 +6,13 @@ from typing import Any, TypeVar
 
 import openai
 
+from app.core.engine.constants import LLM_EXCEPTIONS
 from app.core.engine.schemas import ErrorClassification
 from app.core.exceptions import InferenceError
 
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
-
-# Exceptions that LLM calls may raise: stdlib + openai SDK + httpx (transport layer)
-LLM_EXCEPTIONS = (
-    ValueError,
-    OSError,
-    RuntimeError,
-    TypeError,
-    KeyError,
-    AttributeError,
-    openai.APIError,
-    openai.APIConnectionError,
-    openai.APITimeoutError,
-    openai.AuthenticationError,
-    openai.BadRequestError,
-    openai.ConflictError,
-    openai.InternalServerError,
-    openai.NotFoundError,
-    openai.PermissionDeniedError,
-    openai.RateLimitError,
-    openai.UnprocessableEntityError,
-)
 
 
 class LLMErrorHandler:
@@ -65,7 +45,10 @@ class LLMErrorHandler:
             is_terminal = True
 
         # [Platform Auth] EvoLoop platform auth errors
-        elif "not authenticated with evoloop" in error_str or "please login first" in error_str:
+        elif (
+            "not authenticated with evoloop" in error_str
+            or "please login first" in error_str
+        ):
             error_type = "auth_expired"
             status_code = 401
             is_terminal = True
@@ -121,7 +104,10 @@ class LLMErrorHandler:
             status_code = 503
 
         # [Network] Connection issues
-        elif any(kw in error_str for kw in ("timeout", "connection", "socket", "network", "httpx")):
+        elif any(
+            kw in error_str
+            for kw in ("timeout", "connection", "socket", "network", "httpx")
+        ):
             error_type = "network_error"
 
         # [Model] Model not found
@@ -141,7 +127,11 @@ class LLMErrorHandler:
             is_terminal = True
 
         # [Context] Context length exceeded
-        elif "n_keep" in error_str or "context length" in error_str or "n_ctx" in error_str:
+        elif (
+            "n_keep" in error_str
+            or "context length" in error_str
+            or "n_ctx" in error_str
+        ):
             error_type = "context_limit"
             is_terminal = True
 
@@ -149,9 +139,21 @@ class LLMErrorHandler:
         # Use a unified core_engine namespace for all agent-related infrastructure errors
         prefix = "core_engine"
 
-        title = i18n.get(f"{prefix}.{error_type}_title") or i18n.get(f"{prefix}.system_error_title") or "Error"
-        message = i18n.get(f"{prefix}.{error_type}_desc", error=error_full) or i18n.get(f"{prefix}.execution_failed") or str(e)
-        hint = i18n.get(f"{prefix}.{error_type}_hint") or i18n.get(f"{prefix}.retry_prompt") or "Please try again later."
+        title = (
+            i18n.get(f"{prefix}.{error_type}_title")
+            or i18n.get(f"{prefix}.system_error_title")
+            or "Error"
+        )
+        message = (
+            i18n.get(f"{prefix}.{error_type}_desc", error=error_full)
+            or i18n.get(f"{prefix}.execution_failed")
+            or str(e)
+        )
+        hint = (
+            i18n.get(f"{prefix}.{error_type}_hint")
+            or i18n.get(f"{prefix}.retry_prompt")
+            or "Please try again later."
+        )
 
         # Special case for llm_auth to use solution key if available
         if error_type == "llm_auth":
@@ -188,7 +190,9 @@ class LLMErrorHandler:
         )
 
 
-def with_llm_retry(max_attempts: int = 3, base_delay: float = 2.0, backoff: float = 2.0):
+def with_llm_retry(
+    max_attempts: int = 3, base_delay: float = 2.0, backoff: float = 2.0
+):
     """
     Standardized retry decorator for LLM API calls.
     Automatically classifies exceptions via LLMErrorHandler.
@@ -207,13 +211,16 @@ def with_llm_retry(max_attempts: int = 3, base_delay: float = 2.0, backoff: floa
                     classification = LLMErrorHandler.classify_exception(e)
 
                     if classification.is_terminal or attempt == max_attempts:
-                        logger.exception(f"[LLMRetry] Terminal error or max attempts reached ({attempt}/{max_attempts}): {classification.error_type}")
+                        logger.exception(
+                            f"[LLMRetry] Terminal error or max attempts reached ({attempt}/{max_attempts}): {classification.error_type}"
+                        )
                         raise
 
                     logger.warning(
                         f"[LLMRetry] Attempt {attempt}/{max_attempts} failed: {classification.error_type}. "
-                        f"Retrying in {delay}s..."
-                    , exc_info=True)
+                        f"Retrying in {delay}s...",
+                        exc_info=True,
+                    )
                     await asyncio.sleep(delay)
                     delay *= backoff
 

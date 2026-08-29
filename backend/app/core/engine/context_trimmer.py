@@ -8,6 +8,13 @@ from enum import Enum, auto
 from typing import Any, Literal
 
 from app.constants import DEFAULT_MAX_CONTEXT_TOKENS
+from app.core.engine.constants import (
+    HARD_LIMIT_RATIO,
+    LAYER_MIDDLE_RATIO,
+    LAYER_RECENT_RATIO,
+    MAX_RETRY_ERRORS,
+    TRIM_THRESHOLD_RATIO,
+)
 from app.core.engine.message.converter import EvoMessageConverter
 from app.core.engine.message.forgetting import apply_forgotten_status
 from app.core.engine.message.native_classes import (
@@ -33,15 +40,6 @@ NODE_BUDGET_RATIOS: dict[str, float] = {
     "chat": 0.80,
     "default": 0.60,
 }
-
-TRIM_THRESHOLD_RATIO = 0.70
-HARD_LIMIT_RATIO = 0.95
-
-LAYER_RECENT_RATIO = 0.50
-LAYER_MIDDLE_RATIO = 0.40
-LAYER_EARLY_RATIO = 0.10
-
-MAX_RETRY_ERRORS = 3
 
 
 class TrimTrigger(Enum):
@@ -106,14 +104,16 @@ class ContextTrimmer:
             else:
                 break
         if pruned_errors:
-            stage_log.append({
-                "stage": "prune_trailing_errors",
-                "removed": pruned_errors
-            })
+            stage_log.append(
+                {"stage": "prune_trailing_errors", "removed": pruned_errors}
+            )
 
         # --- Stage 1: Quick exit ---
         effective_budget, hard_limit = _compute_budget(model or "", node_source)
-        if before_tokens <= int(effective_budget * TRIM_THRESHOLD_RATIO) and not is_retry:
+        if (
+            before_tokens <= int(effective_budget * TRIM_THRESHOLD_RATIO)
+            and not is_retry
+        ):
             if "repair" in stages:
                 working = EvoMessageConverter.repair(working)
             after_tokens = count_total_tokens(working)
@@ -138,11 +138,13 @@ class ContextTrimmer:
         # --- Stage 1: Retry cleanup ---
         if is_retry and "forget" in stages:
             working = self._retry_cleanup(working)
-            stage_log.append({
-                "stage": "retry_cleanup",
-                "before": before_count,
-                "after": len(working),
-            })
+            stage_log.append(
+                {
+                    "stage": "retry_cleanup",
+                    "before": before_count,
+                    "after": len(working),
+                }
+            )
             if len(working) < before_count:
                 trigger = TrimTrigger.RETRY_CLEANUP
 
@@ -152,13 +154,20 @@ class ContextTrimmer:
             try:
                 working = apply_forgotten_status(working, tool_memory)
             except Exception as e:
-                logger.warning(f"[ContextTrimmer] apply_forgotten_status failed: {e}", exc_info=True)
-            stage_log.append({
-                "stage": "forgetting",
-                "before": count_before,
-                "after": len(working),
-                "forgotten_count": len(tool_memory.forgotten) if hasattr(tool_memory, "forgotten") else 0,
-            })
+                logger.warning(
+                    f"[ContextTrimmer] apply_forgotten_status failed: {e}",
+                    exc_info=True,
+                )
+            stage_log.append(
+                {
+                    "stage": "forgetting",
+                    "before": count_before,
+                    "after": len(working),
+                    "forgotten_count": len(tool_memory.forgotten)
+                    if hasattr(tool_memory, "forgotten")
+                    else 0,
+                }
+            )
 
         # --- Stage 3: Token-driven windowing ---
         if "window" in stages:
@@ -166,13 +175,15 @@ class ContextTrimmer:
             tokens_before = count_total_tokens(working)
             working = self._token_driven_window(working, model, node_source)
             tokens_after = count_total_tokens(working)
-            stage_log.append({
-                "stage": "windowing",
-                "before_count": count_before,
-                "after_count": len(working),
-                "before_tokens": tokens_before,
-                "after_tokens": tokens_after,
-            })
+            stage_log.append(
+                {
+                    "stage": "windowing",
+                    "before_count": count_before,
+                    "after_count": len(working),
+                    "before_tokens": tokens_before,
+                    "after_tokens": tokens_after,
+                }
+            )
             if len(working) < count_before or tokens_after < tokens_before:
                 if trigger == TrimTrigger.NONE:
                     trigger = TrimTrigger.TOKEN_BUDGET
@@ -181,11 +192,13 @@ class ContextTrimmer:
         if "repair" in stages:
             count_before = len(working)
             working = EvoMessageConverter.repair(working)
-            stage_log.append({
-                "stage": "repair",
-                "before": count_before,
-                "after": len(working),
-            })
+            stage_log.append(
+                {
+                    "stage": "repair",
+                    "before": count_before,
+                    "after": len(working),
+                }
+            )
 
         after_tokens = count_total_tokens(working)
         after_count = len(working)
@@ -246,7 +259,11 @@ class ContextTrimmer:
                     if prev.role == "user" and prev.name != "context_ticket":
                         prev_text = get_message_text(prev)
                         curr_text = get_message_text(msg)
-                        if prev_text and curr_text and (prev_text in curr_text or curr_text in prev_text):
+                        if (
+                            prev_text
+                            and curr_text
+                            and (prev_text in curr_text or curr_text in prev_text)
+                        ):
                             deduped[-1] = msg
                             continue
                 deduped.append(msg)
@@ -385,7 +402,9 @@ class ContextTrimmer:
         if total_tokens > hard_limit:
             pruned: list[BaseMessage] = []
             for m in result:
-                if m.role == "tool" and not (m.additional_kwargs or {}).get("forgotten"):
+                if m.role == "tool" and not (m.additional_kwargs or {}).get(
+                    "forgotten"
+                ):
                     pruned.append(
                         ToolMessage(
                             content="[TRIMMED: Tool output removed due to context limit.]",

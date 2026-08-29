@@ -26,6 +26,13 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from app.core.atlas.ax_actions import activate_at_path
+from app.core.atlas.constants import (
+    ACTION_BLACKLIST_PATTERN,
+    INTERACTIVE_ROLES,
+    MAX_DEPTH,
+    MENUBAR_STATE_ID,
+    RESURVEY_JACCARD_THRESHOLD,
+)
 from app.core.atlas.models import AtlasApp, AtlasElement, AtlasState, AtlasTransition
 from app.core.atlas.ports.store import IAtlasStore
 from app.core.atlas.schemas import MenuItem, MenuTree, Rect
@@ -33,41 +40,7 @@ from app.core.file import compute_hash
 
 logger = logging.getLogger(__name__)
 
-MAX_DEPTH = 12
-MENUBAR_STATE_ID = "__menubar__"
-RESURVEY_JACCARD_THRESHOLD = 0.8
-
-INTERACTIVE_ROLES = {
-    "AXButton",
-    "AXTextField",
-    "AXTextArea",
-    "AXMenuItem",
-    "AXMenuBarItem",
-    "AXCheckBox",
-    "AXRadioButton",
-    "AXSlider",
-    "AXPopUpButton",
-    "AXComboBox",
-    "AXTab",
-    "AXTabGroup",
-    "AXLink",
-    "AXSwitch",
-    "AXStepper",
-    "AXSearchField",
-    "AXIncrementor",
-    "AXValueIndicator",
-    "AXOutline",
-    "AXTable",
-    "AXRow",
-}
-
-# Labels that must NEVER be clicked during exploration (recorded, not triggered).
-ACTION_BLACKLIST = re.compile(
-    r"quit|退出|log ?out|登出|sign out|delete|删除|清空|erase|抹掉|force quit|强制退出"
-    r"|close all|全部关闭|remove|移除|trash|废纸篓|reset|重置|format|格式化"
-    r"|empty|倒空|restore|还原|恢复出厂|uninstall|卸载|deactivat|注销|关机|shutdown|restart|重启",
-    re.IGNORECASE,
-)
+ACTION_BLACKLIST = re.compile(ACTION_BLACKLIST_PATTERN, re.IGNORECASE)
 
 
 @dataclass
@@ -110,7 +83,7 @@ def dump_app_elements(pid: int) -> dict[str, list[dict]]:
     """
     import HIServices
 
-    from app.infrastructure.drivers.macos._workspace import (
+    from app.infrastructure.drivers.macos.workspace import (
         ax_copy_attribute,
         ax_value_point,
         ax_value_size,
@@ -137,7 +110,9 @@ def dump_app_elements(pid: int) -> dict[str, list[dict]]:
                 "role": role,
                 "name": str(name) if name else "",
                 "path": path,
-                "bounds": [pos[0], pos[1], size[0], size[1]] if pos and size else [0, 0, 0, 0],
+                "bounds": [pos[0], pos[1], size[0], size[1]]
+                if pos and size
+                else [0, 0, 0, 0],
                 "actions": actions,
                 "enabled": bool(enabled_raw) if enabled_raw is not None else True,
                 "shortcut": str(shortcut),
@@ -174,7 +149,9 @@ def element_signature(elements: list[dict]) -> frozenset:
 
 
 def signature_state_id(sig: frozenset) -> str:
-    h = compute_hash("|".join(sorted(f"{r}|{n}|{p}" for r, n, p in sig)), algorithm="sha1", length=10)
+    h = compute_hash(
+        "|".join(sorted(f"{r}|{n}|{p}" for r, n, p in sig)), algorithm="sha1", length=10
+    )
     return f"sig_{h}"
 
 
@@ -347,7 +324,7 @@ class AtlasSurveyor:
         dump_fn=dump_app_elements,
         press_fn=activate_at_path,
     ) -> SurveyResult:
-        from app.infrastructure.drivers.macos._workspace import ensure_app_running
+        from app.infrastructure.drivers.macos.workspace import ensure_app_running
 
         policy = policy or SurveyPolicy()
         result = SurveyResult(bundle_id=bundle_id)
@@ -439,7 +416,7 @@ class AtlasSurveyor:
     async def needs_resurvey(self, bundle_id: str, platform: str = "macos") -> bool:
         """True when the live window fingerprint drifts beyond Jaccard 0.8 from
         ALL stored states (i.e. the map no longer matches reality)."""
-        from app.infrastructure.drivers.macos._workspace import running_pid_for_bundle
+        from app.infrastructure.drivers.macos.workspace import running_pid_for_bundle
 
         pid = running_pid_for_bundle(bundle_id)
         if pid is None:
@@ -452,7 +429,9 @@ class AtlasSurveyor:
             state_id = entry.get("id") if isinstance(entry, dict) else entry
             if not state_id or state_id == MENUBAR_STATE_ID:
                 continue
-            detail = await self.store.get_state_detail(bundle_id, state_id, platform=platform)
+            detail = await self.store.get_state_detail(
+                bundle_id, state_id, platform=platform
+            )
             if not detail:
                 continue
             stored = frozenset(
@@ -478,7 +457,9 @@ class AtlasSurveyor:
             state_id = entry.get("id") if isinstance(entry, dict) else entry
             if not state_id or state_id in app.states:
                 continue
-            detail = await self.store.get_state_detail(app.bundle_id, state_id, platform=app.platform)
+            detail = await self.store.get_state_detail(
+                app.bundle_id, state_id, platform=app.platform
+            )
             if not detail:
                 continue
             elements = [AtlasElement.model_validate(e) for e in detail.elements]
@@ -488,7 +469,9 @@ class AtlasSurveyor:
                 elements=elements,
                 is_infrastructure_only=state_id == MENUBAR_STATE_ID,
             )
-        existing_transitions = await self.store.get_transitions_summary(app.bundle_id, platform=app.platform)
+        existing_transitions = await self.store.get_transitions_summary(
+            app.bundle_id, platform=app.platform
+        )
         seen = {(t.from_state, t.action.label, t.to_state) for t in app.transitions}
         for t in existing_transitions:
             key = (t.get("from_state", ""), t.get("label", ""), t.get("to_state", ""))

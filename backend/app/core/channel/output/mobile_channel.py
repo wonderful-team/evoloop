@@ -28,12 +28,16 @@ class MobileChannel(Channel):
     accepts_blocks = True
     accepts_stream_events = False
 
-    async def _send_via_http(self, env_type: str, body: dict[str, Any], target_device_key: str = "") -> bool:
+    async def _send_via_http(
+        self, env_type: str, body: dict[str, Any], target_device_key: str = ""
+    ) -> bool:
         """Send a canonical envelope via HTTP POST /api/v1/message/send."""
         env = create_envelope(type=env_type, body=body, target={"kind": "mobile"})
         payload = {"target_device_key": target_device_key, "envelope": env.model_dump()}
         try:
-            resp = await evocloud_manager.api.request("POST", "/api/v1/message/send", data=payload)
+            resp = await evocloud_manager.api.request(
+                "POST", "/api/v1/message/send", data=payload
+            )
             code = resp.get("code", -1) if isinstance(resp, dict) else -1
             return code == 0
         except (ConnectionError, TimeoutError, OSError, RuntimeError, ValueError) as e:
@@ -71,7 +75,11 @@ class MobileChannel(Channel):
 
         ok = await self._send_via_http(MessageType.MESSAGE_SYNC, sync_body)
         if ok:
-            logger.debug("[MobileChannel] HTTP published: seq=%s, role=%s", block.sequence_number, block.role)
+            logger.debug(
+                "[MobileChannel] HTTP published: seq=%s, role=%s",
+                block.sequence_number,
+                block.role,
+            )
         else:
             logger.warning("[MobileChannel] HTTP send failed, enqueuing Huey task")
             from app.core.engine.message.tasks import mobile_sync_http_task
@@ -101,7 +109,9 @@ class MobileChannel(Channel):
         if ok:
             logger.debug("[MobileChannel] Envelope sent via HTTP: type=%s", env_type)
         else:
-            logger.warning("[MobileChannel] Envelope send FAILED via HTTP: type=%s", env_type)
+            logger.warning(
+                "[MobileChannel] Envelope send FAILED via HTTP: type=%s", env_type
+            )
 
     async def send_hitl_request(
         self,
@@ -135,6 +145,11 @@ class MobileChannel(Channel):
             hitl_body["metadata"] = metadata
         ok = await self._send_via_http(MessageType.HITL_REQUEST, hitl_body)
         if ok:
-            logger.info("[MobileChannel] hitl.request sent via HTTP: req_id=%s", request_id)
+            logger.info(
+                "[MobileChannel] hitl.request sent via HTTP: req_id=%s", request_id
+            )
         else:
-            logger.warning("[MobileChannel] hitl.request send FAILED via HTTP: req_id=%s", request_id)
+            logger.warning(
+                "[MobileChannel] hitl.request send FAILED via HTTP: req_id=%s",
+                request_id,
+            )

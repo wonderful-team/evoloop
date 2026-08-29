@@ -54,7 +54,9 @@ class PromptAssemblyBuilder:
         if not content or not content.strip():
             return self
         self._segments.append(
-            PromptSegment(key=key, content=content.strip(), enabled=enabled, priority=priority)
+            PromptSegment(
+                key=key, content=content.strip(), enabled=enabled, priority=priority
+            )
         )
         return self
 
@@ -75,7 +77,9 @@ class PromptAssemblyBuilder:
             desc = s.get("description", s.get("desc", ""))
             lines.append(f"- **{name}**: {desc}")
         lines.append("")
-        lines.append("Use the `read_skill` tool to load the full instructions for any skill above.")
+        lines.append(
+            "Use the `read_skill` tool to load the full instructions for any skill above."
+        )
         return self.add_section("skills_index", "\n".join(lines), priority=10)
 
     def add_long_term_memory(self, memory_text: str) -> "PromptAssemblyBuilder":
@@ -83,20 +87,6 @@ class PromptAssemblyBuilder:
         if not memory_text or not memory_text.strip():
             return self
         return self.add_section("long_term_memory", memory_text, priority=20)
-
-    def add_tools_schema(self, tools: list, mode: str = "names") -> "PromptAssemblyBuilder":
-        """Inject available tool information."""
-        if not tools:
-            return self
-        if mode == "names":
-            names = [getattr(t, "name", str(t)) for t in tools]
-            content = "## Available Tools\n\n" + "\n".join(f"- `{n}`" for n in names)
-        else:
-            content = "## Available Tools\n\n" + "\n".join(
-                f"- `{getattr(t, 'name', str(t))}`: {getattr(t, 'description', '')}"
-                for t in tools
-            )
-        return self.add_section("tools", content, priority=30)
 
     def disable(self, key: str) -> "PromptAssemblyBuilder":
         """Disable a specific segment by key."""
@@ -125,14 +115,3 @@ class PromptAssemblyBuilder:
             [s.key for s in active],
         )
         return result
-
-    def debug_info(self) -> dict:
-        """Return diagnostic info about the current segment state."""
-        return {
-            "total_segments": len(self._segments),
-            "active_segments": [s.key for s in self._segments if s.enabled],
-            "disabled_segments": [s.key for s in self._segments if not s.enabled],
-            "segment_sizes": {
-                s.key: len(s.content) for s in self._segments if s.enabled
-            },
-        }

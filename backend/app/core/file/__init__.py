@@ -66,11 +66,10 @@ from .filter import (
     is_ignored_path,
 )
 
+from .constants import DEFAULT_PAGE_SIZE, LARGE_FILE_THRESHOLD
+
 # I/O Operations
 from .io import (
-    DEFAULT_PAGE_SIZE,
-    # Constants
-    LARGE_FILE_THRESHOLD,
     append_to_file,
     detect_encoding,
     ensure_dir,

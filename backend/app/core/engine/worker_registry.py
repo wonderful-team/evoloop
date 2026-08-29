@@ -53,20 +53,6 @@ class WorkerRegistry:
                 project_id=thread_context_store.get_active_project(thread_id),
             )
 
-    async def complete_worker(self, thread_id: str, result: str | None = None) -> None:
-        async with self._lock:
-            record = self._records.get(thread_id)
-            if record is not None:
-                record.status = "completed"
-                record.result = result
-
-    async def fail_worker(self, thread_id: str, error: str | None = None) -> None:
-        async with self._lock:
-            record = self._records.get(thread_id)
-            if record is not None:
-                record.status = "failed"
-                record.result = error
-
     async def cancel_worker(self, thread_id: str) -> bool:
         async with self._lock:
             record = self._records.pop(thread_id, None)
@@ -100,10 +86,18 @@ class WorkerRegistry:
             cancelled = 0
             for tid in tids:
                 record = self._records.get(tid)
-                if project_id is not None and record is not None and record.project_id != project_id:
+                if (
+                    project_id is not None
+                    and record is not None
+                    and record.project_id != project_id
+                ):
                     continue
                 record = self._records.pop(tid, None)
-                if record is not None and record.task is not None and not record.task.done():
+                if (
+                    record is not None
+                    and record.task is not None
+                    and not record.task.done()
+                ):
                     record.task.cancel()
                     cancelled += 1
         return cancelled
@@ -114,7 +108,11 @@ class WorkerRegistry:
             if record is None:
                 return None
             # Clean up completed tasks
-            if record.status == "running" and record.task is not None and record.task.done():
+            if (
+                record.status == "running"
+                and record.task is not None
+                and record.task.done()
+            ):
                 record.status = "completed"
             return record
 

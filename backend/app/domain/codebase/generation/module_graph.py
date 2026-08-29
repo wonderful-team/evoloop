@@ -98,7 +98,11 @@ class ModuleGraphService:
         """Run Leiden clustering + LLM naming, cache result."""
         graph = await self._build(project_id)
         _cache[project_id] = (time.time(), graph)
-        logger.info("[ModuleGraph] Refreshed for project %s (%d modules)", project_id, len(graph.modules))
+        logger.info(
+            "[ModuleGraph] Refreshed for project %s (%d modules)",
+            project_id,
+            len(graph.modules),
+        )
         return graph
 
     async def get_modules(self, project_id: int) -> list[Module]:
@@ -157,7 +161,10 @@ class ModuleGraphService:
 
         communities = run_leiden(edges)
         if not communities:
-            logger.info("[ModuleGraph] Leiden returned no communities for project %s", project_id)
+            logger.info(
+                "[ModuleGraph] Leiden returned no communities for project %s",
+                project_id,
+            )
             return self._empty_graph()
 
         named = await self._name_clusters(project_id, communities)
@@ -186,7 +193,9 @@ class ModuleGraphService:
                 adj.add(tuple(sorted([sm, tm])))
 
         modules.sort(key=lambda m: -m.entity_count)
-        return ModuleGraph(modules=modules, entity_to_module=entity_map, adjacency=sorted(adj))
+        return ModuleGraph(
+            modules=modules, entity_to_module=entity_map, adjacency=sorted(adj)
+        )
 
     async def _fetch_edges(self, project_id: int) -> list[tuple[str, str]]:
         """Load ``(source_entity_name, target_entity_name)`` pairs."""
@@ -196,7 +205,11 @@ class ModuleGraphService:
             rows = await session.execute(
                 select(CodeRelation, CodeEntity, CodeEntity)
                 .join(CodeEntity, CodeRelation.source_entity_id == CodeEntity.id)
-                .join(CodeEntity, CodeRelation.target_entity_id == CodeEntity.id, isouter=True)
+                .join(
+                    CodeEntity,
+                    CodeRelation.target_entity_id == CodeEntity.id,
+                    isouter=True,
+                )
                 .join(SourceFile, CodeEntity.file_id == SourceFile.id)
                 .join(Repository, SourceFile.repository_id == Repository.id)
                 .where(Repository.project_id == project_id)
@@ -231,10 +244,14 @@ class ModuleGraphService:
 
         return await name_clusters_with_llm(project_id, communities)
 
-    def _log_gaps(self, communities: dict[int, list[str]], named: dict[str, list[str]]) -> None:
+    def _log_gaps(
+        self, communities: dict[int, list[str]], named: dict[str, list[str]]
+    ) -> None:
         unnamed = len(communities) - len(named)
         if unnamed > 0:
-            logger.info("[ModuleGraph] %d cluster(s) fell back to heuristic names", unnamed)
+            logger.info(
+                "[ModuleGraph] %d cluster(s) fell back to heuristic names", unnamed
+            )
 
 
 # ── singleton ───────────────────────────────────────────────────────

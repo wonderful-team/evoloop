@@ -44,7 +44,9 @@ class SequentialWorkflowNode(BaseAgentNode):
         skill = plan[step_index]
         is_last = step_index == len(plan) - 1
         skill_name = skill.name
-        logger.info(f"[SequentialWorkflow] Step {step_index + 1}/{len(plan)}: {skill_name}")
+        logger.info(
+            f"[SequentialWorkflow] Step {step_index + 1}/{len(plan)}: {skill_name}"
+        )
 
         execution_ticket = state.ticket
         if not execution_ticket:
@@ -121,7 +123,8 @@ class SequentialWorkflowNode(BaseAgentNode):
                     )
                 ],
                 next_node=RoutingTarget.SUPERVISOR,
-                workflow_results=results + [
+                workflow_results=results
+                + [
                     WorkflowStepResult(
                         skill_id=skill.id,
                         skill_name=skill_name,

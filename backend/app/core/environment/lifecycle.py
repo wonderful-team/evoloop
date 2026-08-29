@@ -55,14 +55,43 @@ async def awaken(project_id: int | None = None) -> AwakenedState:
         PreferenceContext,
     )
 
-    defaults = [None, [], NetworkStatus(), [], [], [], MemoryContext(), PreferenceContext()]
-    names = ["host", "android", "network", "docker", "lan", "bluetooth", "memory", "preferences"]
+    defaults = [
+        None,
+        [],
+        NetworkStatus(),
+        [],
+        [],
+        [],
+        MemoryContext(),
+        PreferenceContext(),
+    ]
+    names = [
+        "host",
+        "android",
+        "network",
+        "docker",
+        "lan",
+        "bluetooth",
+        "memory",
+        "preferences",
+    ]
     for i, result in enumerate(results):
         if isinstance(result, BaseException):
-            logger.warning(f"🌅 Awakening: {names[i]} probe failed (degraded): {result}")
+            logger.warning(
+                f"🌅 Awakening: {names[i]} probe failed (degraded): {result}"
+            )
             results[i] = defaults[i]
 
-    host, android_devices, network, docker_containers, lan_devices, bluetooth_devices, memory_context, pref_context = results
+    (
+        host,
+        android_devices,
+        network,
+        docker_containers,
+        lan_devices,
+        bluetooth_devices,
+        memory_context,
+        pref_context,
+    ) = results
 
     boundaries = _compute_capability_boundaries(host, android_devices, network)
     boundary_manager.set_static_boundaries(boundaries)
@@ -112,7 +141,9 @@ async def _refresh_state(project_id: int | None = None) -> AwakenedState:
     names = ["host", "android", "network", "docker"]
     for i, result in enumerate(results):
         if isinstance(result, BaseException):
-            logger.warning(f"[Environment] Refresh: {names[i]} probe failed (degraded): {result}")
+            logger.warning(
+                f"[Environment] Refresh: {names[i]} probe failed (degraded): {result}"
+            )
             results[i] = defaults[i]
 
     host, android_devices, network, docker_containers = results
@@ -176,7 +207,9 @@ async def _refresh_network_state() -> None:
     )
     set_awakened_state(state)
 
-    logger.debug(f"Network state refreshed: {'online' if network.internet_connected else 'offline'}")
+    logger.debug(
+        f"Network state refreshed: {'online' if network.internet_connected else 'offline'}"
+    )
 
 
 def _compute_capability_boundaries(

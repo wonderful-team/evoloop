@@ -119,10 +119,7 @@ class AsyncEventBus(Generic[E]):
             logger.debug(f"[{self._name}] Unsubscribed handler from {type_key}")
 
     async def publish(
-        self,
-        event: E,
-        sequential: bool = False,
-        propagate_errors: bool = False
+        self, event: E, sequential: bool = False, propagate_errors: bool = False
     ) -> None:
         """
         Publish an event to all subscribed handlers.
@@ -134,7 +131,11 @@ class AsyncEventBus(Generic[E]):
             propagate_errors: If True, any handler exception will stop execution
                              and be raised to the caller.
         """
-        type_key = event.event_type.value if isinstance(event.event_type, Enum) else event.event_type
+        type_key = (
+            event.event_type.value
+            if isinstance(event.event_type, Enum)
+            else event.event_type
+        )
 
         handlers = self._handlers.get(type_key, []) + self._global_handlers
         if not handlers:
@@ -144,8 +145,12 @@ class AsyncEventBus(Generic[E]):
             try:
                 await handler(event)
             except Exception as e:
-                handler_name = handler.__name__ if hasattr(handler, "__name__") else str(handler)
-                logger.exception(f"[{self._name}] Handler '{handler_name}' failed for event {type_key}: {e}")
+                handler_name = (
+                    handler.__name__ if hasattr(handler, "__name__") else str(handler)
+                )
+                logger.exception(
+                    f"[{self._name}] Handler '{handler_name}' failed for event {type_key}: {e}"
+                )
                 if propagate_errors:
                     raise e
 
@@ -160,11 +165,6 @@ class AsyncEventBus(Generic[E]):
             # Execute concurrently
             await asyncio.gather(*[safe_handle(h) for h in handlers])
 
-    def handler_count(self, event_type: str | Enum) -> int:
-        """Get the number of handlers for an event type."""
-        type_key = event_type.value if isinstance(event_type, Enum) else event_type
-        return len(self._handlers.get(type_key, []))
-
     def clear(self) -> None:
         """Clear all handlers (for testing)."""
         self._handlers.clear()
@@ -174,9 +174,6 @@ class AsyncEventBus(Generic[E]):
     @property
     def is_initialized(self) -> bool:
         return self._initialized
-
-    def mark_initialized(self) -> None:
-        self._initialized = True
 
 
 # ============================================================

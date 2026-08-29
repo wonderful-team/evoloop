@@ -40,20 +40,24 @@ class ContextPluginRegistry:
     """
 
     # Fields that are populated by plugins and must be reset/restored atomically.
-    _CTX_FIELDS = frozenset({
-        "environment_block",
-        "environment_summaries",
-        "active_boundaries",
-        "memory_replay",
-        "spatial_awareness",
-        "wiki_index",
-    })
-    _META_FIELDS = frozenset({
-        "has_android",
-        "has_macos",
-        "user_preferences",
-        "active_plan_context",
-    })
+    _CTX_FIELDS = frozenset(
+        {
+            "environment_block",
+            "environment_summaries",
+            "active_boundaries",
+            "memory_replay",
+            "spatial_awareness",
+            "wiki_index",
+        }
+    )
+    _META_FIELDS = frozenset(
+        {
+            "has_android",
+            "has_macos",
+            "user_preferences",
+            "active_plan_context",
+        }
+    )
 
     def __init__(self):
         self._plugins: list[ContextPlugin] = []
@@ -167,7 +171,9 @@ class ContextPluginRegistry:
             try:
                 plugin.hydrate(ctx)
             except Exception:
-                logger.exception("Error executing ContextPlugin %s", plugin.__class__.__name__)
+                logger.exception(
+                    "Error executing ContextPlugin %s", plugin.__class__.__name__
+                )
 
         # Cache the full snapshot of plugin-written fields.
         self._hydration_cache[cache_key] = (
@@ -177,10 +183,14 @@ class ContextPluginRegistry:
 
         # Cleanup old cache entries (simple LRU)
         if len(self._hydration_cache) > 100:
-            oldest_key = min(self._hydration_cache.keys(), key=lambda k: self._hydration_cache[k][1])
+            oldest_key = min(
+                self._hydration_cache.keys(), key=lambda k: self._hydration_cache[k][1]
+            )
             del self._hydration_cache[oldest_key]
 
-    async def ahydrate_context(self, ctx: EvoContext, intent: str | None = None) -> None:
+    async def ahydrate_context(
+        self, ctx: EvoContext, intent: str | None = None
+    ) -> None:
         """
         Async wrapper that runs the synchronous plugin chain in a worker thread.
 
@@ -212,8 +222,3 @@ def set_workspace_provider(provider: WorkspaceProvider):
     """Register the global WorkspaceProvider."""
     global _workspace_provider
     _workspace_provider = provider
-
-
-def get_workspace_provider() -> WorkspaceProvider | None:
-    """Retrieve the global WorkspaceProvider."""
-    return _workspace_provider

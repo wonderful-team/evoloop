@@ -60,7 +60,10 @@ def _extract_final_summary(messages: list) -> str:
         if role in ("assistant", "ai"):
             content = get_message_text(msg)
             if content:
-                if "<evoloop_session_audit>" in content and "<evoloop_final_report>" in content:
+                if (
+                    "<evoloop_session_audit>" in content
+                    and "<evoloop_final_report>" in content
+                ):
                     match = re.search(
                         r"<evoloop_final_report>(.*?)</evoloop_final_report>",
                         content,
@@ -91,7 +94,8 @@ def _build_audit_input(state: AgentState) -> dict:
             "completed": plan_progress.completed_steps if plan_progress else 0,
             "remaining": (
                 plan_progress.total_steps - plan_progress.completed_steps
-                if plan_progress else 0
+                if plan_progress
+                else 0
             ),
         },
         "progress": {
@@ -132,7 +136,9 @@ class AuditService:
 
         current_plan = state.current_plan or ""
         execution_ticket = state.ticket
-        verification_status = state.verification or VerificationStatus(status="unverified")
+        verification_status = state.verification or VerificationStatus(
+            status="unverified"
+        )
         action_context = _extract_tool_usage(messages)
 
         # 监察按需触发（worker-delegation-design.md Phase C.5）：仅当委托时
@@ -149,7 +155,9 @@ class AuditService:
         project_id = (
             ctx.project_id
             if ctx.project_id is not None
-            else (state.project_id if state.project_id is not None else DEFAULT_PROJECT_ID)
+            else (
+                state.project_id if state.project_id is not None else DEFAULT_PROJECT_ID
+            )
         )
 
         telemetry = get_telemetry_dict()
@@ -173,7 +181,9 @@ class AuditService:
         has_structured_input = bool(state.audit_input_data)
         if has_structured_input and audit_ticket:
             audit_input_json = json.dumps(audit_input, indent=2, ensure_ascii=False)
-            audit_ticket = f"{audit_ticket}\n\n---\n📊 Structured Audit Input:\n{audit_input_json}"
+            audit_ticket = (
+                f"{audit_ticket}\n\n---\n📊 Structured Audit Input:\n{audit_input_json}"
+            )
 
         from app.core.tools.manager import tool_manager
 
@@ -182,7 +192,9 @@ class AuditService:
         logger.info("[AuditService] 🕵️ Starting engine-driven audit")
 
         if audit_ticket:
-            messages = [HumanMessage(content=audit_ticket, name="audit_ticket")] + messages
+            messages = [
+                HumanMessage(content=audit_ticket, name="audit_ticket")
+            ] + messages
 
         model = config.get("configurable", {}).get("model")
 
@@ -193,10 +205,7 @@ class AuditService:
         trimmer = ContextTrimmer()
         # model parameter isn't strict here since we just want the semantic compaction, we use the active model
         extraction_trim_result = trimmer.trim(
-            messages=messages,
-            model=model,
-            node_source="finish",
-            stages={"window"}
+            messages=messages, model=model, node_source="finish", stages={"window"}
         )
         extraction_messages = extraction_trim_result.messages
 
@@ -211,8 +220,14 @@ class AuditService:
                     found_parent = False
                     for p_idx in range(tail_start - 1, 2, -1):
                         p_msg = audit_messages[p_idx]
-                        if _role(p_msg) == "assistant" and getattr(p_msg, "tool_calls", None):
-                            ids = [tc.get("id") for tc in p_msg.tool_calls if isinstance(tc, dict)]
+                        if _role(p_msg) == "assistant" and getattr(
+                            p_msg, "tool_calls", None
+                        ):
+                            ids = [
+                                tc.get("id")
+                                for tc in p_msg.tool_calls
+                                if isinstance(tc, dict)
+                            ]
                             if tcid in ids:
                                 tail_start = p_idx
                                 found_parent = True
@@ -222,7 +237,9 @@ class AuditService:
                 else:
                     break
             preserved = audit_messages[:3] + audit_messages[tail_start:]
-            logger.info(f"[AuditService] 📉 Truncated audit context (smart slicing): {len(audit_messages)} → {len(preserved)} msgs (tail_start={tail_start})")
+            logger.info(
+                f"[AuditService] 📉 Truncated audit context (smart slicing): {len(audit_messages)} → {len(preserved)} msgs (tail_start={tail_start})"
+            )
             audit_messages = preserved
 
         # Sanitize config: remove callbacks that leak audit to DB/SSE, and prevent
@@ -232,8 +249,10 @@ class AuditService:
             callbacks = clean_config["callbacks"]
             if isinstance(callbacks, list):
                 clean_config["callbacks"] = [
-                    cb for cb in callbacks
-                    if cb.__class__.__name__ not in ("DatabaseCallbackHandler", "TransparentCallbackHandler")
+                    cb
+                    for cb in callbacks
+                    if cb.__class__.__name__
+                    not in ("DatabaseCallbackHandler", "TransparentCallbackHandler")
                 ]
         clean_metadata = dict(clean_config.get("metadata", {}) or {})
         clean_metadata["skip_message_persistence"] = True
@@ -333,14 +352,18 @@ class AuditService:
 
         thread_id = state.thread_id or config.get("configurable", {}).get("thread_id")
         if not thread_id:
-            logger.warning("[AuditService] No thread_id available, skipping background extraction.")
+            logger.warning(
+                "[AuditService] No thread_id available, skipping background extraction."
+            )
             return
 
         req_event = ExtractionRequestedEvent(thread_id=thread_id)
         await system_bus.publish(req_event, sequential=True)
 
         if not req_event.requests:
-            logger.info("[AuditService] No extraction schemas requested, skipping background extraction.")
+            logger.info(
+                "[AuditService] No extraction schemas requested, skipping background extraction."
+            )
             return
 
         logger.info(

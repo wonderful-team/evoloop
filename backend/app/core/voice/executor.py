@@ -66,7 +66,9 @@ async def push_macro_result(thread_id: str, status: str, summary: str) -> None:
     await VoiceChannel.push_macro_result(thread_id, status, summary)
 
 
-async def handle_navigate(route: str, thread_id: str, feedback: str | None = None) -> None:
+async def handle_navigate(
+    route: str, thread_id: str, feedback: str | None = None
+) -> None:
     """Send a frontend navigation command via voice WS."""
     from app.core.channel.output.voice_channel import VoiceChannel
 

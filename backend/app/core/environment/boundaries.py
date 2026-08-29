@@ -7,24 +7,13 @@ Boundaries are injected into prompts to prevent repeated failures.
 
 import logging
 from datetime import datetime, timedelta
-from enum import Enum
 
 from pydantic import Field
 
+from app.core.environment.constants import BoundaryCategory
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
-
-
-class BoundaryCategory(str, Enum):
-    """Categories of capability boundaries"""
-
-    NETWORK = "network"
-    PERMISSION = "permission"
-    DEVICE = "device"
-    TOOL = "tool"
-    RESOURCE = "resource"
-    UNKNOWN = "unknown"
 
 
 class DynamicBoundary(DynamicBaseModel):
@@ -83,10 +72,7 @@ class AdaptiveBoundaryManager:
         self._static_boundaries = list(boundaries)
 
     async def on_tool_failure(
-        self,
-        tool_name: str,
-        error: Exception,
-        context: dict | None = None
+        self, tool_name: str, error: Exception, context: dict | None = None
     ) -> DynamicBoundary | None:
         """
         Process a tool failure and potentially create a new boundary.
@@ -116,7 +102,9 @@ class AdaptiveBoundaryManager:
             existing = self._boundaries[boundary_key]
             if not existing.is_expired:
                 existing.extend_ttl(hours=2)  # Extend on repeated failure
-                logger.info(f"🔄 Extended boundary TTL: {boundary_key} (count: {existing.occurrence_count})")
+                logger.info(
+                    f"🔄 Extended boundary TTL: {boundary_key} (count: {existing.occurrence_count})"
+                )
                 return existing
 
         # 4. Create new boundary
@@ -142,7 +130,9 @@ class AdaptiveBoundaryManager:
 
         return boundary
 
-    def _attribute_failure(self, error_str: str, tool_name: str) -> tuple[BoundaryCategory, str]:
+    def _attribute_failure(
+        self, error_str: str, tool_name: str
+    ) -> tuple[BoundaryCategory, str]:
         """
         Analyze error message to determine failure category and mitigation.
 
@@ -150,7 +140,16 @@ class AdaptiveBoundaryManager:
             Tuple of (category, mitigation_description)
         """
         # Network issues
-        if any(kw in error_str for kw in ["timeout", "connection refused", "network", "unreachable", "timed out"]):
+        if any(
+            kw in error_str
+            for kw in [
+                "timeout",
+                "connection refused",
+                "network",
+                "unreachable",
+                "timed out",
+            ]
+        ):
             return (
                 BoundaryCategory.NETWORK,
                 f"Tool '{tool_name}' may timeout under poor network conditions. Check connectivity first.",
@@ -248,7 +247,9 @@ class AdaptiveBoundaryManager:
             "static_count": len(self._static_boundaries),
             "dynamic_count": len(self._boundaries),
             "categories": {
-                cat.value: len([b for b in self._boundaries.values() if b.category == cat])
+                cat.value: len(
+                    [b for b in self._boundaries.values() if b.category == cat]
+                )
                 for cat in BoundaryCategory
                 if any(b.category == cat for b in self._boundaries.values())
             },

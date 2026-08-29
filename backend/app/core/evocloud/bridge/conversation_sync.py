@@ -7,12 +7,9 @@ from datetime import datetime
 
 from sqlalchemy import select
 
-from app.constants import DEFAULT_PROJECT_ID
-from app.core.evocloud.schemas import SyncConversation, SyncMessage
 from app.infrastructure.database import session_scope
 from app.models import Conversation as ConversationModel
 from app.models import Message as MessageModel
-from app.utils.time import ts_from_dt
 
 logger = logging.getLogger(__name__)
 
@@ -162,13 +159,6 @@ class ConversationSyncManager:
 
     # ==================== 公共 API ====================
 
-    async def full_sync(self):
-        """
-        手动触发全量同步（公共API）
-        注意：实际执行在 Huey Worker 中，不阻塞调用者
-        """
-        await self._schedule_full_sync()
-
     async def incremental_sync(self):
         """
         手动触发增量同步（公共API）
@@ -177,45 +167,6 @@ class ConversationSyncManager:
         await self._schedule_incremental_sync()
 
     # ==================== 数据格式化 ====================
-
-    def _format_conversation(self, conv: ConversationModel) -> SyncConversation:
-        """格式化会话数据"""
-        return SyncConversation(
-            id=str(conv.id),
-            project_id=conv.project_id if conv.project_id is not None else DEFAULT_PROJECT_ID,
-            title=conv.title or "新会话",
-            created_at=ts_from_dt(conv.created_at, default=int(datetime.now().timestamp())),
-            updated_at=ts_from_dt(conv.updated_at, default=int(datetime.now().timestamp())),
-            is_pinned=bool(conv.is_pinned),
-        )
-
-    def _format_message(self, msg: MessageModel) -> SyncMessage | None:
-        """格式化会话数据。Mobile 来源的 human 消息已由 Gateway 直接同步到 MC，
-        Desktop Agent 侧不再重复同步，避免双写。"""
-        if msg.role == "human" and msg.source == "mobile":
-            return None
-        return SyncMessage(
-            id=msg.id,
-            thread_id=msg.thread_id,
-            project_id=msg.project_id if msg.project_id is not None else DEFAULT_PROJECT_ID,
-            role=msg.role,
-            content=msg.content,
-            thinking=msg.thinking,
-            created_at=ts_from_dt(msg.created_at, default=int(datetime.now().timestamp())),
-            sequence_number=msg.sequence_number or 0,
-            checkpoint_id=msg.checkpoint_id or "",
-            tool_calls=msg.tool_calls if msg.tool_calls else None,
-            action_type=msg.action_type or "text",
-            is_visible=1 if msg.is_visible else 0,
-            run_id=msg.run_id or "",
-            status=msg.status or "completed",
-            parent_id=msg.parent_id or 0,
-            category=msg.category or "",
-            tool_call_id=msg.tool_call_id or "",
-            tool_name=msg.tool_name or "",
-            meta_data=msg.meta_data,
-            content_type=msg.content_type or "text",
-        )
 
 
 # 全局同步管理器实例

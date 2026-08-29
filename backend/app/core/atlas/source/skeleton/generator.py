@@ -19,41 +19,104 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.atlas.constants import (
+    CATEGORY_LAYER,
+    SKIP_TOP_DIRS,
+)
 from app.models.codebase import SourceFile
 
 logger = logging.getLogger(__name__)
 
-SKIP_TOP_DIRS = {
-    "vendor",
-    "node_modules",
-    ".git",
-    ".github",
-    ".evoloop",
-    "dist",
-    "build",
-    "out",
-    "coverage",
-    "htmlcov",
-    "tmp",
-    "temp",
-    "logs",
-    "cache",
-    "uploads",
-    "static",
-    "public",
-}
-
 CATEGORY_PATH_KEYWORDS: dict[str, list[str]] = {
     "controller": ["controller", "controllers", "endpoint", "endpoints"],
-    "model": ["model", "models", "entity", "entities", "bean", "beans", "domain", "po", "dto", "vo", "bo"],
-    "service": ["service", "services", "business", "usecase", "use_case", "use-case", "application", "applications"],
-    "repository": ["repository", "repositories", "dao", "mapper", "mappers", "data_access"],
-    "view": ["view", "views", "template", "templates", "component", "components", "page", "pages", "ui", "widget", "widgets"],
-    "config": ["config", "configs", "configuration", "settings", "constant", "constants", "env"],
+    "model": [
+        "model",
+        "models",
+        "entity",
+        "entities",
+        "bean",
+        "beans",
+        "domain",
+        "po",
+        "dto",
+        "vo",
+        "bo",
+    ],
+    "service": [
+        "service",
+        "services",
+        "business",
+        "usecase",
+        "use_case",
+        "use-case",
+        "application",
+        "applications",
+    ],
+    "repository": [
+        "repository",
+        "repositories",
+        "dao",
+        "mapper",
+        "mappers",
+        "data_access",
+    ],
+    "view": [
+        "view",
+        "views",
+        "template",
+        "templates",
+        "component",
+        "components",
+        "page",
+        "pages",
+        "ui",
+        "widget",
+        "widgets",
+    ],
+    "config": [
+        "config",
+        "configs",
+        "configuration",
+        "settings",
+        "constant",
+        "constants",
+        "env",
+    ],
     "route": ["route", "routes", "router", "routers", "url", "urls"],
-    "middleware": ["middleware", "middlewares", "filter", "filters", "interceptor", "interceptors", "guard", "guards"],
-    "test": ["test", "tests", "spec", "specs", "__tests__", "e2e", "fixture", "fixtures"],
-    "library": ["lib", "libs", "utils", "util", "common", "helpers", "helper", "shared", "tools", "tool", "extend", "extends"],
+    "middleware": [
+        "middleware",
+        "middlewares",
+        "filter",
+        "filters",
+        "interceptor",
+        "interceptors",
+        "guard",
+        "guards",
+    ],
+    "test": [
+        "test",
+        "tests",
+        "spec",
+        "specs",
+        "__tests__",
+        "e2e",
+        "fixture",
+        "fixtures",
+    ],
+    "library": [
+        "lib",
+        "libs",
+        "utils",
+        "util",
+        "common",
+        "helpers",
+        "helper",
+        "shared",
+        "tools",
+        "tool",
+        "extend",
+        "extends",
+    ],
     "schema": ["migration", "migrations", "schema", "ddl", "sql"],
     "asset": ["assets", "images", "img", "css", "js", "fonts", "media"],
     "third_party": ["vendor", "third_party", "thirdparty", "deps", "externals"],
@@ -64,30 +127,35 @@ CATEGORY_FILE_SUFFIXES: dict[str, list[str]] = {
     "model": ["model", "models", "entity", "entities", "bean", "beans"],
     "service": ["service", "services", "usecase", "use_case", "usecase"],
     "repository": ["repository", "repositories", "dao", "mapper", "mappers"],
-    "view": ["view", "views", "template", "templates", "component", "components", "page", "pages"],
-    "config": ["config", "configs", "configuration", "settings", "constant", "constants"],
+    "view": [
+        "view",
+        "views",
+        "template",
+        "templates",
+        "component",
+        "components",
+        "page",
+        "pages",
+    ],
+    "config": [
+        "config",
+        "configs",
+        "configuration",
+        "settings",
+        "constant",
+        "constants",
+    ],
     "route": ["route", "routes", "router", "routers"],
-    "middleware": ["middleware", "middlewares", "filter", "filters", "interceptor", "interceptors"],
+    "middleware": [
+        "middleware",
+        "middlewares",
+        "filter",
+        "filters",
+        "interceptor",
+        "interceptors",
+    ],
     "test": ["test", "tests", "spec", "specs"],
     "entry_point": ["main", "index", "app", "server", "application", "bootstrap"],
-}
-
-CATEGORY_LAYER = {
-    "controller": ("entry_point", "ui"),
-    "route": ("entry_point", "ui"),
-    "entry_point": ("entry_point", "ui"),
-    "model": ("data", "data"),
-    "repository": ("data", "data"),
-    "service": ("business_logic", "business"),
-    "view": ("presentation", "ui"),
-    "config": ("infrastructure", "system"),
-    "middleware": ("infrastructure", "system"),
-    "library": ("shared", "business"),
-    "schema": ("data", "data"),
-    "test": ("test", "system"),
-    "asset": ("asset", "ui"),
-    "third_party": ("third_party", "system"),
-    "unknown": ("unknown", "system"),
 }
 
 _ENTITY_SUFFIXES = [
@@ -121,23 +189,6 @@ _ENTITY_SUFFIXES = [
     "base",
     "abstract",
 ]
-
-SKIP_APPMAP_DETAIL_CATEGORIES = {
-    "service",
-    "repository",
-    "library",
-    "config",
-    "middleware",
-    "test",
-    "asset",
-    "third_party",
-    "schema",
-    "unknown",
-}
-
-APPMAP_ACTION_CATEGORIES = {
-    "controller",
-}
 
 # File extensions to exclude from controller classification
 _FRONTEND_EXTS = {".vue", ".js", ".ts", ".jsx", ".tsx"}

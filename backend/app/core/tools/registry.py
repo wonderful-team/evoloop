@@ -16,13 +16,11 @@ from functools import lru_cache
 from pathlib import Path
 
 from app.core.tools.base import EvoLoopTool as BaseTool
+from app.core.tools.constants import DEFAULT_CONFIG_PATH
 from app.core.tools.schemas import EvoLoopToolConfig
 from app.utils.yaml import load_yaml_file
 
 logger = logging.getLogger(__name__)
-
-# Default YAML config path
-DEFAULT_CONFIG_PATH = Path(__file__).parent.parent / "engine" / "config" / "agent_main.yaml"
 
 
 class AutoDiscoveryRegistry:
@@ -67,13 +65,18 @@ class AutoDiscoveryRegistry:
 
         # Walk through all modules in the package
         if hasattr(package, "__path__"):
-            for _, name, _ispkg in pkgutil.walk_packages(package.__path__, package.__name__ + "."):
+            for _, name, _ispkg in pkgutil.walk_packages(
+                package.__path__, package.__name__ + "."
+            ):
                 try:
                     module = importlib.import_module(name)
                     self._register_tools_from_module(module)
                 except (ImportError, TypeError, ValueError, RuntimeError) as e:
                     # WARNING level so failures are visible in production
-                    logger.warning(f"[Registry] Skipping module {name} during scan: {e}", exc_info=True)
+                    logger.warning(
+                        f"[Registry] Skipping module {name} during scan: {e}",
+                        exc_info=True,
+                    )
         else:
             # It's a single module
             self._register_tools_from_module(package)
@@ -87,14 +90,23 @@ class AutoDiscoveryRegistry:
         for name, obj in inspect.getmembers(module):
             if isinstance(obj, BaseTool):
                 try:
-                    wrapped_func = getattr(obj, "func", None) or getattr(obj, "coroutine", None)
-                    if wrapped_func and getattr(wrapped_func, "is_evoloop_active", False):
+                    wrapped_func = getattr(obj, "func", None) or getattr(
+                        obj, "coroutine", None
+                    )
+                    if wrapped_func and getattr(
+                        wrapped_func, "is_evoloop_active", False
+                    ):
                         if obj.name not in self._tools:
                             self._tools[obj.name] = obj
                             new_tools.append(obj.name)
-                            logger.debug(f"Registered tool: {obj.name} from {module.__name__}")
+                            logger.debug(
+                                f"Registered tool: {obj.name} from {module.__name__}"
+                            )
                 except (TypeError, ValueError, AttributeError, RuntimeError) as e:
-                    logger.warning(f"Failed to inspect tool {name} in {module.__name__}: {e}", exc_info=True)
+                    logger.warning(
+                        f"Failed to inspect tool {name} in {module.__name__}: {e}",
+                        exc_info=True,
+                    )
         if new_tools:
             _invalidate_caches()
 
@@ -125,7 +137,9 @@ def _validate_critical_tools():
     tool_map = REGISTRY.get_tool_map()
     missing = [t for t in _CRITICAL_TOOLS if t not in tool_map]
     if missing:
-        logger.error(f"[Registry] Critical tools missing after scan: {missing}. Retrying engine.tools scan.")
+        logger.error(
+            f"[Registry] Critical tools missing after scan: {missing}. Retrying engine.tools scan."
+        )
         REGISTRY._scanned_packages.discard("app.core.engine.tools")
         REGISTRY.scan("app.core.engine.tools")
 
@@ -204,7 +218,9 @@ def get_all_tools() -> list[BaseTool]:
     return list(get_tool_map().values())
 
 
-def get_tools_by_names(tool_names: list[str], source_role: str | None = None) -> list[BaseTool]:
+def get_tools_by_names(
+    tool_names: list[str], source_role: str | None = None
+) -> list[BaseTool]:
     """
     Hydrate a list of tool names into actual BaseTool objects.
     Uses AutoDiscoveryRegistry as lookup source. MCP tools are managed by ToolManager.
@@ -289,7 +305,9 @@ def get_node_tools(node_role: str, config_path: str | None = None) -> list[BaseT
             break
 
     if not tool_names:
-        logger.warning(f"[ToolRBAC] No tools declared for node '{node_role}' in YAML config.")
+        logger.warning(
+            f"[ToolRBAC] No tools declared for node '{node_role}' in YAML config."
+        )
         _report_missing_tools(node_role, [f"<no config for node '{node_role}'>"])
         return []
 

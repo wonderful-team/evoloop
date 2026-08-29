@@ -2,6 +2,8 @@ import logging
 
 from app.core.learning.macro.schemas import MacroSource, MacroStepType
 
+import app.core.learning.constants as _mc
+
 logger = logging.getLogger(__name__)
 
 
@@ -22,11 +24,15 @@ class ControlMixin:
             params = {}
         condition = step.condition
         cond_type = condition.type if condition else None
-        selector = cls._inject_params(condition.target_selector, params) if condition else None
+        selector = (
+            cls._inject_params(condition.target_selector, params) if condition else None
+        )
 
         if step.type in (MacroStepType.CONTROL, MacroStepType.IF):
             if not condition:
-                logger.warning(f"[{thread_id}] IF/CONTROL step {step.step_number} missing condition. Skipping.")
+                logger.warning(
+                    f"[{thread_id}] IF/CONTROL step {step.step_number} missing condition. Skipping."
+                )
                 return True, "", None
             is_true = await cls._evaluate_condition(cond_type, selector, step.source)
             branch = step.then_steps if is_true else step.else_steps
@@ -85,7 +91,9 @@ class ControlMixin:
 
             while iterations < max_iters:
                 if cond_type is not None:
-                    is_true = await cls._evaluate_condition(cond_type, selector, step.source)
+                    is_true = await cls._evaluate_condition(
+                        cond_type, selector, step.source
+                    )
                     if not is_true:
                         break
 
@@ -118,10 +126,16 @@ class ControlMixin:
                 if execution_warnings is not None:
                     execution_warnings.append(
                         f"loop step {step.step_number} 迭代 0 次"
-                        + (f"（条件 {cond_type}: {selector} 未命中）" if cond_type else "")
+                        + (
+                            f"（条件 {cond_type}: {selector} 未命中）"
+                            if cond_type
+                            else ""
+                        )
                     )
             elif iterations >= max_iters:
-                logger.warning(f"[{thread_id}] While loop reached max iterations ({max_iters})")
+                logger.warning(
+                    f"[{thread_id}] While loop reached max iterations ({max_iters})"
+                )
 
         return True, "", None
 
@@ -133,42 +147,46 @@ class ControlMixin:
 
         if cond_type == "element_exists":
             if source == MacroSource.DOM:
-                res = await BrowserController.execute(action="check_element", selector=selector)
+                res = await BrowserController.execute(
+                    action="check_element", selector=selector
+                )
                 return "Found" in str(res)
             elif source in (MacroSource.MOBILE, MacroSource.GLOBAL):
-                res = await MobileController.execute(action="dump_ui")
+                res = await MobileController.execute(action=_mc.DUMP_UI)
                 return selector in str(res)
             elif source == MacroSource.DESKTOP:
                 res = await DesktopController.execute(
-                    action="applescript",
+                    action=_mc.APPLESCRIPT,
                     script=f'tell application "System Events" to exists (first UI element whose name contains "{selector}")',
                 )
                 return "true" in str(res).lower()
 
         elif cond_type == "element_visible":
             if source == MacroSource.DOM:
-                res = await BrowserController.execute(action="check_element", selector=selector)
+                res = await BrowserController.execute(
+                    action="check_element", selector=selector
+                )
                 return "visible=True" in str(res)
             elif source in (MacroSource.MOBILE, MacroSource.GLOBAL):
-                res = await MobileController.execute(action="dump_ui")
+                res = await MobileController.execute(action=_mc.DUMP_UI)
                 return selector in str(res)
             elif source == MacroSource.DESKTOP:
                 res = await DesktopController.execute(
-                    action="applescript",
+                    action=_mc.APPLESCRIPT,
                     script=f'tell application "System Events" to get visible of (first UI element whose name contains "{selector}")',
                 )
                 return "true" in str(res).lower()
 
         elif cond_type == "text_contains":
             if source == MacroSource.DOM:
-                res = await BrowserController.execute(action="get_text")
+                res = await BrowserController.execute(action=_mc.GET_TEXT)
                 return selector in str(res) if res else False
             elif source in (MacroSource.MOBILE, MacroSource.GLOBAL):
-                res = await MobileController.execute(action="dump_ui")
+                res = await MobileController.execute(action=_mc.DUMP_UI)
                 return selector in str(res)
             elif source == MacroSource.DESKTOP:
                 res = await DesktopController.execute(
-                    action="applescript",
+                    action=_mc.APPLESCRIPT,
                     script=f'tell application "System Events" to get name of every UI element whose name contains "{selector}"',
                 )
                 return len(str(res)) > 5

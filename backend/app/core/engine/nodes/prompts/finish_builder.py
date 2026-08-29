@@ -44,12 +44,16 @@ class FinishPromptBuilder(BasePromptBuilder):
 
             ctx = ContextManager.current()
             mode = self.get_displayed_execution_mode()
-            project_profile = self.read_project_profile(ctx.working_directory, "[FinishPrompt]")
+            project_profile = self.read_project_profile(
+                ctx.working_directory, "[FinishPrompt]"
+            )
 
             sys_info = {
                 "project_concepts": ctx.metadata.get("project_concepts", ""),
                 "project_profile": project_profile,
-                "cwd": self.get_mapped_cwd(ctx.working_directory or ctx.metadata.get("cwd", "")),
+                "cwd": self.get_mapped_cwd(
+                    ctx.working_directory or ctx.metadata.get("cwd", "")
+                ),
             }
 
             is_voice = ctx.metadata.get("source") == "voice"
@@ -93,7 +97,9 @@ class FinishPromptBuilder(BasePromptBuilder):
             "telemetry": self.telemetry,
             "is_duty": self._is_duty_context(),
         }
-        return render_template("core/engine/fragments/finish_audit_ticket.j2", **template_vars)
+        return render_template(
+            "core/engine/fragments/finish_audit_ticket.j2", **template_vars
+        )
 
     @staticmethod
     def _is_duty_context() -> bool:

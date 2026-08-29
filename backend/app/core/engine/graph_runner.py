@@ -45,8 +45,14 @@ async def resume_graph_background(
     await _restore_resume_context(thread_id, state, config)
 
     raw_project_id = config.get("metadata", {}).get("project_id") if config else None
-    project_id = int(raw_project_id) if raw_project_id is not None else DEFAULT_PROJECT_ID
-    run_id = config.get("configurable", {}).get("run_id", f"resume-{thread_id}") if config else f"resume-{thread_id}"
+    project_id = (
+        int(raw_project_id) if raw_project_id is not None else DEFAULT_PROJECT_ID
+    )
+    run_id = (
+        config.get("configurable", {}).get("run_id", f"resume-{thread_id}")
+        if config
+        else f"resume-{thread_id}"
+    )
 
     # 统一复用 runner_base.build_callbacks（与 session/单发路径一致）
     from app.core.engine.runner_base import build_callbacks
@@ -57,7 +63,9 @@ async def resume_graph_background(
         if clear_human_request_flag:
             await activity_monitor.clear_human_request(thread_id)
 
-        await activity_monitor.start_run(thread_id, run_label, run_id=run_id, project_id=project_id)
+        await activity_monitor.start_run(
+            thread_id, run_label, run_id=run_id, project_id=project_id
+        )
 
         resume_config = {**config, "callbacks": callbacks}
 
@@ -78,7 +86,9 @@ async def resume_graph_background(
         await activity_monitor.end_run(thread_id, "failed", run_id=run_id)
 
 
-async def _restore_resume_context(thread_id: str, state: AgentState, config: dict) -> None:
+async def _restore_resume_context(
+    thread_id: str, state: AgentState, config: dict
+) -> None:
     """Restore context (skills, telemetry, memory) for a resumed agent session.
 
     During resume the AgentState is created fresh from the resume ToolMessage

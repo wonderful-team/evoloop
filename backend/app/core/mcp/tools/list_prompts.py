@@ -43,7 +43,9 @@ async def list_mcp_prompts(server_name: str) -> str:
         output = mcp_client_manager.get_prompts_formatted(server_name)
 
         if not output or output == "*No prompts available on this server.*":
-            return f"MCP server '{server_name}' is connected but has no prompts available."
+            return (
+                f"MCP server '{server_name}' is connected but has no prompts available."
+            )
 
         return output
 

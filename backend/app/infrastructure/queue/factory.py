@@ -68,13 +68,6 @@ def get_scheduler() -> TaskScheduler:
     return _scheduler
 
 
-def reset_scheduler():
-    """Reset global scheduler (for testing)."""
-    global _scheduler
-    _scheduler = None
-    logger.debug("[QueueFactory] Scheduler reset")
-
-
 # Convenience function for task registration
 def shared_task(
     func=None,

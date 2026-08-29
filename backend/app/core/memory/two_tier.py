@@ -53,6 +53,7 @@ from typing import Any
 from pydantic import Field
 
 from app.core.config import settings
+from app.core.memory.constants import MAX_TOTAL_BYTES, MAX_TOTAL_LINES
 from app.core.memory.models import (
     MemoryEntry,
     MemorySearchResult,
@@ -110,10 +111,6 @@ class TwoTierMemoryManager:
         "progress": 30,
         "context": 15,
     }
-
-    # Maximum total size
-    MAX_TOTAL_LINES = 200
-    MAX_TOTAL_BYTES = 25 * 1024  # 25KB
 
     # Section definitions
     SECTIONS = {
@@ -345,7 +342,12 @@ class TwoTierMemoryManager:
             utility_score = entry.utility_score
 
             # Combined score: utility and strategic tier are the primary drivers
-            score = (entry.utility_score or confidence) * (1 + access_count * 0.1) * freshness * tier_multiplier
+            score = (
+                (entry.utility_score or confidence)
+                * (1 + access_count * 0.1)
+                * freshness
+                * tier_multiplier
+            )
             scored.append((entry, score))
 
         # Sort by score descending
@@ -360,10 +362,10 @@ class TwoTierMemoryManager:
         """Calculate freshness based on type-specific lifespan."""
         # Type-specific lifespans (from Claude Code)
         lifespans = {
-            MemoryType.USER: None,       # Permanent
-            MemoryType.FEEDBACK: 30,     # 30 days
-            MemoryType.PROJECT: None,    # Permanent
-            MemoryType.REFERENCE: 7,     # 7 days
+            MemoryType.USER: None,  # Permanent
+            MemoryType.FEEDBACK: 30,  # 30 days
+            MemoryType.PROJECT: None,  # Permanent
+            MemoryType.REFERENCE: 7,  # 7 days
         }
 
         lifespan = lifespans.get(mem_type)
@@ -404,14 +406,16 @@ class TwoTierMemoryManager:
             section_name = type_mapping.get(entry.type, "context")
 
             # Add to section and mark as seen
-            sections[section_name]["entries"].append({
-                "id": entry.id,
-                "title": entry.title,
-                "description": entry.description[:500],
-                "score": score,
-                "type": entry.type.value,
-                "tier": entry.tier.value
-            })
+            sections[section_name]["entries"].append(
+                {
+                    "id": entry.id,
+                    "title": entry.title,
+                    "description": entry.description[:500],
+                    "score": score,
+                    "type": entry.type.value,
+                    "tier": entry.tier.value,
+                }
+            )
             seen_titles.add(title_norm)
 
         return sections
@@ -546,10 +550,12 @@ class TwoTierMemoryManager:
                 match = re.match(r"- \*\*(.+?)\*\*: (.+)", line)
                 if match:
                     title, desc = match.groups()
-                    current_entries.append({
-                        "title": title,
-                        "description": desc,
-                    })
+                    current_entries.append(
+                        {
+                            "title": title,
+                            "description": desc,
+                        }
+                    )
 
         # Don't forget last section
         if current_section:
@@ -587,16 +593,16 @@ class TwoTierMemoryManager:
 
         # Check byte limit
         content_bytes = content.encode("utf-8")
-        if len(content_bytes) > self.MAX_TOTAL_BYTES:
+        if len(content_bytes) > MAX_TOTAL_BYTES:
             # Truncate to byte limit
-            truncated = content_bytes[: self.MAX_TOTAL_BYTES]
+            truncated = content_bytes[:MAX_TOTAL_BYTES]
             content = truncated.decode("utf-8", errors="ignore")
             content += "\n\n*[Content truncated due to size limit]*"
 
         # Check line limit
         lines = content.split("\n")
-        if len(lines) > self.MAX_TOTAL_LINES:
-            lines = lines[: self.MAX_TOTAL_LINES]
+        if len(lines) > MAX_TOTAL_LINES:
+            lines = lines[:MAX_TOTAL_LINES]
             lines.append("\n*[Content truncated due to line limit]*")
             content = "\n".join(lines)
 

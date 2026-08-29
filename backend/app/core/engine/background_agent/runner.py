@@ -7,18 +7,15 @@ from app.constants import DEFAULT_PROJECT_ID
 from app.core.context.manager import ContextManager
 from app.core.engine.background_agent.errors import handle_task_exception
 from app.core.engine.background_agent.models import BackgroundAgentInputs
-from app.core.exceptions import (
-    AgentCancelledException,
-    AgentHumanInterruptException,
-)
+from app.core.exceptions import AgentCancelledException, AgentHumanInterruptException
 from app.core.monitoring.activity import activity_monitor
 
 logger = logging.getLogger(__name__)
 
-MAX_GOAL_LENGTH = 500
 
-
-async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | dict[str, Any]):
+async def run_agent_background(
+    thread_id: str, inputs: BackgroundAgentInputs | dict[str, Any]
+):
     """Background task executing nodes via the native agent loop.
 
     单发（subagent/Autonomous Task/代码生成）入口。config/state/callbacks
@@ -45,7 +42,9 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
                 )
 
                 ctx = await build_ctx(thread_id, inputs, run_id=run_id)
-                config = build_execution_config(thread_id, project_id, inputs, run_id, ctx)
+                config = build_execution_config(
+                    thread_id, project_id, inputs, run_id, ctx
+                )
                 agent_state = await build_agent_state(thread_id, inputs)
 
                 from app.core.engine.context_hydrator import AgentContextHydrator
@@ -76,12 +75,16 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
                         state=agent_state,
                     )
 
-                agent_state.next_node = inputs.metadata.get("initial_node", "supervisor")
+                agent_state.next_node = inputs.metadata.get(
+                    "initial_node", "supervisor"
+                )
                 agent_state.session_goal = inputs.session_goal or inputs.goal
 
                 from app.core.engine.loop import run_node_loop
 
-                await run_node_loop(agent_state, config, thread_id, log_prefix="BackgroundAgent")
+                await run_node_loop(
+                    agent_state, config, thread_id, log_prefix="BackgroundAgent"
+                )
 
                 await ContextManager.save(thread_id)
 

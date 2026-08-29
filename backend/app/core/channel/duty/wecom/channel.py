@@ -19,9 +19,14 @@ from app.core.channel.duty.base import (
     DutyChannel,
     RawInbound,
 )
+from app.core.channel.duty.constants import (
+    DUTY_WECOM_DELIVERY_TIMEOUT,
+    WECOM_MAX_MESSAGE_LEN,
+)
 from app.core.engine.message.schemas import MessageBlock
 from app.core.events.decorators import event_register, event_subscribe
 from app.core.events.registry import SystemEventType
+from app.core.identity import identity_service
 from app.utils.text import chunk_text
 
 from .read import run as read_run
@@ -51,13 +56,6 @@ class WeComDutyChannel(DutyChannel):
     # 场景标识：source="duty"（值守场景）。policy 用场景名路由到本渠道，
     # 使「场景」（duty）与「渠道实现」（wecom）解耦。
     scenes = {"duty"}
-
-    # 企微单条消息长度上限（实测 5201 字符被拦截；取安全余量）
-    WECOM_MAX_MESSAGE_LEN = 1500
-
-    # 企微线单次 Agent delivery 上限（秒）：HITL/长任务不至于永久钉死 worker 线程。
-    # 超时后会话仍在后台跑，回复经 on_session_completed 事件到达；本轮先继续。
-    DUTY_WECOM_DELIVERY_TIMEOUT = 60
 
     def __new__(cls, *args, **kwargs):
         if cls._instance is None:
@@ -149,7 +147,9 @@ class WeComDutyChannel(DutyChannel):
             return [ContactDelta(contact=base, raws=raws)]
         return []
 
-    async def _read_customer_messages(self, contact: str, unread_count: int = 0) -> list[str]:
+    async def _read_customer_messages(
+        self, contact: str, unread_count: int = 0
+    ) -> list[str]:
         """读取联系人的新增客户消息（收编模块内联调用）。"""
         try:
             return await read_run(self._history_dir, contact, unread_count)
@@ -185,7 +185,7 @@ class WeComDutyChannel(DutyChannel):
             thread_id=self._thread_for(project_id, raw.contact),
             text=raw.text,
             project_id=project_id,
-            member_id=await self._duty_member_id(),
+            member_id=await identity_service.get_member_id() or 0,
             metadata={
                 "source": "duty",
                 "channel": "wecom",
@@ -204,7 +204,7 @@ class WeComDutyChannel(DutyChannel):
         不依赖单例实例状态（事件回调可能在轮巡结束后触发，实例 history_dir
         已被下一轮覆盖）。
         """
-        chunks = chunk_text(text, WeComDutyChannel.WECOM_MAX_MESSAGE_LEN)
+        chunks = chunk_text(text, WECOM_MAX_MESSAGE_LEN)
         if not chunks:
             return False
         sent_all = True
@@ -259,7 +259,9 @@ class WeComDutyChannel(DutyChannel):
         # 是商城微信客服（callback/MCP）渠道的会话，跳过避免重复尝试回复。
         if contact.startswith("wm"):
             return
-        logger.info("[wecom_duty] 收到 Agent 最终回复 (contact=%s): %r", contact, summary[:50])
+        logger.info(
+            "[wecom_duty] 收到 Agent 最终回复 (contact=%s): %r", contact, summary[:50]
+        )
         try:
             ok = await self._send_reply(contact, summary, project_id)
             logger.info(
@@ -349,7 +351,9 @@ class WeComDutyChannel(DutyChannel):
                     thread_id,
                     result.inputs,
                     await_completion=True,
-                    timeout=self.DUTY_WECOM_DELIVERY_TIMEOUT,
+                    timeout=DUTY_WECOM_DELIVERY_TIMEOUT,
                 )
             except Exception:
-                logger.exception("[%s] Failed to dispatch duty message for %s", self.name, contact)
+                logger.exception(
+                    "[%s] Failed to dispatch duty message for %s", self.name, contact
+                )

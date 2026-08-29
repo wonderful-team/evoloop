@@ -10,7 +10,9 @@ from app.core.tools.base import InjectedToolArg, get_working_directory
 from app.utils.controller_response import ControllerResponse
 
 
-@evoloop_tool(is_state_mutating=True, summary_template="evoloop.tool_summary.write_app_map")
+@evoloop_tool(
+    is_state_mutating=True, summary_template="evoloop.tool_summary.write_app_map"
+)
 async def write_app_map(
     entity: str,
     platform: str,
@@ -28,7 +30,9 @@ async def write_app_map(
     {"base_url": "http://host:port"} when the admin site's origin is known
     from project config — templates emit full URLs when present.
     """
-    project_id = ContextManager.resolve_project_id(allow_global=False, request_temp=True)
+    project_id = ContextManager.resolve_project_id(
+        allow_global=False, request_temp=True
+    )
     if not project_id:
         return ControllerResponse.error("No active project resolved for AppMap.")
 

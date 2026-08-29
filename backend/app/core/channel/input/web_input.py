@@ -17,7 +17,9 @@ class WebInputChannel(InputChannel):
 
     name = "web"
 
-    async def receive(self, raw: dict[str, Any], **kwargs: Any) -> IncomingMessage | None:
+    async def receive(
+        self, raw: dict[str, Any], **kwargs: Any
+    ) -> IncomingMessage | None:
         """
         Build an IncomingMessage from a chat request.
 
@@ -36,22 +38,24 @@ class WebInputChannel(InputChannel):
                 from app.core.learning.skills.repository import skill_repository
 
                 for skill in await skill_repository.get_by_ids(skill_ids):
-                    references.append({
-                        "id": str(skill.id),
-                        "type": "skill",
-                        "target_id": str(skill.id),
-                        "target_name": skill.name,
-                        "metadata": {
-                            "skill_id": skill.id,
-                            "skill_name": skill.name,
-                            "description": skill.description,
-                        },
-                        "meta_data": {
-                            "skill_id": skill.id,
-                            "skill_name": skill.name,
-                            "description": skill.description,
-                        },
-                    })
+                    references.append(
+                        {
+                            "id": str(skill.id),
+                            "type": "skill",
+                            "target_id": str(skill.id),
+                            "target_name": skill.name,
+                            "metadata": {
+                                "skill_id": skill.id,
+                                "skill_name": skill.name,
+                                "description": skill.description,
+                            },
+                            "meta_data": {
+                                "skill_id": skill.id,
+                                "skill_name": skill.name,
+                                "description": skill.description,
+                            },
+                        }
+                    )
             except Exception as e:
                 logger.warning("Failed to fetch skills %s: %s", skill_ids, e)
 
@@ -60,7 +64,11 @@ class WebInputChannel(InputChannel):
             from app.core.engine.session.manager import session_manager
 
             session = session_manager.get(thread_id)
-            if session is not None and session.worker is not None and not session.worker.done:
+            if (
+                session is not None
+                and session.worker is not None
+                and not session.worker.done
+            ):
                 meta["has_running_worker"] = "true"
                 meta["running_worker_desc"] = session.worker.description
         except Exception:

@@ -58,7 +58,9 @@ class FileChangeTracker:
         except FileNotFoundError:
             after = ""
         except OSError as e:
-            logger.warning(f"[FileChangeTracker] Failed to read {path}: {e}", exc_info=True)
+            logger.warning(
+                f"[FileChangeTracker] Failed to read {path}: {e}", exc_info=True
+            )
             return
 
         result = compute_file_diff(before, after, path)
@@ -99,7 +101,9 @@ class FileChangeTracker:
                 "engine_persist_file_operation",
                 kwargs=kwargs,
             )
-        logger.info(f"[FileChangeTracker] Persisted file operation ({result.operation}) for {path}")
+        logger.info(
+            f"[FileChangeTracker] Persisted file operation ({result.operation}) for {path}"
+        )
 
 
 #: 模块级单例（无状态，复用共享快照后端）

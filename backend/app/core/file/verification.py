@@ -57,7 +57,9 @@ def verify_file_hash(file_path: str, expected_hash: str) -> bool:
         return False
 
 
-def write_file_with_verification(content: str, file_path: str, expected_hash: str | None = None) -> FileWriteResult:
+def write_file_with_verification(
+    content: str, file_path: str, expected_hash: str | None = None
+) -> FileWriteResult:
     """
     Write file with optional hash verification for concurrent modification detection.
 

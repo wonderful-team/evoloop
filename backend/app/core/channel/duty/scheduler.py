@@ -21,32 +21,17 @@ from collections.abc import Awaitable, Callable
 from typing import TypeVar
 
 from app.core.channel.duty.config import load_duty_config
-from app.infrastructure.queue.factory import shared_task
+from app.core.channel.duty.constants import (
+    CHANNEL_KIND_MAP,
+    DUTY_PARAM_MARKER,
+    KF_POLL_HARD_TIMEOUT,
+    KIND_BUSINESS_POLL,
+    KIND_CHANNEL_MAP,
+    KIND_KF,
+    KIND_WECOM,
+)
 
 logger = logging.getLogger(__name__)
-
-# 值守任务标记（params_template 里携带，dispatch 时用于分流）
-DUTY_PARAM_MARKER = "duty_channel"
-
-# 值守任务种类
-KIND_WECOM = "wecom"  # 企微线（本地客户端 GUI 轮巡）：客户消息轮巡
-KIND_KF = "kf"  # 商城微信客服线（经 MCP 接入）：客户咨询消息轮巡
-# 客服轮巡硬超时（电路断路器）：即使轮巡内部有未知卡点（外部 MCP/工具挂起），
-# 超过时限强制中断并释放全局锁，避免拖死整个值守调度器。
-KF_POLL_HARD_TIMEOUT = 180.0
-KIND_BUSINESS_POLL = "business_poll"  # 运营线：业务巡检
-
-# 项目渠道名 → 值守任务种类（provision 按 active_channels 建任务）
-CHANNEL_KIND_MAP = {
-    "wecom": KIND_WECOM,
-    "callback": KIND_KF,
-}
-
-# 值守任务种类 → DutyChannel 实例化（run_duty_poll 按 kind 分流）
-KIND_CHANNEL_MAP = {
-    KIND_WECOM: "WeComDutyChannel",
-    KIND_KF: "MpcKfChannel",
-}
 
 # 全局串行执行锁：不同种类任务排队执行，同一时刻只处理一个轮巡任务。
 _exec_lock = asyncio.Lock()

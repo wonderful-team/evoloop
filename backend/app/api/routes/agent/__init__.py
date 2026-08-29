@@ -7,7 +7,7 @@ from app.core.engine.background_agent import run_agent_background  # noqa: F401
 from app.infrastructure.database.resource_manager import db_resource_manager
 
 # Re-exports for test compatibility
-from ._chat import (
+from .chat import (
     ChatRequest,
     ResumeRequest,
     _check_thread_not_running,
@@ -19,11 +19,11 @@ from ._chat import (
     stop_chat,
     thread_context_store,
 )
-from ._chat import router as chat_router
-from ._hitl import cancel_hitl_request, resume_graph_background
-from ._hitl import router as hitl_router
-from ._webhook import EventAdapter, WebhookRequest, evocloud_manager, webhook_endpoint
-from ._webhook import router as webhook_router
+from .chat import router as chat_router
+from .hitl import cancel_hitl_request, resume_graph_background
+from .hitl import router as hitl_router
+from .webhook import EventAdapter, WebhookRequest, evocloud_manager, webhook_endpoint
+from .webhook import router as webhook_router
 
 
 async def _prepare_and_dispatch(

@@ -52,16 +52,22 @@ class ProjectSyncService:
             from app.domain.codebase.indexing.manager import indexing_manager
 
             workspace_root = get_workspace_root()
-            logger.info(f"[ProjectSync] sync_cloud_project started. WORKSPACE_ROOT={workspace_root}")
+            logger.info(
+                f"[ProjectSync] sync_cloud_project started. WORKSPACE_ROOT={workspace_root}"
+            )
             if not workspace_root:
-                logger.info("[ProjectSync] WORKSPACE_ROOT not configured. Skipping cloud project sync.")
+                logger.info(
+                    "[ProjectSync] WORKSPACE_ROOT not configured. Skipping cloud project sync."
+                )
                 return
 
             # Local-first: build local index before talking to cloud
             local_index = local_project_index.refresh(workspace_root)
             logger.info(f"[ProjectSync] Local project index: {local_index}")
             if not local_index:
-                logger.info("[ProjectSync] No local projects found. Skipping cloud project sync.")
+                logger.info(
+                    "[ProjectSync] No local projects found. Skipping cloud project sync."
+                )
                 return
 
             # Sync local projects' external_source to cloud with the active device key
@@ -70,7 +76,9 @@ class ProjectSyncService:
 
                 device_key = await identity_service.store.get_device_key()
                 if device_key:
-                    logger.info(f"[ProjectSync] Aligning local projects with device key: {device_key}")
+                    logger.info(
+                        f"[ProjectSync] Aligning local projects with device key: {device_key}"
+                    )
                     pids = list(local_index.keys())
                     results = await asyncio.gather(
                         *(self._align_project_source(pid, device_key) for pid in pids),
@@ -78,11 +86,18 @@ class ProjectSyncService:
                     )
                     for pid, result in zip(pids, results, strict=False):
                         if isinstance(result, Exception):
-                            logger.warning(f"[ProjectSync] Failed to update project {pid} source to {device_key}: {result}")
+                            logger.warning(
+                                f"[ProjectSync] Failed to update project {pid} source to {device_key}: {result}"
+                            )
                         else:
-                            logger.info(f"[ProjectSync] Aligned project {pid} source to {device_key} in cloud")
+                            logger.info(
+                                f"[ProjectSync] Aligned project {pid} source to {device_key} in cloud"
+                            )
             except Exception as e:
-                logger.warning(f"[ProjectSync] Failed to run local project source alignment: {e}", exc_info=True)
+                logger.warning(
+                    f"[ProjectSync] Failed to run local project source alignment: {e}",
+                    exc_info=True,
+                )
 
             # Prefer the persisted active project (user's last explicit choice)
             active_project_id = thread_context_store.get_active_project("default")
@@ -137,36 +152,48 @@ class ProjectSyncService:
             entry = local_index.get(selected_project_id)
             local_path = entry.path if entry else None
             if not local_path or not os.path.exists(local_path):
-                logger.warning(f"[ProjectSync] Selected local path does not exist: {local_path}")
+                logger.warning(
+                    f"[ProjectSync] Selected local path does not exist: {local_path}"
+                )
                 return
 
             is_ignored = await project_cache.is_path_ignored(local_path)
             if not is_ignored:
-                existing_repo = await self._indexing_service.get_repo_by_path(local_path)
+                existing_repo = await self._indexing_service.get_repo_by_path(
+                    local_path
+                )
                 if existing_repo and existing_repo.sync_status == "IGNORED":
                     is_ignored = True
 
             if is_ignored:
-                logger.info(f"[ProjectSync] Skipping cloud project sync for ignored path: {local_path}")
+                logger.info(
+                    f"[ProjectSync] Skipping cloud project sync for ignored path: {local_path}"
+                )
                 return
 
             logger.info(f"[ProjectSync] Synced active project: {local_path}")
             thread_context_store.set_working_directory("default", local_path)
 
             repo_name = os.path.basename(local_path)
-            repo = await self._indexing_service.get_or_create_repo(local_path, repo_name)
+            repo = await self._indexing_service.get_or_create_repo(
+                local_path, repo_name
+            )
             logger.info(
                 f"[ProjectSync] Local repo: repo_id={repo.id if repo else None}, "
                 f"project_id={repo.project_id if repo else None}, "
                 f"sync_status={repo.sync_status if repo else None}"
             )
             if repo.project_id:
-                write_project_json(local_path, {"project_id": repo.project_id, "repo_id": repo.id})
+                write_project_json(
+                    local_path, {"project_id": repo.project_id, "repo_id": repo.id}
+                )
             if start_watchers:
                 await indexing_manager.start_watching(local_path, repo.id)
 
         except Exception as e:
-            logger.warning(f"[ProjectSync] Error syncing cloud project: {e}", exc_info=True)
+            logger.warning(
+                f"[ProjectSync] Error syncing cloud project: {e}", exc_info=True
+            )
 
     @staticmethod
     async def _align_project_source(project_id: int, device_key: str) -> None:
@@ -192,7 +219,11 @@ class ProjectSyncService:
 
         # Recovery: check if .evoloop/project.json exists (directory was moved while offline)
         project_json = read_project_json(abs_path)
-        if project_json and project_json.get("project_id") and project_json["project_id"] > 0:
+        if (
+            project_json
+            and project_json.get("project_id")
+            and project_json["project_id"] > 0
+        ):
             recovered_project_id = int(project_json["project_id"])
             logger.info(
                 f"[ProjectSync] Found .evoloop/project.json with project_id={recovered_project_id}. "
@@ -217,11 +248,16 @@ class ProjectSyncService:
                             f"[ProjectSync] Updated existing Repository {existing_repo.id} "
                             f"to new path {path} (project_id={recovered_project_id})"
                         )
-                        write_project_json(abs_path, {
-                            "project_id": recovered_project_id,
-                            "repo_id": existing_repo.id,
-                        })
-                        await self._update_cloud_project_path(recovered_project_id, abs_path)
+                        write_project_json(
+                            abs_path,
+                            {
+                                "project_id": recovered_project_id,
+                                "repo_id": existing_repo.id,
+                            },
+                        )
+                        await self._update_cloud_project_path(
+                            recovered_project_id, abs_path
+                        )
                         await self._trigger_auto_indexing(existing_repo, path)
                         return
                     else:
@@ -243,17 +279,27 @@ class ProjectSyncService:
                             f"[ProjectSync] Created new Repository {repo.id} recovering "
                             f"project_id={recovered_project_id} at path {path}"
                         )
-                        write_project_json(abs_path, {
-                            "project_id": recovered_project_id,
-                            "repo_id": repo.id,
-                        })
-                        await self._update_cloud_project_path(recovered_project_id, abs_path)
+                        write_project_json(
+                            abs_path,
+                            {
+                                "project_id": recovered_project_id,
+                                "repo_id": repo.id,
+                            },
+                        )
+                        await self._update_cloud_project_path(
+                            recovered_project_id, abs_path
+                        )
                         await self._trigger_auto_indexing(repo, path)
                         return
             except Exception as e:
-                logger.warning(f"[ProjectSync] Failed to recover project from project.json: {e}", exc_info=True)
+                logger.warning(
+                    f"[ProjectSync] Failed to recover project from project.json: {e}",
+                    exc_info=True,
+                )
 
-    async def import_project_by_path(self, path: str, workspace_root: str, name: str | None = None) -> Repository:
+    async def import_project_by_path(
+        self, path: str, workspace_root: str, name: str | None = None
+    ) -> Repository:
         """
         Import an existing local directory under workspace_root as a project.
         """
@@ -274,7 +320,9 @@ class ProjectSyncService:
 
             if repo:
                 if repo.sync_status in ["SYNCED", "PENDING_CREATION"]:
-                    raise ValueError(f"Project is already registered at this path: '{repo.name}'")
+                    raise ValueError(
+                        f"Project is already registered at this path: '{repo.name}'"
+                    )
 
                 # Restore previously ignored or disconnected project
                 repo.sync_status = "PENDING_CREATION"
@@ -338,17 +386,22 @@ class ProjectSyncService:
                 repo.sync_status = "SYNCED"
 
                 evocloud_manager.invalidate_projects_cache()
-                logger.info(f"[ProjectSync] Imported project synced to cloud (ID: {cloud_project_id})")
+                logger.info(
+                    f"[ProjectSync] Imported project synced to cloud (ID: {cloud_project_id})"
+                )
             else:
                 logger.warning(f"[ProjectSync] Cloud sync failed: {res.get('message')}")
         except Exception as e:
             logger.exception(f"[ProjectSync] Cloud sync failed: {e}")
 
         # Update metadata file
-        write_project_json(abs_path, {
-            "project_id": cloud_project_id or project_json.get("project_id"),
-            "repo_id": repo.id
-        })
+        write_project_json(
+            abs_path,
+            {
+                "project_id": cloud_project_id or project_json.get("project_id"),
+                "repo_id": repo.id,
+            },
+        )
 
         # Publish event
         try:
@@ -361,7 +414,9 @@ class ProjectSyncService:
                 project_name=repo_name,
             )
         except Exception as e:
-            logger.exception(f"[ProjectSync] Failed to publish ProjectCreatedEvent: {e}")
+            logger.exception(
+                f"[ProjectSync] Failed to publish ProjectCreatedEvent: {e}"
+            )
 
         # Start watching
         from app.domain.codebase.indexing.manager import indexing_manager
@@ -385,9 +440,14 @@ class ProjectSyncService:
                     f"[ProjectSync] Updated cloud project {project_id} source after path move to {new_path}"
                 )
         except Exception as e:
-            logger.warning(f"[ProjectSync] Failed to update cloud path for project {project_id}: {e}", exc_info=True)
+            logger.warning(
+                f"[ProjectSync] Failed to update cloud path for project {project_id}: {e}",
+                exc_info=True,
+            )
 
-    async def _find_matching_cloud_project(self, repo_name: str, local_path: str) -> dict | None:
+    async def _find_matching_cloud_project(
+        self, repo_name: str, local_path: str
+    ) -> dict | None:
         """
         Find matching cloud project by local path.
         """
@@ -398,13 +458,20 @@ class ProjectSyncService:
             for project in cloud_projects:
                 cloud_path = project.get("path", "")
                 if cloud_path and os.path.abspath(cloud_path) == abs_local_path:
-                    logger.info(f"[ProjectSync] Matched cloud project by path: {abs_local_path}")
+                    logger.info(
+                        f"[ProjectSync] Matched cloud project by path: {abs_local_path}"
+                    )
                     return project
 
-            logger.info(f"[ProjectSync] No cloud project matched local path: {abs_local_path}")
+            logger.info(
+                f"[ProjectSync] No cloud project matched local path: {abs_local_path}"
+            )
             return None
         except Exception as e:
-            logger.warning(f"[ProjectSync] Failed to scan cloud projects: {e}. Treating as new project.", exc_info=True)
+            logger.warning(
+                f"[ProjectSync] Failed to scan cloud projects: {e}. Treating as new project.",
+                exc_info=True,
+            )
             return None
 
     async def _trigger_auto_indexing(self, repo: Repository, path: str):
@@ -421,7 +488,9 @@ class ProjectSyncService:
                 project_id=repo.project_id,
                 project_name=repo.name,
             )
-            logger.info(f"[ProjectSync] Auto-triggered indexing for '{repo.name}' (Repo ID: {repo.id})")
+            logger.info(
+                f"[ProjectSync] Auto-triggered indexing for '{repo.name}' (Repo ID: {repo.id})"
+            )
 
             # Start watching
             from app.domain.codebase.indexing.manager import indexing_manager
@@ -429,7 +498,9 @@ class ProjectSyncService:
             await indexing_manager.start_watching(path, repo.id)
 
         except Exception as e:
-            logger.exception(f"[ProjectSync] Failed to auto-trigger indexing for '{repo.name}': {e}")
+            logger.exception(
+                f"[ProjectSync] Failed to auto-trigger indexing for '{repo.name}': {e}"
+            )
 
     async def handle_project_deleted(self, path: str):
         """
@@ -444,12 +515,18 @@ class ProjectSyncService:
                 all_repos = result.scalars().all()
 
                 if not all_repos:
-                    logger.debug(f"[ProjectSync] No repository records found for path: {path}")
+                    logger.debug(
+                        f"[ProjectSync] No repository records found for path: {path}"
+                    )
                     return
 
-                to_disconnect = [r for r in all_repos if r.sync_status != "DISCONNECTED"]
+                to_disconnect = [
+                    r for r in all_repos if r.sync_status != "DISCONNECTED"
+                ]
                 if not to_disconnect:
-                    logger.debug(f"[ProjectSync] Project {repo_name} already marked as DISCONNECTED. Skipping.")
+                    logger.debug(
+                        f"[ProjectSync] Project {repo_name} already marked as DISCONNECTED. Skipping."
+                    )
                     return
 
                 for r in to_disconnect:
@@ -459,22 +536,26 @@ class ProjectSyncService:
 
                 repo_id = to_disconnect[0].id
                 project_id = to_disconnect[0].project_id
-                logger.info(f"[ProjectSync] Project {repo_name} marked as DISCONNECTED.")
+                logger.info(
+                    f"[ProjectSync] Project {repo_name} marked as DISCONNECTED."
+                )
 
         except Exception as e:
-            logger.exception(f"[ProjectSync] Error updating disconnect status for {path}: {e}")
+            logger.exception(
+                f"[ProjectSync] Error updating disconnect status for {path}: {e}"
+            )
             return
 
         try:
             from app.core.project.event.publishers import publish_project_deleted
 
             await publish_project_deleted(
-                path=path,
-                repo_id=repo_id or 0,
-                project_id=project_id
+                path=path, repo_id=repo_id or 0, project_id=project_id
             )
         except Exception as e:
-            logger.exception(f"[ProjectSync] Failed to publish ProjectDeletedEvent for {path}: {e}")
+            logger.exception(
+                f"[ProjectSync] Failed to publish ProjectDeletedEvent for {path}: {e}"
+            )
 
     async def handle_project_moved(self, src_path: str, dest_path: str):
         """
@@ -497,9 +578,7 @@ class ProjectSyncService:
         if repo.project_id:
             try:
                 await evocloud_manager.api.update_project(
-                    project_id=repo.project_id,
-                    name=new_name,
-                    path=dest_path
+                    project_id=repo.project_id, name=new_name, path=dest_path
                 )
                 logger.info("[ProjectSync] Cloud Project Updated.")
                 evocloud_manager.invalidate_projects_cache()
@@ -577,7 +656,9 @@ class ProjectSyncService:
                             session.add(r)
                             repo.sync_status = r.sync_status
                 except Exception as e:
-                    logger.exception(f"[ProjectSync] Failed to restore project {p}: {e}")
+                    logger.exception(
+                        f"[ProjectSync] Failed to restore project {p}: {e}"
+                    )
 
         # B. Retry Pending Cloud Sync for Syncing Projects
         for p in fs_paths:
@@ -596,7 +677,9 @@ class ProjectSyncService:
         for p in fs_paths:
             repo = known_projects_map[p]
             if repo.sync_status in imported_statuses:
-                logger.info(f"[ProjectSync] Restarting watcher for imported project: {p}")
+                logger.info(
+                    f"[ProjectSync] Restarting watcher for imported project: {p}"
+                )
                 try:
                     from app.domain.codebase.indexing.manager import indexing_manager
 
@@ -604,11 +687,20 @@ class ProjectSyncService:
                         await indexing_manager.start_watching(p, repo.id)
 
                     # Trigger background indexing if incomplete
-                    if repo.indexing_status in ("pending", "failed") or not repo.last_indexed_at:
-                        logger.info(f"[ProjectSync] Project {repo.name} indexing is incomplete, triggering background indexing")
-                        asyncio.create_task(indexing_manager.run_indexing_background(repo.id))
+                    if (
+                        repo.indexing_status in ("pending", "failed")
+                        or not repo.last_indexed_at
+                    ):
+                        logger.info(
+                            f"[ProjectSync] Project {repo.name} indexing is incomplete, triggering background indexing"
+                        )
+                        asyncio.create_task(
+                            indexing_manager.run_indexing_background(repo.id)
+                        )
                 except Exception as e:
-                    logger.exception(f"[ProjectSync] Failed to restart watcher for {p}: {e}")
+                    logger.exception(
+                        f"[ProjectSync] Failed to restart watcher for {p}: {e}"
+                    )
 
         # D. Deleted Projects (In DB, Not in FS)
         abs_root = os.path.realpath(root_path)

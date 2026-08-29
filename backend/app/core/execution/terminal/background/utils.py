@@ -4,12 +4,15 @@ import logging
 
 from app.core.context import ContextManager
 from app.core.engine.message.native_classes import RunnableConfig
+from app.core.execution.constants import (
+    MAX_OUTPUT_LINES,
+    MAX_TRUNCATED_STDERR_LINES,
+    MAX_TRUNCATED_STDOUT_LINES,
+)
 from app.utils.controller_response import ControllerResponse
 from app.utils.template import render_template
 
 logger = logging.getLogger(__name__)
-
-MAX_OUTPUT_LINES = 1000
 
 
 def get_thread_id(config: RunnableConfig | None) -> str:
@@ -27,13 +30,13 @@ def format_command_result(stdout: str, stderr: str, returncode: int) -> str:
         stdout_lines = stdout.split("\n")
         stderr_lines = stderr.split("\n")
 
-        truncated_stdout = "\n".join(stdout_lines[:900])
-        truncated_stderr = "\n".join(stderr_lines[:100])
+        truncated_stdout = "\n".join(stdout_lines[:MAX_TRUNCATED_STDOUT_LINES])
+        truncated_stderr = "\n".join(stderr_lines[:MAX_TRUNCATED_STDERR_LINES])
 
         status_msg = "Command Completed (Output Truncated)."
         output_details = (
-            f"STDOUT (First 900 lines):\n{truncated_stdout}"
-            f"\n\nSTDERR (First 100 lines):\n{truncated_stderr}"
+            f"STDOUT (First {MAX_TRUNCATED_STDOUT_LINES} lines):\n{truncated_stdout}"
+            f"\n\nSTDERR (First {MAX_TRUNCATED_STDERR_LINES} lines):\n{truncated_stderr}"
         )
 
         warning = (
@@ -43,7 +46,11 @@ def format_command_result(stdout: str, stderr: str, returncode: int) -> str:
 
         return ControllerResponse.success(status_msg, details=output_details + warning)
 
-    status_msg = "Command Succeeded." if returncode == 0 else f"Command Failed (Exit Code {returncode})."
+    status_msg = (
+        "Command Succeeded."
+        if returncode == 0
+        else f"Command Failed (Exit Code {returncode})."
+    )
 
     try:
         output_details = render_template(

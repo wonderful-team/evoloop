@@ -30,7 +30,9 @@ class GetMcpPromptInput(BaseModel):
     is_state_mutating=False,
     summary_template="evoloop.tool_summary.get_mcp_prompt",
 )
-async def get_mcp_prompt(server_name: str, prompt_name: str, arguments: str = "{}") -> str:
+async def get_mcp_prompt(
+    server_name: str, prompt_name: str, arguments: str = "{}"
+) -> str:
     """
     Get a rendered prompt template from an MCP server.
 
@@ -54,7 +56,9 @@ async def get_mcp_prompt(server_name: str, prompt_name: str, arguments: str = "{
             return f"Error: MCP server '{server_name}' is not connected. Please call use_mcp_server('{server_name}') first."
 
         # Get prompt
-        result = await mcp_client_manager.get_prompt(server_name, prompt_name, args_dict)
+        result = await mcp_client_manager.get_prompt(
+            server_name, prompt_name, args_dict
+        )
 
         # Format output
         lines = [

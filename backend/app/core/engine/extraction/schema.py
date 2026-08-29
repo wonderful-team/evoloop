@@ -37,12 +37,17 @@ def _dict_schema_to_model(name: str, schema: dict) -> type[BaseModel]:
             py_type = Union[py_type, None]
 
         default = ... if is_required else None
-        fields[prop_name] = (py_type, Field(default=default, description=prop_def.get("description", "")))
+        fields[prop_name] = (
+            py_type,
+            Field(default=default, description=prop_def.get("description", "")),
+        )
 
     return create_model(name.capitalize() + "Item", **fields)  # type: ignore[no-any-return]
 
 
-def build_dynamic_schema(requests: list[ExtractionRequest], include_base_fields: bool = True) -> type[BaseModel] | None:
+def build_dynamic_schema(
+    requests: list[ExtractionRequest], include_base_fields: bool = True
+) -> type[BaseModel] | None:
     if not requests and not include_base_fields:
         return None
 
@@ -72,6 +77,8 @@ def build_dynamic_schema(requests: list[ExtractionRequest], include_base_fields:
                 Field(default_factory=list, description=req.description),
             )
         else:
-            logger.warning("[build_dynamic_schema] Plugin '%s' schema is not a dict.", req.name)
+            logger.warning(
+                "[build_dynamic_schema] Plugin '%s' schema is not a dict.", req.name
+            )
 
     return create_model("DynamicVerdict", **fields)  # type: ignore[no-any-return]

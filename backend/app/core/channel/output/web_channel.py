@@ -48,14 +48,10 @@ def format_event_for_frontend(event: Any) -> dict:
             "type": "session_completed",
             "thread_id": event.thread_id,
             "timestamp": event.timestamp.isoformat(),
-            "data": event.data.model_dump(exclude={"messages", "blackboard_dict"})
+            "data": event.data.model_dump(exclude={"messages", "blackboard_dict"}),
         }
     elif isinstance(event, SystemStatusEvent):
-        return {
-            "type": "status",
-            "thread_id": event.thread_id,
-            "status": event.status
-        }
+        return {"type": "status", "thread_id": event.thread_id, "status": event.status}
     elif isinstance(event, SystemLogEvent):
         return {
             "type": "system_log",
@@ -91,10 +87,7 @@ def format_event_for_frontend(event: Any) -> dict:
             },
         }
     elif isinstance(event, ActivityStateRefreshedEvent):
-        return {
-            "type": "activity",
-            **event.activity_state
-        }
+        return {"type": "activity", **event.activity_state}
     elif isinstance(event, AgentSessionStartedEvent):
         return {
             "type": "run_start",
@@ -108,7 +101,8 @@ def format_event_for_frontend(event: Any) -> dict:
             "thread_id": event.thread_id,
             "run_id": event.payload.get("run_id"),
             "status": event.status,
-            "final_outcome": event.payload.get("outcome") or event.payload.get("summary"),
+            "final_outcome": event.payload.get("outcome")
+            or event.payload.get("summary"),
         }
     elif isinstance(event, SubagentLifecycleEvent):
         return {
@@ -149,7 +143,11 @@ def format_event_for_frontend(event: Any) -> dict:
             "timestamp": event.timestamp.isoformat(),
         }
     elif isinstance(event, BaseEvent):
-        event_str = event.event_type.value if hasattr(event.event_type, "value") else str(event.event_type)
+        event_str = (
+            event.event_type.value
+            if hasattr(event.event_type, "value")
+            else str(event.event_type)
+        )
         # data 可能是 Pydantic 模型（EventData）或 dict（如 StateChangedEvent 直接赋值 dict）
         event_data = event.data
         if hasattr(event_data, "model_dump"):
@@ -186,7 +184,11 @@ class WebChannel(Channel):
 
         # Determine target channel name
         broadcast_channel = getattr(payload, "broadcast_channel", None)
-        if broadcast_channel == "system" or not ctx.thread_id or ctx.thread_id == "system":
+        if (
+            broadcast_channel == "system"
+            or not ctx.thread_id
+            or ctx.thread_id == "system"
+        ):
             channel = "system:events"
         else:
             channel = f"chat:{ctx.thread_id}:events"

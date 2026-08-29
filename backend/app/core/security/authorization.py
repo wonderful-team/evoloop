@@ -46,13 +46,21 @@ def _extract_resource(tool_name: str, tool_input: Any) -> tuple[str, str] | None
 
     # File tools
     if tool_name in ("read_file", "view_file"):
-        path = tool_input.path or (tool_input.args.get("path") if tool_input.args else None)
+        path = tool_input.path or (
+            tool_input.args.get("path") if tool_input.args else None
+        )
         if path:
             return str(path), "read"
         return None
 
-    if tool_name in ("replace_file_content", "multi_replace_file_content", "write_to_file"):
-        path = tool_input.path or (tool_input.args.get("path") if tool_input.args else None)
+    if tool_name in (
+        "replace_file_content",
+        "multi_replace_file_content",
+        "write_to_file",
+    ):
+        path = tool_input.path or (
+            tool_input.args.get("path") if tool_input.args else None
+        )
         if path:
             return str(path), "write"
         return None
@@ -65,7 +73,9 @@ def _extract_resource(tool_name: str, tool_input: Any) -> tuple[str, str] | None
 
     # Command tool
     if tool_name == "execute_command":
-        command = tool_input.command or (tool_input.args.get("command") if tool_input.args else None)
+        command = tool_input.command or (
+            tool_input.args.get("command") if tool_input.args else None
+        )
         if command:
             return str(command), "execute"
         return None
@@ -174,7 +184,10 @@ class AuthorizationEvaluator:
         return AuthorizationDecision(
             approved=False,
             requires_hitl=True,
-            reason=i18n.get("hitl.authorization.access_requires_approval", resource_path=resource_path),
+            reason=i18n.get(
+                "hitl.authorization.access_requires_approval",
+                resource_path=resource_path,
+            ),
             policy=matched_policy,
             resource_path=resource_path,
             action=action,

@@ -71,7 +71,8 @@ async def validate_script(
     )
     if not result.success:
         return ScriptValidation(
-            ok=False, error=f"Macro verification failed: {result.error or result.status}"
+            ok=False,
+            error=f"Macro verification failed: {result.error or result.status}",
         )
 
     max_risk = compute_max_risk(script.steps)

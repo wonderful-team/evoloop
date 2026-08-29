@@ -102,80 +102,13 @@ class Envelope(BaseModel):
 # ============ command.relay ============
 
 
-class CommandRelayContent(BaseModel):
-    text: str | None = None
-    references: list[Attachment] | None = None
-
-
-class CommandRelayBody(BaseModel):
-    command_id: int | None = None
-    message_id: str
-    thread_id: str
-    project_id: int | None = None
-    action: str
-    content: str | CommandRelayContent
-    references: list[dict[str, Any]] | None = None
-
-
 # ============ command.ack ============
-
-
-class CommandAckBody(BaseModel):
-    command_id: int
-    thread_id: str | None = None
-    status: str  # received | completed | failed | timed_out
-    error: str | None = None
 
 
 # ============ command.stop / retry / rewind ============
 
 
-class CommandStopBody(BaseModel):
-    command_id: int | None = None
-    thread_id: str
-
-
-class CommandRetryBody(BaseModel):
-    command_id: int | None = None
-    thread_id: str
-    message_id: str | None = None
-    revert_files: bool | None = None
-
-
-class CommandRewindBody(BaseModel):
-    command_id: int | None = None
-    thread_id: str
-    message_id: str | None = None
-    revert_files: bool | None = None
-
-
 # ============ hitl ============
-
-
-class HITLRequestBody(BaseModel):
-    request_id: str
-    request_type: (
-        str  # confirmation | choice | text | approval | project_switch | file_select
-    )
-    prompt: str
-    options: list[str] | None = None
-    context: str | None = None
-    default_value: str | None = None
-    tool_name: str | None = None
-    metadata: dict[str, Any] | None = None
-
-
-class HITLResponseBody(BaseModel):
-    command_id: int | None = None
-    request_id: str
-    action: str  # confirm | choice | text
-    value: str
-
-
-class HITLCancelBody(BaseModel):
-    command_id: int | None = None
-    request_id: str
-    thread_id: str | None = None
 
 
 # ============ message.sync ============
@@ -205,59 +138,19 @@ class SyncMessage(BaseModel):
     metadata: dict[str, Any] | None = None
 
 
-class MessageSyncBody(BaseModel):
-    thread_id: str
-    sync_mode: str  # full | incremental
-    device_key: str
-    messages: list[SyncMessage]
-    conversation: dict[str, Any] | None = None
-
-
 # ============ message.deleted ============
-
-
-class MessageDeletedBody(BaseModel):
-    thread_id: str
-    message_ids: list[str]
 
 
 # ============ device.status ============
 
 
-class DeviceStatusBody(BaseModel):
-    device_key: str
-    online: bool
-    client_id: str | None = None
-
-
 # ============ device.heartbeat ============
-
-
-class DeviceHeartbeatBody(BaseModel):
-    timestamp: int
 
 
 # ============ agent.status ============
 
 
-class AgentStatusBody(BaseModel):
-    command_id: int | None = None
-    thread_id: str | None = None
-    status: str
-    error: str | None = None
-
-
 # ============ system ============
-
-
-class SystemInitBody(BaseModel):
-    client_id: str
-    device_key: str
-
-
-class SystemErrorBody(BaseModel):
-    code: str
-    message: str
 
 
 # ============ Helpers ============

@@ -95,38 +95,3 @@ def strip_markdown(text: str) -> str:
     text = text.strip()
 
     return text
-
-
-def optimize_for_tts(text: str) -> str:
-    """
-    为 TTS 优化文本
-
-    除去除 Markdown 外，还做以下优化：
-    - 将长列表转换为更自然的叙述
-    - 处理特殊符号
-    - 优化数字读法
-    """
-    # 先去除 Markdown
-    text = strip_markdown(text)
-
-    if not text:
-        return ""
-
-    # 优化特殊符号读法
-    # 将 "->" 转换为 "指向" 或 "箭头"
-    text = text.replace("->", " ")
-    text = text.replace("=>", " ")
-
-    # 将 "|" 管道符转换为逗号或空格（表格分隔符）
-    text = re.sub(r"\s*\|\s*", "，", text)
-
-    # 优化 URL 显示（保留域名部分）
-    # https://example.com/path → example.com
-    text = re.sub(r"https?://([^/\s]+)(/[^\s]*)?", r"\1", text)
-
-    # 清理多余的标点
-    text = re.sub(r"，\s*，", "，", text)
-    text = re.sub(r"。\s*。", "。", text)
-    text = re.sub(r"，\s*。", "。", text)
-
-    return text

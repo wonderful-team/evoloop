@@ -4,7 +4,6 @@ Memory Replay - Retrieves relevant memories during awakening.
 
 import logging
 import os
-import re
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.environment.schemas import (
@@ -50,7 +49,9 @@ async def replay_memory(project_id: int | None = None) -> MemoryContext:
             )
             # Map MemoryEntry to EpisodeSummary directly
             for mem in actual_memories:
-                date_str = mem.created_at.strftime("%Y-%m-%d") if mem.created_at else "Unknown"
+                date_str = (
+                    mem.created_at.strftime("%Y-%m-%d") if mem.created_at else "Unknown"
+                )
                 goal_str = mem.title.replace("Episode: ", "").strip()
                 # Content format: "Goal: ...\nOutcome: ..."
                 result_str = mem.description.upper() if mem.description else "SUCCESS"
@@ -127,7 +128,9 @@ def _read_journal_highlights() -> str:
     try:
         from app.core.config import settings
 
-        journal_path = os.path.join(settings.BRAIN_MEMORY_ROOT, "knowledge", "journal.md")
+        journal_path = os.path.join(
+            settings.BRAIN_MEMORY_ROOT, "knowledge", "journal.md"
+        )
         if not os.path.exists(journal_path):
             return ""
 

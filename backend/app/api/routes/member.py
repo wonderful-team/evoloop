@@ -124,7 +124,7 @@ async def read_user_me(current_user: CurrentUser, token: TokenDepOptional = None
             # Replenish cache for next call
             if token:
                 profile_key = f"evoloop:user_profile:{token}"
-                from app.core.identity.service import TOKEN_CACHE_TTL
+                from app.core.identity.constants import TOKEN_CACHE_TTL
 
                 await cache.set(profile_key, json.dumps(data), ex=TOKEN_CACHE_TTL)
             return _map_mc_user_to_user(data)

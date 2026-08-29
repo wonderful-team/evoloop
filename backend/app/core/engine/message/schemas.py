@@ -6,7 +6,7 @@ Message System Core Schema —— 全链路标准化消息结构。
 2. 所有字段命名、类型、格式在此文件统一
 
 命名约定：
-- *Block：全链路标准化的数据块（MessageBlock, ToolBlock, HITLBlock）
+- *Block：全链路标准化的数据块（MessageBlock, ToolBlock）
 - BlockEvent：SSE 流式事件的包装器
 """
 
@@ -130,28 +130,6 @@ class MessageBlock(DynamicBaseModel):
     source: str | None = None
 
     meta_data: dict[str, Any] = Field(default_factory=dict)
-
-
-class HITLBlock(DynamicBaseModel):
-    """
-    人机交互块 —— 取代之前三套独立结构。
-    """
-
-    id: str
-    thread_id: str
-    request_type: Literal[
-        "text", "choice", "confirmation", "file_select", "approval", "project_switch"
-    ]
-    prompt: str
-    description: str = ""
-    options: list[str] | None = None
-    context: str | None = None
-    default_value: str | None = None
-    allow_cancel: bool = True
-    status: Literal["pending", "completed", "cancelled", "timeout"] = "pending"
-    result: dict[str, Any] | None = None
-    created_at: str = ""  # ISO 8601
-    resolved_at: str | None = None
 
 
 class MessageHandlerResult(DynamicBaseModel):

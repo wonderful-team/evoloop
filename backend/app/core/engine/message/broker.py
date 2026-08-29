@@ -45,7 +45,7 @@ class LocalMessageBroker(MessageBroker):
             return 0
 
     def pubsub(self) -> PubSubBackend:
-        from app.infrastructure.cache.file._pubsub import InMemoryPubSubAdapter
+        from app.infrastructure.cache.file.pubsub import InMemoryPubSubAdapter
 
         return InMemoryPubSubAdapter()
 
@@ -62,7 +62,9 @@ class DistributedMessageBroker(MessageBroker):
 
             return await cache.publish(channel, message)
         except (RedisError, OSError, TypeError, ValueError) as e:
-            logger.exception(f"[DistributedMessageBroker] Publish failed to channel {channel}: {e}")
+            logger.exception(
+                f"[DistributedMessageBroker] Publish failed to channel {channel}: {e}"
+            )
             return 0
 
     def pubsub(self) -> PubSubBackend:
@@ -86,10 +88,14 @@ def get_message_broker() -> MessageBroker:
         from app.core.config import settings
 
         if settings.EMBEDDED_MODE:
-            logger.info("[MessageBroker] Initializing LocalMessageBroker (Embedded Mode)")
+            logger.info(
+                "[MessageBroker] Initializing LocalMessageBroker (Embedded Mode)"
+            )
             _message_broker = LocalMessageBroker()
         else:
-            logger.info("[MessageBroker] Initializing DistributedMessageBroker (Production Mode)")
+            logger.info(
+                "[MessageBroker] Initializing DistributedMessageBroker (Production Mode)"
+            )
             _message_broker = DistributedMessageBroker()
 
     return _message_broker

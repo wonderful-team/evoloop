@@ -86,7 +86,9 @@ class DeepDreamDistiller:
                 logger.warning("[Dream] Failed to read last dream hash file: %s", e)
 
         if episodes_hash == last_hash:
-            logger.info("[Dream] Skipping: No new episodes or identical content since last dream cycle")
+            logger.info(
+                "[Dream] Skipping: No new episodes or identical content since last dream cycle"
+            )
             result.finished_at = datetime.now()
             return result
 
@@ -136,7 +138,10 @@ class DeepDreamDistiller:
             )
 
             messages = [
-                {"role": "system", "content": "You are a Knowledge Architect that distills reusable insights from agent execution episodes."},
+                {
+                    "role": "system",
+                    "content": "You are a Knowledge Architect that distills reusable insights from agent execution episodes.",
+                },
                 {"role": "user", "content": prompt_text},
             ]
 
@@ -288,7 +293,9 @@ class DeepDreamDistiller:
 
             existing = await self.manager.get_memory(global_entry_id)
             if existing:
-                logger.debug("[Dream] Global concept already exists: %s", global_entry_id)
+                logger.debug(
+                    "[Dream] Global concept already exists: %s", global_entry_id
+                )
                 continue
 
             global_entry = MemoryEntry(

@@ -67,7 +67,9 @@ class MemoryLifespanManager:
             RuntimeError: If already initialized
         """
         if cls._instance is not None:
-            raise RuntimeError("MemoryContainer already initialized. Call shutdown() first.")
+            raise RuntimeError(
+                "MemoryContainer already initialized. Call shutdown() first."
+            )
 
         cls._config = config or MemoryConfig.from_settings()
         cls._instance = MemoryContainer(cls._config)
@@ -160,7 +162,9 @@ class MemoryLifespanManager:
 
 
 @asynccontextmanager
-async def memory_lifespan(app: FastAPI | None = None) -> AsyncGenerator[MemoryContainer, None]:
+async def memory_lifespan(
+    app: FastAPI | None = None,
+) -> AsyncGenerator[MemoryContainer, None]:
     """
     FastAPI lifespan context manager for memory system.
 

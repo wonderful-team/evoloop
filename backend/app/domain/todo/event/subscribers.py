@@ -108,9 +108,7 @@ class TodoLifecycleSubscriber:
 
 
 async def persist_todo_extractions(
-    todos: list,
-    thread_id: str,
-    project_id: int | None,
+    todos: list, thread_id: str, project_id: int | None
 ) -> int:
     """Persist extracted todo items (no LLM calls)."""
     async with session_scope() as session:
@@ -151,16 +149,21 @@ class TodoRewind:
 
         if message_ids or event.affected_run_ids:
             count = await self._delete_todos(
-                message_ids=message_ids,
-                run_ids=event.affected_run_ids
+                message_ids=message_ids, run_ids=event.affected_run_ids
             )
             self._deleted_count = count
             event.results["todos"] = count
-            logger.info(f"[TodoRewind] Deleted {count} todo items for thread {event.thread_id}")
+            logger.info(
+                f"[TodoRewind] Deleted {count} todo items for thread {event.thread_id}"
+            )
         else:
-            logger.debug(f"[TodoRewind] No todo items found to delete for thread {event.thread_id}")
+            logger.debug(
+                f"[TodoRewind] No todo items found to delete for thread {event.thread_id}"
+            )
 
-    async def _find_message_ids(self, thread_id: str, target_message_id: str | None, include_target: bool) -> list[str]:
+    async def _find_message_ids(
+        self, thread_id: str, target_message_id: str | None, include_target: bool
+    ) -> list[str]:
         """Find message IDs to clean up for the given thread."""
         from app.models import Message
 
@@ -169,12 +172,16 @@ class TodoRewind:
 
             if target_message_id:
                 # Resolve sequence from UUID
-                stmt_target = select(Message.sequence_number).where(Message.id == target_message_id)
+                stmt_target = select(Message.sequence_number).where(
+                    Message.id == target_message_id
+                )
                 res_target = await session.execute(stmt_target)
                 target_seq = res_target.scalar_one_or_none()
 
                 if target_seq is None:
-                    logger.warning(f"[TodoRewind] Target message {target_message_id} not found")
+                    logger.warning(
+                        f"[TodoRewind] Target message {target_message_id} not found"
+                    )
                     return []
 
                 if include_target:
@@ -185,7 +192,9 @@ class TodoRewind:
             result = await session.execute(stmt)
             return [str(row[0]) for row in result.all()]
 
-    async def _delete_todos(self, message_ids: list[str], run_ids: list[str] | None = None) -> int:
+    async def _delete_todos(
+        self, message_ids: list[str], run_ids: list[str] | None = None
+    ) -> int:
         """
         Delete todo items by message IDs or run IDs.
         """

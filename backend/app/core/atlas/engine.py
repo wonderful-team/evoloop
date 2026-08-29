@@ -3,6 +3,7 @@ import logging
 from typing import Any
 
 from app.core.atlas.adapters.sql_store import SQLAtlasStore
+from app.core.atlas.constants import SCROLLABLE_CLASSES
 from app.core.atlas.models import AtlasApp, AtlasElement, AtlasState, ElementMetadata
 from app.core.atlas.ports.store import IAtlasStore
 from app.core.atlas.strategy import AppStrategy, AtlasStrategyStore, InteractionStrategy
@@ -45,7 +46,9 @@ class AtlasEngine:
             is_dynamic = bundle_id in dynamic_apps
 
             if is_dynamic:
-                logger.info(f"[AtlasEngine] Detected dynamic app '{bundle_id}' - storing infrastructure only")
+                logger.info(
+                    f"[AtlasEngine] Detected dynamic app '{bundle_id}' - storing infrastructure only"
+                )
                 await self._store_dynamic_app_infrastructure(
                     bundle_id=bundle_id,
                     window_title=window_title,
@@ -80,10 +83,14 @@ class AtlasEngine:
             app_model.add_state(state)
 
             await self.store.save_app_model(app_model)
-            logger.info(f"[AtlasEngine] Background mapped state '{window_title}' for {bundle_id}")
+            logger.info(
+                f"[AtlasEngine] Background mapped state '{window_title}' for {bundle_id}"
+            )
 
         except Exception as e:
-            logger.exception(f"[AtlasEngine] Failed to index observed UI tree for {bundle_id}: {e}")
+            logger.exception(
+                f"[AtlasEngine] Failed to index observed UI tree for {bundle_id}: {e}"
+            )
 
     async def query_app_atlas(
         self,
@@ -100,14 +107,17 @@ class AtlasEngine:
             # We'll use the first bundle_id as context if available.
             target_bundle = (
                 bundle_ids[0]
-                if isinstance(bundle_ids, list) and bundle_ids else (bundle_ids if isinstance(bundle_ids, str) else None)
+                if isinstance(bundle_ids, list) and bundle_ids
+                else (bundle_ids if isinstance(bundle_ids, str) else None)
             )
 
             if not target_bundle:
                 # If no bundle_id provided, we attempt to find which app has this state_id
                 apps = await self.store.list_apps()
                 for app_info in apps:
-                    detail = await self.store.get_state_detail(app_info.bundle_id, state_id, platform=platform)
+                    detail = await self.store.get_state_detail(
+                        app_info.bundle_id, state_id, platform=platform
+                    )
                     if detail:
                         target_bundle = app_info.bundle_id
                         break
@@ -115,7 +125,9 @@ class AtlasEngine:
             if not target_bundle:
                 return f"Error: State '{state_id}' not found in any application."
 
-            detail = await self.store.get_state_detail(target_bundle, state_id, platform=platform)
+            detail = await self.store.get_state_detail(
+                target_bundle, state_id, platform=platform
+            )
             if not detail:
                 return f"Error: Details for state '{state_id}' not found."
 
@@ -124,8 +136,12 @@ class AtlasEngine:
                 bundle_id=target_bundle,
                 state_id=state_id,
                 window_title=detail.window_title,
-                elements=[e for e in detail.elements if not e.get("is_infrastructure", False)],
-                infrastructure=[e for e in detail.elements if e.get("is_infrastructure", False)]
+                elements=[
+                    e for e in detail.elements if not e.get("is_infrastructure", False)
+                ],
+                infrastructure=[
+                    e for e in detail.elements if e.get("is_infrastructure", False)
+                ],
             )
 
         # Multi-app summary mode
@@ -142,7 +158,8 @@ class AtlasEngine:
                         "bundle_id": a.bundle_id,
                         "name": a.app_name,
                         "platform": a.platform,
-                    } for a in apps
+                    }
+                    for a in apps
                 ],
             )
 
@@ -153,14 +170,18 @@ class AtlasEngine:
         for bid in bundle_ids:
             summary = await self.store.get_app_summary(bid, platform=platform)
             if not summary:
-                all_outputs.append(f"### {bid}\nNo UI map available for this application.")
+                all_outputs.append(
+                    f"### {bid}\nNo UI map available for this application."
+                )
                 continue
 
             output = [f"### UI Map for {bid} ({summary.platform})"]
             output.append(f"- **States**: {summary.state_count} screens mapped")
 
             if summary.states:
-                output.append("- **Recorded States**: " + ", ".join(summary.states[:20])) # List of state IDs
+                output.append(
+                    "- **Recorded States**: " + ", ".join(summary.states[:20])
+                )  # List of state IDs
 
             all_outputs.append("\n".join(output))
 
@@ -184,11 +205,15 @@ class AtlasEngine:
             "The following applications have structural UI maps available:",
         ]
         for app in apps:
-            output.append(f"- **{app.app_name}** (Bundle ID: `{app.bundle_id}`, Platform: {app.platform})")
+            output.append(
+                f"- **{app.app_name}** (Bundle ID: `{app.bundle_id}`, Platform: {app.platform})"
+            )
 
         return "\n".join(output)
 
-    async def get_app_strategy(self, bundle_id: str, platform: str = "android") -> AppStrategy | None:
+    async def get_app_strategy(
+        self, bundle_id: str, platform: str = "android"
+    ) -> AppStrategy | None:
         """
         Retrieves the interaction strategy for a specific app.
         """
@@ -207,7 +232,9 @@ class AtlasEngine:
 
         return await AtlasConfigManager.is_dynamic_app(bundle_id, platform)
 
-    async def resolve_spatial_element(self, bundle_id: str, element_name: str, platform: str = "macos") -> dict | None:
+    async def resolve_spatial_element(
+        self, bundle_id: str, element_name: str, platform: str = "macos"
+    ) -> dict | None:
         """
         Unified high-level method to resolve an element using Atlas intelligence.
 
@@ -254,10 +281,17 @@ class AtlasEngine:
                     )
                     if not state_id:
                         continue
-                    detail = await self.store.get_state_detail(bundle_id, state_id, platform=platform)
+                    detail = await self.store.get_state_detail(
+                        bundle_id, state_id, platform=platform
+                    )
                     if detail:
                         for el in detail.elements:
-                            el_name = str(el.get("label") or el.get("text") or el.get("name") or "").lower()
+                            el_name = str(
+                                el.get("label")
+                                or el.get("text")
+                                or el.get("name")
+                                or ""
+                            ).lower()
                             if element_name.lower() in el_name:
                                 if el.get("x") is not None and el.get("y") is not None:
                                     return {
@@ -266,7 +300,9 @@ class AtlasEngine:
                                         "source": "atlas_memory",
                                     }
         except Exception as e:
-            logger.debug(f"[AtlasEngine] Historical memory check failed: {e}", exc_info=True)
+            logger.debug(
+                f"[AtlasEngine] Historical memory check failed: {e}", exc_info=True
+            )
 
         # 4. Learned Skills Fallback (Task-specific memory)
         # This covers mappings like "SearchButton" -> (x, y) learned from past traces
@@ -275,7 +311,9 @@ class AtlasEngine:
             vector = await embedder.embed_query(element_name)
 
             if not vector:
-                logger.debug(f"[AtlasEngine] Skipping semantic search for {element_name}: empty vector")
+                logger.debug(
+                    f"[AtlasEngine] Skipping semantic search for {element_name}: empty vector"
+                )
                 return None
 
             vector_store = get_vector_store()
@@ -286,16 +324,27 @@ class AtlasEngine:
                 platform=platform,
                 top_k=3,
             )
-            logger.info(f"[AtlasEngine] Found {len(skills)} skills for {element_name} in {bundle_id}")
+            logger.info(
+                f"[AtlasEngine] Found {len(skills)} skills for {element_name} in {bundle_id}"
+            )
 
             if skills:
                 for skill in skills:
-                    logger.info(f"[AtlasEngine] Checking skill: {skill.get('name')} (Score: {skill.get('score')})")
+                    logger.info(
+                        f"[AtlasEngine] Checking skill: {skill.get('name')} (Score: {skill.get('score')})"
+                    )
                     # Priority 1: Exact or substring name/label match
                     s_name = str(skill.get("name") or "").lower()
                     s_label = str(skill.get("label") or "").lower()
-                    if element_name.lower() in s_name or element_name.lower() in s_label:
-                        if skill.get("x") is not None and skill.get("y") is not None and skill["x"] >= 0:
+                    if (
+                        element_name.lower() in s_name
+                        or element_name.lower() in s_label
+                    ):
+                        if (
+                            skill.get("x") is not None
+                            and skill.get("y") is not None
+                            and skill["x"] >= 0
+                        ):
                             return {
                                 "x": skill["x"],
                                 "y": skill["y"],
@@ -304,7 +353,11 @@ class AtlasEngine:
 
                 # Priority 2: High confidence semantic match (> 0.9)
                 if len(skills) > 0 and skills[0].get("score", 0) > 0.9:
-                    if skills[0].get("x") is not None and skills[0].get("y") is not None and skills[0]["x"] >= 0:
+                    if (
+                        skills[0].get("x") is not None
+                        and skills[0].get("y") is not None
+                        and skills[0]["x"] >= 0
+                    ):
                         return {
                             "x": skills[0]["x"],
                             "y": skills[0]["y"],
@@ -321,7 +374,9 @@ class AtlasEngine:
         logger.warning("[AtlasEngine] Permanently clearing all historical data...")
         await self.store.clear_all_data()
 
-    def _generate_state_id(self, bundle_id: str, window_title: str, is_infra: bool = False) -> str:
+    def _generate_state_id(
+        self, bundle_id: str, window_title: str, is_infra: bool = False
+    ) -> str:
         """Generates a stable semantic ID for a UI state."""
         if is_infra:
             clean_title = "".join(c for c in window_title if c.isalnum()).lower()[:20]
@@ -349,11 +404,13 @@ class AtlasEngine:
             # Update infrastructure elements (labels/roles only, no coords)
             infra_list = []
             for e in infrastructure:
-                infra_list.append({
-                    "label": e.label,
-                    "role": e.role,
-                    "element_category": e.element_category
-                })
+                infra_list.append(
+                    {
+                        "label": e.label,
+                        "role": e.role,
+                        "element_category": e.element_category,
+                    }
+                )
 
             strategy.infrastructure = infra_list
 
@@ -445,7 +502,9 @@ class AtlasEngine:
                 elements.append(element)
 
             if not infrastructure_elements:
-                logger.debug(f"[AtlasEngine] No infrastructure elements found for {bundle_id}")
+                logger.debug(
+                    f"[AtlasEngine] No infrastructure elements found for {bundle_id}"
+                )
                 return
 
             # Store with a special marker state
@@ -484,7 +543,9 @@ class AtlasEngine:
             )
 
         except Exception as e:
-            logger.exception(f"[AtlasEngine] Failed to store dynamic app infrastructure: {e}")
+            logger.exception(
+                f"[AtlasEngine] Failed to store dynamic app infrastructure: {e}"
+            )
 
     def _classify_element_category(self, element: AtlasElement, platform: str) -> str:
         """
@@ -498,7 +559,9 @@ class AtlasEngine:
         else:
             return self._classify_macos_element(element, metadata)
 
-    def _classify_android_element(self, element: AtlasElement, metadata: ElementMetadata) -> str:
+    def _classify_android_element(
+        self, element: AtlasElement, metadata: ElementMetadata
+    ) -> str:
         """Android-specific classification."""
         # Ensure we have a dict for uniform access
         m = metadata.model_dump()
@@ -508,15 +571,6 @@ class AtlasEngine:
         resource_id = str(m.get("resource_id") or "").lower()
 
         # 1. Check for scrollable containers
-        SCROLLABLE_CLASSES = [
-            "recyclerview",
-            "listview",
-            "scrollview",
-            "viewpager",
-            "horizontalscrollview",
-            "webview",
-        ]
-
         if scrollable or any(c in class_name for c in SCROLLABLE_CLASSES):
             if "recyclerview" in class_name:
                 return "container_recyclerview"
@@ -534,7 +588,9 @@ class AtlasEngine:
         y_bottom = y + height
 
         # Top navigation (toolbar, actionbar)
-        if y < 200 and ("toolbar" in class_name or "actionbar" in resource_id or element.clickable):
+        if y < 200 and (
+            "toolbar" in class_name or "actionbar" in resource_id or element.clickable
+        ):
             return "static_navigation_top"
 
         # Bottom navigation
@@ -551,7 +607,9 @@ class AtlasEngine:
 
         return "unknown"
 
-    def _classify_macos_element(self, element: AtlasElement, metadata: ElementMetadata) -> str:
+    def _classify_macos_element(
+        self, element: AtlasElement, metadata: ElementMetadata
+    ) -> str:
         """macOS-specific classification."""
         role = element.role.lower() if element.role else ""
         ax_path = element.ax_path.lower() if element.ax_path else ""

@@ -4,6 +4,11 @@ ContentIndexer: Handles code extraction and embedding generation.
 
 import logging
 
+from app.domain.codebase.constants import (
+    EMBEDDING_TEXT_CAP,
+    FILE_SUMMARY_MAX_LENGTH,
+    MIN_CONTENT_LENGTH_FOR_SAFE_INDEXING,
+)
 from app.domain.codebase.indexing.extractors.treesitter_extractor import (
     TreeSitterExtractor,
 )
@@ -26,16 +31,18 @@ class ContentIndexer:
     - Generating vector embeddings
     """
 
-    def __init__(self, extractor: TreeSitterExtractor = None, embedder: BaseEmbedder = None):
+    def __init__(
+        self, extractor: TreeSitterExtractor = None, embedder: BaseEmbedder = None
+    ):
         self.extractor = extractor or TreeSitterExtractor()
         self.embedder = embedder or EmbedderFactory.get_embedder()
 
     async def extract(
-        self,
-        file_path: str,
-        content: str,
-        rel_path: str
-    ) -> tuple[list[Document], list[ExtractedEntity], list[ExtractedRelation], Document] | None:
+        self, file_path: str, content: str, rel_path: str
+    ) -> (
+        tuple[list[Document], list[ExtractedEntity], list[ExtractedRelation], Document]
+        | None
+    ):
         """
         Extract code structure without generating embeddings.
 
@@ -43,7 +50,9 @@ class ContentIndexer:
             (documents, entities, relations, file_summary_doc) or None if
             extraction produced no usable data.
         """
-        extraction_result = await self.extractor.extract(file_path, content, module_path=rel_path)
+        extraction_result = await self.extractor.extract(
+            file_path, content, module_path=rel_path
+        )
 
         # Handle both list and ExtractionResult returns
         if isinstance(extraction_result, list):
@@ -57,14 +66,18 @@ class ContentIndexer:
 
         # Safe indexing check
         if not docs and not entities:
-            if len(content.strip()) > 50:
-                logger.warning(f"Safe Indexing: Skipping {rel_path} - non-empty content but no extracted data.")
+            if len(content.strip()) > MIN_CONTENT_LENGTH_FOR_SAFE_INDEXING:
+                logger.warning(
+                    f"Safe Indexing: Skipping {rel_path} - non-empty content but no extracted data."
+                )
                 return None
 
         # Create whole-file summary document
         file_summary_content = content
-        if len(content) > 15000:
-            file_summary_content = content[:15000] + "\n...(truncated)"
+        if len(content) > FILE_SUMMARY_MAX_LENGTH:
+            file_summary_content = (
+                content[:FILE_SUMMARY_MAX_LENGTH] + "\n...(truncated)"
+            )
 
         file_line_count = content.count("\n") + 1
         file_summary_doc = Document(
@@ -80,7 +93,9 @@ class ContentIndexer:
         all_docs = [file_summary_doc] + docs
         return all_docs, entities, relations, file_summary_doc
 
-    async def index(self, file_path: str, content: str, rel_path: str) -> IndexedContent | None:
+    async def index(
+        self, file_path: str, content: str, rel_path: str
+    ) -> IndexedContent | None:
         """
         Extract and embed file content.
 
@@ -102,15 +117,16 @@ class ContentIndexer:
                 if skel:
                     texts.append(skel)
                 else:
-                    texts.append(d.content[:8000])  # Safety cap
+                    texts.append(d.content[:EMBEDDING_TEXT_CAP])  # Safety cap
 
             try:
                 embeddings = await self.embedder.embed_documents(texts)
             except Exception as e:
                 logger.warning(
                     f"Embedding generation failed for {rel_path}: {e}. "
-                    "Continuing indexing without embeddings."
-                , exc_info=True)
+                    "Continuing indexing without embeddings.",
+                    exc_info=True,
+                )
                 embeddings = [[] for _ in texts]
 
         return IndexedContent(

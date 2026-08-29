@@ -12,7 +12,7 @@ here, not a model retrain.
 
 from __future__ import annotations
 
-from app.core.routing.schemas import (
+from app.core.routing.constants import (
     DOMAIN_AMBIGUOUS,
     INTENT_DIRECT_ANSWER,
     INTENT_ENVIRONMENT_QUERY,

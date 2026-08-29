@@ -3,6 +3,8 @@ import logging
 
 from app.core.environment.capabilities.registry import ActionRegistry
 
+import app.core.learning.constants as _mc
+
 logger = logging.getLogger(__name__)
 
 
@@ -51,16 +53,16 @@ class ExecutorMixin:
         pre_wait = payload.get("pre_wait")
         if isinstance(pre_wait, dict) and pre_wait.get("selector"):
             res = await BrowserController.execute(
-                action="wait_for",
+                action=_mc.WAIT_FOR,
                 selector=pre_wait["selector"],
                 state=pre_wait.get("state", "visible"),
                 timeout_ms=pre_wait.get("timeout_ms", 8000),
             )
             handle_res(res)
 
-        tool_action = ActionRegistry.get_tool_action(event_type, "dom")
+        tool_action = ActionRegistry.get_tool_action(event_type, _mc.DOM)
 
-        if event_type in ("goto", "navigate"):
+        if event_type in (_mc.GOTO, _mc.NAVIGATE):
             target_url = payload.get("url")
             # Navigation skip: when the browser already sits on the exact
             # target URL (query string included — ?goods_id=2 vs 3 must NOT
@@ -85,7 +87,7 @@ class ExecutorMixin:
             await BrowserController.execute(
                 action="wait_for_stability", timeout_ms=5000
             )
-        elif event_type == "back":
+        elif event_type == _mc.BACK:
             handle_res(
                 await BrowserController.execute(
                     action=tool_action,
@@ -93,7 +95,7 @@ class ExecutorMixin:
                     continue_on_error=continue_on_error,
                 )
             )
-        elif event_type == "forward":
+        elif event_type == _mc.FORWARD:
             handle_res(
                 await BrowserController.execute(
                     action=tool_action,
@@ -101,7 +103,7 @@ class ExecutorMixin:
                     continue_on_error=continue_on_error,
                 )
             )
-        elif event_type == "reload":
+        elif event_type == _mc.RELOAD:
             handle_res(
                 await BrowserController.execute(
                     action=tool_action,
@@ -109,7 +111,7 @@ class ExecutorMixin:
                     continue_on_error=continue_on_error,
                 )
             )
-        elif event_type in ("click", "tap", "double_click", "hover"):
+        elif event_type in (_mc.CLICK, _mc.TAP, _mc.DOUBLE_CLICK, _mc.HOVER):
             handle_res(
                 await BrowserController.execute(
                     action=tool_action,
@@ -120,10 +122,10 @@ class ExecutorMixin:
                     continue_on_error=continue_on_error,
                 )
             )
-        elif event_type in ("input", "type_text"):
+        elif event_type in (_mc.INPUT, _mc.TYPE_TEXT):
             handle_res(
                 await BrowserController.execute(
-                    action="type_text",
+                    action=_mc.TYPE_TEXT,
                     selector=selector,
                     value=payload.get("text") or payload.get("value", ""),
                     clear_first=payload.get("clear_first", True),
@@ -131,7 +133,7 @@ class ExecutorMixin:
                     continue_on_error=continue_on_error,
                 )
             )
-        elif event_type == "select_option":
+        elif event_type == _mc.SELECT_OPTION:
             handle_res(
                 await BrowserController.execute(
                     action=tool_action,
@@ -141,7 +143,7 @@ class ExecutorMixin:
                     continue_on_error=continue_on_error,
                 )
             )
-        elif event_type == "key_press":
+        elif event_type == _mc.KEY_PRESS:
             handle_res(
                 await BrowserController.execute(
                     action=tool_action,
@@ -150,7 +152,7 @@ class ExecutorMixin:
                     continue_on_error=continue_on_error,
                 )
             )
-        elif event_type == "drag_drop":
+        elif event_type == _mc.DRAG_DROP:
             handle_res(
                 await BrowserController.execute(
                     action=tool_action,
@@ -160,7 +162,7 @@ class ExecutorMixin:
                     continue_on_error=continue_on_error,
                 )
             )
-        elif event_type == "upload":
+        elif event_type == _mc.UPLOAD:
             handle_res(
                 await BrowserController.execute(
                     action=tool_action,
@@ -170,30 +172,30 @@ class ExecutorMixin:
                     continue_on_error=continue_on_error,
                 )
             )
-        elif event_type == "detect_pagination":
+        elif event_type == _mc.DETECT_PAGINATION:
             handle_res(
                 await BrowserController.execute(
-                    action="detect_pagination",
+                    action=_mc.DETECT_PAGINATION,
                     timeout_ms=timeout_ms,
                     continue_on_error=continue_on_error,
                 )
             )
-        elif event_type == "scroll_to_bottom":
+        elif event_type == _mc.SCROLL_TO_BOTTOM:
             handle_res(
                 await BrowserController.execute(
-                    action="scroll_to_bottom",
+                    action=_mc.SCROLL_TO_BOTTOM,
                     selector=selector,
                     payload=payload,
                     timeout_ms=timeout_ms,
                     continue_on_error=continue_on_error,
                 )
             )
-        elif event_type == "wait":
+        elif event_type == _mc.WAIT:
             duration = payload.get("seconds") or (
                 payload.get("duration_ms", 1000) / 1000.0
             )
             await asyncio.sleep(float(duration))
-        elif event_type == "wait_for":
+        elif event_type == _mc.WAIT_FOR:
             handle_res(
                 await BrowserController.execute(
                     action=tool_action,
@@ -204,7 +206,7 @@ class ExecutorMixin:
                     continue_on_error=continue_on_error,
                 )
             )
-        elif event_type == "scroll":
+        elif event_type == _mc.SCROLL:
             await BrowserController.execute(
                 action=tool_action,
                 selector=selector,
@@ -212,35 +214,35 @@ class ExecutorMixin:
                 amount=payload.get("amount", 300),
                 continue_on_error=continue_on_error,
             )
-        elif event_type == "screenshot":
+        elif event_type == _mc.SCREENSHOT:
             await BrowserController.execute(
                 action=tool_action,
                 selector=selector,
                 full_page=payload.get("full_page", False),
                 continue_on_error=continue_on_error,
             )
-        elif event_type == "new_tab":
+        elif event_type == _mc.NEW_TAB:
             await BrowserController.execute(
                 action=tool_action,
                 url=payload.get("url"),
                 continue_on_error=continue_on_error,
             )
-        elif event_type == "switch_tab":
+        elif event_type == _mc.SWITCH_TAB:
             await BrowserController.execute(
                 action=tool_action,
                 tab_index=payload.get("tab_index"),
                 continue_on_error=continue_on_error,
             )
-        elif event_type == "dialog_handle":
+        elif event_type == _mc.DIALOG_HANDLE:
             await BrowserController.execute(
                 action=tool_action,
                 dialog_action=payload.get("dialog_action"),
                 dialog_text=payload.get("dialog_text"),
                 continue_on_error=continue_on_error,
             )
-        elif event_type in ("run_js", "evaluate"):
+        elif event_type in (_mc.RUN_JS, _mc.EVALUATE):
             res = await BrowserController.execute(
-                action="run_js",
+                action=_mc.RUN_JS,
                 script=payload.get("script") or payload.get("expression"),
                 frame_selector=payload.get("frame_selector"),
                 frame_wait_for_selector=payload.get("frame_wait_for_selector"),
@@ -295,7 +297,7 @@ class ExecutorMixin:
             p_sel = post.get("selector")
             if p_url or p_sel:
                 vr = await BrowserController.execute(
-                    action="wait_for",
+                    action=_mc.WAIT_FOR,
                     selector=p_sel,
                     url_pattern=p_url,
                     state=post.get("state", "visible"),
@@ -313,13 +315,13 @@ class ExecutorMixin:
 
         event_type = event_type.lower() if event_type else event_type
         selector = selector or payload.get("element_name") or payload.get("target")
-        tool_action = ActionRegistry.get_tool_action(event_type, "desktop")
+        tool_action = ActionRegistry.get_tool_action(event_type, _mc.DESKTOP)
 
         def handle_res(res):
             if res and ("Error:" in str(res) or "❌" in str(res)):
                 raise ValueError(res)
 
-        if event_type in ("click", "tap", "double_click"):
+        if event_type in (_mc.CLICK, _mc.TAP, _mc.DOUBLE_CLICK):
             optional = payload.get("optional", False)
             res = await DesktopController.execute(
                 action=tool_action,
@@ -338,16 +340,16 @@ class ExecutorMixin:
                 )
             else:
                 handle_res(res)
-        elif event_type in ("input", "type_text"):
+        elif event_type in (_mc.INPUT, _mc.TYPE_TEXT):
             handle_res(
                 await DesktopController.execute(
-                    action="type_text",
+                    action=_mc.TYPE_TEXT,
                     text=payload.get("text") or payload.get("value", ""),
                     force_keystroke=payload.get("force_keystroke", False),
                     skip_recording=skip_recording,
                 )
             )
-        elif event_type == "key_press":
+        elif event_type == _mc.KEY_PRESS:
             handle_res(
                 await DesktopController.execute(
                     action=tool_action,
@@ -355,7 +357,7 @@ class ExecutorMixin:
                     skip_recording=skip_recording,
                 )
             )
-        elif event_type == "scroll":
+        elif event_type == _mc.SCROLL:
             handle_res(
                 await DesktopController.execute(
                     action=tool_action,
@@ -364,7 +366,7 @@ class ExecutorMixin:
                     skip_recording=skip_recording,
                 )
             )
-        elif event_type == "drag_drop":
+        elif event_type == _mc.DRAG_DROP:
             handle_res(
                 await DesktopController.execute(
                     action=tool_action,
@@ -377,7 +379,7 @@ class ExecutorMixin:
                     skip_recording=skip_recording,
                 )
             )
-        elif event_type == "open_app":
+        elif event_type == _mc.OPEN_APP:
             bundle_id = payload.get("bundle_id")
             if bundle_id and payload.get("focus") is False:
                 # Focus-free launch (Atlas-Native): open -b + window poll.
@@ -457,12 +459,12 @@ class ExecutorMixin:
                 raise ValueError(
                     f"Error: ax_set_value rejected for {payload.get('label') or payload.get('ax_path')}"
                 )
-        elif event_type == "wait":
+        elif event_type == _mc.WAIT:
             duration = payload.get("seconds") or (
                 payload.get("duration", 1000) / 1000.0
             )
             await asyncio.sleep(float(duration))
-        elif event_type == "cgclick":
+        elif event_type == _mc.CGCLICK:
             from app.infrastructure.drivers.macos import macos_driver
 
             win_ox = payload.get("win_offset_x")
@@ -482,7 +484,7 @@ class ExecutorMixin:
                 x = int(payload.get("x", 0))
                 y = int(payload.get("y", 0))
             await asyncio.to_thread(macos_driver.click, x, y)
-        elif event_type == "applescript":
+        elif event_type == _mc.APPLESCRIPT:
             handle_res(
                 await DesktopController.execute(
                     action=tool_action,
@@ -490,7 +492,7 @@ class ExecutorMixin:
                     skip_recording=skip_recording,
                 )
             )
-        elif event_type == "screenshot":
+        elif event_type == _mc.SCREENSHOT:
             handle_res(
                 await DesktopController.execute(
                     action=tool_action,
@@ -499,13 +501,13 @@ class ExecutorMixin:
                     skip_recording=skip_recording,
                 )
             )
-        elif event_type == "get_active_app":
+        elif event_type == _mc.GET_ACTIVE_APP:
             handle_res(
                 await DesktopController.execute(
                     action=tool_action, skip_recording=skip_recording
                 )
             )
-        elif event_type == "get_info":
+        elif event_type == _mc.GET_INFO:
             handle_res(
                 await DesktopController.execute(
                     action=tool_action,
@@ -513,7 +515,7 @@ class ExecutorMixin:
                     skip_recording=skip_recording,
                 )
             )
-        elif event_type == "dump_ui":
+        elif event_type == _mc.DUMP_UI:
             handle_res(
                 await DesktopController.execute(
                     action=tool_action, skip_recording=skip_recording
@@ -527,7 +529,7 @@ class ExecutorMixin:
         from app.core.environment.controllers import MobileController
 
         event_type = event_type.lower() if event_type else event_type
-        tool_action = ActionRegistry.get_tool_action(event_type, "mobile")
+        tool_action = ActionRegistry.get_tool_action(event_type, _mc.MOBILE)
 
         def handle_res(res):
             if res and isinstance(res, str):
@@ -575,7 +577,7 @@ class ExecutorMixin:
 
             return None
 
-        if event_type in ("click", "tap"):
+        if event_type in (_mc.CLICK, _mc.TAP):
             logger.info("[_execute_mobile_step] Branch: click/tap")
             x, y = _get_coords(payload, "x"), _get_coords(payload, "y")
             if x is not None and y is not None:
@@ -610,7 +612,7 @@ class ExecutorMixin:
                         passive_safety=True,
                     )
                 )
-        elif event_type == "long_press":
+        elif event_type == _mc.LONG_PRESS:
             logger.info("[_execute_mobile_step] Branch: long_press")
             x, y = _get_coords(payload, "x"), _get_coords(payload, "y")
             if x is not None and y is not None:
@@ -643,10 +645,10 @@ class ExecutorMixin:
                         passive_safety=True,
                     )
                 )
-        elif event_type in ("input", "type_text"):
+        elif event_type in (_mc.INPUT, _mc.TYPE_TEXT):
             handle_res(
                 await MobileController.execute(
-                    action="input_text",
+                    action=_mc.INPUT_TEXT,
                     text=payload.get("text") or payload.get("value", ""),
                     element_name=selector or payload.get("element_name"),
                     disable_atlas=True,
@@ -656,14 +658,14 @@ class ExecutorMixin:
                     passive_safety=True,
                 )
             )
-        elif event_type in ("swipe", "scroll"):
+        elif event_type in (_mc.SWIPE, _mc.SCROLL):
             actual_action = tool_action
             if (
-                event_type == "swipe"
+                event_type == _mc.SWIPE
                 and payload.get("direction")
                 and _get_coords(payload, "x") is None
             ):
-                actual_action = "scroll"
+                actual_action = _mc.SCROLL
 
             handle_res(
                 await MobileController.execute(
@@ -683,7 +685,7 @@ class ExecutorMixin:
                     passive_safety=True,
                 )
             )
-        elif event_type == "back":
+        elif event_type == _mc.BACK:
             handle_res(
                 await MobileController.execute(
                     action="press_key",
@@ -695,7 +697,7 @@ class ExecutorMixin:
                     passive_safety=True,
                 )
             )
-        elif event_type == "back_key":
+        elif event_type == _mc.BACK_KEY:
             handle_res(
                 await MobileController.execute(
                     action="press_key",
@@ -707,7 +709,7 @@ class ExecutorMixin:
                     passive_safety=True,
                 )
             )
-        elif event_type == "home":
+        elif event_type == _mc.HOME:
             handle_res(
                 await MobileController.execute(
                     action="press_key",
@@ -719,7 +721,7 @@ class ExecutorMixin:
                     passive_safety=True,
                 )
             )
-        elif event_type == "key_press":
+        elif event_type == _mc.KEY_PRESS:
             handle_res(
                 await MobileController.execute(
                     action=tool_action,
@@ -731,7 +733,7 @@ class ExecutorMixin:
                     passive_safety=True,
                 )
             )
-        elif event_type == "open_app":
+        elif event_type == _mc.OPEN_APP:
             handle_res(
                 await MobileController.execute(
                     action=tool_action,
@@ -747,7 +749,7 @@ class ExecutorMixin:
                     passive_safety=True,
                 )
             )
-        elif event_type == "screenshot":
+        elif event_type == _mc.SCREENSHOT:
             handle_res(
                 await MobileController.execute(
                     action=tool_action,
@@ -758,7 +760,7 @@ class ExecutorMixin:
                     passive_safety=True,
                 )
             )
-        elif event_type == "dump_ui":
+        elif event_type == _mc.DUMP_UI:
             handle_res(
                 await MobileController.execute(
                     action=tool_action,
@@ -770,7 +772,7 @@ class ExecutorMixin:
                     compressed_dump=False,
                 )
             )
-        elif event_type == "wait":
+        elif event_type == _mc.WAIT:
             duration = payload.get("seconds") or (
                 payload.get("duration_ms", 1000) / 1000.0
             )
@@ -786,10 +788,10 @@ class ExecutorMixin:
                     passive_safety=True,
                 )
             )
-        elif event_type == "scroll_to_bottom":
+        elif event_type == _mc.SCROLL_TO_BOTTOM:
             handle_res(
                 await MobileController.execute(
-                    action="scroll_to_bottom",
+                    action=_mc.SCROLL_TO_BOTTOM,
                     max_scrolls=payload.get("max_scrolls", 5),
                     scroll_amount=payload.get("scroll_amount", "medium"),
                     delay_ms=payload.get("delay_ms", 1000),

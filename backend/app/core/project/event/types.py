@@ -18,5 +18,4 @@ class ProjectEventType(str, Enum):
     PROJECT_CREATED = "project.created"
     PROJECT_DELETED = "project.deleted"
     PROJECT_MOVED = "project.moved"
-    PROJECT_SYNCED = "project.synced"
     PROJECT_SWITCHED = "project.switched"

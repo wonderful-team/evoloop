@@ -75,7 +75,9 @@ class MemoryPruningService:
 
         return audit_log
 
-    async def _prune_fulfilled_tasks(self, memories: list[MemoryEntry], project_id: int | None) -> list[dict]:
+    async def _prune_fulfilled_tasks(
+        self, memories: list[MemoryEntry], project_id: int | None
+    ) -> list[dict]:
         """Prune memories that reference already completed TODOs."""
         logs = []
         # Filter for memories that look like tasks or have 'todo' tags
@@ -92,14 +94,18 @@ class MemoryPruningService:
         # Get current pending todos from service
         try:
             if self.todo_service:
-                pending_todos = await self.todo_service.list_pending_by_project(project_id)
+                pending_todos = await self.todo_service.list_pending_by_project(
+                    project_id
+                )
             else:
                 from app.domain.todo.service import TodoService
                 from app.infrastructure.database import session_scope
 
                 async with session_scope() as session:
                     todo_service = TodoService(session)
-                    pending_todos = await todo_service.list_pending_by_project(project_id)
+                    pending_todos = await todo_service.list_pending_by_project(
+                        project_id
+                    )
 
             pending_titles = {t.title.lower() for t in pending_todos}
 
@@ -113,20 +119,28 @@ class MemoryPruningService:
                     if not is_pending:
                         success = await self.storage.delete(mem.id)
                         if success:
-                            logs.append({
-                                "id": mem.id,
-                                "action": "DELETED",
-                                "reason": "FULFILLED",
-                                "details": f"Task '{mem.title}' is no longer in pending TODOs.",
-                                "timestamp": datetime.utcnow().isoformat()
-                            })
-                            logger.info(f"[Pruning] Silently deleted fulfilled task memory {mem.id}")
+                            logs.append(
+                                {
+                                    "id": mem.id,
+                                    "action": "DELETED",
+                                    "reason": "FULFILLED",
+                                    "details": f"Task '{mem.title}' is no longer in pending TODOs.",
+                                    "timestamp": datetime.utcnow().isoformat(),
+                                }
+                            )
+                            logger.info(
+                                f"[Pruning] Silently deleted fulfilled task memory {mem.id}"
+                            )
         except Exception as e:
-            logger.warning(f"[Pruning] Failed to check fulfilled tasks: {e}", exc_info=True)
+            logger.warning(
+                f"[Pruning] Failed to check fulfilled tasks: {e}", exc_info=True
+            )
 
         return logs
 
-    async def _prune_semantically(self, memories: list[MemoryEntry], project_id: int | None) -> list[dict]:
+    async def _prune_semantically(
+        self, memories: list[MemoryEntry], project_id: int | None
+    ) -> list[dict]:
         """Use LLM to identify redundant or stale memories against project context."""
         if not memories:
             return []
@@ -150,7 +164,10 @@ class MemoryPruningService:
                 else ""
             )
         except Exception as e:
-            logger.warning(f"[Pruning] Failed to gather project context for semantic pruning: {e}", exc_info=True)
+            logger.warning(
+                f"[Pruning] Failed to gather project context for semantic pruning: {e}",
+                exc_info=True,
+            )
             return []
 
         # Batch evaluation
@@ -185,20 +202,24 @@ class MemoryPruningService:
                 if mem_id:
                     success = await self.storage.delete(mem_id)
                     if success:
-                        logs.append({
-                            "id": mem_id,
-                            "action": "DELETED",
-                            "reason": d.get("reason"),
-                            "details": d.get("details"),
-                            "timestamp": datetime.utcnow().isoformat()
-                        })
+                        logs.append(
+                            {
+                                "id": mem_id,
+                                "action": "DELETED",
+                                "reason": d.get("reason"),
+                                "details": d.get("details"),
+                                "timestamp": datetime.utcnow().isoformat(),
+                            }
+                        )
             return logs
         except Exception as e:
             logger.exception(f"[Pruning] Semantic pruning failed: {e}")
             return []
 
     def _format_memories_for_eval(self, memories: list[MemoryEntry]) -> str:
-        return "\n".join([f"ID: {m.id} | Title: {m.title} | Content: {m.content}" for m in memories])
+        return "\n".join(
+            [f"ID: {m.id} | Title: {m.title} | Content: {m.content}" for m in memories]
+        )
 
 
 class MemoryConsolidator:
@@ -207,7 +228,9 @@ class MemoryConsolidator:
     def __init__(self, storage):
         self.storage = storage
 
-    async def consolidate(self, memories: list[MemoryEntry], project_id: int | None) -> list[dict]:
+    async def consolidate(
+        self, memories: list[MemoryEntry], project_id: int | None
+    ) -> list[dict]:
         """Find related memories and merge them into high-quality Concepts."""
         if len(memories) < 2:  # Lowered for simulation and small projects
             return []
@@ -252,23 +275,32 @@ class MemoryConsolidator:
                     await self.storage.save(new_entry)
                     for oid in orig_ids:
                         await self.storage.delete(oid)
-                        logs.append({
-                            "id": oid,
-                            "action": "DELETED",
-                            "reason": "CONSOLIDATED",
-                            "details": f"Merged into {new_entry.id}",
-                            "timestamp": datetime.utcnow().isoformat()
-                        })
-                    logs.append({
-                        "id": new_entry.id,
-                        "action": "CREATED",
-                        "reason": "CONSOLIDATION_RESULT",
-                        "timestamp": datetime.utcnow().isoformat()
-                    })
+                        logs.append(
+                            {
+                                "id": oid,
+                                "action": "DELETED",
+                                "reason": "CONSOLIDATED",
+                                "details": f"Merged into {new_entry.id}",
+                                "timestamp": datetime.utcnow().isoformat(),
+                            }
+                        )
+                    logs.append(
+                        {
+                            "id": new_entry.id,
+                            "action": "CREATED",
+                            "reason": "CONSOLIDATION_RESULT",
+                            "timestamp": datetime.utcnow().isoformat(),
+                        }
+                    )
             return logs
         except Exception as e:
             logger.warning(f"[Consolidation] Failed: {e}", exc_info=True)
             return []
 
     def _format_memories(self, memories: list[MemoryEntry]) -> str:
-        return "\n".join([f"ID: {m.id} | Title: {m.title} | Content: {m.content[:200]}" for m in memories])
+        return "\n".join(
+            [
+                f"ID: {m.id} | Title: {m.title} | Content: {m.content[:200]}"
+                for m in memories
+            ]
+        )

@@ -40,10 +40,9 @@ async def save_concepts(
         normalized = []
         for c in concepts:
             if isinstance(c, dict):
-                normalized.append({
-                    "name": c.get("name", ""),
-                    "description": c.get("description", "")
-                })
+                normalized.append(
+                    {"name": c.get("name", ""), "description": c.get("description", "")}
+                )
             else:
                 normalized.append({"name": c.name, "description": c.description})
 

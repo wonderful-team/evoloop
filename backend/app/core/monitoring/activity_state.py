@@ -115,10 +115,14 @@ class ActivityStateService:
     ) -> ActivityState:
         """Mark run as ended and return final state."""
         if session is not None:
-            return await self._end_run_with_session(thread_id, status, final_outcome, session, run_id)
+            return await self._end_run_with_session(
+                thread_id, status, final_outcome, session, run_id
+            )
 
         async with self._get_session_scope()() as s:
-            return await self._end_run_with_session(thread_id, status, final_outcome, s, run_id)
+            return await self._end_run_with_session(
+                thread_id, status, final_outcome, s, run_id
+            )
 
     async def _end_run_with_session(
         self,
@@ -187,13 +191,21 @@ class ActivityStateService:
                 return ActivityState(
                     status=activity.status,
                     main_goal=activity.main_goal,
-                    updated_at=activity.updated_at.replace(tzinfo=timezone.utc).timestamp() if activity.updated_at else 0.0,
+                    updated_at=activity.updated_at.replace(
+                        tzinfo=timezone.utc
+                    ).timestamp()
+                    if activity.updated_at
+                    else 0.0,
                     running_tools_count=running_count or 0,
-                    artifacts=[ActivityArtifact.model_validate(a) for a in artifacts_raw],
+                    artifacts=[
+                        ActivityArtifact.model_validate(a) for a in artifacts_raw
+                    ],
                     agent_state=json.loads(activity.agent_state_json or "{}"),
                     verification={},
                     active_memories=json.loads(activity.active_memories_json or "[]"),
-                    human_request=json.loads(activity.human_request_json) if activity.human_request_json else None,
+                    human_request=json.loads(activity.human_request_json)
+                    if activity.human_request_json
+                    else None,
                     final_outcome=activity.final_outcome,
                     subagents=subagents,
                 )
@@ -309,7 +321,9 @@ class ActivityStateService:
         async with self._get_session_scope()() as s:
             return await self._check_cancellation_with_session(thread_id, now, s)
 
-    async def _check_cancellation_with_session(self, thread_id: str, now: float, session) -> bool:
+    async def _check_cancellation_with_session(
+        self, thread_id: str, now: float, session
+    ) -> bool:
         result = await session.execute(
             select(AgentActivity.status).where(AgentActivity.thread_id == thread_id)
         )
@@ -352,7 +366,10 @@ class ActivityStateService:
             if activity.agent_state_json:
                 try:
                     prev_state = json.loads(activity.agent_state_json)
-                    if state.get("active_skills") is None and prev_state.get("active_skills") is not None:
+                    if (
+                        state.get("active_skills") is None
+                        and prev_state.get("active_skills") is not None
+                    ):
                         state["active_skills"] = prev_state["active_skills"]
                 except Exception as e:
                     logger.debug("Suppressed error: %s", e, exc_info=True)

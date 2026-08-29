@@ -47,7 +47,9 @@ class McpResourcesFeature(McpFeature):
                 f"{len(self._resource_templates)} templates from {server_name}"
             )
         except Exception as e:
-            logger.debug(f"Resources not supported by {server_name}: {e}", exc_info=True)
+            logger.debug(
+                f"Resources not supported by {server_name}: {e}", exc_info=True
+            )
             self._resources = []
             self._resource_templates = []
 

@@ -1,7 +1,9 @@
 from .strategies import STRATEGIES
 
 
-def _format_occurrence_hint(content: str, match_text: str, max_snippets: int = 3) -> str:
+def _format_occurrence_hint(
+    content: str, match_text: str, max_snippets: int = 3
+) -> str:
     """Find all line numbers where match_text appears and return a helpful hint."""
     lines = content.splitlines()
     occurrences = []
@@ -10,8 +12,10 @@ def _format_occurrence_hint(content: str, match_text: str, max_snippets: int = 3
             # Show 1 line before and 1 line after for context
             ctx_start = max(0, i - 1)
             ctx_end = min(len(lines), i + 2)
-            snippet = "\n".join(f"    {j+1:4d}: {lines[j]}" for j in range(ctx_start, ctx_end))
-            occurrences.append(f"  Occurrence at line {i+1}:\n{snippet}")
+            snippet = "\n".join(
+                f"    {j + 1:4d}: {lines[j]}" for j in range(ctx_start, ctx_end)
+            )
+            occurrences.append(f"  Occurrence at line {i + 1}:\n{snippet}")
             if len(occurrences) >= max_snippets:
                 remaining = content.count(match_text) - max_snippets
                 if remaining > 0:
@@ -48,10 +52,14 @@ class EditEngine:
                 if len(matches) > 1 and not replace_all:
                     # Ambiguous match within a single strategy
                     hint = _format_occurrence_hint(content, matches[0])
-                    return False, content, (
-                        f"Error: Ambiguous match. Strategy '{strategy_name}' found {len(matches)} occurrences.\n"
-                        f"Please provide more unique context (include more surrounding lines in 'target').\n"
-                        f"Hint:\n{hint}"
+                    return (
+                        False,
+                        content,
+                        (
+                            f"Error: Ambiguous match. Strategy '{strategy_name}' found {len(matches)} occurrences.\n"
+                            f"Please provide more unique context (include more surrounding lines in 'target').\n"
+                            f"Hint:\n{hint}"
+                        ),
                     )
 
                 # If replace_all is False, we already ensured unique match (or errored)
@@ -69,10 +77,14 @@ class EditEngine:
                     count = content.count(match_text)
                     if count > 1:
                         hint = _format_occurrence_hint(content, match_text)
-                        return False, content, (
-                            f"Error: The matched block (found by {strategy_name}) appears {count} times in the file.\n"
-                            f"Please provide more unique context (include more surrounding lines in 'target').\n"
-                            f"Hint:\n{hint}"
+                        return (
+                            False,
+                            content,
+                            (
+                                f"Error: The matched block (found by {strategy_name}) appears {count} times in the file.\n"
+                                f"Please provide more unique context (include more surrounding lines in 'target').\n"
+                                f"Hint:\n{hint}"
+                            ),
                         )
 
                     new_content = content.replace(match_text, new_string, 1)

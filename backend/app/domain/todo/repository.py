@@ -10,6 +10,7 @@ from collections.abc import Sequence
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.domain.todo.constants import DEFAULT_TODO_LIMIT
 from app.domain.todo.schemas import TodoCreateInternal, TodoFilter, TodoUpdate
 from app.models.todo import TodoItem, TodoStatus
 
@@ -184,7 +185,7 @@ class TodoRepository:
         self,
         project_id: int,
         statuses: list[TodoStatus] | None = None,
-        limit: int = 50
+        limit: int = DEFAULT_TODO_LIMIT,
     ) -> Sequence[TodoItem]:
         """
         Get todos for a specific project.
@@ -197,9 +198,12 @@ class TodoRepository:
         Returns:
             List of matching TodoItem instances
         """
-        query = select(TodoItem).where(
-            TodoItem.project_id == project_id
-        ).order_by(desc(TodoItem.created_at)).limit(limit)
+        query = (
+            select(TodoItem)
+            .where(TodoItem.project_id == project_id)
+            .order_by(desc(TodoItem.created_at))
+            .limit(limit)
+        )
 
         if statuses:
             query = query.where(TodoItem.status.in_(statuses))

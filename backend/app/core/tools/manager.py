@@ -27,7 +27,9 @@ class ToolManager:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    async def get_node_tools(self, node_name: str, state: AgentState | None = None) -> list[BaseTool]:
+    async def get_node_tools(
+        self, node_name: str, state: AgentState | None = None
+    ) -> list[BaseTool]:
         """
         Get tools for a specific agent role, handling Progressive Disclosure automatically.
         Nodes no longer need to manually parse execution_tickets or talk to MCP.
@@ -39,7 +41,9 @@ class ToolManager:
         try:
             tools = get_node_tools(node_name)
         except (TypeError, ValueError, RuntimeError, OSError) as e:
-            logger.exception(f"[ToolManager] Failed to fetch static tools for {node_name}: {e}")
+            logger.exception(
+                f"[ToolManager] Failed to fetch static tools for {node_name}: {e}"
+            )
             tools = []
 
         combined_map = {t.name: t for t in tools if t.name}
@@ -52,10 +56,18 @@ class ToolManager:
 
         vision_configured = SystemConfigService.get_value("VISION_MODEL") is not None
         if not vision_configured:
-            multimodal_tools = [t.name for t in combined_map.values() if t.metadata.get("is_multimodal")]
+            multimodal_tools = [
+                t.name for t in combined_map.values() if t.metadata.get("is_multimodal")
+            ]
             if multimodal_tools:
-                logger.info(f"[ToolManager] VISION_MODEL not configured, filtering out multimodal tools: {multimodal_tools}")
-                combined_map = {k: v for k, v in combined_map.items() if not v.metadata.get("is_multimodal")}
+                logger.info(
+                    f"[ToolManager] VISION_MODEL not configured, filtering out multimodal tools: {multimodal_tools}"
+                )
+                combined_map = {
+                    k: v
+                    for k, v in combined_map.items()
+                    if not v.metadata.get("is_multimodal")
+                }
 
         # 2. Handle Progressive Disclosure (Skill-Tool Handshake & Dynamic Requests)
         # Only inject external tools if explicitly requested by the state.
@@ -64,7 +76,9 @@ class ToolManager:
 
             # Agent Config for Dynamic Specialist
             agent_config = execution_ticket.agent_config if execution_ticket else None
-            requested_servers = execution_ticket.mcp_servers_required if execution_ticket else []
+            requested_servers = (
+                execution_ticket.mcp_servers_required if execution_ticket else []
+            )
             dynamic_tools = agent_config.tools if agent_config else []
 
             # Dynamically requested individual tools come from agent_config.tools
@@ -84,7 +98,9 @@ class ToolManager:
                         try:
                             await _mcp.ensure_connected(_s)
                         except Exception as _e:
-                            logger.exception(f"[ToolManager] 连接 MCP server {_s} 失败: {_e}")
+                            logger.exception(
+                                f"[ToolManager] 连接 MCP server {_s} 失败: {_e}"
+                            )
                     all_mcp = await mcp_client_manager.aget_all_tools()
 
                     # Filter for only what was requested to protect context
@@ -100,7 +116,8 @@ class ToolManager:
                             # 规范化比较（DB 名可能带连字符，parse 后为下划线）
                             norm = re.sub(r"[^a-zA-Z0-9_]", "_", parsed[0]).lower()
                             if parsed[0] in requested_servers or norm in [
-                                re.sub(r"[^a-zA-Z0-9_]", "_", s).lower() for s in requested_servers
+                                re.sub(r"[^a-zA-Z0-9_]", "_", s).lower()
+                                for s in requested_servers
                             ]:
                                 add_tool = True
 
@@ -116,7 +133,9 @@ class ToolManager:
                         if add_tool:
                             combined_map[t.name] = t
                 except (TypeError, ValueError, RuntimeError, OSError) as e:
-                    logger.exception(f"[ToolManager] Failed to progressively load MCP tools: {e}")
+                    logger.exception(
+                        f"[ToolManager] Failed to progressively load MCP tools: {e}"
+                    )
 
             elif not all_requested_tools:
                 # MCP 是全局基础设施：无显式请求时默认注入所有已连接的全局
@@ -131,7 +150,9 @@ class ToolManager:
                             continue
                         combined_map[t.name] = t
                 except (TypeError, ValueError, RuntimeError, OSError) as e:
-                    logger.exception(f"[ToolManager] Failed to inject default MCP tools: {e}")
+                    logger.exception(
+                        f"[ToolManager] Failed to inject default MCP tools: {e}"
+                    )
 
         if not combined_map:
             logger.warning(
@@ -174,7 +195,8 @@ class ToolManager:
         return (
             "EXTERNAL CAPABILITIES (MCP SERVERS)\n"
             "The following Model Context Protocol (MCP) servers are available:\n"
-            + "\n".join(mcp_inventory) + "\n\n"
+            + "\n".join(mcp_inventory)
+            + "\n\n"
             "Note: To access tools from an inactive server, call `use_mcp_server(server_name)`. "
             "The tools will be injected on your next turn.\n"
         )

@@ -70,7 +70,7 @@ from app.utils.parameters import (
 from app.utils.template import render_template
 from app.utils.yaml import YAMLError, macro_from_yaml, validate_macro_yaml
 
-from ._shared import _member_id, _normalize_skill_params
+from .shared import _member_id, _normalize_skill_params
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

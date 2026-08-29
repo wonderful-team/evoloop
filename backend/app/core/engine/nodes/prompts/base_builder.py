@@ -41,7 +41,9 @@ class BasePromptBuilder(ABC):
         """Helper to standardize and map the working directory path."""
         return get_mapped_cwd(raw_cwd)
 
-    def read_project_profile(self, working_directory: str | None, log_prefix: str = "") -> str:
+    def read_project_profile(
+        self, working_directory: str | None, log_prefix: str = ""
+    ) -> str:
         """Helper to read PROJECT.md context from the working directory."""
         return read_project_profile(working_directory, log_prefix)
 

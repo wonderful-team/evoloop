@@ -8,7 +8,7 @@ from typing import Any
 from pydantic import Field
 
 from app.constants import DEFAULT_PROJECT_ID
-from app.core.context._cache_service import ContextCacheService
+from app.core.context.cache_service import ContextCacheService
 from app.core.context.schemas import ContextMetadata
 from app.core.exceptions import GlobalModeError
 from app.infrastructure.pydantic_base import DynamicBaseModel
@@ -36,9 +36,9 @@ class EvoContext(DynamicBaseModel):
 
     # Execution Environment
     working_directory: str | None = None
-    command_id: int | None = None   # For EvoCloud command tracing
-    trace_id: str | None = None     # Distributed trace ID
-    run_id: str | None = None       # Current execution run ID
+    command_id: int | None = None  # For EvoCloud command tracing
+    trace_id: str | None = None  # Distributed trace ID
+    run_id: str | None = None  # Current execution run ID
 
     # Feature Flags / Runtime Config
     is_dry_run: bool = False
@@ -56,9 +56,11 @@ class EvoContext(DynamicBaseModel):
     wiki_index: list[dict[str, Any]] = Field(default_factory=list)
     terminal_error: str | None = None  # Side-channel marker for irrecoverable errors
     active_model: str | None = None  # Current model name (propagated from frontend)
-    current_tool_call_id: str | None = None # Track the current tool execution ID
-    last_ai_message_id: str | None = None   # Track the last AI message for parent linkage
-    current_task_id: str | None = None      # Track the current project task ID
+    current_tool_call_id: str | None = None  # Track the current tool execution ID
+    last_ai_message_id: str | None = (
+        None  # Track the last AI message for parent linkage
+    )
+    current_task_id: str | None = None  # Track the current project task ID
 
     # Extra Metadata (Plugins, etc.)
     metadata: ContextMetadata = Field(default_factory=ContextMetadata)
@@ -164,7 +166,9 @@ class ContextManager:
             if explicit_id == 0:
                 if allow_global:
                     return 0
-                raise GlobalModeError(f"Explicit project_id={DEFAULT_PROJECT_ID} (workspace mode) provided, but this operation requires a specific project.")
+                raise GlobalModeError(
+                    f"Explicit project_id={DEFAULT_PROJECT_ID} (workspace mode) provided, but this operation requires a specific project."
+                )
             return explicit_id
 
         # Priority 2: Check context
@@ -193,6 +197,27 @@ class ContextManager:
         )
 
     @staticmethod
+    def resolve_tool_project_id(
+        explicit_id: int | None, default: int | None = None
+    ) -> int | None:
+        """Resolve project_id from explicit parameter, then context, then default.
+
+        Common pattern for tool layer: explicit project_id if provided,
+        otherwise fall back to current context's project_id, then to ``default``.
+
+        Args:
+            explicit_id: The explicitly provided project_id (may be None).
+            default: The fallback value if neither explicit_id nor context's project_id is available.
+
+        Returns:
+            The resolved project_id, or ``default`` if neither source provides a value.
+        """
+        if explicit_id is not None:
+            return explicit_id
+        ctx = ContextManager.current()
+        ctx_pid = ctx.project_id if ctx and ctx.project_id is not None else None
+        return ctx_pid if ctx_pid is not None else default
+
     async def save(thread_id: str) -> None:
         """
         Persist the current context to cache using the thread_id.
@@ -226,7 +251,9 @@ class ContextManager:
                 await cache_service.save_context(thread_id, hset_data)
 
         except Exception as e:
-            logging.getLogger(__name__).warning(f"Failed to save context to cache (HSET): {e}")
+            logging.getLogger(__name__).warning(
+                f"Failed to save context to cache (HSET): {e}"
+            )
 
     @staticmethod
     async def load(thread_id: str) -> EvoContext | None:
@@ -260,8 +287,18 @@ class ContextManager:
                         v = v.decode("utf-8")
 
                     if k in list_fields or k in flexible_fields or k in dict_fields:
-                        reconstructed[k] = json.loads(v) if v else (
-                            [] if k in list_fields else ({} if k in dict_fields or k in flexible_fields else [])
+                        reconstructed[k] = (
+                            json.loads(v)
+                            if v
+                            else (
+                                []
+                                if k in list_fields
+                                else (
+                                    {}
+                                    if k in dict_fields or k in flexible_fields
+                                    else []
+                                )
+                            )
                         )
                     elif k == "timestamp":
                         reconstructed[k] = float(v) if v else 0.0
@@ -276,7 +313,9 @@ class ContextManager:
                 ContextManager.set(ctx)
                 return ctx
         except Exception as e:
-            logging.getLogger(__name__).warning(f"Failed to load context from cache (HGETALL): {e}")
+            logging.getLogger(__name__).warning(
+                f"Failed to load context from cache (HGETALL): {e}"
+            )
 
         return None
 

@@ -11,6 +11,12 @@ from app.core.project.utils import get_project_path
 from app.domain.codebase.indexing.components.content_indexer import ContentIndexer
 from app.domain.codebase.indexing.components.file_preparer import FilePreparer
 from app.domain.codebase.indexing.components.sql_persister import SQLPersister
+from app.domain.codebase.constants import (
+    BATCH_MAX_WAIT_MS,
+    EMBEDDING_TEXT_CAP,
+    EXTRACT_CONCURRENCY,
+    TEXTS_PER_WINDOW,
+)
 from app.domain.codebase.indexing.extractors.treesitter_extractor import (
     TreeSitterExtractor,
 )
@@ -85,7 +91,9 @@ class IndexingService:
                             resolved_pid = p.get("id")
                             break
                 except Exception as e:
-                    logger.warning(f"Failed to resolve project_id for {path}: {e}", exc_info=True)
+                    logger.warning(
+                        f"Failed to resolve project_id for {path}: {e}", exc_info=True
+                    )
 
             if not resolved_pid:
                 sync_status = "PENDING_CREATION"
@@ -234,7 +242,9 @@ class IndexingService:
                             indexed.embeddings,
                         )
                 else:
-                    logger.debug(f"Skipping vector upsert for {prepared.rel_path}: embeddings disabled or not generated.")
+                    logger.debug(
+                        f"Skipping vector upsert for {prepared.rel_path}: embeddings disabled or not generated."
+                    )
 
             except Exception as e:
                 logger.exception(f"Error indexing file {file_path}: {e}")
@@ -245,7 +255,9 @@ class IndexingService:
                         )
                         await session.commit()
                     except Exception as mark_err:
-                        logger.exception(f"Failed to mark source_file as failed: {mark_err}")
+                        logger.exception(
+                            f"Failed to mark source_file as failed: {mark_err}"
+                        )
                         await session.rollback()
                 else:
                     await session.rollback()
@@ -318,14 +330,16 @@ class IndexingService:
                 if skel:
                     text = skel
                 else:
-                    text = doc.content[:8000]
+                    text = doc.content[:EMBEDDING_TEXT_CAP]
                 texts.append(text)
                 text_map.append((item_idx, doc_idx))
 
         if not texts:
             return
 
-        logger.info(f"[_embed_all] Embedding {len(texts)} texts across {len(items)} files")
+        logger.info(
+            f"[_embed_all] Embedding {len(texts)} texts across {len(items)} files"
+        )
 
         # Determine a safe chunk size.  The BatchedEmbedder already caps batches,
         # but splitting here keeps memory bounded and yields regular progress.
@@ -333,7 +347,9 @@ class IndexingService:
         all_embeddings: list[list[float]] = []
         for i in range(0, len(texts), chunk_size):
             chunk = texts[i : i + chunk_size]
-            logger.info(f"[_embed_all] Embedding chunk {i // chunk_size + 1}/{(len(texts) - 1) // chunk_size + 1} ({len(chunk)} texts)")
+            logger.info(
+                f"[_embed_all] Embedding chunk {i // chunk_size + 1}/{(len(texts) - 1) // chunk_size + 1} ({len(chunk)} texts)"
+            )
             chunk_embeddings = await batched_embedder.embed_documents(chunk)
             if len(chunk_embeddings) != len(chunk):
                 raise RuntimeError(
@@ -341,7 +357,9 @@ class IndexingService:
                 )
             all_embeddings.extend(chunk_embeddings)
 
-        for (item_idx, _doc_idx), embedding in zip(text_map, all_embeddings, strict=False):
+        for (item_idx, _doc_idx), embedding in zip(
+            text_map, all_embeddings, strict=False
+        ):
             items[item_idx][1].embeddings.append(embedding)
 
     async def remove_file(self, file_path: str, repo_id: int):
@@ -400,7 +418,9 @@ class IndexingService:
             )
             return
 
-        logger.info(f"Starting full indexing for repo {repo_id} at {repo_path} (Force={force})")
+        logger.info(
+            f"Starting full indexing for repo {repo_id} at {repo_path} (Force={force})"
+        )
 
         from app.constants import BLACKLIST_DIRS
         from app.core.file.service import walk_tree
@@ -429,22 +449,24 @@ class IndexingService:
         # call can take hours on CPU; if it is interrupted before any files are
         # persisted, the next restart has to redo everything. We therefore:
         #   1. Extract all files cheaply in parallel.
-        #   2. Walk through the extracted files in windows of ~32 texts,
-        #      embed each window, then immediately persist those files.
-        EXTRACT_CONCURRENCY = max(4, (os.cpu_count() or 4) * 2)
+        #   2. Walk through the extracted files in windows of ~TEXTS_PER_WINDOW
+        #      texts, embed each window, then immediately persist those files.
         extract_semaphore = asyncio.Semaphore(EXTRACT_CONCURRENCY)
 
         # Window size matches the BCE model's optimal encode batch size.
         # Larger batches give significantly better throughput (336 vs 112 texts/s).
         # Each window results in roughly one model.encode() call.
-        TEXTS_PER_WINDOW = 32
 
         batched_embedder = BatchedEmbedder(
-            self.embedder, max_batch_size=TEXTS_PER_WINDOW, max_wait_ms=50
+            self.embedder,
+            max_batch_size=TEXTS_PER_WINDOW,
+            max_wait_ms=BATCH_MAX_WAIT_MS,
         )
         batched_content_indexer = ContentIndexer(self.extractor, batched_embedder)
 
-        async def _extract_one(file_path: str) -> tuple[PreparedFile, IndexedContent] | None:
+        async def _extract_one(
+            file_path: str,
+        ) -> tuple[PreparedFile, IndexedContent] | None:
             async with extract_semaphore:
                 return await self._prepare_and_extract(
                     file_path, repo_id, force, batched_content_indexer
@@ -479,7 +501,11 @@ class IndexingService:
         window_texts: list[str] = []
 
         async def _flush_window() -> None:
-            nonlocal indexed_count, persist_error_count, all_window_vectors, last_repo_path
+            nonlocal \
+                indexed_count, \
+                persist_error_count, \
+                all_window_vectors, \
+                last_repo_path
             if not window:
                 return
 
@@ -502,8 +528,9 @@ class IndexingService:
                 except Exception as e:
                     logger.warning(
                         f"[_embed_window] Window embedding failed: {e}. "
-                        "Falling back to persisting files without embeddings."
-                    , exc_info=True)
+                        "Falling back to persisting files without embeddings.",
+                        exc_info=True,
+                    )
                     embeddings = [[] for _ in window_texts]
 
                 offset = 0
@@ -544,7 +571,10 @@ class IndexingService:
 
                     await self.sql_persister.batch_clear(source_files, session)
                     await self.sql_persister.batch_persist(
-                        [(indexed, sf) for (_, indexed), sf in zip(window_items, source_files)],
+                        [
+                            (indexed, sf)
+                            for (_, indexed), sf in zip(window_items, source_files)
+                        ],
                         session,
                     )
 
@@ -563,7 +593,9 @@ class IndexingService:
                                 }
                                 for doc in indexed.documents
                             ]
-                            vector_collector.append((chunks_for_vec, indexed.embeddings))
+                            vector_collector.append(
+                                (chunks_for_vec, indexed.embeddings)
+                            )
 
                     window_ok = True
 
@@ -588,7 +620,7 @@ class IndexingService:
             texts = []
             for doc in indexed.documents:
                 skel = doc.metadata.get("skeleton")
-                texts.append(skel if skel else doc.content[:8000])
+                texts.append(skel if skel else doc.content[:EMBEDDING_TEXT_CAP])
 
             window.append((prepared, indexed, len(texts)))
             window_texts.extend(texts)
@@ -614,11 +646,11 @@ class IndexingService:
                     all_chunks,
                     all_embeddings,
                 )
-                logger.info(
-                    f"Vector upsert complete: {len(all_chunks)} chunks"
-                )
+                logger.info(f"Vector upsert complete: {len(all_chunks)} chunks")
             except Exception as e:
                 logger.exception(f"Final vector upsert failed: {e}")
 
         error_count = extract_error_count + persist_error_count
-        logger.info(f"Full indexing complete. Indexed: {indexed_count}, Errors: {error_count}")
+        logger.info(
+            f"Full indexing complete. Indexed: {indexed_count}, Errors: {error_count}"
+        )

@@ -15,12 +15,12 @@ MessageHandler - 消息处理器（Orchestrator）
 import time
 
 from app.core.engine.message.deduplicator import MessageDeduplicator
-from app.core.engine.message.handler._ai_mixin import AiMessageMixin
-from app.core.engine.message.handler._dispatch_mixin import DispatchMixin
-from app.core.engine.message.handler._error_mixin import ErrorMessageMixin
-from app.core.engine.message.handler._stream_mixin import StreamMixin
-from app.core.engine.message.handler._tool_mixin import ToolMessageMixin
-from app.core.engine.message.handler._user_mixin import UserMessageMixin
+from app.core.engine.message.handler.ai_mixin import AiMessageMixin
+from app.core.engine.message.handler.dispatch_mixin import DispatchMixin
+from app.core.engine.message.handler.error_mixin import ErrorMessageMixin
+from app.core.engine.message.handler.stream_mixin import StreamMixin
+from app.core.engine.message.handler.tool_mixin import ToolMessageMixin
+from app.core.engine.message.handler.user_mixin import UserMessageMixin
 from app.core.engine.message.publisher import MessagePublisher
 from app.core.engine.message.repository import MessageRepository
 from app.core.engine.message.schemas import MessageHandlerResult

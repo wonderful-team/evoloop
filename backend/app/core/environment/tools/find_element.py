@@ -95,7 +95,9 @@ async def find_element(
 
         if return_all or not target:
             formatted = pipeline_manager.format_for_prompt(elements)
-            return f"Screenshot: {screenshot_path}\n\n{formatted}", {"count": len(elements)}
+            return f"Screenshot: {screenshot_path}\n\n{formatted}", {
+                "count": len(elements)
+            }
 
         # Step 4: Find best match
         target_lower = target.lower()
@@ -158,10 +160,14 @@ async def find_element(
         if action == "tap" or action == "click":
             if platform == "android":
                 adb_driver.tap(best_match.x, best_match.y, device_id=device_id)
-                result_msg += f"\nACTION PERFORMED: Tapped at ({best_match.x}, {best_match.y})"
+                result_msg += (
+                    f"\nACTION PERFORMED: Tapped at ({best_match.x}, {best_match.y})"
+                )
             elif platform == "macos":
                 macos_driver.click(best_match.x, best_match.y)
-                result_msg += f"\nACTION PERFORMED: Clicked at ({best_match.x}, {best_match.y})"
+                result_msg += (
+                    f"\nACTION PERFORMED: Clicked at ({best_match.x}, {best_match.y})"
+                )
             else:
                 result_msg += f"\nWarning: Action '{action}' is not supported on platform '{platform}'"
         else:

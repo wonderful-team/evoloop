@@ -51,7 +51,9 @@ async def elevated_privilege_gate(context: HookContext) -> HookResult:
     # Check for elevated privilege patterns
     for pattern, cmd_type, description in _ELEVATED_PRIVILEGE_PATTERNS:
         if re.search(pattern, command, re.IGNORECASE):
-            logger.warning(f"[SecurityHook] Blocked {cmd_type} command: {command[:100]}")
+            logger.warning(
+                f"[SecurityHook] Blocked {cmd_type} command: {command[:100]}"
+            )
             return HookResult(
                 success=False,
                 block=True,
@@ -84,7 +86,9 @@ async def dangerous_command_gate(context: HookContext) -> HookResult:
     # Check for dangerous patterns
     for pattern, cmd_type, description in _DANGEROUS_PATTERNS:
         if re.search(pattern, command, re.IGNORECASE):
-            logger.warning(f"[SecurityHook] Blocked dangerous {cmd_type} command: {command[:100]}")
+            logger.warning(
+                f"[SecurityHook] Blocked dangerous {cmd_type} command: {command[:100]}"
+            )
             return HookResult(
                 success=False,
                 block=True,
@@ -101,7 +105,9 @@ async def dangerous_command_gate(context: HookContext) -> HookResult:
 
 
 @hook_system.register(HookEvent.PRE_TOOL_USE, matcher=".*", priority=3)
-async def sensitive_file_placeholder_replacement_gate(context: HookContext) -> HookResult:
+async def sensitive_file_placeholder_replacement_gate(
+    context: HookContext,
+) -> HookResult:
     """
     Scan tool inputs recursively for {{vault.id.key}} placeholders, decrypt values,
     and substitute them in-place. Record injected raw values in context.extra for post-execution censorship.
@@ -117,7 +123,9 @@ async def sensitive_file_placeholder_replacement_gate(context: HookContext) -> H
         # fields etc. live in dynamic extra fields and previously bypassed vault
         # injection, causing {{vault.*}} placeholders to reach the target literally.
         original_input = tool_input.model_dump()
-        replaced, injected_secrets = await inject_secrets_into_tool_input(original_input, project_id=context.project_id)
+        replaced, injected_secrets = await inject_secrets_into_tool_input(
+            original_input, project_id=context.project_id
+        )
         if replaced != original_input:
             context.tool_input = ToolInput.model_validate(replaced)
     except ValueError as e:
@@ -135,7 +143,9 @@ async def sensitive_file_placeholder_replacement_gate(context: HookContext) -> H
                 ctx.injected_secrets = set()
             ctx.injected_secrets.update(injected_secrets)
         except Exception as e:
-            logger.warning(f"Failed to save injected_secrets to EvoContext: {e}", exc_info=True)
+            logger.warning(
+                f"Failed to save injected_secrets to EvoContext: {e}", exc_info=True
+            )
 
     return HookResult(success=True, modified_context=context)
 

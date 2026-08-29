@@ -94,27 +94,10 @@ class ContextStats(DynamicBaseModel):
             lines.append("Tip: Use forget_tool_outputs to fold old exploration steps")
         return "\n".join(lines)
 
-    def is_near_limit(self) -> bool:
-        return self.usage_ratio >= 0.80
-
-    def is_critical(self) -> bool:
-        return self.usage_ratio >= 0.95
-
 
 # ---------------------------------------------------------------------------
 # Rewind Operations (from rewind/models.py)
 # ---------------------------------------------------------------------------
-
-
-class RewindOperation(DynamicBaseModel):
-    """Request parameters for a rewind operation."""
-
-    thread_id: str
-    target_message_id: str | None = None
-    include_target: bool = False
-    revert_files: bool = True
-    reset_state: bool = True
-    reason: str = "user_request"
 
 
 class RewindResult(DynamicBaseModel):

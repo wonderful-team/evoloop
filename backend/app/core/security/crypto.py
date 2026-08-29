@@ -31,7 +31,10 @@ if HAS_JWT:
 else:
     pwd_context = None
 
-ALGORITHM = "HS256"
+from app.core.security import constants as security_constants
+
+# Backward-compatible re-export
+ALGORITHM = security_constants.ALGORITHM
 
 
 def create_access_token(subject: str | Any, expires_delta: timedelta) -> str:
@@ -40,7 +43,9 @@ def create_access_token(subject: str | Any, expires_delta: timedelta) -> str:
         raise ImportError("JWT and settings are required for token creation")
     expire = datetime.now(timezone.utc) + expires_delta
     to_encode = {"exp": expire, "sub": str(subject)}
-    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM)
+    encoded_jwt = jwt.encode(
+        to_encode, settings.SECRET_KEY, algorithm=security_constants.ALGORITHM
+    )
     return encoded_jwt
 
 
@@ -66,4 +71,6 @@ def generate_hmac_signature(secret: str, message: str, hash_alg: str = "sha256")
     """
     if not secret:
         return ""
-    return hmac.new(secret.encode("utf-8"), message.encode("utf-8"), hash_alg).hexdigest()
+    return hmac.new(
+        secret.encode("utf-8"), message.encode("utf-8"), hash_alg
+    ).hexdigest()

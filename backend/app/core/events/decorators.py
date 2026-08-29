@@ -84,7 +84,9 @@ def register_instance_handlers(instance: Any, bus: Any = None) -> None:
             registered_count += 1
 
     if registered_count > 0:
-        logger.info(f"[EventRegister] {instance_class.__name__}: {registered_count} handlers registered")
+        logger.info(
+            f"[EventRegister] {instance_class.__name__}: {registered_count} handlers registered"
+        )
 
 
 def event_register(arg: Any = None) -> Any:

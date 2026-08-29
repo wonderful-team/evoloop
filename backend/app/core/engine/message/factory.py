@@ -109,7 +109,12 @@ class MessageBlockFactory:
             tool_name = cls._get_val(msg, "tool_name")
             tool_call_id = cls._get_val(msg, "tool_call_id") or msg_id
 
-            input_args = cls._get_val(msg, "input") or cls._get_val(msg, "args") or meta_data.get("input") or {}
+            input_args = (
+                cls._get_val(msg, "input")
+                or cls._get_val(msg, "args")
+                or meta_data.get("input")
+                or {}
+            )
             output = meta_data.get("output", content)
 
             # ... (Existing tool_meta logic) ...
@@ -123,7 +128,9 @@ class MessageBlockFactory:
 
             tool_meta = {
                 "display_name": display_name,
-                "affected_path_keys": metadata_registry.affected_path_keys if metadata_registry else [],
+                "affected_path_keys": metadata_registry.affected_path_keys
+                if metadata_registry
+                else [],
             }
 
             return MessageBlock(
@@ -201,7 +208,11 @@ class MessageBlockFactory:
             # Try to extract result meta from content if role is tool and status is completed
             result_meta = {}
             output = content or metadata.get("output", "")
-            if status == "completed" and isinstance(output, str) and output.strip().startswith("{"):
+            if (
+                status == "completed"
+                and isinstance(output, str)
+                and output.strip().startswith("{")
+            ):
                 try:
                     parsed = json.loads(output)
                     if isinstance(parsed, dict):

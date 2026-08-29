@@ -9,7 +9,9 @@ from app.core.memory.tool_output_memory import ToolOutputMemory
 from app.utils.template import render_template
 
 
-def apply_forgotten_status(messages: list[BaseMessage], tool_memory: ToolOutputMemory) -> list[BaseMessage]:
+def apply_forgotten_status(
+    messages: list[BaseMessage], tool_memory: ToolOutputMemory
+) -> list[BaseMessage]:
     if not tool_memory or not tool_memory.forgotten:
         return messages
 

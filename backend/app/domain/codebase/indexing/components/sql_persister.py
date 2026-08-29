@@ -61,7 +61,9 @@ class SQLPersister:
         # Delete relations via entity subquery
         entity_ids_subq = select(CodeEntity.id).where(CodeEntity.file_id.in_(file_ids))
         await session.execute(
-            delete(CodeRelation).where(CodeRelation.source_entity_id.in_(entity_ids_subq))
+            delete(CodeRelation).where(
+                CodeRelation.source_entity_id.in_(entity_ids_subq)
+            )
         )
 
         # Delete entities
@@ -149,7 +151,9 @@ class SQLPersister:
             else:
                 rel.confidence = "AMBIGUOUS"
 
-    async def persist(self, indexed: IndexedContent, source_file: SourceFile, session: AsyncSession) -> dict[str, int]:
+    async def persist(
+        self, indexed: IndexedContent, source_file: SourceFile, session: AsyncSession
+    ) -> dict[str, int]:
         """
         Persist indexed content to SQL database.
 
@@ -194,14 +198,16 @@ class SQLPersister:
         chunk_dicts = []
         for indexed, source_file in items:
             for doc in indexed.documents:
-                chunk_dicts.append({
-                    "source_file_id": source_file.id,
-                    "chunk_type": doc.metadata.get("type", "unknown"),
-                    "identifier": doc.metadata.get("name", "unknown"),
-                    "start_line": doc.metadata.get("start_line", 0),
-                    "end_line": doc.metadata.get("end_line", 0),
-                    "content": doc.content,
-                })
+                chunk_dicts.append(
+                    {
+                        "source_file_id": source_file.id,
+                        "chunk_type": doc.metadata.get("type", "unknown"),
+                        "identifier": doc.metadata.get("name", "unknown"),
+                        "start_line": doc.metadata.get("start_line", 0),
+                        "end_line": doc.metadata.get("end_line", 0),
+                        "content": doc.content,
+                    }
+                )
         if chunk_dicts:
             await session.execute(insert(CodeChunk), chunk_dicts)
 
@@ -217,12 +223,14 @@ class SQLPersister:
                 source_id = name_to_id.get(rel.source_full_name)
                 if not source_id:
                     continue
-                rel_dicts.append({
-                    "source_entity_id": source_id,
-                    "target_entity_id": name_to_id.get(rel.target_full_name),
-                    "target_name": rel.target_full_name,
-                    "relation_type": rel.relation_type,
-                })
+                rel_dicts.append(
+                    {
+                        "source_entity_id": source_id,
+                        "target_entity_id": name_to_id.get(rel.target_full_name),
+                        "target_name": rel.target_full_name,
+                        "relation_type": rel.relation_type,
+                    }
+                )
 
             all_name_to_ids.append(name_to_id)
 

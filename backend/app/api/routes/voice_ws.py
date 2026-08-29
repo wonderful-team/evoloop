@@ -1029,7 +1029,7 @@ async def run_agent_pipeline(websocket: WebSocket, thread_id: str, text: str) ->
     from app.core.identity import identity_service
     from app.core.state import shared_state
 
-    project_id = int(await shared_state.get("project_id", "0"))
+    project_id = await shared_state.get_active_project_id()
     member_id = await identity_service.get_member_id() or 0
 
     ctx = EvoContext(

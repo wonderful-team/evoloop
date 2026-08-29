@@ -1,19 +1,20 @@
 import logging
 import time
 
+from app.constants import CACHE_KEY_DYNAMIC_APPS_PREFIX
+from app.core.environment.constants import (
+    CACHE_KEY_APP_REASONING_PREFIX,
+    DYNAMIC_APP_TRIAGE_BATCH_SIZE,
+)
 from app.core.environment.explorers.base import BaseExplorer
 from app.infrastructure.cache import cache
 
 logger = logging.getLogger(__name__)
 
-REDIS_KEY_DYNAMIC_APPS_PREFIX = "system:dynamic_apps"
-REDIS_KEY_APP_REASONING_PREFIX = "system:app_categorization"
-
 # Track last log time to avoid repetitive "No new apps" logs
 _last_no_apps_log: dict[str, float] = {}
 _no_apps_log_interval: float = 300.0
 
-BATCH_SIZE = 20
 _TASK_TIMEOUT = 120.0
 
 
@@ -26,11 +27,11 @@ class DynamicAppTriage(BaseExplorer):
 
     @staticmethod
     def _get_dynamic_apps_key(platform: str) -> str:
-        return f"{REDIS_KEY_DYNAMIC_APPS_PREFIX}:{platform}"
+        return f"{CACHE_KEY_DYNAMIC_APPS_PREFIX}:{platform}"
 
     @staticmethod
     def _get_reasoning_key(platform: str) -> str:
-        return f"{REDIS_KEY_APP_REASONING_PREFIX}:{platform}"
+        return f"{CACHE_KEY_APP_REASONING_PREFIX}:{platform}"
 
     async def scan(self, *args, **kwargs) -> list:
         return []
@@ -65,15 +66,19 @@ class DynamicAppTriage(BaseExplorer):
                 now = time.time()
                 last_log = _last_no_apps_log.get(platform, 0)
                 if now - last_log > _no_apps_log_interval:
-                    logger.debug(f"[DynamicAppTriage] No new {platform} apps to triage.")
+                    logger.debug(
+                        f"[DynamicAppTriage] No new {platform} apps to triage."
+                    )
                     _last_no_apps_log[platform] = now
                 continue
 
-            logger.info(f"[DynamicAppTriage] Triaging {len(new_apps)} new {platform} apps ({BATCH_SIZE} per batch)...")
+            logger.info(
+                f"[DynamicAppTriage] Triaging {len(new_apps)} new {platform} apps ({DYNAMIC_APP_TRIAGE_BATCH_SIZE} per batch)..."
+            )
 
             all_results = {}
-            for i in range(0, len(new_apps), BATCH_SIZE):
-                batch = new_apps[i : i + BATCH_SIZE]
+            for i in range(0, len(new_apps), DYNAMIC_APP_TRIAGE_BATCH_SIZE):
+                batch = new_apps[i : i + DYNAMIC_APP_TRIAGE_BATCH_SIZE]
                 try:
                     result = await triage_app_batch.delay(batch).get(
                         timeout=_TASK_TIMEOUT
@@ -97,9 +102,13 @@ class DynamicAppTriage(BaseExplorer):
                     if is_dynamic:
                         pipe.sadd(dynamic_key, app_id)
                         pipe.hset(reasoning_key, app_id, reason)
-                        logger.info(f"[DynamicAppTriage] Marked '{platform}:{app_id}' as DYNAMIC: {reason}")
+                        logger.info(
+                            f"[DynamicAppTriage] Marked '{platform}:{app_id}' as DYNAMIC: {reason}"
+                        )
                     else:
-                        logger.debug(f"[DynamicAppTriage] Marked '{platform}:{app_id}' as STATIC")
+                        logger.debug(
+                            f"[DynamicAppTriage] Marked '{platform}:{app_id}' as STATIC"
+                        )
 
                 await pipe.execute()
 
@@ -114,9 +123,11 @@ class DynamicAppTriage(BaseExplorer):
             platform: Platform identifier ("android", "macos", etc.)
         """
         try:
-            dynamic_key = f"{REDIS_KEY_DYNAMIC_APPS_PREFIX}:{platform}"
+            dynamic_key = f"{CACHE_KEY_DYNAMIC_APPS_PREFIX}:{platform}"
             app_ids = await cache.smembers(dynamic_key)
             return set(app_ids) if app_ids else set()
         except Exception as e:
-            logger.exception(f"[DynamicAppTriage] Cache fetch failed for {platform}: {e}")
+            logger.exception(
+                f"[DynamicAppTriage] Cache fetch failed for {platform}: {e}"
+            )
             return set()

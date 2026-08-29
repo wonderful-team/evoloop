@@ -32,12 +32,16 @@ async def cancel_subagent(subagent_thread_id: str) -> str:
         return "Error: 缺少 parent thread_id 或 subagent_thread_id"
 
     ok = await _cancel_subagent(parent_tid, subagent_thread_id)
-    return f"Cancelled subagent {subagent_thread_id}" if ok else (
-        f"Subagent {subagent_thread_id} not found or already terminal"
+    return (
+        f"Cancelled subagent {subagent_thread_id}"
+        if ok
+        else (f"Subagent {subagent_thread_id} not found or already terminal")
     )
 
 
-@evoloop_tool(is_hidden=True, summary_template="evoloop.tool_summary.cancel_all_subagents")
+@evoloop_tool(
+    is_hidden=True, summary_template="evoloop.tool_summary.cancel_all_subagents"
+)
 async def cancel_all_subagents() -> str:
     """取消当前会话下所有正在运行的 subagent。"""
     from app.core.context.manager import ContextManager

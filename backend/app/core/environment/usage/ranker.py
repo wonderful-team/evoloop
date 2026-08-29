@@ -16,20 +16,16 @@ import os
 import subprocess
 from datetime import datetime, timezone
 
+from app.core.environment.constants import (
+    DEFAULT_TOP_N,
+    MAX_AGE_DAYS,
+    W_FREQUENCY,
+    W_RECENCY,
+    W_RUNNING,
+)
 from app.core.environment.schemas import AppUsageRecord
 
 logger = logging.getLogger(__name__)
-
-# How many top apps to scan in each cycle
-DEFAULT_TOP_N = 5
-
-# Score weights
-W_RECENCY = 0.5     # How recently was it used?
-W_FREQUENCY = 0.3   # How much total time was spent?
-W_RUNNING = 0.2     # Is it currently running?
-
-# Maximum age in days for recency scoring (older → score = 0)
-MAX_AGE_DAYS = 30
 
 
 # Removed local AppUsageRecord dataclass to use centralized Pydantic model from models.py
@@ -64,21 +60,43 @@ class UsageRanker:
                 "mdfind",
                 "kMDItemKind == 'Application' && kMDItemLastUsedDate > $time.now(-30d)",
             ]
-            result = subprocess.run(bulk_cmd, capture_output=True, text=True, timeout=10)
-            recent_paths = [p.strip() for p in result.stdout.splitlines() if p.strip().endswith(".app")]
+            result = subprocess.run(
+                bulk_cmd, capture_output=True, text=True, timeout=10
+            )
+            recent_paths = [
+                p.strip()
+                for p in result.stdout.splitlines()
+                if p.strip().endswith(".app")
+            ]
 
             if not recent_paths:
                 # Relaxed query: any app with usage metadata
-                bulk_cmd = ["mdfind", "kMDItemKind == 'Application' && kMDItemLastUsedDate > $time.now(-365d)"]
-                result = subprocess.run(bulk_cmd, capture_output=True, text=True, timeout=5)
-                recent_paths = [p.strip() for p in result.stdout.splitlines() if p.strip().endswith(".app")]
+                bulk_cmd = [
+                    "mdfind",
+                    "kMDItemKind == 'Application' && kMDItemLastUsedDate > $time.now(-365d)",
+                ]
+                result = subprocess.run(
+                    bulk_cmd, capture_output=True, text=True, timeout=5
+                )
+                recent_paths = [
+                    p.strip()
+                    for p in result.stdout.splitlines()
+                    if p.strip().endswith(".app")
+                ]
 
             # Process paths
             for path in recent_paths[:50]:
                 record = cls._probe_macos_path(path)
                 if record:
                     records.append(record)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, subprocess.TimeoutExpired) as e:
+        except (
+            ValueError,
+            OSError,
+            RuntimeError,
+            TypeError,
+            KeyError,
+            subprocess.TimeoutExpired,
+        ) as e:
             logger.debug(f"[UsageRanker] Bulk macOS probe failed: {e}", exc_info=True)
 
         # 2. Ensure all running apps and provided app_names are considered
@@ -101,11 +119,9 @@ class UsageRanker:
                     records.append(record)
                 else:
                     # Minimum fallback
-                    records.append(AppUsageRecord(
-                        app_name=name,
-                        bundle_id=name,
-                        platform="macos"
-                    ))
+                    records.append(
+                        AppUsageRecord(app_name=name, bundle_id=name, platform="macos")
+                    )
 
         # 3. Apply running boost and score
         for r in records:
@@ -129,7 +145,9 @@ class UsageRanker:
             if output:
                 return {name.strip() for name in output.split(",")}
         except Exception as e:
-            logger.debug(f"[UsageRanker] Failed to get running apps: {e}", exc_info=True)
+            logger.debug(
+                f"[UsageRanker] Failed to get running apps: {e}", exc_info=True
+            )
         return set()
 
     @classmethod
@@ -143,7 +161,9 @@ class UsageRanker:
         if last_used_str and last_used_str != "(null)":
             try:
                 # mdls returns: "2026-02-19 13:11:06 +0000"
-                last_used_at = datetime.strptime(last_used_str.strip(), "%Y-%m-%d %H:%M:%S %z")
+                last_used_at = datetime.strptime(
+                    last_used_str.strip(), "%Y-%m-%d %H:%M:%S %z"
+                )
             except Exception as e:
                 logger.debug("Suppressed error: %s", e, exc_info=True)
 
@@ -192,7 +212,9 @@ class UsageRanker:
                     last_used_str.strip(), "%Y-%m-%d %H:%M:%S %z"
                 )
             except ValueError:
-                logger.debug(f"[UsageRanker] Cannot parse date: {last_used_str!r}", exc_info=True)
+                logger.debug(
+                    f"[UsageRanker] Cannot parse date: {last_used_str!r}", exc_info=True
+                )
 
         return AppUsageRecord(
             app_name=app_name,
@@ -249,7 +271,9 @@ class UsageRanker:
             last_used_at: datetime | None = None
             if last_used_ms:
                 try:
-                    last_used_at = datetime.fromtimestamp(last_used_ms / 1000, tz=timezone.utc)
+                    last_used_at = datetime.fromtimestamp(
+                        last_used_ms / 1000, tz=timezone.utc
+                    )
                 except Exception as e:
                     logger.debug("Suppressed error: %s", e, exc_info=True)
 
@@ -276,7 +300,12 @@ class UsageRanker:
         raw: dict[str, dict] = {}
         try:
             proc = await asyncio.create_subprocess_exec(
-                "adb", "-s", device_id, "shell", "dumpsys", "usagestats",
+                "adb",
+                "-s",
+                device_id,
+                "shell",
+                "dumpsys",
+                "usagestats",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -303,7 +332,10 @@ class UsageRanker:
                         except (ValueError, IndexError):
                             pass
         except asyncio.TimeoutError:
-            logger.warning(f"[UsageRanker] ADB usagestats timed out for device {device_id}", exc_info=True)
+            logger.warning(
+                f"[UsageRanker] ADB usagestats timed out for device {device_id}",
+                exc_info=True,
+            )
         except Exception as e:
             logger.warning(f"[UsageRanker] ADB usagestats failed: {e}", exc_info=True)
 

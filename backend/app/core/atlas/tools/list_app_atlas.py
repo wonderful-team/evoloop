@@ -6,10 +6,7 @@ from app.core.tools import evoloop_tool
 logger = logging.getLogger(__name__)
 
 
-@evoloop_tool(
-    is_hidden=True,
-    summary_template="evoloop.tool_summary.list_app_atlas"
-)
+@evoloop_tool(is_hidden=True, summary_template="evoloop.tool_summary.list_app_atlas")
 async def list_app_atlas():
     """
     Lists all applications that have structural UI maps (Atlas) available in the graph database.
@@ -28,4 +25,6 @@ async def list_app_atlas():
         return content, {"count": len(apps)}
     except Exception as e:
         logger.exception(f"[AtlasTool] Failed to list apps: {e}")
-        return f"Error: Unable to list apps in Atlas. Details: {str(e)}", {"status": "error"}
+        return f"Error: Unable to list apps in Atlas. Details: {str(e)}", {
+            "status": "error"
+        }

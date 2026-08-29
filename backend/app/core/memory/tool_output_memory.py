@@ -194,7 +194,9 @@ class ToolOutputMemory:
         """
         if tool_call_id in self.forgotten:
             record = self.forgotten.pop(tool_call_id)
-            logger.info(f"[ToolOutputMemory] Restored {record.tool_name} ({tool_call_id})")
+            logger.info(
+                f"[ToolOutputMemory] Restored {record.tool_name} ({tool_call_id})"
+            )
             return True
         return False
 
@@ -220,7 +222,9 @@ class ToolOutputMemory:
             "total_original_chars": total_original,
             "total_summary_chars": total_summary,
             "savings_chars": total_original - total_summary,
-            "savings_ratio": (total_original - total_summary) / total_original if total_original > 0 else 0,
+            "savings_ratio": (total_original - total_summary) / total_original
+            if total_original > 0
+            else 0,
         }
 
     def to_dict(self) -> dict:
@@ -298,13 +302,8 @@ def get_tool_memory_from_state(state: "AgentState") -> ToolOutputMemory:
         try:
             return ToolOutputMemory.from_dict(tool_memory_data)
         except Exception as e:
-            logger.warning(f"[ToolOutputMemory] Failed to load from state: {e}", exc_info=True)
+            logger.warning(
+                f"[ToolOutputMemory] Failed to load from state: {e}", exc_info=True
+            )
 
     return ToolOutputMemory()
-
-
-def save_tool_memory_to_state(state: "AgentState", memory: ToolOutputMemory) -> None:
-    """
-    Helper to save ToolOutputMemory back to AgentState.
-    """
-    state.tool_memory = memory.to_dict()

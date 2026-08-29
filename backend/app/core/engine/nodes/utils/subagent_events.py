@@ -49,12 +49,9 @@ def _wake_session(parent_thread_id: str, kind: str, subagent_id: str) -> None:
     next message injection drains it (crash recovery covers the rest).
     """
     try:
-
         session = session_manager.get(parent_thread_id)
         if session is not None:
-            session.gate.put(
-                GateEvent(kind=kind, payload={"subagent_id": subagent_id})
-            )
+            session.gate.put(GateEvent(kind=kind, payload={"subagent_id": subagent_id}))
     except Exception as e:  # 底座未就绪（过渡期）时静默跳过，drain 逻辑仍可用
         logger.debug(f"[SubagentEvents] gate wake skipped: {e}")
 
@@ -82,7 +79,9 @@ async def drain_subagent_events(thread_id: str) -> list[dict]:
     return events
 
 
-async def drain_subagent_hitl_requests(thread_id: str) -> list[SubagentHITLRequestEvent]:
+async def drain_subagent_hitl_requests(
+    thread_id: str,
+) -> list[SubagentHITLRequestEvent]:
     """Drain HITL request events for a parent thread."""
     ensure_listener()
     q = _subagent_hitl_queues[thread_id]

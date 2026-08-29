@@ -84,8 +84,7 @@ class HybridSearcher:
                 )
                 allowed_repo_ids = {str(r) for r in repo_ids.all()}
                 candidates = [
-                    c for c in candidates
-                    if c.get("repository_id") in allowed_repo_ids
+                    c for c in candidates if c.get("repository_id") in allowed_repo_ids
                 ]
 
         return candidates[:limit]

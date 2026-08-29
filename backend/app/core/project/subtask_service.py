@@ -46,15 +46,22 @@ class SubtaskService:
             return task
 
     @staticmethod
-    async def list_project_tasks(project_id: int, status_filter: str = "all", limit: int = 20) -> list[ProjectTask]:
+    async def list_project_tasks(
+        project_id: int, status_filter: str = "all", limit: int = 20
+    ) -> list[ProjectTask]:
         """
         List root tasks for a project.
         """
         async with session_scope() as session:
-            query = select(ProjectTask).where(
-                ProjectTask.project_id == project_id,
-                ProjectTask.parent_id.is_(None)
-            ).order_by(ProjectTask.created_at.desc()).limit(limit)
+            query = (
+                select(ProjectTask)
+                .where(
+                    ProjectTask.project_id == project_id,
+                    ProjectTask.parent_id.is_(None),
+                )
+                .order_by(ProjectTask.created_at.desc())
+                .limit(limit)
+            )
 
             if status_filter != "all":
                 query = query.where(ProjectTask.status == status_filter)
@@ -168,10 +175,14 @@ class SubtaskService:
             if not task:
                 return None
 
-            return await SubtaskService._build_tree_recursive(task, max_depth, 0, session)
+            return await SubtaskService._build_tree_recursive(
+                task, max_depth, 0, session
+            )
 
     @staticmethod
-    async def _build_tree_recursive(task: ProjectTask, max_depth: int, current_depth: int, session) -> dict:
+    async def _build_tree_recursive(
+        task: ProjectTask, max_depth: int, current_depth: int, session
+    ) -> dict:
         """Build tree recursively."""
         tree = {
             "id": task.id,
@@ -289,7 +300,9 @@ class SubtaskService:
             parent.status = "pending"
 
         parent.updated_at = utcnow()
-        logger.info(f"[SubtaskService] Updated parent {parent_id} progress to {parent.progress}%")
+        logger.info(
+            f"[SubtaskService] Updated parent {parent_id} progress to {parent.progress}%"
+        )
 
     @staticmethod
     async def get_next_executable_task(project_id: int) -> dict | None:
@@ -333,7 +346,9 @@ class SubtaskService:
                         }
                 else:
                     # Find first pending subtask
-                    for subtask in sorted(root.subtasks, key=lambda x: x.task_data.get("order", 0)):
+                    for subtask in sorted(
+                        root.subtasks, key=lambda x: x.task_data.get("order", 0)
+                    ):
                         if subtask.status == "pending":
                             return {
                                 "id": subtask.id,
@@ -363,14 +378,16 @@ class SubtaskService:
         flat_list = []
 
         def traverse(node, depth=0):
-            flat_list.append({
-                "id": node["id"],
-                "title": node["title"],
-                "status": node["status"],
-                "progress": node["progress"],
-                "depth": depth,
-                "estimated_hours": node.get("estimated_hours", 0)
-            })
+            flat_list.append(
+                {
+                    "id": node["id"],
+                    "title": node["title"],
+                    "status": node["status"],
+                    "progress": node["progress"],
+                    "depth": depth,
+                    "estimated_hours": node.get("estimated_hours", 0),
+                }
+            )
             for child in node.get("subtasks", []):
                 traverse(child, depth + 1)
 

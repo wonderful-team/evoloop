@@ -25,7 +25,13 @@ class MessageRepository:
     - SELECT (query tool inputs, history)
     """
 
-    def __init__(self, thread_id: str, project_id: int | None = None, run_id: str | None = None, member_id: int = 0):
+    def __init__(
+        self,
+        thread_id: str,
+        project_id: int | None = None,
+        run_id: str | None = None,
+        member_id: int = 0,
+    ):
         self.thread_id = thread_id
         self.project_id = project_id
         self.run_id = run_id
@@ -62,7 +68,9 @@ class MessageRepository:
         """
         # Allow empty content for running tool steps (pre-inserted before execution)
         if not content and not thinking and not tool_calls and status != "running":
-            logger.warning(f"[MessageRepository] Skipping persist for {role}: no content, thinking, or tool_calls")
+            logger.warning(
+                f"[MessageRepository] Skipping persist for {role}: no content, thinking, or tool_calls"
+            )
             return None, 0
 
         try:
@@ -131,14 +139,27 @@ class MessageRepository:
                             ref_id = ref_data.get("id") or gen_uuid()
                             ref_type = ref_data.get("type") or "file"
                             ref_target_id = ref_data.get("target_id") or ""
-                            ref_target_name = ref_data.get("target_name") or "Unnamed Reference"
-                            ref_meta = ref_data.get("metadata") or ref_data.get("meta_data") or {}
+                            ref_target_name = (
+                                ref_data.get("target_name") or "Unnamed Reference"
+                            )
+                            ref_meta = (
+                                ref_data.get("metadata")
+                                or ref_data.get("meta_data")
+                                or {}
+                            )
                         else:
                             ref_id = getattr(ref_data, "id", None) or gen_uuid()
                             ref_type = getattr(ref_data, "type", None) or "file"
                             ref_target_id = getattr(ref_data, "target_id", None) or ""
-                            ref_target_name = getattr(ref_data, "target_name", None) or "Unnamed Reference"
-                            ref_meta = getattr(ref_data, "metadata", None) or getattr(ref_data, "meta_data", None) or {}
+                            ref_target_name = (
+                                getattr(ref_data, "target_name", None)
+                                or "Unnamed Reference"
+                            )
+                            ref_meta = (
+                                getattr(ref_data, "metadata", None)
+                                or getattr(ref_data, "meta_data", None)
+                                or {}
+                            )
 
                         ref = MessageReference(
                             id=ref_id,
@@ -221,13 +242,21 @@ class MessageRepository:
                     ref_type = ref_data.get("type") or "file"
                     ref_target_id = ref_data.get("target_id") or ""
                     ref_target_name = ref_data.get("target_name") or "Unnamed Reference"
-                    ref_meta = ref_data.get("metadata") or ref_data.get("meta_data") or {}
+                    ref_meta = (
+                        ref_data.get("metadata") or ref_data.get("meta_data") or {}
+                    )
                 else:
                     ref_id = getattr(ref_data, "id", None) or gen_uuid()
                     ref_type = getattr(ref_data, "type", None) or "file"
                     ref_target_id = getattr(ref_data, "target_id", None) or ""
-                    ref_target_name = getattr(ref_data, "target_name", None) or "Unnamed Reference"
-                    ref_meta = getattr(ref_data, "metadata", None) or getattr(ref_data, "meta_data", None) or {}
+                    ref_target_name = (
+                        getattr(ref_data, "target_name", None) or "Unnamed Reference"
+                    )
+                    ref_meta = (
+                        getattr(ref_data, "metadata", None)
+                        or getattr(ref_data, "meta_data", None)
+                        or {}
+                    )
 
                 ref = MessageReference(
                     id=ref_id,
@@ -264,7 +293,9 @@ class MessageRepository:
                 result = await session.execute(stmt)
                 msg = result.scalar_one_or_none()
                 if not msg:
-                    logger.warning(f"[MessageRepository] Message not found for update: thread={self.thread_id}, seq={sequence_number}")
+                    logger.warning(
+                        f"[MessageRepository] Message not found for update: thread={self.thread_id}, seq={sequence_number}"
+                    )
                     return None
 
                 for key, value in fields.items():
@@ -273,10 +304,14 @@ class MessageRepository:
                     if hasattr(msg, key):
                         setattr(msg, key, value)
                     else:
-                        logger.warning(f"[MessageRepository] Unknown field '{key}' on Message, skipping")
+                        logger.warning(
+                            f"[MessageRepository] Unknown field '{key}' on Message, skipping"
+                        )
 
                 await session.flush()
-                logger.info(f"[MessageRepository] Updated message seq={sequence_number}: {fields.keys()}")
+                logger.info(
+                    f"[MessageRepository] Updated message seq={sequence_number}: {fields.keys()}"
+                )
                 return msg.id
 
         except Exception as e:
@@ -302,15 +337,21 @@ class MessageRepository:
 
                 # 1. 如果提供了 tool_call_id，尝试找回准确的消息 ID (解决回调与执行器 ID 不一致问题)
                 if tool_call_id:
-                    stmt_msg = select(Message.id).where(
-                        Message.thread_id == self.thread_id,
-                        Message.tool_call_id == tool_call_id
-                    ).order_by(desc(Message.sequence_number))
+                    stmt_msg = (
+                        select(Message.id)
+                        .where(
+                            Message.thread_id == self.thread_id,
+                            Message.tool_call_id == tool_call_id,
+                        )
+                        .order_by(desc(Message.sequence_number))
+                    )
                     res = await session.execute(stmt_msg)
                     found_id = res.scalar_one_or_none()
                     if found_id:
                         target_msg_id = found_id
-                        logger.debug(f"[MessageRepository] Resolved tool_call_id {tool_call_id} -> msg {target_msg_id}")
+                        logger.debug(
+                            f"[MessageRepository] Resolved tool_call_id {tool_call_id} -> msg {target_msg_id}"
+                        )
 
                 # 2. 查找是否已有 changeset 引用
                 stmt = select(MessageReference).where(
@@ -337,13 +378,17 @@ class MessageRepository:
                         meta["files"] = files
                         meta["count"] = len(files)
                         ref.meta_data = meta
-                        logger.debug(f"[MessageRepository] Updated changeset for msg {target_msg_id}: added {file_path}")
+                        logger.debug(
+                            f"[MessageRepository] Updated changeset for msg {target_msg_id}: added {file_path}"
+                        )
                 else:
                     # 4. 创建新引用 (注意：如果消息不存在，此处仍会触发 IntegrityError)
                     # 我们增加一个存在性检查
                     stmt_check = select(Message.id).where(Message.id == target_msg_id)
                     if not (await session.execute(stmt_check)).scalar_one_or_none():
-                        logger.warning(f"[MessageRepository] Cannot sync changeset: Message {target_msg_id} not found in DB yet.")
+                        logger.warning(
+                            f"[MessageRepository] Cannot sync changeset: Message {target_msg_id} not found in DB yet."
+                        )
                         return False
 
                     ref = MessageReference(
@@ -352,21 +397,24 @@ class MessageRepository:
                         type="changeset",
                         target_id=run_id or target_msg_id,
                         target_name="代码变更集",
-                        meta_data={
-                            "files": [new_file_entry],
-                            "count": 1
-                        },
+                        meta_data={"files": [new_file_entry], "count": 1},
                     )
                     session.add(ref)
-                    logger.debug(f"[MessageRepository] Created new changeset for msg {target_msg_id} with {file_path}")
+                    logger.debug(
+                        f"[MessageRepository] Created new changeset for msg {target_msg_id} with {file_path}"
+                    )
 
                 await session.flush()
                 return True
         except Exception as e:
-            logger.exception(f"[MessageRepository] Failed to sync changeset reference: {e}")
+            logger.exception(
+                f"[MessageRepository] Failed to sync changeset reference: {e}"
+            )
             return False
 
-    async def resolve_tool_input(self, tool_call_id: str | None, tool_name: str | None = None) -> dict:
+    async def resolve_tool_input(
+        self, tool_call_id: str | None, tool_name: str | None = None
+    ) -> dict:
         """
         Resolve tool input arguments.
         Prioritizes the actual tool message (if pre-inserted by handler),
@@ -389,7 +437,11 @@ class MessageRepository:
                     )
                     result_tool = await session.execute(stmt_tool)
                     tool_msg = result_tool.scalar_one_or_none()
-                    if tool_msg and tool_msg.meta_data and isinstance(tool_msg.meta_data, dict):
+                    if (
+                        tool_msg
+                        and tool_msg.meta_data
+                        and isinstance(tool_msg.meta_data, dict)
+                    ):
                         input_data = tool_msg.meta_data.get("input")
                         if isinstance(input_data, dict) and input_data:
                             return input_data
@@ -421,7 +473,9 @@ class MessageRepository:
             raise
         return {}
 
-    async def update_status_by_tool_call_id(self, tool_call_id: str, status: str) -> bool:
+    async def update_status_by_tool_call_id(
+        self, tool_call_id: str, status: str
+    ) -> bool:
         """
         Update message status by tool_call_id (primarily for HITL closure).
         """
@@ -436,13 +490,19 @@ class MessageRepository:
                 result = await session.execute(stmt)
                 # No flush needed here as update() returns rowcount directly in some dialects,
                 # but session.execute with update statement is fine.
-                logger.info(f"[MessageRepository] Updated status to {status} for tool_call_id {tool_call_id}")
+                logger.info(
+                    f"[MessageRepository] Updated status to {status} for tool_call_id {tool_call_id}"
+                )
                 return result.rowcount > 0
         except Exception as e:
-            logger.exception(f"[MessageRepository] Failed to update status by tool_call_id {tool_call_id}: {e}")
+            logger.exception(
+                f"[MessageRepository] Failed to update status by tool_call_id {tool_call_id}: {e}"
+            )
             raise
 
-    async def update_tool_result_by_tool_call_id(self, tool_call_id: str, content: str) -> bool:
+    async def update_tool_result_by_tool_call_id(
+        self, tool_call_id: str, content: str
+    ) -> bool:
         """
         Update content of the tool result message (``role='tool'``) for a tool_call_id.
 
@@ -460,13 +520,19 @@ class MessageRepository:
                     .values(content=content)
                 )
                 result = await session.execute(stmt)
-                logger.info(f"[MessageRepository] Updated tool result content for tool_call_id {tool_call_id}")
+                logger.info(
+                    f"[MessageRepository] Updated tool result content for tool_call_id {tool_call_id}"
+                )
                 return result.rowcount > 0
         except Exception as e:
-            logger.exception(f"[MessageRepository] Failed to update tool result by tool_call_id {tool_call_id}: {e}")
+            logger.exception(
+                f"[MessageRepository] Failed to update tool result by tool_call_id {tool_call_id}: {e}"
+            )
             raise
 
-    async def update_content_by_tool_call_id(self, tool_call_id: str, content: str) -> bool:
+    async def update_content_by_tool_call_id(
+        self, tool_call_id: str, content: str
+    ) -> bool:
         """
         Update message content by tool_call_id (used to deliver async callback
         results, e.g. A2A, back into the tool message the LLM sees).
@@ -480,13 +546,19 @@ class MessageRepository:
                     .values(content=content)
                 )
                 result = await session.execute(stmt)
-                logger.info(f"[MessageRepository] Updated content for tool_call_id {tool_call_id}")
+                logger.info(
+                    f"[MessageRepository] Updated content for tool_call_id {tool_call_id}"
+                )
                 return result.rowcount > 0
         except Exception as e:
-            logger.exception(f"[MessageRepository] Failed to update content by tool_call_id {tool_call_id}: {e}")
+            logger.exception(
+                f"[MessageRepository] Failed to update content by tool_call_id {tool_call_id}: {e}"
+            )
             raise
 
-    async def update_ai_tool_message_content(self, tool_call_id: str, content: str) -> bool:
+    async def update_ai_tool_message_content(
+        self, tool_call_id: str, content: str
+    ) -> bool:
         """Update content of the AI message whose ``tool_calls`` JSON contains ``tool_call_id``.
 
         Phase B（worker-delegation-design.md）：A2A 回调结果需在 AI tool_call 消息上可见。
@@ -512,11 +584,15 @@ class MessageRepository:
                     for tc in normalize_tool_calls(msg.tool_calls):
                         if tc.get("id") == tool_call_id:
                             msg.content = content
-                            logger.info(f"[MessageRepository] Updated AI tool message content for tool_call_id {tool_call_id}")
+                            logger.info(
+                                f"[MessageRepository] Updated AI tool message content for tool_call_id {tool_call_id}"
+                            )
                             return True
             return False
         except Exception as e:
-            logger.exception(f"[MessageRepository] Failed to update AI tool message content by tool_call_id {tool_call_id}: {e}")
+            logger.exception(
+                f"[MessageRepository] Failed to update AI tool message content by tool_call_id {tool_call_id}: {e}"
+            )
             raise
 
     async def get_last_message_id(self, session=None) -> str | None:
@@ -570,11 +646,15 @@ class MessageRepository:
             )
 
             if before_id:
-                before_seq = (await session.execute(
-                    select(Message.sequence_number).where(Message.id == before_id)
-                )).scalar_one_or_none()
+                before_seq = (
+                    await session.execute(
+                        select(Message.sequence_number).where(Message.id == before_id)
+                    )
+                ).scalar_one_or_none()
                 if before_seq:
-                    visible_stmt = visible_stmt.where(Message.sequence_number < before_seq)
+                    visible_stmt = visible_stmt.where(
+                        Message.sequence_number < before_seq
+                    )
 
             result = await session.execute(visible_stmt)
             visible_messages = result.scalars().all()
@@ -588,12 +668,17 @@ class MessageRepository:
 
             # Special case: include current active run even if its messages are invisible
             if not before_id:
-                latest_run_id = (await session.execute(
-                    select(Message.run_id)
-                    .where(Message.thread_id == self.thread_id, Message.run_id.is_not(None))
-                    .order_by(Message.sequence_number.desc())
-                    .limit(1)
-                )).scalar_one_or_none()
+                latest_run_id = (
+                    await session.execute(
+                        select(Message.run_id)
+                        .where(
+                            Message.thread_id == self.thread_id,
+                            Message.run_id.is_not(None),
+                        )
+                        .order_by(Message.sequence_number.desc())
+                        .limit(1)
+                    )
+                ).scalar_one_or_none()
                 if latest_run_id:
                     run_ids.add(latest_run_id)
 
@@ -608,7 +693,9 @@ class MessageRepository:
                     )
                     .options(selectinload(Message.references))
                 )
-                invisible_messages = (await session.execute(invisible_stmt)).scalars().all()
+                invisible_messages = (
+                    (await session.execute(invisible_stmt)).scalars().all()
+                )
                 all_messages.extend(invisible_messages)
 
             all_messages.sort(key=lambda m: m.sequence_number or 0)
@@ -616,12 +703,14 @@ class MessageRepository:
             # 3. Total count for first load
             total_count = None
             if not before_id:
-                total_count = (await session.execute(
-                    select(func.count(Message.id)).where(
-                        Message.thread_id == self.thread_id,
-                        Message.is_visible,
-                        Message.category != MessageCategory.HITL_REQUEST.value
+                total_count = (
+                    await session.execute(
+                        select(func.count(Message.id)).where(
+                            Message.thread_id == self.thread_id,
+                            Message.is_visible,
+                            Message.category != MessageCategory.HITL_REQUEST.value,
+                        )
                     )
-                )).scalar()
+                ).scalar()
 
             return all_messages, has_more, total_count

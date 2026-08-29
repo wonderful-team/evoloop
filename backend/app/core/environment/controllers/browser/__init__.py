@@ -21,12 +21,12 @@ from app.core.learning.trace.recorder import get_recorder
 from app.infrastructure.drivers.browser import browser_manager
 from app.utils.controller_response import ControllerResponse
 
-from ._advanced import BrowserAdvancedMixin
-from ._extraction import BrowserExtractionMixin
-from ._interaction import BrowserInteractionMixin
-from ._navigation import BrowserNavigationMixin
-from ._perception import BrowserPerceptionMixin
-from ._utils import _resolve_selector
+from .advanced import BrowserAdvancedMixin
+from .extraction import BrowserExtractionMixin
+from .interaction import BrowserInteractionMixin
+from .navigation import BrowserNavigationMixin
+from .perception import BrowserPerceptionMixin
+from .utils import _resolve_selector
 
 logger = logging.getLogger(__name__)
 
@@ -89,13 +89,17 @@ class BrowserController(
             if action == "new_tab":
                 page = await browser_manager.new_tab(url)
                 count = browser_manager.tab_count()
-                return ControllerResponse.success(f"New tab opened (tab {count - 1}/{count - 1}). URL: {page.url}")
+                return ControllerResponse.success(
+                    f"New tab opened (tab {count - 1}/{count - 1}). URL: {page.url}"
+                )
 
             if action == "switch_tab":
                 if tab_index is None:
                     return ControllerResponse.missing_param("tab_index")
                 page = await browser_manager.switch_tab(tab_index)
-                return ControllerResponse.success(f"Switched to tab {tab_index}. URL: {page.url}")
+                return ControllerResponse.success(
+                    f"Switched to tab {tab_index}. URL: {page.url}"
+                )
 
             # ── All other actions need a live page ────────────────────────
             page = await browser_manager.get_page()
@@ -116,7 +120,9 @@ class BrowserController(
                 async def context_fn():
                     return {"url": page.url, "title": await page.title()}
 
-                await recording_ctx.record(action_type, params, screenshot_fn, context_fn)
+                await recording_ctx.record(
+                    action_type, params, screenshot_fn, context_fn
+                )
 
             pre_url = page.url
             try:
@@ -220,11 +226,19 @@ class BrowserController(
                     return ControllerResponse.missing_param("actions")
 
                 batch_start = time.time()
-                executor = BatchExecutor(continue_on_error=continue_on_error, delay_ms=delay_ms)
+                executor = BatchExecutor(
+                    continue_on_error=continue_on_error, delay_ms=delay_ms
+                )
 
                 async def _exec_action(action_dict: dict) -> str:
-                    params = {k: v for k, v in action_dict.items() if k != "action" and v is not None}
-                    return await cls.execute(action=action_dict.get("action", "unknown"), **params)
+                    params = {
+                        k: v
+                        for k, v in action_dict.items()
+                        if k != "action" and v is not None
+                    }
+                    return await cls.execute(
+                        action=action_dict.get("action", "unknown"), **params
+                    )
 
                 await executor.execute(actions, _exec_action)
                 return executor.format_summary(time.time() - batch_start)
@@ -239,7 +253,9 @@ class BrowserController(
                     return ControllerResponse.missing_param("selector or text")
                 try:
                     await page.locator(loc).first.set_input_files(file_path)
-                    return ControllerResponse.success(f"Uploaded file '{os.path.basename(file_path)}' to {loc}")
+                    return ControllerResponse.success(
+                        f"Uploaded file '{os.path.basename(file_path)}' to {loc}"
+                    )
                 except Exception as e:
                     logger.exception(f"[Browser] Upload failed: {e}")
                     return ControllerResponse.error("Upload failed.", details=str(e))
@@ -251,6 +267,8 @@ class BrowserController(
             error_msg = f"[Browser] action='{action}' failed: {e}"
             if continue_on_error:
                 logger.warning(f"Optional {error_msg}. Continuing.", exc_info=True)
-                return ControllerResponse.success("Optional action failed, continuing.", details=str(e))
+                return ControllerResponse.success(
+                    "Optional action failed, continuing.", details=str(e)
+                )
             logger.error(error_msg, exc_info=True)
             return ControllerResponse.error(f"Action failed: {action}", details=str(e))

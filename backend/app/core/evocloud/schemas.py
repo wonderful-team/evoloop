@@ -78,17 +78,6 @@ class RemoteCommand(DynamicBaseModel):
         return raw_payload
 
 
-class ToolLogState(DynamicBaseModel):
-    content: str | None = None
-    timestamp: float = 0.0
-    name: str | None = None
-
-
-class ThoughtLogState(DynamicBaseModel):
-    content: str | None = None
-    timestamp: float = 0.0
-
-
 class EvoCloudProjectSummary(DynamicBaseModel):
     id: int | None = None
     name: str

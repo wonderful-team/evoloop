@@ -42,7 +42,9 @@ async def get_skill(
         if skill_obj.resource_path:
             content += f"**Skill Resource Path**: `{skill_obj.resource_path}`\n"
             content += "All relative paths in this SOP are relative to the project root (the parent directory of `skills/`).\n\n"
-        content += f"#### SOP (Standard Operating Procedure):\n{skill_obj.instructions}\n\n"
+        content += (
+            f"#### SOP (Standard Operating Procedure):\n{skill_obj.instructions}\n\n"
+        )
         if tools_req:
             content += f"**Required Tools**: {', '.join(tools_req)}\n\n"
 

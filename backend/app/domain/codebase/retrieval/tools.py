@@ -42,7 +42,9 @@ async def search_codebase(
     retriever = RetrievalService()
     output_parts = []
 
-    pid = ContextManager.resolve_project_id(project_id, allow_global=False, request_temp=True)
+    pid = ContextManager.resolve_project_id(
+        project_id, allow_global=False, request_temp=True
+    )
 
     if pid == 0:
         result = await require_project_for_tool(
@@ -60,10 +62,14 @@ async def search_codebase(
     symbol_task = None
     usages_task = None
     if len(query.split()) < 3:
-        symbol_task = asyncio.create_task(retriever.find_symbol_definition(query, project_id=pid))
+        symbol_task = asyncio.create_task(
+            retriever.find_symbol_definition(query, project_id=pid)
+        )
         usages_task = asyncio.create_task(retriever.find_usages(query, project_id=pid))
 
-    vector_task = asyncio.create_task(retriever.search(query, project_id=pid, limit=5, operator=operator))
+    vector_task = asyncio.create_task(
+        retriever.search(query, project_id=pid, limit=5, operator=operator)
+    )
 
     graph_data = None
     if symbol_task:
@@ -81,7 +87,9 @@ async def search_codebase(
                 if usages_task:
                     usages = await usages_task
                     if usages:
-                        graph_data["incoming"] = [f"{u['source']} (references)" for u in usages]
+                        graph_data["incoming"] = [
+                            f"{u['source']} (references)" for u in usages
+                        ]
         except Exception as e:
             logger.exception(f"Symbol lookup failed: {e}")
 

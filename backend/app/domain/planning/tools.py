@@ -7,11 +7,14 @@ from sqlalchemy import delete, select
 from app.core.context.manager import ContextManager
 from app.core.engine.message.native_classes import RunnableConfig
 from app.core.tools import evoloop_tool
-from app.core.tools.base import EvoLoopTool
 from app.core.tools.base import InjectedToolArg
+from app.domain.planning.constants import (
+    RETRIEVAL_LIMIT,
+    TREE_FILE_LIMIT,
+    TREE_MAX_DEPTH,
+)
 
 from ...constants import DEFAULT_PROJECT_ID
-from .schemas import Plan, Step
 
 logger = logging.getLogger(__name__)
 
@@ -27,42 +30,6 @@ def _render_analysis_prompt(plan: str, context: str, tree: str, user_lang: str) 
         tree=tree,
         user_lang=user_lang,
     )
-
-
-class PlanningTool(EvoLoopTool):
-    name: str = "planning_tool"
-    description: str = "Create or update a plan. Use this tool BEFORE starting any complex task to outline your steps."
-
-    def _run(self, action: str, **kwargs) -> str:
-        """
-        Action can be 'create' or 'update'.
-        For 'create', provide 'title' and 'steps' (list of strings).
-        For 'update', provide 'plan_id', 'step_id', 'status', 'result'.
-        """
-        if action == "create":
-            title = kwargs.get("title")
-            step_titles = kwargs.get("steps", [])
-            title_str = str(title) if title is not None else "Untitled Plan"
-            steps = [Step(title=str(t)) for t in step_titles]
-            plan = Plan(title=title_str, steps=steps)
-            if steps:
-                plan.current_step_id = steps[0].id
-                steps[0].status = "in_progress"
-
-            # scalable: meaningful return so LLM knows what it did
-            return json.dumps(plan.model_dump(), ensure_ascii=False)
-
-        elif action == "update":
-            # In a real implementation with LangGraph, the 'tool' might not persist state directly
-            # if it's stateless. But here we simulate the logic.
-            # The actual persistence happens when Supervisor invokes this and we save to checkingpointer or return plain dict
-            # that Supervisor uses to patch state.
-            pass
-
-        return "Invalid action"
-
-    def _arun(self, action: str, **kwargs):
-        raise NotImplementedError("Async not implemented")
 
 
 @evoloop_tool(
@@ -97,22 +64,23 @@ async def create_plan(
             existing_plan = result.scalar_one_or_none()
 
             if existing_plan:
-                logger.info(f"Existing plan found plan_id={existing_plan.id} for thread={thread_id}. Updating.")
+                logger.info(
+                    f"Existing plan found plan_id={existing_plan.id} for thread={thread_id}. Updating."
+                )
                 plan_id = existing_plan.id
                 existing_plan.title = title
                 existing_plan.status = "active"
 
                 # Delete old steps for this plan to overwrite with new ones (simplest approach for 'create_plan')
                 # Alternatively we could soft-delete or archive, but 'create_plan' implies a fresh start.
-                await session.execute(delete(DBPlanStep).where(DBPlanStep.plan_id == plan_id))
+                await session.execute(
+                    delete(DBPlanStep).where(DBPlanStep.plan_id == plan_id)
+                )
             else:
                 # 2. Create Plan
                 plan_id = gen_uuid()
                 new_plan = DBPlan(
-                    id=plan_id,
-                    thread_id=thread_id,
-                    title=title,
-                    status="active"
+                    id=plan_id, thread_id=thread_id, title=title, status="active"
                 )
                 session.add(new_plan)
 
@@ -143,11 +111,7 @@ async def create_plan(
                 "id": plan_id,
                 "title": title,
                 "steps": [
-                    {
-                        "id": s.id,
-                        "title": s.title,
-                        "status": s.status
-                    } for s in db_steps
+                    {"id": s.id, "title": s.title, "status": s.status} for s in db_steps
                 ],
                 "current_step_id": db_steps[0].id if db_steps else None,
                 "is_complete": False,
@@ -159,7 +123,9 @@ async def create_plan(
             for s in db_steps:
                 lines.append(f"| `{s.id}` | {s.title} | {s.status} |")
 
-            lines.append("\n*Tip: Use `update_step_status` with the Step ID to track progress.*")
+            lines.append(
+                "\n*Tip: Use `update_step_status` with the Step ID to track progress.*"
+            )
             return_text = "\n".join(lines)
 
         # Notify frontend plan panel to refresh
@@ -167,9 +133,14 @@ async def create_plan(
             from app.core.events import system_bus
             from app.domain.planning.event import PlanUpdatedEvent
 
-            await system_bus.publish(PlanUpdatedEvent(thread_id=thread_id, plan_id=plan_id))
+            await system_bus.publish(
+                PlanUpdatedEvent(thread_id=thread_id, plan_id=plan_id)
+            )
         except Exception as e:
-            logger.warning(f"[create_plan] Failed to publish plan updated event: {e}", exc_info=True)
+            logger.warning(
+                f"[create_plan] Failed to publish plan updated event: {e}",
+                exc_info=True,
+            )
 
         return return_text, meta
 
@@ -256,7 +227,10 @@ async def update_step_status(
                     )
                 )
         except Exception as e:
-            logger.warning(f"[update_step_status] Failed to publish plan updated event: {e}", exc_info=True)
+            logger.warning(
+                f"[update_step_status] Failed to publish plan updated event: {e}",
+                exc_info=True,
+            )
 
         return msg, meta
     except Exception as e:
@@ -285,16 +259,28 @@ async def analyze_feasibility(proposed_plan: str, config: RunnableConfig) -> str
 
         # Retrieval
         retrieval_service = RetrievalService()
-        search_results = await retrieval_service.search(proposed_plan, operator="or", project_id=project_id, limit=5)
+        search_results = await retrieval_service.search(
+            proposed_plan, operator="or", project_id=project_id, limit=RETRIEVAL_LIMIT
+        )
 
-        context_str = "\n".join([f"File: {r['file_path']}\nSnippet: {r['content'][:500]}..." for r in search_results])
+        context_str = "\n".join(
+            [
+                f"File: {r['file_path']}\nSnippet: {r['content'][:500]}..."
+                for r in search_results
+            ]
+        )
 
         # Get Project Structure
         # Use underlying Generator directly (no longer a tool)
         from app.core.project.tree_generator import AnnotatedTreeGenerator
 
         # Smart Truncation enabled to avoid context overflow
-        generator = AnnotatedTreeGenerator(root, max_depth=3, with_symbols=False, file_limit=30)
+        generator = AnnotatedTreeGenerator(
+            root,
+            max_depth=TREE_MAX_DEPTH,
+            with_symbols=False,
+            file_limit=TREE_FILE_LIMIT,
+        )
         tree = await generator.generate()
 
         # LLM Analysis
@@ -302,10 +288,7 @@ async def analyze_feasibility(proposed_plan: str, config: RunnableConfig) -> str
         user_lang = SystemConfigService.get_language_preference()
 
         prompt_text = _render_analysis_prompt(
-            plan=proposed_plan,
-            context=context_str,
-            tree=tree,
-            user_lang=user_lang
+            plan=proposed_plan, context=context_str, tree=tree, user_lang=user_lang
         )
 
         # Use simple invoke with prepared text

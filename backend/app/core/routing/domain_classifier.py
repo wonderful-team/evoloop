@@ -20,9 +20,8 @@ import numpy as np
 from tokenizers import Tokenizer
 
 from app.core.config import settings
+from app.core.routing import constants as routing_constants
 from app.core.routing.schemas import (
-    DOMAIN_AMBIGUOUS,
-    INTENT_DOMAIN_CLASSIFIED,
     IntentHint,
 )
 
@@ -30,7 +29,6 @@ logger = logging.getLogger(__name__)
 
 # Inference-time confidence threshold.  Below this we let the agent engine's
 # fallback mapping take over.
-CONFIDENCE_THRESHOLD = 0.6
 
 _MAX_LENGTH = 128
 
@@ -75,7 +73,9 @@ def _load() -> bool:
         _session, _tokenizer, _id2name = session, tokenizer, id2name
         logger.info(
             "Domain classifier loaded from %s (%d labels, threshold=%.2f)",
-            _MODEL_DIR, len(_id2name), CONFIDENCE_THRESHOLD,
+            _MODEL_DIR,
+            len(_id2name),
+            routing_constants.CONFIDENCE_THRESHOLD,
         )
         return True
     except Exception:
@@ -116,7 +116,9 @@ def predict(text: str) -> tuple[str | None, float]:
 
     label = _id2name.get(str(top_idx))
     if label is None:
-        logger.warning("High-intent classifier returned unknown label index %d", top_idx)
+        logger.warning(
+            "High-intent classifier returned unknown label index %d", top_idx
+        )
         return None, top_prob
 
     return label, top_prob
@@ -135,9 +137,9 @@ def to_intent_hint(
     placeholders; the agent engine maps ``domain`` to the concrete functional
     intent and module list.
     """
-    domain = label if label else DOMAIN_AMBIGUOUS
+    domain = label if label else routing_constants.DOMAIN_AMBIGUOUS
     return IntentHint(
-        intent=INTENT_DOMAIN_CLASSIFIED,
+        intent=routing_constants.INTENT_DOMAIN_CLASSIFIED,
         domain=domain,
         confidence=confidence,
         suggested_modules=[],

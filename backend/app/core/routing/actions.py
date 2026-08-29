@@ -62,12 +62,13 @@ async def run_macro(
     nav_info = get_navigation_info(macro)
     if nav_info is not None:
         route, feedback = nav_info
-        return ActionOutcome(True, feedback, "navigate", {"route": route, "feedback": feedback})
+        return ActionOutcome(
+            True, feedback, "navigate", {"route": route, "feedback": feedback}
+        )
 
     # Inject project url as base_url for {{base_url}} substitutions (L0 path
     # runs run_deterministic directly; base_url must be resolved here).
     if "base_url" not in args:
-
         base_url = await resolve_project_base_url(macro.project_id)
         if base_url:
             args["base_url"] = base_url
@@ -101,7 +102,12 @@ async def run_macro(
 
     return ActionOutcome(
         bool(result.success),
-        result.message or (responses["macro"]["success"] if result.success else responses["macro"]["failure"]),
+        result.message
+        or (
+            responses["macro"]["success"]
+            if result.success
+            else responses["macro"]["failure"]
+        ),
         "macro",
         {
             "fell_back": result.status == "fallback_required",

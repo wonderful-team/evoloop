@@ -95,7 +95,11 @@ class EnvironmentProbe:
             try:
                 with open("/proc/device-tree/model") as f:
                     model_info = f.read().lower()
-                    if "raspberry pi" in model_info or "orange pi" in model_info or "embedded" in model_info:
+                    if (
+                        "raspberry pi" in model_info
+                        or "orange pi" in model_info
+                        or "embedded" in model_info
+                    ):
                         return "embedded"
             except Exception as e:
                 logger.debug("Suppressed error: %s", e, exc_info=True)
@@ -103,7 +107,10 @@ class EnvironmentProbe:
             return "embedded"
 
         # 4. 动态检测图形化显示服务器环境（适用于标准 Linux / Windows）
-        has_display = any(os.environ.get(var) for var in ("DISPLAY", "WAYLAND_DISPLAY", "XDG_CURRENT_DESKTOP"))
+        has_display = any(
+            os.environ.get(var)
+            for var in ("DISPLAY", "WAYLAND_DISPLAY", "XDG_CURRENT_DESKTOP")
+        )
         if has_display or settings.ENABLE_ENVIRONMENT_CONTROLS:
             return "desktop"
 
@@ -135,7 +142,9 @@ class EnvironmentProbe:
 
             return HostEnvironment(
                 os_name="macOS" if os_name == "Darwin" else os_name,
-                os_version=get_os_release() if os_name != "Darwin" else get_macos_version(),
+                os_version=get_os_release()
+                if os_name != "Darwin"
+                else get_macos_version(),
                 model="Mac" if os_name == "Darwin" else f"{os_name} Host",
                 cpu=get_processor(),
                 ram_gb=ram_gb,
@@ -187,7 +196,9 @@ class EnvironmentProbe:
             # 2. Sudo availability (without password)
             def _check_sudo():
                 try:
-                    res = subprocess.run(['sudo', '-n', 'true'], capture_output=True, timeout=1.0)
+                    res = subprocess.run(
+                        ["sudo", "-n", "true"], capture_output=True, timeout=1.0
+                    )
                     return res.returncode == 0
                 except Exception:
                     return False
@@ -201,7 +212,13 @@ class EnvironmentProbe:
             def _get_systemd_services():
                 try:
                     res = subprocess.run(
-                        ['systemctl', 'list-units', '--type=service', '--state=running', '--no-legend'],
+                        [
+                            "systemctl",
+                            "list-units",
+                            "--type=service",
+                            "--state=running",
+                            "--no-legend",
+                        ],
                         capture_output=True,
                         text=True,
                         timeout=1.5,
@@ -247,7 +264,11 @@ class EnvironmentProbe:
                         timeout=1.5,
                     )
                     if res.returncode == 0:
-                        return [line.strip() for line in res.stdout.strip().split('\n') if line.strip()]
+                        return [
+                            line.strip()
+                            for line in res.stdout.strip().split("\n")
+                            if line.strip()
+                        ]
                 except Exception as e:
                     logger.debug("Suppressed error: %s", e, exc_info=True)
                 return []
@@ -277,12 +298,20 @@ class EnvironmentProbe:
                 from app.core.environment.usage.ranker import UsageRanker
 
                 # rank_macos_apps performs shell commands, run in thread
-                usage_stats = await asyncio.to_thread(UsageRanker.rank_macos_apps, apps, top_n=10)
-                logger.info(f"[EnvironmentProbe] UsageRanker: top app = "
-                            f"{usage_stats[0].app_name!r} (score={usage_stats[0].priority_score})"
-                            if usage_stats else "[EnvironmentProbe] UsageRanker: no usage data")
+                usage_stats = await asyncio.to_thread(
+                    UsageRanker.rank_macos_apps, apps, top_n=10
+                )
+                logger.info(
+                    f"[EnvironmentProbe] UsageRanker: top app = "
+                    f"{usage_stats[0].app_name!r} (score={usage_stats[0].priority_score})"
+                    if usage_stats
+                    else "[EnvironmentProbe] UsageRanker: no usage data"
+                )
             except Exception as e:
-                logger.warning(f"[EnvironmentProbe] UsageRanker failed (non-fatal): {e}", exc_info=True)
+                logger.warning(
+                    f"[EnvironmentProbe] UsageRanker failed (non-fatal): {e}",
+                    exc_info=True,
+                )
 
             # Autonomous triage for discovered apps (run in background to avoid blocking startup)
             try:
@@ -292,10 +321,15 @@ class EnvironmentProbe:
                 _register_triage_task(task)
                 global _logged_macos_triage
                 if not _logged_macos_triage:
-                    logger.info("[EnvironmentProbe] macOS dynamic app triage scheduled (first time)")
+                    logger.info(
+                        "[EnvironmentProbe] macOS dynamic app triage scheduled (first time)"
+                    )
                     _logged_macos_triage = True
             except Exception as triage_e:
-                logger.warning(f"[EnvironmentProbe] macOS dynamic app triage failed: {triage_e}", exc_info=True)
+                logger.warning(
+                    f"[EnvironmentProbe] macOS dynamic app triage failed: {triage_e}",
+                    exc_info=True,
+                )
 
             return HostEnvironment(
                 os_name="macOS",
@@ -332,8 +366,12 @@ class EnvironmentProbe:
 
                 # Get device info
                 try:
-                    info = await asyncio.to_thread(adb_driver.get_system_info, device_id)
-                    packages = await asyncio.to_thread(adb_driver.list_installed_apps, device_id)
+                    info = await asyncio.to_thread(
+                        adb_driver.get_system_info, device_id
+                    )
+                    packages = await asyncio.to_thread(
+                        adb_driver.list_installed_apps, device_id
+                    )
 
                     # Fallback for battery since get_system_info handles it as string
                     # But we want int for models
@@ -355,15 +393,21 @@ class EnvironmentProbe:
 
                     # Autonomous triage for discovered packages (run in background)
                     triage = DynamicAppTriage()
-                    task = asyncio.create_task(triage.sync_dynamic_apps(android_packages=packages))
+                    task = asyncio.create_task(
+                        triage.sync_dynamic_apps(android_packages=packages)
+                    )
                     _register_triage_task(task)
                     # Only log once per device to avoid repetitive logs
                     if device_id not in _logged_device_ids:
-                        logger.info(f"[EnvironmentProbe] Android triage scheduled for {device_id} (first time)")
+                        logger.info(
+                            f"[EnvironmentProbe] Android triage scheduled for {device_id} (first time)"
+                        )
                         _logged_device_ids.add(device_id)
 
                 except Exception as e:
-                    logger.warning(f"Failed to get info for device {device_id}: {e}", exc_info=True)
+                    logger.warning(
+                        f"Failed to get info for device {device_id}: {e}", exc_info=True
+                    )
                     devices.append(
                         AndroidDevice(
                             device_id=device_id,
@@ -388,6 +432,7 @@ class EnvironmentProbe:
 
         # Check internet connectivity (parallel candidates, bounded latency)
         try:
+
             async def _check_internet() -> bool:
                 candidates = [
                     ("8.8.8.8", 53),
@@ -413,6 +458,7 @@ class EnvironmentProbe:
 
         # Get local IPs
         try:
+
             def _get_ips():
                 try:
                     hostname = socket.gethostname()
@@ -483,13 +529,15 @@ class EnvironmentProbe:
                     for line in output.split("\n"):
                         parts = line.split("\t")
                         if len(parts) >= 5:
-                            containers.append({
-                                "id": parts[0],
-                                "name": parts[1],
-                                "image": parts[2],
-                                "status": parts[3],
-                                "ports": parts[4]
-                            })
+                            containers.append(
+                                {
+                                    "id": parts[0],
+                                    "name": parts[1],
+                                    "image": parts[2],
+                                    "status": parts[3],
+                                    "ports": parts[4],
+                                }
+                            )
                     ips = _fetch_container_ips([c["id"] for c in containers])
                     for c in containers:
                         c["ip"] = ips.get(c["id"])

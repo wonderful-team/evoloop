@@ -67,7 +67,9 @@ class ProjectSwitchWebSocketSubscriber:
                 if resolved_path and os.path.isdir(resolved_path):
                     path = resolved_path
                     project_name = project_name or os.path.basename(path)
-                    logger.info(f"[ProjectSwitchWS] Auto-resolved project {project_id} -> {path}")
+                    logger.info(
+                        f"[ProjectSwitchWS] Auto-resolved project {project_id} -> {path}"
+                    )
                 else:
                     logger.warning(
                         f"[ProjectSwitchWS] Project {project_id} not found locally. "
@@ -75,7 +77,9 @@ class ProjectSwitchWebSocketSubscriber:
                     )
                     return
             except Exception as e:
-                logger.exception(f"[ProjectSwitchWS] Failed to resolve project {project_id}: {e}")
+                logger.exception(
+                    f"[ProjectSwitchWS] Failed to resolve project {project_id}: {e}"
+                )
                 return
 
         # Prefer authoritative local path even when payload provided a path
@@ -87,7 +91,10 @@ class ProjectSwitchWebSocketSubscriber:
                 if resolved_path and os.path.isdir(resolved_path):
                     path = resolved_path
             except Exception as e:
-                logger.debug(f"[ProjectSwitchWS] Local path resolution failed, keeping event path: {e}", exc_info=True)
+                logger.debug(
+                    f"[ProjectSwitchWS] Local path resolution failed, keeping event path: {e}",
+                    exc_info=True,
+                )
 
         if not path or not os.path.isdir(path):
             logger.warning(
@@ -104,7 +111,9 @@ class ProjectSwitchWebSocketSubscriber:
             project_name=project_name,
             path=path,
         )
-        logger.info(f"[ProjectSwitchWS] SUCCESSFULLY triggered project switch: id={project_id}, path={path}")
+        logger.info(
+            f"[ProjectSwitchWS] SUCCESSFULLY triggered project switch: id={project_id}, path={path}"
+        )
 
 
 @event_register()
@@ -136,7 +145,9 @@ class ProjectDomainSubscriber:
     async def on_project_moved(self, event: ProjectMovedEvent) -> None:
         """Handle project moved."""
         try:
-            await self._sync_service.handle_project_moved(event.src_path, event.dest_path)
+            await self._sync_service.handle_project_moved(
+                event.src_path, event.dest_path
+            )
         except Exception as e:
             logger.exception(f"[ProjectHandlers] Failed to handle project moved: {e}")
 
@@ -156,9 +167,13 @@ class ProjectDomainSubscriber:
                 sync_cloud_projects_task.delay()
                 logger.info("[ProjectHandlers] Cloud project sync dispatched to worker")
             else:
-                logger.info("[ProjectHandlers] No token on startup, skipping project sync. Will sync on USER_LOGGED_IN.")
+                logger.info(
+                    "[ProjectHandlers] No token on startup, skipping project sync. Will sync on USER_LOGGED_IN."
+                )
         except Exception as e:
-            logger.exception(f"[ProjectHandlers] Failed to sync cloud project on start: {e}")
+            logger.exception(
+                f"[ProjectHandlers] Failed to sync cloud project on start: {e}"
+            )
 
     @event_subscribe(SystemEventType.USER_LOGGED_IN)
     async def on_user_logged_in(self, event) -> None:
@@ -167,7 +182,9 @@ class ProjectDomainSubscriber:
         try:
             await self._sync_service.sync_cloud_project()
         except Exception as e:
-            logger.exception(f"[ProjectHandlers] Failed to sync cloud project on login: {e}")
+            logger.exception(
+                f"[ProjectHandlers] Failed to sync cloud project on login: {e}"
+            )
 
     @event_subscribe(ProjectEventType.PROJECT_SWITCHED)
     async def on_project_switched(self, event: ProjectSwitchedEvent) -> None:
@@ -195,9 +212,13 @@ class ProjectDomainSubscriber:
 
         if path:
             if not os.path.isdir(path):
-                logger.warning(f"[ProjectHandlers] Project switch received but path does not exist: {path}. Ignoring.")
+                logger.warning(
+                    f"[ProjectHandlers] Project switch received but path does not exist: {path}. Ignoring."
+                )
                 return
-            logger.info(f"[ProjectHandlers] Switching project: {project_id} ({project_name}) -> {path}")
+            logger.info(
+                f"[ProjectHandlers] Switching project: {project_id} ({project_name}) -> {path}"
+            )
 
             thread_context_store.set_working_directory("remote-default", path)
             thread_context_store.set_working_directory("default", path)
@@ -206,7 +227,9 @@ class ProjectDomainSubscriber:
                 thread_context_store.set_active_project("remote-default", project_id)
                 thread_context_store.set_active_project("default", project_id)
         else:
-            logger.warning(f"[ProjectHandlers] Project switch received but no path provided: {event.model_dump()}")
+            logger.warning(
+                f"[ProjectHandlers] Project switch received but no path provided: {event.model_dump()}"
+            )
 
 
 @event_register()
@@ -222,11 +245,15 @@ class ProjectLifecycleSubscriber:
         """
         root_projects_dir = get_workspace_root()
         if not root_projects_dir:
-            logger.warning("[Project] WORKSPACE_ROOT not configured. Skipping reconciliation.")
+            logger.warning(
+                "[Project] WORKSPACE_ROOT not configured. Skipping reconciliation."
+            )
             return
 
         if not os.path.exists(root_projects_dir):
-            logger.warning(f"[Project] WORKSPACE_ROOT '{root_projects_dir}' does not exist.")
+            logger.warning(
+                f"[Project] WORKSPACE_ROOT '{root_projects_dir}' does not exist."
+            )
             return
 
         try:
@@ -263,16 +290,21 @@ class ProjectLifecycleSubscriber:
 
         if key == "WORKSPACE_ROOT":
             if not new_value or not os.path.exists(new_value):
-                logger.warning(f"[Project] New WORKSPACE_ROOT '{new_value}' is invalid or does not exist.")
+                logger.warning(
+                    f"[Project] New WORKSPACE_ROOT '{new_value}' is invalid or does not exist."
+                )
                 return
 
             try:
                 from app.core.project.sync_service import project_sync_service
+
                 await project_sync_service.reconcile_projects(new_value)
                 logger.info(f"[Project] ✓ Reconciliation complete for {new_value}")
 
             except Exception as e:
-                logger.exception(f"[Project] Failed to handle WORKSPACE_ROOT change: {e}")
+                logger.exception(
+                    f"[Project] Failed to handle WORKSPACE_ROOT change: {e}"
+                )
 
 
 @event_register()
@@ -284,7 +316,9 @@ class ProjectContextHydratorSubscriber:
     @event_subscribe(SystemEventType.SESSION_STARTED)
     async def on_session_started(self, event) -> None:
         """Resolve project details and enrich EvoContext."""
-        logger.info(f"[ProjectHydrator] Received SESSION_STARTED event for project_id: {event.data.get('project_id')}")
+        logger.info(
+            f"[ProjectHydrator] Received SESSION_STARTED event for project_id: {event.data.get('project_id')}"
+        )
         from app.core.context import ContextManager, thread_context_store
 
         ctx = ContextManager.current()
@@ -311,7 +345,9 @@ class ProjectContextHydratorSubscriber:
         try:
             working_dir = await get_project_path(project_id)
             if not working_dir:
-                logger.warning(f"[ProjectHydrator] Could not resolve path for project {project_id}")
+                logger.warning(
+                    f"[ProjectHydrator] Could not resolve path for project {project_id}"
+                )
                 return
 
             # Update Context
@@ -321,4 +357,7 @@ class ProjectContextHydratorSubscriber:
             thread_context_store.set_working_directory(ctx.thread_id, working_dir)
             thread_context_store.set_active_project(ctx.thread_id, project_id)
         except Exception as e:
-            logger.warning(f"[ProjectHydrator] Failed to resolve project {project_id}: {e}", exc_info=True)
+            logger.warning(
+                f"[ProjectHydrator] Failed to resolve project {project_id}: {e}",
+                exc_info=True,
+            )

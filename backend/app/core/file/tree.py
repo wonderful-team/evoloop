@@ -2,6 +2,7 @@ import logging
 import os
 from typing import Any
 
+from .constants import BYTES_PER_GB, BYTES_PER_KB, BYTES_PER_MB, DEFAULT_MAX_ENTRIES
 from .traverser import FileTraverser
 
 logger = logging.getLogger(__name__)
@@ -55,7 +56,7 @@ class TreeService:
     def get_text_tree(
         path: str,
         max_depth: int = 3,
-        max_entries: int = 200,
+        max_entries: int = DEFAULT_MAX_ENTRIES,
         prefix: str = "",
         exclude_dirs: list[str] | None = None,
         _state: dict | None = None,
@@ -70,16 +71,16 @@ class TreeService:
 
         # Helpers for stats
         def _format_size(size: int) -> str:
-            if size < 1024:
+            if size < BYTES_PER_KB:
                 return f"{size}B"
-            elif size < 1024 * 1024:
-                return f"{size / 1024:.1f}K"
-            elif size < 1024 * 1024 * 1024:
-                return f"{size / (1024 * 1024):.1f}M"
+            elif size < BYTES_PER_MB:
+                return f"{size / BYTES_PER_KB:.1f}K"
+            elif size < BYTES_PER_GB:
+                return f"{size / (BYTES_PER_MB):.1f}M"
             else:
-                return f"{size / (1024 * 1024 * 1024):.1f}G"
+                return f"{size / (BYTES_PER_GB):.1f}G"
 
-        def _get_line_count(file_path: str, max_size: int = 1024 * 1024) -> int | None:
+        def _get_line_count(file_path: str, max_size: int = BYTES_PER_MB) -> int | None:
             try:
                 size = os.path.getsize(file_path)
                 if size == 0 or size > max_size:
@@ -132,8 +133,12 @@ class TreeService:
                         _state,
                         with_stats,
                     )
-                    result.extend(subtree.split("\n")[1:])  # Skip child root as we prefix it
-                    result[-(len(subtree.split("\n")) - 1)] = f"{child_prefix}{entry.name}/"
+                    result.extend(
+                        subtree.split("\n")[1:]
+                    )  # Skip child root as we prefix it
+                    result[-(len(subtree.split("\n")) - 1)] = (
+                        f"{child_prefix}{entry.name}/"
+                    )
                 else:
                     stat_str = ""
                     if with_stats:
@@ -141,7 +146,7 @@ class TreeService:
                             st = entry.stat()
                             size_str = f"  {_format_size(st.st_size)}"
                             lines_str = ""
-                            if st.st_size <= 1024 * 1024:
+                            if st.st_size <= BYTES_PER_MB:
                                 lc = _get_line_count(entry.path)
                                 if lc is not None:
                                     lines_str = f" ({lc} lines)"

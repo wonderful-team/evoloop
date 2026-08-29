@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, cast
 
+from app.core.learning.constants import ALLOWED_UI_ACTIONS
 from app.core.learning.macro.schemas import (
     ExtractType,
     MacroActionType,
@@ -21,6 +22,8 @@ from app.core.learning.macro.schemas import (
 )
 from app.core.learning.macro.utils import cleanup_macro_steps
 
+import app.core.learning.constants as _mc
+
 if TYPE_CHECKING:
     from app.core.learning.schemas.migrated import TraceStep
     from app.core.learning.trace.parser import TraceSequence
@@ -28,61 +31,26 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-# Trace action types that can be turned into macro steps.
-ALLOWED_UI_ACTIONS = {
-    # Browser / DOM
-    "goto",
-    "navigate",
-    "click",
-    "type_text",
-    "input",
-    "key_press",
-    "scroll",
-    "wait",
-    "wait_for",
-    "extract",
-    "get_text",
-    "get_html",
-    "get_attribute",
-    "run_js",
-    "evaluate",
-    # Mobile / Android
-    "tap",
-    "long_press",
-    "swipe",
-    "input_text",
-    "open_app",
-    "back",
-    "home",
-    # Desktop / Global
-    "applescript",
-    "drag_drop",  # Automation Primitives
-    "detect_pagination",
-    "scroll_to_bottom",
-    # System
-    "screenshot",
-    "dump",
-    "dump_ui",
-}
-
 # Trace action names that pass ALLOWED_UI_ACTIONS but are not MacroActionType
 # members — remap before constructing MacroStep (enum-validated).
 _EVENT_TYPE_REMAP = {
-    "goto": "navigate",
-    "input_text": "input",
-    "evaluate": "run_js",
-    "dump": "dump_ui",
-    "extract": "get_text",
+    _mc.GOTO: _mc.NAVIGATE,
+    _mc.INPUT_TEXT: _mc.INPUT,
+    _mc.EVALUATE: _mc.RUN_JS,
+    _mc.DUMP: _mc.DUMP_UI,
+    _mc.EXTRACT: _mc.GET_TEXT,
 }
 
 # Raw mobile mirror events that must be normalized before macro compilation.
-_RAW_MOBILE_EVENT_TYPES = frozenset({
-    "touch_down",
-    "touch_up",
-    "mouse_click",
-    "swipe",
-    "key",
-})
+_RAW_MOBILE_EVENT_TYPES = frozenset(
+    {
+        _mc.TOUCH_DOWN,
+        _mc.TOUCH_UP,
+        _mc.MOUSE_CLICK,
+        _mc.SWIPE,
+        _mc.KEY,
+    }
+)
 
 
 class MacroScriptCompiler:
@@ -122,9 +90,12 @@ class MacroScriptCompiler:
 
             if action_type == "mobile_control" or step.action_name == "mobile_control":
                 source_type = MacroSource.MOBILE
-            elif action_type == "desktop_control" or step.action_name == "desktop_control":
+            elif (
+                action_type == "desktop_control"
+                or step.action_name == "desktop_control"
+            ):
                 source_type = MacroSource.DESKTOP
-            elif step.state_context.get("source") == "mobile":
+            elif step.state_context.get("source") == _mc.MOBILE:
                 # Android mirror recordings (tap/swipe/key_press normalized above)
                 source_type = MacroSource.MOBILE
             elif step.node_name in ("global_observation", "mobile_interaction"):
@@ -181,7 +152,7 @@ class MacroScriptCompiler:
                     last_package = current_package
 
             # Filter noisy keys
-            if action_type == "key_press" and action_args.get("key") in (
+            if action_type == _mc.KEY_PRESS and action_args.get("key") in (
                 "Alt",
                 "Shift",
                 "Control",
@@ -205,14 +176,14 @@ class MacroScriptCompiler:
                 inner_action = payload.get("action")
                 if inner_action:
                     event_type = inner_action
-                    if event_type == "navigate":
-                        event_type = "goto"
-                    elif event_type == "type_text":
-                        event_type = "input"
+                    if event_type == _mc.NAVIGATE:
+                        event_type = _mc.GOTO
+                    elif event_type == _mc.TYPE_TEXT:
+                        event_type = _mc.INPUT
                 else:
                     tool_invoked = step.action_name
-                    if tool_invoked == "wait_for":
-                        event_type = "wait"
+                    if tool_invoked == _mc.WAIT_FOR:
+                        event_type = _mc.WAIT
                         payload["duration_ms"] = float(payload.get("seconds", 1)) * 1000
                     else:
                         continue
@@ -228,9 +199,9 @@ class MacroScriptCompiler:
             )
 
             # Map to MacroStep
-            if event_type in ("get_text", "get_html", "get_attribute") or (
+            if event_type in (_mc.GET_TEXT, _mc.GET_HTML, _mc.GET_ATTRIBUTE) or (
                 step.action_name == "mobile_control"
-                and payload.get("action") == "dump_ui"
+                and payload.get("action") == _mc.DUMP_UI
             ):
                 has_extract = True
                 macro_step = MacroStep(
@@ -266,7 +237,10 @@ class MacroScriptCompiler:
         action_type = step.action_type
         action_args = dict(step.action_args)
 
-        if step.state_context.get("source") == "mobile" or action_type in _RAW_MOBILE_EVENT_TYPES:
+        if (
+            step.state_context.get("source") == _mc.MOBILE
+            or action_type in _RAW_MOBILE_EVENT_TYPES
+        ):
             normalized = _normalize_mobile_event(action_type, action_args)
             if normalized is None:
                 return None, {}
@@ -286,30 +260,34 @@ def _normalize_mobile_event(
     Mirror-window clicks arrive as mouse_click with device-pixel
     coordinates (transformed client-side in GlobalRecorderManager).
     """
-    if event_type in ("touch_down", "touch_up"):
+    if event_type in (_mc.TOUCH_DOWN, _mc.TOUCH_UP):
         return None
-    if event_type == "mouse_click":
+    if event_type == _mc.MOUSE_CLICK:
         pos = payload.get("position") or {}
         if isinstance(pos, (list, tuple)) and len(pos) == 2:
-            return ("tap", {"x": pos[0], "y": pos[1]})
-        args = {k: v for k, v in {"x": payload.get("x"), "y": payload.get("y")}.items() if v is not None}
-        return ("tap", args)
-    if event_type == "swipe":
+            return (_mc.TAP, {"x": pos[0], "y": pos[1]})
+        args = {
+            k: v
+            for k, v in {"x": payload.get("x"), "y": payload.get("y")}.items()
+            if v is not None
+        }
+        return (_mc.TAP, args)
+    if event_type == _mc.SWIPE:
         x, y = payload.get("x"), payload.get("y")
         end_x = payload.get("swipe_end_x")
         end_y = payload.get("swipe_end_y")
         args = {k: v for k, v in {"x": x, "y": y}.items() if v is not None}
         if end_x is None or end_y is None or x is None or y is None:
-            return ("tap", args)
+            return (_mc.TAP, args)
         distance = ((end_x - x) ** 2 + (end_y - y) ** 2) ** 0.5
         if distance < 30:
-            return ("tap", args)
+            return (_mc.TAP, args)
         args["end_x"] = end_x
         args["end_y"] = end_y
         if payload.get("swipe_duration_ms") is not None:
             args["duration_ms"] = payload["swipe_duration_ms"]
-        return ("swipe", args)
-    if event_type == "key":
-        return ("key_press", {"key": payload.get("key_code")})
+        return (_mc.SWIPE, args)
+    if event_type == _mc.KEY:
+        return (_mc.KEY_PRESS, {"key": payload.get("key_code")})
     # region_extract and other annotated events pass through as-is
     return (event_type, payload)

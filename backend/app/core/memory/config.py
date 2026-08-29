@@ -135,11 +135,6 @@ class MemoryConfig(DynamicBaseModel):
         """Get project-level memory root path."""
         return get_project_memory_root(project_path)
 
-    @property
-    def extraction_enabled(self) -> bool:
-        """Check if auto-extraction is enabled."""
-        return self.extraction_interval > 0
-
 
 # Default configuration instance (for backward compatibility)
 # Lazily resolved so that module-level import does not bypass settings.

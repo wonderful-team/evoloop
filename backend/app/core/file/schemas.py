@@ -2,6 +2,7 @@
 
 from enum import Enum
 
+from app.core.file.constants import DEFAULT_PAGE_SIZE
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
@@ -10,7 +11,6 @@ class DirectoryStatus(Enum):
 
     SUCCESS = "success"
     NOT_FOUND = "not_found"
-    ALREADY_EXISTS = "already_exists"
     PERMISSION_DENIED = "permission_denied"
     NOT_EMPTY = "not_empty"
     ERROR = "error"
@@ -62,7 +62,7 @@ class PaginationInfo(DynamicBaseModel):
     start_line: int
     end_line: int
     has_more: bool
-    page_size: int = 100
+    page_size: int = DEFAULT_PAGE_SIZE
 
 
 class FileStats(DynamicBaseModel):

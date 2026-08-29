@@ -48,12 +48,16 @@ class MemoryStateTracker:
             self._surfaced[thread_id][mem_id] = now
 
         if memory_ids:
-            logger.debug(f"[MemoryTracker] Marked {len(memory_ids)} memories as surfaced for thread {thread_id}")
+            logger.debug(
+                f"[MemoryTracker] Marked {len(memory_ids)} memories as surfaced for thread {thread_id}"
+            )
 
         # Periodic cleanup
         self._maybe_cleanup()
 
-    def get_surfaced_ids(self, thread_id: str, max_age: float | None = None) -> set[str]:
+    def get_surfaced_ids(
+        self, thread_id: str, max_age: float | None = None
+    ) -> set[str]:
         """
         Get IDs of memories already shown to the user.
 
@@ -71,15 +75,12 @@ class MemoryStateTracker:
 
         # Filter by age - expired entries are "fresh" again
         valid_ids = {
-            mem_id for mem_id, timestamp in surfaced.items()
+            mem_id
+            for mem_id, timestamp in surfaced.items()
             if (now - timestamp) < max_age
         }
 
         return valid_ids
-
-    def is_surfaced(self, thread_id: str, memory_id: str, max_age: float | None = None) -> bool:
-        """Check if a specific memory has been surfaced."""
-        return memory_id in self.get_surfaced_ids(thread_id, max_age)
 
     def filter_fresh(
         self,
@@ -119,7 +120,8 @@ class MemoryStateTracker:
         for thread_id, memories in self._surfaced.items():
             # Remove expired entries
             expired_ids = [
-                mem_id for mem_id, timestamp in memories.items()
+                mem_id
+                for mem_id, timestamp in memories.items()
                 if (now - timestamp) >= self.DEFAULT_SURFACE_TTL
             ]
             for mem_id in expired_ids:

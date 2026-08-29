@@ -23,11 +23,9 @@ mcp = FastMCP("EvoLoop MCP Server")
 async def read_file_ops(path: str, start_line: int = None, end_line: int = None) -> str:
     """Read a file's contents. Optionally specify line range."""
     try:
-        return await read_file.ainvoke({
-            "path": path,
-            "start_line": start_line,
-            "end_line": end_line
-        })
+        return await read_file.ainvoke(
+            {"path": path, "start_line": start_line, "end_line": end_line}
+        )
     except Exception as e:
         return f"Error: {e}"
 
@@ -36,25 +34,27 @@ async def read_file_ops(path: str, start_line: int = None, end_line: int = None)
 async def write_file_ops(path: str, content: str, overwrite: bool = False) -> str:
     """Create a new file or overwrite an existing file."""
     try:
-        return await write_file.ainvoke({
-            "path": path,
-            "content": content,
-            "overwrite": overwrite
-        })
+        return await write_file.ainvoke(
+            {"path": path, "content": content, "overwrite": overwrite}
+        )
     except Exception as e:
         return f"Error: {e}"
 
 
 @mcp.tool()
-async def edit_file_ops(path: str, target: str, replacement: str, allow_multiple: bool = False) -> str:
+async def edit_file_ops(
+    path: str, target: str, replacement: str, allow_multiple: bool = False
+) -> str:
     """Edit a file by replacing a specific text block."""
     try:
-        return await edit_file.ainvoke({
-            "path": path,
-            "target": target,
-            "replacement": replacement,
-            "allow_multiple": allow_multiple
-        })
+        return await edit_file.ainvoke(
+            {
+                "path": path,
+                "target": target,
+                "replacement": replacement,
+                "allow_multiple": allow_multiple,
+            }
+        )
     except Exception as e:
         return f"Error: {e}"
 
@@ -63,11 +63,7 @@ async def edit_file_ops(path: str, target: str, replacement: str, allow_multiple
 async def list_dir_ops(path: str, depth: int = 3, tree: bool = True) -> str:
     """List directory contents up to a specific depth."""
     try:
-        return await list_dir.ainvoke({
-            "path": path,
-            "depth": depth,
-            "tree": tree
-        })
+        return await list_dir.ainvoke({"path": path, "depth": depth, "tree": tree})
     except Exception as e:
         return f"Error: {e}"
 
@@ -76,10 +72,7 @@ async def list_dir_ops(path: str, depth: int = 3, tree: bool = True) -> str:
 async def find_symbol_ops(name: str, file_pattern: str = None) -> str:
     """Find definition of a class or function in the codebase."""
     try:
-        return await find_symbol.ainvoke({
-            "name": name,
-            "file_pattern": file_pattern
-        })
+        return await find_symbol.ainvoke({"name": name, "file_pattern": file_pattern})
     except Exception as e:
         return f"Error: {e}"
 
@@ -88,10 +81,7 @@ async def find_symbol_ops(name: str, file_pattern: str = None) -> str:
 async def search_code_ops(pattern: str, path: str = None) -> str:
     """Search code with regex pattern."""
     try:
-        return await search_code.ainvoke({
-            "pattern": pattern,
-            "path": path
-        })
+        return await search_code.ainvoke({"pattern": pattern, "path": path})
     except Exception as e:
         return f"Error: {e}"
 
@@ -174,10 +164,7 @@ async def remember_preference(key: str, value: str, description: str = "") -> st
         manager = container.memory_manager
         # Unified Facade API
         await manager.save_preference(
-            member_id=1,
-            key=key,
-            value=value,
-            description=description
+            member_id=1, key=key, value=value, description=description
         )
         return f"Stored preference: {key}={value}"
     except Exception as e:
@@ -185,7 +172,9 @@ async def remember_preference(key: str, value: str, description: str = "") -> st
 
 
 @mcp.tool()
-async def remember_concept(name: str, description: str, related_files: list[str] | None = None) -> str:
+async def remember_concept(
+    name: str, description: str, related_files: list[str] | None = None
+) -> str:
     """
     Store a high-level project concept.
     Example: name="Auth Flow", description="Uses JWT with 15min expiry", related_files=["auth.py"]
@@ -227,7 +216,11 @@ async def query_memory(query: str) -> str:
         # Unified Facade API
         prefs = await manager.get_merged_preferences("user_default")
         results = await manager.search_concepts(query, 0)
-        formatted_results = "\n".join([f"- **{r.name}**: {r.description}" for r in results]) if results else "No concepts found."
+        formatted_results = (
+            "\n".join([f"- **{r.name}**: {r.description}" for r in results])
+            if results
+            else "No concepts found."
+        )
         return f"{prefs}\n\n**Relevant Concepts:**\n{formatted_results}"
     except Exception as e:
         return f"Error: {e}"

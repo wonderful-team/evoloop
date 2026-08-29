@@ -7,6 +7,7 @@ and ``MemoryManager`` type hints).
 from abc import ABC, abstractmethod
 
 from app.core.engine.message.native_classes import BaseMessage
+from app.core.memory.constants import DEFAULT_SEARCH_LIMIT
 
 
 class IShortTermMemory(ABC):
@@ -37,5 +38,10 @@ class IShortTermMemory(ABC):
         pass
 
     @abstractmethod
-    async def search_messages(self, query: str, thread_id: str | None = None, limit: int = 10) -> list[BaseMessage]:
+    async def search_messages(
+        self,
+        query: str,
+        thread_id: str | None = None,
+        limit: int = DEFAULT_SEARCH_LIMIT,
+    ) -> list[BaseMessage]:
         pass

@@ -22,7 +22,9 @@ class SessionCompletedData(BaseModel):
     project_id: int | None = None
     member_id: int | None = None
     messages: list[BaseMessage] = Field(default_factory=list)
-    blackboard_dict: dict[str, Any] = Field(default_factory=dict, description="Serialized blackboard state")
+    blackboard_dict: dict[str, Any] = Field(
+        default_factory=dict, description="Serialized blackboard state"
+    )
     summary: str | None = None
     tts_summary: str = ""
     outcome: str | None = None

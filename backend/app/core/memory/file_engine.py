@@ -12,6 +12,7 @@ from typing import Any
 from sqlalchemy import func, or_, select
 
 from app.core.config import settings
+from app.core.memory.constants import DEFAULT_SEARCH_LIMIT
 from app.core.memory.models import (
     MemoryEntry,
     MemorySearchResult,
@@ -88,8 +89,9 @@ class _FileEngine:
                         hash_idx[entry.content_hash] = entry.id
                 except Exception as exc:
                     logger.debug(
-                        f"[FileEngine] Skipping corrupted file {path.name}: {exc}"
-                    , exc_info=True)
+                        f"[FileEngine] Skipping corrupted file {path.name}: {exc}",
+                        exc_info=True,
+                    )
                     continue
 
         def _scan():
@@ -118,7 +120,9 @@ class _FileEngine:
                 entry = MemoryEntry.from_frontmatter(text, str(path))
                 await self._db_upsert(entry, str(path))
             except Exception as exc:
-                logger.warning(f"[FileEngine] Failed to index {path}: {exc}", exc_info=True)
+                logger.warning(
+                    f"[FileEngine] Failed to index {path}: {exc}", exc_info=True
+                )
 
     def _determine_category(self, entry: MemoryEntry) -> MemoryCategory:
         tag_set = {t.lower() for t in entry.tags}
@@ -312,7 +316,7 @@ class _FileEngine:
         privacy: PrivacyLevel | None = None,
         project_id: int | None = None,
         filters: dict[str, Any] | None = None,
-        limit: int = 10,
+        limit: int = DEFAULT_SEARCH_LIMIT,
         member_id: int | None = None,
     ) -> list[MemoryEntry]:
         if not self._initialized:
@@ -502,7 +506,7 @@ class _FileEngine:
     async def search_similar(
         self,
         query_embedding: list[float],
-        top_k: int = 10,
+        top_k: int = DEFAULT_SEARCH_LIMIT,
         project_id: int | None = None,
     ) -> list[MemoryEntry]:
         return []
@@ -511,7 +515,7 @@ class _FileEngine:
         self,
         entry_id: str,
         relation_type: str | None = None,
-        limit: int = 10,
+        limit: int = DEFAULT_SEARCH_LIMIT,
     ) -> list[MemoryEntry]:
         return []
 
@@ -519,7 +523,7 @@ class _FileEngine:
         return
 
     async def find_episodes_by_concept(
-        self, concept_name: str, limit: int = 10
+        self, concept_name: str, limit: int = DEFAULT_SEARCH_LIMIT
     ) -> list[dict[str, Any]]:
         return []
 

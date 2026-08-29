@@ -13,7 +13,7 @@ from app.core.learning.schemas import (
 )
 from app.utils.id import gen_uuid
 
-from ._shared import _active_sessions
+from .shared import _active_sessions
 
 router = APIRouter()
 

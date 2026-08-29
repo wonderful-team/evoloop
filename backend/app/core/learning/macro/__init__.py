@@ -79,8 +79,8 @@ _SYMBOL_MODULES: dict[str, str] = {
     "get_navigation_info": "app.core.learning.macro.runner",
     "vault_fill_params": "app.core.learning.macro.runner",
     "invalidate_macro_cache": "app.core.learning.macro.runner",
-    "VOICE_POLICY": "app.core.learning.macro.runner",
-    "WEB_POLICY": "app.core.learning.macro.runner",
+    "VOICE_POLICY": "app.core.learning.constants",
+    "WEB_POLICY": "app.core.learning.constants",
     "ExecutionOutcome": "app.core.learning.macro.runner",
     "MacroGateError": "app.core.learning.macro.runner",
     # 生命周期

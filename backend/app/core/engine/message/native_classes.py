@@ -29,10 +29,7 @@ class BaseMessage(BaseModel):
     tool_call_id: str | None = None
     type: str = ""
 
-    model_config = {
-        "arbitrary_types_allowed": True,
-        "extra": "allow"
-    }
+    model_config = {"arbitrary_types_allowed": True, "extra": "allow"}
 
     _TYPE_TO_ROLE = {
         "human": "user",

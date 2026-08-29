@@ -38,12 +38,7 @@ class Rect(BaseModel):
     def from_list(cls, data: Any) -> Any:
         """Support [x, y, width, height] list format."""
         if isinstance(data, (list, tuple)) and len(data) == 4:
-            return {
-                "x": data[0],
-                "y": data[1],
-                "width": data[2],
-                "height": data[3]
-            }
+            return {"x": data[0], "y": data[1], "width": data[2], "height": data[3]}
         return data
 
 

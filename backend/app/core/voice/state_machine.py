@@ -93,14 +93,14 @@ class VoiceSessionStateMachine:
         async with self._lock:
             self._states.pop(thread_id, None)
 
-    async def is_speaking(self, thread_id: str) -> bool:
-        async with self._lock:
-            return self._states.get(thread_id) == VoiceSessionState.SPEAKING
-
     async def can_accept_route(self, thread_id: str) -> bool:
         async with self._lock:
             state = self._states.get(thread_id, VoiceSessionState.IDLE)
-            return state in (VoiceSessionState.IDLE, VoiceSessionState.LISTENING, VoiceSessionState.INTERRUPTED)
+            return state in (
+                VoiceSessionState.IDLE,
+                VoiceSessionState.LISTENING,
+                VoiceSessionState.INTERRUPTED,
+            )
 
     async def snapshot(self) -> dict[str, str]:
         async with self._lock:

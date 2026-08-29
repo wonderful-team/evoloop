@@ -9,12 +9,10 @@ stall the entire worker queue.
 import asyncio
 import logging
 
+from app.domain.codebase.constants import INDEX_FILE_TIMEOUT
 from app.infrastructure.queue.factory import shared_task
 
 logger = logging.getLogger(__name__)
-
-_INDEX_TIMEOUT = 120.0
-"""Max seconds a single index_file call may take before asyncio.TimeoutError."""
 
 
 @shared_task(name="codebase_index_file")
@@ -26,12 +24,13 @@ async def index_file_task(file_path: str, repo_id: int) -> None:
     try:
         await asyncio.wait_for(
             service.index_file(file_path, repo_id),
-            timeout=_INDEX_TIMEOUT,
+            timeout=INDEX_FILE_TIMEOUT,
         )
     except asyncio.TimeoutError:
         logger.warning(
-            f"[Task] index_file timed out after {_INDEX_TIMEOUT}s: {file_path}"
-        , exc_info=True)
+            f"[Task] index_file timed out after {INDEX_FILE_TIMEOUT}s: {file_path}",
+            exc_info=True,
+        )
     except Exception:
         logger.exception(f"[Task] index_file failed: {file_path}")
 
@@ -45,12 +44,13 @@ async def remove_file_task(file_path: str, repo_id: int) -> None:
     try:
         await asyncio.wait_for(
             service.remove_file(file_path, repo_id),
-            timeout=_INDEX_TIMEOUT,
+            timeout=INDEX_FILE_TIMEOUT,
         )
     except asyncio.TimeoutError:
         logger.warning(
-            f"[Task] remove_file timed out after {_INDEX_TIMEOUT}s: {file_path}"
-        , exc_info=True)
+            f"[Task] remove_file timed out after {INDEX_FILE_TIMEOUT}s: {file_path}",
+            exc_info=True,
+        )
     except Exception:
         logger.exception(f"[Task] remove_file failed: {file_path}")
 
@@ -64,12 +64,13 @@ async def move_file_task(src_path: str, dest_path: str, repo_id: int) -> None:
     try:
         await asyncio.wait_for(
             service.move_file(src_path, dest_path, repo_id),
-            timeout=_INDEX_TIMEOUT,
+            timeout=INDEX_FILE_TIMEOUT,
         )
     except asyncio.TimeoutError:
         logger.warning(
-            f"[Task] move_file timed out after {_INDEX_TIMEOUT}s: {src_path} -> {dest_path}"
-        , exc_info=True)
+            f"[Task] move_file timed out after {INDEX_FILE_TIMEOUT}s: {src_path} -> {dest_path}",
+            exc_info=True,
+        )
     except Exception:
         logger.exception(f"[Task] move_file failed: {src_path} -> {dest_path}")
 
@@ -88,7 +89,9 @@ async def run_full_indexing_task(repo_id: int, rebuild: bool = False) -> None:
 
     try:
         await activity_monitor.start_run(sys_tid, "Full Codebase Indexing")
-        await activity_monitor.update_agent_state(sys_tid, "Indexing", "Indexing Codebase", "Initializing...")
+        await activity_monitor.update_agent_state(
+            sys_tid, "Indexing", "Indexing Codebase", "Initializing..."
+        )
 
         await indexing_manager.trigger_full_index_repo(repo_id, rebuild)
 
@@ -96,7 +99,9 @@ async def run_full_indexing_task(repo_id: int, rebuild: bool = False) -> None:
         logger.info(f"[Task] Full Indexing Completed for Repo {repo_id}")
 
     except asyncio.CancelledError:
-        logger.warning(f"[Task] Full indexing cancelled for Repo {repo_id}", exc_info=True)
+        logger.warning(
+            f"[Task] Full indexing cancelled for Repo {repo_id}", exc_info=True
+        )
         await activity_monitor.end_run(sys_tid, "cancelled")
         raise
     except Exception as e:

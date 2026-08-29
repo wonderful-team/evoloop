@@ -8,17 +8,16 @@ import os
 import subprocess
 import threading
 import time
-from pathlib import Path
 
-from app.core.config import settings
+from app.core.environment.constants import (
+    ANDROID_RECORDINGS_DIR,
+    MIRROR_SESSION_BATCH_SIZE,
+)
 from app.core.environment.schemas import MirrorSessionStopResult
 
 from .android_event_recorder import AndroidEventRecorder, AndroidTraceEvent
 
 logger = logging.getLogger(__name__)
-
-# Android recordings directory (from settings)
-ANDROID_RECORDINGS_DIR = Path(settings.ANDROID_RECORDINGS_DIR)
 
 
 class MirrorSession:
@@ -33,7 +32,9 @@ class MirrorSession:
         self.is_active = False
 
         # Video timestamp synchronization
-        self._video_start_time: float | None = None  # Unix timestamp when video recording started
+        self._video_start_time: float | None = (
+            None  # Unix timestamp when video recording started
+        )
         self.port: int | None = None
         self.error: str | None = None
         self.should_be_active = False  # Persists through disconnects
@@ -54,15 +55,19 @@ class MirrorSession:
         Events are persisted immediately to unify with global/DOM recording flow.
         This ensures events are not lost if backend restarts.
         """
-        logger.info(f"[MirrorSession] Started real-time event persistence for session {self.session_id}")
+        logger.info(
+            f"[MirrorSession] Started real-time event persistence for session {self.session_id}"
+        )
         batch_buffer = []
-        BATCH_SIZE = 10  # Persist every 10 events or 1 second
+        # Persist every N events or 1 second
 
         while self.is_active or not self._event_queue.empty() or batch_buffer:
             try:
                 # Use a timeout to flush batch periodically
                 try:
-                    event_data = await asyncio.wait_for(self._event_queue.get(), timeout=1.0)
+                    event_data = await asyncio.wait_for(
+                        self._event_queue.get(), timeout=1.0
+                    )
                 except asyncio.TimeoutError:
                     # Flush remaining batch on timeout
                     if batch_buffer:
@@ -79,7 +84,9 @@ class MirrorSession:
                     "event_type": event_data.event_type,
                     "source": "mobile",
                     "node_name": self.device_id,
-                    "target_selector": f"android://screen/{event_data.x}/{event_data.y}" if event_data.x is not None else None,
+                    "target_selector": f"android://screen/{event_data.x}/{event_data.y}"
+                    if event_data.x is not None
+                    else None,
                     "target_text": None,
                     "payload": {
                         "x": event_data.x,
@@ -91,17 +98,21 @@ class MirrorSession:
                         "relative_timestamp_ms": relative_ms,
                         "swipe_end_x": getattr(event_data, "swipe_end_x", None),
                         "swipe_end_y": getattr(event_data, "swipe_end_y", None),
-                        "swipe_duration_ms": getattr(event_data, "swipe_duration_ms", None),
-                    }
+                        "swipe_duration_ms": getattr(
+                            event_data, "swipe_duration_ms", None
+                        ),
+                    },
                 }
                 batch_buffer.append(buffered_event)
 
                 # Log first few events
                 if self._step_counter <= 5:
-                    logger.info(f"[MirrorSession] Event {self._step_counter}: {event_data.event_type} at {relative_ms}ms (device_id={event_data.device_id}, package={event_data.app_package})")
+                    logger.info(
+                        f"[MirrorSession] Event {self._step_counter}: {event_data.event_type} at {relative_ms}ms (device_id={event_data.device_id}, package={event_data.app_package})"
+                    )
 
                 # Persist batch when size reached
-                if len(batch_buffer) >= BATCH_SIZE:
+                if len(batch_buffer) >= MIRROR_SESSION_BATCH_SIZE:
                     await self._persist_event_batch(batch_buffer)
                     batch_buffer = []
 
@@ -130,7 +141,10 @@ class MirrorSession:
                         member_id=0,
                         session_id=self.session_id,
                         thread_id="global",  # Mirror sessions use global thread
-                        step_number=self._step_counter - len(events) + events.index(event_data) + 1,
+                        step_number=self._step_counter
+                        - len(events)
+                        + events.index(event_data)
+                        + 1,
                         node_name=payload.get("node_name", self.device_id),
                         action_type="user_interaction",
                         timestamp=event_data["timestamp"],
@@ -151,15 +165,21 @@ class MirrorSession:
             logger.exception(f"[MirrorSession] Failed to persist batch: {e}")
             raise
 
-    async def start(self, bitrate: str = "2M", max_fps: int = 30, record_video: bool = True) -> bool:
+    async def start(
+        self, bitrate: str = "2M", max_fps: int = 30, record_video: bool = True
+    ) -> bool:
         """
         Start scrcpy for this session with optional video recording.
         """
         try:
             # Check if scrcpy is installed
-            result = subprocess.run(["scrcpy", "--version"], capture_output=True, text=True)
+            result = subprocess.run(
+                ["scrcpy", "--version"], capture_output=True, text=True
+            )
             if result.returncode != 0:
-                self.error = "scrcpy not found. Please install it with 'brew install scrcpy'."
+                self.error = (
+                    "scrcpy not found. Please install it with 'brew install scrcpy'."
+                )
                 return False
 
             # Set up video recording path (organized by device)
@@ -194,7 +214,9 @@ class MirrorSession:
 
             # Record video start time immediately after process starts
             self._video_start_time = time.time()
-            logger.info(f"[MirrorSession] scrcpy process started, video recording begins at {self._video_start_time}")
+            logger.info(
+                f"[MirrorSession] scrcpy process started, video recording begins at {self._video_start_time}"
+            )
 
             # Wait a bit to see if it crashes
             await asyncio.sleep(1.0)
@@ -207,12 +229,16 @@ class MirrorSession:
 
             self.is_active = True
             self.should_be_active = True
-            logger.info(f"Started scrcpy session {self.session_id} for device {self.device_id}")
+            logger.info(
+                f"Started scrcpy session {self.session_id} for device {self.device_id}"
+            )
 
             # Start recording immediately to ensure synchronization
             if record_video:
                 self.start_recording()
-                logger.info(f"Automatic event recording started for session {self.session_id}")
+                logger.info(
+                    f"Automatic event recording started for session {self.session_id}"
+                )
 
             # Persist loop for real-time event persistence
             self._persist_task = asyncio.create_task(self._persist_loop())
@@ -228,7 +254,9 @@ class MirrorSession:
                         if "Recording to" in clean_line and ".mp4" in clean_line:
                             exact_start = time.time()
                             self._video_start_time = exact_start
-                            logger.info(f"[MirrorSession] scrcpy confirmed recording start at {exact_start}")
+                            logger.info(
+                                f"[MirrorSession] scrcpy confirmed recording start at {exact_start}"
+                            )
 
                             # If recorder is already running, update its sync clock
                             if self.event_recorder:
@@ -269,9 +297,13 @@ class MirrorSession:
                 video_start_time=self._video_start_time,
             )
             self._recording_started = True
-            logger.info(f"[MirrorSession] Event recording started with video_start_time={self._video_start_time}")
+            logger.info(
+                f"[MirrorSession] Event recording started with video_start_time={self._video_start_time}"
+            )
 
-            logger.info(f"[MirrorSession] Started Android event recording for session {self.session_id}")
+            logger.info(
+                f"[MirrorSession] Started Android event recording for session {self.session_id}"
+            )
             return True
 
         except Exception as e:
@@ -296,9 +328,13 @@ class MirrorSession:
         captured_events: list[AndroidTraceEvent] = []
         if self.event_recorder and self._recording_started:
             android_events = self.event_recorder.stop_recording()
-            captured_events = self.event_recorder.to_trace_events(session_id=self.session_id, thread_id="global")
+            captured_events = self.event_recorder.to_trace_events(
+                session_id=self.session_id, thread_id="global"
+            )
             self.captured_events = captured_events
-            logger.info(f"Stopped event recording. Captured {len(captured_events)} events")
+            logger.info(
+                f"Stopped event recording. Captured {len(captured_events)} events"
+            )
 
         # Stop scrcpy
         if self.process:
@@ -321,14 +357,18 @@ class MirrorSession:
         # Verify video file exists
         video_path = self.video_path
         if video_path and os.path.exists(video_path):
-            logger.info(f"Mirror session {self.session_id} stopped. Video saved to: {video_path}")
+            logger.info(
+                f"Mirror session {self.session_id} stopped. Video saved to: {video_path}"
+            )
             return MirrorSessionStopResult(
                 video_path=video_path,
                 events=captured_events,
                 session_id=self.session_id,
             )
         else:
-            logger.warning(f"Mirror session {self.session_id} stopped but video file not found: {video_path}")
+            logger.warning(
+                f"Mirror session {self.session_id} stopped but video file not found: {video_path}"
+            )
             return None
 
 
@@ -339,9 +379,13 @@ class MirrorSessionManager:
 
     def __init__(self):
         self.sessions: dict[str, MirrorSession] = {}
-        self.stopped_sessions: dict[str, MirrorSession] = {}  # Cache stopped sessions for event count retrieval
+        self.stopped_sessions: dict[
+            str, MirrorSession
+        ] = {}  # Cache stopped sessions for event count retrieval
 
-    async def create_session(self, device_id: str, record_video: bool = True) -> MirrorSession:
+    async def create_session(
+        self, device_id: str, record_video: bool = True
+    ) -> MirrorSession:
         from app.utils.id import gen_uuid
 
         session_id = gen_uuid()
@@ -363,7 +407,9 @@ class MirrorSessionManager:
         """
         session = self.sessions.get(session_id)
         if not session:
-            logger.error(f"[MirrorManager] Cannot start recording: session {session_id} not found")
+            logger.error(
+                f"[MirrorManager] Cannot start recording: session {session_id} not found"
+            )
             return False
 
         return session.start_recording()
@@ -394,7 +440,11 @@ class MirrorSessionManager:
     async def on_device_connected(self, device_id: str):
         """Handle device reconnection."""
         for session in self.sessions.values():
-            if session.device_id == device_id and session.should_be_active and not session.is_active:
+            if (
+                session.device_id == device_id
+                and session.should_be_active
+                and not session.is_active
+            ):
                 logger.info(f"Attempting to recover mirror session for {device_id}...")
                 await session.start()
 

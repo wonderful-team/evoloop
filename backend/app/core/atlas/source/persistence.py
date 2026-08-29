@@ -106,7 +106,10 @@ async def _create_app_map_route_links(
         elif controller:
             controller_lower = controller.lower()
             for chunk, file_path in rows:
-                if controller_lower in file_path.lower() and action_name in chunk.identifier.lower():
+                if (
+                    controller_lower in file_path.lower()
+                    and action_name in chunk.identifier.lower()
+                ):
                     chunk_id = chunk.id
                     break
         links.append(
@@ -224,11 +227,6 @@ async def save_app_map(
         "[AppMap] saved %s/%s v%s (id=%s)", project_id, entity, new_version, new_id
     )
     return new_id, new_version, True
-
-
-async def get_app_map(app_map_id: int) -> AppMap | None:
-    async with session_scope() as db:
-        return await db.get(AppMap, app_map_id)
 
 
 async def get_active_app_map(project_id: int, entity: str) -> AppMap | None:

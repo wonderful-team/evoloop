@@ -45,7 +45,9 @@ class DirectorySummarizer:
             json.dumps({"path": dir_path, "summary": summary_text}),
         )
         if not write_result.success:
-            logger.error(f"Failed to write summary to {summary_path}: {write_result.error_message}")
+            logger.error(
+                f"Failed to write summary to {summary_path}: {write_result.error_message}"
+            )
 
         return summary_text
 
@@ -64,14 +66,18 @@ class DirectorySummarizer:
     async def _load_children(self, project_id: int, dir_path: str) -> list[dict]:
         prefix = dir_path.rstrip("/") + "/" if dir_path else ""
         async with session_scope() as session:
-            stmt = select(SourceFile.path, CodeChunk.content).join(
-                CodeChunk, CodeChunk.source_file_id == SourceFile.id, isouter=True
-            ).where(
-                SourceFile.repository_id.in_(
-                    select(Repository.id).where(Repository.project_id == project_id)
-                ),
-                SourceFile.path.startswith(prefix),
-                CodeChunk.chunk_type == "file",
+            stmt = (
+                select(SourceFile.path, CodeChunk.content)
+                .join(
+                    CodeChunk, CodeChunk.source_file_id == SourceFile.id, isouter=True
+                )
+                .where(
+                    SourceFile.repository_id.in_(
+                        select(Repository.id).where(Repository.project_id == project_id)
+                    ),
+                    SourceFile.path.startswith(prefix),
+                    CodeChunk.chunk_type == "file",
+                )
             )
             rows = (await session.execute(stmt)).all()
         children = []
@@ -88,7 +94,9 @@ class DirectorySummarizer:
                 children.append({"type": "file", "name": path, "content": preview})
         return children
 
-    async def generate_summary(self, dir_path: str, child_summaries: list[dict], model: str | None = None) -> str:
+    async def generate_summary(
+        self, dir_path: str, child_summaries: list[dict], model: str | None = None
+    ) -> str:
         from app.utils.template import render_template
 
         prompt_text = render_template(

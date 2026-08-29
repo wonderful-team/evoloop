@@ -12,31 +12,19 @@ import logging
 import re
 from typing import Any
 
+from app.core.engine.constants import ARTIFACT_CODE_BLOCK_TYPES
+from app.core.file.types import AUDIO_EXTENSIONS, IMAGE_EXTENSIONS, VIDEO_EXTENSIONS
 from app.utils.id import gen_uuid
 
 logger = logging.getLogger(__name__)
-
-# 图片扩展名（用于区分 file 和 image 类型）
-IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", ".ico"}
-# 音频扩展名
-AUDIO_EXTENSIONS = {".mp3", ".wav", ".ogg", ".m4a", ".flac", ".aac"}
-# 视频扩展名
-VIDEO_EXTENSIONS = {".mp4", ".webm", ".mov", ".avi", ".m4v", ".mkv"}
-
-# 代码块类型 → artifact_type 映射
-ARTIFACT_CODE_BLOCK_TYPES = {
-    "mermaid": "mermaid",
-    "map": "map",
-    "artifact": "html",
-    "html": "html",
-    "react": "react",
-}
 
 # 正则：匹配代码块语言标识符（```echarts ... ```）
 _CODE_BLOCK_PATTERN = re.compile(r"```(\w+)\s*\n(.*?)```", re.DOTALL)
 
 # 正则：匹配标准 Markdown 链接和图片：[text](file:///path) 或 ![text](uploads/...)
-_MD_LINK_PATTERN = re.compile(r"!?\[([^\]]+)\]\((file://[^\)]+|/[^\)]+|\./[^\)]+|uploads/[^\)]+)\)")
+_MD_LINK_PATTERN = re.compile(
+    r"!?\[([^\]]+)\]\((file://[^\)]+|/[^\)]+|\./[^\)]+|uploads/[^\)]+)\)"
+)
 
 # 正则：匹配 JSON 风格的 artifact 块
 _JSON_BLOCK_PATTERN = re.compile(r"```json\s*\n?(.*?)\n?```", re.DOTALL)
@@ -76,16 +64,18 @@ class AttachmentExtractor:
             seen_targets.add(key)
 
             artifact_id = gen_uuid()
-            references.append({
-                "id": gen_uuid(),
-                "type": "artifact",
-                "target_id": artifact_id,
-                "target_name": f"{lang.capitalize()} 组件",
-                "metadata": {
-                    "artifact_type": artifact_type,
-                    "content": block_content[:1000],
-                },
-            })
+            references.append(
+                {
+                    "id": gen_uuid(),
+                    "type": "artifact",
+                    "target_id": artifact_id,
+                    "target_name": f"{lang.capitalize()} 组件",
+                    "metadata": {
+                        "artifact_type": artifact_type,
+                        "content": block_content[:1000],
+                    },
+                }
+            )
 
         # --- 2. 扫描 JSON 风格的 Blocks (Artifacts) ---
         for match in _JSON_BLOCK_PATTERN.finditer(content):
@@ -101,16 +91,18 @@ class AttachmentExtractor:
                             continue
                         seen_targets.add(key)
 
-                        references.append({
-                            "id": gen_uuid(),
-                            "type": "artifact",
-                            "target_id": gen_uuid(),
-                            "target_name": f"{a_type.capitalize()} 组件",
-                            "metadata": {
-                                "artifact_type": a_type,
-                                "content": content_str,
-                            },
-                        })
+                        references.append(
+                            {
+                                "id": gen_uuid(),
+                                "type": "artifact",
+                                "target_id": gen_uuid(),
+                                "target_name": f"{a_type.capitalize()} 组件",
+                                "metadata": {
+                                    "artifact_type": a_type,
+                                    "content": content_str,
+                                },
+                            }
+                        )
             except (json.JSONDecodeError, TypeError):
                 continue
 
@@ -140,17 +132,19 @@ class AttachmentExtractor:
                 continue
             seen_targets.add(key)
 
-            references.append({
-                "id": gen_uuid(),
-                "type": ref_type,
-                "target_id": target_id,
-                "target_name": target_name,
-                "metadata": {
-                    "source_path": clean_target_id,
-                    "is_local_file": True,
-                    "is_standard_md_link": True
-                },
-            })
+            references.append(
+                {
+                    "id": gen_uuid(),
+                    "type": ref_type,
+                    "target_id": target_id,
+                    "target_name": target_name,
+                    "metadata": {
+                        "source_path": clean_target_id,
+                        "is_local_file": True,
+                        "is_standard_md_link": True,
+                    },
+                }
+            )
 
         return references
 

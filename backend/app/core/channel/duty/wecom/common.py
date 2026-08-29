@@ -3,26 +3,20 @@
 被 read.py / reply.py / scan_all.py 复用。
 坐标逻辑经实测：会话列表列 x≈250-320，右侧聊天区从 x≈430 起，底部工具条 y>850。
 """
+
 import asyncio
 import json
 import logging
 import os
 import time
 
+from app.core.channel.duty.constants import BAD_CONTACTS, WECOM_BUNDLE_ID
 from app.infrastructure.drivers.macos import macos_driver
 
 logger = logging.getLogger(__name__)
 
+
 # 系统横幅/导航文本，排除在联系人之外
-BAD_CONTACTS = [
-    "当前企业", "未认证", "认证", "星期一", "企业使用",
-    "我的企业", "单聊", "群聊", "外部聊天", "内部聊天",
-    "标记", "未读", "@我", "分组", "高级功能",
-    "文档", "日程", "待办", "会议", "智能表格", "智能总结",
-    "工作台", "通讯录", "微盘", "消息",
-    "管理企业", "前往认证",
-    "还不是你的联系人", "请发送", "申请验证",
-]
 
 
 def is_contact_name(t: str) -> bool:
@@ -33,7 +27,14 @@ def is_contact_name(t: str) -> bool:
     if any(k in t for k in BAD_CONTACTS):
         return False
     # 过滤纯数字/数值（含小数点，如 160.0、0.0、坐标数值）
-    if t.replace(":", "").replace("-", "").replace("/", "").replace(".", "").replace(" ", "").isdigit():
+    if (
+        t.replace(":", "")
+        .replace("-", "")
+        .replace("/", "")
+        .replace(".", "")
+        .replace(" ", "")
+        .isdigit()
+    ):
         return False
     # 过滤消息预览（以问号/感叹号结尾的短句，非联系人名）
     if t[-1] in "？！!?":
@@ -67,7 +68,10 @@ async def _probe_wecom_ready() -> tuple[bool, str]:
         "/Applications/企业微信.app",
         os.path.expanduser("~/Applications/企业微信.app"),
     ]
-    installed = any(os.path.isdir(p) for p in candidates) or shutil.which("企业微信") is not None
+    installed = (
+        any(os.path.isdir(p) for p in candidates)
+        or shutil.which("企业微信") is not None
+    )
     if not installed:
         return False, "未检测到企业微信客户端，请先安装"
 
@@ -132,12 +136,18 @@ async def current_chat_and_find(contact: str) -> tuple[str | None, tuple | None]
     for el in elems:
         if el["role"] != "AXStaticText" or not el["title"]:
             continue
-        if 560 < el["x"] < 680 and 0 < el["y"] < 120 and not el["title"].startswith("@"):
+        if (
+            560 < el["x"] < 680
+            and 0 < el["y"] < 120
+            and not el["title"].startswith("@")
+        ):
             current = el["title"].strip()
             break
     if current:
         current = current.split("@")[0].split("◎")[0].split("®")[0].strip()
-        if current in BAD_CONTACTS or any(k in current for k in ("分钟前", "小时前", "昨天", "刚刚")):
+        if current in BAD_CONTACTS or any(
+            k in current for k in ("分钟前", "小时前", "昨天", "刚刚")
+        ):
             current = None
     # 目标联系人位置
     target = contact.strip().replace(" ", "")
@@ -154,9 +164,6 @@ async def current_chat_and_find(contact: str) -> tuple[str | None, tuple | None]
                 pos = (x, y)
                 break
     return current, pos
-
-
-WECOM_BUNDLE_ID = "com.tencent.WeWorkMac"
 
 
 def _wecom_pid() -> int | None:
@@ -199,12 +206,14 @@ async def ax_tree_elements() -> list[dict]:
         b = el.get("bounds")
         if not isinstance(b, list) or len(b) != 4:
             continue
-        out.append({
-            "role": el.get("role", ""),
-            "x": int(b[0]),
-            "y": int(b[1]),
-            "title": title,
-        })
+        out.append(
+            {
+                "role": el.get("role", ""),
+                "x": int(b[0]),
+                "y": int(b[1]),
+                "title": title,
+            }
+        )
     return out
 
 
@@ -224,7 +233,11 @@ async def scan_unread_view() -> list[tuple]:
     # 当前不在未读视图：定位「未读」导航并点击切换，再 dump
     nav = None
     for el in elems:
-        if el["role"] == "AXStaticText" and el["title"].strip() == "未读" and el["x"] < 250:
+        if (
+            el["role"] == "AXStaticText"
+            and el["title"].strip() == "未读"
+            and el["x"] < 250
+        ):
             nav = el
             break
     if nav is None:
@@ -378,7 +391,9 @@ def read_processed_texts(history_dir: str, contact: str) -> set[str]:
     }
 
 
-def append_history(history_dir: str, contact: str, messages: list[str], role: str = "human") -> None:
+def append_history(
+    history_dir: str, contact: str, messages: list[str], role: str = "human"
+) -> None:
     """把新增消息追加写入联系人 jsonl 历史。
 
     jsonl 每行 {"seq", "ts", "role", "text"}，seq 按现有最后一条递增。
@@ -435,7 +450,9 @@ def _is_system_message(text: str) -> bool:
     return any(m in text for m in _SYSTEM_MESSAGE_MARKS)
 
 
-async def read_customer_messages(contact: str, history_dir: str, unread_count: int = 0) -> list[str]:
+async def read_customer_messages(
+    contact: str, history_dir: str, unread_count: int = 0
+) -> list[str]:
     """点开指定联系人会话，读取并返回「新增的客户消息」列表。
 
     以企微「未读数」为新增消息数量的可靠信号（未读红点 = 客户新发的待处理

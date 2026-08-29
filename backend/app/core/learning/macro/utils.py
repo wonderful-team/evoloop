@@ -6,6 +6,14 @@ import logging
 from typing import Any, cast
 
 from app.constants import DEFAULT_PROJECT_ID
+from app.core.learning.constants import (
+    ACTION,
+    BATCH_LOOP,
+    EXTRACT,
+    LOOP,
+    WAIT,
+    WHILE,
+)
 from app.core.learning.macro.schemas import MacroVerificationResult
 from app.core.learning.macro.service import MacroService
 from app.utils.yaml import macro_from_yaml
@@ -64,17 +72,15 @@ async def verify_macro_script(
         result = cast(
             dict[str, Any],
             await MacroService.run(
-                thread_id=thread_id,
-                script_input=steps,
-                params=default_params
-            )
+                thread_id=thread_id, script_input=steps, params=default_params
+            ),
         )
 
         success = result.get("success", False)
         extracted_data = result.get("extracted_data") or {}
         step_log = result.get("step_log")
 
-        expected_keys = [s["key"] for s in steps if s.get("type") == "extract"]
+        expected_keys = [s["key"] for s in steps if s.get("type") == EXTRACT]
         missing_keys = [k for k in expected_keys if k not in extracted_data]
 
         status = "success" if success and not missing_keys else "failed"
@@ -102,9 +108,13 @@ async def verify_macro_script(
                     f"{s.get('error') or 'failed'}"
                     for s in failed_steps[:5]
                 )
-                error = f"{error or 'Macro verification failed'}; failed steps: {detail}"
+                error = (
+                    f"{error or 'Macro verification failed'}; failed steps: {detail}"
+                )
             else:
-                error = f"{error or 'Macro verification failed'}; step_log: {step_log[:10]}"
+                error = (
+                    f"{error or 'Macro verification failed'}; step_log: {step_log[:10]}"
+                )
 
         return MacroVerificationResult(
             status=status,
@@ -116,12 +126,13 @@ async def verify_macro_script(
         )
     except Exception:
         logger.exception("[%s] Macro verification crashed", thread_id)
-        return MacroVerificationResult(status="error", success=False, error="verification crashed")
+        return MacroVerificationResult(
+            status="error", success=False, error="verification crashed"
+        )
 
 
 def cleanup_macro_steps(
-    steps: list[dict[str, Any]],
-    start_index: int = 1
+    steps: list[dict[str, Any]], start_index: int = 1
 ) -> tuple[list[dict[str, Any]], int]:
     """
     规范化宏步骤
@@ -147,15 +158,15 @@ def cleanup_macro_steps(
         current_idx += 1
 
         s_type = step.get("type")
-        if s_type == "wait":
-            step["type"] = "action"
-            step["event_type"] = "wait"
+        if s_type == WAIT:
+            step["type"] = ACTION
+            step["event_type"] = WAIT
             payload = step.get("payload", {})
             if "timeout" in step and "seconds" not in payload:
                 payload["seconds"] = float(step["timeout"]) / 1000.0
             step["payload"] = payload
-        elif s_type in ("while", "batch_loop", "loop"):
-            step["type"] = "loop"
+        elif s_type in (WHILE, BATCH_LOOP, LOOP):
+            step["type"] = LOOP
 
         # 规范化嵌套字段名
         if "then" in step and "then_steps" not in step:

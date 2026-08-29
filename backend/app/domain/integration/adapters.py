@@ -5,7 +5,9 @@ from app.core.engine.message.native_classes import HumanMessage
 
 class EventAdapter:
     @staticmethod
-    def adapt(source: str, event_type: str, payload: dict[str, Any]) -> list[HumanMessage]:
+    def adapt(
+        source: str, event_type: str, payload: dict[str, Any]
+    ) -> list[HumanMessage]:
         """
         Convert external event payload into native messages.
         """

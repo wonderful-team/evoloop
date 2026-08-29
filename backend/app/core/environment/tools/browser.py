@@ -23,19 +23,42 @@ logger = logging.getLogger(__name__)
 async def browser_control(
     action: Literal[
         # Navigation
-        "navigate", "back", "forward", "reload", "get_url", "new_tab", "switch_tab",
+        "navigate",
+        "back",
+        "forward",
+        "reload",
+        "get_url",
+        "new_tab",
+        "switch_tab",
         # Interaction
-        "click", "double_click", "hover", "type_text", "select_option", "key_press",
-        "scroll", "drag_drop",
+        "click",
+        "double_click",
+        "hover",
+        "type_text",
+        "select_option",
+        "key_press",
+        "scroll",
+        "drag_drop",
         # Batch & File
-        "batch", "upload",
+        "batch",
+        "upload",
         # Reading
-        "get_text", "get_html", "get_attribute", "get_links", "find_element",
+        "get_text",
+        "get_html",
+        "get_attribute",
+        "get_links",
+        "find_element",
         # Perception
-        "screenshot", "wait_for", "check_element",
+        "screenshot",
+        "wait_for",
+        "check_element",
         # Advanced
-        "run_js", "get_cookies", "set_cookies", "local_storage",
-        "network_wait", "dialog_handle",
+        "run_js",
+        "get_cookies",
+        "set_cookies",
+        "local_storage",
+        "network_wait",
+        "dialog_handle",
         # Lifecycle
         "close",
     ] = "navigate",
@@ -46,21 +69,22 @@ async def browser_control(
     selector: str | None = None,
     text: str | None = None,
     # Interaction params
-    value: str | None = None,          # type_text content, select value/label, local_storage value
-    key: str | None = None,            # key_press key
+    value: str
+    | None = None,  # type_text content, select value/label, local_storage value
+    key: str | None = None,  # key_press key
     source_selector: str | None = None,  # drag_drop source
     target_selector: str | None = None,  # drag_drop target
     direction: Literal["up", "down", "left", "right"] | None = None,
-    amount: int = 300,                 # scroll pixels
-    clear_first: bool = True,          # for type_text: clear field before typing
+    amount: int = 300,  # scroll pixels
+    clear_first: bool = True,  # for type_text: clear field before typing
     # Screenshot params
     full_page: bool = False,
-    ocr: bool = False,                  # run OCR on screenshot
+    ocr: bool = False,  # run OCR on screenshot
     # Reading params
-    attribute: str | None = None,      # get_attribute attr name
+    attribute: str | None = None,  # get_attribute attr name
     # wait_for / check_element params
     state: Literal["visible", "hidden", "attached", "detached"] = "visible",
-    url_pattern: str | None = None,    # wait_for URL match / network_wait URL pattern
+    url_pattern: str | None = None,  # wait_for URL match / network_wait URL pattern
     timeout_ms: int = 15_000,
     # Cookie / storage params
     cookies: list[dict] | None = None,
@@ -68,7 +92,7 @@ async def browser_control(
     storage_key: str | None = None,
     # Dialog params
     dialog_action: Literal["accept", "dismiss"] | None = None,
-    dialog_text: str | None = None,    # text to type into a prompt dialog
+    dialog_text: str | None = None,  # text to type into a prompt dialog
     # JS execution
     script: str | None = None,
     # Advanced / batch flags

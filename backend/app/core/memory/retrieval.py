@@ -28,6 +28,12 @@ import time
 from datetime import datetime
 from typing import Any
 
+from app.core.memory.constants import (
+    DEFAULT_RETRIEVAL_CANDIDATES,
+    DEFAULT_RETRIEVAL_RESULTS,
+    FRESHNESS_HALF_LIFE,
+    SELECTION_SKIP_THRESHOLD,
+)
 from app.core.memory.models import MemoryEntry, MemoryType
 from app.core.memory.schemas import RetrievalContext
 from app.utils.template import render_template
@@ -56,8 +62,8 @@ class MemoryRetriever:
         self,
         storage,
         config=None,
-        max_candidates: int = 20,
-        max_results: int = 5,
+        max_candidates: int = DEFAULT_RETRIEVAL_CANDIDATES,
+        max_results: int = DEFAULT_RETRIEVAL_RESULTS,
         enable_llm_selection: bool = True,
         **kwargs,
     ):
@@ -78,7 +84,9 @@ class MemoryRetriever:
         self.enable_llm_selection = enable_llm_selection
 
         # Optimization: Skip Stage 2 if Stage 1 match is high-confidence
-        self.selection_skip_threshold = kwargs.get("selection_skip_threshold", 5.0)
+        self.selection_skip_threshold = kwargs.get(
+            "selection_skip_threshold", SELECTION_SKIP_THRESHOLD
+        )
 
         # Cache for LLM selection results (query_id -> selected_ids)
         self._selection_cache: dict[str, list[str]] = {}
@@ -95,7 +103,9 @@ class MemoryRetriever:
         """
         limit = max_results if max_results is not None else self.max_results
         total_start = time.time()
-        logger.info(f"[MemoryRetriever] 🔍 Lexical find_relevant for query: '{query[:50]}...'")
+        logger.info(
+            f"[MemoryRetriever] 🔍 Lexical find_relevant for query: '{query[:50]}...'"
+        )
 
         ctx = RetrievalContext(
             query=query,
@@ -128,7 +138,9 @@ class MemoryRetriever:
 
         selected = [c for c, s in scored[:limit]]
         elapsed = elapsed_ms(total_start)
-        logger.info(f"[MemoryRetriever] ✓ Retrieved {len(selected)} memories in {elapsed:.1f}ms")
+        logger.info(
+            f"[MemoryRetriever] ✓ Retrieved {len(selected)} memories in {elapsed:.1f}ms"
+        )
         return selected
 
     def _score_candidate(
@@ -157,7 +169,7 @@ class MemoryRetriever:
 
         # Freshness boost (exponential decay, 30-day half-life)
         age_days = (datetime.utcnow() - entry.updated_at).days
-        freshness_boost = 1.5 * math.exp(-age_days / 30.0)
+        freshness_boost = 1.5 * math.exp(-age_days / FRESHNESS_HALF_LIFE)
 
         # Type priority
         type_multiplier = {
@@ -172,59 +184,6 @@ class MemoryRetriever:
     # ==========================================================================
     # Context Injection Methods (migrated from MemoryRetrievalService)
     # ==========================================================================
-
-    async def get_for_context_injection(
-        self,
-        query: str,
-        member_id: int | None = None,
-        project_id: int | None = None,
-    ) -> dict[str, list[MemoryEntry]]:
-        """
-        Get memories organized for context injection.
-
-        Args:
-            query: Current query for relevance ranking
-            member_id: Member ID for private memories
-            project_id: Project ID for filtering
-
-        Returns:
-            Dictionary with keys: user, feedback, project, reference
-        """
-        # Get all memories (filter by project early)
-        all_memories = await self._storage.list_all(project_id=project_id)
-
-        # Batch load full entries to avoid N+1
-        ids = [m.id for m in all_memories]
-        entry_map = await self._storage.get_multi(ids)
-        entries = list(entry_map.values())
-
-        # Filter and organize
-        result = {
-            "user": [],
-            "feedback": [],
-            "project": [],
-            "reference": [],
-        }
-
-        for entry in entries:
-            # Privacy check
-            if entry.privacy.value == "private" and entry.member_id != member_id:
-                continue
-
-            # Project check
-            if entry.project_id is not None and entry.project_id != project_id:
-                continue
-
-            # Add to appropriate bucket
-            key = entry.type.value
-            if key in result:
-                result[key].append(entry)
-
-        # Sort each bucket by relevance to query (simple keyword match)
-        for key in result:
-            result[key] = self._sort_by_relevance(result[key], query)[:3]  # Top 3 per type
-
-        return result
 
     def _sort_by_relevance(
         self,
@@ -242,7 +201,7 @@ class MemoryRetriever:
 
             # Freshness boost (exponential decay, 30-day half-life)
             age_days = (now - entry.updated_at).days
-            freshness_boost = 2.0 * math.exp(-age_days / 30.0)
+            freshness_boost = 2.0 * math.exp(-age_days / FRESHNESS_HALF_LIFE)
 
             return relevance + freshness_boost
 
@@ -284,7 +243,7 @@ async def get_relevant_memories(
     query: str,
     member_id: int | None = None,
     project_id: int | None = None,
-    max_results: int = 5,
+    max_results: int = DEFAULT_RETRIEVAL_RESULTS,
     already_surfaced: set[str] | None = None,
     context: dict[str, Any] | None = None,
 ) -> list[MemoryEntry]:
@@ -312,9 +271,11 @@ async def get_relevant_memories(
     retriever.max_results = max_results
 
     ctx = context or {}
-    ctx.update({
-        "member_id": member_id,
-        "project_id": project_id,
-    })
+    ctx.update(
+        {
+            "member_id": member_id,
+            "project_id": project_id,
+        }
+    )
 
     return await retriever.find_relevant(query, ctx, already_surfaced)

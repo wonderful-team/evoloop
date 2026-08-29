@@ -7,26 +7,20 @@ about context management, including when to use forget_tool_outputs.
 All metrics are token-based and aligned with ContextTrimmer budgets.
 """
 
-import logging
-
 from app.constants import DEFAULT_MAX_CONTEXT_TOKENS
 from app.core.engine.message.native_classes import BaseMessage, ToolMessage
 from app.core.engine.message.utils import estimate_message_tokens
 from app.core.engine.schemas import ContextStats, ToolCallInfo
 from app.infrastructure.llm.platform_service import llm_platform_service
 
-# Context usage thresholds (pure ratios, unit-agnostic)
-CONTEXT_WARNING_THRESHOLD = 0.80
-CONTEXT_CRITICAL_THRESHOLD = 0.95
-
-logger = logging.getLogger(__name__)
-
 
 class ContextMonitor:
     """Monitors and reports context usage for Agent awareness (token-based)."""
 
     @staticmethod
-    def calculate(messages: list[BaseMessage], model: str | None = None) -> ContextStats:
+    def calculate(
+        messages: list[BaseMessage], model: str | None = None
+    ) -> ContextStats:
         """
         Calculate context statistics from message list (token-based).
 

@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import make_transient
 
+from app.domain.todo.constants import DEFAULT_TODO_LIMIT
 from app.domain.todo.formatting import format_todo_list
 from app.domain.todo.repository import TodoRepository, TodoRepositorySync
 from app.domain.todo.schemas import (
@@ -59,13 +60,21 @@ class TodoService:
         self.session = session
         self.repository = TodoRepository(session)
 
-    async def _publish_updated(self, action: str, todo_id: str | None = None, project_id: int | None = None) -> None:
+    async def _publish_updated(
+        self, action: str, todo_id: str | None = None, project_id: int | None = None
+    ) -> None:
         """Publish a public todo updated event (bridged to frontend SSE)."""
         try:
             from app.domain.todo.event.publishers import publish_todo_updated
-            await publish_todo_updated(todo_id=todo_id, action=action, project_id=project_id)
+
+            await publish_todo_updated(
+                todo_id=todo_id, action=action, project_id=project_id
+            )
         except Exception as e:
-            logger.warning(f"[TodoService] Failed to publish todo updated event: {e}", exc_info=True)
+            logger.warning(
+                f"[TodoService] Failed to publish todo updated event: {e}",
+                exc_info=True,
+            )
 
     # ============== Creation ==============
 
@@ -114,14 +123,17 @@ class TodoService:
             category=data.category,
             due_date=parsed_due_date,
             project_id=data.project_id,
-            source_conversation_id=source_conversation_id or data.source_conversation_id,
+            source_conversation_id=source_conversation_id
+            or data.source_conversation_id,
             source_message_id=source_message_id or data.source_message_id,
             run_id=run_id or data.run_id,
         )
 
         todo = await self.repository.create(internal_data)
         logger.info(f"Created Todo: {todo.id} - {todo.title}")
-        await self._publish_updated("created", todo_id=str(todo.id), project_id=todo.project_id)
+        await self._publish_updated(
+            "created", todo_id=str(todo.id), project_id=todo.project_id
+        )
         return TodoResponse.model_validate(todo)
 
     # ============== Retrieval ==============
@@ -176,7 +188,9 @@ class TodoService:
             )
         return responses
 
-    async def list_pending_by_project(self, project_id: int, limit: int = 50) -> list[TodoResponse]:
+    async def list_pending_by_project(
+        self, project_id: int, limit: int = DEFAULT_TODO_LIMIT
+    ) -> list[TodoResponse]:
         """
         Get pending todos for a project.
 
@@ -222,7 +236,11 @@ class TodoService:
         if data.due_date and isinstance(data.due_date, str):
             parsed = parse_due_date(data.due_date)
             if parsed is None:
-                raise TodoValidationError(i18n.get("domain_tools.manage_todo.error_due_date", date=data.due_date))
+                raise TodoValidationError(
+                    i18n.get(
+                        "domain_tools.manage_todo.error_due_date", date=data.due_date
+                    )
+                )
 
         # Normalize priority if provided
         if data.priority and isinstance(data.priority, str):
@@ -230,7 +248,9 @@ class TodoService:
 
         updated = await self.repository.update(todo, data)
         logger.info(f"Updated Todo: {updated.id}")
-        await self._publish_updated("updated", todo_id=str(updated.id), project_id=updated.project_id)
+        await self._publish_updated(
+            "updated", todo_id=str(updated.id), project_id=updated.project_id
+        )
         return TodoResponse.model_validate(updated)
 
     async def mark_completed(self, todo_id: str) -> TodoResponse:
@@ -249,7 +269,9 @@ class TodoService:
                 i18n.get("domain_tools.manage_todo.error_not_found", id=todo_id)
             )
         updated = await self.repository.mark_status(todo, TodoStatus.COMPLETED)
-        await self._publish_updated("completed", todo_id=str(updated.id), project_id=updated.project_id)
+        await self._publish_updated(
+            "completed", todo_id=str(updated.id), project_id=updated.project_id
+        )
         return TodoResponse.model_validate(updated)
 
     async def mark_cancelled(self, todo_id: str) -> TodoResponse:
@@ -268,7 +290,9 @@ class TodoService:
                 i18n.get("domain_tools.manage_todo.error_not_found", id=todo_id)
             )
         updated = await self.repository.mark_status(todo, TodoStatus.CANCELLED)
-        await self._publish_updated("updated", todo_id=str(updated.id), project_id=updated.project_id)
+        await self._publish_updated(
+            "updated", todo_id=str(updated.id), project_id=updated.project_id
+        )
         return TodoResponse.model_validate(updated)
 
     # ============== Deletion ==============
@@ -346,7 +370,8 @@ class TodoServiceSync:
             category=data.category,
             due_date=parsed_due_date,
             project_id=data.project_id,
-            source_conversation_id=source_conversation_id or data.source_conversation_id,
+            source_conversation_id=source_conversation_id
+            or data.source_conversation_id,
             source_message_id=source_message_id or data.source_message_id,
             run_id=run_id or data.run_id,
         )
@@ -425,7 +450,9 @@ class TodoServiceSync:
             make_transient(todo)
             return todo
 
-    def format_todo_list(self, todos: Sequence[TodoItem], title: str = "Todo List") -> str:
+    def format_todo_list(
+        self, todos: Sequence[TodoItem], title: str = "Todo List"
+    ) -> str:
         """
         Format a list of todos for display.
 

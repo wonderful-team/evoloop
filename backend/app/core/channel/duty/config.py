@@ -14,21 +14,20 @@ import json
 import logging
 import os
 
-from app.core.project.utils import get_project_path, read_project_json, write_project_json
+from app.core.channel.duty.constants import (
+    DUTY_INTERVAL,
+    DUTY_INTERVAL_MAX,
+    DUTY_INTERVAL_MIN,
+    GLOBAL_DUTY_CONFIG_KEY,
+)
+from app.core.project.utils import (
+    get_project_path,
+    read_project_json,
+    write_project_json,
+)
 from app.infrastructure.config.service import SystemConfigService
 
 logger = logging.getLogger(__name__)
-
-GLOBAL_DUTY_CONFIG_KEY = "CUSTOMER_SERVICE_DUTY"
-
-# 值守轮巡缺省间隔（秒）。对齐全局扫描粒度（engine_scheduler_tick_periodic
-# 每 60s 一次，Huey crontab 仅分钟粒度）：DUTY 间隔语义 = 分钟级，
-# 钳制 60~3600s（§8.5.2 v6.3），更小的间隔会被扫描粒度量化、无法兑现。
-DUTY_INTERVAL = 60
-
-# 钳制上下限（秒）：1 分钟 ~ 1 小时（v6.3，§8.5.2）
-DUTY_INTERVAL_MIN = 60
-DUTY_INTERVAL_MAX = 3600
 
 
 def clamp_duty_interval(interval: object) -> int:
@@ -39,12 +38,6 @@ def clamp_duty_interval(interval: object) -> int:
     if not isinstance(interval, int) or isinstance(interval, bool):
         return DUTY_INTERVAL
     return max(DUTY_INTERVAL_MIN, min(interval, DUTY_INTERVAL_MAX))
-
-
-# 运营线（业务巡检）扫描频率（分钟）。固定系统常量，对齐 60s tick 粒度：
-# 它只决定“扫描任务列表”的节奏，真正的执行时间由 prompts 各自的
-# next_run_at/interval_minutes 控制，不随项目/全局配置。
-BUSINESS_POLL_INTERVAL = 1  # 分钟
 
 
 def load_global_duty_config() -> dict:

@@ -14,9 +14,11 @@ from typing import TYPE_CHECKING
 from sqlalchemy import select
 
 from app.core.config import settings
-from app.core.learning.macro.compiler import ALLOWED_UI_ACTIONS
+from app.core.learning.constants import ALLOWED_UI_ACTIONS
 from app.infrastructure.database import session_scope
 from app.models import AgentActivity, Message, TraceEvent
+
+import app.core.learning.constants as _mc
 
 if TYPE_CHECKING:
     from app.models.macro import Macro
@@ -24,37 +26,41 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Raw mobile mirror events that MacroScriptCompiler normalizes into macro actions.
-_RAW_MOBILE_EVENT_TYPES = frozenset({
-    "touch_down",
-    "touch_up",
-    "mouse_click",
-    "swipe",
-    "key",
-})
+_RAW_MOBILE_EVENT_TYPES = frozenset(
+    {
+        _mc.TOUCH_DOWN,
+        _mc.TOUCH_UP,
+        _mc.MOUSE_CLICK,
+        _mc.SWIPE,
+        _mc.KEY,
+    }
+)
 
 # Event types that can be turned into deterministic macro steps. Kept in sync
 # with the compiler's ALLOWED_UI_ACTIONS so eligibility checks do not promise a
 # macro that the compiler cannot produce.
 _REPLAYABLE_EVENT_TYPES = ALLOWED_UI_ACTIONS | _RAW_MOBILE_EVENT_TYPES
 
-_EXCLUDED_EVENT_TYPES = frozenset({
-    "llm_output",
-    "tool_result",
-    "node_start",
-    "macro_thought",
-    "list_macros",
-    "list_skills",
-    "search_history",
-    "recall",
-    "read_file",
-    "list_dir",
-    "grep_search",
-    "find_files",
-    "ask_human",
-    "ask_confirm",
-    "forget_tool_outputs",
-    "think",
-})
+_EXCLUDED_EVENT_TYPES = frozenset(
+    {
+        "llm_output",
+        "tool_result",
+        "node_start",
+        "macro_thought",
+        "list_macros",
+        "list_skills",
+        "search_history",
+        "recall",
+        "read_file",
+        "list_dir",
+        "grep_search",
+        "find_files",
+        "ask_human",
+        "ask_confirm",
+        "forget_tool_outputs",
+        "think",
+    }
+)
 
 
 class MacroCreatorService:
@@ -91,7 +97,10 @@ class MacroCreatorService:
     @staticmethod
     def _is_replayable(event: TraceEvent, existing_message_ids: set[str]) -> bool:
         """Evaluate a single trace event for replayability."""
-        if event.message_id is not None and event.message_id not in existing_message_ids:
+        if (
+            event.message_id is not None
+            and event.message_id not in existing_message_ids
+        ):
             return False
 
         event_type = event.event_type

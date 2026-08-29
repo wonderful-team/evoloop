@@ -82,7 +82,9 @@ class SelfHealingPolicy:
             )
 
         # All checks passed
-        return HealingDecision(allowed=True, reason="Self-healing is enabled", source="allowed")
+        return HealingDecision(
+            allowed=True, reason="Self-healing is enabled", source="allowed"
+        )
 
     @classmethod
     def is_allowed(
@@ -130,10 +132,14 @@ class SelfHealingPolicy:
             ),
         }
 
-        return messages.get(decision.source, f"[SELF_HEALING_DISABLED] {decision.reason}")
+        return messages.get(
+            decision.source, f"[SELF_HEALING_DISABLED] {decision.reason}"
+        )
 
     @classmethod
-    def get_enabled_message(cls, macro_name: str | None = None, error_message: str | None = None) -> str:
+    def get_enabled_message(
+        cls, macro_name: str | None = None, error_message: str | None = None
+    ) -> str:
         """
         Get a user-friendly message suggesting self-healing recovery.
 
@@ -152,6 +158,8 @@ class SelfHealingPolicy:
         )
 
         if macro_name and error_message:
-            return f"[HINT] Macro '{macro_name}' failed: {error_message}. " + base_msg[7:]  # Remove the tag from base
+            return (
+                f"[HINT] Macro '{macro_name}' failed: {error_message}. " + base_msg[7:]
+            )  # Remove the tag from base
 
         return base_msg

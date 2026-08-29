@@ -35,8 +35,13 @@ class RecordingContext:
         self,
         platform: str,
         recorder: Any | None,
-        screenshot_actions: tuple[str, ...] = ("click", "tap", "type_text", "input_text"),
-        disable_screenshot: bool = False
+        screenshot_actions: tuple[str, ...] = (
+            "click",
+            "tap",
+            "type_text",
+            "input_text",
+        ),
+        disable_screenshot: bool = False,
     ):
         self.platform = platform
         self.recorder = recorder
@@ -72,9 +77,15 @@ class RecordingContext:
 
         if should_capture:
             try:
-                shot = await screenshot_fn() if asyncio.iscoroutinefunction(screenshot_fn) else screenshot_fn()
+                shot = (
+                    await screenshot_fn()
+                    if asyncio.iscoroutinefunction(screenshot_fn)
+                    else screenshot_fn()
+                )
             except Exception:
-                logger.debug("[env-utils] screenshot capture failed, skipping", exc_info=True)
+                logger.debug(
+                    "[env-utils] screenshot capture failed, skipping", exc_info=True
+                )
 
         # Build context
         context = await context_fn() if context_fn else {}
@@ -116,10 +127,7 @@ class BatchExecutor:
         self.results: list[BatchStepResult] = []
 
     async def execute(
-        self,
-        actions: list[dict],
-        executor_func,
-        total: int | None = None
+        self, actions: list[dict], executor_func, total: int | None = None
     ) -> list[BatchStepResult]:
         """
         Execute a list of actions.

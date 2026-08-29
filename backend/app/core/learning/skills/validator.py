@@ -2,6 +2,7 @@ import logging
 import re
 from pathlib import Path
 
+from app.core.learning.constants import RECOMMENDED_DIRS, REQUIRED_FILES
 from app.core.learning.schemas import ValidationResult
 from app.utils.yaml import YAMLError, safe_yaml_loads
 
@@ -12,9 +13,6 @@ class SkillValidator:
     """
     Validates a skill folder against the 'Anatomy of a Skill' standard.
     """
-
-    REQUIRED_FILES = ["SKILL.md"]
-    RECOMMENDED_DIRS = ["scripts", "references", "assets"]
 
     @classmethod
     def validate_folder(cls, folder_path: Path) -> ValidationResult:
@@ -32,7 +30,7 @@ class SkillValidator:
             )
 
         # 1. Check for required files
-        for req in cls.REQUIRED_FILES:
+        for req in REQUIRED_FILES:
             if not (folder_path / req).exists():
                 errors.append(f"Missing required file: {req}")
 
@@ -52,7 +50,7 @@ class SkillValidator:
                 warnings.append("Missing 'description' in skill metadata")
 
         # 3. Check for recommended structure
-        for r_dir in cls.RECOMMENDED_DIRS:
+        for r_dir in RECOMMENDED_DIRS:
             if not (folder_path / r_dir).exists():
                 # Non-critical, just a tip for standardization
                 pass
@@ -63,7 +61,9 @@ class SkillValidator:
         clutter_files = ["README.md", "INSTALL.md", "CHANGELOG.md"]
         for clutter in clutter_files:
             if (folder_path / clutter).exists():
-                warnings.append(f"Clutter detected: {clutter} should be removed for standardization")
+                warnings.append(
+                    f"Clutter detected: {clutter} should be removed for standardization"
+                )
 
         status = "healthy"
         if errors:
@@ -146,7 +146,9 @@ class SkillValidator:
             elif value.startswith("#"):
                 escaped_value = value.replace('"', '\\"')
                 line = f'{indent}{key}: "{escaped_value}"'
-                logger.debug(f"[SkillValidator] Auto-quoted comment-like value for key '{key}'")
+                logger.debug(
+                    f"[SkillValidator] Auto-quoted comment-like value for key '{key}'"
+                )
 
             fixed_lines.append(line)
 
@@ -185,17 +187,24 @@ class SkillValidator:
                     if not needs_fix:
                         return metadata, instructions
             except YAMLError as e:
-                logger.warning(f"[SkillValidator] Initial YAML parse failed for {file_path}: {e}", exc_info=True)
+                logger.warning(
+                    f"[SkillValidator] Initial YAML parse failed for {file_path}: {e}",
+                    exc_info=True,
+                )
 
             # Second attempt: auto-fix common LLM errors and retry
             fixed_frontmatter = SkillValidator._fix_yaml_frontmatter(frontmatter_text)
             try:
                 metadata = safe_yaml_loads(fixed_frontmatter)
                 if isinstance(metadata, dict):
-                    logger.info(f"[SkillValidator] Auto-fixed YAML frontmatter for {file_path}")
+                    logger.info(
+                        f"[SkillValidator] Auto-fixed YAML frontmatter for {file_path}"
+                    )
                     return metadata, instructions
             except YAMLError as e2:
-                logger.exception(f"[SkillValidator] Auto-fix failed for {file_path}: {e2}")
+                logger.exception(
+                    f"[SkillValidator] Auto-fix failed for {file_path}: {e2}"
+                )
 
             # Both attempts failed
             return None, instructions

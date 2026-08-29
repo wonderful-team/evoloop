@@ -33,6 +33,8 @@ import logging
 import pkgutil
 from types import ModuleType
 
+from app.core.events import constants as events_constants
+
 logger = logging.getLogger(__name__)
 
 # Track which modules have been scanned to prevent duplicates
@@ -40,11 +42,6 @@ _scanned_modules: set[str] = set()
 _registered_handlers: set[type] = set()
 
 # Default root packages to scan for event handlers
-DEFAULT_SCAN_ROOTS = [
-    "app.core",
-    "app.domain",
-    "app.infrastructure",
-]
 
 
 def _has_auto_register_decorator(cls: type) -> bool:
@@ -88,12 +85,16 @@ def _find_handler_classes(module: ModuleType) -> list[type]:
         # Check if class has @event_register decorator
         if _has_auto_register_decorator(obj):
             classes.append(obj)
-            logger.debug(f"[Discovery] Found handler class: {obj.__module__}.{obj.__name__}")
+            logger.debug(
+                f"[Discovery] Found handler class: {obj.__module__}.{obj.__name__}"
+            )
 
     return classes
 
 
-def _scan_module_recursive(module_name: str, scanned: set[str] | None = None) -> list[type]:
+def _scan_module_recursive(
+    module_name: str, scanned: set[str] | None = None
+) -> list[type]:
     """
     Recursively scan a module and its submodules for event handlers.
 
@@ -142,7 +143,10 @@ def _scan_module_recursive(module_name: str, scanned: set[str] | None = None) ->
                     sub_classes = _scan_module_recursive(submodule_name, scanned)
                     discovered_classes.extend(sub_classes)
                 except Exception as e:
-                    logger.debug(f"[Discovery] Failed to scan {submodule_name}: {e}", exc_info=True)
+                    logger.debug(
+                        f"[Discovery] Failed to scan {submodule_name}: {e}",
+                        exc_info=True,
+                    )
 
     except ImportError as e:
         logger.debug(f"[Discovery] Failed to import {module_name}: {e}", exc_info=True)
@@ -152,7 +156,9 @@ def _scan_module_recursive(module_name: str, scanned: set[str] | None = None) ->
     return discovered_classes
 
 
-def auto_discover_handlers(scan_roots: list[str] | None = None, instantiate: bool = True) -> list[type]:
+def auto_discover_handlers(
+    scan_roots: list[str] | None = None, instantiate: bool = True
+) -> list[type]:
     """
     Auto-discover and register event handlers from specified root packages.
 
@@ -162,7 +168,7 @@ def auto_discover_handlers(scan_roots: list[str] | None = None, instantiate: boo
 
     Args:
         scan_roots: List of root package names to scan (e.g., ["app.core", "app.domain"])
-                   If None, uses DEFAULT_SCAN_ROOTS
+                   If None, uses events_constants.DEFAULT_SCAN_ROOTS
         instantiate: If True, instantiate each discovered class
 
     Returns:
@@ -176,19 +182,23 @@ def auto_discover_handlers(scan_roots: list[str] | None = None, instantiate: boo
         handlers = auto_discover_handlers(["app.core", "app.domain"])
     """
     if scan_roots is None:
-        scan_roots = DEFAULT_SCAN_ROOTS
+        scan_roots = events_constants.DEFAULT_SCAN_ROOTS
 
     discovered_classes = []
     instantiated_handlers = []
 
-    logger.info(f"[Discovery] Starting recursive scan of {len(scan_roots)} root packages...")
+    logger.info(
+        f"[Discovery] Starting recursive scan of {len(scan_roots)} root packages..."
+    )
 
     for root_package in scan_roots:
         try:
             classes = _scan_module_recursive(root_package)
             discovered_classes.extend(classes)
         except Exception as e:
-            logger.warning(f"[Discovery] Error scanning {root_package}: {e}", exc_info=True)
+            logger.warning(
+                f"[Discovery] Error scanning {root_package}: {e}", exc_info=True
+            )
 
     # Instantiate each discovered class (triggers auto-registration)
     if instantiate:
@@ -205,7 +215,10 @@ def auto_discover_handlers(scan_roots: list[str] | None = None, instantiate: boo
                     f"[Discovery] Instantiated {cls.__module__}.{cls.__name__}"
                 )
             except Exception as e:
-                logger.warning(f"[Discovery] Failed to instantiate {cls.__name__}: {e}", exc_info=True)
+                logger.warning(
+                    f"[Discovery] Failed to instantiate {cls.__name__}: {e}",
+                    exc_info=True,
+                )
 
     logger.info(
         f"[Discovery] ✓ Discovered {len(discovered_classes)} handler classes, "

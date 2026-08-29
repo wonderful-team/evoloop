@@ -20,15 +20,17 @@ class ParserRegistry:
         # Derive dot-less map from constants
         self.lang_map = {ext.lstrip("."): lang for ext, lang in EXTENSION_MAP.items()}
         # Add common aliases if missing
-        self.lang_map.update({
-            "cpp": "cpp",
-            "csharp": "csharp",
-            "javascript": "javascript",
-            "typescript": "typescript",
-            "python": "python",
-            "tsx": "tsx",
-            "jsx": "javascript"  # Adjust if jsx loader is added
-        })
+        self.lang_map.update(
+            {
+                "cpp": "cpp",
+                "csharp": "csharp",
+                "javascript": "javascript",
+                "typescript": "typescript",
+                "python": "python",
+                "tsx": "tsx",
+                "jsx": "javascript",  # Adjust if jsx loader is added
+            }
+        )
         self._register_default_loaders()
 
     def _register_default_loaders(self):

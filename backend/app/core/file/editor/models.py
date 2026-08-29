@@ -27,12 +27,25 @@ class EditPreviewResult(BaseModel):
 
 class FileEditOperation(BaseModel):
     """Single edit operation."""
-    target: str = Field("", description="The text to find and replace. Leave empty when mode=append/prepend.")
-    replacement: str = Field(..., description="The new text or content to append/prepend")
+
+    target: str = Field(
+        "",
+        description="The text to find and replace. Leave empty when mode=append/prepend.",
+    )
+    replacement: str = Field(
+        ..., description="The new text or content to append/prepend"
+    )
     allow_multiple: bool = Field(False, description="Replace all occurrences of target")
-    mode: str = Field("replace", description="'replace' (default), 'append' (add to end of file), 'prepend' (add to beginning)")
-    start_line: int | None = Field(None, description="Optional 1-indexed starting line number constraint")
-    end_line: int | None = Field(None, description="Optional 1-indexed ending line number constraint (inclusive)")
+    mode: str = Field(
+        "replace",
+        description="'replace' (default), 'append' (add to end of file), 'prepend' (add to beginning)",
+    )
+    start_line: int | None = Field(
+        None, description="Optional 1-indexed starting line number constraint"
+    )
+    end_line: int | None = Field(
+        None, description="Optional 1-indexed ending line number constraint (inclusive)"
+    )
 
 
 class EditFileRequest(BaseModel):

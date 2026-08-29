@@ -43,10 +43,14 @@ def _placeholder_secret_value(
         if key in payload:
             return str(payload[key])
 
-        logger.warning(f"[SecureVault] Key '{key}' not found in credential '{identifier}'")
+        logger.warning(
+            f"[SecureVault] Key '{key}' not found in credential '{identifier}'"
+        )
         raise KeyError(f"Key '{key}' not found in credential '{identifier}'")
     except (KeyError, PermissionError) as e:
-        raise ValueError(f"Failed to resolve secure placeholder {placeholder}: {e}") from e
+        raise ValueError(
+            f"Failed to resolve secure placeholder {placeholder}: {e}"
+        ) from e
 
 
 def substitute_value(

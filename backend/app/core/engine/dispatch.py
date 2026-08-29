@@ -156,7 +156,9 @@ async def dispatch_agent_run(
     )
     hook_result = await hook_system.trigger(HookEvent.USER_PROMPT_SUBMIT, hook_ctx)
     if hook_result.modified_context:
-        context.metadata.intent_hint = hook_result.modified_context.metadata.get("intent_hint") or context.metadata.get("intent_hint")
+        context.metadata.intent_hint = hook_result.modified_context.metadata.get(
+            "intent_hint"
+        ) or context.metadata.get("intent_hint")
     if context.metadata.get("intent_hint"):
         metadata["intent_hint"] = context.metadata.intent_hint
 
@@ -207,7 +209,9 @@ async def dispatch_agent_run(
         content_blocks = ref_context.content_blocks
         references_list = ref_context.references
     except Exception as e:
-        logger.warning(f"[Dispatch] Reference service failed: {e}, falling back to raw message_content")
+        logger.warning(
+            f"[Dispatch] Reference service failed: {e}, falling back to raw message_content"
+        )
         content_blocks = message_content
 
     # ------------------------------------------------------------------
@@ -220,11 +224,13 @@ async def dispatch_agent_run(
             sid = skill_meta.get("skill_id") or att.get("id")
             sname = skill_meta.get("skill_name") or att.get("target_name") or "Unknown"
             if sid:
-                explicit_skills.append({
-                    "id": sid,
-                    "name": sname,
-                    "description": skill_meta.get("description", ""),
-                })
+                explicit_skills.append(
+                    {
+                        "id": sid,
+                        "name": sname,
+                        "description": skill_meta.get("description", ""),
+                    }
+                )
     if explicit_skills:
         metadata["explicit_skills"] = explicit_skills
         logger.info(

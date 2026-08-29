@@ -8,7 +8,9 @@ from app.core.tools import get_working_directory
 from app.i18n.service import i18n
 
 
-async def resolve_and_validate_path(path: str, config: RunnableConfig | None = None) -> str:
+async def resolve_and_validate_path(
+    path: str, config: RunnableConfig | None = None
+) -> str:
     """
     Resolve path and perform security check.
 
@@ -67,7 +69,9 @@ async def resolve_and_validate_path(path: str, config: RunnableConfig | None = N
             is_safe = True
 
     if not is_safe:
-        raise ValueError(i18n.get("domain_tools.files.security_violation", path=path, root=root))
+        raise ValueError(
+            i18n.get("domain_tools.files.security_violation", path=path, root=root)
+        )
 
     # Protect project-local metadata directory from agent file tools, while allowing
     # access to the global EvoLoop app data directory (~/.evoloop).
@@ -98,7 +102,9 @@ async def _resolve_uploads_path(path: str, config: RunnableConfig | None = None)
 
     # 优先级 1: 会话隔离目录 (~/.evoloop/uploads/{thread_id}/)
     if thread_id:
-        thread_isolated_path = os.path.join(settings.CHAT_UPLOAD_DIR, thread_id, filename)
+        thread_isolated_path = os.path.join(
+            settings.CHAT_UPLOAD_DIR, thread_id, filename
+        )
         if os.path.exists(thread_isolated_path):
             return thread_isolated_path
 

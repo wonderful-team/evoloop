@@ -65,7 +65,9 @@ class ThreadContextStore:
         # But for EvoLoop to work, it must be mounted/present locally at 'path'.
         # We assume 'external_path' from API maps to a valid local path.
         if not os.path.exists(path):
-            logger.warning(f"Setting working directory to non-existent path: {path}. Agent actions might fail.")
+            logger.warning(
+                f"Setting working directory to non-existent path: {path}. Agent actions might fail."
+            )
 
         self._thread_contexts[thread_id] = path
         logger.info(f"Updated working directory for thread {thread_id} -> {path}")
@@ -103,14 +105,6 @@ class ThreadContextStore:
     def get_temp_project(self, thread_id: str) -> int | None:
         """Get the temporary project ID for a specific thread."""
         return self._thread_temp_projects.get(thread_id)
-
-    def clear_context(self, thread_id: str):
-        """Remove context for a thread."""
-        if thread_id in self._thread_contexts:
-            del self._thread_contexts[thread_id]
-        if thread_id in self._thread_projects:
-            del self._thread_projects[thread_id]
-        logger.info(f"Cleared context for thread {thread_id}")
 
 
 # Global instance

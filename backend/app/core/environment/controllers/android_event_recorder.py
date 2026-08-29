@@ -35,13 +35,21 @@ class AndroidEventRecorder:
         self._last_package_poll: float = 0
 
         # Timestamp synchronization: kernel time to relative time
-        self._start_time: float = 0.0          # System time when start_recording called
-        self._kernel_time_base: float | None = None  # First kernel timestamp from getevent -t
-        self._relative_offset_ms: float = 0.0  # MS offset from start_time when first event arrived
+        self._start_time: float = 0.0  # System time when start_recording called
+        self._kernel_time_base: float | None = (
+            None  # First kernel timestamp from getevent -t
+        )
+        self._relative_offset_ms: float = (
+            0.0  # MS offset from start_time when first event arrived
+        )
 
         # Video synchronization for keyframe extraction
-        self._video_start_time: float | None = None  # Unix timestamp when video recording started
-        self._time_offset_ms: float = 0.0      # Offset to add to event timestamps to sync with video
+        self._video_start_time: float | None = (
+            None  # Unix timestamp when video recording started
+        )
+        self._time_offset_ms: float = (
+            0.0  # Offset to add to event timestamps to sync with video
+        )
 
         self._debounce_config = DebounceConfig()
         self._last_event_time_ms: float = 0.0
@@ -90,7 +98,9 @@ class AndroidEventRecorder:
         if self.on_event_callback:
             self.on_event_callback(swipe_event)
 
-        logger.debug(f"Swipe emitted: ({self._swipe_start_x},{self._swipe_start_y}) -> ({final_x},{final_y}), duration={duration_ms:.1f}ms")
+        logger.debug(
+            f"Swipe emitted: ({self._swipe_start_x},{self._swipe_start_y}) -> ({final_x},{final_y}), duration={duration_ms:.1f}ms"
+        )
 
         # Clear buffer
         self._swipe_buffer = []
@@ -110,8 +120,13 @@ class AndroidEventRecorder:
         if len(self._swipe_buffer) > self._debounce_config.max_swipe_points:
             first = self._swipe_buffer[0]
             last = self._swipe_buffer[-1]
-            step = len(self._swipe_buffer) // (self._debounce_config.max_swipe_points - 1)
-            middle = [self._swipe_buffer[i * step] for i in range(1, self._debounce_config.max_swipe_points - 1)]
+            step = len(self._swipe_buffer) // (
+                self._debounce_config.max_swipe_points - 1
+            )
+            middle = [
+                self._swipe_buffer[i * step]
+                for i in range(1, self._debounce_config.max_swipe_points - 1)
+            ]
             self._swipe_buffer = [first] + middle + [last]
 
     def _parse_event_line(self, line: str) -> tuple[AndroidEvent | None, float]:
@@ -155,10 +170,14 @@ class AndroidEventRecorder:
                     self._kernel_time_base = kernel_timestamp
                     self._relative_offset_ms = elapsed_ms(self._start_time)
                     relative_ts_ms = self._relative_offset_ms
-                    logger.debug(f"[AndroidEventRecorder] Lazy calibration on first event: offset={self._relative_offset_ms:.1f}ms")
+                    logger.debug(
+                        f"[AndroidEventRecorder] Lazy calibration on first event: offset={self._relative_offset_ms:.1f}ms"
+                    )
                 else:
                     # Use calibrated base
-                    elapsed_kernel_ms = (kernel_timestamp - self._kernel_time_base) * 1000.0
+                    elapsed_kernel_ms = (
+                        kernel_timestamp - self._kernel_time_base
+                    ) * 1000.0
                     relative_ts_ms = elapsed_kernel_ms + self._relative_offset_ms
             else:
                 # No kernel timestamp (unlikely with -t), use host time
@@ -166,26 +185,55 @@ class AndroidEventRecorder:
 
             if ev_type == 0x03:
                 if ev_code == 0x35:
-                    return AndroidEvent(timestamp=relative_ts_ms, event_type="touch_x", x=ev_value, device_id=self.device_id or ""), relative_ts_ms
+                    return AndroidEvent(
+                        timestamp=relative_ts_ms,
+                        event_type="touch_x",
+                        x=ev_value,
+                        device_id=self.device_id or "",
+                    ), relative_ts_ms
                 elif ev_code == 0x36:
-                    return AndroidEvent(timestamp=relative_ts_ms, event_type="touch_y", y=ev_value, device_id=self.device_id or ""), relative_ts_ms
+                    return AndroidEvent(
+                        timestamp=relative_ts_ms,
+                        event_type="touch_y",
+                        y=ev_value,
+                        device_id=self.device_id or "",
+                    ), relative_ts_ms
                 elif ev_code == 0x39:
                     if ev_value in (0xFFFFFFFF, -1):
-                        return AndroidEvent(timestamp=relative_ts_ms, event_type="touch_up", device_id=self.device_id or ""), relative_ts_ms
+                        return AndroidEvent(
+                            timestamp=relative_ts_ms,
+                            event_type="touch_up",
+                            device_id=self.device_id or "",
+                        ), relative_ts_ms
                     else:
-                        return AndroidEvent(timestamp=relative_ts_ms, event_type="touch_down", device_id=self.device_id or ""), relative_ts_ms
+                        return AndroidEvent(
+                            timestamp=relative_ts_ms,
+                            event_type="touch_down",
+                            device_id=self.device_id or "",
+                        ), relative_ts_ms
 
             elif ev_type == 0x01:
                 if ev_code == 0x14A:
                     event_type = "touch_down" if ev_value == 1 else "touch_up"
-                    return AndroidEvent(timestamp=relative_ts_ms, event_type=event_type, device_id=self.device_id or ""), relative_ts_ms
+                    return AndroidEvent(
+                        timestamp=relative_ts_ms,
+                        event_type=event_type,
+                        device_id=self.device_id or "",
+                    ), relative_ts_ms
                 else:
-                    return AndroidEvent(timestamp=relative_ts_ms, event_type="key", key_code=ev_code, device_id=self.device_id or ""), relative_ts_ms
+                    return AndroidEvent(
+                        timestamp=relative_ts_ms,
+                        event_type="key",
+                        key_code=ev_code,
+                        device_id=self.device_id or "",
+                    ), relative_ts_ms
 
             return None, 0
 
         except Exception as e:
-            logger.debug(f"Failed to parse event line: {line.strip()}, error: {e}", exc_info=True)
+            logger.debug(
+                f"Failed to parse event line: {line.strip()}, error: {e}", exc_info=True
+            )
             return None, 0
 
     def get_current_package(self, device_id: str | None = None) -> str | None:
@@ -206,7 +254,9 @@ class AndroidEventRecorder:
                 self.current_package = pkg
                 return pkg
         except Exception as e:
-            logger.debug(f"[AndroidEventRecorder] Failed to get package: {e}", exc_info=True)
+            logger.debug(
+                f"[AndroidEventRecorder] Failed to get package: {e}", exc_info=True
+            )
 
         return self.current_package
 
@@ -220,10 +270,7 @@ class AndroidEventRecorder:
 
         try:
             self.process = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                bufsize=0
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=0
             )
             proc = self.process
             logger.info(f"[AndroidEventRecorder] Started recording (PID: {proc.pid})")
@@ -259,9 +306,25 @@ class AndroidEventRecorder:
                             if event.event_type == "touch_x":
                                 current_touch["x"] = event.x or 0
                                 if current_touch["down"] and self._swipe_buffer:
-                                    if not self._should_debounce(current_touch["x"], current_touch["y"], relative_ts_ms):
-                                        self._add_swipe_point(current_touch["x"], current_touch["y"], relative_ts_ms)
-                                        self._last_x, self._last_y, self._last_event_time_ms = current_touch["x"], current_touch["y"], relative_ts_ms
+                                    if not self._should_debounce(
+                                        current_touch["x"],
+                                        current_touch["y"],
+                                        relative_ts_ms,
+                                    ):
+                                        self._add_swipe_point(
+                                            current_touch["x"],
+                                            current_touch["y"],
+                                            relative_ts_ms,
+                                        )
+                                        (
+                                            self._last_x,
+                                            self._last_y,
+                                            self._last_event_time_ms,
+                                        ) = (
+                                            current_touch["x"],
+                                            current_touch["y"],
+                                            relative_ts_ms,
+                                        )
 
                             elif event.event_type == "touch_y":
                                 current_touch["y"] = event.y or 0
@@ -272,10 +335,26 @@ class AndroidEventRecorder:
                                     self.get_current_package()
 
                                     if self._swipe_buffer:
-                                        self._emit_swipe_event(self._last_x, self._last_y, self._last_event_time_ms)
+                                        self._emit_swipe_event(
+                                            self._last_x,
+                                            self._last_y,
+                                            self._last_event_time_ms,
+                                        )
 
-                                    self._start_swipe(current_touch["x"], current_touch["y"], relative_ts_ms)
-                                    self._last_x, self._last_y, self._last_event_time_ms = current_touch["x"], current_touch["y"], relative_ts_ms
+                                    self._start_swipe(
+                                        current_touch["x"],
+                                        current_touch["y"],
+                                        relative_ts_ms,
+                                    )
+                                    (
+                                        self._last_x,
+                                        self._last_y,
+                                        self._last_event_time_ms,
+                                    ) = (
+                                        current_touch["x"],
+                                        current_touch["y"],
+                                        relative_ts_ms,
+                                    )
 
                                     data = AndroidEvent(
                                         timestamp=int(relative_ts_ms),
@@ -293,7 +372,11 @@ class AndroidEventRecorder:
                                 if current_touch["down"]:
                                     current_touch["down"] = False
                                     if self._swipe_buffer:
-                                        self._emit_swipe_event(current_touch["x"], current_touch["y"], relative_ts_ms)
+                                        self._emit_swipe_event(
+                                            current_touch["x"],
+                                            current_touch["y"],
+                                            relative_ts_ms,
+                                        )
 
                                     data = AndroidEvent(
                                         timestamp=int(relative_ts_ms),
@@ -330,7 +413,9 @@ class AndroidEventRecorder:
             logger.exception(f"Event recording error: {e}")
         finally:
             self.is_recording = False
-            logger.info(f"Android event recording stopped. Captured {len(self.events)} events")
+            logger.info(
+                f"Android event recording stopped. Captured {len(self.events)} events"
+            )
 
     async def _calibrate_clocks(self):
         """
@@ -359,9 +444,13 @@ class AndroidEventRecorder:
                     f"Offset={self._relative_offset_ms:.1f}ms"
                 )
         except Exception as e:
-            logger.warning(f"[AndroidEventRecorder] Failed to calibrate clocks: {e}", exc_info=True)
+            logger.warning(
+                f"[AndroidEventRecorder] Failed to calibrate clocks: {e}", exc_info=True
+            )
 
-    def start_recording(self, device_id: str, callback=None, video_start_time: float | None = None) -> bool:
+    def start_recording(
+        self, device_id: str, callback=None, video_start_time: float | None = None
+    ) -> bool:
         """Start recording events."""
         if self.is_recording:
             return False
@@ -403,7 +492,9 @@ class AndroidEventRecorder:
         if video_start_time and video_start_time > 0:
             # Re-calculate offset: (Recorder Start - Video Start)
             self._time_offset_ms = (self._start_time - video_start_time) * 1000.0
-            logger.info(f"[AndroidEventRecorder] Updated video_start_time: {video_start_time}, new offset: {self._time_offset_ms:.1f}ms")
+            logger.info(
+                f"[AndroidEventRecorder] Updated video_start_time: {video_start_time}, new offset: {self._time_offset_ms:.1f}ms"
+            )
 
     def stop_recording(self) -> list[AndroidEvent]:
         """Stop recording."""
@@ -421,15 +512,19 @@ class AndroidEventRecorder:
             self._recording_thread.join(timeout=3)
         return self.events
 
-    def to_trace_events(self, session_id: str, thread_id: str) -> list[AndroidTraceEvent]:
+    def to_trace_events(
+        self, session_id: str, thread_id: str
+    ) -> list[AndroidTraceEvent]:
         """Convert to trace events."""
         trace_events: list[AndroidTraceEvent] = []
         for event in self.events:
             relative_ms = int(event.timestamp + self._time_offset_ms)
             if event.event_type == "swipe":
                 payload = {
-                    "x": event.x, "y": event.y,
-                    "end_x": event.swipe_end_x, "end_y": event.swipe_end_y,
+                    "x": event.x,
+                    "y": event.y,
+                    "end_x": event.swipe_end_x,
+                    "end_y": event.swipe_end_y,
                     "duration_ms": event.swipe_duration_ms,
                     "device_id": event.device_id,
                     "platform": "android",
@@ -437,11 +532,17 @@ class AndroidEventRecorder:
                     "relative_timestamp_ms": relative_ms,
                     "is_swipe": True,
                 }
-                target_x, target_y = (event.swipe_end_x or event.x), (event.swipe_end_y or event.y)
+                target_x, target_y = (
+                    (event.swipe_end_x or event.x),
+                    (event.swipe_end_y or event.y),
+                )
             else:
                 payload = {
-                    "x": event.x, "y": event.y, "key_code": event.key_code,
-                    "device_id": event.device_id, "platform": "android",
+                    "x": event.x,
+                    "y": event.y,
+                    "key_code": event.key_code,
+                    "device_id": event.device_id,
+                    "platform": "android",
                     "package_name": event.app_package,
                     "relative_timestamp_ms": relative_ms,
                 }

@@ -56,17 +56,3 @@ class PreparedFile(BaseModel):
     source_file: SourceFile | None
     is_new: bool
     repo: Repository
-
-
-class APIEndpoint(DynamicBaseModel):
-    method: str
-    path: str
-    handler_name: str
-    file_path: str
-    line_number: int
-
-
-class DBTable(DynamicBaseModel):
-    name: str
-    file_path: str
-    columns: list[str] = Field(default_factory=list)

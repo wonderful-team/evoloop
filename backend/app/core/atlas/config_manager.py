@@ -14,13 +14,11 @@ so no database persistence is needed.
 import logging
 from typing import Any
 
+from app.constants import CACHE_KEY_DYNAMIC_APPS_PREFIX
+from app.core.atlas.constants import CACHE_KEY_APP_NAME_MAP
 from app.infrastructure.cache import cache
 
 logger = logging.getLogger(__name__)
-
-# Cache keys
-REDIS_KEY_APP_NAME_MAP = "atlas:app_name_map"  # Hash: name -> bundle_id
-REDIS_KEY_DYNAMIC_APPS_PREFIX = "system:dynamic_apps"  # Set: bundle_ids (platform-specific)
 
 
 class AtlasConfigManager:
@@ -34,7 +32,7 @@ class AtlasConfigManager:
 
         # 1. Try cache
         try:
-            bundle_id = await cache.hget(REDIS_KEY_APP_NAME_MAP, app_name)
+            bundle_id = await cache.hget(CACHE_KEY_APP_NAME_MAP, app_name)
             if bundle_id:
                 return bundle_id
         except Exception as e:
@@ -61,14 +59,17 @@ class AtlasConfigManager:
                 await AtlasConfigManager.set_app_name_mapping(app_name, bundle_id)
                 return bundle_id
         except Exception as e:
-            logger.debug(f"[AtlasConfig] Bundle ID detection failed for {app_name}: {e}", exc_info=True)
+            logger.debug(
+                f"[AtlasConfig] Bundle ID detection failed for {app_name}: {e}",
+                exc_info=True,
+            )
         return None
 
     @staticmethod
     async def set_app_name_mapping(app_name: str, bundle_id: str):
         """Add or update app name to bundle ID mapping (cache only)."""
         try:
-            await cache.hset(REDIS_KEY_APP_NAME_MAP, app_name, bundle_id)
+            await cache.hset(CACHE_KEY_APP_NAME_MAP, app_name, bundle_id)
             logger.info(f"[AtlasConfig] Mapped '{app_name}' -> '{bundle_id}'")
         except Exception as e:
             logger.exception(f"[AtlasConfig] Failed to set mapping: {e}")
@@ -76,7 +77,7 @@ class AtlasConfigManager:
     @staticmethod
     def _get_dynamic_apps_key(platform: str) -> str:
         """Generate platform-specific key for dynamic apps set."""
-        return f"{REDIS_KEY_DYNAMIC_APPS_PREFIX}:{platform}"
+        return f"{CACHE_KEY_DYNAMIC_APPS_PREFIX}:{platform}"
 
     @staticmethod
     async def get_dynamic_apps(platform: str = "android") -> set[str]:
@@ -99,7 +100,9 @@ class AtlasConfigManager:
         return bundle_id in dynamic_apps
 
     @staticmethod
-    async def get_app_strategy(bundle_id: str, platform: str = "android") -> dict[str, Any] | None:
+    async def get_app_strategy(
+        bundle_id: str, platform: str = "android"
+    ) -> dict[str, Any] | None:
         """Get default strategy for an app on a specific platform."""
         try:
             from app.core.atlas.strategy import AtlasStrategyStore
@@ -128,25 +131,41 @@ class AtlasConfigManager:
 
         try:
             # Check if mappings already exist
-            existing = await cache.hlen(REDIS_KEY_APP_NAME_MAP)
+            existing = await cache.hlen(CACHE_KEY_APP_NAME_MAP)
             if existing == 0:
-                await cache.hset(REDIS_KEY_APP_NAME_MAP, mapping=default_mappings)
-                logger.info(f"[AtlasConfig] Initialized {len(default_mappings)} app name mappings")
+                await cache.hset(CACHE_KEY_APP_NAME_MAP, mapping=default_mappings)
+                logger.info(
+                    f"[AtlasConfig] Initialized {len(default_mappings)} app name mappings"
+                )
 
             # 2. Initialize minimal dynamic app safeguards
             # Check macOS dynamic apps
-            existing_dynamic_macos = await cache.scard(AtlasConfigManager._get_dynamic_apps_key("macos"))
+            existing_dynamic_macos = await cache.scard(
+                AtlasConfigManager._get_dynamic_apps_key("macos")
+            )
             if existing_dynamic_macos == 0:
                 # Add macOS WeChat as minimal safeguard
-                await cache.sadd(AtlasConfigManager._get_dynamic_apps_key("macos"), "com.tencent.xinWeChat")
-                logger.info("[AtlasConfig] Initialized minimal dynamic app safeguard for macOS (WeChat)")
+                await cache.sadd(
+                    AtlasConfigManager._get_dynamic_apps_key("macos"),
+                    "com.tencent.xinWeChat",
+                )
+                logger.info(
+                    "[AtlasConfig] Initialized minimal dynamic app safeguard for macOS (WeChat)"
+                )
 
             # Check Android dynamic apps
-            existing_dynamic_android = await cache.scard(AtlasConfigManager._get_dynamic_apps_key("android"))
+            existing_dynamic_android = await cache.scard(
+                AtlasConfigManager._get_dynamic_apps_key("android")
+            )
             if existing_dynamic_android == 0:
                 # Add Android WeChat as minimal safeguard
-                await cache.sadd(AtlasConfigManager._get_dynamic_apps_key("android"), "com.tencent.mm")
-                logger.info("[AtlasConfig] Initialized minimal dynamic app safeguard for Android (WeChat)")
+                await cache.sadd(
+                    AtlasConfigManager._get_dynamic_apps_key("android"),
+                    "com.tencent.mm",
+                )
+                logger.info(
+                    "[AtlasConfig] Initialized minimal dynamic app safeguard for Android (WeChat)"
+                )
 
             # 3. Initialize default strategies
             from app.core.atlas.strategy import AtlasStrategyStore

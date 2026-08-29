@@ -20,14 +20,14 @@ from app.core.engine.hooks import HookContext, HookEvent, hook_system
 from app.core.engine.message.native_classes import RunnableConfig
 from app.core.learning.macro import list_active_macro_index
 from app.core.routing.conversation_state import ConversationState
-from app.core.routing.schemas import (
+from app.core.routing.constants import (
     DOMAIN_AMBIGUOUS,
     INTENT_DOMAIN_CLASSIFIED,
     INTENT_MACRO_TASK,
     INTENT_MEMORY_QUERY,
     INTENT_WORKER_TASK,
-    IntentHint,
 )
+from app.core.routing.schemas import IntentHint
 from app.utils.time import elapsed_ms
 
 logger = logging.getLogger(__name__)
@@ -36,8 +36,12 @@ logger = logging.getLogger(__name__)
 # When no intent_hint is available we keep the legacy full-load behavior.
 # Intents omitted from a set skip that loader entirely (telescopic loading).
 # See docs/supervisor-telescopic-context-design.md §5.4 for the mapping table.
-_INTENTS_NEEDING_ACTIVE_SKILLS = frozenset({INTENT_WORKER_TASK, DOMAIN_AMBIGUOUS, INTENT_MACRO_TASK})
-_INTENTS_NEEDING_ACTIVE_MACROS = frozenset({INTENT_MACRO_TASK, DOMAIN_AMBIGUOUS, INTENT_WORKER_TASK})
+_INTENTS_NEEDING_ACTIVE_SKILLS = frozenset(
+    {INTENT_WORKER_TASK, DOMAIN_AMBIGUOUS, INTENT_MACRO_TASK}
+)
+_INTENTS_NEEDING_ACTIVE_MACROS = frozenset(
+    {INTENT_MACRO_TASK, DOMAIN_AMBIGUOUS, INTENT_WORKER_TASK}
+)
 _INTENTS_NEEDING_OPERATION_MAP = frozenset({INTENT_WORKER_TASK, DOMAIN_AMBIGUOUS})
 _INTENTS_NEEDING_MEMORY = frozenset({INTENT_MEMORY_QUERY, DOMAIN_AMBIGUOUS})
 
@@ -126,10 +130,16 @@ class AgentContextHydrator:
             # suggested_modules so semantic recall is available even for intents
             # (e.g. environment_query) that normally skip it. The routing layer no
             # longer performs this injection; it is part of the engine's mapping.
-            has_prior_context = bool(intent_hint_obj.previous_intent or intent_hint_obj.session_history)
+            has_prior_context = bool(
+                intent_hint_obj.previous_intent or intent_hint_obj.session_history
+            )
             if has_prior_context:
-                boosted = ConversationState.apply_anaphora_boost(intent_hint_obj, last_human_msg, has_prior_context)
-                intent_hint_obj = intent_hint_obj.model_copy(update=boosted.model_dump(exclude_none=True))
+                boosted = ConversationState.apply_anaphora_boost(
+                    intent_hint_obj, last_human_msg, has_prior_context
+                )
+                intent_hint_obj = intent_hint_obj.model_copy(
+                    update=boosted.model_dump(exclude_none=True)
+                )
 
             suggested_modules_raw = intent_hint_obj.suggested_modules
             session_history_raw = intent_hint_obj.session_history

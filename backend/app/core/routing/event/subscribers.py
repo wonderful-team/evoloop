@@ -27,4 +27,7 @@ class RoutingLifecycleSubscriber:
             routing_tasks.build_l0_init_spec.delay()
             logger.info("[Routing] L0 Init Spec build dispatched")
         except Exception as e:
-            logger.warning(f"[Routing] L0 Init Spec dispatch failed (non-critical): {e}", exc_info=True)
+            logger.warning(
+                f"[Routing] L0 Init Spec dispatch failed (non-critical): {e}",
+                exc_info=True,
+            )

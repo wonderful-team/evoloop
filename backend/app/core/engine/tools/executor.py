@@ -73,7 +73,9 @@ class AgentToolExecutor:
         project_id = meta.project_id
         run_id = meta.run_id
 
-        logger.info(f"[{self.name}] 🛠   Call: {tool_name} | Args: {json.dumps(tool_args)}")
+        logger.info(
+            f"[{self.name}] 🛠   Call: {tool_name} | Args: {json.dumps(tool_args)}"
+        )
 
         from app.core.context.manager import ContextManager
 
@@ -102,10 +104,14 @@ class AgentToolExecutor:
         )
 
         try:
-            pre_result = await hook_system.trigger(HookEvent.PRE_TOOL_USE, pre_ctx, blocking=True)
+            pre_result = await hook_system.trigger(
+                HookEvent.PRE_TOOL_USE, pre_ctx, blocking=True
+            )
 
             if pre_result.block:
-                logger.warning(f"[{self.name}] 🚫 Tool {tool_name} blocked by hook: {pre_result.message}")
+                logger.warning(
+                    f"[{self.name}] 🚫 Tool {tool_name} blocked by hook: {pre_result.message}"
+                )
                 msg = self._create_tool_message(
                     content=f"Error: Tool execution blocked - {pre_result.message}",
                     tool_id=tool_id,
@@ -114,7 +120,10 @@ class AgentToolExecutor:
                 )
                 return ToolExecutionResult(message=msg)
 
-            if pre_result.modified_context and pre_result.modified_context.tool_input is not None:
+            if (
+                pre_result.modified_context
+                and pre_result.modified_context.tool_input is not None
+            ):
                 tool_input = pre_result.modified_context.tool_input
                 # Full-roundtrip write-back: the vault placeholder hook now substitutes
                 # across all fields (declared + dynamic extra), so we must persist every
@@ -145,9 +154,14 @@ class AgentToolExecutor:
                         resolved_abs_paths.append(abs_path)
                         if not file_change_tracker.has_snapshot(abs_path, thread_id):
                             file_change_tracker.capture(abs_path, thread_id)
-                            logger.info(f"[{self.name}] Captured snapshot for: {abs_path}")
+                            logger.info(
+                                f"[{self.name}] Captured snapshot for: {abs_path}"
+                            )
                     except Exception as e:
-                        logger.warning(f"[ToolExecutor] Failed to resolve path for snapshot: {path} | Error: {e}", exc_info=True)
+                        logger.warning(
+                            f"[ToolExecutor] Failed to resolve path for snapshot: {path} | Error: {e}",
+                            exc_info=True,
+                        )
 
                 self._current_resolved_paths = resolved_abs_paths
 
@@ -165,12 +179,20 @@ class AgentToolExecutor:
             tool_callbacks = _get_callbacks(self.config)
             tool_run_id = str(_uuid4())
             if tool_callbacks:
-                await emit_tool_start(tool_callbacks, tool_name, tool_args, tool_run_id, tool_call_id=tool_id)
+                await emit_tool_start(
+                    tool_callbacks,
+                    tool_name,
+                    tool_args,
+                    tool_run_id,
+                    tool_call_id=tool_id,
+                )
 
             content = await self._tool_executor.execute(tool, tool_args, config=config)
 
             if tool_callbacks:
-                await emit_tool_end(tool_callbacks, tool_name, str(content), tool_run_id)
+                await emit_tool_end(
+                    tool_callbacks, tool_name, str(content), tool_run_id
+                )
 
             post_ctx = HookContext(
                 thread_id=thread_id,
@@ -181,19 +203,32 @@ class AgentToolExecutor:
                 tool_result=ToolResult(output=content),
                 tool_use_id=tool_id,
                 state=self.state,
-                extra=pre_result.modified_context.extra if (pre_result and pre_result.modified_context) else pre_ctx.extra,
+                extra=pre_result.modified_context.extra
+                if (pre_result and pre_result.modified_context)
+                else pre_ctx.extra,
             )
             try:
-                post_result = await hook_system.trigger(HookEvent.POST_TOOL_USE, post_ctx, blocking=True)
-                if post_result and post_result.modified_context and post_result.modified_context.tool_result:
+                post_result = await hook_system.trigger(
+                    HookEvent.POST_TOOL_USE, post_ctx, blocking=True
+                )
+                if (
+                    post_result
+                    and post_result.modified_context
+                    and post_result.modified_context.tool_result
+                ):
                     content = post_result.modified_context.tool_result.output
             except Exception as hook_err:
-                logger.warning(f"[ToolExecutor] POST_TOOL_USE hook failed: {hook_err}", exc_info=True)
+                logger.warning(
+                    f"[ToolExecutor] POST_TOOL_USE hook failed: {hook_err}",
+                    exc_info=True,
+                )
 
             tool_message_id = gen_uuid()
 
             if self.enable_diff_tracking and tool.metadata.get("is_state_mutating"):
-                await self._track_diffs(tool_name, tool_args, thread_id, tool_message_id, tool_id, tool)
+                await self._track_diffs(
+                    tool_name, tool_args, thread_id, tool_message_id, tool_id, tool
+                )
 
             msg = self._create_tool_message(
                 content=str(content),
@@ -227,14 +262,23 @@ class AgentToolExecutor:
                 error=e,
                 error_message=str(e),
                 state=self.state,
-                extra=pre_result.modified_context.extra if ('pre_result' in locals() and pre_result and pre_result.modified_context) else pre_ctx.extra,
+                extra=pre_result.modified_context.extra
+                if (
+                    "pre_result" in locals()
+                    and pre_result
+                    and pre_result.modified_context
+                )
+                else pre_ctx.extra,
             )
 
             async def _fire_fail_hook():
                 try:
                     await hook_system.trigger(HookEvent.POST_TOOL_USE_FAILURE, fail_ctx)
                 except Exception as hook_err:
-                    logger.warning(f"[ToolExecutor] POST_TOOL_USE_FAILURE hook failed: {hook_err}", exc_info=True)
+                    logger.warning(
+                        f"[ToolExecutor] POST_TOOL_USE_FAILURE hook failed: {hook_err}",
+                        exc_info=True,
+                    )
 
             asyncio.create_task(_fire_fail_hook())
 
@@ -266,7 +310,7 @@ class AgentToolExecutor:
         from app.core.file.changes.tracker import file_change_tracker
 
         # 调用点已按 is_state_mutating 门控并传入工具对象，此处仅做防御性校验
-        #（不再重复 get_tool_map 全局查找）。
+        # （不再重复 get_tool_map 全局查找）。
         if not tool or not tool.metadata.get("is_state_mutating"):
             return
 
@@ -310,14 +354,20 @@ class AgentToolExecutor:
             for msg, raw in batch_results:
                 results.append(msg)
                 if not pending_signal:
-                    tool_name = next(tc["name"] for tc in tool_calls if tc["id"] == msg.tool_call_id)
-                    pending_signal = signal_manager.detect_post_execution_signal(tool_name, raw)
+                    tool_name = next(
+                        tc["name"] for tc in tool_calls if tc["id"] == msg.tool_call_id
+                    )
+                    pending_signal = signal_manager.detect_post_execution_signal(
+                        tool_name, raw
+                    )
         else:
             for tc in tool_calls:
                 msg, raw = await _run_one(tc)
                 results.append(msg)
                 if not pending_signal:
-                    pending_signal = signal_manager.detect_post_execution_signal(tc["name"], raw)
+                    pending_signal = signal_manager.detect_post_execution_signal(
+                        tc["name"], raw
+                    )
 
         return results, pending_signal
 

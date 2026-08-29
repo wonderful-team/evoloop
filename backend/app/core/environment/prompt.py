@@ -52,8 +52,11 @@ class AppEnvironmentPrompt:
                     plugin_registry.hydrate_context(ctx)
 
             template_vars = {
-                "environment": ctx.environment_summaries, # Now contains raw data
-                "current_datetime": __import__("datetime").datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z"),
+                "environment": ctx.environment_summaries,  # Now contains raw data
+                "current_datetime": __import__("datetime")
+                .datetime.now()
+                .astimezone()
+                .strftime("%Y-%m-%d %H:%M:%S %Z"),
                 "memory_replay": ctx.memory_replay,
                 "spatial_awareness": ctx.spatial_awareness,
                 "boundaries": ctx.active_boundaries,
@@ -67,7 +70,9 @@ class AppEnvironmentPrompt:
                 "ctx": ctx,  # Pass full context for working_directory access
             }
 
-            return render_template("core/environment/awakening.prompt.j2", **template_vars)
+            return render_template(
+                "core/environment/awakening.prompt.j2", **template_vars
+            )
 
         except Exception as e:
             logger.exception("Failed to render environment block: %s", e)
@@ -157,9 +162,7 @@ def _docker_label(c: dict) -> str:
     ports_str = c.get("ports", "")
     ip = c.get("ip")
     if ip:
-        container_ports = sorted(
-            {int(m) for m in re.findall(r"->(\d+)/", ports_str)}
-        )
+        container_ports = sorted({int(m) for m in re.findall(r"->(\d+)/", ports_str)})
         if container_ports:
             return f"{name}: {ip}:{','.join(map(str, container_ports))}"
         return f"{name}: {ip}"
@@ -181,7 +184,9 @@ def _get_active_window() -> str | None:
         return None
 
 
-def build_environment_summaries(relevance: str = "auto", include_full_apps: bool = False) -> dict:
+def build_environment_summaries(
+    relevance: str = "auto", include_full_apps: bool = False
+) -> dict:
     """
     Build environment awareness data from awakened state.
     Returns a dictionary suitable for templates.
@@ -220,10 +225,13 @@ def build_environment_summaries(relevance: str = "auto", include_full_apps: bool
                         key=lambda s: s.priority_score,
                         reverse=True,
                     )
-                    host_info["running_apps"] = [s.app_name for s in ranked if s.is_running][:20]
+                    host_info["running_apps"] = [
+                        s.app_name for s in ranked if s.is_running
+                    ][:20]
                     host_info["top_apps"] = [s.app_name for s in ranked][:10]
                     host_info["recently_used_closed"] = [
-                        a for a in host_info["top_apps"]
+                        a
+                        for a in host_info["top_apps"]
                         if a not in host_info["running_apps"]
                     ]
                     if include_full_apps:
@@ -241,7 +249,8 @@ def build_environment_summaries(relevance: str = "auto", include_full_apps: bool
                         normalize_compact(a) for a in host_info["running_apps"]
                     }
                     host_info["installed_apps"] = [
-                        a for a in (state.host.installed_apps or [])
+                        a
+                        for a in (state.host.installed_apps or [])
                         if normalize_compact(a) not in running_norm
                     ]
                 if state.host.os_name == "macOS":
@@ -259,14 +268,20 @@ def build_environment_summaries(relevance: str = "auto", include_full_apps: bool
                 if metrics:
                     host_info["cpu_percent"] = metrics["cpu_percent"]
                     host_info["memory_percent"] = metrics["mem_percent"]
-                    host_info["memory_available_gb"] = round(metrics["mem_available"] / (1024**3), 1)
+                    host_info["memory_available_gb"] = round(
+                        metrics["mem_available"] / (1024**3), 1
+                    )
                 disk = get_disk_usage("/")
                 if disk:
                     host_info["disk_space"] = disk
             except Exception:
-                logger.debug("Failed to collect real-time host telemetry", exc_info=True)
+                logger.debug(
+                    "Failed to collect real-time host telemetry", exc_info=True
+                )
 
-            host_info["current_time"] = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
+            host_info["current_time"] = (
+                datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
+            )
 
             data["host"] = host_info
 
@@ -298,7 +313,7 @@ def build_environment_summaries(relevance: str = "auto", include_full_apps: bool
         ]
         _bt_idx = 0
         lan_list = []
-        for d in (state.lan_devices or []):
+        for d in state.lan_devices or []:
             item = {
                 "ip": d.ip,
                 "name": d.name,
@@ -309,7 +324,11 @@ def build_environment_summaries(relevance: str = "auto", include_full_apps: bool
             }
             # A LAN "mobile" without a name can be cross-referenced with a
             # paired Bluetooth phone to attach its name/vendor.
-            if item["device_type"] == "mobile" and not item["name"] and _bt_idx < len(bt_mobiles):
+            if (
+                item["device_type"] == "mobile"
+                and not item["name"]
+                and _bt_idx < len(bt_mobiles)
+            ):
                 btd = bt_mobiles[_bt_idx]
                 item["name"] = btd.name
                 if not item["manufacturer"]:
@@ -329,7 +348,8 @@ def build_environment_summaries(relevance: str = "auto", include_full_apps: bool
         docker_host_ports = _parse_docker_host_ports(state.docker_containers)
         if docker_host_ports:
             data["active_ports"] = [
-                svc for svc in data["active_ports"]
+                svc
+                for svc in data["active_ports"]
                 if svc["port"] not in docker_host_ports
             ]
         # Exclude foreground applications (already surfaced via Running Applications)
@@ -339,7 +359,8 @@ def build_environment_summaries(relevance: str = "auto", include_full_apps: bool
         if running_apps:
             running_normalized = {normalize_compact(n) for n in running_apps}
             data["active_ports"] = [
-                svc for svc in data["active_ports"]
+                svc
+                for svc in data["active_ports"]
                 if normalize_compact(svc["process"]) not in running_normalized
             ]
         # Group ports per process instance for compact rendering (one line per service)
@@ -349,8 +370,11 @@ def build_environment_summaries(relevance: str = "auto", include_full_apps: bool
             by_process.setdefault(key, []).append(svc["port"])
         data["service_labels"] = [
             f"{process} (PID {pid}): {', '.join(map(str, sorted(ports)))}"
-            if pid else f"{process}: {', '.join(map(str, sorted(ports)))}"
-            for (process, pid), ports in sorted(by_process.items(), key=lambda x: (x[0][0], x[0][1] or 0))
+            if pid
+            else f"{process}: {', '.join(map(str, sorted(ports)))}"
+            for (process, pid), ports in sorted(
+                by_process.items(), key=lambda x: (x[0][0], x[0][1] or 0)
+            )
         ]
 
         return data

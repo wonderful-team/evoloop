@@ -19,7 +19,9 @@ class FileEditorService:
     """
 
     @staticmethod
-    async def preview_edit(path: str, target: str, replacement: str, absolute_path: str) -> EditPreviewResult:
+    async def preview_edit(
+        path: str, target: str, replacement: str, absolute_path: str
+    ) -> EditPreviewResult:
         """Preview an edit without applying changes."""
         try:
             # Read file content
@@ -79,7 +81,9 @@ class FileEditorService:
         )
 
         # Generate diff
-        diff = generate_unified_diff(original=file_content, modified=new_content, file_path=path)
+        diff = generate_unified_diff(
+            original=file_content, modified=new_content, file_path=path
+        )
 
         return EditPreviewResult(
             success=True,
@@ -150,7 +154,9 @@ class FileEditorService:
                             end_idx=edit.end_line - 1 if edit.end_line else None,
                         )
                         # 2. Match in the substring
-                        success, new_sub, log = EditEngine.apply_replacement(sub, edit.target, edit.replacement)
+                        success, new_sub, log = EditEngine.apply_replacement(
+                            sub, edit.target, edit.replacement
+                        )
                         if success:
                             # 3. Replace the substring in the full content
                             new_content = current_content.replace(sub, new_sub, 1)
@@ -186,7 +192,9 @@ class FileEditorService:
                 current_content = new_content
 
             # Phase 2: Atomic write
-            write_result = write_file_with_verification(current_content, absolute_path, expected_hash=expected_hash)
+            write_result = write_file_with_verification(
+                current_content, absolute_path, expected_hash=expected_hash
+            )
 
             if not write_result["success"]:
                 return {

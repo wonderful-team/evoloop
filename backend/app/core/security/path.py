@@ -66,7 +66,9 @@ def is_under_allowed_root(
     working_dir: str | None = None,
 ) -> bool:
     """Return ``True`` if ``path`` lies within one of the allowed roots."""
-    roots = allowed_roots if allowed_roots is not None else get_allowed_roots(working_dir)
+    roots = (
+        allowed_roots if allowed_roots is not None else get_allowed_roots(working_dir)
+    )
     if not roots:
         return False
 

@@ -69,7 +69,9 @@ def read_project_json(project_path: str) -> dict:
         try:
             return json.loads(result.content) or {}
         except (json.JSONDecodeError, TypeError, ValueError) as e:
-            logger.warning(f"[ProjectUtils] Failed to parse {meta_file}: {e}", exc_info=True)
+            logger.warning(
+                f"[ProjectUtils] Failed to parse {meta_file}: {e}", exc_info=True
+            )
     return {}
 
 
@@ -92,7 +94,9 @@ def write_project_json(project_path: str, data: dict) -> None:
         expected_hash=expected_hash,
     )
     if not write_result.success:
-        logger.warning(f"[ProjectUtils] Failed to write {meta_file}: {write_result.message}")
+        logger.warning(
+            f"[ProjectUtils] Failed to write {meta_file}: {write_result.message}"
+        )
 
 
 async def get_project_path(project_id: int) -> str:
@@ -201,5 +205,8 @@ async def resolve_project_to_repo(project_id: int) -> Repository | None:
 
             return repos[0]
     except Exception as e:
-        logger.warning(f"[ProjectUtils] Failed to resolve project_id {project_id} to repo: {e}", exc_info=True)
+        logger.warning(
+            f"[ProjectUtils] Failed to resolve project_id {project_id} to repo: {e}",
+            exc_info=True,
+        )
         return None

@@ -10,6 +10,11 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.domain.todo.constants import (
+    DEFAULT_TODO_LIMIT,
+    TODO_CATEGORY_MAX_LENGTH,
+    TODO_TITLE_MAX_LENGTH,
+)
 from app.models.schemas.base import TimestampedEntity
 from app.models.schemas.requests import BaseFilter
 from app.models.todo import TodoPriority, TodoStatus
@@ -20,10 +25,10 @@ from app.models.todo import TodoPriority, TodoStatus
 class TodoBase(BaseModel):
     """Base Todo fields."""
 
-    title: str = Field(..., min_length=1, max_length=255)
+    title: str = Field(..., min_length=1, max_length=TODO_TITLE_MAX_LENGTH)
     description: str | None = None
     priority: TodoPriority = TodoPriority.MEDIUM
-    category: str | None = Field(None, max_length=50)
+    category: str | None = Field(None, max_length=TODO_CATEGORY_MAX_LENGTH)
     due_date: datetime | None = None
     project_id: int | None = None
 
@@ -34,10 +39,10 @@ class TodoBase(BaseModel):
 class TodoCreate(BaseModel):
     """Schema for creating a new Todo."""
 
-    title: str = Field(..., min_length=1, max_length=255)
+    title: str = Field(..., min_length=1, max_length=TODO_TITLE_MAX_LENGTH)
     description: str | None = None
     priority: Literal["low", "medium", "high"] | TodoPriority = TodoPriority.MEDIUM
-    category: str | None = Field(None, max_length=50)
+    category: str | None = Field(None, max_length=TODO_CATEGORY_MAX_LENGTH)
     due_date: datetime | str | None = None  # str for flexible parsing
     project_id: int | None = None
     source_conversation_id: str | None = None
@@ -65,11 +70,11 @@ class TodoCreateInternal(BaseModel):
 class TodoUpdate(BaseModel):
     """Schema for updating an existing Todo."""
 
-    title: str | None = Field(None, min_length=1, max_length=255)
+    title: str | None = Field(None, min_length=1, max_length=TODO_TITLE_MAX_LENGTH)
     description: str | None = None
     status: TodoStatus | None = None
     priority: Literal["low", "medium", "high"] | TodoPriority | None = None
-    category: str | None = Field(None, max_length=50)
+    category: str | None = Field(None, max_length=TODO_CATEGORY_MAX_LENGTH)
     due_date: datetime | str | None = None
     project_id: int | None = None
 
@@ -106,7 +111,7 @@ class TodoFilter(BaseFilter):
     project_id: int | None = None
     priority: TodoPriority | None = None
     category: str | None = None
-    limit: int = Field(50, ge=1, le=100)
+    limit: int = Field(DEFAULT_TODO_LIMIT, ge=1, le=100)
     offset: int = Field(0, ge=0)
     order_by: Literal["created_at", "updated_at", "due_date"] = "created_at"
     order_desc: bool = True
@@ -128,15 +133,19 @@ class ExtractedTodo(BaseModel):
     """A single todo item extracted from conversation."""
 
     title: str = Field(..., description="Short descriptive title of the task")
-    description: str | None = Field(None, description="Detailed explanation or context of the task")
-    priority: Literal["low", "medium", "high"] = Field("medium", description="Importance level")
-    category: str | None = Field(None, description="Broad category, e.g., 'bug', 'feature', 'chore'")
-    confidence: float = Field(..., ge=0.0, le=1.0, description="How certain we are that this is a real pending task")
+    description: str | None = Field(
+        None, description="Detailed explanation or context of the task"
+    )
+    priority: Literal["low", "medium", "high"] = Field(
+        "medium", description="Importance level"
+    )
+    category: str | None = Field(
+        None, description="Broad category, e.g., 'bug', 'feature', 'chore'"
+    )
+    confidence: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="How certain we are that this is a real pending task",
+    )
     reasoning: str | None = Field(None, description="Why this was identified as a task")
-
-
-class TodoHarvestingResult(BaseModel):
-    """The full result of a todo extraction run."""
-
-    todos: list[ExtractedTodo] = Field(default_factory=list)
-    summary: str = Field(default="", description="Brief summary of the extraction process")

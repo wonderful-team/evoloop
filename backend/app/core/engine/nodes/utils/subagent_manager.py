@@ -105,8 +105,12 @@ async def recover_subagent_state(parent_tid: str) -> dict:
                 started = started.replace(tzinfo=timezone.utc)
             if (not task_alive) or (started < reap_cutoff):
                 r.status = "failed"
-                r.error = f"orphaned: 进程重启后 subagent task 丢失（原状态 {r.status}）"
-                logger.warning(f"[SubagentManager] Reaped orphaned subagent {r.id} -> failed")
+                r.error = (
+                    f"orphaned: 进程重启后 subagent task 丢失（原状态 {r.status}）"
+                )
+                logger.warning(
+                    f"[SubagentManager] Reaped orphaned subagent {r.id} -> failed"
+                )
         await session.commit()
 
         stmt = select(SubagentRun).where(SubagentRun.parent_thread_id == parent_tid)

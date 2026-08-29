@@ -49,9 +49,13 @@ async def handle_write(
         if result.status == FileStatus.SUCCESS:
             return i18n.get("domain_tools.files.write_success", path=path)
         elif result.status == FileStatus.PERMISSION_DENIED:
-            return i18n.get("domain_tools.files.write_error", error=result.error_message)
+            return i18n.get(
+                "domain_tools.files.write_error", error=result.error_message
+            )
         else:
-            return i18n.get("domain_tools.files.write_error", error=result.error_message)
+            return i18n.get(
+                "domain_tools.files.write_error", error=result.error_message
+            )
 
     except Exception as e:
         return i18n.get("domain_tools.files.write_error", error=str(e))

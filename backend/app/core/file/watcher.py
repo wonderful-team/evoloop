@@ -96,7 +96,9 @@ class _EventBusHandler(FileSystemEventHandler):
         else:
             logger.debug(f"Event loop not available, skipping event: {event_type}")
 
-    def _schedule_publish(self, event_type: FileSystemEventType, path: str, **extra_data):
+    def _schedule_publish(
+        self, event_type: FileSystemEventType, path: str, **extra_data
+    ):
         """Schedule event publish with optional debouncing."""
         if self.debounce_delay > 0:
             with self._lock:
@@ -237,7 +239,9 @@ class FileWatcher:
                 debounce_delay=self.debounce_delay,
                 event_loop=self._event_loop,
             )
-            self._watch = self._observer.schedule(self._handler, self.path, recursive=self.recursive)
+            self._watch = self._observer.schedule(
+                self._handler, self.path, recursive=self.recursive
+            )
             self._observer.start()
             self._started = True
 
@@ -373,27 +377,11 @@ class FileWatcherManager:
         self._watchers[abs_path] = watcher
         return watcher
 
-    def stop_watcher(self, path: str):
-        """Stop watcher for specific path."""
-        abs_path = os.path.abspath(path)
-        if abs_path in self._watchers:
-            self._watchers[abs_path].stop()
-            del self._watchers[abs_path]
-
     def stop_all(self):
         """Stop all watchers."""
         for watcher in self._watchers.values():
             watcher.stop()
         self._watchers.clear()
-
-    def get_watcher(self, path: str) -> FileWatcher | None:
-        """Get watcher for specific path."""
-        return self._watchers.get(os.path.abspath(path))
-
-    @property
-    def watcher_count(self) -> int:
-        """Number of active watchers."""
-        return len(self._watchers)
 
     def __enter__(self) -> "FileWatcherManager":
         return self

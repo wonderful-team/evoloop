@@ -129,11 +129,11 @@ class AppUsageRecord(DynamicBaseModel):
 
     app_name: str
     bundle_id: str
-    platform: str = "macos"                   # "macos" | "android"
-    last_used_at: datetime | None = None       # Last foreground activity
-    total_foreground_ms: int = 0               # Cumulative foreground time (ms)
-    priority_score: float = 0.0               # Normalized 0-1 combined score
-    is_running: bool = False                   # Is the app currently running?
+    platform: str = "macos"  # "macos" | "android"
+    last_used_at: datetime | None = None  # Last foreground activity
+    total_foreground_ms: int = 0  # Cumulative foreground time (ms)
+    priority_score: float = 0.0  # Normalized 0-1 combined score
+    is_running: bool = False  # Is the app currently running?
 
 
 class HostEnvironment(DynamicBaseModel):

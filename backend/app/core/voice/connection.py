@@ -53,17 +53,6 @@ class VoiceConnectionManager:
         async with self._lock:
             return thread_id in self._thread_to_conn
 
-    async def record_terminal_result(
-        self, message_id: str, body: dict[str, Any]
-    ) -> None:
-        if not message_id:
-            return
-        async with _TERMINAL_RESULTS_LOCK:
-            _TERMINAL_RESULTS[message_id] = (
-                time.monotonic() + _TERMINAL_RESULT_TTL,
-                body,
-            )
-
     async def get_terminal_result(self, message_id: str) -> dict[str, Any] | None:
         async with _TERMINAL_RESULTS_LOCK:
             exp, body = _TERMINAL_RESULTS.get(message_id, (0.0, None))
@@ -82,7 +71,9 @@ class VoiceConnectionManager:
         if ws is None:
             logger.warning(
                 "[voice] push DROPPED — no connection for thread %s (conn_id=%s, known_threads=%s)",
-                thread_id, conn_id, list(self._thread_to_conn.keys())[:5],
+                thread_id,
+                conn_id,
+                list(self._thread_to_conn.keys())[:5],
             )
             return False
         msg_type = envelope.get("type", "?")

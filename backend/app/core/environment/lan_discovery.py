@@ -23,17 +23,17 @@ logger = logging.getLogger(__name__)
 # Service-type substring → coarse device type.
 # Order matters: more specific patterns first.
 LAN_SERVICE_TYPE_MAP: list[tuple[str, str]] = [
-    ("_googlecast", "tv"),            # Chromecast / Android TV / Nest
-    ("_airplay", "tv"),               # Apple TV / AirPlay display
-    ("_raop", "speaker"),             # AirPlay audio (speakers/receivers)
+    ("_googlecast", "tv"),  # Chromecast / Android TV / Nest
+    ("_airplay", "tv"),  # Apple TV / AirPlay display
+    ("_raop", "speaker"),  # AirPlay audio (speakers/receivers)
     ("_spotify-connect", "speaker"),
-    ("_hap", "smart_home"),           # HomeKit accessories (lights, fridge, ...)
+    ("_hap", "smart_home"),  # HomeKit accessories (lights, fridge, ...)
     ("_homekit", "smart_home"),
     ("_ipp", "printer"),
     ("_scanner", "printer"),
-    ("_smb", "computer"),             # file sharing → PC/NAS
-    ("_rfb", "computer"),             # VNC / Screen Sharing
-    ("_sleep-proxy", "computer"),     # Apple power nap proxy
+    ("_smb", "computer"),  # file sharing → PC/NAS
+    ("_rfb", "computer"),  # VNC / Screen Sharing
+    ("_sleep-proxy", "computer"),  # Apple power nap proxy
     ("_ssh", "computer"),
     ("_sftp-ssh", "computer"),
     ("_companion-link", "computer"),  # Apple Continuity
@@ -48,38 +48,90 @@ DEVICE_TYPE_PRIORITY: list[str] = ["computer", "tv", "printer", "smart_home", "s
 # Covers common consumer vendors; a full IEEE OUI DB is not bundled.
 OUI_VENDORS: dict[str, str] = {
     # Apple
-    "f01898": "Apple", "a82066": "Apple", "f0989d": "Apple", "3c0754": "Apple",
-    "acde48": "Apple", "90b0ed": "Apple", "f0d1a9": "Apple", "c8d9d2": "Apple",
-    "18e7f4": "Apple", "dca904": "Apple", "0017f2": "Apple", "b8e856": "Apple",
-    "8c7b9d": "Apple", "6c3e6d": "Apple", "04868f": "Apple", "101c0c": "Apple",
-    "54e4bd": "Apple", "f4f15a": "Apple", "5cf938": "Apple", "f0f65f": "Apple",
+    "f01898": "Apple",
+    "a82066": "Apple",
+    "f0989d": "Apple",
+    "3c0754": "Apple",
+    "acde48": "Apple",
+    "90b0ed": "Apple",
+    "f0d1a9": "Apple",
+    "c8d9d2": "Apple",
+    "18e7f4": "Apple",
+    "dca904": "Apple",
+    "0017f2": "Apple",
+    "b8e856": "Apple",
+    "8c7b9d": "Apple",
+    "6c3e6d": "Apple",
+    "04868f": "Apple",
+    "101c0c": "Apple",
+    "54e4bd": "Apple",
+    "f4f15a": "Apple",
+    "5cf938": "Apple",
+    "f0f65f": "Apple",
     # Xiaomi
-    "64693a": "Xiaomi", "042004": "Xiaomi", "50c90b": "Xiaomi", "9c8fbd": "Xiaomi",
-    "d4319d": "Xiaomi", "640980": "Xiaomi", "346195": "Xiaomi", "f8a45f": "Xiaomi",
+    "64693a": "Xiaomi",
+    "042004": "Xiaomi",
+    "50c90b": "Xiaomi",
+    "9c8fbd": "Xiaomi",
+    "d4319d": "Xiaomi",
+    "640980": "Xiaomi",
+    "346195": "Xiaomi",
+    "f8a45f": "Xiaomi",
     # Huawei
-    "00e0fc": "Huawei", "78f5fd": "Huawei", "446d57": "Huawei", "b0f2c8": "Huawei",
-    "8c3fd7": "Huawei", "c0ee40": "Huawei", "10b7f6": "Huawei", "f4c7d0": "Huawei",
+    "00e0fc": "Huawei",
+    "78f5fd": "Huawei",
+    "446d57": "Huawei",
+    "b0f2c8": "Huawei",
+    "8c3fd7": "Huawei",
+    "c0ee40": "Huawei",
+    "10b7f6": "Huawei",
+    "f4c7d0": "Huawei",
     # Samsung
-    "98e8fa": "Samsung", "f031c3": "Samsung", "0012fb": "Samsung", "3c2ce4": "Samsung",
-    "f4669a": "Samsung", "a05e6b": "Samsung", "48bf6b": "Samsung", "70ad62": "Samsung",
+    "98e8fa": "Samsung",
+    "f031c3": "Samsung",
+    "0012fb": "Samsung",
+    "3c2ce4": "Samsung",
+    "f4669a": "Samsung",
+    "a05e6b": "Samsung",
+    "48bf6b": "Samsung",
+    "70ad62": "Samsung",
     # TP-Link
-    "50c7bf": "TP-Link", "14cf92": "TP-Link", "a058cb": "TP-Link", "28cfda": "TP-Link",
+    "50c7bf": "TP-Link",
+    "14cf92": "TP-Link",
+    "a058cb": "TP-Link",
+    "28cfda": "TP-Link",
     # Asus
-    "244bfe": "Asus", "a8032a": "Asus", "10870c": "Asus", "bcee7b": "Asus",
+    "244bfe": "Asus",
+    "a8032a": "Asus",
+    "10870c": "Asus",
+    "bcee7b": "Asus",
     # Intel (common in laptops/NUCs)
-    "3c7c3f": "Intel", "001b21": "Intel", "3cfdfe": "Intel", "80ee73": "Intel",
+    "3c7c3f": "Intel",
+    "001b21": "Intel",
+    "3cfdfe": "Intel",
+    "80ee73": "Intel",
     # Realtek
-    "00e04c": "Realtek", "80fa5b": "Realtek",
+    "00e04c": "Realtek",
+    "80fa5b": "Realtek",
     # Broadcom (WiFi cards)
-    "1018db": "Broadcom", "b03495": "Broadcom",
+    "1018db": "Broadcom",
+    "b03495": "Broadcom",
     # Espressif (ESP8266/ESP32 IoT)
-    "18fe34": "Espressif", "246f28": "Espressif", "3c71bf": "Espressif",
+    "18fe34": "Espressif",
+    "246f28": "Espressif",
+    "3c71bf": "Espressif",
     # Raspberry Pi
-    "b827eb": "Raspberry Pi", "dca632": "Raspberry Pi", "e45f01": "Raspberry Pi",
+    "b827eb": "Raspberry Pi",
+    "dca632": "Raspberry Pi",
+    "e45f01": "Raspberry Pi",
     # Google / Nest
-    "001a11": "Google", "3c5ab4": "Google", "c4a81d": "Google",
+    "001a11": "Google",
+    "3c5ab4": "Google",
+    "c4a81d": "Google",
     # Amazon / Echo
-    "a48cdb": "Amazon", "488393": "Amazon", "5c93a2": "Amazon",
+    "a48cdb": "Amazon",
+    "488393": "Amazon",
+    "5c93a2": "Amazon",
     # NVIDIA Shield
     "e8abe8": "NVIDIA",
     # Sonos
@@ -157,7 +209,11 @@ def _pick_txt(txt: dict, keys: tuple[str, ...]) -> str:
     for key in keys:
         val = txt.get(key)
         if val:
-            return str(val) if not isinstance(val, bytes) else val.decode("utf-8", "ignore")
+            return (
+                str(val)
+                if not isinstance(val, bytes)
+                else val.decode("utf-8", "ignore")
+            )
     return ""
 
 
@@ -338,10 +394,6 @@ async def probe_lan_devices(timeout: float = 3.0) -> list[LanDevice]:
 
     # Exclude the local machine (loopback / own interface IPs) from the LAN view.
     local_ips = get_local_ips()
-    devices = {
-        ip: dev
-        for ip, dev in devices.items()
-        if ip not in local_ips
-    }
+    devices = {ip: dev for ip, dev in devices.items() if ip not in local_ips}
 
     return list(devices.values())

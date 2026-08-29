@@ -21,7 +21,6 @@ class RoutingTarget(str, Enum):
     DOCUMENTER = "documenter"
     FINISH = "finish"
     WORKER = "worker"
-    FLASH_BRAIN = "flash_brain"
     SUPERVISOR = "supervisor"
     SEQUENTIAL_WORKFLOW = "sequential_workflow"
     SPAWN_SUBAGENTS = "spawn_subagents"
@@ -59,7 +58,9 @@ def route_supervisor(state: AgentState) -> str:
         max_steps = state.max_supervisor_steps
     # ONLY enforce max_steps if there are no pending signals in the queue
     if iteration_count >= max_steps and not state.pending_signals:
-        logger.warning(f"[Router] Hard limit reached ({iteration_count}/{max_steps}). Forcing termination.")
+        logger.warning(
+            f"[Router] Hard limit reached ({iteration_count}/{max_steps}). Forcing termination."
+        )
         return RoutingTarget.FINISH
 
     # --- Routing Topology Whitelist ---
@@ -95,11 +96,15 @@ def route_finish(state: AgentState) -> str:
     """Decides the next node after Finish."""
     # Respect explicit supervisor routing (e.g. from Worker truncation recovery)
     if state.next_node == RoutingTarget.SUPERVISOR:
-        logger.info("[Router] Finish routing back to Supervisor (truncation recovery or explicit signal).")
+        logger.info(
+            "[Router] Finish routing back to Supervisor (truncation recovery or explicit signal)."
+        )
         return RoutingTarget.SUPERVISOR
     # Phase E3: 监察者驳回且 correctable → 回 Worker 针对性修正（执行层闭环）。
     if state.next_node == RoutingTarget.WORKER:
-        logger.info("[Router] Finish routing back to Worker (auditor correctable redo).")
+        logger.info(
+            "[Router] Finish routing back to Worker (auditor correctable redo)."
+        )
         return RoutingTarget.WORKER
     # If FinishNode explicitly set next_node to END, respect its decision even if
     # blocked_by_hook is still True from a previous turn (prevents infinite loops
@@ -112,6 +117,8 @@ def route_finish(state: AgentState) -> str:
     # Respect audit outcome — INCOMPLETE forces loopback to Supervisor
     if state.final_outcome:
         if state.final_outcome.upper() == "INCOMPLETE":
-            logger.info("[Router] Finish audit: INCOMPLETE. Looping back to supervisor.")
+            logger.info(
+                "[Router] Finish audit: INCOMPLETE. Looping back to supervisor."
+            )
             return RoutingTarget.SUPERVISOR
     return RoutingTarget.END

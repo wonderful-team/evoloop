@@ -168,8 +168,7 @@ class ExtractionRequest(BaseModel):
     name: str
     description: str
     schema_dict: dict = Field(
-        ...,
-        description="The pydantic output_schema as a dict, or raw json schema dict"
+        ..., description="The pydantic output_schema as a dict, or raw json schema dict"
     )
 
 
@@ -191,7 +190,6 @@ class ExtractionCompletedEvent(BaseEvent):
     project_id: int | None = None
     member_id: int | None = None
     extracted_data: dict = Field(
-        default_factory=dict,
-        description="The raw structured output from LLM"
+        default_factory=dict, description="The raw structured output from LLM"
     )
     is_public: bool = False

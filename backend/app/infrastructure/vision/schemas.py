@@ -33,14 +33,6 @@ class CombinedCleanupResult(DynamicBaseModel):
     timestamp: str
 
 
-class StorageCategorySummary(DynamicBaseModel):
-    """Summary for a single storage category."""
-
-    total_files: int
-    total_size_mb: float
-    total_size_gb: float
-
-
 class StorageReport(DynamicBaseModel):
     """Full storage statistics report."""
 

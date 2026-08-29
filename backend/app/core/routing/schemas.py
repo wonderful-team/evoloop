@@ -6,23 +6,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-# --- Routing protocol intent/domain labels --------------------------------
-# Single source of truth for the intent domain_v labels that cross the
-# L0/L1 router and the agent engine (context hydrators, domain mapping).
-# The *values* are frozen: the L1 ONNX model emits ``ambiguous`` /
-# ``multi_intent``, ``IntentHint`` values are persisted in message metadata,
-# and E2E tests assert the literals. Only the definition site is centralized
-# here so a future rename is a one-place change instead of a drift-prone
-# hunt across routing + engine.
-INTENT_MACRO_TASK = "macro_task"
-INTENT_WORKER_TASK = "worker_task"
-INTENT_DIRECT_ANSWER = "direct_answer"
-INTENT_MEMORY_QUERY = "memory_query"
-INTENT_ENVIRONMENT_QUERY = "environment_query"
-INTENT_DOMAIN_CLASSIFIED = "domain_classified"
-
-DOMAIN_AMBIGUOUS = "ambiguous"
-DOMAIN_MULTI_INTENT = "multi_intent"
+from app.core.routing import constants as routing_constants
 
 
 class IntentHint(BaseModel):
@@ -34,7 +18,7 @@ class IntentHint(BaseModel):
     fully resolved by the router (L0 / macro / local paths).
     """
 
-    intent: str = INTENT_DOMAIN_CLASSIFIED  # functional intent resolved by the engine; may be the sentinel when domain is present
+    intent: str = routing_constants.INTENT_DOMAIN_CLASSIFIED  # functional intent resolved by the engine; may be the sentinel when domain is present
     domain: str | None = None  # L1 domain label (e.g. coding, environment, ambiguous)
     confidence: float = 0.0
     suggested_modules: list[str] = Field(default_factory=list)

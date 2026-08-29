@@ -38,7 +38,9 @@ async def validate_project_path(candidate_path: str, workspace_root: str) -> Non
     try:
         common = os.path.commonpath([root_realpath, candidate_realpath])
         if common != root_realpath:
-            raise ValueError(f"Project path must reside within the workspace root: {workspace_root}")
+            raise ValueError(
+                f"Project path must reside within the workspace root: {workspace_root}"
+            )
     except (ValueError, OSError) as e:
         raise ValueError(f"Invalid path comparison: {str(e)}")
 
@@ -48,15 +50,21 @@ async def validate_project_path(candidate_path: str, workspace_root: str) -> Non
         if not part:
             continue
         if part.startswith((".", "~", "_")):
-            raise ValueError(f"Project path cannot contain system or hidden folder names (starting with '.', '~', or '_'): '{part}'")
+            raise ValueError(
+                f"Project path cannot contain system or hidden folder names (starting with '.', '~', or '_'): '{part}'"
+            )
 
     # Check path-based exclude lists (node_modules, venv, .git, etc.)
     if is_ignored_path(candidate_realpath):
-        raise ValueError("Project path matches excluded directory names (e.g., venv, node_modules, etc.)")
+        raise ValueError(
+            "Project path matches excluded directory names (e.g., venv, node_modules, etc.)"
+        )
 
     # Check overlapping with other registered active projects in DB
     async with session_scope() as session:
-        stmt = select(Repository).where(Repository.sync_status.in_(["SYNCED", "PENDING_CREATION"]))
+        stmt = select(Repository).where(
+            Repository.sync_status.in_(["SYNCED", "PENDING_CREATION"])
+        )
         result = await session.execute(stmt)
         active_repos = result.scalars().all()
 
@@ -66,14 +74,22 @@ async def validate_project_path(candidate_path: str, workspace_root: str) -> Non
             existing_realpath = os.path.realpath(repo.local_path)
 
             if candidate_realpath == existing_realpath:
-                raise ValueError(f"A project is already registered at this path: '{repo.name}'")
+                raise ValueError(
+                    f"A project is already registered at this path: '{repo.name}'"
+                )
 
             # Candidate is subdirectory of existing project
             if candidate_realpath.startswith(existing_realpath + os.sep):
-                raise ValueError(f"Path cannot be inside another project: '{repo.name}' ({repo.local_path})")
+                raise ValueError(
+                    f"Path cannot be inside another project: '{repo.name}' ({repo.local_path})"
+                )
 
             # Existing project is subdirectory of candidate (candidate contains existing project)
             if existing_realpath.startswith(candidate_realpath + os.sep):
-                raise ValueError(f"Path cannot contain another project: '{repo.name}' ({repo.local_path})")
+                raise ValueError(
+                    f"Path cannot contain another project: '{repo.name}' ({repo.local_path})"
+                )
 
-    logger.info(f"[PathValidator] Path '{candidate_path}' successfully validated (resolved: '{candidate_realpath}')")
+    logger.info(
+        f"[PathValidator] Path '{candidate_path}' successfully validated (resolved: '{candidate_realpath}')"
+    )

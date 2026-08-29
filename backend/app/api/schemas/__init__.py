@@ -2,7 +2,6 @@
 
 from .account import *  # noqa: F401,F403
 from .agent import *  # noqa: F401,F403
-from .audio import *  # noqa: F401,F403
 from .auth_proxy import *  # noqa: F401,F403
 from .conversations import *  # noqa: F401,F403
 from .devices import *  # noqa: F401,F403

@@ -9,7 +9,7 @@ from app.core.environment.prompt import (
     AppEnvironmentPrompt,
     build_environment_summaries,
 )
-from app.core.routing.schemas import (
+from app.core.routing.constants import (
     DOMAIN_AMBIGUOUS,
     INTENT_ENVIRONMENT_QUERY,
     INTENT_MACRO_TASK,
@@ -25,13 +25,15 @@ class EnvironmentContextPlugin(ContextPlugin):
     into the EvoContext (Subconscious Pool).
     """
 
-    _LOAD_FOR_INTENTS: frozenset[str | None] = frozenset({
-        None,
-        INTENT_ENVIRONMENT_QUERY,
-        INTENT_WORKER_TASK,
-        DOMAIN_AMBIGUOUS,
-        INTENT_MACRO_TASK,
-    })
+    _LOAD_FOR_INTENTS: frozenset[str | None] = frozenset(
+        {
+            None,
+            INTENT_ENVIRONMENT_QUERY,
+            INTENT_WORKER_TASK,
+            DOMAIN_AMBIGUOUS,
+            INTENT_MACRO_TASK,
+        }
+    )
 
     def is_needed(self, intent: str | None) -> bool:
         """Only pay the sensing cost when the intent may require it."""
@@ -81,7 +83,13 @@ class EnvironmentContextPlugin(ContextPlugin):
 
                         for c in state.relevant_concepts:
                             name = c.name
-                            android_prefixes = ("android_layout:", "android:", "adb:", "mobile:", "apk:")
+                            android_prefixes = (
+                                "android_layout:",
+                                "android:",
+                                "adb:",
+                                "mobile:",
+                                "apk:",
+                            )
                             if name.lower().startswith(android_prefixes):
                                 # Extract package: android_layout:com.pkg -> com.pkg
                                 parts = name.split(":", 1)
@@ -97,7 +105,9 @@ class EnvironmentContextPlugin(ContextPlugin):
                                         pkg_id = pkg
 
                                     # Only keep the most descriptive one (heuristic: longest string)
-                                    if pkg_id not in layout_map or len(pkg) > len(layout_map[pkg_id]):
+                                    if pkg_id not in layout_map or len(pkg) > len(
+                                        layout_map[pkg_id]
+                                    ):
                                         layout_map[pkg_id] = pkg
                             else:
                                 if name not in seen_others:
@@ -105,9 +115,14 @@ class EnvironmentContextPlugin(ContextPlugin):
                                     seen_others.add(name)
 
                         # Always include layouts if discovered
-                        formatted_layouts = [f"android_layout({val})" for val in list(layout_map.values())[:5]]
+                        formatted_layouts = [
+                            f"android_layout({val})"
+                            for val in list(layout_map.values())[:5]
+                        ]
 
-                        ctx.memory_replay["concepts"] = (formatted_layouts + unique_names[:5])[:5]
+                        ctx.memory_replay["concepts"] = (
+                            formatted_layouts + unique_names[:5]
+                        )[:5]
 
                     if state.journal_highlights:
                         ctx.memory_replay["highlights"] = state.journal_highlights
@@ -120,7 +135,9 @@ class EnvironmentContextPlugin(ContextPlugin):
 
             # Compute the final Environment Block (Autonomous Sensing Output)
             # This pre-rendered block is what the Engine will use.
-            ctx.environment_block = AppEnvironmentPrompt.render_environment_block(skip_hydrate=True)
+            ctx.environment_block = AppEnvironmentPrompt.render_environment_block(
+                skip_hydrate=True
+            )
 
         except Exception:
             logger.exception("Failed to hydrate EnvironmentContextPlugin")

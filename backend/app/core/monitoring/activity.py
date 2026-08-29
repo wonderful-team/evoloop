@@ -77,7 +77,9 @@ class ActivityMonitor:
         run_id = f"run-{gen_uuid()[:8]}"
 
         await self._state_service.start_run(thread_id, main_goal, run_id=run_id)
-        logger.info(f"[ActivityMonitor] 🚀 Starting lifecycle for thread {thread_id} (Run: {run_id})")
+        logger.info(
+            f"[ActivityMonitor] 🚀 Starting lifecycle for thread {thread_id} (Run: {run_id})"
+        )
         await self._publish_session_started(thread_id, project_id)
 
         ctx = ContextManager.current()
@@ -101,21 +103,33 @@ class ActivityMonitor:
                     "cancelled",
                     "quota_exhausted",
                 ):
-                    logger.debug(f"[ActivityMonitor] Skipping end_run for {thread_id}: already {activity.status}")
+                    logger.debug(
+                        f"[ActivityMonitor] Skipping end_run for {thread_id}: already {activity.status}"
+                    )
                 else:
-                    result = await self._state_service.end_run(thread_id, "done", run_id=run_id)
-                    await self._publish_run_completed(thread_id, result, run_id, task_type)
+                    result = await self._state_service.end_run(
+                        thread_id, "done", run_id=run_id
+                    )
+                    await self._publish_run_completed(
+                        thread_id, result, run_id, task_type
+                    )
 
         except AgentCancelledException:
             # 用户主动取消是预期流程，非错误，不打印 Traceback。
             logger.info(f"[ActivityMonitor] 🛑 Run {run_id} cancelled by user")
-            result = await self._state_service.end_run(thread_id, "cancelled", run_id=run_id)
+            result = await self._state_service.end_run(
+                thread_id, "cancelled", run_id=run_id
+            )
             await self._publish_run_completed(thread_id, result, run_id, task_type)
             raise
 
         except asyncio.CancelledError:
-            logger.info(f"[ActivityMonitor] 🛑 Run {run_id} cancelled by task cancellation")
-            result = await self._state_service.end_run(thread_id, "cancelled", run_id=run_id)
+            logger.info(
+                f"[ActivityMonitor] 🛑 Run {run_id} cancelled by task cancellation"
+            )
+            result = await self._state_service.end_run(
+                thread_id, "cancelled", run_id=run_id
+            )
             await self._publish_run_completed(thread_id, result, run_id, task_type)
             raise
 
@@ -124,17 +138,25 @@ class ActivityMonitor:
             raise
 
         except Exception as e:
-            logger.exception(f"[ActivityMonitor] ❌ Run {run_id} failed with error: {e}")
-            result = await self._state_service.end_run(thread_id, "failed", run_id=run_id)
+            logger.exception(
+                f"[ActivityMonitor] ❌ Run {run_id} failed with error: {e}"
+            )
+            result = await self._state_service.end_run(
+                thread_id, "failed", run_id=run_id
+            )
             await self._publish_run_completed(thread_id, result, run_id, task_type)
             raise
 
-    async def _publish_session_started(self, thread_id: str, project_id: int | None = None):
+    async def _publish_session_started(
+        self, thread_id: str, project_id: int | None = None
+    ):
         from app.core.engine.event.publishers import publish_agent_session_started
 
         await publish_agent_session_started(thread_id=thread_id, project_id=project_id)
 
-    async def _publish_run_completed(self, thread_id: str, result, run_id: str, task_type: str | None):
+    async def _publish_run_completed(
+        self, thread_id: str, result, run_id: str, task_type: str | None
+    ):
         from app.core.engine.event.publishers import publish_agent_run_completed
 
         await publish_agent_run_completed(
@@ -149,7 +171,9 @@ class ActivityMonitor:
         from app.core.events.publishers import system_bus
         from app.core.monitoring.event import SystemStatusEvent
 
-        await system_bus.publish(SystemStatusEvent(thread_id=thread_id, status=result.status))
+        await system_bus.publish(
+            SystemStatusEvent(thread_id=thread_id, status=result.status)
+        )
 
     async def start_run(
         self,
@@ -175,7 +199,9 @@ class ActivityMonitor:
         task_type: str = None,
     ):
         """Mark run as ended and publish status change."""
-        result = await self._state_service.end_run(thread_id, status, final_outcome, run_id=run_id)
+        result = await self._state_service.end_run(
+            thread_id, status, final_outcome, run_id=run_id
+        )
 
         # 1. Publish internal AgentRunCompletedEvent (automated bridge handles UI RunEndEvent)
         from app.core.engine.event.publishers import publish_agent_run_completed
@@ -219,7 +245,9 @@ class ActivityMonitor:
         )
 
         # Validate request type against the known set.
-        request_type = request_dict.get("type") if isinstance(request_dict, dict) else None
+        request_type = (
+            request_dict.get("type") if isinstance(request_dict, dict) else None
+        )
         valid_types = [t.value for t in HumanRequestType]
         if request_type not in valid_types:
             logger.warning(
@@ -293,7 +321,9 @@ class ActivityMonitor:
             )
         )
 
-    async def log_event(self, event_type: str, data: dict[str, Any], thread_id: str = "system"):
+    async def log_event(
+        self, event_type: str, data: dict[str, Any], thread_id: str = "system"
+    ):
         """Generic event logger for system and session events."""
         timestamp = time.time()
         payload = SystemLogPayload(type=event_type, data=data, timestamp=timestamp)
@@ -358,15 +388,18 @@ class ActivityMonitor:
         # 2. Publish the full activity state via the system event bus
         activity = await self.get_activity(thread_id)
         if activity:
-            snapshot = activity.model_dump() if hasattr(activity, "model_dump") else activity
+            snapshot = (
+                activity.model_dump() if hasattr(activity, "model_dump") else activity
+            )
             from app.core.monitoring.event import ActivityStateRefreshedEvent
 
             event = ActivityStateRefreshedEvent(
-                thread_id=thread_id,
-                activity_state=snapshot
+                thread_id=thread_id, activity_state=snapshot
             )
             await system_bus.publish(event)
-            logger.info(f"[ActivityMonitor] Session goal updated and state refreshed for thread {thread_id}: {new_goal}")
+            logger.info(
+                f"[ActivityMonitor] Session goal updated and state refreshed for thread {thread_id}: {new_goal}"
+            )
 
     async def get_statuses(self, thread_ids: list[str]) -> dict[str, dict[str, str]]:
         """Batch fetch statuses and goals for multiple threads efficiently."""

@@ -60,7 +60,9 @@ class WorkerPromptBuilder(BasePromptBuilder):
         mode = self.get_displayed_execution_mode()
 
         # Read PROJECT.md if exists (static for the session)
-        project_profile = self.read_project_profile(ctx.working_directory, "[WorkerPrompt]")
+        project_profile = self.read_project_profile(
+            ctx.working_directory, "[WorkerPrompt]"
+        )
 
         # Static Sys Info (Project identity only)
         sys_info = {
@@ -79,18 +81,32 @@ class WorkerPromptBuilder(BasePromptBuilder):
         from app.core.tools.manager import tool_manager
 
         node_tools = self.agent_config.tools if self.agent_config else []
-        resolved_state = self.blackboard if isinstance(self.blackboard, AgentState) else None
+        resolved_state = (
+            self.blackboard if isinstance(self.blackboard, AgentState) else None
+        )
         try:
-            resolved_tools = [t.name for t in await tool_manager.get_node_tools("worker", resolved_state)]
+            resolved_tools = [
+                t.name
+                for t in await tool_manager.get_node_tools("worker", resolved_state)
+            ]
         except Exception as e:
-            logger.warning(f"[WorkerPromptBuilder] Failed to resolve worker tools; falling back to agent_config.tools: {e}")
+            logger.warning(
+                f"[WorkerPromptBuilder] Failed to resolve worker tools; falling back to agent_config.tools: {e}"
+            )
             resolved_tools = []
 
         effective_tools = set(node_tools) | set(resolved_tools)
-        has_desktop_tool = any(t in effective_tools for t in ["desktop_control", "open_app"])
-        has_mobile_tool = any(t in effective_tools for t in ["mobile_control", "list_devices"])
+        has_desktop_tool = any(
+            t in effective_tools for t in ["desktop_control", "open_app"]
+        )
+        has_mobile_tool = any(
+            t in effective_tools for t in ["mobile_control", "list_devices"]
+        )
         has_browser_tool = "browser_control" in effective_tools
-        has_wiki_tools = any(t in effective_tools for t in ["write_wiki_page", "edit_wiki_page", "save_concepts"])
+        has_wiki_tools = any(
+            t in effective_tools
+            for t in ["write_wiki_page", "edit_wiki_page", "save_concepts"]
+        )
 
         logger.info(
             f"[WorkerPromptBuilder] Static Protocol flags: "
@@ -114,8 +130,12 @@ class WorkerPromptBuilder(BasePromptBuilder):
             "sys_info": sys_info,
             "sandbox_mode": mode,
             "multi_tenant_mode": settings.MULTI_TENANT_MODE,
-            "role_name": self.agent_config.role_name if self.agent_config else "Specialist",
-            "instructions": self.agent_config.system_instructions if self.agent_config else "Execute the assigned task accurately.",
+            "role_name": self.agent_config.role_name
+            if self.agent_config
+            else "Specialist",
+            "instructions": self.agent_config.system_instructions
+            if self.agent_config
+            else "Execute the assigned task accurately.",
             "is_duty": is_duty_source(ctx.metadata.get("source")),
             "has_android": ctx.metadata.get("has_android", False),
             "has_desktop_tool": has_desktop_tool,
@@ -130,7 +150,9 @@ class WorkerPromptBuilder(BasePromptBuilder):
             "subagent_id": ctx.metadata.get("subagent_id", ""),
         }
 
-        return render_template("core/engine/worker.prompt.j2", **self.to_template_context(template_vars))
+        return render_template(
+            "core/engine/worker.prompt.j2", **self.to_template_context(template_vars)
+        )
 
     def build_mission_message(
         self,
@@ -176,7 +198,9 @@ class WorkerPromptBuilder(BasePromptBuilder):
             "active_macros": ctx.metadata.get("active_macros", []) or [],
             "operation_map": ctx.metadata.get("operation_map", "") or "",
             "is_duty": is_duty,
-            "acceptance_criteria": self.ticket.acceptance_criteria if self.ticket else [],
+            "acceptance_criteria": self.ticket.acceptance_criteria
+            if self.ticket
+            else [],
             "parameters": self.ticket.parameters if self.ticket else {},
             "focus_paths": self.focus_paths,
             "knowledge_blocks": self._prepare_knowledge_blocks(),
@@ -184,7 +208,8 @@ class WorkerPromptBuilder(BasePromptBuilder):
             "cwd": cwd,
             "environment_block": environment_block,
             "telemetry": telemetry or {},
-            "memory": memory or {
+            "memory": memory
+            or {
                 "episodic_raw": ctx.metadata.get("episodic_memory_raw", ""),
                 "core_raw": ctx.metadata.get("core_memory_raw", ""),
             },
@@ -194,10 +219,15 @@ class WorkerPromptBuilder(BasePromptBuilder):
             "plan": plan or self.plan,
             "macro_goal": session_goal,
             "previous_output": previous_output,
-            "historical_context": self.ticket.historical_context if self.ticket else None,
+            "historical_context": self.ticket.historical_context
+            if self.ticket
+            else None,
             "referenced_tech": self.ticket.referenced_tech if self.ticket else None,
         }
-        return render_template("core/engine/fragments/worker_mission_ticket.j2", **self.to_template_context(template_vars))
+        return render_template(
+            "core/engine/fragments/worker_mission_ticket.j2",
+            **self.to_template_context(template_vars),
+        )
 
     def _prepare_knowledge_blocks(self) -> list[str]:
         """

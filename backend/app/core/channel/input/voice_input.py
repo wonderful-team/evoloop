@@ -16,9 +16,9 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from app.constants import DEFAULT_PROJECT_ID
 from app.core.channel.base import IncomingMessage, InputChannel
 from app.core.identity import identity_service
+from app.core.state import shared_state
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,9 @@ class VoiceInputChannel(InputChannel):
         """Inject runtime dependencies from voice_ws.py (kept for compat; worker_registry used)."""
         self._worker_registry = worker_registry
 
-    async def receive(self, raw: dict[str, Any], **kwargs: Any) -> IncomingMessage | None:
+    async def receive(
+        self, raw: dict[str, Any], **kwargs: Any
+    ) -> IncomingMessage | None:
         """Normalize an inbound voice.route message into ``IncomingMessage``.
 
         Returns ``None`` when the payload is not a valid chat message (e.g. a
@@ -53,7 +55,9 @@ class VoiceInputChannel(InputChannel):
         if not text or not thread_id:
             return None
 
-        project_id = int(raw.get("project_id", DEFAULT_PROJECT_ID))
+        project_id = int(raw.get("project_id", 0))
+        if not project_id:
+            project_id = await shared_state.get_active_project_id()
         message_id = raw.get("message_id")
         member_id = int(raw.get("member_id", 0)) or kwargs.get("member_id", 0)
         if not member_id:
@@ -72,13 +76,19 @@ class VoiceInputChannel(InputChannel):
             message_id=message_id,
         )
 
-    async def _inject_has_running_worker(self, thread_id: str, meta: dict[str, Any], raw: dict[str, Any]) -> None:
+    async def _inject_has_running_worker(
+        self, thread_id: str, meta: dict[str, Any], raw: dict[str, Any]
+    ) -> None:
         """has_running_worker 数据源：优先会话状态（session.worker），fallback 到 metadata 标记。"""
         try:
             from app.core.engine.session.manager import session_manager
 
             session = session_manager.get(thread_id)
-            if session is not None and session.worker is not None and not session.worker.done:
+            if (
+                session is not None
+                and session.worker is not None
+                and not session.worker.done
+            ):
                 meta["has_running_worker"] = "true"
                 meta["running_worker_desc"] = session.worker.description
                 return

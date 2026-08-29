@@ -71,11 +71,15 @@ class AgentSession:
         # 阻塞式调用方（值守等）等待"本轮 delivery 完成"的事件
         self._delivery_done: asyncio.Event | None = None
 
-    def inject_user_message(self, inputs: dict[str, Any] | BackgroundAgentInputs) -> None:
+    def inject_user_message(
+        self, inputs: dict[str, Any] | BackgroundAgentInputs
+    ) -> None:
         self.gate.put(GateEvent(kind="user_message", payload={"inputs": inputs}))
 
     def inject_worker_completed(self, rollout_id: str) -> None:
-        self.gate.put(GateEvent(kind="worker_completed", payload={"rollout_id": rollout_id}))
+        self.gate.put(
+            GateEvent(kind="worker_completed", payload={"rollout_id": rollout_id})
+        )
 
     def inject_resume(
         self,
@@ -203,7 +207,10 @@ async def run_agent_session(session: AgentSession) -> None:
             if ev.kind == "subagent_completed":
                 # subagent 完成事件（见 subagent_events._wake_session）：以聚合轮重进图。
                 # 若仍在下发流程中则忽略，由 prepare_state 下一次调度统一消费。
-                if getattr(session, "worker", None) is not None and not session.worker.done:
+                if (
+                    getattr(session, "worker", None) is not None
+                    and not session.worker.done
+                ):
                     continue
                 # 标记聚合轮：Supervisor 据此在"还有 subagent 在跑"时跳过 LLM 直接
                 # 等待，避免陈旧上下文抢跑（重复委派 / 误 cancel）。
@@ -212,7 +219,10 @@ async def run_agent_session(session: AgentSession) -> None:
                 continue
             if ev.kind == "subagent_hitl_request":
                 # subagent HITL 透传事件：Supervisor 需跑 LLM 处理透传。
-                if getattr(session, "worker", None) is not None and not session.worker.done:
+                if (
+                    getattr(session, "worker", None) is not None
+                    and not session.worker.done
+                ):
                     continue
                 await _run_delivery(session, inputs=None)
                 _notify_delivery_done(session)
@@ -228,7 +238,9 @@ async def run_agent_session(session: AgentSession) -> None:
         # 取消（stop/cancel）非崩溃：静默收尾，不当作 crash。
         logger.info(f"[Session] {session.thread_id} main loop cancelled by stop")
     except Exception as e:
-        logger.error(f"[Session] {session.thread_id} main loop crashed: {e}", exc_info=True)
+        logger.error(
+            f"[Session] {session.thread_id} main loop crashed: {e}", exc_info=True
+        )
     finally:
         await _close_session(session)
 
@@ -251,7 +263,9 @@ def _resolve_inputs(ev: GateEvent) -> BackgroundAgentInputs | None:
     raw = payload.get("inputs")
     if raw is None:
         return None
-    return raw if isinstance(raw, BackgroundAgentInputs) else BackgroundAgentInputs(**raw)
+    return (
+        raw if isinstance(raw, BackgroundAgentInputs) else BackgroundAgentInputs(**raw)
+    )
 
 
 def _is_current_rollout(session: AgentSession, ev: GateEvent) -> bool:
@@ -307,7 +321,11 @@ async def _run_delivery(
     打标记，Supervisor 据此在"还有 subagent 在跑"时跳过 LLM 等待聚合。
     """
     project_id = inputs.project_id if inputs else DEFAULT_PROJECT_ID
-    main_goal = inputs.goal if inputs and inputs.goal else (session.state.session_goal if session.state else "session turn")
+    main_goal = (
+        inputs.goal
+        if inputs and inputs.goal
+        else (session.state.session_goal if session.state else "session turn")
+    )
 
     async with activity_monitor.run_scope(
         session.thread_id, main_goal, task_type="session", project_id=project_id
@@ -319,7 +337,9 @@ async def _run_delivery(
                 await _refresh_session_ctx(session, inputs)
                 session.state = await build_agent_state(session.thread_id, inputs)
             else:
-                await _refresh_session_ctx(session, BackgroundAgentInputs(model=_current_model()))
+                await _refresh_session_ctx(
+                    session, BackgroundAgentInputs(model=_current_model())
+                )
 
             state = session.state
             if state is None:
@@ -386,7 +406,13 @@ async def _run_turn(
                     session.state = await build_agent_state(session.thread_id, inputs)
                     state = session.state
                 inputs = None  # resume 已写回 DB/state，本轮以 state 重进图
-            await run_node_loop(state, config, session.thread_id, log_prefix="Session", session_mode=True)
+            await run_node_loop(
+                state,
+                config,
+                session.thread_id,
+                log_prefix="Session",
+                session_mode=True,
+            )
         except AgentHumanInterruptException:
             await _hang_for_resume(session)
             continue
@@ -400,7 +426,9 @@ async def _run_turn(
             while True:
                 ev = await session.gate.wait_next()
                 if ev.kind == "session_cancel":
-                    raise AgentCancelledException("session cancelled while worker running")
+                    raise AgentCancelledException(
+                        "session cancelled while worker running"
+                    )
                 if ev.kind == "session_close":
                     return
                 if ev.kind == "worker_completed":
@@ -459,14 +487,18 @@ async def _hang_for_resume(session: AgentSession) -> None:
                     is_hitl_cancel=bool(payload.get("is_hitl_cancel")),
                     model=_current_model(),
                     project_id=payload.get("project_id"),
-                    metadata={"_resume_kind": payload.get("resume_kind", "hitl_response")},
+                    metadata={
+                        "_resume_kind": payload.get("resume_kind", "hitl_response")
+                    },
                 )
                 return
             # awaiting_human 期间新 chat 消息按 HITL 答案处理（§4.5），消除并发 run 风险
             raw = payload.get("inputs")
             if raw is not None:
                 new_inputs = (
-                    raw if isinstance(raw, BackgroundAgentInputs) else BackgroundAgentInputs(**raw)
+                    raw
+                    if isinstance(raw, BackgroundAgentInputs)
+                    else BackgroundAgentInputs(**raw)
                 )
                 session.pending_resume = BackgroundAgentInputs(
                     hitl_resume_response=new_inputs.goal or "",
@@ -512,7 +544,9 @@ async def _append_turn_input(state: Any | None, ev: GateEvent) -> None:
     raw = payload.get("inputs")
     if raw is None:
         return
-    inputs = raw if isinstance(raw, BackgroundAgentInputs) else BackgroundAgentInputs(**raw)
+    inputs = (
+        raw if isinstance(raw, BackgroundAgentInputs) else BackgroundAgentInputs(**raw)
+    )
 
     state.messages.append(HumanMessage(content=inputs.goal or ""))
 
@@ -548,7 +582,9 @@ async def _cancel_rollout(session: AgentSession) -> None:
 # ---------------------------------------------------------------------------
 
 
-async def _refresh_session_ctx(session: AgentSession, inputs: BackgroundAgentInputs) -> None:
+async def _refresh_session_ctx(
+    session: AgentSession, inputs: BackgroundAgentInputs
+) -> None:
     """Per-turn injection refresh: request_id/command_id/active_model/token (token rotation).
 
     复用共享 ``runner_base.build_ctx``（加载/刷新 EvoContext），并补充 token 旋转。
@@ -583,12 +619,15 @@ async def _build_session_config(
     )
 
 
-async def _start_rollout(session: AgentSession, state: Any, config: dict[str, Any]) -> None:
+async def _start_rollout(
+    session: AgentSession, state: Any, config: dict[str, Any]
+) -> None:
     """Cancel previous rollout (if any) and launch a new Worker ReAct rollout task."""
     if session.worker is not None and not session.worker.done:
-        logger.info(f"[Session] {session.thread_id} cancelling previous rollout before handoff")
+        logger.info(
+            f"[Session] {session.thread_id} cancelling previous rollout before handoff"
+        )
         await _cancel_rollout(session)
-
 
     task = asyncio.create_task(run_worker_rollout(state, config, session.thread_id))
     handle = RolloutHandle(task=task, description=state.session_goal or "")

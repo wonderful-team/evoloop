@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
+from app.core.routing import constants as routing_constants
 from app.core.routing.init_spec import build_and_enrich_spec
 from app.core.routing.local_matcher import LocalMatcher
 from app.core.routing.schemas import RouteCatalog
@@ -18,9 +19,6 @@ from app.infrastructure.cache import cache
 from app.infrastructure.config.service import SystemConfigService
 
 logger = logging.getLogger(__name__)
-
-SPEC_CACHE_KEY = "l0:init_spec:current"
-REBUILD_DEBOUNCE_SECONDS = 0.2
 
 
 async def _load_spec_from_cache() -> RouteCatalog | None:
@@ -30,7 +28,7 @@ async def _load_spec_from_cache() -> RouteCatalog | None:
     payload. Callers should fall back to ``build_and_enrich_spec()``.
     """
     try:
-        raw = await cache.get(SPEC_CACHE_KEY)
+        raw = await cache.get(routing_constants.SPEC_CACHE_KEY)
     except Exception:
         logger.warning("[matcher_cache] cache read failed", exc_info=True)
         return None
@@ -55,7 +53,7 @@ async def build_and_cache_spec() -> RouteCatalog:
     """
     spec = await build_and_enrich_spec()
     try:
-        await cache.set(SPEC_CACHE_KEY, spec.model_dump_json())
+        await cache.set(routing_constants.SPEC_CACHE_KEY, spec.model_dump_json())
     except Exception:
         logger.warning("[matcher_cache] cache write failed", exc_info=True)
     return spec
@@ -149,7 +147,9 @@ class RouteCatalogCache:
         self._matcher = None
         logger.debug("[route_catalog_cache] in-process spec invalidated")
 
-    async def invalidate_and_schedule_rebuild(self, delay: float = REBUILD_DEBOUNCE_SECONDS) -> None:
+    async def invalidate_and_schedule_rebuild(
+        self, delay: float = routing_constants.REBUILD_DEBOUNCE_SECONDS
+    ) -> None:
         """Invalidate the in-process spec and schedule a debounced rebuild.
 
         Lifecycle events can arrive in bursts (e.g. macro CREATE + UPDATE + UPDATE,
@@ -190,13 +190,18 @@ async def _on_language_changed(_old_value: str, new_value: str) -> None:
 
     await get_store().reload(new_value)
     await matcher_cache.invalidate_and_schedule_rebuild()
-    logger.info("[route_catalog_cache] language changed to %s, spec invalidated", new_value)
+    logger.info(
+        "[route_catalog_cache] language changed to %s, spec invalidated", new_value
+    )
 
 
 try:
     SystemConfigService.register_change_handler("LANGUAGE", _on_language_changed)
 except Exception:
-    logger.debug("[route_catalog_cache] failed to register LANGUAGE change handler", exc_info=True)
+    logger.debug(
+        "[route_catalog_cache] failed to register LANGUAGE change handler",
+        exc_info=True,
+    )
 
 
 __all__ = [

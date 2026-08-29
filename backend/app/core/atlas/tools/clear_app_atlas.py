@@ -19,4 +19,6 @@ async def clear_app_atlas():
         return "Successfully cleared all historical Atlas data.", {"status": "success"}
     except Exception as e:
         logger.exception(f"[AtlasTool] Failed to clear Atlas: {e}")
-        return f"Error: Unable to clear Atlas data. Details: {str(e)}", {"status": "error"}
+        return f"Error: Unable to clear Atlas data. Details: {str(e)}", {
+            "status": "error"
+        }

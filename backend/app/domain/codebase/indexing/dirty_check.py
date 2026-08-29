@@ -74,7 +74,9 @@ async def is_file_changed_since_last_index(
             if file_mtime < last_indexed:
                 return False
     except (OSError, ValueError, OverflowError):
-        logger.debug("[dirty_check] mtime check failed, falling back to checksum", exc_info=True)
+        logger.debug(
+            "[dirty_check] mtime check failed, falling back to checksum", exc_info=True
+        )
 
     # Checksum comparison – only read & hash when mtime didn't settle it.
     try:

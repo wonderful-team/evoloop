@@ -37,8 +37,7 @@ class CreateMacroInput(DynamicBaseModel):
         description="A concise, descriptive name for the macro (e.g. '打开腾讯会议并复制链接').",
     )
     description: str = Field(
-        ...,
-        description="A brief description of what this macro does."
+        ..., description="A brief description of what this macro does."
     )
     trigger_patterns: list[str] = Field(
         default_factory=list,
@@ -78,7 +77,9 @@ async def create_skill_from_session(reason: str, thread_id: str | None = None) -
     if not target_thread:
         return "Error: Could not determine thread_id for synthesis."
 
-    logger.info(f"[Tool] Agent triggered manual skill synthesis for thread {target_thread}. Reason: {reason}")
+    logger.info(
+        f"[Tool] Agent triggered manual skill synthesis for thread {target_thread}. Reason: {reason}"
+    )
 
     try:
         from app.infrastructure.queue.factory import get_scheduler
@@ -295,9 +296,12 @@ async def _create_macro_from_trace(
 
         status_note = (
             "Dry-run verification passed; the macro is active and discoverable via list_macros."
-            if confirmed else "Activation failed; the macro remains inactive — report this to the user."
+            if confirmed
+            else "Activation failed; the macro remains inactive — report this to the user."
         )
-        return f"✅ Macro created from trace (ID: {macro_id}, name: {name}). {status_note}"
+        return (
+            f"✅ Macro created from trace (ID: {macro_id}, name: {name}). {status_note}"
+        )
     except Exception as e:
         logger.exception(f"Failed to create macro from trace: {e}")
         return f"Error: Failed to create macro from trace: {str(e)}"
@@ -318,19 +322,25 @@ async def _create_macro_from_script(
     try:
         from app.core.learning.macro.authoring import validate_script
 
-        validation = await validate_script(script_steps, thread_id=target_thread, project_id=project_id)
+        validation = await validate_script(
+            script_steps, thread_id=target_thread, project_id=project_id
+        )
         if not validation.ok:
             return f"Error: {validation.error}"
 
         max_risk = validation.max_risk
         requires_confirmation = validation.requires_confirmation
 
-        final_params = finalize_macro_parameters(parameters, MacroScript(steps=validation.cleaned_steps).to_yaml())
+        final_params = finalize_macro_parameters(
+            parameters, MacroScript(steps=validation.cleaned_steps).to_yaml()
+        )
 
         async with session_scope() as db:
             existing = await find_macro_by_name(name, project_id=project_id, db=db)
             if existing is not None:
-                return f"Error: A macro named '{name}' already exists (id={existing.id})."
+                return (
+                    f"Error: A macro named '{name}' already exists (id={existing.id})."
+                )
 
             macro = await create_macro_from_synthesis(
                 db,

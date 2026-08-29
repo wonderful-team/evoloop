@@ -76,14 +76,6 @@ def get_processor() -> str:
     return platform.processor() or "Unknown"
 
 
-def get_memory_total_gb() -> int:
-    """Return total physical memory in GiB (integer)."""
-    try:
-        return int(psutil.virtual_memory().total / (1024**3))
-    except Exception:
-        return 0
-
-
 def get_cpu_mem() -> dict | None:
     """Collect CPU and memory metrics defensively.
 
@@ -120,20 +112,6 @@ def get_disk_usage(path: str = "/") -> dict | None:
     except Exception:
         logger.debug("Failed to read disk usage for %s", path, exc_info=True)
         return None
-
-
-def get_running_processes(fields: tuple[str, ...] = ("pid", "name")) -> list:
-    """Return running processes via ``psutil.process_iter`` (defensive)."""
-    procs = []
-    try:
-        for p in psutil.process_iter(list(fields)):
-            try:
-                procs.append(p.info)
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                continue
-    except Exception:
-        logger.debug("Failed to enumerate running processes", exc_info=True)
-    return procs
 
 
 def get_listening_ports() -> list[dict]:

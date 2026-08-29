@@ -43,7 +43,9 @@ async def publish_app_stopping() -> None:
     )
 
 
-async def publish_context_polishing(thread_id: str, project_id: int | None, model: str, context: dict) -> None:
+async def publish_context_polishing(
+    thread_id: str, project_id: int | None, model: str, context: dict
+) -> None:
     """Publish a context polishing event."""
     from app.core.context.event import ContextPolishingEvent
 
@@ -159,7 +161,9 @@ async def publish_user_logged_out() -> None:
     )
 
 
-async def publish_subscription_changed(member_id: int | None = None, event: str | None = None) -> None:
+async def publish_subscription_changed(
+    member_id: int | None = None, event: str | None = None
+) -> None:
     """Publish a subscription changed event (bridged to frontend SSE)."""
     from app.core.events.schemas import SubscriptionChangedEvent
 

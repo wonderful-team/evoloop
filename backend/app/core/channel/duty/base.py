@@ -167,7 +167,7 @@ class DutyChannel(InputChannel, ABC):
         now_ts = now_dt.timestamp()
         sent = 0
         # 巡检会话归属操作者（解析一次，整轮复用），使其出现在前台会话列表
-        duty_member_id = await identity_service.get_member_id()
+        duty_member_id = await identity_service.get_member_id() or 0
 
         # ── 1. 认领 pass：把本轮所有到期任务先推进 next_run_at 并落盘 ──
         claimed: list[int] = []
@@ -192,7 +192,9 @@ class DutyChannel(InputChannel, ABC):
                 )
                 continue
             interval = int(p.get("interval_minutes") or 60)
-            prompts[i]["next_run_at"] = (now_dt + timedelta(minutes=interval)).isoformat()
+            prompts[i]["next_run_at"] = (
+                now_dt + timedelta(minutes=interval)
+            ).isoformat()
             claimed.append(i)
 
         if claimed:
@@ -203,7 +205,9 @@ class DutyChannel(InputChannel, ABC):
         for i in claimed:
             p = prompts[i]
             prompt_text = (
-                (p.get("prompt") or "").replace("{project_id}", str(ctx_project_id)).strip()
+                (p.get("prompt") or "")
+                .replace("{project_id}", str(ctx_project_id))
+                .strip()
             )
             if not prompt_text:
                 continue
@@ -285,7 +289,9 @@ class DutyChannel(InputChannel, ABC):
 
     # InputChannel.receive 不适用于主动轮巡，置为显式不可用
     async def receive(self, raw: Any, **kwargs: Any) -> IncomingMessage | None:  # type: ignore[override]
-        raise NotImplementedError("DutyChannel is poll-driven; call poll_once() instead of receive().")
+        raise NotImplementedError(
+            "DutyChannel is poll-driven; call poll_once() instead of receive()."
+        )
 
     # 值守渠道被注册为输出 channel（安抚回复 send()），HITL 请求无交互 UI，
     # 显式 no-op（与 VoiceChannel 同语义：HITL 以状态变化呈现，不推送）。

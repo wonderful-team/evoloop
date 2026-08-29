@@ -6,10 +6,6 @@ from pydantic import Field, field_validator
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
-ACTION_KINDS = ("read", "write")
-RISK_TIERS = ("ui", "data", "money")
-SELECTOR_TYPES = ("id", "name", "class", "css", "lay-filter", "text", "data-attr")
-
 
 class AppMapRoute(DynamicBaseModel):
     name: str

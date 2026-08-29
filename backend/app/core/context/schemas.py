@@ -4,18 +4,7 @@ from typing import Any
 
 from pydantic import Field
 
-from app.core.engine.state.config import ExecutionTicket
 from app.infrastructure.pydantic_base import DynamicBaseModel
-
-
-class DynamicContextLayer(DynamicBaseModel):
-    """Dynamic context that must always be fresh."""
-
-    shared_context: dict[str, Any] = Field(default_factory=dict)
-    tool_memory: dict | None = None
-    execution_ticket: ExecutionTicket | None = None
-    messages: list = Field(default_factory=list)
-    iteration_count: int = 0
 
 
 class ContextMetadata(DynamicBaseModel):

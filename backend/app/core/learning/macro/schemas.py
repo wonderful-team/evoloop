@@ -8,6 +8,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.core.learning import constants as _mc
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils.yaml import macro_from_yaml, macro_to_yaml
 
@@ -15,91 +16,91 @@ from app.utils.yaml import macro_from_yaml, macro_to_yaml
 
 
 class MacroSource(str, Enum):
-    DOM = "dom"
-    MOBILE = "mobile"
-    DESKTOP = "desktop"
-    GLOBAL = "global"
+    DOM = _mc.DOM
+    MOBILE = _mc.MOBILE
+    DESKTOP = _mc.DESKTOP
+    GLOBAL = _mc.GLOBAL
 
 
 class MacroStepType(str, Enum):
-    ACTION = "action"
-    EXTRACT = "extract"
-    CONTROL = "control"
-    DUMP = "dump"
-    IF = "if"
-    LOOP = "loop"
-    NATIVE = "native"
-    BASH = "bash"
+    ACTION = _mc.ACTION
+    EXTRACT = _mc.EXTRACT
+    CONTROL = _mc.CONTROL
+    DUMP = _mc.DUMP
+    IF = _mc.IF
+    LOOP = _mc.LOOP
+    NATIVE = _mc.NATIVE
+    BASH = _mc.BASH
 
 
 class MacroActionType(str, Enum):
     # Navigation
-    NAVIGATE = "navigate"
-    BACK = "back"
-    FORWARD = "forward"
-    RELOAD = "reload"
-    FRONTEND_NAVIGATE = "frontend_navigate"
+    NAVIGATE = _mc.NAVIGATE
+    BACK = _mc.BACK
+    FORWARD = _mc.FORWARD
+    RELOAD = _mc.RELOAD
+    FRONTEND_NAVIGATE = _mc.FRONTEND_NAVIGATE
 
     # Interaction
-    CLICK = "click"
-    DOUBLE_CLICK = "double_click"
-    TAP = "tap"  # Alias for click on mobile
-    LONG_PRESS = "long_press"
-    INPUT = "input"
-    TYPE_TEXT = "type_text"  # Legacy alias
-    KEY_PRESS = "key_press"
-    SCROLL = "scroll"
-    SWIPE = "swipe"
-    DRAG_DROP = "drag_drop"
-    HOVER = "hover"
-    WAIT = "wait"
-    WAIT_FOR = "wait_for"
+    CLICK = _mc.CLICK
+    DOUBLE_CLICK = _mc.DOUBLE_CLICK
+    TAP = _mc.TAP  # Alias for click on mobile
+    LONG_PRESS = _mc.LONG_PRESS
+    INPUT = _mc.INPUT
+    TYPE_TEXT = _mc.TYPE_TEXT  # Legacy alias
+    KEY_PRESS = _mc.KEY_PRESS
+    SCROLL = _mc.SCROLL
+    SWIPE = _mc.SWIPE
+    DRAG_DROP = _mc.DRAG_DROP
+    HOVER = _mc.HOVER
+    WAIT = _mc.WAIT
+    WAIT_FOR = _mc.WAIT_FOR
 
     # Browser / Web
-    SELECT_OPTION = "select_option"
-    NEW_TAB = "new_tab"
-    SWITCH_TAB = "switch_tab"
-    UPLOAD = "upload"
-    RUN_JS = "run_js"
-    DIALOG_HANDLE = "dialog_handle"
+    SELECT_OPTION = _mc.SELECT_OPTION
+    NEW_TAB = _mc.NEW_TAB
+    SWITCH_TAB = _mc.SWITCH_TAB
+    UPLOAD = _mc.UPLOAD
+    RUN_JS = _mc.RUN_JS
+    DIALOG_HANDLE = _mc.DIALOG_HANDLE
 
     # Extraction / Perception
-    GET_TEXT = "get_text"
-    GET_ATTRIBUTE = "get_attribute"
-    GET_HTML = "get_html"
-    GET_LINKS = "get_links"
-    SCREENSHOT = "screenshot"
-    DUMP_UI = "dump_ui"
+    GET_TEXT = _mc.GET_TEXT
+    GET_ATTRIBUTE = _mc.GET_ATTRIBUTE
+    GET_HTML = _mc.GET_HTML
+    GET_LINKS = _mc.GET_LINKS
+    SCREENSHOT = _mc.SCREENSHOT
+    DUMP_UI = _mc.DUMP_UI
 
     # Code execution / system-level escape hatches
-    APPLESCRIPT = "applescript"
-    BASH = "bash"
-    EVALUATE = "evaluate"
+    APPLESCRIPT = _mc.APPLESCRIPT
+    BASH = _mc.BASH
+    EVALUATE = _mc.EVALUATE
 
     # OS / App
-    OPEN_APP = "open_app"
-    CLOSE_APP = "close_app"
-    HOME = "home"
-    BACK_KEY = "back_key"
-    MOUSE_CLICK = "mouse_click"
-    GET_ACTIVE_APP = "get_active_app"
-    GET_INFO = "get_info"
-    NOOP = "noop"
+    OPEN_APP = _mc.OPEN_APP
+    CLOSE_APP = _mc.CLOSE_APP
+    HOME = _mc.HOME
+    BACK_KEY = _mc.BACK_KEY
+    MOUSE_CLICK = _mc.MOUSE_CLICK
+    GET_ACTIVE_APP = _mc.GET_ACTIVE_APP
+    GET_INFO = _mc.GET_INFO
+    NOOP = _mc.NOOP
 
     # Atlas-Native AX primitives (macOS, focus-free)
-    AX_PRESS = "ax_press"
-    AX_MENU_PRESS = "ax_menu_press"
-    AX_SET_VALUE = "ax_set_value"
+    AX_PRESS = _mc.AX_PRESS
+    AX_MENU_PRESS = _mc.AX_MENU_PRESS
+    AX_SET_VALUE = _mc.AX_SET_VALUE
 
     # Advanced / Generic
-    BATCH = "batch"
+    BATCH = _mc.BATCH
 
     # Automation Primitives
-    DETECT_PAGINATION = "detect_pagination"
-    SCROLL_TO_BOTTOM = "scroll_to_bottom"
+    DETECT_PAGINATION = _mc.DETECT_PAGINATION
+    SCROLL_TO_BOTTOM = _mc.SCROLL_TO_BOTTOM
 
     # CGEvent click (bypasses AX/OCR, uses Quartz directly)
-    CGCLICK = "cgclick"
+    CGCLICK = _mc.CGCLICK
 
 
 # ---- P0: Action Family & Risk Model (§7.2, §10.1) ----
@@ -118,7 +119,9 @@ RISK_TIER_ORDER: dict[str, int] = {t: i for i, t in enumerate(RISK_TIERS)}
 DEFAULT_ALLOWED_FAMILIES: set[str] = {"observe", "act", "control", "data", "escape"}
 
 
-def action_family(step_type: MacroStepType, event_type: MacroActionType | str | None) -> str:
+def action_family(
+    step_type: MacroStepType, event_type: MacroActionType | str | None
+) -> str:
     """Derive action family from a macro step using priority:
     1. escape  — type==NATIVE or type==BASH (system-level execution)
     2. observe — type in (EXTRACT, DUMP), including run_js extraction
@@ -136,7 +139,7 @@ def action_family(step_type: MacroStepType, event_type: MacroActionType | str | 
         return "observe"
     if step_type in (MacroStepType.CONTROL, MacroStepType.IF, MacroStepType.LOOP):
         return "control"
-    if event_type and str(event_type) in ("applescript", "run_js", "bash"):
+    if event_type and str(event_type) in (_mc.APPLESCRIPT, _mc.RUN_JS, _mc.BASH):
         return "escape"
     return "act"
 
@@ -145,61 +148,61 @@ def action_risk(event_type: MacroActionType | str | None) -> str:
     """Default risk tier for a given action type."""
     _risk: dict[str, str] = {
         # Navigation — observe
-        "navigate": "observe",
-        "back": "observe",
-        "forward": "observe",
-        "reload": "observe",
+        _mc.NAVIGATE: "observe",
+        _mc.BACK: "observe",
+        _mc.FORWARD: "observe",
+        _mc.RELOAD: "observe",
         # Interaction — act (safe clicks / scrolls)
-        "click": "act",
-        "double_click": "act",
-        "tap": "act",
-        "long_press": "act",
-        "key_press": "act",
-        "scroll": "observe",
-        "swipe": "act",
-        "drag_drop": "act",
-        "hover": "act",
-        "wait": "observe",
-        "wait_for": "observe",
+        _mc.CLICK: "act",
+        _mc.DOUBLE_CLICK: "act",
+        _mc.TAP: "act",
+        _mc.LONG_PRESS: "act",
+        _mc.KEY_PRESS: "act",
+        _mc.SCROLL: "observe",
+        _mc.SWIPE: "act",
+        _mc.DRAG_DROP: "act",
+        _mc.HOVER: "act",
+        _mc.WAIT: "observe",
+        _mc.WAIT_FOR: "observe",
         # Data input — data
-        "input": "data",
-        "type_text": "data",
-        "select_option": "data",
-        "upload": "data",
+        _mc.INPUT: "data",
+        _mc.TYPE_TEXT: "data",
+        _mc.SELECT_OPTION: "data",
+        _mc.UPLOAD: "data",
         # Browser tabs — act
-        "new_tab": "act",
-        "switch_tab": "act",
-        "dialog_handle": "act",
+        _mc.NEW_TAB: "act",
+        _mc.SWITCH_TAB: "act",
+        _mc.DIALOG_HANDLE: "act",
         # Code execution — escape
-        "run_js": "escape",
-        "applescript": "escape",
-        "bash": "escape",
+        _mc.RUN_JS: "escape",
+        _mc.APPLESCRIPT: "escape",
+        _mc.BASH: "escape",
         # Perception / read-only — observe
-        "get_text": "observe",
-        "get_attribute": "observe",
-        "get_html": "observe",
-        "get_links": "observe",
-        "screenshot": "observe",
-        "dump_ui": "observe",
-        "get_elements": "observe",
-        "gui_extract": "observe",
+        _mc.GET_TEXT: "observe",
+        _mc.GET_ATTRIBUTE: "observe",
+        _mc.GET_HTML: "observe",
+        _mc.GET_LINKS: "observe",
+        _mc.SCREENSHOT: "observe",
+        _mc.DUMP_UI: "observe",
+        _mc.GET_ELEMENTS: "observe",
+        _mc.GUI_EXTRACT: "observe",
         # Desktop app — act
-        "open_app": "act",
-        "close_app": "act",
-        "home": "act",
-        "back_key": "act",
-        "mouse_click": "act",
-        "get_active_app": "observe",
-        "get_info": "observe",
+        _mc.OPEN_APP: "act",
+        _mc.CLOSE_APP: "act",
+        _mc.HOME: "act",
+        _mc.BACK_KEY: "act",
+        _mc.MOUSE_CLICK: "act",
+        _mc.GET_ACTIVE_APP: "observe",
+        _mc.GET_INFO: "observe",
         # Atlas-Native AX primitives — act / data
-        "ax_press": "act",
-        "ax_menu_press": "act",
-        "ax_set_value": "data",
+        _mc.AX_PRESS: "act",
+        _mc.AX_MENU_PRESS: "act",
+        _mc.AX_SET_VALUE: "data",
         # Advanced
-        "batch": "observe",
-        "detect_pagination": "observe",
-        "scroll_to_bottom": "observe",
-        "evaluate": "escape",
+        _mc.BATCH: "observe",
+        _mc.DETECT_PAGINATION: "observe",
+        _mc.SCROLL_TO_BOTTOM: "observe",
+        _mc.EVALUATE: "escape",
     }
     if event_type is None:
         return "observe"
@@ -269,7 +272,7 @@ def compute_max_risk(steps: list[Any]) -> str:
     max_risk = "observe"
     for family, step_type, event_type in iter_macro_steps(steps):
         if family == "observe":
-            risk = "data" if event_type == "run_js" else "observe"
+            risk = "data" if event_type == _mc.RUN_JS else "observe"
         else:
             risk = action_risk(event_type)
         if RISK_TIER_ORDER.get(risk, 0) > RISK_TIER_ORDER.get(max_risk, 0):
@@ -280,16 +283,16 @@ def compute_max_risk(steps: list[Any]) -> str:
 class ExtractType(str, Enum):
     """Valid extract types for EXTRACT steps."""
 
-    GET_TEXT = "get_text"
-    GET_ATTRIBUTE = "get_attribute"
-    GET_HTML = "get_html"
-    GET_LINKS = "get_links"
-    GET_ELEMENTS = "get_elements"  # Get multiple elements
-    SCREENSHOT = "screenshot"
-    GUI_EXTRACT = "gui_extract"  # Coordinate-based GUI extraction (OCR)
-    DUMP_UI = "dump_ui"
-    RUN_JS = "run_js"
-    BATCH = "batch"  # Internal: batched extract operations
+    GET_TEXT = _mc.GET_TEXT
+    GET_ATTRIBUTE = _mc.GET_ATTRIBUTE
+    GET_HTML = _mc.GET_HTML
+    GET_LINKS = _mc.GET_LINKS
+    GET_ELEMENTS = _mc.GET_ELEMENTS  # Get multiple elements
+    SCREENSHOT = _mc.SCREENSHOT
+    GUI_EXTRACT = _mc.GUI_EXTRACT  # Coordinate-based GUI extraction (OCR)
+    DUMP_UI = _mc.DUMP_UI
+    RUN_JS = _mc.RUN_JS
+    BATCH = _mc.BATCH  # Internal: batched extract operations
 
 
 class CollectMode(str, Enum):
@@ -299,89 +302,6 @@ class CollectMode(str, Enum):
     LIST = "list"  # Phase 1: List collection - gather items without executing steps
     DETAIL = "detail"  # Phase 2: Detail execution - process collected items
     AUTO = "auto"  # Automatic: collect list first, then execute detail steps
-
-
-class NavigationPayload(DynamicBaseModel):
-    """Payload for navigation actions (goto, open_app)."""
-
-    model_config = ConfigDict(extra="allow", populate_by_name=True)
-
-    url: str | None = None
-    package_name: str | None = Field(None, alias="package")
-    app_name: str | None = None
-    wait_until: str = "load"  # load | domcontentloaded | networkidle
-    timeout_ms: int = 30000
-
-
-class InteractionPayload(DynamicBaseModel):
-    """Payload for UI interactions (click, input, scroll)."""
-
-    # Coordinates (used if target_selector is missing or for vision correction)
-    x: int | None = None
-    y: int | None = None
-    original_x: int | None = None
-    original_y: int | None = None
-    vision_corrected: bool = False
-
-    # Text input
-    text: str | None = None
-    append: bool = False
-    enter: bool = True  # Press enter after input
-
-    # Mouse/Keyboard
-    button: str = "left"  # left | middle | right
-    clicks: int = 1
-    modifiers: list[str] = Field(default_factory=list)  # shift | control | alt | meta
-
-    # Scroll / Swipe
-    direction: str = "down"  # up | down | left | right
-    amount: float = 0.5  # 0.0 to 1.0 or pixels
-    duration_ms: int = 300
-
-    # Timing
-    delay_after_ms: int = 100
-    timeout_ms: int = 10000
-
-
-class ControlPayload(DynamicBaseModel):
-    """Payload for control flow (loop, if)."""
-
-    # Loop specific
-    items_key: str = "items"
-    max_iterations: int | str = 100
-    max_retries: int = 3
-    backoff_base: float = 2.0
-
-    # Batch collection (Phase 6)
-    state_file: str | None = None
-    list_config: dict[str, Any] = Field(default_factory=dict)
-    detail_config: dict[str, Any] = Field(default_factory=dict)
-
-
-class ExtractionPayload(DynamicBaseModel):
-    """Payload for data extraction steps."""
-
-    model_config = ConfigDict(extra="allow", populate_by_name=True)
-
-    attribute: str | None = None
-    script: str | None = Field(None, alias="expression")
-    region: dict[str, int] | None = None  # {"x": 0, "y": 0, "w": 100, "h": 100}
-    wait_for_selector: str | None = None
-    timeout_ms: int = 5000
-
-    # Loop detail collection
-    data_capture: dict[str, str] = Field(default_factory=dict)
-
-
-class BashPayload(DynamicBaseModel):
-    """Payload for a bash step that runs a shell command."""
-
-    model_config = ConfigDict(extra="allow", populate_by_name=True)
-
-    command: str
-    key: str = "bash_output"
-    timeout: int | float = Field(default=30, ge=1)
-    continue_on_error: bool = False
 
 
 # Unified Payload Type
@@ -425,8 +345,8 @@ class MacroStep(DynamicBaseModel):
     def migrate_legacy_fields(cls, values):
         # 1. Migrate Type
         step_type = values.get("type")
-        if step_type in ("while", "batch_loop"):
-            values["type"] = "loop"
+        if step_type in (_mc.WHILE, _mc.BATCH_LOOP):
+            values["type"] = _mc.LOOP
 
         # 2. Migrate Steps (then/else/do/do_steps -> standardized field names)
         # Handle 'then' -> 'then_steps'
@@ -497,7 +417,11 @@ class MacroScript(DynamicBaseModel):
     @classmethod
     def check_step_numbers(cls, values):
         """Validate step numbers are unique and sequential."""
-        steps = values.get("steps", []) if isinstance(values, dict) else getattr(values, "steps", [])
+        steps = (
+            values.get("steps", [])
+            if isinstance(values, dict)
+            else getattr(values, "steps", [])
+        )
         if not steps:
             return values
 
@@ -535,7 +459,9 @@ class MacroScript(DynamicBaseModel):
         seen = set()
         for path, num in all_numbers:
             if num in seen:
-                raise ValueError(f"Duplicate step number '{num}' found at path '{path}'")
+                raise ValueError(
+                    f"Duplicate step number '{num}' found at path '{path}'"
+                )
             if num is not None:
                 seen.add(num)
 
@@ -622,7 +548,9 @@ class MacroRunResult(DynamicBaseModel):
     status: str | None = None  # e.g. "fallback_required"
     fallback_context: dict[str, Any] | None = None
     step_log: list[dict[str, Any]] | None = None  # per-step execution records
-    execution_warnings: list[str] | None = None  # non-fatal signals (e.g. zero-iteration loop)
+    execution_warnings: list[str] | None = (
+        None  # non-fatal signals (e.g. zero-iteration loop)
+    )
 
 
 class MacroVerificationResult(DynamicBaseModel):

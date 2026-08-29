@@ -31,11 +31,6 @@ class MessagePersistencePolicy:
         return category.should_persist_to_db
 
     @classmethod
-    def get_storage_field(cls, category: MessageCategory) -> str | None:
-        """获取存储字段（content / thinking / None）"""
-        return category.storage_field
-
-    @classmethod
     def should_store_tool_calls(cls, category: MessageCategory) -> bool:
         """判断是否应该存储 tool_calls"""
         return category.should_store_tool_calls
@@ -96,11 +91,6 @@ class MessagePersistencePolicy:
             result.content = ""
 
         return result
-
-    @classmethod
-    def get_all_categories(cls) -> list[MessageCategory]:
-        """获取所有支持的分类"""
-        return list(MessageCategory)
 
     @classmethod
     def get_persisted_categories(cls) -> list[MessageCategory]:

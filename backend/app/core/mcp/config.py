@@ -88,7 +88,9 @@ class McpServerConfig(DynamicBaseModel):
                 pass
 
         # Determine transport
-        transport = TransportType.SSE if is_sse_url(server.command) else TransportType.STDIO
+        transport = (
+            TransportType.SSE if is_sse_url(server.command) else TransportType.STDIO
+        )
 
         return cls(
             name=server.name,
@@ -106,10 +108,14 @@ class McpServerConfig(DynamicBaseModel):
         """Validate configuration."""
         if self.transport == TransportType.STDIO:
             if not self.command:
-                raise ValueError(f"MCP server '{self.name}': command is required for stdio transport")
+                raise ValueError(
+                    f"MCP server '{self.name}': command is required for stdio transport"
+                )
         elif self.transport == TransportType.SSE:
             if not self.url:
-                raise ValueError(f"MCP server '{self.name}': url is required for sse transport")
+                raise ValueError(
+                    f"MCP server '{self.name}': url is required for sse transport"
+                )
 
 
 class ConnectionState(DynamicBaseModel):

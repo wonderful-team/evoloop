@@ -37,7 +37,9 @@ class ProjectContextManager:
 
         logger.info("ProjectContextManager initialized as the WorkspaceProvider")
 
-    async def get_project_structure(self, path: str, force_refresh: bool = False) -> str:
+    async def get_project_structure(
+        self, path: str, force_refresh: bool = False
+    ) -> str:
         """
         Get the annotated directory tree for a path. Uses caching.
         """
@@ -58,10 +60,7 @@ class ProjectContextManager:
         )
         structure = await generator.generate()
 
-        self._structure_cache[path] = {
-            "structure": structure,
-            "timestamp": time.time()
-        }
+        self._structure_cache[path] = {"structure": structure, "timestamp": time.time()}
         return structure
 
     def invalidate_cache(self, path: str | None = None):
@@ -91,7 +90,9 @@ class ProjectContextManager:
 
                     return read_file(full_path).content
                 except Exception as e:
-                    logger.warning(f"Failed to read README at {full_path}: {e}", exc_info=True)
+                    logger.warning(
+                        f"Failed to read README at {full_path}: {e}", exc_info=True
+                    )
                     continue
         return ""
 

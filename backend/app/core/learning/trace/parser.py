@@ -92,10 +92,12 @@ class TraceParser:
             # Optionally filter by session
             if self.session_id:
                 # Use unified session_id or legacy recording_session_id
-                stmt = stmt.where(or_(
-                    TraceEvent.session_id == self.session_id,
-                    TraceEvent.recording_session_id == self.session_id
-                ))
+                stmt = stmt.where(
+                    or_(
+                        TraceEvent.session_id == self.session_id,
+                        TraceEvent.recording_session_id == self.session_id,
+                    )
+                )
 
             result = await session.execute(stmt)
             return list(result.scalars().all())
@@ -103,10 +105,12 @@ class TraceParser:
     async def _fetch_initial_intent(self) -> str | None:
         """Fetch the first human message in the thread as the initial intent."""
         async with session_scope() as session:
-            stmt = select(Message).where(
-                Message.thread_id == self.thread_id,
-                Message.role == "human"
-            ).order_by(Message.created_at).limit(1)
+            stmt = (
+                select(Message)
+                .where(Message.thread_id == self.thread_id, Message.role == "human")
+                .order_by(Message.created_at)
+                .limit(1)
+            )
             result = await session.execute(stmt)
             msg = result.scalar_one_or_none()
             return msg.content if msg else None
@@ -147,7 +151,9 @@ class TraceParser:
 
         # Construct meaningful action name
         app_prefix = f"[{event.app_name}] " if event.app_name else ""
-        action_name = f"{app_prefix}{action_mapping.get(event.event_type, event.event_type)}"
+        action_name = (
+            f"{app_prefix}{action_mapping.get(event.event_type, event.event_type)}"
+        )
         # Build args
         action_args = {}
         if event.key_name:

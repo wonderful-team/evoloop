@@ -29,11 +29,15 @@ _PURGE_THRESHOLD = 1024
 async def _ttl_seconds() -> int:
     """Read `ROUTE_IDEMPOTENCY_TTL` (seconds), falling back to the default."""
     try:
-        raw = await asyncio.to_thread(SystemConfigService.get_value, "ROUTE_IDEMPOTENCY_TTL")
+        raw = await asyncio.to_thread(
+            SystemConfigService.get_value, "ROUTE_IDEMPOTENCY_TTL"
+        )
         if raw is not None:
             return max(1, int(raw))
     except Exception:
-        logger.debug("[idempotency] failed to read ROUTE_IDEMPOTENCY_TTL", exc_info=True)
+        logger.debug(
+            "[idempotency] failed to read ROUTE_IDEMPOTENCY_TTL", exc_info=True
+        )
     return _DEFAULT_TTL
 
 

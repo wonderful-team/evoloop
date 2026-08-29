@@ -25,7 +25,9 @@ from app.utils.id import gen_uuid
 logger = logging.getLogger(__name__)
 
 
-async def handle_task_exception(thread_id: str, project_id: int, e: Exception, handler=None) -> bool:
+async def handle_task_exception(
+    thread_id: str, project_id: int, e: Exception, handler=None
+) -> bool:
     """Handle exceptions during graph execution using unified LLMErrorHandler.
 
     Args:
@@ -53,7 +55,9 @@ async def handle_task_exception(thread_id: str, project_id: int, e: Exception, h
             try:
                 await MobileErrorNotifier(handler).push(classification_obj)
             except (TypeError, ValueError, RuntimeError, OSError) as push_e:
-                logger.warning(f"[ErrorHandler] Mobile push failed: {push_e}", exc_info=True)
+                logger.warning(
+                    f"[ErrorHandler] Mobile push failed: {push_e}", exc_info=True
+                )
 
     if error_type == "auth_expired":
         logger.warning(f"[EvoLoopAuth] Thread {thread_id} platform auth expired")
@@ -70,7 +74,9 @@ async def handle_task_exception(thread_id: str, project_id: int, e: Exception, h
         return True
 
     if error_type == "llm_auth":
-        logger.warning(f"[LLMAuthError] Thread {thread_id} hit LLM API authentication error")
+        logger.warning(
+            f"[LLMAuthError] Thread {thread_id} hit LLM API authentication error"
+        )
         await activity_monitor.end_run(thread_id, "failed")
         await system_bus.publish(
             LLMAuthErrorEvent(
@@ -172,8 +178,7 @@ async def persist_system_error(
     """
     # Classify the error content
     category = MessageClassifier.classify_ai_message(
-        content=error_details,
-        metadata={"is_error": True, "error_type": action_type}
+        content=error_details, metadata={"is_error": True, "error_type": action_type}
     )
 
     # Skip persistence for system-level errors

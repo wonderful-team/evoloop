@@ -165,5 +165,7 @@ class ActionTrace(DynamicBaseModel):
     action_type: str  # click, type, swipe, key, navigate, etc.
     platform: str  # android, web, desktop
     parameters: TraceParameters
-    context: TraceContext = Field(default_factory=TraceContext) # View hierarchy, URL, etc.
+    context: TraceContext = Field(
+        default_factory=TraceContext
+    )  # View hierarchy, URL, etc.
     screenshot_path: str | None = None

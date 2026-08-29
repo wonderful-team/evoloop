@@ -50,20 +50,25 @@ class SkillHydrator:
         from app.core.learning.skills.discovery import skill_discovery
 
         if mode == "lazy":
-            logger.info(f"[Hydrator] Lazy mode for topic: {topic}. Fetching namespace index.")
+            logger.info(
+                f"[Hydrator] Lazy mode for topic: {topic}. Fetching namespace index."
+            )
             return await skill_discovery.get_namespace_index(namespace_context)
 
         # Eager mode: Fetch and return full SOP instructions
         execution_ticket = state.ticket
         # skill_ids takes priority from the ticket if present, otherwise fallback to topic
-        query = (execution_ticket.skill_ids[0] if execution_ticket.skill_ids else None) if execution_ticket else None
+        query = (
+            (execution_ticket.skill_ids[0] if execution_ticket.skill_ids else None)
+            if execution_ticket
+            else None
+        )
         if not query:
             query = topic
 
         logger.info(f"[Hydrator] Eagerly hydrating skills for query: {query}")
         match, relevant, reasoning = await skill_discovery.exact_search(
-            query=query,
-            namespace_context=namespace_context
+            query=query, namespace_context=namespace_context
         )
 
         # exact_search handles both numeric ID, exact name, and namespace/ prefix
@@ -76,7 +81,11 @@ class SkillHydrator:
         """
         execution_ticket = state.ticket
         topic = (execution_ticket.topic or "") if execution_ticket else ""
-        namespace_context = execution_ticket.namespace_context if execution_ticket else None
+        namespace_context = (
+            execution_ticket.namespace_context if execution_ticket else None
+        )
 
         # In Unified Graph (v5), we default to 'eager' hydration for standard Workers.
-        return await SkillHydrator.hydrate(state, topic, namespace_context=namespace_context, mode="eager")
+        return await SkillHydrator.hydrate(
+            state, topic, namespace_context=namespace_context, mode="eager"
+        )

@@ -54,7 +54,9 @@ def _get_metadata(config: dict | None) -> dict:
     return config.get("metadata") or {}
 
 
-async def emit_llm_start(callbacks: list, run_id: str, metadata: dict | None = None) -> None:
+async def emit_llm_start(
+    callbacks: list, run_id: str, metadata: dict | None = None
+) -> None:
     for cb in callbacks:
         try:
             await cb.on_llm_start(
@@ -81,7 +83,9 @@ async def emit_llm_new_token(
                 run_id=run_id,
             )
         except _CALLBACK_EXCEPTIONS as e:
-            logger.debug(f"[CallbackBridge] on_llm_new_token failed: {e}", exc_info=True)
+            logger.debug(
+                f"[CallbackBridge] on_llm_new_token failed: {e}", exc_info=True
+            )
 
 
 async def emit_llm_end(
@@ -119,7 +123,10 @@ async def emit_tool_start(
                 tool_call_id=tool_call_id,
             )
         except _CALLBACK_EXCEPTIONS as e:
-            logger.info(f"[CallbackBridge] on_tool_start failed for {getattr(cb, '__class__', None)}: {e}", exc_info=True)
+            logger.info(
+                f"[CallbackBridge] on_tool_start failed for {getattr(cb, '__class__', None)}: {e}",
+                exc_info=True,
+            )
 
 
 async def emit_tool_end(

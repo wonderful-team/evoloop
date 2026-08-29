@@ -7,20 +7,10 @@ Pydantic data classes for codebase indexing events.
 
 from typing import Any
 
-from pydantic import Field
-
 from app.core.events.base import BaseEvent
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 from .types import IndexingEventType
-
-
-class IndexingEvent(DynamicBaseModel):
-    """Generic event for the codebase indexing domain."""
-
-    event_type: IndexingEventType
-    repo_id: int
-    data: dict[str, Any] = Field(default_factory=dict)
 
 
 class FileModifiedEvent(DynamicBaseModel):

@@ -5,6 +5,11 @@ import shlex
 from typing import Annotated
 
 from app.core.engine.message.native_classes import RunnableConfig
+from app.core.execution.constants import (
+    MAX_COMMAND_TIMEOUT_SECONDS,
+    MIN_COMMAND_TIMEOUT_SECONDS,
+    QUICK_TIMEOUT_SECONDS,
+)
 from app.core.execution.terminal.background.runner import (
     execute_in_background,
     execute_smart,
@@ -89,10 +94,12 @@ def _resolve_command(tokens: list[str]) -> tuple[str, list[str]]:
 async def execute_command(
     command: str,
     background: bool = False,
-    timeout: int = 60,
+    timeout: int = QUICK_TIMEOUT_SECONDS,
     config: Annotated[RunnableConfig, InjectedToolArg] = None,
 ) -> str:
-    timeout = min(max(timeout, 10), 3600)
+    timeout = min(
+        max(timeout, MIN_COMMAND_TIMEOUT_SECONDS), MAX_COMMAND_TIMEOUT_SECONDS
+    )
 
     if background:
         return await execute_in_background(command, timeout, config)

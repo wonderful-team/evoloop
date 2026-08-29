@@ -92,14 +92,17 @@ class MessageCategory(str, Enum):
 
         原则：除了纯瞬态系统事件外，所有结构化对话和内部操作记录均需入库，以供后续推理使用。
         """
-        return self not in {
-            MessageCategory.INTERNAL_SYSTEM,
-            MessageCategory.ERROR_SYSTEM,
-            MessageCategory.AUTH_EXPIRED,
-            MessageCategory.INTERNAL_LLM_JSON,
-            MessageCategory.TRANSIENT_MESSAGE,   # 瞬态消息不入库
-            MessageCategory.INTERNAL_TOOL_CALL,  # 内部隐藏工具调用默认不入库 (除非特殊需求)
-        }
+        return (
+            self
+            not in {
+                MessageCategory.INTERNAL_SYSTEM,
+                MessageCategory.ERROR_SYSTEM,
+                MessageCategory.AUTH_EXPIRED,
+                MessageCategory.INTERNAL_LLM_JSON,
+                MessageCategory.TRANSIENT_MESSAGE,  # 瞬态消息不入库
+                MessageCategory.INTERNAL_TOOL_CALL,  # 内部隐藏工具调用默认不入库 (除非特殊需求)
+            }
+        )
 
     @property
     def should_stream_to_frontend(self) -> bool:
@@ -113,8 +116,8 @@ class MessageCategory(str, Enum):
             MessageCategory.ERROR_SYSTEM,
             MessageCategory.ERROR_BUSINESS,
             MessageCategory.AUTH_EXPIRED,
-            MessageCategory.HITL_REQUEST,        # 实时推送交互请求
-            MessageCategory.TRANSIENT_MESSAGE,   # 瞬态消息需要实时推送
+            MessageCategory.HITL_REQUEST,  # 实时推送交互请求
+            MessageCategory.TRANSIENT_MESSAGE,  # 瞬态消息需要实时推送
         }
 
     @property
@@ -171,37 +174,6 @@ class MessageCategory(str, Enum):
         }
 
     @classmethod
-    def get_visible_categories(cls) -> set:
-        """获取所有前端可见的类别集合"""
-        return {
-            cls.USER,
-            cls.ASSISTANT_RESPONSE,
-            cls.ASSISTANT_TOOL_CALL,
-            cls.TOOL_OUTPUT,
-            cls.INTERNAL_REASONING,  # 思考过程对用户可见
-        }
-
-    @classmethod
-    def get_invisible_categories(cls) -> set:
-        """获取所有前端不可见的类别集合"""
-        return {
-            cls.INTERNAL_TOOL_CALL,
-            cls.INTERNAL_SYSTEM,
-            cls.INTERNAL_LLM_JSON,
-            cls.ERROR_SYSTEM,  # 系统错误不入消息列表
-            cls.ERROR_BUSINESS,  # 业务错误不入消息列表（但入库供Agent学习）
-        }
-
-    @classmethod
     def get_persisted_categories(cls) -> set:
         """获取所有入库的类别集合"""
-        return {
-            cat for cat in cls if cat.should_persist_to_db
-        }
-
-    @classmethod
-    def get_non_persisted_categories(cls) -> set:
-        """获取所有不入库的类别集合"""
-        return {
-            cat for cat in cls if not cat.should_persist_to_db
-        }
+        return {cat for cat in cls if cat.should_persist_to_db}

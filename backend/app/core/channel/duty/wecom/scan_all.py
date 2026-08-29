@@ -4,18 +4,13 @@
 
 设计：点击左侧"未读"分组，一次 AX dump 列出所有未读会话（快，不逐个点击）。
 """
+
 import logging
 
+from app.core.channel.duty.constants import SERVICE_ACCOUNTS
 from .common import open_wecom, scan_unread_view
 
 logger = logging.getLogger(__name__)
-
-
-# 服务号/系统通知（不能回复）
-SERVICE_ACCOUNTS = [
-    "企业微信团队", "企业微信服务商助手", "登录操作通知", "管理企业",
-    "当前企业未认证", "客户咨询", "文件传输助手",
-]
 
 
 async def has_input_toolbar(pos, preview: str = "") -> bool:
@@ -30,7 +25,9 @@ async def has_input_toolbar(pos, preview: str = "") -> bool:
     del x, y
     if any(s in name for s in SERVICE_ACCOUNTS):
         return False
-    if any(k in preview for k in ("还不是你的联系人", "请发送申请验证", "发送联系人申请")):
+    if any(
+        k in preview for k in ("还不是你的联系人", "请发送申请验证", "发送联系人申请")
+    ):
         return False
     return True
 
@@ -57,6 +54,12 @@ async def run(history_dir: str) -> tuple[list[str], list[str]] | None:  # noqa: 
         x, y, name, unread_count, preview = item
         can = await has_input_toolbar((x, y, name), preview)
         flag = "REPLYABLE" if can else "NON_REPLYABLE"
-        logger.info("[wecom_scan_all] %s %s | 未读=%d | 预览=%s", flag, name, unread_count, preview)
+        logger.info(
+            "[wecom_scan_all] %s %s | 未读=%d | 预览=%s",
+            flag,
+            name,
+            unread_count,
+            preview,
+        )
         (replyable if can else non_replyable).append((name, unread_count))
     return replyable, non_replyable

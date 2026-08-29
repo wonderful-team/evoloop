@@ -21,13 +21,17 @@ class SQLAtlasStore(IAtlasStore):
     async def save_app_model(self, atlas_app: AtlasApp) -> None:
         async with session_scope() as session:
             existing = (
-                await session.execute(
-                    select(AtlasAppModel).where(
-                        AtlasAppModel.bundle_id == atlas_app.bundle_id,
-                        AtlasAppModel.platform == atlas_app.platform,
+                (
+                    await session.execute(
+                        select(AtlasAppModel).where(
+                            AtlasAppModel.bundle_id == atlas_app.bundle_id,
+                            AtlasAppModel.platform == atlas_app.platform,
+                        )
                     )
                 )
-            ).scalars().first()
+                .scalars()
+                .first()
+            )
 
             if existing:
                 app_record = existing
@@ -37,19 +41,29 @@ class SQLAtlasStore(IAtlasStore):
                 # Remove old states & transitions (explicit selects — the
                 # `states` relationship lazy-loads, which breaks under async)
                 old_states = (
-                    await session.execute(
-                        select(AtlasStateModel).where(AtlasStateModel.app_id == app_record.id)
+                    (
+                        await session.execute(
+                            select(AtlasStateModel).where(
+                                AtlasStateModel.app_id == app_record.id
+                            )
+                        )
                     )
-                ).scalars().all()
+                    .scalars()
+                    .all()
+                )
                 for s in old_states:
                     await session.delete(s)
                 old_transitions = (
-                    await session.execute(
-                        select(AtlasTransitionModel).where(
-                            AtlasTransitionModel.app_id == app_record.id
+                    (
+                        await session.execute(
+                            select(AtlasTransitionModel).where(
+                                AtlasTransitionModel.app_id == app_record.id
+                            )
                         )
                     )
-                ).scalars().all()
+                    .scalars()
+                    .all()
+                )
                 for t in old_transitions:
                     await session.delete(t)
             else:
@@ -89,24 +103,34 @@ class SQLAtlasStore(IAtlasStore):
             await session.commit()
             logger.info(f"Saved Atlas for {atlas_app.bundle_id}")
 
-    async def get_app_summary(self, bundle_id: str, platform: str = "macos") -> AtlasAppSummary | None:
+    async def get_app_summary(
+        self, bundle_id: str, platform: str = "macos"
+    ) -> AtlasAppSummary | None:
         async with session_scope() as session:
             app = (
-                await session.execute(
-                    select(AtlasAppModel).where(
-                        AtlasAppModel.bundle_id == bundle_id,
-                        AtlasAppModel.platform == platform,
+                (
+                    await session.execute(
+                        select(AtlasAppModel).where(
+                            AtlasAppModel.bundle_id == bundle_id,
+                            AtlasAppModel.platform == platform,
+                        )
                     )
                 )
-            ).scalars().first()
+                .scalars()
+                .first()
+            )
             if not app:
                 return None
 
             states = (
-                await session.execute(
-                    select(AtlasStateModel).where(AtlasStateModel.app_id == app.id)
+                (
+                    await session.execute(
+                        select(AtlasStateModel).where(AtlasStateModel.app_id == app.id)
+                    )
                 )
-            ).scalars().all()
+                .scalars()
+                .all()
+            )
 
             return AtlasAppSummary(
                 app_name=app.app_name,
@@ -117,27 +141,37 @@ class SQLAtlasStore(IAtlasStore):
                 states=[{"id": s.state_id, "title": s.window_title} for s in states],
             )
 
-    async def get_state_detail(self, bundle_id: str, state_id: str, platform: str = "macos") -> AtlasStateDetail | None:
+    async def get_state_detail(
+        self, bundle_id: str, state_id: str, platform: str = "macos"
+    ) -> AtlasStateDetail | None:
         async with session_scope() as session:
             app = (
-                await session.execute(
-                    select(AtlasAppModel).where(
-                        AtlasAppModel.bundle_id == bundle_id,
-                        AtlasAppModel.platform == platform,
+                (
+                    await session.execute(
+                        select(AtlasAppModel).where(
+                            AtlasAppModel.bundle_id == bundle_id,
+                            AtlasAppModel.platform == platform,
+                        )
                     )
                 )
-            ).scalars().first()
+                .scalars()
+                .first()
+            )
             if not app:
                 return None
 
             state = (
-                await session.execute(
-                    select(AtlasStateModel).where(
-                        AtlasStateModel.app_id == app.id,
-                        AtlasStateModel.state_id == state_id,
+                (
+                    await session.execute(
+                        select(AtlasStateModel).where(
+                            AtlasStateModel.app_id == app.id,
+                            AtlasStateModel.state_id == state_id,
+                        )
                     )
                 )
-            ).scalars().first()
+                .scalars()
+                .first()
+            )
             if not state:
                 return None
 
@@ -148,26 +182,36 @@ class SQLAtlasStore(IAtlasStore):
                 elements=elements,
             )
 
-    async def get_transitions_summary(self, bundle_id: str, platform: str = "macos") -> list[dict]:
+    async def get_transitions_summary(
+        self, bundle_id: str, platform: str = "macos"
+    ) -> list[dict]:
         async with session_scope() as session:
             app = (
-                await session.execute(
-                    select(AtlasAppModel).where(
-                        AtlasAppModel.bundle_id == bundle_id,
-                        AtlasAppModel.platform == platform,
+                (
+                    await session.execute(
+                        select(AtlasAppModel).where(
+                            AtlasAppModel.bundle_id == bundle_id,
+                            AtlasAppModel.platform == platform,
+                        )
                     )
                 )
-            ).scalars().first()
+                .scalars()
+                .first()
+            )
             if not app:
                 return []
 
             transitions = (
-                await session.execute(
-                    select(AtlasTransitionModel).where(
-                        AtlasTransitionModel.app_id == app.id
+                (
+                    await session.execute(
+                        select(AtlasTransitionModel).where(
+                            AtlasTransitionModel.app_id == app.id
+                        )
                     )
                 )
-            ).scalars().all()
+                .scalars()
+                .all()
+            )
 
             return [
                 {

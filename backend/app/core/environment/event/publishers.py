@@ -21,7 +21,9 @@ from .schemas import (
 )
 
 
-async def publish_awakening_complete(platforms: list[str], project_id: int | None = None) -> None:
+async def publish_awakening_complete(
+    platforms: list[str], project_id: int | None = None
+) -> None:
     """Publish the awakening complete event."""
     await system_bus.publish(
         AwakenEvent(

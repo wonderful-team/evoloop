@@ -110,13 +110,9 @@ class AgentStateBase(DynamicBaseModel):
         fields = {
             "tool_history": self.tool_history,
             "pending_approvals": [
-                x.model_dump()
-                for x in (self.pending_approvals or [])
+                x.model_dump() for x in (self.pending_approvals or [])
             ],
-            "audit_anomalies": [
-                x.model_dump()
-                for x in (self.audit_anomalies or [])
-            ],
+            "audit_anomalies": [x.model_dump() for x in (self.audit_anomalies or [])],
             "tool_memory": self.tool_memory,
             "final_outcome": self.final_outcome,
             "shadow_audit": self.shadow_audit,
@@ -124,9 +120,13 @@ class AgentStateBase(DynamicBaseModel):
             "audit_tier": self.audit_tier,
             "audit_meta": self.audit_meta.model_dump() if self.audit_meta else None,
             "blocked_by_hook": self.blocked_by_hook,
-            "plan_progress": self.plan_progress.model_dump() if self.plan_progress else None,
+            "plan_progress": self.plan_progress.model_dump()
+            if self.plan_progress
+            else None,
             "max_supervisor_steps": self.max_supervisor_steps,
-            "audit_input_data": self.audit_input_data.model_dump() if self.audit_input_data else None,
+            "audit_input_data": self.audit_input_data.model_dump()
+            if self.audit_input_data
+            else None,
             "force_comprehensive_audit": self.force_comprehensive_audit,
         }
         return {k: v for k, v in fields.items() if v is not None}
@@ -146,7 +146,9 @@ class AgentState(AgentStateBase):
     iteration_count: int = 0
     next_node: str | None = None
     session_goal: str | None = None
-    session_handoff: bool = False  # 会话模式：Supervisor 决策出 WORKER，交给主循环启动 rollout
+    session_handoff: bool = (
+        False  # 会话模式：Supervisor 决策出 WORKER，交给主循环启动 rollout
+    )
 
     # --- Subagent (parallel execution) ---
     subagent_plan: dict | None = None  # SubagentPlan.model_dump()

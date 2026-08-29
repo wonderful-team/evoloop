@@ -56,7 +56,9 @@ def _build_routing_data(lang: str) -> dict[str, Any]:
     responses = _load_yaml(lang_dir / "responses.yaml")
 
     # Voice local actions / aliases / static app slots
-    voice_local_actions: list[dict[str, Any]] = list(templates_data.get("voice_local_actions", []))
+    voice_local_actions: list[dict[str, Any]] = list(
+        templates_data.get("voice_local_actions", [])
+    )
     templates: list[dict[str, Any]] = list(templates_data.get("templates", []))
     aliases: dict[str, str] = dict(templates_data.get("aliases", {}))
 
@@ -90,9 +92,7 @@ def _build_routing_data(lang: str) -> dict[str, Any]:
     ]
     # 指代标记（L1 指代消解检测），编译为 regex 在启动时进行
     anaphora_markers: list[str] = [
-        str(m)
-        for m in templates_data.get("anaphora_markers", [])
-        if isinstance(m, str)
+        str(m) for m in templates_data.get("anaphora_markers", []) if isinstance(m, str)
     ]
     # 槽位余料字符：slot 名 -> 允许的填充字符集合
     slot_filler_chars: dict[str, str] = {

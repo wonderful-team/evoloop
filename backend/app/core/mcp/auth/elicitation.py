@@ -20,7 +20,9 @@ class McpElicitationHandler:
         self._pending: dict[str, ElicitationRequest] = {}
         self._futures: dict[str, asyncio.Future] = {}
 
-    def parse_elicitation_error(self, server_name: str, error_data: dict) -> ElicitationRequest:
+    def parse_elicitation_error(
+        self, server_name: str, error_data: dict
+    ) -> ElicitationRequest:
         """
         Parse elicitation error from MCP server.
 
@@ -59,7 +61,9 @@ class McpElicitationHandler:
 
         return request
 
-    async def wait_for_input(self, server_name: str, timeout: float = 300.0) -> ElicitationValues:
+    async def wait_for_input(
+        self, server_name: str, timeout: float = 300.0
+    ) -> ElicitationValues:
         """
         Wait for user to provide elicitation values.
 

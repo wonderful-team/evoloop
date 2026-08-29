@@ -27,42 +27,23 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import inspect
 import json
 import logging
 
 from app.core.atlas.source.persistence import save_app_map
-from app.core.execution.macro import synthesize_macros_task as _wrapped_task
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("batch_writer")
 
-# Unwrap @shared_task decorator once at module level
-_raw = getattr(_wrapped_task, "func", _wrapped_task)
-if not inspect.iscoroutinefunction(_raw):
-    for _cell in getattr(_raw, "__closure__", None) or []:
-        if inspect.iscoroutinefunction(_cell.cell_contents):
-            _raw = _cell.cell_contents
-            break
 
+async def batch_write(project_id: int, entities: dict, member_id: int = 0) -> dict:
+    """Batch-write AppMap records.
 
-async def _gen_macros(app_map_id, project_id, member_id):
-    return await _raw(app_map_id=app_map_id, project_id=project_id, member_id=member_id)
-
-
-async def batch_write(
-    project_id: int,
-    entities: dict,
-    member_id: int = 0,
-) -> dict:
-    """Batch-write AppMap records and generate macros.
-
-    Returns ``{"written": int, "skipped": int, "failed": int, "macros_generated": int}``.
+    Returns ``{"written": int, "skipped": int, "failed": int}``.
     """
     written = 0
     skipped = 0
     failed = 0
-    macros_generated = 0
 
     for entity_name, data in sorted(entities.items()):
         try:
@@ -84,29 +65,18 @@ async def batch_write(
             else:
                 skipped += 1
 
-            try:
-                result = await _gen_macros(
-                    app_map_id=app_map_id,
-                    project_id=project_id,
-                    member_id=member_id,
-                )
-                macros_generated += result.get("candidates", 0)
-            except Exception as exc:
-                logger.warning("  [MACRO] %s macro generation failed: %s", entity_name, exc)
-
         except Exception as exc:
             failed += 1
             logger.error("  [FAIL]  %s: %s", entity_name, exc)
 
     logger.info(
-        "Batch complete: %d written, %d skipped (unchanged), %d failed, %d macros generated",
-        written, skipped, failed, macros_generated,
+        "Batch complete: %d written, %d skipped (unchanged), %d failed",
+        written, skipped, failed,
     )
     return {
         "written": written,
         "skipped": skipped,
         "failed": failed,
-        "macros_generated": macros_generated,
     }
 
 
@@ -122,7 +92,7 @@ async def main() -> None:
 
     if not entities:
         logger.warning("Empty entity data — nothing to write")
-        print(json.dumps({"status": "ok", "total": 0, "written": 0, "skipped": 0, "failed": 0, "macros_generated": 0}))
+        print(json.dumps({"status": "ok", "total": 0, "written": 0, "skipped": 0, "failed": 0}))
         return
 
     from app.infrastructure.database.resource_manager import db_resource_manager

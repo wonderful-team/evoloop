@@ -8,15 +8,6 @@ from app.constants import DEFAULT_PROJECT_ID
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
-class SearchResult(DynamicBaseModel):
-    """Semantic search result for concepts."""
-
-    name: str
-    description: str
-    score: float
-    files: list[str] = Field(default_factory=list)
-
-
 class StorageHealthCheck(DynamicBaseModel):
     """Health check result for a memory storage backend."""
 
@@ -51,10 +42,19 @@ class Concept(DynamicBaseModel):
     """A semantic concept or knowledge entity extracted from the codebase or conversations."""
 
     name: str = Field(description="Unique name of the concept, technology, or pattern")
-    description: str = Field(description="Detailed description of what it is and how it is used")
-    project_id: int | None = Field(default=DEFAULT_PROJECT_ID, description="Associated project ID (DEFAULT_PROJECT_ID/0 for global)")
-    related_files: list[str] = Field(default_factory=list, description="List of file paths related to this concept")
-    source_thread_id: str | None = Field(default=None, description="Thread ID where this concept was discovered")
+    description: str = Field(
+        description="Detailed description of what it is and how it is used"
+    )
+    project_id: int | None = Field(
+        default=DEFAULT_PROJECT_ID,
+        description="Associated project ID (DEFAULT_PROJECT_ID/0 for global)",
+    )
+    related_files: list[str] = Field(
+        default_factory=list, description="List of file paths related to this concept"
+    )
+    source_thread_id: str | None = Field(
+        default=None, description="Thread ID where this concept was discovered"
+    )
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
 
@@ -64,7 +64,9 @@ class Episode(DynamicBaseModel):
     id: str | None = None
     goal: str = Field(description="What was the agent trying to achieve")
     result: str = Field(description="The outcome of the attempt")
-    plan_summary: str | None = Field(default=None, description="Summary of the plan used")
+    plan_summary: str | None = Field(
+        default=None, description="Summary of the plan used"
+    )
     error_msg: str | None = Field(default=None, description="Error message if failed")
     project_id: int | None = Field(default=DEFAULT_PROJECT_ID)
     source_message_id: str | None = Field(default=None)
@@ -77,7 +79,9 @@ class RetrievalContext(DynamicBaseModel):
 
     query: str
     recent_tools: list[str] = Field(default_factory=list)
-    already_surfaced: set[str] = Field(default_factory=set)  # Memory IDs already shown to user
+    already_surfaced: set[str] = Field(
+        default_factory=set
+    )  # Memory IDs already shown to user
     member_id: int | None = None
     project_id: int | None = None
 

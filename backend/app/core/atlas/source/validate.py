@@ -11,12 +11,8 @@ import os
 
 from sqlalchemy import or_, select
 
-from app.core.atlas.source.schemas import (
-    ACTION_KINDS,
-    RISK_TIERS,
-    SELECTOR_TYPES,
-    AppMapPayload,
-)
+from app.core.atlas.constants import ACTION_KINDS, RISK_TIERS, SELECTOR_TYPES
+from app.core.atlas.source.schemas import AppMapPayload
 from app.core.file import FileStatus, read_file
 from app.infrastructure.database import session_scope
 from app.models import CodeEntity, CodeRelation, Repository, SourceFile

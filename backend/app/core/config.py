@@ -7,7 +7,6 @@ from typing import Annotated, Any, Literal
 from pydantic import (
     AnyUrl,
     BeforeValidator,
-    EmailStr,
     Field,
     HttpUrl,
     PostgresDsn,
@@ -53,14 +52,6 @@ def _default_chrome_executable() -> str:
     return "/usr/bin/google-chrome"
 
 
-def _default_chrome_user_data() -> str:
-    if sys.platform == "darwin":
-        return os.path.expanduser("~/Library/Application Support/Google/Chrome")
-    elif sys.platform == "win32":
-        return os.path.expanduser("~\\AppData\\Local\\Google\\Chrome\\User Data")
-    return os.path.expanduser("~/.config/google-chrome")
-
-
 def _default_chrome_automation_data() -> str:
     if sys.platform == "darwin":
         return os.path.expanduser(
@@ -89,8 +80,6 @@ class Settings(BaseSettings):
     )
     API_V1_STR: str = "/api/v1"
     SECRET_KEY: str = secrets.token_urlsafe(32)
-    # 60 minutes * 24 hours * 8 days = 8 days
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8
     FRONTEND_HOST: str = "http://localhost:5173"
     ENVIRONMENT: Literal["local", "staging", "production"] = "local"
     # Execution Sandbox
@@ -114,12 +103,7 @@ class Settings(BaseSettings):
     # Memory System Settings
     # 记忆总开关：关闭时记忆系统整体停用（不读取、不写入、不暴露工具）。
     ENABLE_MEMORY: bool = False
-    AUTO_MEMORY_EXTRACTION: bool = (
-        False  # Enable automatic memory extraction at conversation end
-    )
-    AUTO_MEMORY_EXTRACTION_INTERVAL: int = (
-        1  # Extract every N turns (1 = every turn, 2 = every other turn, etc.)
-    )
+    AUTO_MEMORY_EXTRACTION_INTERVAL: int = 1  # Extract every N turns (1 = every turn, 2 = every other turn, etc.)
 
     # Macro Sedimentation Settings (auto-creation mechanism removed, kept for future redesign)
     AUTO_MACRO_CREATION_ENABLED: bool = (
@@ -209,28 +193,6 @@ class Settings(BaseSettings):
             )
         )
 
-    SMTP_TLS: bool = True
-    SMTP_SSL: bool = False
-    SMTP_PORT: int = 587
-    SMTP_HOST: str | None = None
-    SMTP_USER: str | None = None
-    SMTP_PASSWORD: str | None = None
-    EMAILS_FROM_EMAIL: EmailStr | None = None
-    EMAILS_FROM_NAME: str | None = None
-
-    @model_validator(mode="after")
-    def _set_default_emails_from(self) -> Self:
-        if not self.EMAILS_FROM_NAME:
-            self.EMAILS_FROM_NAME = self.SERVICE_NAME
-        return self
-
-    EMAIL_RESET_TOKEN_EXPIRE_HOURS: int = 48
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def emails_enabled(self) -> bool:
-        return bool(self.SMTP_HOST and self.EMAILS_FROM_EMAIL)
-
     # --- EvoLoop Configuration ---
     LOG_LEVEL: str = "INFO"
 
@@ -262,9 +224,7 @@ class Settings(BaseSettings):
     REDIS_MAX_CONNECTIONS: int = Field(120, validation_alias="REDIS_MAX_CONNECTIONS")
 
     # AI Models Storage Configuration
-    MODELS_DIR: Annotated[str | None, BeforeValidator(expand_path)] = (
-        None  # Directory for storing AI models (embeddings, etc.)
-    )
+    MODELS_DIR: Annotated[str | None, BeforeValidator(expand_path)] = None  # Directory for storing AI models (embeddings, etc.)
 
     # HuggingFace endpoint / mirror. Used by huggingface_hub and the bundled model
     # download helpers (e.g. bge-base-zh-v1.5 GGUF). Defaults to hf-mirror.com for
@@ -273,16 +233,8 @@ class Settings(BaseSettings):
 
     # Embedding Configuration
     EMBEDDING_DIMENSIONS: int = 768  # Nomic / Local Default
-    EMBEDDING_ENABLED: bool = (
-        False  # Disable local embeddings by default to avoid CPU overload
-    )
     # Lightning Channel default GGUF directory
     LIGHTNING_GGUF_DIR: str = Field(default="")
-
-    # Wiki Generation
-    WIKI_EXTRACT_CONCEPTS: bool = (
-        True  # Extract and store concepts from Wiki pages to Agent memory
-    )
 
     # Search Optimization
     ENABLE_QUERY_REWRITING: bool = True  # P1: Cross-Lingual Query Rewriting
@@ -297,17 +249,12 @@ class Settings(BaseSettings):
     ENABLE_ENVIRONMENT_CONTROLS: bool = False
 
     # Screenshot Configuration
-    ENABLE_PARTIAL_SCREENSHOT: bool = (
-        True  # True: Auto-capture current window region, False: Full screen only
-    )
+    ENABLE_PARTIAL_SCREENSHOT: bool = True  # True: Auto-capture current window region, False: Full screen only
 
     # --- Learning / Skill Synthesis Configuration ---
     # Maximum keyframes to extract for skill synthesis (multimodal learning)
     # Higher values = more context for LLM but higher token cost
     MAX_KEYFRAMES: int = 50
-
-    GOOGLE_API_KEY: str | None = None
-    BRAVE_API_KEY: str | None = None
 
     # Path Security
     ALLOWED_PATH_PREFIXES: list[str] = ["/tmp/dataset", "/tmp/evoloop"]
@@ -334,25 +281,19 @@ class Settings(BaseSettings):
         os.makedirs(path, exist_ok=True)
         return path
 
-    REFLECTIVE_DRIVER_TYPE: str = "active"
-
     # Browser Control (Native CDP)
     CHROME_CDP_URL: str = Field(
-        "http://localhost:9222", validation_alias="EVOLOOP_CHROME_CDP_URL"
+        "http://localhost:9222",
+        validation_alias="EVOLOOP_CHROME_CDP_URL"
     )
     CHROME_EXECUTABLE: str = Field(
         default_factory=_default_chrome_executable,
         validation_alias="EVOLOOP_CHROME_EXECUTABLE",
     )
-    CHROME_USER_DATA: Annotated[str, BeforeValidator(expand_path)] = Field(
-        default_factory=_default_chrome_user_data,
-        validation_alias="EVOLOOP_CHROME_USER_DATA",
-    )
     CHROME_AUTOMATION_USER_DATA: Annotated[str, BeforeValidator(expand_path)] = Field(
         default_factory=_default_chrome_automation_data,
         validation_alias="EVOLOOP_CHROME_AUTOMATION_USER_DATA",
     )
-    CHROME_PROFILE: str = Field("Default", validation_alias="EVOLOOP_CHROME_PROFILE")
     CHROME_STARTUP_TIMEOUT: int = Field(
         5, validation_alias="EVOLOOP_CHROME_STARTUP_TIMEOUT"
     )
@@ -395,15 +336,9 @@ class Settings(BaseSettings):
     MOBILE_SYNC_ENABLED: bool = Field(True, validation_alias="MOBILE_SYNC_ENABLED")
 
     # --- Deprecated Configuration (Phase 4 Cleanup) ---
-    USE_CLIENT_FOR_TOOLS: bool = (
-        False  # @deprecated: Will be replaced by dynamic transport selection
-    )
-    CLOUD_ONLY_MODE: bool = (
-        False  # @deprecated: Will be replaced by hybrid execution mode
-    )
-    CLIENT_CALLBACK_URL: str | None = (
-        None  # @deprecated: Managed by WebSocket handshake
-    )
+    USE_CLIENT_FOR_TOOLS: bool = False  # @deprecated: Will be replaced by dynamic transport selection
+    CLOUD_ONLY_MODE: bool = False  # @deprecated: Will be replaced by hybrid execution mode
+    CLIENT_CALLBACK_URL: str | None = None  # @deprecated: Managed by WebSocket handshake
     CLIENT_TOOL_TIMEOUT: float = 300.0  # Default timeout for client tool execution
 
     # Project Management
@@ -547,25 +482,10 @@ class Settings(BaseSettings):
 
     # Logic Limits
     MEMORY_SEARCH_LIMIT: int = 10
-    RESEARCH_MAX_ITERATIONS: int = 5
     TREE_VIEW_MAX_LINES: int = 1500
-    RECURSION_LIMIT: int = 100  # Default engine recursion limit
-
-    # --- RAG & Search Tunable Parameters ---
-    DEFAULT_SEARCH_TOP_K: int = 10
-    MAX_SEARCH_DEPTH: int = 3
-    MIN_RELEVANCE_SCORE: float = 0.6
-
-    # Chunking
-    DEFAULT_CHUNK_SIZE: int = 1000
-    MAX_CHUNK_SIZE: int = 4000
-    DEFAULT_CHUNK_OVERLAP: int = 200
 
     # Memory
-    MAX_SESSION_HISTORY: int = 20
     SESSION_IDLE_TIMEOUT: int = 1800  # 语音会话空闲超时（秒），超时自动关闭
-    MEMORY_RELEVANCE_THRESHOLD: float = 0.75
-    MAX_MEMORY_ITEMS: int = 1000
     MIN_MESSAGES_FOR_EXTRACTION: int = 4
     MAX_EXTRACTION_TURNS: int = 5
     MAX_MEMORY_SELECTIONS: int = 5
@@ -585,28 +505,6 @@ class Settings(BaseSettings):
 
     # Subagent（并行执行）：进程重启后 stale running/awaiting 收割阈值（秒）
     SUBAGENT_STALE_AFTER_SECONDS: int = 3600
-
-    # Long-horizon task limits (e.g. wiki generation, large codebase analysis)
-    LONG_HORIZON_SUPERVISOR_MAX_STEPS: int = 100
-    LONG_HORIZON_RECURSION_LIMIT: int = 250
-
-    # --- Protocol Dynamic Loading (Phase 1 Optimization) ---
-    # Feature flag for dynamic protocol loading - reduces Worker System Prompt size
-    DYNAMIC_PROTOCOL_LOADING: bool = Field(
-        default=False, validation_alias="DYNAMIC_PROTOCOL_LOADING"
-    )  # Set to True to enable dynamic protocol injection based on user intent
-
-    # Protocol matcher confidence threshold (0.0 - 1.0)
-    # Higher = more conservative, only inject protocols when strongly matched
-    PROTOCOL_MATCHER_THRESHOLD: float = Field(
-        default=0.7, validation_alias="PROTOCOL_MATCHER_THRESHOLD"
-    )
-
-    # Protocol loader cache TTL in seconds
-    PROTOCOL_LOADER_CACHE_TTL: int = Field(
-        default=300,  # 5 minutes
-        validation_alias="PROTOCOL_LOADER_CACHE_TTL",
-    )
 
     @computed_field  # type: ignore[prop-decorator]
     @property

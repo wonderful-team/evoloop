@@ -19,7 +19,9 @@ class IAtlasStore(ABC):
         pass
 
     @abstractmethod
-    async def get_app_summary(self, bundle_id: str, platform: str = "macos") -> AtlasAppSummary | None:
+    async def get_app_summary(
+        self, bundle_id: str, platform: str = "macos"
+    ) -> AtlasAppSummary | None:
         """
         Retrieve a summary of the application, including known states and elements.
         Used for LLM context generation.
@@ -27,14 +29,18 @@ class IAtlasStore(ABC):
         pass
 
     @abstractmethod
-    async def get_state_detail(self, bundle_id: str, state_id: str, platform: str = "macos") -> AtlasStateDetail | None:
+    async def get_state_detail(
+        self, bundle_id: str, state_id: str, platform: str = "macos"
+    ) -> AtlasStateDetail | None:
         """
         Retrieve detailed information about a specific UI state, including its elements.
         """
         pass
 
     @abstractmethod
-    async def get_transitions_summary(self, bundle_id: str, platform: str = "macos") -> list[dict[str, Any]]:
+    async def get_transitions_summary(
+        self, bundle_id: str, platform: str = "macos"
+    ) -> list[dict[str, Any]]:
         """
         Retrieve a summary of all transitions for an application.
         """

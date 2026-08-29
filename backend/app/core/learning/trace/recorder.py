@@ -22,12 +22,16 @@ class TraceRecorder:
         self.session_id = session_id
         self.traces: list[ActionTrace] = []
         self.is_recording = False
-        self.output_dir = os.path.join(settings.BROWSER_ARTIFACTS_DIR, "traces", session_id)
+        self.output_dir = os.path.join(
+            settings.BROWSER_ARTIFACTS_DIR, "traces", session_id
+        )
         ensure_dir(self.output_dir)
 
     def start(self):
         """Starts the recording session."""
-        logger.info(f"[TraceRecorder] Starting recording for session: {self.session_id}")
+        logger.info(
+            f"[TraceRecorder] Starting recording for session: {self.session_id}"
+        )
         self.is_recording = True
         self.traces = []
 
@@ -54,7 +58,9 @@ class TraceRecorder:
         screenshot_path = None
 
         if screenshot_data:
-            screenshot_path = os.path.join(self.output_dir, f"step_{len(self.traces)}_{int(timestamp)}.png")
+            screenshot_path = os.path.join(
+                self.output_dir, f"step_{len(self.traces)}_{int(timestamp)}.png"
+            )
             with open(screenshot_path, "wb") as f:
                 f.write(screenshot_data)
 
@@ -82,9 +88,10 @@ class TraceRecorder:
                     "platform": t.platform,
                     "parameters": t.parameters.model_dump(),
                     "context": t.context.model_dump(),
-                    "screenshot_path": t.screenshot_path
-                } for t in self.traces
-            ]
+                    "screenshot_path": t.screenshot_path,
+                }
+                for t in self.traces
+            ],
         }
 
         file_path = os.path.join(self.output_dir, "trace.json")
@@ -134,8 +141,10 @@ async def sync_thread_to_graph(
 
         # Improved result summary fallback (Outcome)
         has_real_result = result_summary and result_summary != "unknown"
-        episode_result = result_summary if has_real_result else (
-            f"Finished session with {len(events)} steps."
+        episode_result = (
+            result_summary
+            if has_real_result
+            else (f"Finished session with {len(events)} steps.")
         )
 
         from app.core.memory.lifespan import MemoryLifespanManager

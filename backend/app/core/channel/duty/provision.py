@@ -17,16 +17,17 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import select, text
 
 from app.core.channel.duty.config import (
-    BUSINESS_POLL_INTERVAL,
-    DUTY_INTERVAL,
     load_duty_config,
     load_global_duty_config,
     save_global_duty_config,
 )
-from app.core.channel.duty.scheduler import (
+from app.core.channel.duty.constants import (
+    BUSINESS_POLL_INTERVAL,
+    CHANNEL_KIND_MAP,
+    DUTY_INTERVAL,
     KIND_BUSINESS_POLL,
-    task_is_duty,
 )
+from app.core.channel.duty.scheduler import task_is_duty
 from app.infrastructure.database import session_scope
 from app.models.scheduler import AutonomousTask
 
@@ -34,6 +35,7 @@ logger = logging.getLogger(__name__)
 
 
 # ── 前置校验 ──────────────────────────────────────────────
+
 
 async def validate_global_duty() -> list[str]:
     """校验全局值守是否具备开启条件（渠道就绪检测），返回失败原因列表。
@@ -120,6 +122,7 @@ async def _mcp_server_ready(cfg: dict) -> bool:
 
 # ── 启动 ──────────────────────────────────────────────────
 
+
 async def start_project(project_id: int) -> dict:
     """开启某项目值守：校验 → 写配置 → upsert 企微/业务巡检两条 AutonomousTask。
 
@@ -136,6 +139,7 @@ async def start_project(project_id: int) -> dict:
 
 
 # ── 停止 ──────────────────────────────────────────────────
+
 
 async def stop_project(project_id: int) -> dict:
     """停止某项目值守：停调度 + 协作式切断 Agent + 还原配置。"""
@@ -197,6 +201,7 @@ async def resume_global() -> dict:
 
 # ── 内部实现 ──────────────────────────────────────────────
 
+
 async def _enable_project_config(project_id: int) -> None:
     """写项目 project.json 的 customer_service_duty.enabled=true（保留企微参数）。"""
     from app.core.project.utils import (
@@ -238,8 +243,6 @@ async def _upsert_tasks(project_id: int) -> None:
     （BUSINESS_POLL_INTERVAL 分钟，对齐 60s tick 粒度，真正的执行节奏由
     每条 prompt 的 interval_minutes 控制）。
     """
-    from app.core.channel.duty.scheduler import CHANNEL_KIND_MAP
-
     cfg = await load_duty_config(project_id)
     poll_interval = cfg.get("poll_interval", DUTY_INTERVAL)
     for channel_name in cfg.get("active_channels") or []:
@@ -317,11 +320,13 @@ async def _active_duty_project_ids() -> list[int]:
             AutonomousTask.project_id.isnot(None),
         )
         tasks = (await session.execute(stmt)).scalars().all()
-        return list({
-            t.project_id
-            for t in tasks
-            if t.project_id is not None and task_is_duty(t.params_template)
-        })
+        return list(
+            {
+                t.project_id
+                for t in tasks
+                if t.project_id is not None and task_is_duty(t.params_template)
+            }
+        )
 
 
 async def _cancel_running_agents(project_id: int) -> None:
@@ -355,7 +360,9 @@ async def _cancel_running_agents(project_id: int) -> None:
         while asyncio.get_event_loop().time() < deadline:
             status = await _thread_status(tid)
             if status in _TERMINAL:
-                logger.info("[wecom_provision] Agent thread %s 已停止 (status=%s)", tid, status)
+                logger.info(
+                    "[wecom_provision] Agent thread %s 已停止 (status=%s)", tid, status
+                )
                 break
             await asyncio.sleep(0.5)
         else:
@@ -375,7 +382,9 @@ async def _duty_thread_ids(project_id: int) -> list[str]:
     """查该项目的值守 thread_id（duty_{project}_%）。"""
     async with session_scope() as session:
         rows = await session.execute(
-            text("SELECT DISTINCT thread_id FROM messages WHERE thread_id LIKE :prefix"),
+            text(
+                "SELECT DISTINCT thread_id FROM messages WHERE thread_id LIKE :prefix"
+            ),
             {"prefix": f"duty_{project_id}_%"},
         )
         return [r[0] for r in rows.all()]

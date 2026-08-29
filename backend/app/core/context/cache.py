@@ -18,6 +18,7 @@ from typing import Any
 from pydantic import Field
 
 from app.constants import DEFAULT_PROJECT_ID
+from app.core.context import constants as context_constants
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils.time import elapsed_ms
 
@@ -71,8 +72,8 @@ class LayeredContextCache:
         "dynamic_loads": 0,
     }
 
-    # TTL configuration (seconds)
-    STATIC_TTL = 300  # 5 minutes for static data
+    # Static cache: session_id -> StaticContextLayer
+    _static_cache: dict[str, StaticContextLayer] = {}
 
     @classmethod
     async def get_static_layer(
@@ -97,7 +98,7 @@ class LayeredContextCache:
         # Check cache
         if cache_key in cls._static_cache:
             cached = cls._static_cache[cache_key]
-            if cached.is_valid(cls.STATIC_TTL):
+            if cached.is_valid(context_constants.STATIC_TTL):
                 cls._stats["static_hits"] += 1
                 logger.debug(f"[ContextCache] ✓ Static layer hit: {cache_key[:20]}...")
                 return cached
@@ -141,7 +142,9 @@ class LayeredContextCache:
             ]
             for key in keys_to_remove:
                 del cls._static_cache[key]
-            logger.info(f"[ContextCache] Invalidated {len(keys_to_remove)} entries for project {project_id}")
+            logger.info(
+                f"[ContextCache] Invalidated {len(keys_to_remove)} entries for project {project_id}"
+            )
         elif session_id:
             # Invalidate specific session
             keys_to_remove = [
@@ -162,5 +165,6 @@ class LayeredContextCache:
             "static_hit_rate": f"{hit_rate:.1%}",
             "dynamic_loads": cls._stats["dynamic_loads"],
             "cache_entries": len(cls._static_cache),
-            "estimated_time_saved_ms": cls._stats["static_hits"] * 200,  # Approx 200ms per hit
+            "estimated_time_saved_ms": cls._stats["static_hits"]
+            * 200,  # Approx 200ms per hit
         }

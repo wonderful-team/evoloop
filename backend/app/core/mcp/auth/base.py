@@ -12,7 +12,6 @@ class AuthMethod(str, Enum):
     API_KEY = "api_key"
     OAUTH_AUTH_CODE = "oauth_authorization_code"
     OAUTH_DEVICE_CODE = "oauth_device_code"
-    OAUTH_CLIENT_CREDENTIALS = "oauth_client_credentials"
 
 
 class AuthHandler(ABC):

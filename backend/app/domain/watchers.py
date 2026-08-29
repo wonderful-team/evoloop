@@ -84,11 +84,16 @@ class GlobalObserverManager:
 
             try:
                 # Schedule via watchdog
-                watch = self._observer.schedule(event_handler, path, recursive=recursive)
+                watch = self._observer.schedule(
+                    event_handler, path, recursive=recursive
+                )
                 self._watches[path] = watch
             except RuntimeError as re:
                 if "already scheduled" in str(re):
-                    logger.warning(f"Watch already scheduled for {path}. Skipping/Ignoring.", exc_info=True)
+                    logger.warning(
+                        f"Watch already scheduled for {path}. Skipping/Ignoring.",
+                        exc_info=True,
+                    )
                 else:
                     raise re
             except Exception as e:
@@ -123,7 +128,12 @@ class IndexingEventSubscriber(FileSystemEventHandler):
     and performs the actual indexing operations.
     """
 
-    def __init__(self, repo_id: int, loop: asyncio.AbstractEventLoop, repo_path: str | None = None):
+    def __init__(
+        self,
+        repo_id: int,
+        loop: asyncio.AbstractEventLoop,
+        repo_path: str | None = None,
+    ):
         self.repo_id = repo_id
         self.loop = loop
         self._repo_path = repo_path
@@ -164,7 +174,9 @@ class IndexingEventSubscriber(FileSystemEventHandler):
             return False
 
         # 3. Check .gitignore rules (if a matcher is available)
-        if self._gitignore_matcher and self._gitignore_matcher.should_ignore(path, is_dir=False):
+        if self._gitignore_matcher and self._gitignore_matcher.should_ignore(
+            path, is_dir=False
+        ):
             return False
 
         return True
@@ -206,7 +218,9 @@ class IndexingEventSubscriber(FileSystemEventHandler):
             # Publish event to system bus instead of directly calling service
             from app.domain.codebase.event.publishers import publish_file_removed
 
-            asyncio.run_coroutine_threadsafe(publish_file_removed(repo_id=self.repo_id, file_path=path), self.loop)
+            asyncio.run_coroutine_threadsafe(
+                publish_file_removed(repo_id=self.repo_id, file_path=path), self.loop
+            )
 
     def _process_move(self, src: str, dest: str):
         """Publish FileMovedEvent or FileRemovedEvent to the event bus."""

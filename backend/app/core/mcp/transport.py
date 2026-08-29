@@ -32,7 +32,11 @@ class _LooseServerNotification(RootModel[Any]):
     @property
     def method(self) -> str | None:
         root = self.root
-        return root.get("method") if isinstance(root, dict) else getattr(root, "method", None)
+        return (
+            root.get("method")
+            if isinstance(root, dict)
+            else getattr(root, "method", None)
+        )
 
 
 def _patch_receive_notification_type() -> None:
@@ -91,7 +95,9 @@ class TransportContext:
         self._cm: Any = None
 
     async def __aenter__(self) -> tuple[Any, Any]:
-        if self._config.transport == TransportType.SSE or is_sse_url(self._config.command):
+        if self._config.transport == TransportType.SSE or is_sse_url(
+            self._config.command
+        ):
             url = self._config.url or self._config.command
             logger.info(f"Connecting via SSE to {url}")
             self._cm = sse_client(url, headers=self._config.headers)
@@ -172,7 +178,9 @@ class McpTransport:
         """
         _patch_receive_notification_type()
 
-        session = ClientSession(read_stream, write_stream, message_handler=message_handler)
+        session = ClientSession(
+            read_stream, write_stream, message_handler=message_handler
+        )
         await session.__aenter__()
         try:
             if timeout is not None:

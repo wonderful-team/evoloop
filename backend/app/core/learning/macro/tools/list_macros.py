@@ -52,7 +52,9 @@ async def list_macros(
     if macro_id is not None:
         macro = await load_macro(macro_id)
         if macro is None or not macro.is_active or macro.status != "verified":
-            return ControllerResponse.success(f"Macro #{macro_id} not found or inactive.")
+            return ControllerResponse.success(
+                f"Macro #{macro_id} not found or inactive."
+            )
         macros = [macro]
     else:
         macros = await list_macros_dao(
@@ -85,7 +87,7 @@ async def list_macros(
             p_desc = p.get("description") or ""
             p_type = p.get("type") or ""
             p_req = "必填" if p.get("required") else "可选"
-            lines.append(f'    - {p["name"]} ({p_type}, {p_req}): {p_desc}')
+            lines.append(f"    - {p['name']} ({p_type}, {p_req}): {p_desc}")
     lines.append(
         "Hint: Check the [params:] field above. If the macro needs parameters, "
         "gather them all first (from user or context), then call "

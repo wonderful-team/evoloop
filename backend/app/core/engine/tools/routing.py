@@ -94,9 +94,7 @@ def route_to(
     context_str = json.dumps(context_dict, ensure_ascii=False)
     skill_info = f" | Skill IDs: {skill_ids}" if skill_ids else ""
     subtask_info = (
-        f" | Subtasks: {json.dumps(subtasks, ensure_ascii=False)}"
-        if subtasks
-        else ""
+        f" | Subtasks: {json.dumps(subtasks, ensure_ascii=False)}" if subtasks else ""
     )
     session_info = f" | Session Goal: {session_goal}" if session_goal else ""
 

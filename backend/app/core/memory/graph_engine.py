@@ -2,6 +2,7 @@
 
 import logging
 
+from app.core.memory.constants import DEFAULT_SEARCH_LIMIT
 from app.core.memory.schemas import CheckpointDedupResult, StorageHealthCheck
 
 logger = logging.getLogger(__name__)
@@ -41,16 +42,22 @@ class _GraphEngine:
     async def get_multi(self, entry_ids: list) -> dict:
         return {}
 
-    async def search_similar(self, query_embedding: list, top_k: int = 10, project_id=None) -> list:
+    async def search_similar(
+        self, query_embedding: list, top_k: int = DEFAULT_SEARCH_LIMIT, project_id=None
+    ) -> list:
         return []
 
-    async def get_related(self, entry_id: str, relation_type=None, limit: int = 10) -> list:
+    async def get_related(
+        self, entry_id: str, relation_type=None, limit: int = DEFAULT_SEARCH_LIMIT
+    ) -> list:
         return []
 
     async def link_concept_to_episode(self, concept_name: str, episode_id: str) -> None:
         pass
 
-    async def find_episodes_by_concept(self, concept_name: str, limit: int = 10) -> list:
+    async def find_episodes_by_concept(
+        self, concept_name: str, limit: int = DEFAULT_SEARCH_LIMIT
+    ) -> list:
         return []
 
     async def get_all_concept_counts(self) -> dict:

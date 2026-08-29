@@ -14,6 +14,13 @@ from app.core.engine.message.native_classes import RunnableConfig
 from app.core.file import generate_tree as core_generate_tree
 from app.core.file import get_file_info
 from app.core.file import list_directory as core_list_directory
+from app.core.file.constants import (
+    BYTES_PER_GB,
+    BYTES_PER_KB,
+    BYTES_PER_MB,
+    DEFAULT_MAX_ENTRIES,
+    FILE_TREE_FILE_LIMIT,
+)
 from app.core.project.utils import get_workspace_root
 from app.core.tools import evoloop_tool
 from app.core.tools.base import InjectedToolArg
@@ -25,17 +32,17 @@ logger = logging.getLogger(__name__)
 
 def _format_size(size: int) -> str:
     """Format file size in human-readable form."""
-    if size < 1024:
+    if size < BYTES_PER_KB:
         return f"{size}B"
-    elif size < 1024 * 1024:
-        return f"{size / 1024:.1f}K"
-    elif size < 1024 * 1024 * 1024:
-        return f"{size / (1024 * 1024):.1f}M"
+    elif size < BYTES_PER_MB:
+        return f"{size / BYTES_PER_KB:.1f}K"
+    elif size < BYTES_PER_GB:
+        return f"{size / BYTES_PER_MB:.1f}M"
     else:
-        return f"{size / (1024 * 1024 * 1024):.1f}G"
+        return f"{size / BYTES_PER_GB:.1f}G"
 
 
-def _get_line_count(file_path: str, max_size: int = 1024 * 1024) -> int | None:
+def _get_line_count(file_path: str, max_size: int = BYTES_PER_MB) -> int | None:
     """Return line count for files under max_size, else None."""
     try:
         info = get_file_info(file_path)
@@ -54,7 +61,7 @@ async def handle_list(
     filter_pattern: str | None = None,
     stats: bool = True,
     with_symbols: bool = False,
-    max_entries: int = 200,
+    max_entries: int = DEFAULT_MAX_ENTRIES,
     config: RunnableConfig | None = None,
 ) -> str:
     """Handle file listing operations using core.file module."""
@@ -68,10 +75,18 @@ async def handle_list(
 
     if not tree:
         # Simple flat listing using core.file
-        entries = list(core_list_directory(target_path, recursive=False, filter_pattern=filter_pattern))
+        entries = list(
+            core_list_directory(
+                target_path, recursive=False, filter_pattern=filter_pattern
+            )
+        )
         # In flat mode with filter, only show directories whose names also match the filter
         if filter_pattern:
-            entries = [e for e in entries if not e.is_dir or fnmatch.fnmatch(e.name, filter_pattern)]
+            entries = [
+                e
+                for e in entries
+                if not e.is_dir or fnmatch.fnmatch(e.name, filter_pattern)
+            ]
         lines = []
         for e in entries:
             if e.is_dir:
@@ -114,10 +129,12 @@ async def handle_list(
                     target_path,
                     max_depth=max_depth,
                     with_symbols=True,
-                    file_limit=50,
+                    file_limit=FILE_TREE_FILE_LIMIT,
                 )
                 tree_output = await generator.generate()
-                tree_count = len([line for line in tree_output.splitlines() if line.strip()])
+                tree_count = len(
+                    [line for line in tree_output.splitlines() if line.strip()]
+                )
                 return tree_output, {"count": tree_count, "recursive": True}
             except Exception as e:
                 return f"Error generating annotated tree: {e}"
@@ -129,7 +146,9 @@ async def handle_list(
                 max_entries=max_entries,
                 with_stats=stats,
             )
-            tree_count = len([line for line in tree_output.splitlines() if line.strip()])
+            tree_count = len(
+                [line for line in tree_output.splitlines() if line.strip()]
+            )
             return tree_output, {"count": tree_count, "recursive": max_depth > 1}
 
 
@@ -144,7 +163,7 @@ async def list_dir(
     filter: str | None = None,
     stats: bool = True,
     with_symbols: bool = False,
-    max_entries: int = 200,
+    max_entries: int = DEFAULT_MAX_ENTRIES,
     config: Annotated[RunnableConfig, InjectedToolArg] = None,
     mode: str | None = None,
 ) -> str:

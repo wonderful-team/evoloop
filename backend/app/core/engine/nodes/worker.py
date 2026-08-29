@@ -29,7 +29,9 @@ class WorkerNode(BaseAgentNode):
     def __init__(self):
         super().__init__(node_name="Worker", max_steps=settings.WORKER_AGENT_MAX_STEPS)
 
-    async def prepare_state(self, state: AgentState, config: dict) -> StateUpdate | None:
+    async def prepare_state(
+        self, state: AgentState, config: dict
+    ) -> StateUpdate | None:
         execution_ticket = state.ticket
         if not execution_ticket:
             raise ValueError("[WorkerNode] ExecutionTicket is missing.")
@@ -77,11 +79,15 @@ class WorkerNode(BaseAgentNode):
                             f"[Worker] Loaded plan from DB: {plan_dict['title']} ({len(plan_dict['steps'])} steps)"
                         )
                 except (ImportError, SQLAlchemyError) as e:
-                    logger.warning(f"[Worker] Failed to load plan from DB: {e}", exc_info=True)
+                    logger.warning(
+                        f"[Worker] Failed to load plan from DB: {e}", exc_info=True
+                    )
 
         return None
 
-    async def build_prompt_pair(self, state: AgentState, config: dict) -> tuple[str, str]:
+    async def build_prompt_pair(
+        self, state: AgentState, config: dict
+    ) -> tuple[str, str]:
         execution_ticket = state.ticket
         agent_config = execution_ticket.agent_config if execution_ticket else None
         blackboard = state
@@ -103,7 +109,10 @@ class WorkerNode(BaseAgentNode):
         static_system_prompt = await prompt_builder.build(config)
 
         from app.core.engine.nodes.utils.node_utils import get_mapped_cwd
-        actual_cwd = get_mapped_cwd(ctx.working_directory or ctx.metadata.get("cwd", ""))
+
+        actual_cwd = get_mapped_cwd(
+            ctx.working_directory or ctx.metadata.get("cwd", "")
+        )
 
         from app.core.environment import get_telemetry_dict
 
@@ -151,15 +160,13 @@ class WorkerNode(BaseAgentNode):
         return result
 
     async def _build_fallback_outcome(
-        self,
-        original_state: AgentState,
-        engine_result: EngineResult,
-        config: dict
+        self, original_state: AgentState, engine_result: EngineResult, config: dict
     ) -> StateUpdate:
         execution_ticket = original_state.ticket
         role_name = (
             execution_ticket.agent_config.role_name
-            if execution_ticket and execution_ticket.agent_config else "Worker"
+            if execution_ticket and execution_ticket.agent_config
+            else "Worker"
         )
         result = await process_worker_result(
             self.node_name,
@@ -187,7 +194,9 @@ class WorkerNode(BaseAgentNode):
             )
 
         skill_ids = execution_ticket.skill_ids or [] if execution_ticket else []
-        workflow_mode = execution_ticket.workflow_mode or "single" if execution_ticket else "single"
+        workflow_mode = (
+            execution_ticket.workflow_mode or "single" if execution_ticket else "single"
+        )
         is_multi_skill_workflow = workflow_mode == "sequential" and len(skill_ids) > 1
 
         if skill_ids:
@@ -201,7 +210,8 @@ class WorkerNode(BaseAgentNode):
         thread_id = config.get("configurable", {}).get("thread_id", "unknown")
         role_name = (
             execution_ticket.agent_config.role_name
-            if execution_ticket and execution_ticket.agent_config else "Worker"
+            if execution_ticket and execution_ticket.agent_config
+            else "Worker"
         )
         task_label = role_name
         if execution_ticket and execution_ticket.topic:
@@ -222,7 +232,8 @@ class WorkerNode(BaseAgentNode):
                 }
                 for sop in relevant_sops
                 if hasattr(sop, "id")
-            ] or None
+            ]
+            or None,
         )
 
         if is_multi_skill_workflow:
@@ -231,7 +242,9 @@ class WorkerNode(BaseAgentNode):
 
             return StateUpdate(
                 messages=[
-                    AIMessage(content=f"Starting sequential workflow with {len(skill_ids)} skills.")
+                    AIMessage(
+                        content=f"Starting sequential workflow with {len(skill_ids)} skills."
+                    )
                 ],
                 next_node=RoutingTarget.SEQUENTIAL_WORKFLOW,
                 workflow_plan=relevant_sops,
@@ -240,7 +253,9 @@ class WorkerNode(BaseAgentNode):
             )
 
         is_resuming = execution_ticket.is_resuming if execution_ticket else False
-        filtered_messages = self._build_worker_view(state.messages, is_resuming=is_resuming)
+        filtered_messages = self._build_worker_view(
+            state.messages, is_resuming=is_resuming
+        )
         if len(filtered_messages) < len(state.messages):
             logger.info(
                 f"[Worker] Message view built: {len(state.messages)} -> {len(filtered_messages)} msgs"

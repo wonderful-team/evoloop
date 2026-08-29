@@ -58,7 +58,9 @@ class SequenceService:
             from app.models import ThreadSequence
 
             row = await session.execute(
-                select(ThreadSequence.next_seq).where(ThreadSequence.thread_id == thread_id)
+                select(ThreadSequence.next_seq).where(
+                    ThreadSequence.thread_id == thread_id
+                )
             )
             seq = row.scalar() or 1
 
@@ -80,4 +82,6 @@ class SequenceService:
                 """
             )
             await session.execute(stmt, {"thread_id": thread_id, "next_seq": next_seq})
-            logger.info(f"[SequenceService] Manually set next_seq for {thread_id} to {next_seq}")
+            logger.info(
+                f"[SequenceService] Manually set next_seq for {thread_id} to {next_seq}"
+            )

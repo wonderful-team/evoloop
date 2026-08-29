@@ -115,7 +115,9 @@ class PersistentTerminal(BaseModel):
                     break
             else:
                 break
-        logger.debug(f"[PTY][{self.session_id}] Shell started (PID: {self._proc.pid}) at {self.cwd}")
+        logger.debug(
+            f"[PTY][{self.session_id}] Shell started (PID: {self._proc.pid}) at {self.cwd}"
+        )
 
     def run_command(
         self,
@@ -203,7 +205,9 @@ class PersistentTerminal(BaseModel):
                     exit_code_str = line[len(marker) :].strip()
                     exit_code = int(exit_code_str)
                 except ValueError:
-                    logger.exception(f"[PTY][{self.session_id}] Failed to parse exit code from: {line[:100]}")
+                    logger.exception(
+                        f"[PTY][{self.session_id}] Failed to parse exit code from: {line[:100]}"
+                    )
                     exit_code = -1
                 break
 
@@ -299,7 +303,9 @@ class TerminalSession(BaseModel):
 
     def get_pty(self, session_id: str) -> PersistentTerminal:
         if not self.pty:
-            self.pty = PersistentTerminal(session_id=session_id, cwd=self.cwd, env=self.env)
+            self.pty = PersistentTerminal(
+                session_id=session_id, cwd=self.cwd, env=self.env
+            )
         return self.pty
 
 
@@ -328,7 +334,11 @@ class TerminalManager:
             session = cls._sessions[key]
             if session.cwd != current_cwd:
                 session.cwd = current_cwd
-                if session.pty and session.pty._proc and session.pty._proc.poll() is None:
+                if (
+                    session.pty
+                    and session.pty._proc
+                    and session.pty._proc.poll() is None
+                ):
                     try:
                         os.write(session.pty._master_fd, f"cd {current_cwd}\n".encode())
                         session.pty.cwd = current_cwd
@@ -370,20 +380,15 @@ class TerminalManager:
         command = command.strip()
         try:
             with session._lock:
-                stdout, exit_code = pty_sess.run_command(command, timeout=timeout, on_output=on_output)
+                stdout, exit_code = pty_sess.run_command(
+                    command, timeout=timeout, on_output=on_output
+                )
                 # Sync session level CWD
                 session.cwd = pty_sess.cwd
             return stdout, "", exit_code
         except Exception as e:
             logger.exception(f"[TerminalManager][{key}] System Error")
             return "", str(e), 1
-
-    @classmethod
-    def teardown_all(cls):
-        for session in cls._sessions.values():
-            if session.pty:
-                session.pty.teardown()
-        cls._sessions.clear()
 
 
 # Global Accessor

@@ -31,7 +31,10 @@ async def build_ctx(
     """加载（或新建）thread 的 EvoContext，并用 inputs 刷新关键字段。"""
     loaded_ctx = await ContextManager.load(thread_id)
     project_id = inputs.project_id or DEFAULT_PROJECT_ID
-    working_dir = inputs.working_directory or thread_context_store.get_working_directory(thread_id)
+    working_dir = (
+        inputs.working_directory
+        or thread_context_store.get_working_directory(thread_id)
+    )
 
     if loaded_ctx is None:
         ctx = EvoContext(
@@ -118,7 +121,9 @@ def build_execution_config(
         if lightning_model:
             config["configurable"]["lightning_model"] = lightning_model
             config["configurable"]["lightning_base_url"] = lightning_base
-            config["configurable"]["lightning_api_key"] = SystemConfigService.get_value("LIGHTNING_API_KEY", "")
+            config["configurable"]["lightning_api_key"] = SystemConfigService.get_value(
+                "LIGHTNING_API_KEY", ""
+            )
             config["configurable"]["lightning_ctx"] = lightning_ctx
             config["configurable"]["worker_model"] = model
 
@@ -152,8 +157,12 @@ async def build_agent_state(
             result = await db.execute(stmt)
             db_messages = result.scalars().all()
             if db_messages and len(db_messages) > len(current_messages):
-                slice_idx = -len(current_messages) if len(current_messages) > 0 else None
-                history_db_messages = db_messages[:slice_idx] if slice_idx is not None else db_messages
+                slice_idx = (
+                    -len(current_messages) if len(current_messages) > 0 else None
+                )
+                history_db_messages = (
+                    db_messages[:slice_idx] if slice_idx is not None else db_messages
+                )
                 history_dicts = []
                 for m in history_db_messages:
                     d = {"role": m.role, "content": m.content or ""}
@@ -162,7 +171,10 @@ async def build_agent_state(
                     elif m.role in ("ai", "assistant"):
                         d["role"] = "assistant"
                         if getattr(m, "thinking", None):
-                            d["additional_kwargs"] = {"thinking": m.thinking, "reasoning_content": m.thinking}
+                            d["additional_kwargs"] = {
+                                "thinking": m.thinking,
+                                "reasoning_content": m.thinking,
+                            }
                         if getattr(m, "tool_calls", None):
                             d["tool_calls"] = m.tool_calls
                     elif m.role == "tool":
@@ -171,8 +183,14 @@ async def build_agent_state(
                         d["name"] = m.tool_name
                     history_dicts.append(d)
                 if history_dicts:
-                    current_messages = EvoMessageConverter.repair(history_dicts) + current_messages
-                logger.info("loaded %d history msgs for thread %s", len(history_dicts), thread_id)
+                    current_messages = (
+                        EvoMessageConverter.repair(history_dicts) + current_messages
+                    )
+                logger.info(
+                    "loaded %d history msgs for thread %s",
+                    len(history_dicts),
+                    thread_id,
+                )
     except Exception as e:
         logger.debug("history load skipped: %s", e)
 

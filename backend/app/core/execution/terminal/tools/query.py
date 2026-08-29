@@ -7,6 +7,10 @@ from typing import Annotated
 
 from app.core.engine.message.native_classes import RunnableConfig
 from app.core.execution.terminal.background import TaskStatus, task_manager
+from app.core.execution.constants import (
+    DEFAULT_OUTPUT_LINES,
+    MAX_QUERY_OUTPUT_LINES,
+)
 from app.core.tools import evoloop_tool
 from app.core.tools.base import InjectedToolArg
 
@@ -20,7 +24,7 @@ logger = logging.getLogger(__name__)
 async def query_command_status(
     task_id: str,
     include_output: bool = True,
-    output_lines: int = 50,
+    output_lines: int = DEFAULT_OUTPUT_LINES,
     config: Annotated[RunnableConfig, InjectedToolArg] = None,  # noqa: ARG001
 ) -> str:
     task = task_manager.get_task(task_id)
@@ -58,7 +62,7 @@ async def query_command_status(
     lines.append("")
 
     if include_output and task.output_buffer:
-        n = min(output_lines, 200)
+        n = min(output_lines, MAX_QUERY_OUTPUT_LINES)
         output = task.get_recent_output(n)
         lines.append(f"最近输出（最后{n}行）:")
         lines.append("```")
@@ -77,7 +81,9 @@ async def query_command_status(
     elif task.status == TaskStatus.TIMEOUT:
         lines.append("Task timeout")
     elif task.status == TaskStatus.RUNNING:
-        lines.append("Note: Task is still running, query again in 10 seconds for latest status")
+        lines.append(
+            "Note: Task is still running, query again in 10 seconds for latest status"
+        )
 
     return "\n".join(lines)
 

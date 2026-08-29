@@ -10,7 +10,9 @@ logger = logging.getLogger(__name__)
 
 
 @shared_task(name="native_macro_maintenance")
-async def native_macro_maintenance_task(apps: list[tuple[str, str]] | None = None) -> list[dict]:
+async def native_macro_maintenance_task(
+    apps: list[tuple[str, str]] | None = None,
+) -> list[dict]:
     """Resurvey -> regenerate (replace) -> reindex for the configured apps.
 
     Triggered explicitly (maintenance API / frontend entry) — never

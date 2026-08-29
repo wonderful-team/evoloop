@@ -263,7 +263,9 @@ async def delete_skill(
                 shutil.rmtree(path)
                 logger.info(f"Deleted skill resources at: {path}")
         except Exception:
-            logger.exception(f"Failed to delete skill resources at {skill.resource_path}")
+            logger.exception(
+                f"Failed to delete skill resources at {skill.resource_path}"
+            )
 
     await db.delete(skill)
     await db.flush()

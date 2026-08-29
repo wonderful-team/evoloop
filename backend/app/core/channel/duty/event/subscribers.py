@@ -31,4 +31,6 @@ class DutyChannelLifecycleSubscriber:
             else:
                 logger.debug("[Duty] wecom_duty 输出渠道已存在，跳过")
         except Exception as e:
-            logger.warning(f"[Duty] wecom_duty 渠道注册失败 (非关键): {e}", exc_info=True)
+            logger.warning(
+                f"[Duty] wecom_duty 渠道注册失败 (非关键): {e}", exc_info=True
+            )

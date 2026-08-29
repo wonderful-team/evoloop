@@ -38,4 +38,6 @@ async def get_entity_groups(project_id: int, project_path: str | None = None) ->
     if repo_id is None:
         return {}
     async with session_scope() as db:
-        return await EntityGrouper(project_path=project_path).get_entity_groups(repo_id, db)
+        return await EntityGrouper(project_path=project_path).get_entity_groups(
+            repo_id, db
+        )

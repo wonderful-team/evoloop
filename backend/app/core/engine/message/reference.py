@@ -48,112 +48,136 @@ class ReferenceService:
 
             # 1. Message References
             if att_type == "message":
-                snippet, note = await self._handle_message_reference(att_id, att_name, session)
+                snippet, note = await self._handle_message_reference(
+                    att_id, att_name, session
+                )
                 if snippet:
-                    quotes_data.append({
-                        "type": "Message",
-                        "name": att_name,
-                        "content": snippet
-                    })
+                    quotes_data.append(
+                        {"type": "Message", "name": att_name, "content": snippet}
+                    )
                 if note:
                     reference_notes.append(note)
 
                 # 为数据库持久化记录引用
-                references.append({
-                    "id": gen_uuid(),
-                    "type": "message",
-                    "target_id": att_id,
-                    "target_name": att_name,
-                    "metadata": {"snippet": snippet}
-                })
+                references.append(
+                    {
+                        "id": gen_uuid(),
+                        "type": "message",
+                        "target_id": att_id,
+                        "target_name": att_name,
+                        "metadata": {"snippet": snippet},
+                    }
+                )
 
             # 2. File References
             elif att_type == "file":
-                content, note = await self._handle_file_reference(att_id, att_name, root_path)
+                content, note = await self._handle_file_reference(
+                    att_id, att_name, root_path
+                )
                 if content:
-                    quotes_data.append({
-                        "type": "File",
-                        "name": att_name,
-                        "content": content
-                    })
+                    quotes_data.append(
+                        {"type": "File", "name": att_name, "content": content}
+                    )
                 if note:
                     reference_notes.append(note)
 
                 # 保留原始 source_path，target_id 保持为可直接访问的 raw URL
-                source_path = att.get("source_path") or att.get("metadata", {}).get("source_path") or att_id
+                source_path = (
+                    att.get("source_path")
+                    or att.get("metadata", {}).get("source_path")
+                    or att_id
+                )
                 if source_path.startswith(("http", "/api/", "file://")):
                     target_id = source_path
                 else:
-                    target_id = f"/api/v1/files/raw?project_id={project_id}&path={source_path}"
+                    target_id = (
+                        f"/api/v1/files/raw?project_id={project_id}&path={source_path}"
+                    )
 
                 # 为数据库持久化记录引用
-                references.append({
-                    "id": gen_uuid(),
-                    "type": "file",
-                    "target_id": target_id,
-                    "target_name": att_name,
-                    "metadata": {
-                        "filename": att_name,
-                        "source_path": source_path,
-                    },
-                })
+                references.append(
+                    {
+                        "id": gen_uuid(),
+                        "type": "file",
+                        "target_id": target_id,
+                        "target_name": att_name,
+                        "metadata": {
+                            "filename": att_name,
+                            "source_path": source_path,
+                        },
+                    }
+                )
 
             # 2.5 Directory References
             elif att_type in ("directory", "dir"):
-                content, note = await self._handle_directory_reference(att_id, att_name, root_path)
+                content, note = await self._handle_directory_reference(
+                    att_id, att_name, root_path
+                )
                 if content:
-                    quotes_data.append({"type": "Directory", "name": att_name, "content": content})
+                    quotes_data.append(
+                        {"type": "Directory", "name": att_name, "content": content}
+                    )
                 if note:
                     reference_notes.append(note)
 
                 # 保留原始 source_path
-                source_path = att.get("source_path") or att.get("metadata", {}).get("source_path") or att_id
+                source_path = (
+                    att.get("source_path")
+                    or att.get("metadata", {}).get("source_path")
+                    or att_id
+                )
                 if source_path.startswith(("http", "/api/", "file://")):
                     target_id = source_path
                 else:
-                    target_id = f"/api/v1/files/raw?project_id={project_id}&path={source_path}"
+                    target_id = (
+                        f"/api/v1/files/raw?project_id={project_id}&path={source_path}"
+                    )
 
                 # 为数据库持久化记录引用
-                references.append({
-                    "id": gen_uuid(),
-                    "type": "directory",
-                    "target_id": target_id,
-                    "target_name": att_name,
-                    "metadata": {
-                        "filename": att_name,
-                        "source_path": source_path,
-                    },
-                })
+                references.append(
+                    {
+                        "id": gen_uuid(),
+                        "type": "directory",
+                        "target_id": target_id,
+                        "target_name": att_name,
+                        "metadata": {
+                            "filename": att_name,
+                            "source_path": source_path,
+                        },
+                    }
+                )
 
             # 3. Direct Image References
             elif att_type == "image":
-                content_blocks.append({
-                    "type": "image_url",
-                    "image_url": {"url": att_id}
-                })
+                content_blocks.append(
+                    {"type": "image_url", "image_url": {"url": att_id}}
+                )
                 reference_notes.append(f"Image Reference: {att_name} (Path: {att_id})")
-                references.append({
-                    "id": gen_uuid(),
-                    "type": "image",
-                    "target_id": att_id,
-                    "target_name": att_name,
-                    "metadata": {"filename": att_name}
-                })
+                references.append(
+                    {
+                        "id": gen_uuid(),
+                        "type": "image",
+                        "target_id": att_id,
+                        "target_name": att_name,
+                        "metadata": {"filename": att_name},
+                    }
+                )
 
             # 4. Audio References
             elif att_type == "audio":
-                content_blocks.append({
-                    "type": "text",
-                    "text": f"[Audio: {att_name}]({att_id})"
-                })
+                content_blocks.append(
+                    {"type": "text", "text": f"[Audio: {att_name}]({att_id})"}
+                )
                 reference_notes.append(f"Audio Reference: {att_name} (Path: {att_id})")
-                references.append({
-                    "id": gen_uuid(),
-                    "type": "audio",
-                    "target_id": att_id,
-                    "target_name": att_name,
-                    "metadata": {"filename": att_name},
-                })
+                references.append(
+                    {
+                        "id": gen_uuid(),
+                        "type": "audio",
+                        "target_id": att_id,
+                        "target_name": att_name,
+                        "metadata": {"filename": att_name},
+                    }
+                )
 
             # 4.5. Video References
             elif att_type == "video":
@@ -166,24 +190,30 @@ class ReferenceService:
                         import base64
 
                         b64 = base64.b64encode(frame.data).decode("utf-8")
-                        content_blocks.append({
-                            "type": "image_url",
-                            "image_url": {"url": f"data:image/jpeg;base64,{b64}"}
-                        })
+                        content_blocks.append(
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": f"data:image/jpeg;base64,{b64}"},
+                            }
+                        )
                 except Exception as e:
-                    logger.warning(f"[ReferenceService] Video keyframe extraction failed for {att_id}: {e}", exc_info=True)
-                content_blocks.append({
-                    "type": "text",
-                    "text": f"[Video: {att_name}]({att_id})"
-                })
+                    logger.warning(
+                        f"[ReferenceService] Video keyframe extraction failed for {att_id}: {e}",
+                        exc_info=True,
+                    )
+                content_blocks.append(
+                    {"type": "text", "text": f"[Video: {att_name}]({att_id})"}
+                )
                 reference_notes.append(f"Video Reference: {att_name} (Path: {att_id})")
-                references.append({
-                    "id": gen_uuid(),
-                    "type": "video",
-                    "target_id": att_id,
-                    "target_name": att_name,
-                    "metadata": {"filename": att_name},
-                })
+                references.append(
+                    {
+                        "id": gen_uuid(),
+                        "type": "video",
+                        "target_id": att_id,
+                        "target_name": att_name,
+                        "metadata": {"filename": att_name},
+                    }
+                )
 
             # 5. Skill References
             elif att_type == "skill":
@@ -192,22 +222,26 @@ class ReferenceService:
                 skill_name = metadata.get("skill_name") or att_name
                 skill_description = metadata.get("description", "")
                 reference_notes.append(f"Skill: {skill_name} (ID: {skill_id})")
-                quotes_data.append({
-                    "type": "Skill",
-                    "name": skill_name,
-                    "content": f"Using learned skill: {skill_name}"
-                })
-                references.append({
-                    "id": gen_uuid(),
-                    "type": "skill",
-                    "target_id": skill_id,
-                    "target_name": skill_name,
-                    "metadata": {
-                        "skill_id": skill_id,
-                        "skill_name": skill_name,
-                        "description": skill_description,
-                    },
-                })
+                quotes_data.append(
+                    {
+                        "type": "Skill",
+                        "name": skill_name,
+                        "content": f"Using learned skill: {skill_name}",
+                    }
+                )
+                references.append(
+                    {
+                        "id": gen_uuid(),
+                        "type": "skill",
+                        "target_id": skill_id,
+                        "target_name": skill_name,
+                        "metadata": {
+                            "skill_id": skill_id,
+                            "skill_name": skill_name,
+                            "description": skill_description,
+                        },
+                    }
+                )
 
             else:
                 reference_notes.append(f"Reference ({att_type}): {att_name}")
@@ -216,19 +250,20 @@ class ReferenceService:
         updated_message = message_text
         if quotes_data:
             # 模板路径保持不变，或者后续根据需要迁移模板
-            quoted_block = render_template("domain/project/project_management.prompt.j2", quotes=quotes_data)
+            quoted_block = render_template(
+                "domain/project/project_management.prompt.j2", quotes=quotes_data
+            )
             updated_message = f"{message_text}\n\n{quoted_block}"
 
         # Final assembly of the text block
         final_text = updated_message
         if reference_notes:
-            notes_section = "\n\n" + "\n".join([f"[{note}]" for note in reference_notes])
+            notes_section = "\n\n" + "\n".join(
+                [f"[{note}]" for note in reference_notes]
+            )
             final_text += notes_section
 
-        content_blocks.insert(0, {
-            "type": "text",
-            "text": final_text
-        })
+        content_blocks.insert(0, {"type": "text", "text": final_text})
 
         return ReferenceContext(
             content_blocks=content_blocks,
@@ -237,7 +272,9 @@ class ReferenceService:
             references=references,
         )
 
-    async def _handle_message_reference(self, msg_id_str: str, name: str, session: AsyncSession) -> tuple[str | None, str | None]:
+    async def _handle_message_reference(
+        self, msg_id_str: str, name: str, session: AsyncSession
+    ) -> tuple[str | None, str | None]:
         try:
             ref_msg = await session.get(Message, msg_id_str)
             if ref_msg and ref_msg.content:
@@ -251,10 +288,7 @@ class ReferenceService:
         return None, f"Quoted Message (Fetch Failed): {name}"
 
     async def _handle_file_reference(
-        self,
-        file_path: str,
-        name: str,
-        root_path: str | None = None
+        self, file_path: str, name: str, root_path: str | None = None
     ) -> tuple[str | None, str | None]:
         target_path = self._resolve_local_path(file_path, root_path)
 
@@ -269,26 +303,31 @@ class ReferenceService:
                 snippet += "\n\n... (Content truncated for length)"
             return snippet, f"Referencing File: {name} (Path: {file_path})"
         except Exception as e:
-            logger.warning(f"Failed to read quoted file {target_path}: {e}", exc_info=True)
+            logger.warning(
+                f"Failed to read quoted file {target_path}: {e}", exc_info=True
+            )
             return None, f"Referencing File (Read Failed): {name} (Path: {file_path})"
 
     async def _handle_directory_reference(
-        self,
-        dir_path: str,
-        name: str,
-        root_path: str | None = None
+        self, dir_path: str, name: str, root_path: str | None = None
     ) -> tuple[str | None, str | None]:
         target_path = self._resolve_local_path(dir_path, root_path)
 
         if not os.path.isdir(target_path):
-            logger.warning(f"Referenced directory does not exist or is not a directory: {target_path}")
+            logger.warning(
+                f"Referenced directory does not exist or is not a directory: {target_path}"
+            )
             return None, f"Referencing Directory (Not Found): {name} (Path: {dir_path})"
 
         try:
             from app.core.file.tree import TreeService
-            text_tree = TreeService.get_text_tree(target_path, max_depth=3, max_entries=100)
+
+            text_tree = TreeService.get_text_tree(
+                target_path, max_depth=3, max_entries=100
+            )
 
             from app.core.file.traverser import FileTraverser, TraverseOptions
+
             options = TraverseOptions(max_depth=2, include_dirs=False)
 
             snippets = []
@@ -311,20 +350,28 @@ class ReferenceService:
                     snippets.append(f"--- File: {rel_to_dir} ---\n{snippet}")
                     file_count += 1
                 except Exception as e:
-                    logger.debug(f"Skipping directory-ref file read error for {full_path}: {e}", exc_info=True)
+                    logger.debug(
+                        f"Skipping directory-ref file read error for {full_path}: {e}",
+                        exc_info=True,
+                    )
 
             sections = [
                 f"Directory Tree layout:\n{text_tree}",
             ]
             if snippets:
-                sections.append("Directory Files Content (Truncated):\n" + "\n\n".join(snippets))
+                sections.append(
+                    "Directory Files Content (Truncated):\n" + "\n\n".join(snippets)
+                )
 
             combined_content = "\n\n".join(sections)
             return combined_content, f"Referencing Directory: {name} (Path: {dir_path})"
 
         except Exception as e:
             logger.exception(f"Error resolving directory reference {target_path}: {e}")
-            return None, f"Referencing Directory (Read Failed): {name} (Path: {dir_path})"
+            return (
+                None,
+                f"Referencing Directory (Read Failed): {name} (Path: {dir_path})",
+            )
 
     def _resolve_local_path(self, file_path: str, root_path: str | None) -> str:
         resolved_path = None
@@ -362,7 +409,9 @@ class ReferenceService:
             try:
                 # abs_resolved must start with abs_root, check using commonpath
                 if os.path.commonpath([abs_root, abs_resolved]) != abs_root:
-                    logger.warning(f"Path traversal blocked! Root={abs_root}, Path={abs_resolved}")
+                    logger.warning(
+                        f"Path traversal blocked! Root={abs_root}, Path={abs_resolved}"
+                    )
                     return "/dev/null"
             except Exception as e:
                 logger.exception(f"Error validating path isolation: {e}")

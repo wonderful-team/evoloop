@@ -8,7 +8,6 @@ Mirrors the MaintenanceScheduler pattern but for dream distillation:
 - Disabled by default (DEEP_DREAM_ENABLED setting)
 """
 
-import asyncio
 import json
 import logging
 from datetime import datetime
@@ -172,36 +171,19 @@ class DreamScheduler:
             _DREAM_DIR.mkdir(parents=True, exist_ok=True)
             filename = "last_run.json" if key == "default" else f"last_run_{key}.json"
             log_file = _DREAM_DIR / filename
-            log_file.write_text(json.dumps({
-                "id": record.id,
-                "started_at": record.started_at,
-                "finished_at": record.finished_at,
-                "episodes_count": record.episodes_count,
-                "insights_count": record.insights_count,
-                "insight_ids": record.insight_ids,
-                "error": record.error,
-            }, indent=2))
+            log_file.write_text(
+                json.dumps(
+                    {
+                        "id": record.id,
+                        "started_at": record.started_at,
+                        "finished_at": record.finished_at,
+                        "episodes_count": record.episodes_count,
+                        "insights_count": record.insights_count,
+                        "insight_ids": record.insight_ids,
+                        "error": record.error,
+                    },
+                    indent=2,
+                )
+            )
         except Exception as e:
             logger.warning("[Dream] Failed to save record: %s", e)
-
-
-def trigger_dream(project_id: int | None = None) -> DreamRecord | None:
-    """Manually trigger a dream cycle (for CLI/admin use)."""
-
-    async def _run():
-        scheduler = DreamScheduler()
-        return await scheduler.run(project_id=project_id)
-
-    return asyncio.run(_run())
-
-
-def get_dream_status() -> dict:
-    """Get dream status for CLI."""
-    scheduler = DreamScheduler()
-    last = scheduler._get_last_run_time()
-    return {
-        "last_dream": last.isoformat() if last else None,
-        "hours_since": (datetime.now() - last).total_seconds() / 3600 if last else None,
-        "should_run": asyncio.run(scheduler.should_run()) if last is None else (datetime.now() - last).total_seconds() / 3600 >= 24,
-        "dream_dir": str(_DREAM_DIR),
-    }

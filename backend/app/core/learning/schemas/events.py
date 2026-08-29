@@ -16,7 +16,9 @@ class GlobalEventData(BaseModel):
     window_title: str | None = None
     app_name: str | None = None
     process_id: int | None = None
-    source: str | None = None  # [NEW] Optional source override (e.g. "mobile" for mirror clicks)
+    source: str | None = (
+        None  # [NEW] Optional source override (e.g. "mobile" for mirror clicks)
+    )
 
 
 class DomEventData(BaseModel):

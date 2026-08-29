@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 from app.core.engine import get_default_engine
+from app.core.engine.constants import MAX_STEPS
 from app.core.engine.message.native_classes import HumanMessage
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.schemas import EngineResult
@@ -25,7 +26,9 @@ class BaseNode(ABC):
         """Node entry point. Subclasses must implement."""
         pass
 
-    async def handle_error(self, state: AgentState, error: Exception, config: dict = None) -> StateUpdate:
+    async def handle_error(
+        self, state: AgentState, error: Exception, config: dict = None
+    ) -> StateUpdate:
         """Handle execution errors."""
         if config:
             handler = config.get("configurable", {}).get("message_handler")
@@ -33,7 +36,9 @@ class BaseNode(ABC):
                 try:
                     await handler.handle_error(error)
                 except (RuntimeError, OSError, ValueError) as report_err:
-                    logger.exception(f"[{self.node_name}] Failed to report error via handler: {report_err}")
+                    logger.exception(
+                        f"[{self.node_name}] Failed to report error via handler: {report_err}"
+                    )
 
         logger.error(f"[{self.node_name}] 🛑 Execution failed: {error}")
         raise error
@@ -50,7 +55,9 @@ class BaseAgentNode(BaseNode, ABC):
     4. Outcome Handling & Signal Dispatching
     """
 
-    def __init__(self, node_name: str, max_steps: int = 5, temperature: float = 0.7):
+    def __init__(
+        self, node_name: str, max_steps: int = MAX_STEPS, temperature: float = 0.7
+    ):
         super().__init__(node_name=node_name)
         self.max_steps = max_steps
         self.temperature = temperature
@@ -66,12 +73,16 @@ class BaseAgentNode(BaseNode, ABC):
                 return state_update
 
             # 2. Build Prompts
-            static_system_prompt, dynamic_ticket_text = await self.build_prompt_pair(state, config)
+            static_system_prompt, dynamic_ticket_text = await self.build_prompt_pair(
+                state, config
+            )
             tools = await self.get_tools(state)
 
             # Insert Context Ticket just before the LAST human message (role="user")
             if dynamic_ticket_text:
-                ticket_msg = HumanMessage(content=dynamic_ticket_text, name="context_ticket")
+                ticket_msg = HumanMessage(
+                    content=dynamic_ticket_text, name="context_ticket"
+                )
                 last_human_idx = -1
                 for idx in range(len(state.messages) - 1, -1, -1):
                     if state.messages[idx].role == "user":
@@ -90,7 +101,9 @@ class BaseAgentNode(BaseNode, ABC):
             model = cfg.get("model")
             node_name = self.node_name.lower()
             if cfg.get("lightning_model") and node_name == "supervisor":
-                logger.info(f"[{self.node_name}] Using lightning model: {cfg['lightning_model']}")
+                logger.info(
+                    f"[{self.node_name}] Using lightning model: {cfg['lightning_model']}"
+                )
                 model = cfg["lightning_model"]
             elif cfg.get("worker_model") and node_name in ("worker", "finish"):
                 model = cfg["worker_model"]
@@ -119,23 +132,26 @@ class BaseAgentNode(BaseNode, ABC):
             logger.exception(f"[{self.node_name}] Execution failed: {e}")
             return await self.handle_error(state, e, config=config)
 
-    async def prepare_state(self, state: AgentState, config: dict) -> StateUpdate | None:
+    async def prepare_state(
+        self, state: AgentState, config: dict
+    ) -> StateUpdate | None:
         return None
 
-    async def build_prompt_pair(self, state: AgentState, config: dict) -> tuple[str, str]:
+    async def build_prompt_pair(
+        self, state: AgentState, config: dict
+    ) -> tuple[str, str]:
         return "", ""
 
     async def get_tools(self, state: AgentState) -> list[Any]:
         return []
 
     async def handle_outcome(
-        self,
-        original_state: AgentState,
-        engine_result: EngineResult,
-        config: dict
+        self, original_state: AgentState, engine_result: EngineResult, config: dict
     ) -> StateUpdate:
         if engine_result.signal:
-            dispatch_result = await signal_manager.dispatch(original_state, engine_result.signal, config)
+            dispatch_result = await signal_manager.dispatch(
+                original_state, engine_result.signal, config
+            )
             if dispatch_result is not None:
                 if engine_result.queued_signals:
 
@@ -153,14 +169,13 @@ class BaseAgentNode(BaseNode, ABC):
                     dispatch_result.signal_queue_total = len(serialized_signals)
 
                 customized = await self._customize_dispatch_result(
-                    dispatch_result,
-                    original_state,
-                    engine_result,
-                    config
+                    dispatch_result, original_state, engine_result, config
                 )
                 return customized
 
-        fallback = await self._build_fallback_outcome(original_state, engine_result, config)
+        fallback = await self._build_fallback_outcome(
+            original_state, engine_result, config
+        )
         return fallback
 
     async def _customize_dispatch_result(

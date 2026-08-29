@@ -6,7 +6,6 @@ from pydantic import Field
 
 from app.api.schemas.responses import BaseAPIResponse
 from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.models.schemas.base import TimestampedEntity
 
 
 class SubtaskCreate(DynamicBaseModel):
@@ -35,30 +34,6 @@ class TaskProgressUpdate(DynamicBaseModel):
     status: str | None = None  # pending/in_progress/completed/failed
     progress: int | None = Field(None, ge=0, le=100)
     result: str | None = None  # Execution result summary
-
-
-class TaskTreeResponse(DynamicBaseModel, TimestampedEntity):
-    """Task tree response."""
-
-    id: str
-    title: str
-    description: str
-    status: str
-    progress: int
-    priority: str
-    estimated_hours: int
-    is_parent: bool
-    subtasks: list["TaskTreeResponse"] = []
-
-
-class ExecutableTaskResponse(DynamicBaseModel):
-    """Next executable task response."""
-
-    id: str
-    title: str
-    description: str
-    is_subtask: bool
-    parent_title: str | None = None
 
 
 class TaskCreateResponse(BaseAPIResponse):

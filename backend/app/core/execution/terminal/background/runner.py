@@ -12,6 +12,11 @@ from app.core.execution.terminal.background import (
     TaskType,
     task_manager,
 )
+from app.core.execution.constants import (
+    DEFAULT_OUTPUT_LINES,
+    MAX_COMMAND_TITLE_LENGTH,
+    QUICK_TIMEOUT_SECONDS,
+)
 from app.core.execution.terminal.background.utils import (
     format_command_result,
     get_thread_id,
@@ -38,7 +43,9 @@ def _build_allowed_roots(working_dir: str | None) -> list[str]:
     return get_allowed_roots(working_dir=working_dir)
 
 
-def _resolve_working_dir(command: str, config: RunnableConfig | None) -> tuple[str | None, str | None]:
+def _resolve_working_dir(
+    command: str, config: RunnableConfig | None
+) -> tuple[str | None, str | None]:
     """Resolve the working directory and run policy checks.
 
     Returns ``(working_dir, security_error|None)``. When ``security_error`` is
@@ -81,7 +88,7 @@ async def _create_execution_task(command: str, thread_id: str, timeout: int):
     return await task_manager.create_task(
         CreateBackgroundTaskRequest(
             task_type=TaskType.COMMAND,
-            title=f"执行: {command[:60]}{'...' if len(command) > 60 else ''}",
+            title=f"执行: {command[:MAX_COMMAND_TITLE_LENGTH]}{'...' if len(command) > MAX_COMMAND_TITLE_LENGTH else ''}",
             description=f"命令: {command}",
             tool_name="execute_command",
             thread_id=thread_id,
@@ -95,10 +102,14 @@ async def _finalize_task(task_id: str, exit_code: int) -> None:
     if exit_code == 0:
         await task_manager.complete_task(task_id, result={"exit_code": 0})
     else:
-        await task_manager.fail_task(task_id, error=f"Command exited with code {exit_code}")
+        await task_manager.fail_task(
+            task_id, error=f"Command exited with code {exit_code}"
+        )
 
 
-async def execute_in_background(command: str, timeout: int, config: RunnableConfig | None) -> str:
+async def execute_in_background(
+    command: str, timeout: int, config: RunnableConfig | None
+) -> str:
     thread_id = get_thread_id(config)
 
     is_dangerous, reason = is_dangerous_command(command)
@@ -119,7 +130,9 @@ async def execute_in_background(command: str, timeout: int, config: RunnableConf
     )
 
 
-async def run_command_background(task, command: str, timeout: int, config: RunnableConfig | None):
+async def run_command_background(
+    task, command: str, timeout: int, config: RunnableConfig | None
+):
     try:
         working_dir, error_msg = _resolve_working_dir(command, config)
         if error_msg:
@@ -148,9 +161,11 @@ async def run_command_background(task, command: str, timeout: int, config: Runna
         await task_manager.fail_task(task.task_id, error=str(e))
 
 
-async def execute_smart(command: str, timeout: int, config: RunnableConfig | None) -> str:
+async def execute_smart(
+    command: str, timeout: int, config: RunnableConfig | None
+) -> str:
     thread_id = get_thread_id(config)
-    quick_timeout = min(timeout, 60)
+    quick_timeout = min(timeout, QUICK_TIMEOUT_SECONDS)
 
     is_dangerous, reason = is_dangerous_command(command)
     if is_dangerous:
@@ -204,7 +219,7 @@ async def execute_smart(command: str, timeout: int, config: RunnableConfig | Non
 
         asyncio.create_task(wait_remaining())
 
-        output = task.get_recent_output(n=50)
+        output = task.get_recent_output(n=DEFAULT_OUTPUT_LINES)
         return (
             f"Command continues running in background (exceeded quick timeout {quick_timeout}s)\n\n"
             f"任务ID: `{task.task_id}`\n\n"

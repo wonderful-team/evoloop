@@ -33,7 +33,9 @@ async def process_worker_result(
     else:
         last_msg = engine_result.messages[-1]
         last_role = last_msg.role
-        worker_content = get_message_text(last_msg) if last_role in ("assistant", "ai") else ""
+        worker_content = (
+            get_message_text(last_msg) if last_role in ("assistant", "ai") else ""
+        )
 
     tool_history = engine_result.tool_history or []
 
@@ -43,7 +45,9 @@ async def process_worker_result(
                 worker_content = get_message_text(msg)
                 break
 
-    logger.info(f"[Worker][{role_name}] Loop finished. Content len: {len(worker_content)}, Tools used: {len(tool_history)}")
+    logger.info(
+        f"[Worker][{role_name}] Loop finished. Content len: {len(worker_content)}, Tools used: {len(tool_history)}"
+    )
 
     outcome = engine_result.outcome
     if outcome and outcome.status == "truncated":
@@ -71,7 +75,9 @@ async def process_worker_result(
         meta = get_tool_metadata(tool_name)
         if meta and meta.get("is_state_mutating"):
             has_changes = True
-            logger.info(f"[Worker][{role_name}] ♻️ State mutation detected via tool '{tool_name}' - Invalidating caches")
+            logger.info(
+                f"[Worker][{role_name}] ♻️ State mutation detected via tool '{tool_name}' - Invalidating caches"
+            )
             break
 
     workspace_context = None
@@ -91,14 +97,22 @@ async def process_worker_result(
                 args = json.loads(args_json)
                 server_name = args.get("server_name")
                 if server_name:
-                    req_servers = set(updated_execution_ticket.mcp_servers_required or [])
+                    req_servers = set(
+                        updated_execution_ticket.mcp_servers_required or []
+                    )
                     req_servers.add(server_name)
                     updated_execution_ticket.mcp_servers_required = list(req_servers)
-                    logger.info(f"[Worker] 🔌 Appended MCP server '{server_name}' to execution_ticket.")
+                    logger.info(
+                        f"[Worker] 🔌 Appended MCP server '{server_name}' to execution_ticket."
+                    )
             except (TypeError, ValueError, json.JSONDecodeError) as e:
-                logger.exception(f"[Worker] Failed to parse use_mcp_server arguments: {e}")
+                logger.exception(
+                    f"[Worker] Failed to parse use_mcp_server arguments: {e}"
+                )
 
-    verification_summary = VerificationStatus(status="unverified", signals=verification_signals)
+    verification_summary = VerificationStatus(
+        status="unverified", signals=verification_signals
+    )
 
     preserved_messages = list(engine_result.messages or [])
     if preserved_messages:

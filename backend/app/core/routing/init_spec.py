@@ -76,7 +76,7 @@ async def _atlas_app_aliases() -> list[tuple[str, str, str]]:
     name ('飞书') while Atlas stored 'Lark'.
     """
     from app.core.atlas.adapters.sql_store import SQLAtlasStore
-    from app.core.atlas.surveyor import MENUBAR_STATE_ID
+    from app.core.atlas.constants import MENUBAR_STATE_ID
 
     store = SQLAtlasStore()
     out: list[tuple[str, str, str]] = []
@@ -177,7 +177,11 @@ async def enrich_spec_with_macro_triggers(spec: RouteCatalog) -> RouteCatalog:
             # current project's first, global as fallback.
             key = (macro.project_id, pattern)
             if key in seen_patterns:
-                logger.debug("[init_spec] trigger '%s' skipped (macro %d, already bound)", pattern, macro.id)
+                logger.debug(
+                    "[init_spec] trigger '%s' skipped (macro %d, already bound)",
+                    pattern,
+                    macro.id,
+                )
                 continue
             seen_patterns.add(key)
             deduped.append(pattern)
@@ -185,13 +189,15 @@ async def enrich_spec_with_macro_triggers(spec: RouteCatalog) -> RouteCatalog:
             continue
         slot_names = [p.get("name") for p in (macro.parameters or []) if p.get("name")]
         slots = dict.fromkeys(slot_names, "str")
-        spec.templates.append({
-            "action": f"macro:{macro.id}",
-            "patterns": deduped,
-            "slots": slots,
-            "args": {},
-            "project_id": macro.project_id,
-        })
+        spec.templates.append(
+            {
+                "action": f"macro:{macro.id}",
+                "patterns": deduped,
+                "slots": slots,
+                "args": {},
+                "project_id": macro.project_id,
+            }
+        )
         added += 1
     logger.info(
         "[init_spec] enriched %d macro templates (%d macros scanned, %d patterns deduped)",

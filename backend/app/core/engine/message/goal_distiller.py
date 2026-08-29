@@ -11,15 +11,9 @@ Design rules:
 
 import logging
 
+from app.core.engine.constants import GOAL_DISPLAY_MAX_LENGTH, GOAL_MAX_LENGTH
+
 logger = logging.getLogger(__name__)
-
-# Maximum character length for a stored/displayed session goal.
-# Longer text is truncated with an ellipsis suffix.
-GOAL_MAX_LENGTH = 500
-
-# Shorter budget used when the goal is only shown in monitoring UIs
-# (activity monitor, logs) where long text hurts readability.
-GOAL_DISPLAY_MAX_LENGTH = 200
 
 
 class GoalDistiller:

@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.core.routing.schemas import INTENT_MACRO_TASK, IntentHint, RouteDecision
+from app.core.routing.constants import INTENT_MACRO_TASK
+from app.core.routing.schemas import IntentHint, RouteDecision
 
 
 def build_decision(

@@ -97,7 +97,10 @@ async def run_node_loop(
         elif current_node == RoutingTarget.SEQUENTIAL_WORKFLOW:
             update = await sequential_workflow_node(state, config)
             merge_state_update(state, update)
-            if not state.next_node or state.next_node == RoutingTarget.SEQUENTIAL_WORKFLOW:
+            if (
+                not state.next_node
+                or state.next_node == RoutingTarget.SEQUENTIAL_WORKFLOW
+            ):
                 state.next_node = RoutingTarget.SUPERVISOR
         elif current_node == RoutingTarget.SPAWN_SUBAGENTS:
             update = await spawn_subagents_node(state, config)
@@ -109,8 +112,12 @@ async def run_node_loop(
             state.next_node = RoutingTarget.SUPERVISOR
         else:
             # Unknown node (e.g. legacy "chat" signal) → route to Supervisor for graceful handling
-            logger.warning(f"[{log_prefix}] Unknown node {current_node}, routing to Supervisor.")
+            logger.warning(
+                f"[{log_prefix}] Unknown node {current_node}, routing to Supervisor."
+            )
             state.next_node = RoutingTarget.SUPERVISOR
 
     if state.next_node != RoutingTarget.END and step_count >= max_loop_steps:
-        logger.warning(f"[{log_prefix}] Hit max_loop_steps ({max_loop_steps}) for thread {thread_id}")
+        logger.warning(
+            f"[{log_prefix}] Hit max_loop_steps ({max_loop_steps}) for thread {thread_id}"
+        )

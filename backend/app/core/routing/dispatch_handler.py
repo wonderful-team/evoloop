@@ -1,7 +1,7 @@
 """Unified dispatcher for chat and voice routes.
 
 This module consolidates the previously duplicated routing logic in
-``app.api.routes.agent._chat`` and ``app.api.routes.voice_ws``:
+``app.api.routes.agent.chat`` and ``app.api.routes.voice_ws``:
 
 1. Normalize raw input into an ``IncomingMessage`` via an ``InputChannel``.
 2. Run ``CommandRouter.resolve`` to get a ``RouteDecision``.
@@ -121,9 +121,7 @@ async def dispatch_user_message(
             if macro_result:
                 parts.append(macro_result)
             session_history = (
-                decision.intent_hint.session_history
-                if decision.intent_hint
-                else None
+                decision.intent_hint.session_history if decision.intent_hint else None
             )
             if session_history:
                 previous = [h for h in session_history if h and h.strip()]
@@ -149,7 +147,9 @@ async def dispatch_user_message(
                 action_type="navigate",
                 data={"route": route},
             )
-            logger.info("[dispatch] %s L0 navigate handled for thread %s", source, thread_id)
+            logger.info(
+                "[dispatch] %s L0 navigate handled for thread %s", source, thread_id
+            )
             return DispatchOutcome(handled=True, local_response=local_outcome)
         else:
             if source == "voice":
@@ -159,10 +159,16 @@ async def dispatch_user_message(
                     action_type="local",
                     data={"action": action, "args": args},
                 )
-                logger.info("[dispatch] %s L0 local action handled for thread %s", source, thread_id)
+                logger.info(
+                    "[dispatch] %s L0 local action handled for thread %s",
+                    source,
+                    thread_id,
+                )
                 return DispatchOutcome(handled=True, local_response=local_outcome)
             else:
-                logger.info("[dispatch] web local non-navigate action delegates to agent")
+                logger.info(
+                    "[dispatch] web local non-navigate action delegates to agent"
+                )
                 inputs = await input_channel.dispatch(msg)
                 return DispatchOutcome(handled=False, msg=msg, inputs=inputs)
 
@@ -190,7 +196,10 @@ async def dispatch_user_message(
             handled = False
             # 宏执行失败 → 委托 Agent 继续完成，附上失败上下文，
             # 避免 Agent 不知道宏执行到哪、为什么失败而从头重来。
-            name = outcome.data.get("macro_name") or f"宏#{outcome.data.get('macro_id', '')}"
+            name = (
+                outcome.data.get("macro_name")
+                or f"宏#{outcome.data.get('macro_id', '')}"
+            )
             failure = outcome.message or "宏执行失败"
             if msg.text and failure:
                 msg.text = (
@@ -231,7 +240,9 @@ def _summarize_macro_success(outcome: ActionOutcome) -> str:
     macro_name = data.get("macro_name") or "宏"
     message = (outcome.message or "").strip()
     store = _routing_store
-    success_resp = (store.responses.get("macro", {}).get("success", "") if store else "") or ""
+    success_resp = (
+        store.responses.get("macro", {}).get("success", "") if store else ""
+    ) or ""
     if not message or message == success_resp:
         return f"已执行宏「{macro_name}」"
     return f"已执行宏「{macro_name}」：{message}"

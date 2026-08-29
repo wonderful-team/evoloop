@@ -56,10 +56,14 @@ async def run_macro(
             note="Use list_macros to discover available macros.",
         )
 
-    return await _run_macro_row(macro_id, macro_name, params, thread_id, skip_confirmation)
+    return await _run_macro_row(
+        macro_id, macro_name, params, thread_id, skip_confirmation
+    )
 
 
-async def _run_macro_row(macro_id, macro_name, params, thread_id, skip_confirmation=False) -> str:
+async def _run_macro_row(
+    macro_id, macro_name, params, thread_id, skip_confirmation=False
+) -> str:
     macro = None
     try:
         if macro_id is not None:
@@ -98,7 +102,9 @@ async def _run_macro_row(macro_id, macro_name, params, thread_id, skip_confirmat
 
             # Intent-level batch grant: if this operation is covered by an approved
             # batch grant, execute without per-call confirmation.
-            if is_operation_granted(thread_id, "run_macro", params=params, macro_id=macro.id):
+            if is_operation_granted(
+                thread_id, "run_macro", params=params, macro_id=macro.id
+            ):
                 logger.info(
                     "[run_macro] Operation covered by batch grant for macro=%s (id=%s), bypassing confirmation.",
                     macro.name,
@@ -123,7 +129,9 @@ async def _run_macro_row(macro_id, macro_name, params, thread_id, skip_confirmat
                         macro.id,
                     )
                 else:
-                    return await _request_macro_confirmation(macro, thread_id, original_args)
+                    return await _request_macro_confirmation(
+                        macro, thread_id, original_args
+                    )
 
     execution_params = params.copy() if params else {}
     execution_params["_macro_id"] = macro.id
@@ -159,7 +167,9 @@ async def _run_macro_row(macro_id, macro_name, params, thread_id, skip_confirmat
         )
     detail = _format_macro_result(macro, result)
     if result.success:
-        return ControllerResponse.success(f"宏「{macro.name}」执行完成", details=detail or None)
+        return ControllerResponse.success(
+            f"宏「{macro.name}」执行完成", details=detail or None
+        )
     return ControllerResponse.error(
         f"宏「{macro.name}」执行失败: {result.message}",
         details=detail or None,
@@ -243,7 +253,11 @@ async def _request_macro_confirmation(macro, thread_id, original_args: dict) -> 
         f"ID：{macro.id}",
     ]
     if param_lines:
-        extra_lines.append(i18n.get("domain_tools.human_input.macro_params", params="，".join(param_lines)))
+        extra_lines.append(
+            i18n.get(
+                "domain_tools.human_input.macro_params", params="，".join(param_lines)
+            )
+        )
     extra_lines.append(i18n.get("domain_tools.human_input.macro_confirm_prompt"))
 
     approval_context = build_approval_context(
@@ -273,7 +287,9 @@ async def _request_macro_confirmation(macro, thread_id, original_args: dict) -> 
     # 循环重试去重：同宏同参数最近已批准（窗口内 completed）时，不再创建新的
     # approval 请求——Supervisor 在批准后若因未收到结束信号反复发起同一宏，
     # 应复用已批准语义，避免对运营轰炸重复确认请求。
-    recently_approved = await find_recently_approved_by_key(thread_id, "run_macro", original_args)
+    recently_approved = await find_recently_approved_by_key(
+        thread_id, "run_macro", original_args
+    )
     if recently_approved:
         logger.info(
             "[run_macro] Skipping repeat confirmation for macro=%s (id=%s), "

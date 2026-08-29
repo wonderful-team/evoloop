@@ -5,7 +5,10 @@ from typing import Any
 from pydantic import ConfigDict, Field
 
 from app.core.engine.message.native_classes import BaseMessage
-from app.core.security.path import command_touches_project_metadata, is_project_metadata_path
+from app.core.security.path import (
+    command_touches_project_metadata,
+    is_project_metadata_path,
+)
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 _METADATA_ARG_KEYS = (

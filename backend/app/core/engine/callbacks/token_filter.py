@@ -8,22 +8,9 @@ Reasoning content now flows exclusively via native reasoning_content
 
 import logging
 
+from app.core.engine.constants import HIDDEN_TAGS_END, HIDDEN_TAGS_START, STRIP_TAGS
+
 logger = logging.getLogger(__name__)
-
-# Tags that should be completely hidden (not streamed to frontend)
-HIDDEN_TAGS_START = [
-    "<evoloop_session_audit>", "<evoloop_audit_outcome>",
-    "<evoloop_audit_reason>", "<evoloop_audit_proof>",
-]
-HIDDEN_TAGS_END = [
-    "</evoloop_session_audit>", "</evoloop_audit_outcome>",
-    "</evoloop_audit_reason>", "</evoloop_audit_proof>",
-]
-
-STRIP_TAGS = [
-    "<evoloop_final_report>", "</evoloop_final_report>",
-    "</s>", "<|im_end|>", "<|endoftext|>",
-]
 
 
 class TokenFilter:

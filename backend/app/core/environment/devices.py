@@ -3,12 +3,10 @@ import logging
 import time
 
 from app.core.environment import get_awakened_state
+from app.core.environment.constants import CACHE_KEY_DEVICE_LOCK_PREFIX
 from app.infrastructure.cache import cache
 
 logger = logging.getLogger(__name__)
-
-REDIS_KEY_DEVICE_LOCK_PREFIX = "device:lock:"
-REDIS_KEY_DEVICE_QUEUE = "device:available_pool"
 
 
 class DevicePool:
@@ -30,7 +28,9 @@ class DevicePool:
         return [d.device_id for d in state.android_devices if d.is_reachable]
 
     @classmethod
-    async def reserve_device(cls, task_id: str, preferred_device: str | None = None, timeout: int = 30) -> str | None:
+    async def reserve_device(
+        cls, task_id: str, preferred_device: str | None = None, timeout: int = 30
+    ) -> str | None:
         """
         Try to reserve a device for a specific task.
         Uses cache to ensure exclusive access.
@@ -59,7 +59,7 @@ class DevicePool:
             )
 
             for serial in targets:
-                lock_key = f"{REDIS_KEY_DEVICE_LOCK_PREFIX}{serial}"
+                lock_key = f"{CACHE_KEY_DEVICE_LOCK_PREFIX}{serial}"
                 # Atomic reservation: write our task_id, then verify we own it.
                 # This closes the get-then-set race: if two tasks both see
                 # current is None, only the one whose write is observed by
@@ -87,14 +87,16 @@ class DevicePool:
         Release a previously reserved device.
         Only releases if the task_id still matches.
         """
-        lock_key = f"{REDIS_KEY_DEVICE_LOCK_PREFIX}{device_id}"
+        lock_key = f"{CACHE_KEY_DEVICE_LOCK_PREFIX}{device_id}"
 
         current_owner = await cache.get(lock_key)
         if current_owner == task_id:
             await cache.delete(lock_key)
             logger.info(f"Released device {device_id} from task {task_id}")
         else:
-            logger.warning(f"Task {task_id} tried to release device {device_id} but owner is {current_owner}")
+            logger.warning(
+                f"Task {task_id} tried to release device {device_id} but owner is {current_owner}"
+            )
 
     @classmethod
     async def list_status(cls) -> list[dict]:
@@ -105,10 +107,8 @@ class DevicePool:
 
         results = []
         for s in serials:
-            owner = await cache.get(f"{REDIS_KEY_DEVICE_LOCK_PREFIX}{s}")
-            results.append({
-                "device_id": s,
-                "status": "busy" if owner else "idle",
-                "owner": owner
-            })
+            owner = await cache.get(f"{CACHE_KEY_DEVICE_LOCK_PREFIX}{s}")
+            results.append(
+                {"device_id": s, "status": "busy" if owner else "idle", "owner": owner}
+            )
         return results

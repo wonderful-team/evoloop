@@ -9,7 +9,9 @@ logger = logging.getLogger(__name__)
 
 
 class UseMcpServerSchema(BaseModel):
-    server_name: str = Field(description="The name of the MCP server to activate (e.g., 'github', 'postgres').")
+    server_name: str = Field(
+        description="The name of the MCP server to activate (e.g., 'github', 'postgres')."
+    )
 
 
 @evoloop_tool(

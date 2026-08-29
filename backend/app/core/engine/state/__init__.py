@@ -29,4 +29,6 @@ def ensure_state(state: AgentState | dict) -> AgentState:
             state = {**state, "messages": EvoMessageConverter.repair(state["messages"])}
         return AgentState.model_validate(state)
 
-    raise TypeError(f"ensure_state expects AgentState or dict, got {type(state).__name__}")
+    raise TypeError(
+        f"ensure_state expects AgentState or dict, got {type(state).__name__}"
+    )

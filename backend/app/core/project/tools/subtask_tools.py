@@ -94,11 +94,14 @@ async def create_task_with_subtasks(
         subtask_count = len(task.subtasks)
 
         if subtask_count > 0:
-            subtask_list = "\n".join([
-                f"  {i+1}. {s.task_data.get('title', 'Untitled')}"
-                for i, s in enumerate(task.subtasks)
-            ])
-            return f"""Created task "{title}" with {subtask_count} subtasks
+            subtask_list = "\n".join(
+                [
+                    f"  {i + 1}. {s.task_data.get('title', 'Untitled')}"
+                    for i, s in enumerate(task.subtasks)
+                ]
+            )
+            return (
+                f"""Created task "{title}" with {subtask_count} subtasks
 
 Task ID: {task.id[:8]}
 
@@ -106,9 +109,14 @@ Subtasks:
 {subtask_list}
 
 You can track progress by asking "show task tree {task.id[:8]}". 
-I've set this as your current active task.""", {"id": task.id, "count": subtask_count}
+I've set this as your current active task.""",
+                {"id": task.id, "count": subtask_count},
+            )
         else:
-            return f"Created task \"{title}\"\n\nTask ID: {task.id[:8]}\n\nI've set this as your current active task.", {"id": task.id}
+            return (
+                f'Created task "{title}"\n\nTask ID: {task.id[:8]}\n\nI\'ve set this as your current active task.',
+                {"id": task.id},
+            )
 
     except json.JSONDecodeError:
         return 'Error: subtasks_json is not valid JSON. Format: [{"title": "...", "estimated_hours": n}]'
@@ -161,7 +169,9 @@ async def get_task_tree_summary(task_id: str) -> str:
             }
             status_icon = status_map.get(node["status"], f"[{node['status'].upper()}]")
 
-            line = f"{indent}{prefix}{status_icon} {node['title']} ({node['progress']}%)\n"
+            line = (
+                f"{indent}{prefix}{status_icon} {node['title']} ({node['progress']}%)\n"
+            )
 
             children = node.get("subtasks", [])
             for i, child in enumerate(children):
@@ -187,10 +197,7 @@ Status: {tree["status"]}
     summary_template="evoloop.tool_summary.update_task_completion",
 )
 async def update_task_completion(
-    task_id: str,
-    status: str,
-    result_summary: str = "",
-    progress: int | None = None
+    task_id: str, status: str, result_summary: str = "", progress: int | None = None
 ) -> str:
     """
     Update task status and progress.
@@ -217,7 +224,9 @@ async def update_task_completion(
         # Handle "current" keyword
         if task_id == "current":
             if not ctx.current_task_id:
-                return "Error: No current task found in context. Please specify a task_id."
+                return (
+                    "Error: No current task found in context. Please specify a task_id."
+                )
             task_id = ctx.current_task_id
 
         # Resolve task (handles partial ID)
@@ -236,10 +245,7 @@ async def update_task_completion(
                 progress = 0
 
         success = await subtask_service.update_task_progress(
-            task_id=task_id,
-            status=status,
-            progress=progress,
-            result=result_summary
+            task_id=task_id, status=status, progress=progress, result=result_summary
         )
 
         if not success:
@@ -262,7 +268,9 @@ async def update_task_completion(
                 f'Parent task "{parent_tree["title"]}" overall progress: {parent_tree["progress"]}%'
             )
         elif task_tree.get("subtasks"):
-            return f"Updated parent task \"{task_tree['title']}\" to {status} ({progress}%)"
+            return (
+                f'Updated parent task "{task_tree["title"]}" to {status} ({progress}%)'
+            )
         else:
             return f"Updated task to {status} ({progress}%)"
 
@@ -295,7 +303,9 @@ async def get_next_executable_task() -> str:
         ctx.current_task_id = task["id"]
 
         prefix = "└── " if task.get("is_subtask") else ""
-        parent_info = f"\nPart of: {task['parent_title']}" if task.get("parent_title") else ""
+        parent_info = (
+            f"\nPart of: {task['parent_title']}" if task.get("parent_title") else ""
+        )
 
         return f"""Next Task to Execute:
 
@@ -329,9 +339,7 @@ async def list_project_tasks(status_filter: str = "all", limit: int = 20) -> str
         project_id = _get_project_id()
 
         tasks = await subtask_service.list_project_tasks(
-            project_id=project_id,
-            status_filter=status_filter,
-            limit=limit
+            project_id=project_id, status_filter=status_filter, limit=limit
         )
 
         if not tasks:

@@ -7,11 +7,14 @@ from app.core.file import write_file
 from app.core.tools import evoloop_tool
 from app.core.tools.base import StructuredTool
 from app.core.tools.registry import REGISTRY
+from app.domain.tools.constants import (
+    DYNAMIC_TOOL_ALLOWED_IMPORTS,
+    DYNAMIC_TOOL_UNSAFE_FUNCTIONS,
+    DYNAMIC_TOOLS_DIR,
+)
 from app.domain.tools.schemas import CreatePythonToolInput
 
 logger = logging.getLogger(__name__)
-
-DYNAMIC_TOOLS_DIR = os.path.join(os.path.dirname(__file__), "../../../tools/dynamic")
 
 # Ensure directory exists
 os.makedirs(DYNAMIC_TOOLS_DIR, exist_ok=True)
@@ -27,29 +30,23 @@ class SafeASTVisitor(ast.NodeVisitor):
 
     def __init__(self):
         self.errors = []
-        self.allowed_imports = {
-            "json",
-            "math",
-            "datetime",
-            "re",
-            "random",
-            "typing",
-            "collections",
-            "itertools",
-            "functools",
-        }
+        self.allowed_imports = DYNAMIC_TOOL_ALLOWED_IMPORTS
         # Whitelist safe builtins if needed, but for now we blacklist dangerous ones.
-        self.unsafe_functions = {"eval", "exec", "compile", "open", "input"}
+        self.unsafe_functions = DYNAMIC_TOOL_UNSAFE_FUNCTIONS
 
     def visit_Import(self, node):
         for alias in node.names:
             if alias.name.split(".")[0] not in self.allowed_imports:
-                self.errors.append(f"Import forbidden: '{alias.name}'. Allowed: {self.allowed_imports}")
+                self.errors.append(
+                    f"Import forbidden: '{alias.name}'. Allowed: {self.allowed_imports}"
+                )
         self.generic_visit(node)
 
     def visit_ImportFrom(self, node):
         if node.module and node.module.split(".")[0] not in self.allowed_imports:
-            self.errors.append(f"Import forbidden: '{node.module}'. Allowed: {self.allowed_imports}")
+            self.errors.append(
+                f"Import forbidden: '{node.module}'. Allowed: {self.allowed_imports}"
+            )
         self.generic_visit(node)
 
     def visit_Call(self, node):
@@ -74,7 +71,9 @@ class SafeASTVisitor(ast.NodeVisitor):
     is_hidden=True,
     summary_template="evoloop.tool_summary.create_python_tool",
 )
-def create_python_tool(name: str, description: str, code: str, version: str = "1.0.0") -> str:
+def create_python_tool(
+    name: str, description: str, code: str, version: str = "1.0.0"
+) -> str:
     """
     Creates a new Python tool at runtime.
     The tool will be saved to disk, loaded, and made available for immediate use.
@@ -92,7 +91,9 @@ def create_python_tool(name: str, description: str, code: str, version: str = "1
         validator = SafeASTVisitor()
         validator.visit(tree)
         if validator.errors:
-            return "Security Error: Unsafe code detected.\n" + "\n".join(validator.errors)
+            return "Security Error: Unsafe code detected.\n" + "\n".join(
+                validator.errors
+            )
     except SyntaxError as e:
         return f"Error: Code has syntax errors: {e}"
 
@@ -124,7 +125,11 @@ def create_python_tool(name: str, description: str, code: str, version: str = "1
             # Fallback: Find the first function in the module
             for attr_name in dir(module):
                 attr = getattr(module, attr_name)
-                if callable(attr) and not attr_name.startswith("_") and attr_name != "tool":
+                if (
+                    callable(attr)
+                    and not attr_name.startswith("_")
+                    and attr_name != "tool"
+                ):
                     target_func = attr
                     break
 
@@ -134,9 +139,7 @@ def create_python_tool(name: str, description: str, code: str, version: str = "1
         # 5. Wrap as native Tool
         # Use StructuredTool.from_function to inspect type hints automatically
         new_tool = StructuredTool.from_function(
-            func=target_func,
-            name=name,
-            description=description
+            func=target_func, name=name, description=description
         )
 
         # 6. Register

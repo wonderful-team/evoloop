@@ -21,7 +21,9 @@ class SkillResolver:
     """Resolves and enriches skill/SOP configurations for Worker execution."""
 
     @staticmethod
-    async def inject_fallback_sops(relevant_sops: list["LearnedSkill"], config: dict) -> list["LearnedSkill"]:
+    async def inject_fallback_sops(
+        relevant_sops: list["LearnedSkill"], config: dict
+    ) -> list["LearnedSkill"]:
         """Inject fallback SOPs based on metadata (e.g., original_skill_id for retry)."""
         metadata = config.get("metadata", {})
         original_skill_id = metadata.get("original_skill_id")
@@ -41,7 +43,9 @@ class SkillResolver:
                     if not any(s.id == generic_healer.id for s in relevant_sops):
                         relevant_sops.append(generic_healer)
             except (ImportError, SQLAlchemyError) as e:
-                logger.exception(f"[Worker] Failed to fetch fallback skill instructions: {e}")
+                logger.exception(
+                    f"[Worker] Failed to fetch fallback skill instructions: {e}"
+                )
         return relevant_sops
 
     @staticmethod
@@ -53,5 +57,7 @@ class SkillResolver:
             if skill:
                 skills.append(skill)
             else:
-                raise ValueError(f"Required Skill ID {sid} is not found or inactive. Execution aborted.")
+                raise ValueError(
+                    f"Required Skill ID {sid} is not found or inactive. Execution aborted."
+                )
         return skills

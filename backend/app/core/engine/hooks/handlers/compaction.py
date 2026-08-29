@@ -28,7 +28,9 @@ async def pre_compact_save_state(context: HookContext) -> HookResult:
     - Important context
     """
     start_time = datetime.utcnow()
-    logger.info(f"[PreCompact] 🔄 Starting checkpoint save for thread={context.thread_id}")
+    logger.info(
+        f"[PreCompact] 🔄 Starting checkpoint save for thread={context.thread_id}"
+    )
 
     # Use provided memory_manager from context (injected via container)
     mm = context.memory_manager
@@ -49,7 +51,9 @@ async def pre_compact_save_state(context: HookContext) -> HookResult:
         task_progress = _extract_task_progress(context.messages)
         key_decisions = _extract_decisions(context.messages)
         extract_elapsed = (datetime.utcnow() - extract_start).total_seconds()
-        logger.debug(f"[PreCompact] Extracted task_progress ({len(task_progress)} chars) and {len(key_decisions)} decisions in {extract_elapsed:.3f}s")
+        logger.debug(
+            f"[PreCompact] Extracted task_progress ({len(task_progress)} chars) and {len(key_decisions)} decisions in {extract_elapsed:.3f}s"
+        )
 
         # Check for duplicate checkpoint (same thread_id + same task_progress in last 5 minutes)
         duplicate_check_start = datetime.utcnow()
@@ -66,19 +70,34 @@ async def pre_compact_save_state(context: HookContext) -> HookResult:
                         cp_data = safe_yaml_loads(cp_entry.content)
                         if cp_data.get("task_progress") == task_progress:
                             # Check if within 5 minutes
-                            cp_time = datetime.fromisoformat(cp_data.get("timestamp", "2000-01-01"))
-                            if (datetime.utcnow() - cp_time).total_seconds() < 300:  # 5 minutes
+                            cp_time = datetime.fromisoformat(
+                                cp_data.get("timestamp", "2000-01-01")
+                            )
+                            if (
+                                datetime.utcnow() - cp_time
+                            ).total_seconds() < 300:  # 5 minutes
                                 recent_duplicate = cp_entry
-                                logger.warning(f"[PreCompact] ⚠️ Found duplicate checkpoint from {cp_time.isoformat()}: {cp_entry.id}")
+                                logger.warning(
+                                    f"[PreCompact] ⚠️ Found duplicate checkpoint from {cp_time.isoformat()}: {cp_entry.id}"
+                                )
                                 break
                     except (ValueError, YAMLError) as e:
-                        logger.debug(f"[PreCompact] Failed to parse existing checkpoint {cp_summary.id}: {e}", exc_info=True)
+                        logger.debug(
+                            f"[PreCompact] Failed to parse existing checkpoint {cp_summary.id}: {e}",
+                            exc_info=True,
+                        )
 
-        duplicate_check_elapsed = (datetime.utcnow() - duplicate_check_start).total_seconds()
-        logger.debug(f"[PreCompact] Duplicate check: scanned {len(existing_checkpoints)} entries in {duplicate_check_elapsed:.3f}s")
+        duplicate_check_elapsed = (
+            datetime.utcnow() - duplicate_check_start
+        ).total_seconds()
+        logger.debug(
+            f"[PreCompact] Duplicate check: scanned {len(existing_checkpoints)} entries in {duplicate_check_elapsed:.3f}s"
+        )
 
         if recent_duplicate:
-            logger.info(f"[PreCompact] ⏭️ Skipping duplicate checkpoint for thread={context.thread_id}")
+            logger.info(
+                f"[PreCompact] ⏭️ Skipping duplicate checkpoint for thread={context.thread_id}"
+            )
             return HookResult(
                 success=True,
                 data={
@@ -99,7 +118,9 @@ async def pre_compact_save_state(context: HookContext) -> HookResult:
             "current_goal": context.state.current_goal if context.state else None,
             "compact_trigger": context.compact_trigger or "auto",
         }
-        logger.debug(f"[PreCompact] Checkpoint data: {len(context.messages)} messages, trigger={checkpoint['compact_trigger']}")
+        logger.debug(
+            f"[PreCompact] Checkpoint data: {len(context.messages)} messages, trigger={checkpoint['compact_trigger']}"
+        )
 
         # Save to memory (ensuring human-readable Unicode)
         save_start = datetime.utcnow()
@@ -108,7 +129,9 @@ async def pre_compact_save_state(context: HookContext) -> HookResult:
         source_message_id = None
         if context.messages:
             last_msg = context.messages[-1]
-            source_message_id = last_msg.id or last_msg.additional_kwargs.get("message_id")
+            source_message_id = last_msg.id or last_msg.additional_kwargs.get(
+                "message_id"
+            )
 
         memory_entry = MemoryEntry(
             id=f"checkpoint_{context.thread_id}_{int(datetime.now(timezone.utc).timestamp())}",
@@ -128,7 +151,9 @@ async def pre_compact_save_state(context: HookContext) -> HookResult:
         save_elapsed = (datetime.utcnow() - save_start).total_seconds()
 
         total_elapsed = (datetime.utcnow() - start_time).total_seconds()
-        logger.info(f"[PreCompact] ✅ Checkpoint saved: {memory_entry.id} in {total_elapsed:.3f}s (save: {save_elapsed:.3f}s)")
+        logger.info(
+            f"[PreCompact] ✅ Checkpoint saved: {memory_entry.id} in {total_elapsed:.3f}s (save: {save_elapsed:.3f}s)"
+        )
 
         # Create summary for context injection
         summary = f"""
@@ -149,7 +174,10 @@ Remaining: {checkpoint["remaining_work"] or "Unknown"}
 
     except Exception as e:
         total_elapsed = (datetime.utcnow() - start_time).total_seconds()
-        logger.error(f"[PreCompact] ❌ Failed to save state after {total_elapsed:.3f}s: {e}", exc_info=True)
+        logger.error(
+            f"[PreCompact] ❌ Failed to save state after {total_elapsed:.3f}s: {e}",
+            exc_info=True,
+        )
         return HookResult(success=False, error=e)
 
 
@@ -174,7 +202,10 @@ def _extract_decisions(messages: list[BaseMessage]) -> list[str]:
         if msg.type == "ai":
             content = str(msg.content).lower()
             # Look for decision indicators
-            if any(keyword in content for keyword in ["decided", "decision", "choose", "selected", "we will"]):
+            if any(
+                keyword in content
+                for keyword in ["decided", "decision", "choose", "selected", "we will"]
+            ):
                 decisions.append(str(msg.content)[:150])
 
     return decisions[-5:]  # Last 5 decisions

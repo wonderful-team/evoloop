@@ -6,8 +6,8 @@ import tree_sitter
 from app.core.file import get_file_ext
 from app.core.file.types import is_test as is_test_file
 from app.domain.codebase.indexing.base import BaseExtractor
+from app.domain.codebase.constants import TREE_SITTER_QUERIES
 from app.domain.codebase.indexing.parsers import parser_registry
-from app.domain.codebase.indexing.queries import TREE_SITTER_QUERIES
 from app.domain.codebase.schemas import (
     Document,
     ExtractedEntity,
@@ -23,7 +23,9 @@ class TreeSitterExtractor(BaseExtractor):
         # Parsers logic moved to ParserRegistry
         pass
 
-    async def extract(self, file_path: str, content: str, module_path: str = None) -> ExtractionResult:
+    async def extract(
+        self, file_path: str, content: str, module_path: str = None
+    ) -> ExtractionResult:
         """
         Extract code structure.
 
@@ -89,7 +91,9 @@ class TreeSitterExtractor(BaseExtractor):
 
         parser_info = parser_registry.get_parser(extension)
         if not parser_info:
-            logger.debug(f"No parser for extension {extension}, skipping structured extraction.")
+            logger.debug(
+                f"No parser for extension {extension}, skipping structured extraction."
+            )
             return ExtractionResult(documents=[], entities=[], relations=[])
 
         parser, language = parser_info
@@ -166,7 +170,9 @@ class TreeSitterExtractor(BaseExtractor):
                             continue
                         processed_ranges.add((start_byte, end_byte))
 
-                        chunk_content = content[node.start_point[0] : node.end_point[0] + 1]  # Approximate lines
+                        chunk_content = content[
+                            node.start_point[0] : node.end_point[0] + 1
+                        ]  # Approximate lines
 
                         # Extract name
                         name = "anonymous"
@@ -217,11 +223,20 @@ class TreeSitterExtractor(BaseExtractor):
                         local_identifier = ".".join(fqn_parts)
 
                         # Fix Go Methods (Receiver)
-                        if lang_key == "go" and capture_name == "function" and node.type == "method_declaration":
+                        if (
+                            lang_key == "go"
+                            and capture_name == "function"
+                            and node.type == "method_declaration"
+                        ):
                             receiver_node = node.child_by_field_name("receiver")
                             if receiver_node:
                                 recv_text = receiver_node.text.decode("utf8")
-                                recv_type = recv_text.replace("(", "").replace(")", "").replace("*", "").split()[-1]
+                                recv_type = (
+                                    recv_text.replace("(", "")
+                                    .replace(")", "")
+                                    .replace("*", "")
+                                    .split()[-1]
+                                )
                                 local_identifier = f"{recv_type}.{name}"
 
                         # --- IDENTITY FIX: PREPEND MODULE/PATH ---
@@ -230,7 +245,9 @@ class TreeSitterExtractor(BaseExtractor):
 
                         # --- SKELETON EXTRACTION (Optimization) ---
                         # Extract signature + docstring for efficient embedding
-                        skeleton_text = self._extract_skeleton(node, content, capture_name)
+                        skeleton_text = self._extract_skeleton(
+                            node, content, capture_name
+                        )
 
                         doc = Document(
                             content=node.text.decode("utf8"),
@@ -269,7 +286,11 @@ class TreeSitterExtractor(BaseExtractor):
                                 s_text = s_node.text.decode("utf8")
                                 clean_text = s_text.strip("()")
                                 if clean_text:
-                                    parts = [p.strip() for p in clean_text.split(",") if p.strip()]
+                                    parts = [
+                                        p.strip()
+                                        for p in clean_text.split(",")
+                                        if p.strip()
+                                    ]
                                     for parent_name in parts:
                                         relations.append(
                                             ExtractedRelation(
@@ -289,7 +310,9 @@ class TreeSitterExtractor(BaseExtractor):
                             module_nodes = [module_nodes]
 
                         for m_node in module_nodes:
-                            import_path = m_node.text.decode("utf8").strip("'\"")  # strip quotes
+                            import_path = m_node.text.decode("utf8").strip(
+                                "'\""
+                            )  # strip quotes
                             if import_path:
                                 # Standard Import Relation
                                 relations.append(
@@ -304,7 +327,9 @@ class TreeSitterExtractor(BaseExtractor):
                                 # COGNITION: Inferred 'TESTS' relation
                                 # Heuristic: If this file is a test file, and it imports a local module,
                                 # it is likely testing that module.
-                                if is_test_file(file_path) and self._is_likely_local_import(import_path):
+                                if is_test_file(
+                                    file_path
+                                ) and self._is_likely_local_import(import_path):
                                     relations.append(
                                         ExtractedRelation(
                                             source_full_name=module_path,
@@ -314,7 +339,9 @@ class TreeSitterExtractor(BaseExtractor):
                                         )
                                     )
 
-        return ExtractionResult(documents=documents, entities=entities, relations=relations)
+        return ExtractionResult(
+            documents=documents, entities=entities, relations=relations
+        )
 
     def _extract_skeleton(self, node, content: str, capture_name: str) -> str:
         """

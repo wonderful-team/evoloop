@@ -9,11 +9,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from app.domain.codebase.constants import GENERATION_ITEMS
 from app.domain.codebase.event.publishers import publish_generation_status_changed
 
 logger = logging.getLogger(__name__)
-
-GENERATION_ITEMS = frozenset({"wiki", "appmap", "summary"})
 
 
 class _DictBackedRecord:
@@ -92,7 +91,9 @@ class GenerationScheduler:
             store["records"][item] = _new_record_dict(item)
         return _DictBackedRecord(store["records"][item])
 
-    def _update_record(self, record: _DictBackedRecord, status: str, error: str | None = None) -> None:
+    def _update_record(
+        self, record: _DictBackedRecord, status: str, error: str | None = None
+    ) -> None:
         record._backing["status"] = status
         record._backing["updated_at"] = datetime.now(timezone.utc).isoformat()
         if error is not None:

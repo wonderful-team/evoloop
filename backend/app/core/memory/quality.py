@@ -16,8 +16,9 @@ import re
 from collections import defaultdict
 from datetime import datetime
 
-from pydantic import Field, field_serializer
+from pydantic import Field
 
+from app.core.memory.constants import FRESHNESS_HALF_LIFE
 from app.core.memory.models import MemoryEntry
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
@@ -32,10 +33,6 @@ class QualityScores(DynamicBaseModel):
     specificity: float  # 0-1, how specific (vs vague)
     actionability: float  # 0-1, how actionable
     overall: float  # Weighted average
-
-    @field_serializer("freshness", "usage", "specificity", "actionability", "overall")
-    def serialize_floats(self, value: float) -> float:
-        return round(value, 2)
 
 
 class CleanupRecommendation(DynamicBaseModel):
@@ -62,8 +59,6 @@ class MemoryQualityAnalyzer:
     """
 
     # Quality thresholds
-    QUALITY_THRESHOLD = 0.4  # Below this is considered low quality
-    FRESHNESS_HALF_LIFE = 30  # Days
 
     # Weights for overall score
     WEIGHTS = {
@@ -127,7 +122,7 @@ class MemoryQualityAnalyzer:
         Uses exponential decay with 30-day half-life.
         """
         age_days = (datetime.utcnow() - entry.updated_at).days
-        return math.exp(-age_days / self.FRESHNESS_HALF_LIFE)
+        return math.exp(-age_days / FRESHNESS_HALF_LIFE)
 
     async def _score_usage(self, entry: MemoryEntry) -> float:
         """
@@ -161,7 +156,9 @@ class MemoryQualityAnalyzer:
             r"`[^`]+`",  # Code/inline references
         ]
 
-        specific_score = sum(1 for pattern in specific_patterns if re.search(pattern, content)) / len(specific_patterns)
+        specific_score = sum(
+            1 for pattern in specific_patterns if re.search(pattern, content)
+        ) / len(specific_patterns)
 
         # Negative indicators (vague)
         vague_words = ["something", "somehow", "maybe", "probably", "thing", "stuff"]
@@ -294,10 +291,6 @@ class MemoryQualityAnalyzer:
             return "update", "Outdated but potentially valuable", suggestions
         else:
             return "improve", "Could be improved", suggestions
-
-    def record_access(self, entry_id: str) -> None:
-        """Record that a memory was accessed (for usage scoring)."""
-        self._access_counts[entry_id] += 1
 
     def get_access_count(self, entry_id: str) -> int:
         """Get the number of times a memory was accessed (public API)."""

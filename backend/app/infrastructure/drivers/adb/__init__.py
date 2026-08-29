@@ -2,13 +2,13 @@ import logging
 import os
 import subprocess
 
-from app.infrastructure.drivers.adb._actions import ActionMixin
-from app.infrastructure.drivers.adb._clipboard import ClipboardMixin
-from app.infrastructure.drivers.adb._core import CoreMixin
-from app.infrastructure.drivers.adb._exceptions import ADBError
-from app.infrastructure.drivers.adb._info import DeviceInfoMixin
-from app.infrastructure.drivers.adb._sms import SMSMixin
-from app.infrastructure.drivers.adb._ui import UIMixin
+from app.infrastructure.drivers.adb.actions import ActionMixin
+from app.infrastructure.drivers.adb.clipboard import ClipboardMixin
+from app.infrastructure.drivers.adb.core import CoreMixin
+from app.infrastructure.drivers.adb.exceptions import ADBError
+from app.infrastructure.drivers.adb.info import DeviceInfoMixin
+from app.infrastructure.drivers.adb.sms import SMSMixin
+from app.infrastructure.drivers.adb.ui import UIMixin
 
 logger = logging.getLogger(__name__)
 

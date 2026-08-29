@@ -27,7 +27,11 @@ async def post_tool_use_failure_logging(context: HookContext) -> HookResult:
     if not context.tool_name:
         return HookResult(success=True)
 
-    error_str = str(context.error) if context.error else context.error_message or "Unknown error"
+    error_str = (
+        str(context.error)
+        if context.error
+        else context.error_message or "Unknown error"
+    )
     logger.warning(f"[ToolUseFailure] {context.tool_name} failed: {error_str}")
 
     return HookResult(

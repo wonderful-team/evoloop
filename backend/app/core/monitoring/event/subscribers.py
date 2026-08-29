@@ -29,7 +29,9 @@ class MonitoringLifecycleSubscriber:
         Finalize the observability run in ActivityMonitor.
         """
         data = event.data
-        logger.info(f"[Monitoring] 📊 Session completed for thread {data.thread_id} (Run: {data.run_id}). Finalizing run...")
+        logger.info(
+            f"[Monitoring] 📊 Session completed for thread {data.thread_id} (Run: {data.run_id}). Finalizing run..."
+        )
 
         try:
             from app.core.monitoring.activity import activity_monitor
@@ -40,6 +42,8 @@ class MonitoringLifecycleSubscriber:
                 final_outcome=data.outcome,
                 run_id=data.run_id,
             )
-            logger.debug(f"[Monitoring] ✓ Observability run finalized for {data.thread_id}")
+            logger.debug(
+                f"[Monitoring] ✓ Observability run finalized for {data.thread_id}"
+            )
         except Exception as e:
             logger.exception(f"[Monitoring] Failed to finalize observability run: {e}")

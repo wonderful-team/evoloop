@@ -13,6 +13,7 @@ from typing import Any
 from pydantic import Field, model_validator
 from sqlalchemy import delete, func, select, update
 
+from app.constants import MESSAGES_CLEANUP, REWIND_REQUESTED
 from app.core.events import system_bus
 from app.core.events.base import BaseEvent, EventData
 from app.infrastructure.database import session_scope
@@ -22,9 +23,6 @@ logger = logging.getLogger(__name__)
 
 
 # ───────────────────────── Event types ─────────────────────────
-
-REWIND_REQUESTED = "rewind.requested"
-MESSAGES_CLEANUP = "rewind.messages.cleanup"
 
 
 class RewindRequestedEvent(BaseEvent):
@@ -152,7 +150,11 @@ async def perform_rewind(
 
     try:
         # Phase 0: Pre-compute affected message IDs (prevents race conditions)
-        affected_ids, affected_run_ids, target_seq = await _compute_affected_message_ids(
+        (
+            affected_ids,
+            affected_run_ids,
+            target_seq,
+        ) = await _compute_affected_message_ids(
             thread_id=thread_id,
             target_message_id=target_message_id,
             include_target=include_target,
@@ -164,11 +166,15 @@ async def perform_rewind(
             from app.core.engine.message.sequence import SequenceService
 
             async with session_scope() as session:
-                stmt = select(func.max(Message.sequence_number)).where(Message.thread_id == thread_id)
+                stmt = select(func.max(Message.sequence_number)).where(
+                    Message.thread_id == thread_id
+                )
                 res = await session.execute(stmt)
                 max_seq = res.scalar() or 0
                 await SequenceService.set_sequence(thread_id, max_seq + 1)
-            logger.info(f"[Rewind] Deleted {deleted_count} messages, seq reset to {max_seq + 1}")
+            logger.info(
+                f"[Rewind] Deleted {deleted_count} messages, seq reset to {max_seq + 1}"
+            )
 
         # Phase 2: Clear HITL requests and activity status
         await _clear_hitl(thread_id)
@@ -198,7 +204,9 @@ async def perform_rewind(
 
         res = event.results
         result = RewindResult(
-            status="success" if event.success and not event.errors else "partial_failure",
+            status="success"
+            if event.success and not event.errors
+            else "partial_failure",
             thread_id=thread_id,
             removed_message_count=deleted_count,
             reverted_file_count=res.get("files", 0),
@@ -223,10 +231,14 @@ async def _compute_affected_message_ids(
 ) -> tuple[list[str], list[str], int]:
     """Pre-compute the list of message IDs, run IDs, and target sequence number."""
     async with session_scope() as session:
-        stmt = select(Message.id, Message.sequence_number, Message.run_id).where(Message.thread_id == thread_id)
+        stmt = select(Message.id, Message.sequence_number, Message.run_id).where(
+            Message.thread_id == thread_id
+        )
 
         if target_message_id:
-            stmt_target = select(Message.sequence_number).where(Message.id == target_message_id)
+            stmt_target = select(Message.sequence_number).where(
+                Message.id == target_message_id
+            )
             res_target = await session.execute(stmt_target)
             target_seq = res_target.scalar_one_or_none()
             if target_seq is None:
@@ -267,7 +279,9 @@ async def _delete_messages(message_ids: list[str]) -> int:
             delete(MessageReference).where(MessageReference.message_id.in_(message_ids))
         )
         await session.execute(
-            update(Message).where(Message.parent_id.in_(message_ids)).values(parent_id=None)
+            update(Message)
+            .where(Message.parent_id.in_(message_ids))
+            .values(parent_id=None)
         )
         result = await session.execute(
             delete(Message).where(Message.id.in_(message_ids))

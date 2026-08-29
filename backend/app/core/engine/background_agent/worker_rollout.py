@@ -83,7 +83,9 @@ async def run_worker_rollout(
 
             # Multi-skill sequential workflow delegated by Worker.
             if update.next_node == "sequential_workflow":
-                from app.core.engine.nodes.sequential_workflow import SequentialWorkflowNode
+                from app.core.engine.nodes.sequential_workflow import (
+                    SequentialWorkflowNode,
+                )
 
                 seq_update = await SequentialWorkflowNode()(state, config)
                 merge_state_update(state, seq_update)
@@ -100,8 +102,14 @@ async def run_worker_rollout(
             if next_node == "finish":
                 # 成功→finish（是否审计由 Finish/AuditService 按 needs_audit 判定）。
                 # needs_audit=true 时 session 主循环依据 state.ticket.needs_audit 重进图跑验收。
-                outcome = "done" if worker_outcome in ("completed", "success") else (
-                    "failed" if worker_outcome in ("truncated", "failed", "error") else "done"
+                outcome = (
+                    "done"
+                    if worker_outcome in ("completed", "success")
+                    else (
+                        "failed"
+                        if worker_outcome in ("truncated", "failed", "error")
+                        else "done"
+                    )
                 )
                 break
             if next_node == "supervisor":
@@ -129,7 +137,9 @@ async def run_worker_rollout(
     return outcome
 
 
-async def _wait_a2a_callback_then_reload(state: Any, config: dict, thread_id: str) -> Any | None:
+async def _wait_a2a_callback_then_reload(
+    state: Any, config: dict, thread_id: str
+) -> Any | None:
     """Park the Worker until the remote A2A callback result is in DB, then reload state.
 
     The callback handler resolves the wait AFTER ``update_content_by_tool_call_id``
@@ -139,7 +149,9 @@ async def _wait_a2a_callback_then_reload(state: Any, config: dict, thread_id: st
     """
     from app.core.engine.worker_registry import clear_a2a_wait, register_a2a_wait
 
-    logger.info(f"[WorkerRollout] {thread_id} dispatched A2A; waiting for remote callback")
+    logger.info(
+        f"[WorkerRollout] {thread_id} dispatched A2A; waiting for remote callback"
+    )
     event = register_a2a_wait(thread_id)
     try:
         try:
@@ -161,7 +173,9 @@ async def _reload_worker_state(state: Any, config: dict, thread_id: str) -> Any 
     cf = config.get("configurable", {}) or {}
     try:
         inputs = BackgroundAgentInputs(
-            goal=state.session_goal or (state.ticket.topic if state.ticket else "") or "",
+            goal=state.session_goal
+            or (state.ticket.topic if state.ticket else "")
+            or "",
             session_goal=state.session_goal,
             project_id=cf.get("project_id"),
             model=cf.get("model"),
@@ -171,7 +185,9 @@ async def _reload_worker_state(state: Any, config: dict, thread_id: str) -> Any 
         )
         return await build_agent_state(thread_id, inputs)
     except Exception as e:
-        logger.exception(f"[WorkerRollout] {thread_id} failed to reload state after A2A: {e}")
+        logger.exception(
+            f"[WorkerRollout] {thread_id} failed to reload state after A2A: {e}"
+        )
         return None
 
 
@@ -198,7 +214,9 @@ async def _write_a2a_timeout_result(thread_id: str) -> None:
             task_id = str(payload.get("task_id") or "")
             target_device_key = str(payload.get("target_device_key") or "")
     except Exception as e:
-        logger.warning(f"[WorkerRollout] Failed to read pending a2a payload: {e}", exc_info=True)
+        logger.warning(
+            f"[WorkerRollout] Failed to read pending a2a payload: {e}", exc_info=True
+        )
 
     from app.core.events.publishers import publish_a2a_lifecycle
 
@@ -265,7 +283,11 @@ async def _run_worker_split(state: Any, config: dict, thread_id: str) -> None:
 
         await activity_monitor.check_cancellation(thread_id)
         statuses = await _split_subagent_statuses(run_parent)
-        done = [s for s in statuses if s not in ("running", "awaiting_human", "awaiting_a2a")]
+        done = [
+            s
+            for s in statuses
+            if s not in ("running", "awaiting_human", "awaiting_a2a")
+        ]
         if len(done) >= expected or time.monotonic() > deadline:
             break
         await asyncio.sleep(_SPLIT_POLL_INTERVAL)
@@ -279,7 +301,9 @@ async def _run_worker_split(state: Any, config: dict, thread_id: str) -> None:
     # 会话（含聚合结果）继续写最终报告。
     if getattr(state, "ticket", None) is not None:
         state.ticket.is_resuming = True
-        logger.info(f"[WorkerRollout] {thread_id} marked is_resuming after split aggregation")
+        logger.info(
+            f"[WorkerRollout] {thread_id} marked is_resuming after split aggregation"
+        )
 
     logger.info(
         f"[WorkerRollout] {thread_id} split done ({len(done)}/{expected} terminal); "
@@ -296,7 +320,9 @@ async def _split_subagent_statuses(run_parent: str) -> list[str]:
     from app.models.subagent import SubagentRun
 
     async with session_scope() as session:
-        stmt = select(SubagentRun.status).where(SubagentRun.parent_thread_id == run_parent)
+        stmt = select(SubagentRun.status).where(
+            SubagentRun.parent_thread_id == run_parent
+        )
         rows = (await session.execute(stmt)).scalars().all()
         return list(rows)
 

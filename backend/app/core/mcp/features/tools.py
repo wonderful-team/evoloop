@@ -60,10 +60,7 @@ class McpToolsFeature(McpFeature):
         """Get tools capabilities."""
         return McpFeatureCapabilities(
             count=len(self._tools),
-            tools=[
-                {"name": t.name, "description": t.description}
-                for t in self._tools
-            ]
+            tools=[{"name": t.name, "description": t.description} for t in self._tools],
         )
 
     def get_tools(self) -> list[EvoLoopTool]:
@@ -119,7 +116,8 @@ class McpToolsFeature(McpFeature):
             native_tool = EvoLoopTool(
                 func=_tool_func,
                 name=formatted_name,
-                description=tool.description or f"MCP tool '{tool.name}' from server '{server_name}'",
+                description=tool.description
+                or f"MCP tool '{tool.name}' from server '{server_name}'",
                 args_schema=args_schema,
             )
             native_tools.append(native_tool)

@@ -8,6 +8,7 @@ import logging
 from typing import Any
 
 from app.core.config import settings
+from app.core.memory.constants import DEFAULT_SEARCH_LIMIT
 from app.core.memory.file_engine import _FileEngine
 from app.core.memory.graph_engine import _GraphEngine
 from app.core.memory.models import MemoryEntry, MemorySearchResult, PrivacyLevel
@@ -17,7 +18,9 @@ logger = logging.getLogger(__name__)
 
 
 class MemoryStore:
-    def __init__(self, base_dir: str | None = None, project_roots: dict[int, str] | None = None):
+    def __init__(
+        self, base_dir: str | None = None, project_roots: dict[int, str] | None = None
+    ):
         if settings.EMBEDDED_MODE:
             self._engine = _FileEngine(base_dir=base_dir, project_roots=project_roots)
         else:
@@ -60,7 +63,7 @@ class MemoryStore:
         privacy: PrivacyLevel | None = None,
         project_id: int | None = None,
         filters: dict[str, Any] | None = None,
-        limit: int = 10,
+        limit: int = DEFAULT_SEARCH_LIMIT,
         member_id: int | None = None,
     ) -> list[MemoryEntry]:
         return await self._engine.search(
@@ -107,7 +110,7 @@ class MemoryStore:
     async def search_similar(
         self,
         query_embedding: list[float],
-        top_k: int = 10,
+        top_k: int = DEFAULT_SEARCH_LIMIT,
         project_id: int | None = None,
     ) -> list[MemoryEntry]:
         return await self._engine.search_similar(query_embedding, top_k, project_id)
@@ -116,7 +119,7 @@ class MemoryStore:
         self,
         entry_id: str,
         relation_type: str | None = None,
-        limit: int = 10,
+        limit: int = DEFAULT_SEARCH_LIMIT,
     ) -> list[MemoryEntry]:
         return await self._engine.get_related(entry_id, relation_type, limit)
 
@@ -124,7 +127,7 @@ class MemoryStore:
         await self._engine.link_concept_to_episode(concept_name, episode_id)
 
     async def find_episodes_by_concept(
-        self, concept_name: str, limit: int = 10
+        self, concept_name: str, limit: int = DEFAULT_SEARCH_LIMIT
     ) -> list[dict[str, Any]]:
         return await self._engine.find_episodes_by_concept(concept_name, limit)
 

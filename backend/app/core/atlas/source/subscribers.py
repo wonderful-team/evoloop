@@ -49,7 +49,9 @@ class AppMapLifecycleSubscriber:
             try:
                 with Session(db_resource_manager.sync_engine) as session:
                     count = session.scalar(
-                        select(func.count(AppMap.id)).where(AppMap.project_id == event.project_id)
+                        select(func.count(AppMap.id)).where(
+                            AppMap.project_id == event.project_id
+                        )
                     )
                     event.is_valid = bool(count and count > 0)
             except Exception:

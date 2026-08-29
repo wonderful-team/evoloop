@@ -21,9 +21,14 @@ class DumpMixin:
                     with open(state_file, encoding="utf-8") as f:
                         state_data = json.load(f)
                         data_to_dump["batch_items"] = state_data.get("items", [])
-                        logger.info(f"[{thread_id}] Enriched dump with {len(data_to_dump['batch_items'])} items from state file")
+                        logger.info(
+                            f"[{thread_id}] Enriched dump with {len(data_to_dump['batch_items'])} items from state file"
+                        )
                 except Exception as e:
-                    logger.warning(f"[{thread_id}] Failed to load state file for enriched dump: {e}", exc_info=True)
+                    logger.warning(
+                        f"[{thread_id}] Failed to load state file for enriched dump: {e}",
+                        exc_info=True,
+                    )
 
         if sink_type == "file":
             await cls._dump_to_file(thread_id, payload, data_to_dump)
@@ -38,7 +43,9 @@ class DumpMixin:
     @classmethod
     async def _dump_to_file(cls, thread_id, payload, extracted_data):
         sink_path = payload.get("path", f"/tmp/macro_results_{thread_id}.json")
-        await activity_monitor.log_event("macro_thought", {"text": f"Dump extracted data to {sink_path}"}, thread_id)
+        await activity_monitor.log_event(
+            "macro_thought", {"text": f"Dump extracted data to {sink_path}"}, thread_id
+        )
         try:
             with open(sink_path, "w", encoding="utf-8") as f:
                 json.dump(extracted_data, f, ensure_ascii=False, indent=2)
@@ -79,16 +86,24 @@ class DumpMixin:
 
                 if not mcp_tool_name:
                     tool_name = tool.name.lower()
-                    if operation in tool_name or "insert" in tool_name or "store" in tool_name:
+                    if (
+                        operation in tool_name
+                        or "insert" in tool_name
+                        or "store" in tool_name
+                    ):
                         target_tool = tool
                         break
 
             if not target_tool:
                 if mcp_tool_name:
-                    logger.error(f"[MacroEngine] MCP tool '{mcp_tool_name}' not found on server '{mcp_server}'")
+                    logger.error(
+                        f"[MacroEngine] MCP tool '{mcp_tool_name}' not found on server '{mcp_server}'"
+                    )
                     return
                 target_tool = tools[0]
-                logger.warning(f"[MacroEngine] Using total fallback MCP tool: {target_tool.name}")
+                logger.warning(
+                    f"[MacroEngine] Using total fallback MCP tool: {target_tool.name}"
+                )
 
             mapping = payload.get("data_mapping")
             if mapping:
@@ -97,12 +112,16 @@ class DumpMixin:
                     if source_key == "$thread_id":
                         data_payload[target_key] = thread_id
                     elif source_key == "$timestamp":
-                        data_payload[target_key] = datetime.now(timezone.utc).isoformat()
+                        data_payload[target_key] = datetime.now(
+                            timezone.utc
+                        ).isoformat()
                     else:
                         data_payload[target_key] = extracted_data.get(source_key)
 
                 if not data_payload:
-                    logger.warning(f"[{thread_id}] MCP data_mapping resulted in empty payload")
+                    logger.warning(
+                        f"[{thread_id}] MCP data_mapping resulted in empty payload"
+                    )
             else:
                 data_payload = {
                     "table": table,
@@ -115,7 +134,9 @@ class DumpMixin:
             logger.info(f"[MacroEngine] Data pushed to MCP '{mcp_server}': {result}")
 
         except Exception as e:
-            logger.error(f"[MacroEngine] Failed to push data to MCP: {e}", exc_info=True)
+            logger.error(
+                f"[MacroEngine] Failed to push data to MCP: {e}", exc_info=True
+            )
 
     @classmethod
     async def _dump_to_webhook(cls, thread_id, payload, extracted_data):
@@ -144,15 +165,23 @@ class DumpMixin:
                 }
 
                 if method == "POST":
-                    response = await client.post(webhook_url, json=request_data, headers=headers)
+                    response = await client.post(
+                        webhook_url, json=request_data, headers=headers
+                    )
                 elif method == "PUT":
-                    response = await client.put(webhook_url, json=request_data, headers=headers)
+                    response = await client.put(
+                        webhook_url, json=request_data, headers=headers
+                    )
                 else:
                     logger.error(f"[MacroEngine] Unsupported HTTP method: {method}")
                     return
 
                 response.raise_for_status()
-                logger.info(f"[MacroEngine] Data pushed to webhook: {response.status_code}")
+                logger.info(
+                    f"[MacroEngine] Data pushed to webhook: {response.status_code}"
+                )
 
         except Exception as e:
-            logger.error(f"[MacroEngine] Failed to push data to webhook: {e}", exc_info=True)
+            logger.error(
+                f"[MacroEngine] Failed to push data to webhook: {e}", exc_info=True
+            )

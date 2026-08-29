@@ -8,11 +8,21 @@ from enum import Enum
 # ====================== Engine Constants ======================
 DEFAULT_PROJECT_ID = 0
 
-# Forgetting safety window - can only forget tool outputs older than N steps
-FORGET_SAFETY_WINDOW = 5
-
 # Default max context tokens fallback (128K) for unknown/unconfigured models
 DEFAULT_MAX_CONTEXT_TOKENS = 128_000
+
+# Default internal LLM generation budget (e.g. summarization/extraction)
+DEFAULT_INTERNAL_LLM_TOKENS = 4_000
+
+# ====================== Cross-subsystem Event Constants ======================
+#: Rewind requested event type (used by engine, memory, file, learning, planning, todo)
+REWIND_REQUESTED = "rewind.requested"
+#: Messages cleanup event type (used by engine and evocloud sync)
+MESSAGES_CLEANUP = "rewind.messages.cleanup"
+
+# ====================== Cross-subsystem Cache Keys ======================
+#: Prefix for platform-specific dynamic app bundle ID sets (atlas + environment)
+CACHE_KEY_DYNAMIC_APPS_PREFIX = "system:dynamic_apps"
 
 
 # ====================== Document Type Enum ======================
@@ -339,7 +349,9 @@ EXCLUDED_PATTERNS = [
 ]
 
 # All blacklisted file extensions
-BLACKLIST_FILE_EXTENSIONS = IMAGE_EXTENSIONS + VIDEO_EXTENSIONS + AUDIO_EXTENSIONS + BINARY_EXTENSIONS
+BLACKLIST_FILE_EXTENSIONS = (
+    IMAGE_EXTENSIONS + VIDEO_EXTENSIONS + AUDIO_EXTENSIONS + BINARY_EXTENSIONS
+)
 
 # All whitelist file extensions
 WHITELIST_FILE_EXTENSIONS = (
@@ -558,9 +570,34 @@ SEMANTIC_EXTENSIONS = {ext for exts in SEMANTIC_LANGUAGE_MAP.values() for ext in
 # Extensions allowed for full repository indexing (Searchable Codebase)
 # Includes all semantic languages + documentation + common text-based configs
 INDEXABLE_EXTENSIONS = SEMANTIC_EXTENSIONS | {
-    ".md", ".markdown", ".txt", ".sh", ".bash", ".c", ".h", ".cpp", ".hpp",
-    ".yaml", ".yml", ".toml", ".json", ".sql", ".pdf", ".docx", ".xlsx", ".csv",
-    ".png", ".jpg", ".jpeg", ".bmp", ".webp", ".mp3", ".wav", ".mp4", ".mov", ".avi"
+    ".md",
+    ".markdown",
+    ".txt",
+    ".sh",
+    ".bash",
+    ".c",
+    ".h",
+    ".cpp",
+    ".hpp",
+    ".yaml",
+    ".yml",
+    ".toml",
+    ".json",
+    ".sql",
+    ".pdf",
+    ".docx",
+    ".xlsx",
+    ".csv",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".bmp",
+    ".webp",
+    ".mp3",
+    ".wav",
+    ".mp4",
+    ".mov",
+    ".avi",
 }
 
 # ====================== Security / Filter Patterns ======================

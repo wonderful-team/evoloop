@@ -7,7 +7,7 @@ import time
 
 from sqlalchemy import desc, func, select
 
-from app.constants import DEFAULT_PROJECT_ID
+from app.constants import DEFAULT_INTERNAL_LLM_TOKENS, DEFAULT_PROJECT_ID
 from app.core.config import settings
 from app.core.context.manager import ContextManager, EvoContext
 from app.core.learning.macro import MacroScriptCompiler
@@ -174,7 +174,9 @@ async def _run_persist_file_operation(
             )
         )
     except Exception as e:
-        logger.warning(f"[Task] Failed to publish changeset updated event: {e}", exc_info=True)
+        logger.warning(
+            f"[Task] Failed to publish changeset updated event: {e}", exc_info=True
+        )
 
 
 @shared_task(name="engine_persist_file_operation")  # type: ignore[reportCallIssue]
@@ -273,7 +275,9 @@ async def record_episode_task(
     """
     Background task to sync thread trace to the episode graph (memory system).
     """
-    logger.info(f"[Task] Recording episode for thread {thread_id} (Source: {source_message_id}, AutoSynth: {auto_synthesize})...")
+    logger.info(
+        f"[Task] Recording episode for thread {thread_id} (Source: {source_message_id}, AutoSynth: {auto_synthesize})..."
+    )
 
     ctx = EvoContext(thread_id=thread_id, project_id=project_id, active_model=model)
     token = ContextManager.set(ctx)
@@ -296,15 +300,21 @@ async def record_episode_task(
 
             # Check if there are meaningful events to synthesize
             async with session_scope() as db:
-                stmt = select(func.count(TraceEvent.id)).where(TraceEvent.thread_id == thread_id)
+                stmt = select(func.count(TraceEvent.id)).where(
+                    TraceEvent.thread_id == thread_id
+                )
                 count_res = await db.execute(stmt)
                 event_count = count_res.scalar()
 
             if event_count and event_count >= 3:
-                logger.info(f"[Task] 🧬 Auto-triggering skill synthesis for thread {thread_id} ({event_count} events)")
+                logger.info(
+                    f"[Task] 🧬 Auto-triggering skill synthesis for thread {thread_id} ({event_count} events)"
+                )
                 parser = TraceParser(thread_id=thread_id)
                 sequence = await parser.parse()
-                synthesizer = WorkflowSynthesizer(thread_id=thread_id, sequence=sequence)
+                synthesizer = WorkflowSynthesizer(
+                    thread_id=thread_id, sequence=sequence
+                )
                 result = await synthesizer.synthesize()
                 if result and result.skill:
                     # Persist through the single creation service so the skill
@@ -342,9 +352,13 @@ async def record_episode_task(
                         )
                     await publish_skill_mutated(skill_id=db_skill.id, action="create")
                     await publish_macro_mutated(db_macro.id, action="create")
-                    logger.info(f"[Task] ✅ Skill synthesis complete: {result.skill.name} (pending_review)")
+                    logger.info(
+                        f"[Task] ✅ Skill synthesis complete: {result.skill.name} (pending_review)"
+                    )
                 else:
-                    logger.info("[Task] ⏩ Skill synthesis skipped (no unique pattern found)")
+                    logger.info(
+                        "[Task] ⏩ Skill synthesis skipped (no unique pattern found)"
+                    )
     finally:
         ContextManager.reset(token)
 
@@ -374,7 +388,9 @@ def cleanup_artifacts_task(max_age_days: int = 3):
                     elif entry.is_dir():
                         shutil.rmtree(entry.path)
             except Exception as e:
-                logger.warning(f"Failed to delete artifact {entry.path}: {e}", exc_info=True)
+                logger.warning(
+                    f"Failed to delete artifact {entry.path}: {e}", exc_info=True
+                )
 
 
 @shared_task(name="engine_git_harvest")  # type: ignore[reportCallIssue]
@@ -391,7 +407,9 @@ async def git_harvest_task(cwd: str, project_id: int, model: str | None = None):
     try:
         # 1. Get Diff
         if not os.path.exists(cwd):
-            logger.warning(f"[Task] Skipping git harvest: Directory '{cwd}' does not exist.")
+            logger.warning(
+                f"[Task] Skipping git harvest: Directory '{cwd}' does not exist."
+            )
             return
 
         cmd = ["git", "diff", "HEAD"]
@@ -427,7 +445,7 @@ async def git_harvest_task(cwd: str, project_id: int, model: str | None = None):
             purpose="memory_extraction",
             output_schema=GitConceptExtractionResult,
             temperature=0.0,
-            max_tokens=4000,
+            max_tokens=DEFAULT_INTERNAL_LLM_TOKENS,
         )
 
         if result.concepts:
@@ -452,7 +470,9 @@ async def git_harvest_task(cwd: str, project_id: int, model: str | None = None):
 
 
 @shared_task(name="engine_reconcile_skill_macro")  # type: ignore[reportCallIssue]
-async def reconcile_skill_macro_task(skill_id: int, thread_id: str, model: str | None = None):
+async def reconcile_skill_macro_task(
+    skill_id: int, thread_id: str, model: str | None = None
+):
     """
     Background task to reconcile a broken skill macro.
     """
@@ -463,7 +483,9 @@ async def reconcile_skill_macro_task(skill_id: int, thread_id: str, model: str |
 
     # Pre-check: ensure there are enough trace events to synthesize from
     async with session_scope() as db:
-        stmt = select(func.count(TraceEvent.id)).where(TraceEvent.thread_id == thread_id)
+        stmt = select(func.count(TraceEvent.id)).where(
+            TraceEvent.thread_id == thread_id
+        )
         count_res = await db.execute(stmt)
         event_count = count_res.scalar()
 
@@ -486,7 +508,9 @@ async def reconcile_skill_macro_task(skill_id: int, thread_id: str, model: str |
         macro_script = MacroScriptCompiler().compile(sequence).to_yaml()
 
         if not macro_script:
-            logger.warning(f"[Task] No valid macro synthesized from recovery thread {thread_id}. Aborting patch.")
+            logger.warning(
+                f"[Task] No valid macro synthesized from recovery thread {thread_id}. Aborting patch."
+            )
             return
 
         healed = False
@@ -500,7 +524,9 @@ async def reconcile_skill_macro_task(skill_id: int, thread_id: str, model: str |
             if original_skill:
                 healed = True
                 if repaired_skill.skill and repaired_skill.skill.instructions:
-                    await patch_skill(original_skill, instructions=repaired_skill.skill.instructions)
+                    await patch_skill(
+                        original_skill, instructions=repaired_skill.skill.instructions
+                    )
 
                 # Chain-heal paired flywheel macros (macros table is the
                 # authoritative store for deterministic scripts).
@@ -626,7 +652,9 @@ async def run_autonomous_task_execution(task_id: int, project_id: int | None = N
         if result.status == "failed":
             raise RuntimeError(f"Dispatch failed for task {task_id}: {result.error}")
 
-        logger.info(f"[Task] Starting autonomous agent for task {task_id} on {device_id}")
+        logger.info(
+            f"[Task] Starting autonomous agent for task {task_id} on {device_id}"
+        )
 
         async with session_scope() as session:
             task = await session.get(AutonomousTask, task_id)
@@ -670,7 +698,9 @@ async def run_engine_audit_structured_extraction(
     from app.utils.template import render_template
 
     if not collected_schemas:
-        logger.info(f"[Task] No extraction schemas requested for thread {thread_id}, skipping extraction.")
+        logger.info(
+            f"[Task] No extraction schemas requested for thread {thread_id}, skipping extraction."
+        )
         return
 
     requests = [ExtractionRequest(**s) for s in collected_schemas]
@@ -694,11 +724,12 @@ async def run_engine_audit_structured_extraction(
     try:
         response = await asyncio.wait_for(
             InternalLLMService.invoke_structured(
-                messages=messages + [SystemMessage(content=extract_prompt).model_dump()],
+                messages=messages
+                + [SystemMessage(content=extract_prompt).model_dump()],
                 output_schema=DynamicVerdict,
                 purpose="audit_extraction",
                 temperature=0.1,
-                max_tokens=4000,
+                max_tokens=DEFAULT_INTERNAL_LLM_TOKENS,
                 structured_output_method="function_calling",
                 extra_body={"enable_thinking": False},
             ),
@@ -717,10 +748,14 @@ async def run_engine_audit_structured_extraction(
                 run_id=run_id,
                 extracted_data=extracted_data,
             )
-            logger.info(f"[Task] 🚀 Publishing ExtractionCompletedEvent for thread {thread_id}")
+            logger.info(
+                f"[Task] 🚀 Publishing ExtractionCompletedEvent for thread {thread_id}"
+            )
             await system_bus.publish(event)
     except Exception as e:
-        logger.exception(f"[Task] engine_audit_structured_extraction failed for thread {thread_id}: {e!r}")
+        logger.exception(
+            f"[Task] engine_audit_structured_extraction failed for thread {thread_id}: {e!r}"
+        )
         raise
 
 

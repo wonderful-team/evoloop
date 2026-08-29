@@ -20,32 +20,6 @@ logger = logging.getLogger(__name__)
 # ========== Cloud Device Authentication ==========
 
 
-async def verify_device_token(
-    authorization: str = Header(..., description="Bearer {device_token}"),
-) -> str:
-    """
-    Verify device token for cloud API endpoints.
-
-    TODO: Implement proper JWT validation with device registry
-    """
-    if not authorization.startswith("Bearer "):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authorization header format",
-        )
-
-    token = authorization.replace("Bearer ", "")
-
-    # TODO: Validate token against device registry
-    # For now, accept any non-empty token
-    if not token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Empty device token"
-        )
-
-    return token
-
-
 def extract_bearer_token(authorization: str | None) -> str | None:
     """
     Extract a bearer token from an Authorization header value.

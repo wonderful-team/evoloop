@@ -1,4 +1,5 @@
 """Agent runtime configuration and execution tickets."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -107,7 +108,9 @@ class ExecutionTicket(DynamicBaseModel):
     @classmethod
     def _topic_must_be_non_empty(cls, v):
         if not isinstance(v, str) or not v.strip():
-            raise ValueError("ExecutionTicket.topic cannot be empty or missing. Check upstream caller (route_to, etc.) to ensure a non-empty topic/intent/reason is provided.")
+            raise ValueError(
+                "ExecutionTicket.topic cannot be empty or missing. Check upstream caller (route_to, etc.) to ensure a non-empty topic/intent/reason is provided."
+            )
         return v.strip()
 
     @model_validator(mode="after")

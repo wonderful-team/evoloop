@@ -40,13 +40,19 @@ def _dict_to_message(d: dict) -> BaseMessage:
         role = "user"
     native_type = _ROLE_MAP.get(role, "human")
     if native_type == "human":
-        return HumanMessage(**{k: v for k, v in d.items() if k != "role" and k != "type"})
+        return HumanMessage(
+            **{k: v for k, v in d.items() if k != "role" and k != "type"}
+        )
     elif native_type == "ai":
         return AIMessage(**{k: v for k, v in d.items() if k != "role" and k != "type"})
     elif native_type == "system":
-        return SystemMessage(**{k: v for k, v in d.items() if k != "role" and k != "type"})
+        return SystemMessage(
+            **{k: v for k, v in d.items() if k != "role" and k != "type"}
+        )
     elif native_type == "tool":
-        return ToolMessage(**{k: v for k, v in d.items() if k != "role" and k != "type"})
+        return ToolMessage(
+            **{k: v for k, v in d.items() if k != "role" and k != "type"}
+        )
     return HumanMessage(content=d.get("content", ""))
 
 
@@ -61,11 +67,6 @@ def _normalize_to_native(messages: list[Any]) -> list[BaseMessage]:
 
 
 class EvoMessageConverter:
-    @staticmethod
-    def from_message_dicts(messages: list[dict]) -> list[dict]:
-        """Convert messages directly to standard dicts."""
-        return list(messages)
-
     @staticmethod
     def repair(messages: list[Any]) -> list[BaseMessage]:
         """
@@ -107,18 +108,24 @@ class EvoMessageConverter:
                 if stage1:
                     last = stage1[-1]
                     if last.role == "assistant" and last.tool_calls:
-                        ids = [tc.get("id") for tc in last.tool_calls if isinstance(tc, dict)]
+                        ids = [
+                            tc.get("id")
+                            for tc in last.tool_calls
+                            if isinstance(tc, dict)
+                        ]
                         if tool_call_id in ids:
                             is_orphaned = False
                 if is_orphaned:
                     stage1.append(
                         AIMessage(
                             content=_t("orphaned_tool"),
-                            tool_calls=[{
-                                "id": str(tool_call_id or "unknown_id"),
-                                "name": str(msg.name or "unknown_tool"),
-                                "args": {},
-                            }],
+                            tool_calls=[
+                                {
+                                    "id": str(tool_call_id or "unknown_id"),
+                                    "name": str(msg.name or "unknown_tool"),
+                                    "args": {},
+                                }
+                            ],
                         )
                     )
                 stage1.append(msg)
@@ -183,7 +190,9 @@ class EvoMessageConverter:
         if non_system:
             first = non_system[0]
             if final_repaired[first].role == "assistant":
-                final_repaired.insert(first, HumanMessage(content=_t("conversation_continuation")))
+                final_repaired.insert(
+                    first, HumanMessage(content=_t("conversation_continuation"))
+                )
         elif not final_repaired:
             final_repaired.append(HumanMessage(content=_t("conversation_continuation")))
 

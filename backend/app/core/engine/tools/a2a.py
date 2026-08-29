@@ -43,13 +43,19 @@ async def list_agents() -> str:
             for dev in devices_list:
                 dev_type = dev.get("device_type")
                 dev_status = dev.get("status")
-                if dev_type and dev_type not in ("mobile", "unknown") and dev_status == "online":
-                    online_agents.append({
-                        "device_key": dev.get("device_key"),
-                        "device_name": dev.get("device_name"),
-                        "device_type": dev.get("device_type"),
-                        "description": dev.get("description") or ""
-                    })
+                if (
+                    dev_type
+                    and dev_type not in ("mobile", "unknown")
+                    and dev_status == "online"
+                ):
+                    online_agents.append(
+                        {
+                            "device_key": dev.get("device_key"),
+                            "device_name": dev.get("device_name"),
+                            "device_type": dev.get("device_type"),
+                            "description": dev.get("description") or "",
+                        }
+                    )
             return json.dumps(online_agents, ensure_ascii=False, indent=2)
         return json.dumps(devices, ensure_ascii=False, indent=2)
     except Exception as e:
@@ -82,10 +88,7 @@ class SendAgentTaskInput(DynamicBaseModel):
     summary_template="a2a.tool_summary.send_agent_task",
 )
 async def send_agent_task(
-    target_device_key: str,
-    instruction: str,
-    attachments: list[str] = [],
-    **kwargs
+    target_device_key: str, instruction: str, attachments: list[str] = [], **kwargs
 ) -> str:
     """
     Delegate a subtask to another Agent (worker) device.
@@ -147,7 +150,9 @@ async def send_agent_task(
             logger.exception(f"[A2A] Failed to upload attachment {path}: {e}")
             return f"Error uploading attachment {path}: {e}"
 
-    caller_device_key = evocloud_manager.link.device_key if evocloud_manager.link else "unknown-caller"
+    caller_device_key = (
+        evocloud_manager.link.device_key if evocloud_manager.link else "unknown-caller"
+    )
 
     task_envelope = AgentTask(
         task_id=task_id,
@@ -170,8 +175,12 @@ async def send_agent_task(
     }
 
     try:
-        await evocloud_manager.api.send_command_to_device(device_key=target_device_key, cmd_data=cmd_data)
-        logger.info(f"[A2A] Dispatched A2A task {task_id} to device {target_device_key}")
+        await evocloud_manager.api.send_command_to_device(
+            device_key=target_device_key, cmd_data=cmd_data
+        )
+        logger.info(
+            f"[A2A] Dispatched A2A task {task_id} to device {target_device_key}"
+        )
     except Exception as e:
         logger.exception(f"[A2A] Failed to dispatch task to gateway: {e}")
         return f"Error dispatching task: {e}"
@@ -195,10 +204,7 @@ async def send_agent_task(
         type="a2a_callback",
         prompt=f"Waiting for A2A subtask callback from device {target_device_key}...",
         allow_cancel=True,
-        payload={
-            "task_id": task_id,
-            "target_device_key": target_device_key
-        },
+        payload={"task_id": task_id, "target_device_key": target_device_key},
     )
 
     from app.core.engine.message.repository import MessageRepository
@@ -216,6 +222,7 @@ async def send_agent_task(
     await activity_monitor.set_human_request(thread_id, req_data)
 
     from app.core.exceptions import AgentA2AInterruptException
+
     raise AgentA2AInterruptException(
         request_id=task_id,
         message=f"A2A Task {task_id} dispatched to {target_device_key}. Pausing execution.",
@@ -227,16 +234,14 @@ async def send_agent_task(
 # ==========================================
 class CompleteTaskInput(DynamicBaseModel):
     status: str = Field(
-        ...,
-        description="The status of the task execution: 'success' or 'failed'."
+        ..., description="The status of the task execution: 'success' or 'failed'."
     )
     summary: str = Field(
-        ...,
-        description="The natural language summary of the task result."
+        ..., description="The natural language summary of the task result."
     )
     attachments: list[str] = Field(
         default_factory=list,
-        description="List of local absolute file paths of outputs to upload and send back to the caller."
+        description="List of local absolute file paths of outputs to upload and send back to the caller.",
     )
 
 
@@ -287,10 +292,7 @@ async def complete_task(status: str, summary: str, attachments: list[str] = []) 
             return f"Error uploading attachment {path}: {e}"
 
     callback_payload = AgentTaskResult(
-        task_id=thread_id,
-        status=status,
-        summary=summary,
-        attachments=task_attachments
+        task_id=thread_id, status=status, summary=summary, attachments=task_attachments
     )
 
     cmd_data = {
@@ -301,8 +303,12 @@ async def complete_task(status: str, summary: str, attachments: list[str] = []) 
     }
 
     try:
-        await evocloud_manager.api.send_command_to_device(device_key=caller_device_key, cmd_data=cmd_data)
-        logger.info(f"[A2A] Sent A2A callback result for task {thread_id} to device {caller_device_key}")
+        await evocloud_manager.api.send_command_to_device(
+            device_key=caller_device_key, cmd_data=cmd_data
+        )
+        logger.info(
+            f"[A2A] Sent A2A callback result for task {thread_id} to device {caller_device_key}"
+        )
     except Exception as e:
         logger.exception(f"[A2A] Failed to send callback to caller: {e}")
         return f"Error sending callback: {e}"

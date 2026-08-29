@@ -11,12 +11,11 @@ from typing import Any
 
 from pydantic import Field, computed_field
 
+from app.core.atlas.constants import CACHE_KEY_ATLAS_STRATEGIES
 from app.infrastructure.cache import cache
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
-
-REDIS_KEY_ATLAS_STRATEGIES = "atlas:strategies"
 
 
 class InteractionStrategy(DynamicBaseModel):
@@ -65,7 +64,9 @@ class AppStrategy(DynamicBaseModel):
 
     def get_strategy_for(self, target: str) -> InteractionStrategy | None:
         """Find the best strategy for a target element."""
-        matching = [s for s in self.strategies if s.target_element.lower() == target.lower()]
+        matching = [
+            s for s in self.strategies if s.target_element.lower() == target.lower()
+        ]
         if not matching:
             return None
         # Return the most reliable strategy
@@ -88,10 +89,12 @@ class AtlasStrategyStore:
     @staticmethod
     def _get_key(bundle_id: str, platform: str) -> str:
         """Generate platform-specific cache key."""
-        return f"{REDIS_KEY_ATLAS_STRATEGIES}:{platform}:{bundle_id}"
+        return f"{CACHE_KEY_ATLAS_STRATEGIES}:{platform}:{bundle_id}"
 
     @classmethod
-    async def get_strategy(cls, bundle_id: str, platform: str = "android") -> AppStrategy | None:
+    async def get_strategy(
+        cls, bundle_id: str, platform: str = "android"
+    ) -> AppStrategy | None:
         """Retrieve strategy for an app."""
         key = cls._get_key(bundle_id, platform)
         try:
@@ -99,7 +102,9 @@ class AtlasStrategyStore:
             if data:
                 return AppStrategy.model_validate(json.loads(data))
         except Exception as e:
-            logger.warning(f"Failed to load strategy for {bundle_id}: {e}", exc_info=True)
+            logger.warning(
+                f"Failed to load strategy for {bundle_id}: {e}", exc_info=True
+            )
         return None
 
     @classmethod
@@ -107,7 +112,9 @@ class AtlasStrategyStore:
         """Save strategy for an app."""
         key = cls._get_key(strategy.bundle_id, strategy.platform)
         try:
-            await cache.set(key, json.dumps(strategy.model_dump()), ex=86400 * 7)  # 7 days
+            await cache.set(
+                key, json.dumps(strategy.model_dump()), ex=86400 * 7
+            )  # 7 days
             return True
         except Exception as e:
             logger.exception(f"Failed to save strategy for {strategy.bundle_id}: {e}")

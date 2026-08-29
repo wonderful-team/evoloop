@@ -57,7 +57,9 @@ class _AnaphoraMatcher:
         if markers != self._markers:
             self._markers = markers
             self._re = re.compile(
-                "|".join(_escape_marker(m) for m in sorted(markers, key=len, reverse=True))
+                "|".join(
+                    _escape_marker(m) for m in sorted(markers, key=len, reverse=True)
+                )
                 or r"(?!)",
                 re.IGNORECASE,
             )

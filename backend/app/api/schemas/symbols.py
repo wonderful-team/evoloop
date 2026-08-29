@@ -15,12 +15,6 @@ class SymbolResponse(BaseAPIResponse):
     end_line: int
 
 
-class SymbolWikiResponse(BaseAPIResponse):
-    """Response for symbol wiki generation."""
-
-    content: str
-
-
 class SymbolRelationResponse(BaseAPIResponse):
     """Dependency relationship between code entities/files."""
 

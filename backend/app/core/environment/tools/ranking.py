@@ -14,7 +14,9 @@ logger = logging.getLogger(__name__)
 
 
 @evoloop_tool(summary_template="evoloop.tool_summary.get_app_usage_ranker")
-async def get_app_usage_ranker(platform: Literal["macos", "android"] = "macos", top_n: int = 10) -> str:
+async def get_app_usage_ranker(
+    platform: Literal["macos", "android"] = "macos", top_n: int = 10
+) -> str:
     """
     Ranks applications based on their usage patterns (recency, frequency, running status).
 
@@ -34,7 +36,9 @@ async def get_app_usage_ranker(platform: Literal["macos", "android"] = "macos", 
             from app.infrastructure.drivers.macos import macos_driver
 
             apps = macos_driver.list_installed_apps()
-            records = await asyncio.to_thread(UsageRanker.rank_macos_apps, apps, top_n=top_n)
+            records = await asyncio.to_thread(
+                UsageRanker.rank_macos_apps, apps, top_n=top_n
+            )
         else:
             from app.infrastructure.drivers.adb import adb_driver
 
@@ -44,7 +48,9 @@ async def get_app_usage_ranker(platform: Literal["macos", "android"] = "macos", 
                 return "Error: No Android devices found for ranking."
             device_id = devices[0]["serial"]
             packages = adb_driver.list_installed_apps(device_id=device_id)
-            records = await asyncio.to_thread(UsageRanker.rank_android_apps, device_id, packages, top_n=top_n)
+            records = await asyncio.to_thread(
+                UsageRanker.rank_android_apps, device_id, packages, top_n=top_n
+            )
 
         if not records:
             return f"No usage data available for {platform}."

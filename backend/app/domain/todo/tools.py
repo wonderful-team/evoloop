@@ -10,6 +10,7 @@ from typing import Annotated, Literal
 from app.core.engine.message.native_classes import RunnableConfig
 from app.core.tools import evoloop_tool
 from app.core.tools.base import InjectedToolArg
+from app.domain.todo.constants import DEFAULT_TODO_LIMIT
 from app.domain.todo.formatting import format_todo_list
 from app.domain.todo.schemas import TodoCreate, TodoFilter
 from app.domain.todo.service import TodoNotFoundError
@@ -20,8 +21,7 @@ from app.models.todo import TodoStatus
 
 
 @evoloop_tool(
-    is_state_mutating=True,
-    summary_template="evoloop.tool_summary.create_todo"
+    is_state_mutating=True, summary_template="evoloop.tool_summary.create_todo"
 )
 async def create_todo(
     title: str,
@@ -110,7 +110,7 @@ async def create_todo(
 async def list_todos(
     status: Literal["pending", "completed", "cancelled"] | None = None,
     project_id: int | None = None,
-    limit: int = 50,
+    limit: int = DEFAULT_TODO_LIMIT,
 ) -> str:
     """
     List Todo items with optional filtering.
@@ -224,8 +224,10 @@ async def cancel_todo(todo_id: str) -> str:
         try:
             todo = await service.mark_cancelled(todo_id)
             return i18n.get(
-                "domain_tools.manage_todo.success_update",
-                id=todo.id
-            ) + f" [{todo.status.value}] {todo.title}", {"id": todo.id, "status": todo.status.value}
+                "domain_tools.manage_todo.success_update", id=todo.id
+            ) + f" [{todo.status.value}] {todo.title}", {
+                "id": todo.id,
+                "status": todo.status.value,
+            }
         except TodoNotFoundError:
             return i18n.get("domain_tools.manage_todo.error_not_found", id=todo_id)

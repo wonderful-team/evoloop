@@ -16,6 +16,7 @@ from typing import Any
 
 from app.core.atlas import atlas_engine
 from app.core.context import ContextManager
+from app.core.environment.constants import NOISY_PACKAGES
 from app.core.environment.controllers.utils import (
     RecordingContext,
     resolve_element_alias,
@@ -31,9 +32,9 @@ from app.utils.controller_response import ControllerResponse
 from app.utils.text import normalize_text
 from app.utils.time import elapsed_ms
 
-from ._advanced import MobileAdvancedMixin
-from ._app import MobileAppMixin
-from ._interaction import MobileInteractionMixin
+from .advanced import MobileAdvancedMixin
+from .app import MobileAppMixin
+from .interaction import MobileInteractionMixin
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +67,9 @@ class MobileController(
             package, timestamp = cache_entry
             e_ms = elapsed_ms(timestamp)
             if e_ms < cls._package_cache_ttl_ms:
-                logger.debug(f"[MobileController] Using cached package '{package}' for {device_id}")
+                logger.debug(
+                    f"[MobileController] Using cached package '{package}' for {device_id}"
+                )
                 return package
         return None
 
@@ -81,7 +84,9 @@ class MobileController(
         if cached:
             return AppInfo(package=cached, activity="", confidence=1.0)
 
-        result = await asyncio.to_thread(adb_driver.get_current_app, device_id=device_id)
+        result = await asyncio.to_thread(
+            adb_driver.get_current_app, device_id=device_id
+        )
         if result.get("package") and result["package"] not in ("unknown", "error", ""):
             cls._set_cached_package(device_id, result["package"])
 
@@ -100,7 +105,9 @@ class MobileController(
 
         async def screenshot_fn():
             pkg = await _get_effective_package()
-            return await asyncio.to_thread(adb_driver.screenshot, device_id=device_id, bundle_id=pkg)
+            return await asyncio.to_thread(
+                adb_driver.screenshot, device_id=device_id, bundle_id=pkg
+            )
 
         async def context_fn():
             pkg = await _get_effective_package()
@@ -125,25 +132,41 @@ class MobileController(
             from app.utils.template import render_template
 
             wait_note = f"Wait: {wait_after_ms}ms" if wait_after_ms > 0 else None
-            final_note = f"{note} ({wait_note})" if note and wait_note else (note or wait_note)
-            return render_template("common/report/response.prompt.j2", success=success, message=msg, note=final_note)
+            final_note = (
+                f"{note} ({wait_note})" if note and wait_note else (note or wait_note)
+            )
+            return render_template(
+                "common/report/response.prompt.j2",
+                success=success,
+                message=msg,
+                note=final_note,
+            )
         return str(msg)
 
     @classmethod
     async def _probe_hybrid(cls, ctx: dict, a11y_result=None) -> bool:
         device_id = ctx.get("device_id")
         if a11y_result is None:
-            a11y_result = await android_a11y_provider.process(VisionTask.DETECT, "", device_id=device_id)
+            a11y_result = await android_a11y_provider.process(
+                VisionTask.DETECT, "", device_id=device_id
+            )
         has_webview = False
         if a11y_result.success:
-            has_webview = any("webview" in el.metadata.get("class", "").lower() for el in a11y_result.elements)
+            has_webview = any(
+                "webview" in el.metadata.get("class", "").lower()
+                for el in a11y_result.elements
+            )
         try:
             curr = await cls.get_current_app_cached(device_id=device_id)
             act = curr.get("activity", "").lower()
             hb = any(k in act for k in ["web", "hybrid", "browser", "h5"])
         except Exception:
             hb = False
-        node_count = len(a11y_result.elements) if a11y_result.success and a11y_result.elements else 0
+        node_count = (
+            len(a11y_result.elements)
+            if a11y_result.success and a11y_result.elements
+            else 0
+        )
         is_h5 = has_webview or hb or (0 < node_count < 10)
         if is_h5:
             logger.info(f"[Mobile] Hybrid/H5 detected (Nodes: {node_count})")
@@ -153,26 +176,40 @@ class MobileController(
     async def _check_sentinel(cls, ctx: dict, expected_pkg: str | None) -> bool:
         device_id = ctx.get("device_id")
         passive_safety = ctx.get("passive_safety", False)
-        if not expected_pkg or expected_pkg in ["unknown", "error", "com.android.systemui"]:
+        if not expected_pkg or expected_pkg in [
+            "unknown",
+            "error",
+            "com.android.systemui",
+        ]:
             return True
-        status = await asyncio.to_thread(adb_driver.check_app_status, expected_pkg, device_id=device_id)
+        status = await asyncio.to_thread(
+            adb_driver.check_app_status, expected_pkg, device_id=device_id
+        )
         if status == "crashed":
             logger.error(f"[Sentinel] CRASH DETECTED for {expected_pkg}!")
-            await asyncio.to_thread(adb_driver.launch_app, expected_pkg, device_id=device_id)
+            await asyncio.to_thread(
+                adb_driver.launch_app, expected_pkg, device_id=device_id
+            )
             await asyncio.sleep(2.0)
             return False
         curr = await cls.get_current_app_cached(device_id=device_id)
         curr_pkg = curr.get("package")
         if curr_pkg != expected_pkg and curr_pkg != "com.android.systemui":
-            logger.warning(f"[Sentinel] Drift! Current: {curr_pkg}, Expected: {expected_pkg}. Recovering...")
+            logger.warning(
+                f"[Sentinel] Drift! Current: {curr_pkg}, Expected: {expected_pkg}. Recovering..."
+            )
             if passive_safety:
-                logger.info("[Sentinel] Passive Safety enabled: Skipping auto-recovery actions.")
+                logger.info(
+                    "[Sentinel] Passive Safety enabled: Skipping auto-recovery actions."
+                )
                 return False
             await asyncio.to_thread(adb_driver.press_key, "back", device_id=device_id)
             await asyncio.sleep(1.2)
             curr = await cls.get_current_app_cached(device_id=device_id)
             if curr.get("package") != expected_pkg:
-                await asyncio.to_thread(adb_driver.launch_app, expected_pkg, device_id=device_id)
+                await asyncio.to_thread(
+                    adb_driver.launch_app, expected_pkg, device_id=device_id
+                )
                 await asyncio.sleep(2.5)
             return False
         return True
@@ -205,7 +242,9 @@ class MobileController(
             return px, py
         if not any(isinstance(v, float) for v in [px, py]):
             return int(px), int(py)
-        sw, sh = await asyncio.to_thread(adb_driver.get_screen_size, device_id=device_id)
+        sw, sh = await asyncio.to_thread(
+            adb_driver.get_screen_size, device_id=device_id
+        )
         nx = int(px * sw) if isinstance(px, float) else int(px)
         ny = int(py * sh) if isinstance(py, float) else int(py)
         return nx, ny
@@ -228,20 +267,16 @@ class MobileController(
         if not detected_pkg or detected_pkg == "unknown":
             return expected_pkg
 
-        NOISY_PACKAGES = {
-            "com.tencent.mm",
-            "com.android.systemui",
-            "com.android.launcher3",
-            "com.google.android.inputmethod.latin",
-            "android",
-        }
-
         if detected_pkg in NOISY_PACKAGES and detected_pkg != expected_pkg:
-            logger.debug(f"[Mobile] Detected noisy package '{detected_pkg}', sticking to expected '{expected_pkg}'")
+            logger.debug(
+                f"[Mobile] Detected noisy package '{detected_pkg}', sticking to expected '{expected_pkg}'"
+            )
             return expected_pkg
 
         if detected_pkg != expected_pkg:
-            logger.info(f"[Mobile] Legitimate cross-app switch detected: {expected_pkg} -> {detected_pkg}")
+            logger.info(
+                f"[Mobile] Legitimate cross-app switch detected: {expected_pkg} -> {detected_pkg}"
+            )
 
         return detected_pkg
 
@@ -292,7 +327,9 @@ class MobileController(
         return await finish_action(message)
 
     @classmethod
-    async def _validate_outcome(cls, ctx: dict, before_pkg: str, expected_pkg: str | None = None) -> bool:
+    async def _validate_outcome(
+        cls, ctx: dict, before_pkg: str, expected_pkg: str | None = None
+    ) -> bool:
         device_id = ctx.get("device_id")
         curr = await cls.get_current_app_cached(device_id=device_id)
         curr_pkg = curr.get("package")
@@ -326,7 +363,9 @@ class MobileController(
         effective_timeout = timeout_val
         if fast_probe and has_fallback:
             effective_timeout = min(1.5, timeout_val / 4.0)
-            logger.info(f"[Reactor] Fast Probe enabled with fallback. Adaptive timeout: {effective_timeout:.2f}s")
+            logger.info(
+                f"[Reactor] Fast Probe enabled with fallback. Adaptive timeout: {effective_timeout:.2f}s"
+            )
 
         initial_a11y_result = await android_a11y_provider.process(
             VisionTask.DETECT, "", device_id=device_id, compressed=compressed_dump
@@ -393,7 +432,9 @@ class MobileController(
             if can_ocr:
                 ocr_attempts += 1
                 try:
-                    temp_img = await asyncio.to_thread(adb_driver.screenshot, device_id=device_id)
+                    temp_img = await asyncio.to_thread(
+                        adb_driver.screenshot, device_id=device_id
+                    )
                     ocr_result = await vision_engine.process(
                         VisionTask.OCR,
                         temp_img,
@@ -408,7 +449,10 @@ class MobileController(
                             if target_norm in normalize_text(el.text):
                                 return {"x": el.x, "y": el.y}
                 except Exception as e:
-                    logger.debug(f"[Mobile] OCR attempt {ocr_attempts} failed: {e}", exc_info=True)
+                    logger.debug(
+                        f"[Mobile] OCR attempt {ocr_attempts} failed: {e}",
+                        exc_info=True,
+                    )
 
             await asyncio.sleep(0.05)
 
@@ -484,7 +528,10 @@ class MobileController(
             # correctly regardless of insertion order.
             ctx: dict[str, Any] = {
                 "recording_ctx": recording_ctx,
-                "x": x, "y": y, "x2": x2, "y2": y2,
+                "x": x,
+                "y": y,
+                "x2": x2,
+                "y2": y2,
                 "element_name": element_name,
                 "element_role": element_role,
                 "text": text,

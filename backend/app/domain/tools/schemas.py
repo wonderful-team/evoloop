@@ -43,9 +43,16 @@ class PdfInspectionResult(DynamicBaseModel):
 
 
 class CreatePythonToolInput(BaseModel):
-    name: str = Field(..., description="The name of the tool (snake_case), e.g., 'calculate_hash'.")
-    description: str = Field(..., description="A clear description of what the tool does and its arguments.")
-    code: str = Field(..., description="The Python code defining the function. MUST include type hints and a docstring.")
+    name: str = Field(
+        ..., description="The name of the tool (snake_case), e.g., 'calculate_hash'."
+    )
+    description: str = Field(
+        ..., description="A clear description of what the tool does and its arguments."
+    )
+    code: str = Field(
+        ...,
+        description="The Python code defining the function. MUST include type hints and a docstring.",
+    )
     version: str | None = Field("1.0.0", description="Version string.")
 
 
@@ -94,31 +101,3 @@ class EditPreviewResult(BaseModel):
 class ExtractedConcept(BaseModel):
     name: str = Field(description="Name of the concept, technology, or pattern")
     description: str = Field(description="Concise description of the concept")
-
-
-class SearchNativeToolsSchema(BaseModel):
-    query: str = Field(
-        "",
-        description="Optional keyword to filter tools by name or description. Leave empty to list all available execution tools.",
-    )
-
-
-class SearchSkillsSchema(BaseModel):
-    query: str = Field(
-        "",
-        description="The specific action or pattern you are looking to perform. e.g. 'click on save button'",
-    )
-    namespace: str = Field(
-        None,
-        description="Optional directory tree namespace to restrict the search. e.g. 'android', 'macos', 'browser'",
-    )
-    index_mode: bool = Field(
-        False,
-        description="If True, returns a high-level catalog of all skills in the namespace instead of searching for a specific match.",
-    )
-
-
-class GetWorkspaceTreeSchema(BaseModel):
-    dir_path: str = Field(".", description="Subdirectory to list. If omitted, lists from the current working directory root.")
-    max_depth: int = Field(2, description="Maximum depth of the directory tree to explore.")
-    with_symbols: bool = Field(False, description="Whether to include code symbols (classes/functions) in the tree. Defaults to False for speed and token economy.")

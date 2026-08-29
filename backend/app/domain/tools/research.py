@@ -75,7 +75,9 @@ async def _search_baidu(query: str) -> list[str] | None:
     url = f"https://www.baidu.com/s?wd={quote_plus(query)}"
 
     loop = asyncio.get_running_loop()
-    response = await loop.run_in_executor(None, lambda: requests.get(url, headers=headers, timeout=15))
+    response = await loop.run_in_executor(
+        None, lambda: requests.get(url, headers=headers, timeout=15)
+    )
     response.encoding = "utf-8"
 
     soup = BeautifulSoup(response.text, "html.parser")
@@ -108,9 +110,7 @@ async def _search_baidu(query: str) -> list[str] | None:
 
             if title and result_url:
                 results.append(
-                    f"Title: {title}\n"
-                    f"URL: {result_url}\n"
-                    f"Description: {description}\n"
+                    f"Title: {title}\nURL: {result_url}\nDescription: {description}\n"
                 )
         except Exception:
             continue
@@ -138,7 +138,9 @@ async def _search_wikipedia(query: str) -> list[str] | None:
 
     try:
         loop = asyncio.get_running_loop()
-        response = await loop.run_in_executor(None, lambda: requests.get(api_url, params=params, timeout=15))
+        response = await loop.run_in_executor(
+            None, lambda: requests.get(api_url, params=params, timeout=15)
+        )
         response.raise_for_status()
         data = response.json()
 
@@ -152,12 +154,12 @@ async def _search_wikipedia(query: str) -> list[str] | None:
             snippet = item.get("snippet", "")
             # 清理 HTML 标签
             snippet_clean = re.sub(r"<[^>]+>", "", snippet)
-            page_url = (f"https://{lang}.wikipedia.org/wiki/{quote(title.replace(' ', '_'))}")
+            page_url = (
+                f"https://{lang}.wikipedia.org/wiki/{quote(title.replace(' ', '_'))}"
+            )
 
             results.append(
-                f"Title: {title}\n"
-                f"URL: {page_url}\n"
-                f"Description: {snippet_clean}\n"
+                f"Title: {title}\nURL: {page_url}\nDescription: {snippet_clean}\n"
             )
 
         return results if results else None
@@ -183,7 +185,9 @@ async def _search_parallel(query: str) -> list[str] | None:
     except asyncio.TimeoutError:
         # 预期降级：整体 8s 硬上限到点即返回 None（不阻塞 Agent），
         # 非错误，不应打印 Traceback。
-        logger.debug("Web search overall timed out (%ss) for %r", _SEARCH_PARALLEL_TIMEOUT, query)
+        logger.debug(
+            "Web search overall timed out (%ss) for %r", _SEARCH_PARALLEL_TIMEOUT, query
+        )
         return None
 
 

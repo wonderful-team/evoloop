@@ -28,6 +28,7 @@ from pathlib import Path
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
+from app.core.learning.constants import DEFAULT_VIDEO_FPS
 from app.core.engine.message.native_classes import HumanMessage, SystemMessage
 from app.core.learning.macro import (
     MacroScriptCompiler,
@@ -72,7 +73,6 @@ class MultimodalSkillSynthesizer:
     """
 
     # 配置（从 settings 读取，见 __init__）
-    DEFAULT_VIDEO_FPS = 15  # 默认帧率
 
     def __init__(self):
         self.compressor = FrameCompressor()
@@ -169,7 +169,9 @@ class MultimodalSkillSynthesizer:
 
         # Step 7: 调用多模态 LLM
         logger.info(f"Creating Vision LLM ({self.model_name})...")
-        self.vision_llm = await VisionLLMFactory.create_vision_llm_async(temperature=0.3)
+        self.vision_llm = await VisionLLMFactory.create_vision_llm_async(
+            temperature=0.3
+        )
         try:
             llm_response = await self._call_vision_llm(
                 task_description=recording.task_description,
@@ -206,7 +208,9 @@ class MultimodalSkillSynthesizer:
                 try:
                     target_macro = json.loads(cleaned_macro)
                 except Exception as e:
-                    logger.warning(f"Failed to parse LLM macro string as JSON: {e}", exc_info=True)
+                    logger.warning(
+                        f"Failed to parse LLM macro string as JSON: {e}", exc_info=True
+                    )
                     target_macro = compiled_macro
             else:
                 target_macro = compiled_macro
@@ -380,7 +384,7 @@ class MultimodalSkillSynthesizer:
         except Exception:
             logger.exception(f"Failed to get video info for {video_path}")
             return VideoInfo(
-                duration=30.0, width=1920, height=1080, fps=self.DEFAULT_VIDEO_FPS
+                duration=30.0, width=1920, height=1080, fps=DEFAULT_VIDEO_FPS
             )
 
     async def _fetch_events(self, session_id: str) -> list[TraceEvent]:
@@ -513,7 +517,9 @@ class MultimodalSkillSynthesizer:
                 raise RuntimeError(f"FFmpeg extraction failed: {stderr}")
             return str(output_path)
         except Exception:
-            logger.exception(f"Failed to extract frame at {timestamp}s from {video_path}")
+            logger.exception(
+                f"Failed to extract frame at {timestamp}s from {video_path}"
+            )
             raise
 
     def _build_event_context(
@@ -689,7 +695,9 @@ class MultimodalSkillSynthesizer:
             frame_vars.append(f_data)
 
         try:
-            frames_narrative = render_template("core/vision/multimodal_frames.prompt.j2", frames=frame_vars)
+            frames_narrative = render_template(
+                "core/vision/multimodal_frames.prompt.j2", frames=frame_vars
+            )
             content.append({"type": "text", "text": frames_narrative})
         except Exception:
             logger.exception("Failed to render Multimodal Frames template")

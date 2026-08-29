@@ -9,6 +9,7 @@ import logging
 import time
 
 from app.core.engine.background_agent.models import BackgroundAgentInputs
+from app.core.engine.constants import MAX_PARALLEL
 from app.core.engine.message.native_classes import HumanMessage
 from app.core.engine.nodes.base import BaseNode
 from app.core.engine.nodes.utils.subagent_manager import recover_subagent_state
@@ -19,8 +20,6 @@ from app.core.engine.worker_registry import worker_registry
 from app.models.subagent import SubagentRun
 
 logger = logging.getLogger(__name__)
-
-MAX_PARALLEL = 5
 
 # 模块级集合持有 done_callback 的 task 引用，防止被 gc 提前回收。
 _done_callback_tasks: set[asyncio.Task] = set()
@@ -38,7 +37,9 @@ class SpawnSubagentsNode(BaseNode):
             logger.warning("[SpawnSubagents] No subagent plan found")
             return StateUpdate(next_node=RoutingTarget.SUPERVISOR)
 
-        parent_tid = state.thread_id or config.get("configurable", {}).get("thread_id", "")
+        parent_tid = state.thread_id or config.get("configurable", {}).get(
+            "thread_id", ""
+        )
         # split 模式（Worker 裂变）：subagent 的 run parent 与会话隔离，避免
         # 完成事件唤醒会话 Supervisor（Worker 自己等待/聚合）；前端生命周期
         # 事件仍走会话 thread（lifecycle_tid）。
@@ -110,7 +111,10 @@ class SpawnSubagentsNode(BaseNode):
 
             # 7. done_callback (holds task ref to prevent gc).
             self._schedule_done_callback(
-                task, subagent_id, sub_tid, run_parent_tid,
+                task,
+                subagent_id,
+                sub_tid,
+                run_parent_tid,
                 lifecycle_tid=parent_tid,
             )
 
@@ -270,7 +274,11 @@ class SpawnSubagentsNode(BaseNode):
         return "\n".join(parts)
 
     def _build_child_inputs(
-        self, parent_config: dict, child_state: AgentState, subtask: dict, subagent_id: str
+        self,
+        parent_config: dict,
+        child_state: AgentState,
+        subtask: dict,
+        subagent_id: str,
     ) -> BackgroundAgentInputs:
         configurable = parent_config.get("configurable", {})
         metadata = parent_config.get("metadata", {})
@@ -314,7 +322,10 @@ class SpawnSubagentsNode(BaseNode):
         def on_done(_fut: asyncio.Future) -> None:
             cb = asyncio.create_task(
                 self._on_subagent_done(
-                    parent_tid, subagent_id, sub_tid, t,
+                    parent_tid,
+                    subagent_id,
+                    sub_tid,
+                    t,
                     lifecycle_tid=lifecycle_tid or parent_tid,
                 )
             )
@@ -404,8 +415,12 @@ class SpawnSubagentsNode(BaseNode):
             return (await session.execute(stmt)).scalar_one_or_none()
 
     async def _update_subagent_run(
-        self, thread_id: str, status: str, result: str,
-        error: str | None, tools_used: list,
+        self,
+        thread_id: str,
+        status: str,
+        result: str,
+        error: str | None,
+        tools_used: list,
     ) -> None:
         from datetime import datetime, timezone
 

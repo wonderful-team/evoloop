@@ -38,7 +38,9 @@ class MacroService:
         """
         from app.core.learning.macro.lifecycle import list_macros
 
-        macros = await list_macros(status="verified", is_active=True, namespace=namespace)
+        macros = await list_macros(
+            status="verified", is_active=True, namespace=namespace
+        )
         macros.sort(
             key=lambda m: (
                 m.project_id != project_id if project_id else False,
@@ -138,9 +140,7 @@ class MacroService:
             ):
                 return skill.macro_id
 
-        existing_rows = await list_macros(
-            fallback_skill_id=skill.id, db=db
-        )
+        existing_rows = await list_macros(fallback_skill_id=skill.id, db=db)
         existing = existing_rows[0] if existing_rows else None
         if existing is not None:
             await update_macro(existing.id, {"macro_script": macro_script}, db=db)
@@ -194,7 +194,9 @@ class MacroService:
             logger.warning(f"[{thread_id}] Macro execution skipped: script is empty.")
             return MacroRunResult(success=False, message="Macro script is empty")
 
-        logger.info(f"[{thread_id}] Starting Standardized Macro Execution ({len(script.steps)} steps)")
+        logger.info(
+            f"[{thread_id}] Starting Standardized Macro Execution ({len(script.steps)} steps)"
+        )
         if params is None:
             params = {}
 
@@ -227,7 +229,9 @@ class MacroService:
                 decision = SelfHealingPolicy.check(macro=macro, execution_params=params)
 
                 if not decision.allowed:
-                    logger.warning("[%s] Self-healing disabled: %s", thread_id, decision.reason)
+                    logger.warning(
+                        "[%s] Self-healing disabled: %s", thread_id, decision.reason
+                    )
                     return MacroRunResult(
                         success=False,
                         message=msg,
@@ -235,11 +239,15 @@ class MacroService:
                         healing_disabled_reason=decision.reason,
                         healing_disabled_source=decision.source,
                         step_log=(fallback_ctx or {}).get("step_log"),
-                        execution_warnings=(fallback_ctx or {}).get("execution_warnings"),
+                        execution_warnings=(fallback_ctx or {}).get(
+                            "execution_warnings"
+                        ),
                     )
 
                 # Self-healing is allowed - trigger fallback via event system
-                macro_name = macro.name if macro is not None else params.get("_macro_name")
+                macro_name = (
+                    macro.name if macro is not None else params.get("_macro_name")
+                )
                 event = await publish_macro_execution_failed(
                     macro_name=macro_name or "manual_macro",
                     error_message=msg,
@@ -276,4 +284,6 @@ class MacroService:
         except Exception as e:
             logger.error(f"[{thread_id}] Macro service crash: {e}", exc_info=True)
             await activity_monitor.end_run(thread_id, "failed")
-            return MacroRunResult(success=False, message=f"System error during macro execution: {str(e)}")
+            return MacroRunResult(
+                success=False, message=f"System error during macro execution: {str(e)}"
+            )

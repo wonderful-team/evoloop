@@ -51,7 +51,9 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         # Step tracking
         self.llm_task_id = None
         self.active_llm_run_id = None
-        self._tool_names: dict[str, str] = {}  # run_id -> tool_name mapping for parallel tools
+        self._tool_names: dict[
+            str, str
+        ] = {}  # run_id -> tool_name mapping for parallel tools
 
         # Throttle cancellation checks during high-frequency streaming
         self._cancellation_check_counter = 0
@@ -60,10 +62,14 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         # Stream tracking
         self._token_filter = TokenFilter()
         self._publisher: MessagePublisher | None = None
-        self._thinking_buffer: str = ""  # Accumulated reasoning content for real-time streaming
+        self._thinking_buffer: str = (
+            ""  # Accumulated reasoning content for real-time streaming
+        )
 
         # Dual-limit flush state
-        self._flush_start_time: float | None = None  # time.time() when current batch started
+        self._flush_start_time: float | None = (
+            None  # time.time() when current batch started
+        )
 
         # Node-level streaming control: run_id -> metadata mapping
         self._run_metadata: dict[str, dict] = {}
@@ -81,7 +87,9 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         if not self.thread_id:
             return
 
-        await MessageHandler.stream_thinking(self.thread_id, content, message_id=message_id)
+        await MessageHandler.stream_thinking(
+            self.thread_id, content, message_id=message_id
+        )
 
     # ==============================================================================
     # Callback Methods
@@ -94,7 +102,9 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
             return True
         return False
 
-    async def on_llm_start(self, serialized: dict[str, Any], prompts: list[str], **kwargs: Any) -> None:
+    async def on_llm_start(
+        self, serialized: dict[str, Any], prompts: list[str], **kwargs: Any
+    ) -> None:
         """Run when LLM starts running."""
         run_id = kwargs.get("run_id")
         run_id_str = str(run_id)
@@ -158,9 +168,17 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
             # Extract Anthropic native thinking if present
             if isinstance(msg_chunk.content, list):
                 for block in msg_chunk.content:
-                    if isinstance(block, dict) and block.get("type") == "thinking" and "thinking" in block:
+                    if (
+                        isinstance(block, dict)
+                        and block.get("type") == "thinking"
+                        and "thinking" in block
+                    ):
                         self._thinking_buffer += block["thinking"]
-            elif isinstance(msg_chunk.content, dict) and msg_chunk.content.get("type") == "thinking" and "thinking" in msg_chunk.content:
+            elif (
+                isinstance(msg_chunk.content, dict)
+                and msg_chunk.content.get("type") == "thinking"
+                and "thinking" in msg_chunk.content
+            ):
                 self._thinking_buffer += msg_chunk.content["thinking"]
 
             if _should_flush(self._thinking_buffer):
@@ -197,11 +215,14 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
 
         # Dual-limit flush: size check (chars), time check externally
         if self._token_filter.should_flush(char_limit=self._FLUSH_CHAR_LIMIT) or (
-            self._flush_start_time and (now - self._flush_start_time) >= self._FLUSH_INTERVAL
+            self._flush_start_time
+            and (now - self._flush_start_time) >= self._FLUSH_INTERVAL
         ):
             batch = self._token_filter.flush()
             if batch:
-                await MessageHandler.stream_token(self.thread_id, batch, message_id=run_id)
+                await MessageHandler.stream_token(
+                    self.thread_id, batch, message_id=run_id
+                )
                 self._flush_start_time = now
 
     async def on_llm_end(self, response: LLMResult, **kwargs: Any) -> None:
@@ -217,7 +238,9 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         # FLUSH REMAINING TOKEN BUFFER
         remaining = self._token_filter.flush()
         if remaining:
-            await MessageHandler.stream_token(self.thread_id, remaining, message_id=run_id)
+            await MessageHandler.stream_token(
+                self.thread_id, remaining, message_id=run_id
+            )
 
         # Note: We no longer record "Thinking..." steps, so no update needed
         if run_id == str(self.active_llm_run_id):
@@ -237,7 +260,9 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         # FLUSH REMAINING TOKEN BUFFER
         remaining = self._token_filter.flush()
         if remaining:
-            await MessageHandler.stream_token(self.thread_id, remaining, message_id=run_id)
+            await MessageHandler.stream_token(
+                self.thread_id, remaining, message_id=run_id
+            )
 
         if run_id == str(self.active_llm_run_id):
             self.active_llm_run_id = None
@@ -251,7 +276,9 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
 
         logger.info(f"[LLM Error] {error}")
 
-    async def on_tool_start(self, serialized: dict[str, Any], input_str: str, **kwargs: Any) -> None:
+    async def on_tool_start(
+        self, serialized: dict[str, Any], input_str: str, **kwargs: Any
+    ) -> None:
         """Run when tool starts running."""
         run_id = str(kwargs.get("run_id", "default"))
         self._run_metadata[run_id] = kwargs.get("metadata", {})
@@ -297,7 +324,11 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         if self.thread_id and not is_hidden:
             await MessageHandler.stream_progress(
                 self.thread_id,
-                message=i18n.get("evoloop.tool_summary.running_tool", tool=tool_name, input=input_str[:100]),
+                message=i18n.get(
+                    "evoloop.tool_summary.running_tool",
+                    tool=tool_name,
+                    input=input_str[:100],
+                ),
                 metadata={"tool_name": tool_name},
             )
 
@@ -309,7 +340,9 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
                     tname = data.get("TaskName")
                     tstatus = data.get("TaskStatus")
                     if mode and tname:
-                        await self.monitor.update_agent_state(self.thread_id, mode, tname, tstatus)
+                        await self.monitor.update_agent_state(
+                            self.thread_id, mode, tname, tstatus
+                        )
 
             if is_state_mutating_tool(tool_name):
                 if isinstance(data, dict):
@@ -368,6 +401,8 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         if self.thread_id:
             await MessageHandler.stream_progress(
                 self.thread_id,
-                message=i18n.get("common.tool_execution_error", name=tool_name, error=str(error)),
+                message=i18n.get(
+                    "common.tool_execution_error", name=tool_name, error=str(error)
+                ),
                 status="failed",
             )

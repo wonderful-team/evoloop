@@ -186,22 +186,6 @@ class ToolStateStore:
                 return thread_tools.get(run_id)
             return None
 
-    def get_duration(self, thread_id: str, run_id: str) -> float | None:
-        """
-        Get elapsed time for a running tool.
-
-        Args:
-            thread_id: The thread/session ID
-            run_id: The run_id for this tool execution
-
-        Returns:
-            Duration in seconds if tool is running, None otherwise
-        """
-        state = self.get_tool(thread_id, run_id)
-        if state:
-            return round(time.time() - state.start_time, 2)
-        return None
-
     def clear_thread(self, thread_id: str):
         """
         Clear all tool states for a thread.
@@ -214,12 +198,6 @@ class ToolStateStore:
             if thread_id in self._tools:
                 del self._tools[thread_id]
                 logger.debug(f"Cleared tool states for thread {thread_id}")
-
-    def clear_all(self):
-        """Clear all tool states. Use with caution."""
-        with self._store_lock:
-            self._tools.clear()
-            logger.info("Cleared all tool states")
 
 
 # Global singleton instance

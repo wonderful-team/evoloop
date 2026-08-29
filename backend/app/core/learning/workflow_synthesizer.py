@@ -17,6 +17,8 @@ from enum import Enum
 
 from pydantic import BaseModel, Field
 
+from app.constants import DEFAULT_INTERNAL_LLM_TOKENS
+from app.core.learning.constants import MACRO as MACRO_MODE, SKILL as SKILL_MODE
 from app.core.learning.prompts import prompt_builder
 from app.core.learning.schemas import SkillParameter
 from app.core.learning.trace.parser import TraceParser, TraceSequence
@@ -30,8 +32,8 @@ logger = logging.getLogger(__name__)
 class SynthesisMode(str, Enum):
     """Workflow synthesis mode."""
 
-    SKILL = "skill"
-    MACRO = "macro"
+    SKILL = SKILL_MODE
+    MACRO = MACRO_MODE
 
 
 class SynthesizedSkill(DynamicBaseModel):
@@ -187,7 +189,7 @@ class WorkflowSynthesizer:
                 },
             ],
             purpose="skill_synthesis",
-            max_tokens=4000,
+            max_tokens=DEFAULT_INTERNAL_LLM_TOKENS,
         )
         content = response.content
 

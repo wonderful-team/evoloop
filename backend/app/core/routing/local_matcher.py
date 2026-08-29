@@ -107,14 +107,18 @@ class LocalMatcher:
             free_text_reject_markers or ()
         )
         self._slot_filler_chars: dict[str, str] = slot_filler_chars or {}
-        self._compiled: list[tuple[re.Pattern[str], dict[str, Any], list[str], int]] = []
+        self._compiled: list[
+            tuple[re.Pattern[str], dict[str, Any], list[str], int]
+        ] = []
         for t in templates:
             for pattern in t.get("patterns", []):
                 slots = _SLOT_RE.findall(pattern)
                 body = re.escape(pattern)
                 for slot in slots:
                     body = body.replace(r"\{" + slot + r"\}", f"(?P<{slot}>.+?)")
-                anchored = re.compile(rf"^(?:{'|'.join(self._prefixes)})?{body}(?:{'|'.join(self._suffixes)})?$")
+                anchored = re.compile(
+                    rf"^(?:{'|'.join(self._prefixes)})?{body}(?:{'|'.join(self._suffixes)})?$"
+                )
                 self._compiled.append((anchored, t, slots, _literal_len(pattern)))
         # Rule 2: longest literal first (per PATTERN, not per template — the
         # press_key template's "按下{key}" must outrank its own "按{key}").
@@ -157,7 +161,9 @@ class LocalMatcher:
                     if resolved is None:
                         ok = False
                         break
-                    args[slot] = strip_filler_words(resolved, self._slot_filler_prefixes, self._slot_filler_suffixes)
+                    args[slot] = strip_filler_words(
+                        resolved, self._slot_filler_prefixes, self._slot_filler_suffixes
+                    )
                 if ok:
                     return template["action"], args
             return None
@@ -229,14 +235,19 @@ class LocalMatcher:
                     candidates,
                     key=lambda n: (
                         self._usage_rank.index(n)
-                        if n in self._usage_rank else len(self._usage_rank)
+                        if n in self._usage_rank
+                        else len(self._usage_rank)
                     ),
                 )
                 return self._canonical(best)
 
         if cleaned.isascii() and len(cleaned) >= 4:
             for name in names:
-                if name.isascii() and len(name) >= 4 and _edit_distance_le1(cleaned.lower(), name.lower()):
+                if (
+                    name.isascii()
+                    and len(name) >= 4
+                    and _edit_distance_le1(cleaned.lower(), name.lower())
+                ):
                     return self._canonical(name)
         return None
 

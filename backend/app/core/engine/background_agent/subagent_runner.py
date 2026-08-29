@@ -54,7 +54,9 @@ async def run_subagent_background(
     except AgentHumanInterruptException:
         # HITL request already registered; the body exits cleanly. The parent
         # will resume it later via run_subagent_background(hitl_resume_response=...).
-        logger.info(f"[Subagent] {thread_id} interrupted (HITL), exits for parent routing.")
+        logger.info(
+            f"[Subagent] {thread_id} interrupted (HITL), exits for parent routing."
+        )
         return ""
     except AgentCancelledException:
         logger.info(f"[Subagent] {thread_id} cancelled")
@@ -131,7 +133,9 @@ async def _run_subagent_worker(
         # worker_rollout 会吞掉执行异常并返回 outcome="failed"（配额耗尽、LLM 错误等）。
         # 必须在这里抛出，done_callback 的 task.exception() 才能把 SubagentRun 标为 failed，
         # 否则会出现 "执行失败但标记 completed" 的假成功。
-        logger.error(f"[Subagent] {thread_id} worker outcome=failed; raising for terminal status")
+        logger.error(
+            f"[Subagent] {thread_id} worker outcome=failed; raising for terminal status"
+        )
         raise RuntimeError(f"Subagent worker failed (outcome=failed): {thread_id}")
 
     logger.info(f"[Subagent] {thread_id} finished outcome={outcome}")
@@ -141,7 +145,9 @@ async def _run_subagent_worker(
 def _extract_final_result(state: Any) -> str:
     """Extract the Worker's final assistant report text from state.messages."""
     for msg in reversed(state.messages or []):
-        if getattr(msg, "role", None) == "assistant" and not getattr(msg, "tool_calls", None):
+        if getattr(msg, "role", None) == "assistant" and not getattr(
+            msg, "tool_calls", None
+        ):
             content = str(getattr(msg, "content", "") or "").strip()
             if len(content) > 20:
                 return content

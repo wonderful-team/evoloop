@@ -51,7 +51,9 @@ class MemoryMaintenanceAgent:
             # Log completion time
             self._log_time(start_time)
 
-            logger.info(f"[Maintenance] Completed: {self.thread_id} - Pruned {results.get('pruning_count')} items")
+            logger.info(
+                f"[Maintenance] Completed: {self.thread_id} - Pruned {results.get('pruning_count')} items"
+            )
 
             return results
 
@@ -83,7 +85,9 @@ class MemoryMaintenanceAgent:
                 )
 
                 deleted = result.rowcount
-                logger.debug(f"[Maintenance] Cleaned {deleted} messages from {self.thread_id}")
+                logger.debug(
+                    f"[Maintenance] Cleaned {deleted} messages from {self.thread_id}"
+                )
 
         except Exception as e:
             logger.warning(f"[Maintenance] Cleanup warning: {e}", exc_info=True)
@@ -193,7 +197,9 @@ if _MAINTENANCE_ENABLED:
             logger.exception(f"[Maintenance] Scheduled task failed: {e}")
             return {"triggered": False, "error": str(e)}
 else:
-    logger.debug("[Maintenance] Scheduled memory maintenance is DISABLED. Set MEMORY_MAINTENANCE_ENABLED=True to enable.")
+    logger.debug(
+        "[Maintenance] Scheduled memory maintenance is DISABLED. Set MEMORY_MAINTENANCE_ENABLED=True to enable."
+    )
 
 
 # Convenience functions for manual trigger / CLI

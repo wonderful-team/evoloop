@@ -19,7 +19,9 @@ from app.core.engine.message import MessageHandler
 from app.core.engine.message.utils import parse_tool_input
 from app.utils.redact import redact_secrets
 
-current_node_source: contextvars.ContextVar[str | None] = contextvars.ContextVar("db_node_source", default=None)
+current_node_source: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "db_node_source", default=None
+)
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +47,9 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
     所有分类和策略决策都委托给 message 模块。
     """
 
-    def __init__(self, thread_id: str, project_id: int, run_id: str = "", member_id: int = 0):
+    def __init__(
+        self, thread_id: str, project_id: int, run_id: str = "", member_id: int = 0
+    ):
         self.thread_id = thread_id
         self.project_id = project_id
         self.run_id = run_id
@@ -90,7 +94,9 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
 
         ctx = ContextManager.current()
         ctx.last_ai_message_id = message_id
-        logger.debug(f"[DatabaseCallback] LLM started. Pre-allocated message_id={message_id}")
+        logger.debug(
+            f"[DatabaseCallback] LLM started. Pre-allocated message_id={message_id}"
+        )
 
     async def on_llm_end(self, response: LLMResult, **kwargs: Any) -> Any:
         """
@@ -129,7 +135,9 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         if not tool_name:
             # 回退逻辑
             tool_name = "unknown_tool"
-            tool_call_id = run_id_str  # 假设 run_id 就是 tool_call_id（符合 Engine 行为）
+            tool_call_id = (
+                run_id_str  # 假设 run_id 就是 tool_call_id（符合 Engine 行为）
+            )
 
         # Censor raw secrets before writing to the database log
         output = censor_secrets(output)
@@ -201,7 +209,9 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
             "tool_call_id": tool_call_id,
             "seq": result.sequence_number,
         }
-        logger.info(f"[DatabaseCallback] Tool started: {tool_name} (run_id={run_id_str}, tool_call_id={tool_call_id}, seq={result.sequence_number})")
+        logger.info(
+            f"[DatabaseCallback] Tool started: {tool_name} (run_id={run_id_str}, tool_call_id={tool_call_id}, seq={result.sequence_number})"
+        )
 
     async def on_tool_error(
         self,

@@ -27,6 +27,7 @@ import asyncio
 import logging
 from typing import Any
 
+from app.core.routing import constants as routing_constants
 from app.core.routing import domain_classifier
 from app.core.routing.action_classifier import predict as classifier_predict
 from app.core.routing.compound_detector import is_compound_intent
@@ -39,18 +40,11 @@ from app.core.routing.conversation_state import (
 )
 from app.core.routing.decision_builder import build_decision
 from app.core.routing.device_kind import DeviceKind
-from app.core.routing.domain_classifier import (
-    CONFIDENCE_THRESHOLD as HIGH_INTENT_THRESHOLD,
-)
 from app.core.routing.intent_resolution import IntentResolver
 from app.core.routing.macro_device_map import get_macro_device_map
 from app.core.routing.matcher_cache import matcher_cache
 from app.core.routing.routing_data import get_store
 from app.core.routing.schemas import (
-    DOMAIN_AMBIGUOUS,
-    DOMAIN_MULTI_INTENT,
-    INTENT_DOMAIN_CLASSIFIED,
-    INTENT_MACRO_TASK,
     IntentHint,
     RouteDecision,
 )
@@ -121,7 +115,7 @@ class CommandRouter:
                 params={"route": nav_route, "feedback": nav_feedback},
                 confidence=1.0,
                 intent_hint=IntentHint(
-                    intent=INTENT_MACRO_TASK,
+                    intent=routing_constants.INTENT_MACRO_TASK,
                     confidence=1.0,
                     suggested_modules=["Base", "Macro"],
                     reason="navigation macro match",
@@ -158,8 +152,8 @@ class CommandRouter:
         # 3. Compound / multi-intent guard: bypass L0 and delegate to agent.
         if is_compound_intent(text):
             intent_hint_obj = IntentHint(
-                intent=INTENT_DOMAIN_CLASSIFIED,
-                domain=DOMAIN_MULTI_INTENT,
+                intent=routing_constants.INTENT_DOMAIN_CLASSIFIED,
+                domain=routing_constants.DOMAIN_MULTI_INTENT,
                 confidence=1.0,
                 suggested_modules=[],
                 reason="compound_intent",
@@ -174,7 +168,7 @@ class CommandRouter:
                 confidence=1.0,
                 intent_hint=intent_hint_obj,
                 source=source,
-                raw=DOMAIN_MULTI_INTENT,
+                raw=routing_constants.DOMAIN_MULTI_INTENT,
             )
             await self._record_thread_intent(thread_id, decision, text)
             return decision
@@ -222,9 +216,11 @@ class CommandRouter:
         Shared by the L0-miss path and the ``skip_l0`` (text) path so both
         produce the same ``IntentHint`` + ``RouteDecision`` shape.
         """
-        l1_input = build_high_intent_input(text, session_history, previous_intent=previous_intent)
+        l1_input = build_high_intent_input(
+            text, session_history, previous_intent=previous_intent
+        )
         l1_label, l1_conf = await asyncio.to_thread(domain_classifier.predict, l1_input)
-        if l1_label and l1_conf >= HIGH_INTENT_THRESHOLD:
+        if l1_label and l1_conf >= routing_constants.CONFIDENCE_THRESHOLD:
             intent_hint_obj = domain_classifier.to_intent_hint(
                 l1_label,
                 l1_conf,
@@ -235,22 +231,24 @@ class CommandRouter:
         else:
             # L1 unavailable or low confidence: delegate to agent as ambiguous.
             intent_hint_obj = IntentHint(
-                intent=INTENT_DOMAIN_CLASSIFIED,
-                domain=DOMAIN_AMBIGUOUS,
+                intent=routing_constants.INTENT_DOMAIN_CLASSIFIED,
+                domain=routing_constants.DOMAIN_AMBIGUOUS,
                 confidence=0.0,
                 suggested_modules=[],
                 reason="L1 classifier unavailable or low confidence",
                 previous_intent=previous_intent,
                 session_history=session_history,
             )
-            raw_label = DOMAIN_AMBIGUOUS
+            raw_label = routing_constants.DOMAIN_AMBIGUOUS
 
         return RouteDecision(
             status="delegate",
             target_type="agent",
             target={"type": "agent"},
             params={},
-            confidence=l1_conf if raw_label != DOMAIN_AMBIGUOUS else 0.0,
+            confidence=l1_conf
+            if raw_label != routing_constants.DOMAIN_AMBIGUOUS
+            else 0.0,
             intent_hint=intent_hint_obj,
             source=source,
             raw=raw_label,
@@ -284,7 +282,9 @@ class CommandRouter:
         return f"macro:{twin}"
 
     @staticmethod
-    async def _record_thread_intent(thread_id: str, decision: RouteDecision, text: str) -> None:
+    async def _record_thread_intent(
+        thread_id: str, decision: RouteDecision, text: str
+    ) -> None:
         """Persist the resolved intent label on the per-thread L0 state.
 
         All resolve paths funnel through here so a subsequent anaphora turn

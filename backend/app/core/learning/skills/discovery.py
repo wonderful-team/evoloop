@@ -61,7 +61,9 @@ class SkillDiscovery:
             user_skills_path = settings.SKILLS_DIR
 
             if os.path.exists(builtin_skills_path):
-                logger.info(f"[Discovery] Syncing built-in skills to {user_skills_path}")
+                logger.info(
+                    f"[Discovery] Syncing built-in skills to {user_skills_path}"
+                )
                 self._copy_builtin_skills(builtin_skills_path, user_skills_path)
 
             # Step 2: Import skills from user skills directory
@@ -101,11 +103,15 @@ class SkillDiscovery:
             os.makedirs(os.path.dirname(target_file), exist_ok=True)
 
             # Copy if target doesn't exist or source is newer
-            if not os.path.exists(target_file) or os.path.getmtime(source_file) > os.path.getmtime(target_file):
+            if not os.path.exists(target_file) or os.path.getmtime(
+                source_file
+            ) > os.path.getmtime(target_file):
                 shutil.copy2(source_file, target_file)
                 logger.debug(f"[Discovery] Copied skill file: {rel_file_path}")
 
-    async def _get_active_skills(self, force_reload: bool = False) -> list[LearnedSkill]:
+    async def _get_active_skills(
+        self, force_reload: bool = False
+    ) -> list[LearnedSkill]:
         """
         [Phase 5 Optimization] Persistence Cache.
         Fetch active skills with long-term memory residency.
@@ -129,7 +135,9 @@ class SkillDiscovery:
             # Clear derivative caches to force re-calculation if needed
             self._skills_list_cache = None
 
-            logger.info(f"[Discovery] Specialized expertise indexed: {len(self._id_map)} skills resident in memory.")
+            logger.info(
+                f"[Discovery] Specialized expertise indexed: {len(self._id_map)} skills resident in memory."
+            )
 
         return self._skills_cache
 
@@ -145,7 +153,9 @@ class SkillDiscovery:
         await self._get_active_skills()
         return self._id_map.get(skill_id)
 
-    async def _get_skills_by_namespace(self, namespace_prefix: str) -> list[LearnedSkill]:
+    async def _get_skills_by_namespace(
+        self, namespace_prefix: str
+    ) -> list[LearnedSkill]:
         """
         Phase 5 Deterministic Routing:
         Fetch skills strictly within a given directory tree (namespace).
@@ -156,7 +166,8 @@ class SkillDiscovery:
             return all_skills
 
         return [
-            s for s in all_skills
+            s
+            for s in all_skills
             if s.namespace and s.namespace.startswith(namespace_prefix)
         ]
 
@@ -170,10 +181,7 @@ class SkillDiscovery:
     # --- Phase 5: Deterministic "Yellow Pages" Discovery ---
 
     async def exact_search(
-        self,
-        query: str,
-        namespace_context: str | None = None,
-        **kwargs
+        self, query: str, namespace_context: str | None = None, **kwargs
     ) -> tuple[SkillMatch | None, list[LearnedSkill], str]:
         """
         Deterministic Skill lookup based on ID or Exact Name.
@@ -201,7 +209,9 @@ class SkillDiscovery:
         # 3. Try Namespace-Prefix lookup (O(N) Fallback for specific tree traversal)
         if not best_skill and "/" in query_clean:
             # Simple prefix match within the same depth
-            best_skill = next((s for s in all_skills if s.name.startswith(query_clean)), None)
+            best_skill = next(
+                (s for s in all_skills if s.name.startswith(query_clean)), None
+            )
 
         if best_skill:
             match = SkillMatch(
@@ -219,9 +229,7 @@ class SkillDiscovery:
         return None, [], "No exact match found."
 
     async def get_skills_catalog(
-        self,
-        namespace: str | None = None,
-        query: str | None = None
+        self, namespace: str | None = None, query: str | None = None
     ) -> list[dict[str, Any]]:
         """
         Fast O(1) retrieval of the skills catalog.
@@ -241,12 +249,14 @@ class SkillDiscovery:
                 if not (name_match or desc_match):
                     continue
 
-            results.append({
-                "id": s.id,
-                "name": s.name,
-                "namespace": s.namespace or "general",
-                "description": s.description or ""
-            })
+            results.append(
+                {
+                    "id": s.id,
+                    "name": s.name,
+                    "namespace": s.namespace or "general",
+                    "description": s.description or "",
+                }
+            )
 
         return results
 
@@ -260,7 +270,10 @@ class SkillDiscovery:
             return []
 
         skills = await self._get_skills_by_namespace(namespace_context)
-        return [{"id": s.id, "name": s.name, "description": s.description or ""} for s in skills]
+        return [
+            {"id": s.id, "name": s.name, "description": s.description or ""}
+            for s in skills
+        ]
 
     async def get_active_skills_list(self) -> list[SkillListItem]:
         """

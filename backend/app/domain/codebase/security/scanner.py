@@ -91,9 +91,13 @@ class SecurityScanner:
 
     # Safe patterns that should suppress a finding in the same line.
     SAFE_HINTS: ClassVar[list[re.Pattern[str]]] = [
-        re.compile(r"(?i)\?\s*%s|\bparams\s*=\s*\{|\bparams\s*=\s*\[|bind_param|sqlalchemy|session\.query|prisma\.|orm\."),
+        re.compile(
+            r"(?i)\?\s*%s|\bparams\s*=\s*\{|\bparams\s*=\s*\[|bind_param|sqlalchemy|session\.query|prisma\.|orm\."
+        ),
         re.compile(r"(?i)\bshell\s*=\s*False|\bargs\s*=\s*\["),
-        re.compile(r"(?i)__file__|\.json|\.txt|\.md|\.csv|\.yaml|\.yml|\.xml|config|settings|env|fixture"),
+        re.compile(
+            r"(?i)__file__|\.json|\.txt|\.md|\.csv|\.yaml|\.yml|\.xml|config|settings|env|fixture"
+        ),
     ]
 
     def __init__(self) -> None:

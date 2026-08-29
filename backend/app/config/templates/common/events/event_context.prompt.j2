@@ -1,51 +1,3 @@
-{# 通用列表渲染宏 #}
-{% macro render_list(items, item_template="{name}", filter_condition=none, empty_msg="", prefix="") %}
-{% set filtered = items | select(filter_condition) | list if filter_condition else items %}
-{% if filtered %}
-{% for item in filtered %}{{ prefix }}{{ item_template.format(**item) }}
-{% endfor %}
-{% elif empty_msg %}{{ empty_msg }}
-{% endif %}
-{% endmacro %}
-
-{# 带类型的动作列表渲染（用于事件、trace、action summary）#}
-{% macro render_action_list(items, type_icons={}, type_templates={}) %}
-{% for item in items %}
-{% set icon = type_icons.get(item.type, "•") %}
-{% set template = type_templates.get(item.type, "{content}") %}
-{{ icon }} {{ template.format(**item) }}
-{% endfor %}
-{% endmacro %}
-
-{# 带截断提示的列表渲染 #}
-{% macro render_truncated_list(items, max_items=50, item_template="{name}", more_template="... and {count} more") %}
-{% set display = items[:max_items] %}
-{% for item in display %}{{ item_template.format(**item) }}
-{% endfor %}
-{% if items | length > max_items %}{{ more_template.format(count=items|length - max_items) }}
-{% endif %}
-{% endmacro %}
-
-{# 带元数据的对象列表 #}
-{% macro render_object_list(items, primary_field="name", meta_fields=[]) %}
-{% for item in items %}- {{ item[primary_field] }}
-{% for field, label, condition in meta_fields %}{% if item.get(condition, true) %}  {{ label }}: {{ item[field] }}
-{% endif %}{% endfor %}
-{% endfor %}
-{% endmacro %}
-
-{# 键值对渲染 #}
-{% macro render_kv(key, value, format="{key}: {value}") %}
-{% if value is not none and value != "" %}{{ format.format(key=key, value=value) }}
-{% endif %}
-{% endmacro %}
-
-{# 带前缀的键值对列表 #}
-{% macro render_kv_list(data, prefix="  ", separator=": ") %}
-{% for k, v in data.items() %}{% if v is not none and v != "" %}{{ prefix }}{{ k }}{{ separator }}{{ v }}
-{% endif %}{% endfor %}
-{% endmacro %}
-
 {# 时间戳格式化显示 #}
 {% macro format_timestamp(ts, decimals=2, suffix="s") %}
 [{{ ts | round(decimals) }}{{ suffix }}]
@@ -54,16 +6,6 @@
 {# 位置坐标格式化 #}
 {% macro format_position(pos, decimals=3) %}
 {% if pos %}({{ pos[0] | round(decimals) }}, {{ pos[1] | round(decimals) }}){% endif %}
-{% endmacro %}
-
-{# 状态标签渲染 #}
-{% macro status_badge(status, success="SUCCESS", failed="FAILED") %}
-{% if status == success %}[✓ {{ status }}]{% elif status == failed %}[✗ {{ status }}]{% else %}[{{ status }}]{% endif %}
-{% endmacro %}
-
-{# 缩进辅助 #}
-{% macro indent(level=1, spaces=2) %}
-{% for i in range(level) %}{% for j in range(spaces) %} {% endfor %}{% endfor %}
 {% endmacro %}
 
 Total Events: {{ events | length }}

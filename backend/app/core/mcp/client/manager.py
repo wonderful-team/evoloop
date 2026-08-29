@@ -12,6 +12,7 @@ from sqlalchemy import select
 
 from app.core.events.base import BaseEvent, EventData, system_bus
 from app.core.events.registry import SystemEventType
+from app.core.mcp import constants as mcp_constants
 from app.core.mcp.auth.manager import mcp_auth_manager
 from app.core.mcp.config import (
     AuthType,
@@ -67,9 +68,10 @@ class McpClientManager:
         │  └────────────────────────────┘ │
         └─────────────────────────────────┘
     """
-    MCP_CONNECT_TIMEOUT = 20.0
-    MCP_KEEPALIVE_INTERVAL = 10.0
-    MCP_PING_TIMEOUT = 5.0
+
+    MCP_CONNECT_TIMEOUT = mcp_constants.MCP_CONNECT_TIMEOUT
+    MCP_KEEPALIVE_INTERVAL = mcp_constants.MCP_KEEPALIVE_INTERVAL
+    MCP_PING_TIMEOUT = mcp_constants.MCP_PING_TIMEOUT
 
     def __init__(self):
         # Connection state
@@ -117,9 +119,13 @@ class McpClientManager:
             # Handle OAuth authentication if configured
             auth_headers = {}
             if config.auth_type != AuthType.NONE and config.auth_config:
-                handler = mcp_auth_manager.create_handler(server_name, config.auth_config)
+                handler = mcp_auth_manager.create_handler(
+                    server_name, config.auth_config
+                )
                 if handler:
-                    logger.info(f"Authenticating with {server_name} using {config.auth_type}")
+                    logger.info(
+                        f"Authenticating with {server_name} using {config.auth_type}"
+                    )
                     token = await mcp_auth_manager.authenticate(server_name)
                     auth_headers = mcp_auth_manager.get_headers(server_name)
                     logger.info(f"Successfully authenticated with {server_name}")
@@ -200,9 +206,7 @@ class McpClientManager:
             )
 
             return ConnectionResult(
-                success=True,
-                server_name=server_name,
-                tools_count=tools_count
+                success=True, server_name=server_name, tools_count=tools_count
             )
 
         except Exception as e:
@@ -210,9 +214,7 @@ class McpClientManager:
             if "stack" in locals():
                 await stack.aclose()
             return ConnectionResult(
-                success=False,
-                server_name=server_name,
-                error=str(e)
+                success=False, server_name=server_name, error=str(e)
             )
 
     async def _keepalive_loop(self, server_name: str, session: ClientSession) -> None:
@@ -325,8 +327,7 @@ class McpClientManager:
         async with session_scope() as session:
             result = await session.execute(
                 select(McpServer).where(
-                    McpServer.name == server_name,
-                    McpServer.enabled
+                    McpServer.name == server_name, McpServer.enabled
                 )
             )
             server = result.scalars().first()
@@ -343,7 +344,9 @@ class McpClientManager:
             env = self._parse_json_field(server.env, {})
 
             # Determine transport type
-            transport = TransportType.SSE if is_sse_url(server.command) else TransportType.STDIO
+            transport = (
+                TransportType.SSE if is_sse_url(server.command) else TransportType.STDIO
+            )
 
             config = McpServerConfig(
                 name=server.name,
@@ -380,12 +383,14 @@ class McpClientManager:
                     result = await self.connect_from_db(server.name)
                     results.append(result)
                 except Exception as e:
-                    logger.exception(f"Failed to connect to MCP server '{server.name}': {e}")
-                    results.append(ConnectionResult(
-                        success=False,
-                        server_name=server.name,
-                        error=str(e)
-                    ))
+                    logger.exception(
+                        f"Failed to connect to MCP server '{server.name}': {e}"
+                    )
+                    results.append(
+                        ConnectionResult(
+                            success=False, server_name=server.name, error=str(e)
+                        )
+                    )
 
         return results
 
@@ -428,6 +433,7 @@ class McpClientManager:
         响应、接收循环等轮巡，最终 ping 响应也无人处理 → 被判死重连。因此这里
         只 ``create_task`` 后台派发，接收循环立即返回。
         """
+
         async def _on_message(message) -> None:
             # 兼容两种 root：标准类型（对象 .method / .root）与宽松类型（dict）
             root = getattr(message, "root", None)
@@ -451,9 +457,7 @@ class McpClientManager:
             event = McpServerNotificationEvent(
                 server_name=server_name,
                 method=method,
-                data=EventData.model_validate(
-                    {"method": method, "payload": payload}
-                ),
+                data=EventData.model_validate({"method": method, "payload": payload}),
             )
             logger.info("MCP notification %s received from %s", method, server_name)
             try:
@@ -461,7 +465,9 @@ class McpClientManager:
                 # 调用互等死锁，见上方 docstring）。
                 asyncio.create_task(_safe_publish_notification(server_name, event))
             except Exception:
-                logger.exception("Failed to dispatch MCP notification for %s", server_name)
+                logger.exception(
+                    "Failed to dispatch MCP notification for %s", server_name
+                )
 
         async def _safe_publish_notification(server_name: str, event) -> None:
             try:
@@ -482,7 +488,9 @@ class McpClientManager:
                 # them in registration order (session first, transport second).
                 await stack.aclose()
             except Exception as e:
-                logger.debug(f"Error closing stack for '{server_name}': {e}", exc_info=True)
+                logger.debug(
+                    f"Error closing stack for '{server_name}': {e}", exc_info=True
+                )
 
         self._sessions.pop(server_name, None)
         self._tools_feature.pop(server_name, None)
@@ -630,7 +638,9 @@ class McpClientManager:
             feature = self._resources_feature.get(server_name)
             if feature:
                 return await feature.read_resource(uri)
-        raise RuntimeError(f"Server '{server_name}' not connected or resources not available")
+        raise RuntimeError(
+            f"Server '{server_name}' not connected or resources not available"
+        )
 
     def get_resources_formatted(self, server_name: str) -> str:
         """
@@ -699,7 +709,9 @@ class McpClientManager:
             feature = self._prompts_feature.get(server_name)
             if feature:
                 return await feature.get_prompt(prompt_name, arguments)
-        raise RuntimeError(f"Server '{server_name}' not connected or prompts not available")
+        raise RuntimeError(
+            f"Server '{server_name}' not connected or prompts not available"
+        )
 
     def get_prompts_formatted(self, server_name: str) -> str:
         """
@@ -759,7 +771,11 @@ class McpClientManager:
             )
 
         # Connect
-        transport = TransportType.SSE if is_sse_url(details.get("command")) else TransportType.STDIO
+        transport = (
+            TransportType.SSE
+            if is_sse_url(details.get("command"))
+            else TransportType.STDIO
+        )
 
         config = McpServerConfig(
             name=name,

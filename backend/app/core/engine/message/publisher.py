@@ -52,7 +52,10 @@ class MessagePublisher:
           on session_source and node_source ContextVars — the single authoritative decision point.
         """
         if channels is None:
-            from app.core.channel.policy import OutputChannelPolicy, current_session_source
+            from app.core.channel.policy import (
+                OutputChannelPolicy,
+                current_session_source,
+            )
             from app.core.context.manager import ContextManager
             from app.core.engine.callbacks.database_logger import current_node_source
 
@@ -110,4 +113,6 @@ class MessagePublisher:
                     metadata=metadata,
                 )
             except (ConnectionError, TimeoutError, OSError) as e:
-                logger.warning("[Publisher] Channel '%s' HITL send failed: %s", ch.name, e)
+                logger.warning(
+                    "[Publisher] Channel '%s' HITL send failed: %s", ch.name, e
+                )

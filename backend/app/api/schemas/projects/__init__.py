@@ -7,8 +7,8 @@ from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models.schemas.base import ScopedRequest
 
 # Re-export from sub-modules so `from app.api.schemas.projects import *` covers everything
-from ._modules import *  # noqa: F401,F403
-from ._profiles import *  # noqa: F401,F403
+from .modules import *  # noqa: F401,F403
+from .profiles import *  # noqa: F401,F403
 
 
 class IndexingRequest(ScopedRequest):

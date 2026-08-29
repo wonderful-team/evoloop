@@ -7,6 +7,11 @@ from app.core.file import ensure_local_path, read_file, resolve_path
 from app.core.file.document_reader import document_reader_service
 from app.core.file.tools.formatting import format_file_content, format_spreadsheet
 from app.core.tools import evoloop_tool
+from app.domain.tools.constants import (
+    DOCX_HEADINGS_PREVIEW_LIMIT,
+    MAX_PAGES,
+    MAX_ROWS_PER_SHEET,
+)
 from app.domain.tools.schemas import (
     DocxHeading,
     DocxInspectionResult,
@@ -16,7 +21,6 @@ from app.domain.tools.schemas import (
 )
 from app.utils.controller_response import ControllerResponse
 from app.utils.detect import detect_language
-from app.utils.json import dumps
 from app.utils.template import render_template
 
 try:
@@ -43,51 +47,6 @@ def _resolve_project_path(file_path: str) -> str:
     ctx = ContextManager.current()
     root = ctx.working_directory or os.getcwd()
     return resolve_path(file_path, base_path=root) or file_path
-
-
-def inspect_document(file_path: str) -> str:
-    """
-    [INTERNAL USE ONLY - Not exposed as Agent tool]
-    Inspect a document to get its metadata and structure without reading the full content.
-    Useful for planning how to read large files.
-
-    Args:
-        file_path (str): Absolute path to the file (must be resolved and validated by caller).
-
-    Returns:
-        str: JSON formatted metadata.
-    """
-    try:
-        # Note: file_path should already be resolved and validated by the caller
-        real_path = ensure_local_path(file_path)
-    except Exception as e:
-        return dumps({"error": str(e)})
-
-    if not os.path.exists(real_path):
-        return dumps({"error": f"File not found: {real_path}"})
-
-    _ext = os.path.splitext(real_path)[1].lower()
-    metadata = {
-        "file_path": file_path,
-        "local_path": real_path,
-        "type": _ext,
-        "size_bytes": os.path.getsize(real_path),
-    }
-
-    try:
-        if _ext in [".xlsx", ".xls"]:
-            metadata.update(_inspect_excel(real_path))
-        elif _ext in [".docx", ".doc"]:
-            metadata.update(_inspect_docx(real_path))
-        elif _ext == ".pdf":
-            metadata.update(_inspect_pdf(real_path))
-        else:
-            metadata["info"] = "Standard text file"
-
-        return dumps(metadata, indent=2)
-    except Exception as e:
-        logger.exception(f"Inspection failed: {e}")
-        return dumps({"error": str(e)})
 
 
 @evoloop_tool(
@@ -155,7 +114,9 @@ async def query_excel_sql(file_path: str, sql_query: str) -> str:
         return f"SQL Execution Error: {str(e)}"
 
 
-async def read_document(file_path: str, start_page: int | None = None, end_page: int | None = None) -> str:
+async def read_document(
+    file_path: str, start_page: int | None = None, end_page: int | None = None
+) -> str:
     """
     [INTERNAL USE ONLY - Not exposed as Agent tool]
     Read and parse content from various document formats (PDF, DOCX, XLSX, MD, TXT, HTML, PY, JS, IMG, etc.).
@@ -191,7 +152,9 @@ async def read_document(file_path: str, start_page: int | None = None, end_page:
 
     except Exception as e:
         logger.exception(f"Read failed: {e}")
-        return ControllerResponse.error(f"Error reading file {file_path}", details=str(e))
+        return ControllerResponse.error(
+            f"Error reading file {file_path}", details=str(e)
+        )
 
 
 # --- core Logic Helpers ---
@@ -212,7 +175,9 @@ def _list_directory(real_path: str) -> str:
             else:
                 formatted_items.append(e.name)
 
-        listing_str = "\n".join(formatted_items[:50]) + ("\n... (truncated)" if len(formatted_items) > 50 else "")
+        listing_str = "\n".join(formatted_items[:50]) + (
+            "\n... (truncated)" if len(formatted_items) > 50 else ""
+        )
         return (
             f"SYSTEM NOTICE: Target is a directory\n"
             f"Path: {os.path.basename(real_path)}/\n"
@@ -247,7 +212,11 @@ def _inspect_docx(path: str) -> DocxInspectionResult:
 
     return DocxInspectionResult(
         headings_count=len(headings),
-        headings=headings[:20] if len(headings) > 20 else headings,
+        headings=(
+            headings[:DOCX_HEADINGS_PREVIEW_LIMIT]
+            if len(headings) > DOCX_HEADINGS_PREVIEW_LIMIT
+            else headings
+        ),
     )
 
 
@@ -260,7 +229,6 @@ def _read_pdf(path: str, start: int | None, end: int | None) -> str:
     reader = PdfReader(path)
     total_pages = len(reader.pages)
 
-    MAX_PAGES = 20
     start_idx = (start - 1) if start else 0
 
     is_truncated = False
@@ -283,23 +251,25 @@ def _read_pdf(path: str, start: int | None, end: int | None) -> str:
             footer_msg = f"\n\n... (PDF truncated to first {MAX_PAGES} pages)\n"
             footer_msg += f"Tip: Use `read_file(path='...', start_line={end_idx + 1})` to read more pages."
 
-        return render_template(
-            "domain/project/document_content.prompt.j2",
-            type="document",
-            filename=os.path.basename(path),
-            metadata=reader.metadata,
-            page_info=f"Pages: {start_idx+1} to {end_idx} (Total {total_pages})",
-            content_blocks=content_blocks
-        ) + footer_msg
+        return (
+            render_template(
+                "domain/project/document_content.prompt.j2",
+                type="document",
+                filename=os.path.basename(path),
+                metadata=reader.metadata,
+                page_info=f"Pages: {start_idx + 1} to {end_idx} (Total {total_pages})",
+                content_blocks=content_blocks,
+            )
+            + footer_msg
+        )
     except Exception as e:
         logger.exception(f"Failed to render Document template for PDF: {e}")
         # Fallback to simple template
         content_blocks = []
         for i in range(start_idx, end_idx):
-            content_blocks.append({
-                "title": f"Page {i+1}",
-                "content": reader.pages[i].extract_text()
-            })
+            content_blocks.append(
+                {"title": f"Page {i + 1}", "content": reader.pages[i].extract_text()}
+            )
         return render_template(
             "domain/project/document_content.prompt.j2",
             type="document",
@@ -315,18 +285,21 @@ def _read_docx(path: str) -> str:
     # mammoth requires a file-like object in binary mode
     with open(path, "rb") as docx_file:
         result = mammoth.convert_to_markdown(docx_file)
-        return format_file_content(os.path.basename(path), result.value, lang="markdown")
+        return format_file_content(
+            os.path.basename(path), result.value, lang="markdown"
+        )
 
 
 def _read_excel(path: str) -> str:
     xl = pd.ExcelFile(path)
     sheet_names = xl.sheet_names  # Get sheet names once
-    MAX_ROWS_PER_SHEET = 100
     try:
         content_blocks = []
         for sheet_name in sheet_names:
             # Read only first N rows for preview
-            df = pd.read_excel(path, sheet_name=sheet_name, nrows=MAX_ROWS_PER_SHEET + 1)
+            df = pd.read_excel(
+                path, sheet_name=sheet_name, nrows=MAX_ROWS_PER_SHEET + 1
+            )
 
             is_truncated = len(df) > MAX_ROWS_PER_SHEET
             if is_truncated:
@@ -338,10 +311,7 @@ def _read_excel(path: str) -> str:
                 content += f"\n\n... (Sheet '{sheet_name}' truncated to first {MAX_ROWS_PER_SHEET} rows)"
                 content += "\nTip: This spreadsheet is large. Use `query_excel_sql` to perform precise queries on the data."
 
-            content_blocks.append({
-                "title": f"Sheet: {sheet_name}",
-                "content": content
-            })
+            content_blocks.append({"title": f"Sheet: {sheet_name}", "content": content})
 
         return render_template(
             "domain/project/document_content.prompt.j2",
@@ -355,17 +325,21 @@ def _read_excel(path: str) -> str:
         sheets = []
         for sheet_name in sheet_names:
             df = pd.read_excel(path, sheet_name=sheet_name, nrows=MAX_ROWS_PER_SHEET)
-            sheets.append({
-                "name": sheet_name,
-                "content": df.to_markdown(index=False) if not df.empty else "*Empty Sheet*",
-                "is_empty": df.empty
-            })
+            sheets.append(
+                {
+                    "name": sheet_name,
+                    "content": df.to_markdown(index=False)
+                    if not df.empty
+                    else "*Empty Sheet*",
+                    "is_empty": df.empty,
+                }
+            )
         return format_spreadsheet(os.path.basename(path), sheets)
 
 
 def _read_html(path: str) -> str:
     """Standardized HTML reading using unified core IO."""
-    from app.core.file import read_file
-
     result = read_file(path)
-    return format_file_content(os.path.basename(path), md(result.content), lang="markdown")
+    return format_file_content(
+        os.path.basename(path), md(result.content), lang="markdown"
+    )

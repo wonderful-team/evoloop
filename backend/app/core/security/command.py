@@ -26,7 +26,10 @@ def is_dangerous_command(command: str) -> tuple[bool, str]:
         return True, "Command contains blocked pattern: modification of shell config."
 
     if "../.." in cmd_lower:
-        return True, "Command contains blocked pattern: deep directory traversal (../../)."
+        return (
+            True,
+            "Command contains blocked pattern: deep directory traversal (../../).",
+        )
 
     home_dir = os.path.expanduser("~")
     restricted_dirs = [
@@ -38,12 +41,18 @@ def is_dangerous_command(command: str) -> tuple[bool, str]:
     if ">" in command or ">>" in command:
         for restricted in restricted_dirs:
             if restricted in command or restricted.replace(home_dir, "~") in command:
-                return True, f"Cannot write to {restricted} using execute_command. Use write_file tool instead."
+                return (
+                    True,
+                    f"Cannot write to {restricted} using execute_command. Use write_file tool instead.",
+                )
 
     if settings.MULTI_TENANT_MODE:
         system_dirs_pattern = r"/(etc|root|var|boot|dev|sys|proc|sbin|lib)(/|$)"
         if re.search(system_dirs_pattern, cmd_lower):
-            return True, "Path access blocked: System directories cannot be accessed in Multi-Tenant mode."
+            return (
+                True,
+                "Path access blocked: System directories cannot be accessed in Multi-Tenant mode.",
+            )
 
     return False, ""
 

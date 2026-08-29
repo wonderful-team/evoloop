@@ -213,7 +213,9 @@ class PolicyLoader:
             try:
                 permissions.append(GrantedPermission.from_dict(item))
             except Exception as e:
-                logger.warning(f"[PolicyLoader] Invalid granted permission: {item} ({e})")
+                logger.warning(
+                    f"[PolicyLoader] Invalid granted permission: {item} ({e})"
+                )
         return permissions
 
     @staticmethod
@@ -229,7 +231,10 @@ class PolicyLoader:
         cleaned = []
         for item in raw:
             try:
-                if item.get("path") == permission.path and item.get("action") == permission.action:
+                if (
+                    item.get("path") == permission.path
+                    and item.get("action") == permission.action
+                ):
                     continue
                 cleaned.append(item)
             except Exception:
@@ -245,7 +250,8 @@ class PolicyLoader:
         meta = await PolicyLoader._read_meta(project_id)
         raw = meta.get("authorized_paths", [])
         meta["authorized_paths"] = [
-            item for item in raw
+            item
+            for item in raw
             if not (item.get("path") == path and item.get("action") == action)
         ]
         return await PolicyLoader._write_meta(project_id, meta)

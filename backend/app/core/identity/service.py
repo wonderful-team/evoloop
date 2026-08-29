@@ -1,6 +1,7 @@
 import logging
 
 from app.core.config import settings
+from app.core.identity import constants as identity_constants
 from app.infrastructure.cache import cache
 from app.models.schemas.auth import LoginResult
 
@@ -9,8 +10,6 @@ from .store import IdentityStore
 logger = logging.getLogger(__name__)
 
 # Token -> (member_id, timestamp) 本地缓存
-TOKEN_CACHE_TTL = 120  # 2 minutes
-MAX_CACHE_SIZE = 1000  # 防止内存泄漏
 
 
 class IdentityService:
@@ -105,15 +104,23 @@ class IdentityService:
                     if member_id is not None:
                         mid = int(member_id)
                         # Cache member_id
-                        await cache.set(cache_key, str(mid), ex=TOKEN_CACHE_TTL)
+                        await cache.set(
+                            cache_key, str(mid), ex=identity_constants.TOKEN_CACHE_TTL
+                        )
                         # Also cache full profile so /member/me can avoid a second HTTP call
                         profile_key = f"evoloop:user_profile:{token}"
-                        await cache.set(profile_key, __import__('json').dumps(data), ex=TOKEN_CACHE_TTL)
+                        await cache.set(
+                            profile_key,
+                            __import__("json").dumps(data),
+                            ex=identity_constants.TOKEN_CACHE_TTL,
+                        )
 
                         if not settings.MULTI_TENANT_MODE:
                             stored_mid = await self.store.get_member_id()
                             if stored_mid is None or stored_mid != mid:
-                                logger.info(f"[Identity] Syncing session to store for new/different user (mid: {mid})")
+                                logger.info(
+                                    f"[Identity] Syncing session to store for new/different user (mid: {mid})"
+                                )
                                 await self.store.save_access_token(token)
                                 await self.store.save_member_id(mid)
                         return mid

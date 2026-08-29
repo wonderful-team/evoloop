@@ -7,6 +7,7 @@ from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
 from app.core.engine.message.native_classes import RunnableConfig
 from app.core.file import FileTraverser, read_file
+from app.core.file.constants import MAX_PREVIEW_LINES
 from app.core.tools import evoloop_tool
 from app.core.tools.base import InjectedToolArg
 
@@ -24,7 +25,6 @@ async def _search_by_name(
     Search files by name and return matching paths with a short smart preview.
     Uses unified FileTraverser.
     """
-    MAX_PREVIEW_LINES = 3
     q_lower = pattern.lower() if case_insensitive else pattern
 
     matched_files = []
@@ -35,12 +35,16 @@ async def _search_by_name(
         rel_path = os.path.relpath(full_path, target_path)
 
         # Check name pattern
-        name_match = q_lower in filename.lower() if case_insensitive else pattern in filename
+        name_match = (
+            q_lower in filename.lower() if case_insensitive else pattern in filename
+        )
 
         # Check scope (glob)
         scope_match = True
         if scope:
-            scope_match = fnmatch.fnmatch(rel_path, scope) or fnmatch.fnmatch(filename, scope)
+            scope_match = fnmatch.fnmatch(rel_path, scope) or fnmatch.fnmatch(
+                filename, scope
+            )
 
         if name_match and scope_match:
             matched_files.append(full_path)
@@ -52,7 +56,9 @@ async def _search_by_name(
 
     # Build output with smart previews
     entries = []
-    definition_pattern = re.compile(r"^\s*(class\s+|function\s+|def\s+|trait\s+|interface\s+)", re.IGNORECASE)
+    definition_pattern = re.compile(
+        r"^\s*(class\s+|function\s+|def\s+|trait\s+|interface\s+)", re.IGNORECASE
+    )
 
     for idx, filepath in enumerate(matched_files, 1):
         rel_path = os.path.relpath(filepath, target_path)
@@ -69,12 +75,16 @@ async def _search_by_name(
                     start_idx = i
                     break
 
-            for i in range(start_idx, min(start_idx + MAX_PREVIEW_LINES, len(all_lines))):
+            for i in range(
+                start_idx, min(start_idx + MAX_PREVIEW_LINES, len(all_lines))
+            ):
                 preview_lines.append(f"     {i + 1:3d}: {all_lines[i]}")
         except Exception as e:
             preview_lines.append(f"     [Could not read preview: {e}]")
 
-        preview_block = "\n".join(preview_lines) if preview_lines else "     (empty file)"
+        preview_block = (
+            "\n".join(preview_lines) if preview_lines else "     (empty file)"
+        )
         entries.append(f"  {idx}. {rel_path}\n     Preview:\n{preview_block}")
 
     header = f"Found {len(matched_files)} matching files:\n"
@@ -102,14 +112,18 @@ async def find_files_internal(
     except ValueError as e:
         return str(e), {"count": 0}
 
-    res_content, res_meta = await _search_by_name(pattern, target_path, scope, case_insensitive, max_files)
+    res_content, res_meta = await _search_by_name(
+        pattern, target_path, scope, case_insensitive, max_files
+    )
 
     # 【全局搜索扩展】如果在工作区根目录没搜到，且是全局模式，自动去 uploads 目录搜一下
     from app.core.context import ContextManager
     from app.core.project.utils import get_workspace_root
 
     ctx = ContextManager.current()
-    is_global_root = (ctx.project_id == DEFAULT_PROJECT_ID or ctx.project_id is None) and (path == "." or path == "" or target_path == get_workspace_root())
+    is_global_root = (
+        ctx.project_id == DEFAULT_PROJECT_ID or ctx.project_id is None
+    ) and (path == "." or path == "" or target_path == get_workspace_root())
 
     if is_global_root:
         if res_meta.get("count", 0) < max_files:
@@ -124,7 +138,9 @@ async def find_files_internal(
 
             if upload_meta.get("count", 0) > 0:
                 if res_meta.get("count", 0) == 0:
-                    adjusted_content = upload_content.replace("Found ", "Found in uploads/ ").replace("matching files", "matching files (in uploads/)")
+                    adjusted_content = upload_content.replace(
+                        "Found ", "Found in uploads/ "
+                    ).replace("matching files", "matching files (in uploads/)")
                     return adjusted_content, upload_meta
                 else:
                     return res_content, res_meta

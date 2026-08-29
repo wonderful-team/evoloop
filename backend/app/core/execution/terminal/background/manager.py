@@ -40,7 +40,15 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from app.core.events import system_bus
-from app.core.execution.terminal.background.schemas import BackgroundTaskManagerStats, CreateBackgroundTaskRequest
+from app.core.execution.constants import (
+    MAX_TASK_AGE_SECONDS,
+    MAX_TASKS_PER_THREAD,
+    TASK_CLEANUP_INTERVAL_SECONDS,
+)
+from app.core.execution.terminal.background.schemas import (
+    BackgroundTaskManagerStats,
+    CreateBackgroundTaskRequest,
+)
 from app.core.tools.event import BackgroundTaskEvent, BackgroundTaskOutputEvent
 from app.utils.id import gen_uuid_hex
 
@@ -97,9 +105,9 @@ class BackgroundTaskManager:
         self._data_lock = asyncio.Lock()
 
         # Configuration
-        self._cleanup_interval = 300  # 5 minutes
-        self._max_task_age = 3600 * 24  # 24 hours
-        self._max_tasks_per_thread = 50  # Prevent memory abuse
+        self._cleanup_interval = TASK_CLEANUP_INTERVAL_SECONDS
+        self._max_task_age = MAX_TASK_AGE_SECONDS
+        self._max_tasks_per_thread = MAX_TASKS_PER_THREAD
 
         self._initialized = True
         self._cleanup_task: asyncio.Task | None = None
@@ -129,7 +137,11 @@ class BackgroundTaskManager:
 
         async with self._data_lock:
             for task_id, task in self._tasks.items():
-                if task.is_completed and task.completed_at and task.completed_at < cutoff:
+                if (
+                    task.is_completed
+                    and task.completed_at
+                    and task.completed_at < cutoff
+                ):
                     to_remove.append(task_id)
 
             for task_id in to_remove:
@@ -504,9 +516,7 @@ class BackgroundTaskManager:
             try:
                 await system_bus.publish(
                     BackgroundTaskOutputEvent(
-                        thread_id=task.thread_id,
-                        task_id=task.task_id,
-                        output=output
+                        thread_id=task.thread_id, task_id=task.task_id, output=output
                     )
                 )
             except (TypeError, ValueError, RuntimeError, OSError):

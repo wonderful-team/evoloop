@@ -26,7 +26,9 @@ from app.i18n.service import i18n
 logger = logging.getLogger(__name__)
 
 
-def _extract_path_from_input(tool_name: str, tool_input: ToolInput | None) -> tuple[str, str] | None:
+def _extract_path_from_input(
+    tool_name: str, tool_input: ToolInput | None
+) -> tuple[str, str] | None:
     if tool_input is None:
         return None
     path = tool_input.path

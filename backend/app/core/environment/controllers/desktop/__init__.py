@@ -26,15 +26,13 @@ from app.infrastructure.drivers.macos import macos_driver
 from app.infrastructure.vision import VisionTask, get_vision_router, vision_engine
 from app.utils.controller_response import ControllerResponse
 
-from ._app_mixin import DesktopAppMixin
-from ._element_mixin import DesktopElementMixin
-from ._interaction_mixin import DesktopInteractionMixin
-from ._utils import _async_literal_eval
-from ._verification_mixin import DesktopVerificationMixin
+from .app_mixin import DesktopAppMixin
+from .element_mixin import DesktopElementMixin
+from .interaction_mixin import DesktopInteractionMixin
+from .utils import _async_literal_eval
+from .verification_mixin import DesktopVerificationMixin
 
 logger = logging.getLogger(__name__)
-
-MAX_OUTPUT_LENGTH = 60000
 
 
 # ─────────────────────────────────────────────
@@ -99,8 +97,16 @@ class DesktopController(
             recording_ctx = RecordingContext(
                 platform="macos",
                 recorder=recorder,
-                screenshot_actions=("click", "double_click", "type_text", "key_press", "open_app", "drag_drop")
-                if not skip_recording else (),
+                screenshot_actions=(
+                    "click",
+                    "double_click",
+                    "type_text",
+                    "key_press",
+                    "open_app",
+                    "drag_drop",
+                )
+                if not skip_recording
+                else (),
             )
 
             _cached_app_info = None
@@ -108,7 +114,9 @@ class DesktopController(
             async def _get_cached_app_info():
                 nonlocal _cached_app_info
                 if _cached_app_info is None:
-                    _cached_app_info = await asyncio.to_thread(macos_driver.get_current_app)
+                    _cached_app_info = await asyncio.to_thread(
+                        macos_driver.get_current_app
+                    )
                 return _cached_app_info
 
             async def _record(action_type: str, params: dict):
@@ -122,7 +130,9 @@ class DesktopController(
                         "bundle_id": app_info.get("bundle_id"),
                     }
 
-                await recording_ctx.record(action_type, params, screenshot_fn, context_fn)
+                await recording_ctx.record(
+                    action_type, params, screenshot_fn, context_fn
+                )
 
             # ── Shared context ─────────────────────────────────────────────
             from app.core.file import cleanup_file
@@ -131,7 +141,10 @@ class DesktopController(
             ctx = {
                 "recording_func": _record,
                 "get_cached_app_info": _get_cached_app_info,
-                "x": x, "y": y, "x2": x2, "y2": y2,
+                "x": x,
+                "y": y,
+                "x2": x2,
+                "y2": y2,
                 "element_name": element_name,
                 "element_role": element_role,
                 "text": text,
@@ -165,7 +178,9 @@ class DesktopController(
                         bounds = app_info.get("bounds")
                         if bounds:
                             region = bounds
-                            logger.info(f"[Desktop] Auto-capturing current window region: {region}")
+                            logger.info(
+                                f"[Desktop] Auto-capturing current window region: {region}"
+                            )
 
                 if region:
                     try:
@@ -181,10 +196,14 @@ class DesktopController(
                     purpose="temp",
                     bundle_id=bundle_id,
                 )
-                result_msg = ControllerResponse.screenshot_result(success=True, filename=filepath)
+                result_msg = ControllerResponse.screenshot_result(
+                    success=True, filename=filepath
+                )
                 if ocr:
                     try:
-                        ocr_result = await vision_engine.process(VisionTask.OCR, filepath)
+                        ocr_result = await vision_engine.process(
+                            VisionTask.OCR, filepath
+                        )
                         if ocr_result.success and ocr_result.elements:
                             elements_for_prompt = []
                             for el in ocr_result.elements:
@@ -206,18 +225,35 @@ class DesktopController(
                                 total_count=len(ocr_result.elements),
                             )
                         else:
-                            result_msg += "\n\n" + ControllerResponse.error("OCR requested but no text detected.")
+                            result_msg += "\n\n" + ControllerResponse.error(
+                                "OCR requested but no text detected."
+                            )
                     except Exception as e:
-                        result_msg += "\n\n" + ControllerResponse.error("OCR Error.", details=str(e))
+                        result_msg += "\n\n" + ControllerResponse.error(
+                            "OCR Error.", details=str(e)
+                        )
                 return result_msg
 
             # ── Dispatch to mixin handlers ────────────────────────────────
-            if action in ("click", "double_click", "type_text", "key_press", "scroll", "drag_drop"):
+            if action in (
+                "click",
+                "double_click",
+                "type_text",
+                "key_press",
+                "scroll",
+                "drag_drop",
+            ):
                 result = await cls._handle_interaction(action, **ctx)
                 if result is not None:
                     return result
 
-            if action in ("get_info", "list_apps", "get_active_app", "open_app", "applescript"):
+            if action in (
+                "get_info",
+                "list_apps",
+                "get_active_app",
+                "open_app",
+                "applescript",
+            ):
                 result = await cls._handle_app(action, **ctx)
                 if result is not None:
                     return result
@@ -227,11 +263,19 @@ class DesktopController(
                 if not actions:
                     return ControllerResponse.missing_param("actions")
                 batch_start = time.time()
-                executor = BatchExecutor(continue_on_error=continue_on_error, delay_ms=delay_ms)
+                executor = BatchExecutor(
+                    continue_on_error=continue_on_error, delay_ms=delay_ms
+                )
 
                 async def _exec_action(action_dict: dict) -> str:
-                    params = {k: v for k, v in action_dict.items() if k != "action" and v is not None}
-                    return await cls.execute(action=action_dict.get("action", "unknown"), **params)
+                    params = {
+                        k: v
+                        for k, v in action_dict.items()
+                        if k != "action" and v is not None
+                    }
+                    return await cls.execute(
+                        action=action_dict.get("action", "unknown"), **params
+                    )
 
                 await executor.execute(actions, _exec_action)
                 return executor.format_summary(time.time() - batch_start)
@@ -240,8 +284,12 @@ class DesktopController(
                 try:
                     raw_tree = await asyncio.to_thread(macos_driver.dump_ax_tree)
                     if not raw_tree or "Error" in raw_tree:
-                        return ControllerResponse.error(f"Failed to dump Accessibility Tree: {raw_tree}")
-                    elements = await _async_literal_eval(raw_tree.replace("missing value", "None"))
+                        return ControllerResponse.error(
+                            f"Failed to dump Accessibility Tree: {raw_tree}"
+                        )
+                    elements = await _async_literal_eval(
+                        raw_tree.replace("missing value", "None")
+                    )
                     if not isinstance(elements, list):
                         return ControllerResponse.error("AX Tree format unexpected.")
 
@@ -250,45 +298,69 @@ class DesktopController(
 
                         def _truncate_depth(nodes, depth=0):
                             if depth >= max_depth:
-                                return [{k: v for k, v in n.items() if k != "children"} for n in nodes]
+                                return [
+                                    {k: v for k, v in n.items() if k != "children"}
+                                    for n in nodes
+                                ]
                             result = []
                             for n in nodes:
                                 item = dict(n)
                                 if "children" in item:
-                                    item["children"] = _truncate_depth(item["children"], depth + 1)
+                                    item["children"] = _truncate_depth(
+                                        item["children"], depth + 1
+                                    )
                                 result.append(item)
                             return result
 
                         filtered_elements = _truncate_depth(elements)
                     if role_filter:
-                        filtered_elements = [el for el in filtered_elements if role_filter.lower() in str(el.get("role", "")).lower()]
+                        filtered_elements = [
+                            el
+                            for el in filtered_elements
+                            if role_filter.lower() in str(el.get("role", "")).lower()
+                        ]
                     if name_filter:
-                        filtered_elements = [el for el in filtered_elements if name_filter.lower() in str(el.get("name", "")).lower()]
+                        filtered_elements = [
+                            el
+                            for el in filtered_elements
+                            if name_filter.lower() in str(el.get("name", "")).lower()
+                        ]
 
                     try:
                         return "\n\n" + render_template(
                             "core/vision/ocr_results.prompt.j2",
                             platform="macos",
-                            elements=[{**el, "bounds": el.get("bounds", [])} for el in filtered_elements[:100]],
-                            total_count=len(filtered_elements)
+                            elements=[
+                                {**el, "bounds": el.get("bounds", [])}
+                                for el in filtered_elements[:100]
+                            ],
+                            total_count=len(filtered_elements),
                         )
                     except Exception as e:
                         logger.exception(f"Failed to render OCR results template: {e}")
-                        return PerceptionsFormatter.ui_elements(filtered_elements, max_items=50)
+                        return PerceptionsFormatter.ui_elements(
+                            filtered_elements, max_items=50
+                        )
 
                 except Exception as e:
                     return ControllerResponse.error("dump_ui failed.", details=str(e))
 
             elif action == "gui_extract":
-                filepath = await asyncio.to_thread(macos_driver.screenshot, region=region)
+                filepath = await asyncio.to_thread(
+                    macos_driver.screenshot, region=region
+                )
                 if not filepath or not os.path.exists(filepath):
-                    return ControllerResponse.error("Failed to capture screenshot for GUI extraction.")
+                    return ControllerResponse.error(
+                        "Failed to capture screenshot for GUI extraction."
+                    )
 
                 try:
                     router = get_vision_router()
                     provider = await router.get_provider(VisionTask.OCR)
                     if not provider:
-                        return ControllerResponse.error("No OCR provider available for desktop GUI extraction.")
+                        return ControllerResponse.error(
+                            "No OCR provider available for desktop GUI extraction."
+                        )
 
                     result = await provider.process(VisionTask.OCR, filepath)
                     if not result.success or not result.elements:
@@ -299,8 +371,12 @@ class DesktopController(
                     best_match, min_dist = None, float("inf")
 
                     for el in result.elements:
-                        dist = math.sqrt((el.x - (target_x if target_x > 1 else target_x * 1000))**2 +
-                                         (el.y - (target_y if target_y > 1 else target_y * 1000))**2)
+                        dist = math.sqrt(
+                            (el.x - (target_x if target_x > 1 else target_x * 1000))
+                            ** 2
+                            + (el.y - (target_y if target_y > 1 else target_y * 1000))
+                            ** 2
+                        )
                         if dist < min_dist:
                             min_dist, best_match = dist, el.text
 

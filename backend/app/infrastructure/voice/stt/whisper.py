@@ -171,27 +171,3 @@ class WhisperProvider(BaseSTTProvider):
             "ko": VoiceLocale.KO_KR,
         }
         return mapping.get(code, VoiceLocale.AUTO)
-
-
-class WhisperLocalProvider(BaseSTTProvider):
-    """
-    本地 Whisper 提供商（使用 faster-whisper 或 whisper.cpp）
-
-    TODO: 待实现
-    """
-
-    name = "whisper-local"
-    supports_streaming = False
-    supports_timestamps = True
-
-    def is_available(self) -> bool:
-        return False  # 尚未实现
-
-    def list_models(self, language: VoiceLocale | None = None) -> list[str]:
-        return ["tiny", "base", "small", "medium", "large-v3"]
-
-    async def transcribe(self, options: STTOptions) -> STTResult:
-        raise NotImplementedError("Local Whisper not implemented yet")
-
-    def transcribe_stream(self, options: STTOptions) -> AsyncIterator[STTResult]:
-        raise NotImplementedError("Local Whisper not implemented yet")

@@ -7,9 +7,9 @@ import logging
 import time
 from typing import Annotated
 
-from app.constants import FORGET_SAFETY_WINDOW
 from app.core.config import settings
 from app.core.context.manager import ContextManager
+from app.core.memory.constants import DEFAULT_SEARCH_LIMIT, FORGET_SAFETY_WINDOW
 from app.core.memory.models import MemoryEntry, MemoryType, PrivacyLevel
 from app.core.memory.short_term import SqlShortTermMemory
 from app.core.tools import evoloop_tool
@@ -27,8 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 @evoloop_tool(
-    is_state_mutating=True,
-    summary_template="evoloop.tool_summary.write_handover_notes"
+    is_state_mutating=True, summary_template="evoloop.tool_summary.write_handover_notes"
 )
 async def write_handover_notes(notes: str, key: str = "general") -> str:
     """
@@ -63,11 +62,11 @@ async def write_handover_notes(notes: str, key: str = "general") -> str:
 # 2. Long-term Memory Tools (Remember/Recall)
 # ========================================================================
 
-@evoloop_tool(
-    is_state_mutating=True,
-    summary_template="evoloop.tool_summary.remember"
-)
-async def remember(content: str, context: str = "", is_user_preference: bool = False) -> str:
+
+@evoloop_tool(is_state_mutating=True, summary_template="evoloop.tool_summary.remember")
+async def remember(
+    content: str, context: str = "", is_user_preference: bool = False
+) -> str:
     """
     Save important information to long-term memory.
 
@@ -135,10 +134,7 @@ async def remember(content: str, context: str = "", is_user_preference: bool = F
         return f"Failed to save memory: {str(e)}"
 
 
-@evoloop_tool(
-    is_state_mutating=False,
-    summary_template="evoloop.tool_summary.recall"
-)
+@evoloop_tool(is_state_mutating=False, summary_template="evoloop.tool_summary.recall")
 async def recall(query: str, limit: int = 5) -> str:
     """
     Search memory for previously remembered information.
@@ -178,7 +174,9 @@ async def recall(query: str, limit: int = 5) -> str:
         # Format results
         lines = [f"Recalled {len(entries)} memories:\n"]
         for i, entry in enumerate(entries, 1):
-            lines.append(f"{i}. [{entry.type.value.upper()}] {entry.title} (ID: {entry.id})")
+            lines.append(
+                f"{i}. [{entry.type.value.upper()}] {entry.title} (ID: {entry.id})"
+            )
             lines.append(f"   {entry.content[:300]}")
             lines.append("")
 
@@ -190,8 +188,7 @@ async def recall(query: str, limit: int = 5) -> str:
 
 
 @evoloop_tool(
-    is_state_mutating=True,
-    summary_template="evoloop.tool_summary.forget_memory"
+    is_state_mutating=True, summary_template="evoloop.tool_summary.forget_memory"
 )
 async def forget_memory(memory_id: str) -> str:
     """
@@ -230,12 +227,11 @@ async def forget_memory(memory_id: str) -> str:
 
 
 @evoloop_tool(
-    is_memory_tool=True,
-    summary_template="evoloop.tool_summary.search_history"
+    is_memory_tool=True, summary_template="evoloop.tool_summary.search_history"
 )
 async def search_history(
     query: str,
-    limit: int = 10,
+    limit: int = DEFAULT_SEARCH_LIMIT,
     thread_id: str | None = None,
     config: dict | None = None,
 ) -> str:
@@ -286,13 +282,14 @@ async def search_history(
 
 
 @evoloop_tool(
-    is_state_mutating=True,
-    summary_template="evoloop.tool_summary.forget_tool_outputs"
+    is_state_mutating=True, summary_template="evoloop.tool_summary.forget_tool_outputs"
 )
 async def forget_tool_outputs(
     tool_call_ids: Annotated[list[str], "List of tool_call_ids to forget"],
     reason: Annotated[str, "Why these tool outputs are being forgotten"],
-    custom_summaries: Annotated[dict[str, str] | None, "Optional custom summaries"] = None,
+    custom_summaries: Annotated[
+        dict[str, str] | None, "Optional custom summaries"
+    ] = None,
     config: dict | None = None,
 ) -> str:
     """
@@ -303,7 +300,11 @@ async def forget_tool_outputs(
 
     SAFETY: Can only forget tool outputs older than 5 steps (FORGET_SAFETY_WINDOW).
     """
-    thread_id = config.get("configurable", {}).get("thread_id", "unknown") if config else "unknown"
+    thread_id = (
+        config.get("configurable", {}).get("thread_id", "unknown")
+        if config
+        else "unknown"
+    )
 
     try:
         from sqlalchemy import select
@@ -338,7 +339,9 @@ async def forget_tool_outputs(
 
             steps_ago = current_step - msg_info["index"]
             if steps_ago <= FORGET_SAFETY_WINDOW:
-                results["skipped"].append({"id": tc_id, "reason": f"Too recent ({steps_ago} steps ago)"})
+                results["skipped"].append(
+                    {"id": tc_id, "reason": f"Too recent ({steps_ago} steps ago)"}
+                )
                 continue
 
             msg = msg_info["msg"]
@@ -359,12 +362,14 @@ async def forget_tool_outputs(
                 "step_index": msg_info["index"],
                 "forgotten_at": time.time(),
             }
-            results["forgotten"].append({
-                "id": tc_id,
-                "tool": tool_name,
-                "summary": summary,
-                "saved": len(content) - len(summary),
-            })
+            results["forgotten"].append(
+                {
+                    "id": tc_id,
+                    "tool": tool_name,
+                    "summary": summary,
+                    "saved": len(content) - len(summary),
+                }
+            )
 
         total_saved = sum(r["saved"] for r in results["forgotten"])
 
@@ -392,7 +397,9 @@ async def forget_tool_outputs(
                 state.tool_memory = memory.to_dict()
                 ctx.metadata.tool_memory = memory.to_dict()
         except Exception as e:
-            logger.warning(f"[ContextMgmt] Failed to persist tool_memory: {e}", exc_info=True)
+            logger.warning(
+                f"[ContextMgmt] Failed to persist tool_memory: {e}", exc_info=True
+            )
 
         msg = f"Successfully forgot {len(results['forgotten'])} outputs, saved {total_saved} chars."
         return msg, {
@@ -409,15 +416,18 @@ async def forget_tool_outputs(
 
 
 @evoloop_tool(
-    is_state_mutating=True,
-    summary_template="evoloop.tool_summary.recall_tool_output"
+    is_state_mutating=True, summary_template="evoloop.tool_summary.recall_tool_output"
 )
 async def recall_tool_output(
     tool_call_id: Annotated[str, "The tool_call_id to recall"],
     config: dict | None = None,
 ) -> str:
     """Recall a forgotten tool output, restoring its full content to context."""
-    thread_id = config.get("configurable", {}).get("thread_id", "unknown") if config else "unknown"
+    thread_id = (
+        config.get("configurable", {}).get("thread_id", "unknown")
+        if config
+        else "unknown"
+    )
 
     try:
         from sqlalchemy import select
@@ -426,7 +436,13 @@ async def recall_tool_output(
         from app.models import Message
 
         async with session_scope() as session:
-            stmt = select(Message).where(Message.thread_id == thread_id, Message.tool_call_id == tool_call_id).limit(1)
+            stmt = (
+                select(Message)
+                .where(
+                    Message.thread_id == thread_id, Message.tool_call_id == tool_call_id
+                )
+                .limit(1)
+            )
             result = await session.execute(stmt)
             msg = result.scalar_one_or_none()
 
@@ -449,13 +465,19 @@ async def recall_tool_output(
                     state.tool_memory = memory.to_dict()
                     ctx.metadata.tool_memory = memory.to_dict()
             except Exception as e:
-                logger.warning(f"[ContextMgmt] Failed to update tool_memory on recall: {e}", exc_info=True)
+                logger.warning(
+                    f"[ContextMgmt] Failed to update tool_memory on recall: {e}",
+                    exc_info=True,
+                )
 
-            return f"Successfully recalled content for {tool_call_id} (Length: {len(msg.content)})", {
-                "status": "success",
-                "tool_call_id": tool_call_id,
-                "_signal": "recall_tool_output"
-            }
+            return (
+                f"Successfully recalled content for {tool_call_id} (Length: {len(msg.content)})",
+                {
+                    "status": "success",
+                    "tool_call_id": tool_call_id,
+                    "_signal": "recall_tool_output",
+                },
+            )
 
     except Exception as e:
         logger.exception(f"[ContextMgmt] Recall failed: {e}")

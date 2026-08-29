@@ -127,7 +127,9 @@ class SkillsFileWatcher:
         system_bus.subscribe(FileSystemEventType.FILE_CREATED, _handle_file_created)
         system_bus.subscribe(FileSystemEventType.FILE_MODIFIED, _handle_file_modified)
         system_bus.subscribe(FileSystemEventType.FILE_DELETED, _handle_file_deleted)
-        system_bus.subscribe(FileSystemEventType.DIRECTORY_DELETED, _handle_directory_deleted)
+        system_bus.subscribe(
+            FileSystemEventType.DIRECTORY_DELETED, _handle_directory_deleted
+        )
         self._subscribed = True
 
     def _unsubscribe(self):
@@ -140,7 +142,9 @@ class SkillsFileWatcher:
         system_bus.unsubscribe(FileSystemEventType.FILE_CREATED, _handle_file_created)
         system_bus.unsubscribe(FileSystemEventType.FILE_MODIFIED, _handle_file_modified)
         system_bus.unsubscribe(FileSystemEventType.FILE_DELETED, _handle_file_deleted)
-        system_bus.unsubscribe(FileSystemEventType.DIRECTORY_DELETED, _handle_directory_deleted)
+        system_bus.unsubscribe(
+            FileSystemEventType.DIRECTORY_DELETED, _handle_directory_deleted
+        )
         self._subscribed = False
 
     @property

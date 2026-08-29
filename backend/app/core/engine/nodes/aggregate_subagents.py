@@ -123,7 +123,9 @@ def _concatenate(results: list[dict]) -> str:
         else:
             failed += 1
             err = r.get("error") or "unknown error"
-            items.append(f"[{status}] {r.get('subagent_id', 'unknown')}: {result or err}")
+            items.append(
+                f"[{status}] {r.get('subagent_id', 'unknown')}: {result or err}"
+            )
     joined = "\n\n---\n\n".join(i for i in items if i)
     header = f"聚合摘要（{success} 成功，{failed} 失败）"
     if not joined:
@@ -131,9 +133,7 @@ def _concatenate(results: list[dict]) -> str:
     return f"{header}\n\n{joined}"
 
 
-async def _llm_aggregate(
-    results: list[dict], strategy: str, original_task: str
-) -> str:
+async def _llm_aggregate(results: list[dict], strategy: str, original_task: str) -> str:
     from app.infrastructure.llm import InternalLLMService
     from app.utils.template import render_template
 

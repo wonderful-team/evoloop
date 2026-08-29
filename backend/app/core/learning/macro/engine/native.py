@@ -41,9 +41,7 @@ class NativeMixin:
                 stderr=asyncio.subprocess.PIPE,
             )
 
-            stdout, stderr = await asyncio.wait_for(
-                process.communicate(), timeout=300
-            )
+            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=300)
 
             if process.returncode != 0:
                 err_msg = stderr.decode().strip()
@@ -64,7 +62,9 @@ class NativeMixin:
                 items = state_data.get("items", [])
                 if items:
                     extracted_data["batch_items"] = items
-                    logger.info(f"[{thread_id}] Synced {len(items)} items from {sync_state} to extracted_data")
+                    logger.info(
+                        f"[{thread_id}] Synced {len(items)} items from {sync_state} to extracted_data"
+                    )
 
         except asyncio.TimeoutError:
             logger.error("[%s] Native script timed out after 300s", thread_id)

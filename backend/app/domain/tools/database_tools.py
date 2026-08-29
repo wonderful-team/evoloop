@@ -8,11 +8,9 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.pool import NullPool
 
 from app.core.tools import evoloop_tool
+from app.domain.tools.constants import DANGEROUS_KEYWORDS, MAX_ROWS
 
 logger = logging.getLogger(__name__)
-
-# Basic safety block against DML/DDL. We use regex for a crude but effective shield.
-DANGEROUS_KEYWORDS = r"\b(INSERT|UPDATE|DELETE|DROP|ALTER|TRUNCATE|GRANT|REVOKE|REPLACE|MERGE|EXEC|EXECUTE)\b"
 
 
 @evoloop_tool(
@@ -35,10 +33,12 @@ def sql_query(db_uri: str, sql: str) -> str:
     try:
         # 1. Physical Read-Only Guard
         if re.search(DANGEROUS_KEYWORDS, sql, re.IGNORECASE):
-            return json.dumps({
-                "status": "error",
-                "message": f"Execution Blocked: The query contains forbidden DML/DDL operations. Only SELECT queries are permitted in this tool. SQL provided: {sql}"
-            })
+            return json.dumps(
+                {
+                    "status": "error",
+                    "message": f"Execution Blocked: The query contains forbidden DML/DDL operations. Only SELECT queries are permitted in this tool. SQL provided: {sql}",
+                }
+            )
 
         # Construct db_uri and create engine
         engine = create_engine(db_uri, poolclass=NullPool)
@@ -49,13 +49,14 @@ def sql_query(db_uri: str, sql: str) -> str:
 
             # If the query doesn't return rows (this shouldn't happen for valid SELECTs, but as a safeguard)
             if not result.returns_rows:
-                return json.dumps({
-                    "status": "error",
-                    "message": "Query did not return any rows. Ensure you are executing a valid SELECT query."
-                })
+                return json.dumps(
+                    {
+                        "status": "error",
+                        "message": "Query did not return any rows. Ensure you are executing a valid SELECT query.",
+                    }
+                )
 
             # 2. Hard Limit on Rows
-            MAX_ROWS = 1000
             rows = result.fetchmany(MAX_ROWS)
             more_rows = len(rows) == MAX_ROWS
 
@@ -71,22 +72,24 @@ def sql_query(db_uri: str, sql: str) -> str:
                     # 3. Enhanced Serialization Handling
                     if isinstance(val, Decimal):
                         val = float(val)
-                    elif isinstance(val, (datetime.datetime, datetime.date, datetime.time)):
+                    elif isinstance(
+                        val, (datetime.datetime, datetime.date, datetime.time)
+                    ):
                         val = val.isoformat()
                     elif hasattr(val, "isoformat"):
                         val = val.isoformat()
-                    elif hasattr(val, "replace") and hasattr(val, "timetuple"): # crude check for datetime-like objects
+                    elif hasattr(val, "replace") and hasattr(
+                        val, "timetuple"
+                    ):  # crude check for datetime-like objects
                         val = str(val)
                     row_dict[col] = val
                 data.append(row_dict)
 
-            response = {
-                "status": "success",
-                "row_count": len(data),
-                "data": data
-            }
+            response = {"status": "success", "row_count": len(data), "data": data}
             if more_rows:
-                response["warning"] = "Data truncated to 1000 rows to prevent memory overload. Use specific WHERE clauses to refine your query."
+                response["warning"] = (
+                    "Data truncated to 1000 rows to prevent memory overload. Use specific WHERE clauses to refine your query."
+                )
 
             return json.dumps(response, ensure_ascii=False)
 

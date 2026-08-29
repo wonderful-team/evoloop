@@ -13,7 +13,7 @@ from sqlalchemy import select
 
 from app.core.context.manager import EvoContext
 from app.core.context.plugins import ContextPlugin, plugin_registry
-from app.core.routing.schemas import INTENT_DIRECT_ANSWER, INTENT_ENVIRONMENT_QUERY
+from app.core.routing.constants import INTENT_DIRECT_ANSWER, INTENT_ENVIRONMENT_QUERY
 from app.infrastructure.database import sync_session_scope
 
 logger = logging.getLogger(__name__)
@@ -26,7 +26,9 @@ class ProjectStateContextPlugin(ContextPlugin):
     - High-priority or In-Progress Todos
     """
 
-    _SKIP_FOR_INTENTS: frozenset[str | None] = frozenset({INTENT_DIRECT_ANSWER, INTENT_ENVIRONMENT_QUERY})
+    _SKIP_FOR_INTENTS: frozenset[str | None] = frozenset(
+        {INTENT_DIRECT_ANSWER, INTENT_ENVIRONMENT_QUERY}
+    )
 
     def is_needed(self, intent: str | None) -> bool:
         """Project state is not needed for greetings or raw environment questions."""
@@ -41,12 +43,18 @@ class ProjectStateContextPlugin(ContextPlugin):
                 if ctx.thread_id:
                     from app.models.planning import Plan, PlanStep
 
-                    stmt = select(Plan).where(Plan.thread_id == ctx.thread_id, Plan.status == "active")
+                    stmt = select(Plan).where(
+                        Plan.thread_id == ctx.thread_id, Plan.status == "active"
+                    )
                     res = session.execute(stmt)
                     db_plan = res.scalars().first()
 
                     if db_plan:
-                        stmt_steps = select(PlanStep).where(PlanStep.plan_id == db_plan.id).order_by(PlanStep.order)
+                        stmt_steps = (
+                            select(PlanStep)
+                            .where(PlanStep.plan_id == db_plan.id)
+                            .order_by(PlanStep.order)
+                        )
                         res_steps = session.execute(stmt_steps)
                         steps = res_steps.scalars().all()
 
@@ -65,16 +73,24 @@ class ProjectStateContextPlugin(ContextPlugin):
                             if s.status == "in_progress":
                                 active_step_found = True
 
-                        active_plan_context = f"PLAN: {db_plan.title}\nSTEPS:{steps_str}"
+                        active_plan_context = (
+                            f"PLAN: {db_plan.title}\nSTEPS:{steps_str}"
+                        )
                         if active_step_found:
-                            active_plan_context += "\n\n-> FOCUS: Execute the [>] CURRENT step."
+                            active_plan_context += (
+                                "\n\n-> FOCUS: Execute the [>] CURRENT step."
+                            )
                         else:
-                            active_plan_context += "\n\n-> ACTION: Mark the next step as in_progress."
+                            active_plan_context += (
+                                "\n\n-> ACTION: Mark the next step as in_progress."
+                            )
 
                         ctx.metadata.active_plan_context = active_plan_context
 
         except Exception:
-            logger.exception("[ProjectStateContextPlugin] Failed to fetch context from DB")
+            logger.exception(
+                "[ProjectStateContextPlugin] Failed to fetch context from DB"
+            )
 
 
 plugin_registry.register(ProjectStateContextPlugin())

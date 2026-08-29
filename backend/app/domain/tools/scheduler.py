@@ -80,7 +80,11 @@ async def inspect_task_health(task_id: int) -> str:
             if not task:
                 return ControllerResponse.not_found(f"Task ID {task_id}")
 
-            status = "Dead Letter (Disabled)" if task.is_dead_letter else ("Active" if task.is_active else "Paused")
+            status = (
+                "Dead Letter (Disabled)"
+                if task.is_dead_letter
+                else ("Active" if task.is_active else "Paused")
+            )
 
             try:
                 return SystemToolsFormatter.task_health(task)
@@ -116,7 +120,9 @@ async def list_scheduled_tasks(project_id: int | None = None) -> str:
                 return "No autonomous tasks found.", {"count": 0}
 
             try:
-                return SystemToolsFormatter.autonomous_tasks(tasks), {"count": len(tasks)}
+                return SystemToolsFormatter.autonomous_tasks(tasks), {
+                    "count": len(tasks)
+                }
             except Exception as e:
                 logger.exception(f"Failed to render task list: {e}")
                 return f"Found {len(tasks)} tasks.", {"count": len(tasks)}

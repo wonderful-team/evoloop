@@ -62,7 +62,10 @@ class McpHealthChecker:
 
         except Exception as e:
             response_time = elapsed_ms(start_time)
-            logger.warning(f"Health check failed for MCP server '{server_name}': {e}", exc_info=True)
+            logger.warning(
+                f"Health check failed for MCP server '{server_name}': {e}",
+                exc_info=True,
+            )
 
             return HealthStatus(
                 is_healthy=False,
@@ -75,22 +78,6 @@ class McpHealthChecker:
     def get_last_check_time(self, server_name: str) -> float | None:
         """Get timestamp of last successful health check."""
         return self._last_check.get(server_name)
-
-    def is_stale(self, server_name: str, max_age_seconds: float = 300.0) -> bool:
-        """
-        Check if health status is stale.
-
-        Args:
-            server_name: Server identifier
-            max_age_seconds: Maximum age before considered stale
-
-        Returns:
-            True if no recent health check
-        """
-        last_check = self._last_check.get(server_name)
-        if not last_check:
-            return True
-        return (time.time() - last_check) > max_age_seconds
 
     def reset(self, server_name: str) -> None:
         """Reset health check tracking for a server."""

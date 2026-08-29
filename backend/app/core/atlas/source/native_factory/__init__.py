@@ -23,66 +23,29 @@ import logging
 import re
 from dataclasses import dataclass, field
 
+from app.core.atlas.constants import (
+    ADDRESS_FIELD_RE_PATTERN,
+    CONFIRM_LEAF_PATTERN,
+    DYNAMIC_MENU_ROOTS,
+    FIELD_CONTAINER_RE_PATTERN,
+    FIELD_LABEL_STOPWORDS,
+    FIELD_ROLES,
+    MAX_LEAF_LABEL_LEN,
+    MAX_MENU_DEPTH,
+    SKIP_LEAF_PATTERN,
+    TILING_SUBMENUS,
+)
+
 logger = logging.getLogger(__name__)
-
-NATIVE_NS = "native_macos"
-MAX_MENU_DEPTH = 3
-
-# Menu roots whose children are ALL dynamic content (bookmarks/history) or
-# OS-level junk with badge-suffixed labels ("App Store…，9项更新").
-DYNAMIC_MENU_ROOTS = {
-    "apple",
-    "书签",
-    "bookmarks",
-    "历史记录",
-    "history",
-    "最近使用",
-    "最近使用的项目",
-    "最近打开",
-    "open recent",
-    "recents",
-    "recent items",
-}
 
 # 标签页/窗口 menus mix static commands (新标签页/最小化) with enumerated
 # dynamic entries (open tabs/windows) — keep the root, filter the leaves.
 _ENUMERATED_LEAF = re.compile(r"^\d+[\.、)]")
-MAX_LEAF_LABEL_LEN = 30
 
-# macOS 标准窗口平铺子菜单：每个应用内容全同 + 内部近亲对（左侧与右侧 vs
-# 右侧与左侧），是跨应用路由混淆的最大来源（M4 语料实测 27 miss 中 15 条）。
-# 系统级窗口管理交给系统快捷键/Agent，不出宏。
-TILING_SUBMENUS = {"全屏幕拼贴", "移动与调整大小", "move & resize", "tile", "tiling"}
-
-# Leaves never generated (destructive, irreversible).
-SKIP_LEAF = re.compile(
-    r"delete|删除|清空|erase|抹掉|format|格式化|uninstall|卸载|empty trash|倒空废纸篓",
-    re.IGNORECASE,
-)
-
-# Leaves generated but gated behind user confirmation.
-CONFIRM_LEAF = re.compile(
-    r"退出|quit|close all|全部关闭|关闭所有|force quit|强制退出|注销|log ?out|sign out"
-    r"|restart|重启|shutdown|关机|hide others|隐藏其他",
-    re.IGNORECASE,
-)
-
-FIELD_ROLES = {"AXTextField", "AXSearchField", "AXComboBox"}
-FIELD_CONTAINER_RE = re.compile(r"AXOutline|AXTable", re.IGNORECASE)
-ADDRESS_FIELD_RE = re.compile(r"address|地址|搜索栏|search", re.IGNORECASE)
-# Junk field labels observed in surveys (log-level text misread as a field).
-FIELD_LABEL_STOPWORDS = {
-    "error",
-    "warn",
-    "warning",
-    "info",
-    "debug",
-    "fatal",
-    "log",
-    "错误",
-    "警告",
-    "日志",
-}
+SKIP_LEAF = re.compile(SKIP_LEAF_PATTERN, re.IGNORECASE)
+CONFIRM_LEAF = re.compile(CONFIRM_LEAF_PATTERN, re.IGNORECASE)
+FIELD_CONTAINER_RE = re.compile(FIELD_CONTAINER_RE_PATTERN, re.IGNORECASE)
+ADDRESS_FIELD_RE = re.compile(ADDRESS_FIELD_RE_PATTERN, re.IGNORECASE)
 
 
 @dataclass
@@ -110,7 +73,9 @@ def _open_step(bundle_id: str) -> dict:
 
 def _menu_chains(menubar_elements: list[dict]) -> list[tuple[list[str], dict]]:
     """[(label_chain, leaf_element)] for actionable named menu items."""
-    label_of = {e["ax_path"]: e["label"].strip() for e in menubar_elements if e["label"].strip()}
+    label_of = {
+        e["ax_path"]: e["label"].strip() for e in menubar_elements if e["label"].strip()
+    }
     out: list[tuple[list[str], dict]] = []
     for e in menubar_elements:
         if e["role"] not in ("AXMenuItem", "AXMenuBarItem") or not e["label"].strip():
@@ -130,7 +95,9 @@ def _menu_chains(menubar_elements: list[dict]) -> list[tuple[list[str], dict]]:
     return out
 
 
-def generate_menu_macros(bundle_id: str, app_name: str, menubar_elements: list[dict]) -> list[NativeMacroCandidate]:
+def generate_menu_macros(
+    bundle_id: str, app_name: str, menubar_elements: list[dict]
+) -> list[NativeMacroCandidate]:
     candidates: list[NativeMacroCandidate] = []
     seen: set[tuple[str, ...]] = set()
     for chain, _leaf in _menu_chains(menubar_elements):
@@ -263,15 +230,19 @@ def generate_field_macros(
     return candidates
 
 
-def generate_for_atlas_app(bundle_id: str, app_name: str, states: dict[str, dict]) -> list[NativeMacroCandidate]:
+def generate_for_atlas_app(
+    bundle_id: str, app_name: str, states: dict[str, dict]
+) -> list[NativeMacroCandidate]:
     """states: {state_id: {"window_title": str, "elements": [element dicts]}}
     (element dicts carry role/label/ax_path/metadata.extra.actions)."""
-    from app.core.atlas.surveyor import MENUBAR_STATE_ID
+    from app.core.atlas.constants import MENUBAR_STATE_ID
 
     candidates: list[NativeMacroCandidate] = []
     menubar = states.get(MENUBAR_STATE_ID)
     if menubar:
-        candidates.extend(generate_menu_macros(bundle_id, app_name, menubar["elements"]))
+        candidates.extend(
+            generate_menu_macros(bundle_id, app_name, menubar["elements"])
+        )
     for sid, state in states.items():
         if sid == MENUBAR_STATE_ID:
             continue

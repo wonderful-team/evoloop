@@ -36,7 +36,9 @@ def _get_threshold() -> float:
         try:
             return float(env_val)
         except ValueError:
-            logger.warning("Invalid EVOLOOP_L0_MARGIN_THRESHOLD=%s, using default", env_val)
+            logger.warning(
+                "Invalid EVOLOOP_L0_MARGIN_THRESHOLD=%s, using default", env_val
+            )
     try:
         from app.infrastructure.config.service import SystemConfigService
 
@@ -75,7 +77,9 @@ def _load() -> bool:
         _session, _tokenizer, _id2name = session, tokenizer, id2name
         logger.info(
             "Intent classifier loaded from %s (%d labels, default_margin_threshold=%.2f)",
-            _MODEL_DIR, len(_id2name), _DEFAULT_MARGIN_THRESHOLD,
+            _MODEL_DIR,
+            len(_id2name),
+            _DEFAULT_MARGIN_THRESHOLD,
         )
         return True
     except Exception as e:
@@ -121,7 +125,10 @@ def predict(text: str) -> tuple[str | None, float]:
     exp = np.exp(logits - np.max(logits, axis=1, keepdims=True))
     probs = exp / exp.sum(axis=1, keepdims=True)
     sorted_idx = np.argsort(probs[0])[::-1]
-    top1_prob, top2_prob = float(probs[0][sorted_idx[0]]), float(probs[0][sorted_idx[1]])
+    top1_prob, top2_prob = (
+        float(probs[0][sorted_idx[0]]),
+        float(probs[0][sorted_idx[1]]),
+    )
     margin = top1_prob - top2_prob
     idx = int(sorted_idx[0])
 

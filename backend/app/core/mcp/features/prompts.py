@@ -63,7 +63,9 @@ class McpPromptsFeature(McpFeature):
         """Get list of available prompts."""
         return self._prompts
 
-    async def get_prompt(self, name: str, arguments: dict[str, str] | None = None) -> McpPromptResult:
+    async def get_prompt(
+        self, name: str, arguments: dict[str, str] | None = None
+    ) -> McpPromptResult:
         """
         Get a rendered prompt with optional arguments.
 
@@ -104,7 +106,9 @@ class McpPromptsFeature(McpFeature):
                 # Handle resource content
                 elif msg.content.type == "resource":
                     resource = msg.content.resource
-                    content = resource.text if hasattr(resource, "text") else str(resource)
+                    content = (
+                        resource.text if hasattr(resource, "text") else str(resource)
+                    )
                     resource_uri = resource.uri if hasattr(resource, "uri") else None
                     messages.append(
                         McpPromptMessage(
@@ -148,7 +152,9 @@ class McpPromptsFeature(McpFeature):
                 lines.append("- Arguments:")
                 for arg in p.arguments:
                     req = "(required)" if arg.required else "(optional)"
-                    lines.append(f"  - `{arg.name}` {req}: {arg.description or 'No description'}")
+                    lines.append(
+                        f"  - `{arg.name}` {req}: {arg.description or 'No description'}"
+                    )
             else:
                 lines.append("- Arguments: None")
             lines.append("")

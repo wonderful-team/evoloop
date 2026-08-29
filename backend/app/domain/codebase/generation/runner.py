@@ -6,8 +6,6 @@ import logging
 import os
 import time
 
-from sqlalchemy import text
-
 from app.core.engine.background_agent import run_agent_background
 from app.core.engine.dispatch import dispatch_agent_run
 from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket
@@ -68,7 +66,9 @@ async def run_generation_item(project_id: int, item: str) -> None:
             return
         await mark_generation_completed(project_id, item)
     except Exception as exc:
-        logger.exception("[GenerationRunner] %s failed for project %s", item, project_id)
+        logger.exception(
+            "[GenerationRunner] %s failed for project %s", item, project_id
+        )
         await mark_generation_failed(project_id, item, str(exc))
 
 
@@ -112,7 +112,8 @@ async def _run_wiki(project_id: int) -> None:
         raise RuntimeError(result.error or "Agent dispatch failed")
 
     read_only_tools = [
-        t for t in get_tool_bundle("file_tools")
+        t
+        for t in get_tool_bundle("file_tools")
         if t not in ("edit_file", "delete_file", "move_file", "execute_command")
     ]
     result.inputs["ticket"] = ExecutionTicket(
@@ -121,10 +122,17 @@ async def _run_wiki(project_id: int) -> None:
         agent_config=AgentRuntimeConfig(
             role_name="Worker",
             tools=[
-                "query_code_chunks", "query_code_relations", "query_source_files",
-                "write_wiki_page", "edit_wiki_page", "read_wiki_page", "list_wiki_pages",
-                "create_plan", "update_step_status",
-            ] + read_only_tools,
+                "query_code_chunks",
+                "query_code_relations",
+                "query_source_files",
+                "write_wiki_page",
+                "edit_wiki_page",
+                "read_wiki_page",
+                "list_wiki_pages",
+                "create_plan",
+                "update_step_status",
+            ]
+            + read_only_tools,
         ),
     )
     result.inputs.setdefault("metadata", {})["skip_persistence"] = True
@@ -213,7 +221,11 @@ async def _run_appmap(project_id: int) -> None:
                             ):
                                 changed_entities.add(entity_candidate)
                 except OSError:
-                    logger.warning("[AppMap] change-detection scan failed for %s", rel_path, exc_info=True)
+                    logger.warning(
+                        "[AppMap] change-detection scan failed for %s",
+                        rel_path,
+                        exc_info=True,
+                    )
 
             if changed_entities:
                 logger.info(
@@ -227,9 +239,13 @@ async def _run_appmap(project_id: int) -> None:
                     list(affected_entities),
                 )
             else:
-                logger.info("[AppMap] No recently changed files detected. Running full batch write.")
+                logger.info(
+                    "[AppMap] No recently changed files detected. Running full batch write."
+                )
     except Exception as e:
-        logger.warning("[AppMap] Incremental impact check failed: %s. Falling back to full run.", e)
+        logger.warning(
+            "[AppMap] Incremental impact check failed: %s. Falling back to full run.", e
+        )
 
     # Deterministic path: build entities from indexed source files, then
     # write AppMaps and generate macros.  The Agent is only for verification.
@@ -241,24 +257,36 @@ async def _run_appmap(project_id: int) -> None:
                 k: v for k, v in entities.items() if k in affected_entities
             }
             if not filtered_entities:
-                logger.info("[AppMap] Incremental run: No affected entities need regeneration. Skipping batch write.")
+                logger.info(
+                    "[AppMap] Incremental run: No affected entities need regeneration. Skipping batch write."
+                )
                 return
-            logger.info("[AppMap] Incremental run: Re-generating %d / %d entities", len(filtered_entities), len(entities))
+            logger.info(
+                "[AppMap] Incremental run: Re-generating %d / %d entities",
+                len(filtered_entities),
+                len(entities),
+            )
             entities_to_write = filtered_entities
         else:
             entities_to_write = entities
 
-        logger.info("[AppMap] Index-based builder found %d entities", len(entities_to_write))
+        logger.info(
+            "[AppMap] Index-based builder found %d entities", len(entities_to_write)
+        )
         logger.info("[AppMap] Writing AppMaps...")
         result = await batch_write_appmaps(
             project_id=project_id, entities=entities_to_write, member_id=0
         )
         logger.info(
             "[AppMap] Batch write: %d written, %d skipped, %d failed",
-            result["written"], result["skipped"], result["failed"],
+            result["written"],
+            result["skipped"],
+            result["failed"],
         )
     else:
-        logger.info("[AppMap] Index-based builder returned no entities, skipping batch write")
+        logger.info(
+            "[AppMap] Index-based builder returned no entities, skipping batch write"
+        )
 
     thread_id = unique_id("appmap-gen", project_id)
     from app.core.context import thread_context_store
@@ -283,7 +311,8 @@ async def _run_appmap(project_id: int) -> None:
         raise RuntimeError(result.error or "Agent dispatch failed")
 
     read_only_tools = [
-        t for t in get_tool_bundle("file_tools")
+        t
+        for t in get_tool_bundle("file_tools")
         if t not in ("edit_file", "delete_file", "move_file")
     ]
     result.inputs["ticket"] = ExecutionTicket(
@@ -297,7 +326,8 @@ async def _run_appmap(project_id: int) -> None:
                 "read_app_map",
                 "write_app_map",
                 "execute_command",
-            ] + read_only_tools,
+            ]
+            + read_only_tools,
         ),
     )
     result.inputs.setdefault("metadata", {})["skip_persistence"] = True
@@ -320,10 +350,10 @@ def _classify_action(name: str) -> tuple[str, str]:
 
 async def build_entities_from_index(project_id: int, groups: dict) -> dict:
     """Build AppMap entities dict from Tree-sitter parsed code chunks."""
+    from app.core.atlas.constants import APPMAP_ACTION_CATEGORIES
     from app.core.atlas.source.skeleton.generator import (
         _FRONTEND_EXTS,
         _NON_CONTROLLER_STEMS,
-        APPMAP_ACTION_CATEGORIES,
     )
 
     all_ids = set()
@@ -356,7 +386,8 @@ async def build_entities_from_index(project_id: int, groups: dict) -> dict:
     for entity_name, classified_files in groups.items():
         # Filter: only actual controllers, skip frontend files and non-controller stems
         controller_files = [
-            cf for cf in classified_files
+            cf
+            for cf in classified_files
             if cf.category in APPMAP_ACTION_CATEGORIES
             and not any(cf.source_file.path.endswith(ext) for ext in _FRONTEND_EXTS)
             and entity_name not in _NON_CONTROLLER_STEMS
@@ -372,26 +403,34 @@ async def build_entities_from_index(project_id: int, groups: dict) -> dict:
                 continue
             for chunk in chunks_by_file.get(sf.id, []):
                 name = chunk.identifier.split(".")[-1].split("::")[-1]
-                if name.startswith("_") or name in ("__construct", "__destruct", "__init"):
+                if name.startswith("_") or name in (
+                    "__construct",
+                    "__destruct",
+                    "__init",
+                ):
                     continue
                 kind, risk = _classify_action(name)
-                actions.append({
-                    "name": name,
-                    "kind": kind,
-                    "risk_tier": risk,
-                    "business_rule": "",
-                    "controller": sf.path,
-                    "line": chunk.start_line,
-                    "touches_tables": [],
-                    "set_fields": [],
-                    "pk": "",
-                })
-                routes.append({
-                    "name": f"{entity_name}.{name}",
-                    "url": f"/{entity_name}/{name}",
-                    "method": "POST" if kind == "write" else "GET",
-                    "source_action": name,
-                })
+                actions.append(
+                    {
+                        "name": name,
+                        "kind": kind,
+                        "risk_tier": risk,
+                        "business_rule": "",
+                        "controller": sf.path,
+                        "line": chunk.start_line,
+                        "touches_tables": [],
+                        "set_fields": [],
+                        "pk": "",
+                    }
+                )
+                routes.append(
+                    {
+                        "name": f"{entity_name}.{name}",
+                        "url": f"/{entity_name}/{name}",
+                        "method": "POST" if kind == "write" else "GET",
+                        "source_action": name,
+                    }
+                )
 
         if not actions:
             continue
@@ -409,7 +448,9 @@ async def build_entities_from_index(project_id: int, groups: dict) -> dict:
     return entities
 
 
-async def batch_write_appmaps(project_id: int, entities: dict, member_id: int = 0) -> dict:
+async def batch_write_appmaps(
+    project_id: int, entities: dict, member_id: int = 0
+) -> dict:
     """Batch-write AppMap records."""
     from app.core.atlas.source.persistence import save_app_map
 
@@ -441,7 +482,9 @@ async def batch_write_appmaps(project_id: int, entities: dict, member_id: int = 
 
     logger.info(
         "Batch complete: %d written, %d skipped, %d failed",
-        written, skipped, failed,
+        written,
+        skipped,
+        failed,
     )
     return {
         "written": written,
@@ -463,9 +506,16 @@ async def _run_summary(project_id: int) -> None:
     module_graph = ""
     try:
         from app.domain.codebase.generation.module_graph import module_graph_service
-        module_graph = await module_graph_service.format_summary(project_id, include_graph=True)
+
+        module_graph = await module_graph_service.format_summary(
+            project_id, include_graph=True
+        )
     except (OSError, ValueError):
-        logger.warning("[AppMap] module_graph summary failed for project %s", project_id, exc_info=True)
+        logger.warning(
+            "[AppMap] module_graph summary failed for project %s",
+            project_id,
+            exc_info=True,
+        )
 
     summarize_project_task(project_name, path, module_graph=module_graph)
 

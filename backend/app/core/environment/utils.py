@@ -65,15 +65,17 @@ def format_app_rankings(records: list, platform: str) -> str:
     cp_data = []
     for r in records:
         status = " [RUNNING]" if getattr(r, "is_running", False) else ""
-        cp_data.append({
-            "id": 0,
-            "name": (
-                f"{getattr(r, 'app_name', 'Unknown')} "
-                f"({getattr(r, 'bundle_id', 'N/A')})"
-            ),
-            "status": f"Score {getattr(r, 'priority_score', 0):.2f}{status}",
-            "time": platform,
-        })
+        cp_data.append(
+            {
+                "id": 0,
+                "name": (
+                    f"{getattr(r, 'app_name', 'Unknown')} "
+                    f"({getattr(r, 'bundle_id', 'N/A')})"
+                ),
+                "status": f"Score {getattr(r, 'priority_score', 0):.2f}{status}",
+                "time": platform,
+            }
+        )
 
     return render_template("common/events/system_tools.prompt.j2", checkpoints=cp_data)
 

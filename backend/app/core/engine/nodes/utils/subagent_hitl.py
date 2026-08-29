@@ -39,7 +39,9 @@ async def mark_subagent_awaiting_human_and_publish(thread_id: str) -> None:
 
     pending = await HITLOrchestrator.get_pending_request(thread_id, model)
     if not pending:
-        logger.warning(f"[SubagentHITL] No pending HITL on {thread_id}; nothing to forward")
+        logger.warning(
+            f"[SubagentHITL] No pending HITL on {thread_id}; nothing to forward"
+        )
         return
 
     args = pending.get("args") or {}
@@ -61,7 +63,9 @@ async def mark_subagent_awaiting_human_and_publish(thread_id: str) -> None:
             subagent_thread_id=thread_id,
             subagent_id=subagent_id,
             request_type=str(request_type),
-            prompt=str(args.get("prompt") or args.get("context") or pending.get("name") or ""),
+            prompt=str(
+                args.get("prompt") or args.get("context") or pending.get("name") or ""
+            ),
             options=list(args.get("options") or []),
             context=str(args.get("context") or ""),
             tool_call_id=tool_call_id,
@@ -89,7 +93,9 @@ async def respond_subagent_hitl(sub_tid: str, answer: str) -> None:
             sub_tid, ctx.active_model if ctx else None
         )
     if not pending:
-        logger.warning(f"[SubagentHITL] No pending HITL request on {sub_tid}; response dropped")
+        logger.warning(
+            f"[SubagentHITL] No pending HITL request on {sub_tid}; response dropped"
+        )
         return
 
     from app.core.hitl.orchestrator import HITLOrchestrator
@@ -117,7 +123,6 @@ async def clear_subagent_hitl_route(parent_tid: str, sub_tid: str) -> None:
     # The routing table lives on the parent AgentState; best-effort removal via
     # the session manager's state is handled by the supervisor's cancel path.
     try:
-
         session = session_manager.get(parent_tid)
         if session is not None and session.state is not None:
             active = dict(session.state.active_subagent_hitl or {})

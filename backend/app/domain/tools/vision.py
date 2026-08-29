@@ -58,9 +58,7 @@ async def analyze_image(
             logger.warning(f"[Vision] Failed to inject AX Tree: {e}", exc_info=True)
 
     result = await vision_engine.process(
-        task=VisionTask.ANALYZE,
-        image_source=image_source,
-        prompt=final_prompt
+        task=VisionTask.ANALYZE, image_source=image_source, prompt=final_prompt
     )
 
     if result.success:

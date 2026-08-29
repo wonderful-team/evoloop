@@ -60,8 +60,7 @@ def export_skill_to_filesystem(skill_data: LearnedSkill | dict[str, Any]) -> str
 
         # 构建 frontmatter
         parameters = [
-            p.model_dump() if isinstance(p, BaseModel) else p
-            for p in export.parameters
+            p.model_dump() if isinstance(p, BaseModel) else p for p in export.parameters
         ]
 
         preconditions = [

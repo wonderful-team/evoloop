@@ -48,15 +48,16 @@ class FileRewind:
             event.results["files"] = count
 
             db_count = await self._cleanup_database_records(file_ops)
-            logger.info(f"[FileRewind] Reverted {count} files, cleaned {db_count} DB records for thread {event.thread_id}")
+            logger.info(
+                f"[FileRewind] Reverted {count} files, cleaned {db_count} DB records for thread {event.thread_id}"
+            )
         else:
-            logger.info(f"[FileRewind] No file operations to revert for thread {event.thread_id}")
+            logger.info(
+                f"[FileRewind] No file operations to revert for thread {event.thread_id}"
+            )
 
     async def _find_file_operations(
-        self,
-        thread_id: str,
-        target_message_id: str | None,
-        include_target: bool
+        self, thread_id: str, target_message_id: str | None, include_target: bool
     ) -> list[dict]:
         """Find file operations to revert for the given thread."""
         from sqlalchemy import select
@@ -70,34 +71,51 @@ class FileRewind:
 
             if target_message_id:
                 # Resolve sequence from UUID
-                stmt_target = select(Message.sequence_number).where(Message.id == target_message_id)
+                stmt_target = select(Message.sequence_number).where(
+                    Message.id == target_message_id
+                )
                 res_target = await session.execute(stmt_target)
                 target_seq = res_target.scalar_one_or_none()
 
                 if target_seq is None:
-                    logger.warning(f"[FileRewind] Target message {target_message_id} not found")
+                    logger.warning(
+                        f"[FileRewind] Target message {target_message_id} not found"
+                    )
                     return []
 
                 if include_target:
-                    stmt = stmt.where(FileOperation.message_id.in_(
-                        select(Message.id).where(Message.thread_id == thread_id, Message.sequence_number >= target_seq)
-                    ))
+                    stmt = stmt.where(
+                        FileOperation.message_id.in_(
+                            select(Message.id).where(
+                                Message.thread_id == thread_id,
+                                Message.sequence_number >= target_seq,
+                            )
+                        )
+                    )
                 else:
-                    stmt = stmt.where(FileOperation.message_id.in_(
-                        select(Message.id).where(Message.thread_id == thread_id, Message.sequence_number > target_seq)
-                    ))
+                    stmt = stmt.where(
+                        FileOperation.message_id.in_(
+                            select(Message.id).where(
+                                Message.thread_id == thread_id,
+                                Message.sequence_number > target_seq,
+                            )
+                        )
+                    )
 
             stmt = stmt.order_by(FileOperation.created_at.desc())
             result = await session.execute(stmt)
             ops = result.scalars().all()
 
-            return [{
-                "id": op.id,
-                "message_id": op.message_id,
-                "path": op.file_path,
-                "operation": op.operation,
-                "backup_content": op.original_content,
-            } for op in ops]
+            return [
+                {
+                    "id": op.id,
+                    "message_id": op.message_id,
+                    "path": op.file_path,
+                    "operation": op.operation,
+                    "backup_content": op.original_content,
+                }
+                for op in ops
+            ]
 
     async def _find_file_operations_by_message_ids(
         self,
@@ -132,13 +150,16 @@ class FileRewind:
             result = await session.execute(stmt)
             ops = result.scalars().all()
 
-            return [{
-                "id": op.id,
-                "message_id": op.message_id,
-                "path": op.file_path,
-                "operation": op.operation,
-                "backup_content": op.original_content,
-            } for op in ops]
+            return [
+                {
+                    "id": op.id,
+                    "message_id": op.message_id,
+                    "path": op.file_path,
+                    "operation": op.operation,
+                    "backup_content": op.original_content,
+                }
+                for op in ops
+            ]
 
     async def _revert_files(self, file_operations: list[dict]) -> int:
         """
@@ -153,7 +174,9 @@ class FileRewind:
         count = 0
 
         # Process in reverse chronological order (last-modified first)
-        for op in sorted(file_operations, key=lambda x: x.get("created_at", ""), reverse=True):
+        for op in sorted(
+            file_operations, key=lambda x: x.get("created_at", ""), reverse=True
+        ):
             try:
                 path = Path(op["path"])
                 operation = op["operation"]
@@ -174,7 +197,9 @@ class FileRewind:
                         logger.info(f"🔙 Undo {operation}: Restored {op['path']}")
                         count += 1
                     else:
-                        logger.warning(f"⚠️ Cannot undo {operation} for {op['path']}: no backup")
+                        logger.warning(
+                            f"⚠️ Cannot undo {operation} for {op['path']}: no backup"
+                        )
 
             except Exception as e:
                 logger.exception(f"❌ Undo failed for {op.get('path', 'unknown')}: {e}")
@@ -223,7 +248,9 @@ class FileRewind:
 
         # Convert message IDs to file operations
         async with session_scope() as session:
-            stmt = select(FileOperation).where(FileOperation.message_id.in_(message_ids))
+            stmt = select(FileOperation).where(
+                FileOperation.message_id.in_(message_ids)
+            )
             result = await session.execute(stmt)
             ops = result.scalars().all()
 
@@ -233,12 +260,14 @@ class FileRewind:
             # Convert to operation dicts
             file_operations = []
             for op in ops:
-                file_operations.append({
-                    "id": op.id,
-                    "path": op.file_path,
-                    "operation": op.operation,
-                    "backup_content": op.original_content,
-                })
+                file_operations.append(
+                    {
+                        "id": op.id,
+                        "path": op.file_path,
+                        "operation": op.operation,
+                        "backup_content": op.original_content,
+                    }
+                )
 
         # Perform restoration
         count = await self._revert_files(file_operations)

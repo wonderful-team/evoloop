@@ -3,6 +3,7 @@ from typing import Any
 
 from app.utils.process import run_async_command
 
+from .constants import DEFAULT_PAGE_SIZE
 from .filter import get_grep_exclude_args, get_ripgrep_exclude_args
 
 logger = logging.getLogger(__name__)
@@ -26,7 +27,7 @@ class FileSearcher:
         root_path: str,
         scope: str | None = None,
         case_insensitive: bool = True,
-        limit: int = 100,
+        limit: int = DEFAULT_PAGE_SIZE,
     ) -> list[dict[str, Any]]:
         """
         Search for text patterns inside files.
@@ -64,19 +65,23 @@ class FileSearcher:
 
                     data = json.loads(line)
                     if data.get("type") == "match":
-                        results.append({
-                            "file": data["data"]["path"]["text"],
-                            "line": data["data"]["line_number"],
-                            "content": data["data"]["lines"]["text"].strip()
-                        })
+                        results.append(
+                            {
+                                "file": data["data"]["path"]["text"],
+                                "line": data["data"]["line_number"],
+                                "content": data["data"]["lines"]["text"].strip(),
+                            }
+                        )
                 else:
                     parts = line.split(":", 2)
                     if len(parts) >= 3:
-                        results.append({
-                            "file": parts[0],
-                            "line": int(parts[1]),
-                            "content": parts[2].strip()
-                        })
+                        results.append(
+                            {
+                                "file": parts[0],
+                                "line": int(parts[1]),
+                                "content": parts[2].strip(),
+                            }
+                        )
             except Exception:
                 continue
         return results

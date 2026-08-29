@@ -17,7 +17,9 @@ class DocumentReaderService:
     into Markdown for indexing and LLM consumption.
     """
 
-    async def read_document(self, file_path: str, start_page: int | None = None, end_page: int | None = None) -> str:
+    async def read_document(
+        self, file_path: str, start_page: int | None = None, end_page: int | None = None
+    ) -> str:
         """Read various document formats and return Markdown string."""
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"File not found: {file_path}")

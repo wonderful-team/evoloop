@@ -26,7 +26,10 @@ logger = logging.getLogger(__name__)
 # Ordered: most specific first (error messages name the matched rule).
 _BANNED_APPLESCRIPT: list[tuple[re.Pattern, str]] = [
     (re.compile(r"do\s+shell\s+script", re.IGNORECASE), "shell 逃逸 do shell script"),
-    (re.compile(r"with\s+administrator\s+privileges", re.IGNORECASE), "提权 with administrator privileges"),
+    (
+        re.compile(r"with\s+administrator\s+privileges", re.IGNORECASE),
+        "提权 with administrator privileges",
+    ),
     (re.compile(r"\bsudo\b", re.IGNORECASE), "sudo"),
     (re.compile(r"\bosascript\b", re.IGNORECASE), "嵌套 osascript"),
 ]
@@ -52,7 +55,10 @@ def _whitelist() -> list[dict]:
     try:
         entries = json.loads(raw)
     except json.JSONDecodeError as e:
-        logger.warning(f"[script_gate] {_ENV_WHITELIST} 解析失败，按空白名单处理: {e}", exc_info=True)
+        logger.warning(
+            f"[script_gate] {_ENV_WHITELIST} 解析失败，按空白名单处理: {e}",
+            exc_info=True,
+        )
         return []
     return entries if isinstance(entries, list) else []
 
@@ -73,8 +79,12 @@ def check_native_allowed(command: str, script_path: str) -> None:
             try:
                 actual = compute_file_hash(script_path, algo="sha256")
             except OSError as e:
-                raise ScriptGateError(f"native 步骤脚本不可读: {script_path} ({e})") from e
+                raise ScriptGateError(
+                    f"native 步骤脚本不可读: {script_path} ({e})"
+                ) from e
             if actual != expected_hash:
                 raise ScriptGateError(f"native 步骤脚本 hash 不匹配: {script_path}")
         return
-    raise ScriptGateError(f"native 步骤未在白名单（{_ENV_WHITELIST}）: {command} {script_path}")
+    raise ScriptGateError(
+        f"native 步骤未在白名单（{_ENV_WHITELIST}）: {command} {script_path}"
+    )

@@ -14,8 +14,6 @@ class IndexingEventType(str, Enum):
     FILE_MODIFIED = "indexing.file_modified"
     FILE_REMOVED = "indexing.file_removed"
     FILE_MOVED = "indexing.file_moved"
-    INDEXING_STARTED = "indexing.started"
     INDEXING_COMPLETED = "indexing.completed"
-    INDEXING_FAILED = "indexing.failed"
     INDEXING_STATUS_CHANGED = "indexing.status"
     GENERATION_STATUS_CHANGED = "generation.status"

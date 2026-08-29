@@ -105,7 +105,9 @@ class SpawnSubagentsSignal(AgentSignal):
 # ───────────────────────── Interceptors ─────────────────────────
 
 
-async def _emit_tool_event(event: str, tool_name: str, input_or_output: Any, run_id: str, config: dict) -> None:
+async def _emit_tool_event(
+    event: str, tool_name: str, input_or_output: Any, run_id: str, config: dict
+) -> None:
     """Emit on_tool_start/on_tool_end to callbacks in config."""
     callbacks = config.get("callbacks", []) if config else []
     for cb in callbacks:
@@ -121,7 +123,9 @@ async def _emit_tool_event(event: str, tool_name: str, input_or_output: Any, run
                 await fn(output=input_or_output, run_id=run_id)
 
 
-async def intercept_route_to(tool_call: dict, config: dict) -> RouteToSignal | SpawnSubagentsSignal | None:
+async def intercept_route_to(
+    tool_call: dict, config: dict
+) -> RouteToSignal | SpawnSubagentsSignal | None:
     """Intercept route_to tool calls → RouteToSignal (tool is NOT executed).
 
     When the Supervisor passes ``subtasks`` (it decomposed the task itself in
@@ -141,7 +145,9 @@ async def intercept_route_to(tool_call: dict, config: dict) -> RouteToSignal | S
         signal = await _build_spawn_signal_from_subtasks(subtasks, args, tc_id, config)
         if signal is not None:
             return signal
-        logger.warning("[Signals] route_to subtasks provided but all invalid; falling back to normal route")
+        logger.warning(
+            "[Signals] route_to subtasks provided but all invalid; falling back to normal route"
+        )
 
     target = args.get("target", "finish")
     reason = args.get("reason", "")
@@ -170,7 +176,9 @@ async def intercept_route_to(tool_call: dict, config: dict) -> RouteToSignal | S
     signal = RouteToSignal(
         target=target,
         reason=reason,
-        context=RoutingContext.model_validate(context_data) if context_data else RoutingContext(),
+        context=RoutingContext.model_validate(context_data)
+        if context_data
+        else RoutingContext(),
         skill_ids=skill_ids,
         session_goal=args.get("session_goal"),
     )
@@ -201,15 +209,17 @@ async def _build_spawn_signal_from_subtasks(
         sub_id = st.get("id")
         if not sub_id or not instruction or not isinstance(instruction, str):
             continue
-        validated.append({
-            "id": str(sub_id),
-            "instruction": instruction,
-            "role": st.get("role") or "Subagent",
-            "focus_paths": st.get("focus_paths") or [],
-            "acceptance_criteria": st.get("acceptance_criteria") or [],
-            "skill_hint": st.get("skill_hint"),
-            "system_instructions": st.get("system_instructions") or "",
-        })
+        validated.append(
+            {
+                "id": str(sub_id),
+                "instruction": instruction,
+                "role": st.get("role") or "Subagent",
+                "focus_paths": st.get("focus_paths") or [],
+                "acceptance_criteria": st.get("acceptance_criteria") or [],
+                "skill_hint": st.get("skill_hint"),
+                "system_instructions": st.get("system_instructions") or "",
+            }
+        )
 
     if not validated:
         return None
@@ -231,8 +241,12 @@ async def _build_spawn_signal_from_subtasks(
         "parent_task": parent_task,
         "max_parallel": len(validated),
     }
-    logger.info(f"[Signals] Intent: Spawn {len(validated)} subagents via route_to subtasks")
-    await _emit_tool_event("end", "route_to", f"Spawning {len(validated)} subagents", tc_id, config)
+    logger.info(
+        f"[Signals] Intent: Spawn {len(validated)} subagents via route_to subtasks"
+    )
+    await _emit_tool_event(
+        "end", "route_to", f"Spawning {len(validated)} subagents", tc_id, config
+    )
     return SpawnSubagentsSignal(plan=plan)
 
 
@@ -305,7 +319,9 @@ def _is_topic_blocked(state: AgentState, routing_context: RoutingContext) -> boo
     return _same_topic(str(blocked_topic), current)
 
 
-async def handle_route_to(state: AgentState, signal: RouteToSignal, _config: dict) -> StateUpdate:
+async def handle_route_to(
+    state: AgentState, signal: RouteToSignal, _config: dict
+) -> StateUpdate:
     """Handle RouteToSignal: construct ExecutionTicket and route."""
     target = signal.target
     reason = signal.reason
@@ -324,7 +340,10 @@ async def handle_route_to(state: AgentState, signal: RouteToSignal, _config: dic
         logger.info(
             "[Signals] Blocking repeated route_to for topic already known to be unverifiable."
         )
-        final_report = shared.get("verification_block_reason", "The current environment cannot verify macro outcomes.")
+        final_report = shared.get(
+            "verification_block_reason",
+            "The current environment cannot verify macro outcomes.",
+        )
         final_msg = AIMessage(
             content=(
                 "[SYSTEM FINAL REPORT] The requested action was attempted via macro, "
@@ -352,9 +371,13 @@ async def handle_route_to(state: AgentState, signal: RouteToSignal, _config: dic
         if routing_context.agent_config.role_name:
             agent_config.role_name = routing_context.agent_config.role_name
         if routing_context.agent_config.system_instructions:
-            agent_config.system_instructions = routing_context.agent_config.system_instructions
+            agent_config.system_instructions = (
+                routing_context.agent_config.system_instructions
+            )
         if routing_context.agent_config.namespace_context:
-            agent_config.namespace_context = routing_context.agent_config.namespace_context
+            agent_config.namespace_context = (
+                routing_context.agent_config.namespace_context
+            )
         if routing_context.agent_config.model_override:
             agent_config.model_override = routing_context.agent_config.model_override
 
@@ -369,9 +392,7 @@ async def handle_route_to(state: AgentState, signal: RouteToSignal, _config: dic
     if skill_ids:
         allowed_tools = await _resolve_skill_tool_allowlist(skill_ids)
         if allowed_tools:
-            agent_config.tools = sorted(
-                set((agent_config.tools or []) + allowed_tools)
-            )
+            agent_config.tools = sorted(set((agent_config.tools or []) + allowed_tools))
 
     parameters = routing_context.model_dump(
         include={"dependencies", "verbose_output"},
@@ -413,7 +434,9 @@ async def handle_route_to(state: AgentState, signal: RouteToSignal, _config: dic
 
                 await activity_monitor.update_goal(state.thread_id, session_goal)
             except Exception as e:
-                logger.warning(f"[Signals] Failed to update session goal: {e}", exc_info=True)
+                logger.warning(
+                    f"[Signals] Failed to update session goal: {e}", exc_info=True
+                )
 
     return StateUpdate(
         next_node=target,
@@ -424,7 +447,9 @@ async def handle_route_to(state: AgentState, signal: RouteToSignal, _config: dic
     )
 
 
-async def handle_spawn_subagents(_state: AgentState, signal: SpawnSubagentsSignal, _config: dict) -> StateUpdate:
+async def handle_spawn_subagents(
+    _state: AgentState, signal: SpawnSubagentsSignal, _config: dict
+) -> StateUpdate:
     """Handle SpawnSubagentsSignal: set subagent_plan and route to spawn node."""
     plan = signal.plan
     logger.info(f"[Signals] 🚀 Spawning {len(plan.get('subtasks', []))} subagents")
@@ -456,7 +481,9 @@ class SignalManager:
     def build_interceptors(self) -> dict[str, Callable]:
         return dict(self._interceptors)
 
-    def detect_post_execution_signal(self, tool_name: str, result: Any) -> AgentSignal | None:
+    def detect_post_execution_signal(
+        self, tool_name: str, result: Any
+    ) -> AgentSignal | None:
         """Check if a tool result carries a signal (post-execution)."""
         if isinstance(getattr(result, "_signal", None), AgentSignal):
             return result._signal

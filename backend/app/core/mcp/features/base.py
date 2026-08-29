@@ -5,10 +5,8 @@ from abc import ABC, abstractmethod
 
 from mcp import ClientSession
 
+from app.core.mcp import constants as mcp_constants
 from app.core.mcp.schemas import McpFeatureCapabilities
-
-MCP_TOOL_NAME_PREFIX = "mcp__"
-MCP_TOOL_NAME_SEPARATOR = "__"
 
 
 def format_mcp_tool_name(server_name: str, tool_name: str) -> str:
@@ -17,15 +15,19 @@ def format_mcp_tool_name(server_name: str, tool_name: str) -> str:
     """
     safe_server = re.sub(r"[^a-zA-Z0-9_]", "_", server_name).lower()
     safe_tool = re.sub(r"[^a-zA-Z0-9_]", "_", tool_name).lower()
-    formatted = f"{MCP_TOOL_NAME_PREFIX}{safe_server}{MCP_TOOL_NAME_SEPARATOR}{safe_tool}"
+    formatted = (
+        f"{mcp_constants.MCP_TOOL_NAME_PREFIX}{safe_server}"
+        f"{mcp_constants.MCP_TOOL_NAME_SEPARATOR}{safe_tool}"
+    )
     return formatted[:64]
 
 
 def parse_mcp_tool_name(formatted_name: str) -> tuple[str, str] | None:
     """Parse a formatted MCP tool name into (server_name, tool_name)."""
-    if not formatted_name.startswith(MCP_TOOL_NAME_PREFIX):
+    if not formatted_name.startswith(mcp_constants.MCP_TOOL_NAME_PREFIX):
         return None
-    parts = formatted_name[len(MCP_TOOL_NAME_PREFIX):].split(MCP_TOOL_NAME_SEPARATOR, 1)
+    prefix_len = len(mcp_constants.MCP_TOOL_NAME_PREFIX)
+    parts = formatted_name[prefix_len:].split(mcp_constants.MCP_TOOL_NAME_SEPARATOR, 1)
     if len(parts) != 2:
         return None
     return parts[0], parts[1]
@@ -59,9 +61,3 @@ class McpFeature(ABC):
     def reset(self) -> None:
         """Reset feature state (called on disconnect)."""
         pass
-
-
-class McpFeatureNotSupportedError(Exception):
-    """Raised when a feature is not supported by the server."""
-
-    pass

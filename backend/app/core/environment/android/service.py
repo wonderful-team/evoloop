@@ -1,7 +1,9 @@
 import logging
 
 from app.core.environment.schemas import DehydratedElement
-from app.infrastructure.vision.providers.native.android_a11y import android_a11y_provider
+from app.infrastructure.vision.providers.native.android_a11y import (
+    android_a11y_provider,
+)
 
 logger = logging.getLogger(__name__)
 

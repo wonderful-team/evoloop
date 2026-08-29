@@ -133,7 +133,9 @@ class FileFilter:
         try:
             file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
             if file_size_mb > CODE_QUALITY_THRESHOLDS["max_file_size_mb"]:
-                logging.debug(f"Excluding too large file: {file_path} ({file_size_mb:.2f}MB)")
+                logging.debug(
+                    f"Excluding too large file: {file_path} ({file_size_mb:.2f}MB)"
+                )
                 self._set_cached(cache_key, False)
                 return False
         except OSError:
@@ -176,7 +178,9 @@ class FileFilter:
         dir_path = os.path.dirname(file_path)
 
         # Check if in directory likely to contain compressed code
-        if any(compressed_dir in dir_path for compressed_dir in LIKELY_COMPRESSED_CODE_DIRS):
+        if any(
+            compressed_dir in dir_path for compressed_dir in LIKELY_COMPRESSED_CODE_DIRS
+        ):
             if self._check_compressed_content_sample(file_path):
                 return True
 
@@ -245,7 +249,10 @@ class FileFilter:
 
         # 2. Newline ratio
         newline_ratio = content.count("\n") / max(len(content), 1)
-        if newline_ratio < CODE_QUALITY_THRESHOLDS["min_newline_ratio"] and len(content) > 1000:
+        if (
+            newline_ratio < CODE_QUALITY_THRESHOLDS["min_newline_ratio"]
+            and len(content) > 1000
+        ):
             return True
 
         # 3. Whitespace ratio
@@ -272,7 +279,10 @@ class FileFilter:
             return True
 
         # 6. Variable Name Analysis (Short vars)
-        if ext in SEMANTIC_LANGUAGE_MAP["javascript"] or ext in SEMANTIC_LANGUAGE_MAP["typescript"]:
+        if (
+            ext in SEMANTIC_LANGUAGE_MAP["javascript"]
+            or ext in SEMANTIC_LANGUAGE_MAP["typescript"]
+        ):
             short_vars = len(re.findall(r"\b[a-zA-Z_][a-zA-Z0-9_]?\b", content))
             total_words = len(re.findall(r"\b[a-zA-Z_][a-zA-Z0-9_]*\b", content))
 

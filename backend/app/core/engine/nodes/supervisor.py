@@ -27,10 +27,16 @@ class SupervisorNode(BaseAgentNode):
     """
 
     def __init__(self):
-        super().__init__(node_name="Supervisor", max_steps=settings.SUPERVISOR_AGENT_MAX_STEPS, temperature=0.2)
+        super().__init__(
+            node_name="Supervisor",
+            max_steps=settings.SUPERVISOR_AGENT_MAX_STEPS,
+            temperature=0.2,
+        )
 
     @staticmethod
-    def _filter_messages_for_supervisor(messages: list[BaseMessage]) -> list[BaseMessage]:
+    def _filter_messages_for_supervisor(
+        messages: list[BaseMessage],
+    ) -> list[BaseMessage]:
         result: list[BaseMessage] = []
         latest_ticket_idx = -1
         latest_tool_idx = -1
@@ -116,7 +122,9 @@ class SupervisorNode(BaseAgentNode):
             )
         )
 
-    async def prepare_state(self, state: AgentState, config: dict) -> StateUpdate | None:
+    async def prepare_state(
+        self, state: AgentState, config: dict
+    ) -> StateUpdate | None:
         if state.pending_signals:
             import app.core.engine.signals.signals as schemas
             from app.core.engine.signals import signal_manager
@@ -135,7 +143,10 @@ class SupervisorNode(BaseAgentNode):
                     await self._sync_db_plan_step_on_signal_consume(state, config)
                     return dispatch_result
             except Exception as e:
-                logger.warning(f"[Supervisor] Failed to consume queued signal: {e}. Clearing entry.", exc_info=True)
+                logger.warning(
+                    f"[Supervisor] Failed to consume queued signal: {e}. Clearing entry.",
+                    exc_info=True,
+                )
                 return StateUpdate(pending_signals=remaining)
 
         state.messages = self._filter_messages_for_supervisor(state.messages)
@@ -149,7 +160,9 @@ class SupervisorNode(BaseAgentNode):
 
         worker_outcome = StateLifecycleManager.consume_worker_outcome(state)
         if worker_outcome:
-            logger.info(f"[Supervisor] Worker returned '{worker_outcome}'. Delegating review to Supervisor LLM.")
+            logger.info(
+                f"[Supervisor] Worker returned '{worker_outcome}'. Delegating review to Supervisor LLM."
+            )
             # Capture the finished ticket's topic before clearing it; this lets the
             # anti-loop guard associate future verification routes with this target.
             finished_ticket_topic = state.ticket.topic if state.ticket else None
@@ -202,7 +215,9 @@ class SupervisorNode(BaseAgentNode):
                     reason=reason[:600],
                 )
                 state.messages.append(SystemMessage(content=warning_msg))
-                logger.info("[Supervisor] Worker reported unverifiable outcome; flagged and instructed to accept.")
+                logger.info(
+                    "[Supervisor] Worker reported unverifiable outcome; flagged and instructed to accept."
+                )
             elif worker_outcome in ("truncated", "failed", "error", "incomplete"):
                 warning_msg = render_template(
                     "core/engine/fragments/supervisor_system_notes.j2",
@@ -220,7 +235,9 @@ class SupervisorNode(BaseAgentNode):
                     report=final_report[:800],
                 )
                 state.messages.append(SystemMessage(content=preserve_msg))
-                logger.info("[Supervisor] Appended [SYSTEM NOTE] preserving Worker final report.")
+                logger.info(
+                    "[Supervisor] Appended [SYSTEM NOTE] preserving Worker final report."
+                )
 
         # ── Subagent 事件消费（每次 prepare_state 都检查）─────────────────
         # 全部 subagent 终态且满足聚合条件时，短路 Supervisor LLM（否则其纯文本
@@ -236,7 +253,8 @@ class SupervisorNode(BaseAgentNode):
             if routed_to_aggregate:
                 return StateUpdate(next_node=RoutingTarget.AGGREGATE_SUBAGENTS)
             running = [
-                a for a in (state.active_subagents or [])
+                a
+                for a in (state.active_subagents or [])
                 if a.get("status") in ("running", "awaiting_a2a", "awaiting_human")
             ]
             if running:
@@ -263,12 +281,15 @@ class SupervisorNode(BaseAgentNode):
                 note_type="presentation",
             )
             already = any(
-                isinstance(m, SystemMessage) and note[:20] in str(getattr(m, "content", ""))
+                isinstance(m, SystemMessage)
+                and note[:20] in str(getattr(m, "content", ""))
                 for m in (state.messages or [])
             )
             if not already:
                 state.messages.append(SystemMessage(content=note))
-                logger.info("[Supervisor] Appended [SYSTEM NOTE] presenting aggregate result.")
+                logger.info(
+                    "[Supervisor] Appended [SYSTEM NOTE] presenting aggregate result."
+                )
 
         return None
 
@@ -286,7 +307,10 @@ class SupervisorNode(BaseAgentNode):
         for req in hitl_requests:
             sub_tid = req["subagent_thread_id"]
             state.active_subagent_hitl[sub_tid] = req["tool_call_id"]
-            existing = {p.get("subagent_thread_id") for p in (state.pending_subagent_hitl_requests or [])}
+            existing = {
+                p.get("subagent_thread_id")
+                for p in (state.pending_subagent_hitl_requests or [])
+            }
             if sub_tid not in existing:
                 state.pending_subagent_hitl_requests.append(req)
             logger.info(
@@ -329,12 +353,15 @@ class SupervisorNode(BaseAgentNode):
                     "subagent_id": comp["subagent_thread_id"],
                 }
                 active = [
-                    a for a in (state.active_subagents or [])
+                    a
+                    for a in (state.active_subagents or [])
                     if a.get("subagent_id") != comp["subagent_thread_id"]
                 ]
                 state.active_subagents = active
             state.completed_subagents = list(completed_by_id.values())
-            expected = (state.pending_subagent_aggregation or {}).get("expected_count", 0)
+            expected = (state.pending_subagent_aggregation or {}).get(
+                "expected_count", 0
+            )
             logger.info(
                 f"[Supervisor] Consumed {len(completed_events)} subagent completion events. "
                 f"Total: {len(state.completed_subagents)}/{expected}"
@@ -356,11 +383,13 @@ class SupervisorNode(BaseAgentNode):
 
         terminal_statuses = {"completed", "failed", "cancelled"}
         completed = [
-            c for c in (state.completed_subagents or [])
+            c
+            for c in (state.completed_subagents or [])
             if c.get("status") in terminal_statuses
         ]
         awaiting = [
-            a for a in (state.active_subagents or [])
+            a
+            for a in (state.active_subagents or [])
             if a.get("status") in ("awaiting_a2a", "awaiting_human")
         ]
 
@@ -384,7 +413,9 @@ class SupervisorNode(BaseAgentNode):
             state.pending_need_inputs = need_inputs
             return False
 
-        logger.info(f"[Supervisor] All {expected} subagents done. Routing to AggregateSubagents.")
+        logger.info(
+            f"[Supervisor] All {expected} subagents done. Routing to AggregateSubagents."
+        )
         state.next_node = RoutingTarget.AGGREGATE_SUBAGENTS
         return True
 
@@ -421,7 +452,9 @@ class SupervisorNode(BaseAgentNode):
             if not answer:
                 return
             # 找到与最近 ask_human 对应的 pending 透传 subagent（父同时挂一个）。
-            answered_sub_tid = state.pending_subagent_hitl_requests[0]["subagent_thread_id"]
+            answered_sub_tid = state.pending_subagent_hitl_requests[0][
+                "subagent_thread_id"
+            ]
             break
         if not answered_sub_tid or not answer:
             return
@@ -431,10 +464,16 @@ class SupervisorNode(BaseAgentNode):
         await respond_subagent_hitl(answered_sub_tid, answer)
         state.pending_subagent_hitl_requests = state.pending_subagent_hitl_requests[1:]
         state.active_subagent_hitl.pop(answered_sub_tid, None)
-        logger.info(f"[Supervisor] Forwarded HITL answer to subagent {answered_sub_tid}")
+        logger.info(
+            f"[Supervisor] Forwarded HITL answer to subagent {answered_sub_tid}"
+        )
 
-    async def build_prompt_pair(self, state: AgentState, config: dict) -> tuple[str, str]:
-        project_id = state.project_id if state.project_id is not None else DEFAULT_PROJECT_ID
+    async def build_prompt_pair(
+        self, state: AgentState, config: dict
+    ) -> tuple[str, str]:
+        project_id = (
+            state.project_id if state.project_id is not None else DEFAULT_PROJECT_ID
+        )
         messages = state.messages
 
         context = await self._build_context(state, config, messages, project_id)
@@ -444,7 +483,9 @@ class SupervisorNode(BaseAgentNode):
             context=context,
         )
         static_system_prompt = await prompt_builder.build(config)
-        dynamic_context_ticket = await prompt_builder.build_context_ticket(config, session_goal=state.session_goal)
+        dynamic_context_ticket = await prompt_builder.build_context_ticket(
+            config, session_goal=state.session_goal
+        )
 
         return static_system_prompt, dynamic_context_ticket
 
@@ -509,11 +550,14 @@ class SupervisorNode(BaseAgentNode):
             # 保留 Supervisor 派活时的安抚文案：LLM 在调用 route_to 的同时输出
             # 的 assistant 消息（content 如"好的，马上处理"）应一并保留给用户，
             # 而不是被 route_to 信号路径丢弃。Worker 阶段的消息不在此列。
-            if dispatch_result.next_node in (RoutingTarget.WORKER, RoutingTarget.SEQUENTIAL_WORKFLOW):
+            if dispatch_result.next_node in (
+                RoutingTarget.WORKER,
+                RoutingTarget.SEQUENTIAL_WORKFLOW,
+            ):
                 ai_msgs = [
-                    m for m in (engine_result.messages or [])
-                    if m.name != "context_ticket"
-                    and getattr(m, "content", None)
+                    m
+                    for m in (engine_result.messages or [])
+                    if m.name != "context_ticket" and getattr(m, "content", None)
                 ]
                 if ai_msgs:
                     existing = list(dispatch_result.messages or [])
@@ -548,7 +592,10 @@ class SupervisorNode(BaseAgentNode):
             ai_content = str(last_msg.content).strip()
 
         if ai_content:
-            if last_msg.additional_kwargs.get("is_truncated") and original_state.worker_outcome == "truncated":
+            if (
+                last_msg.additional_kwargs.get("is_truncated")
+                and original_state.worker_outcome == "truncated"
+            ):
                 return StateUpdate(
                     messages=new_messages,
                     next_node=RoutingTarget.WORKER,
@@ -563,9 +610,13 @@ class SupervisorNode(BaseAgentNode):
 
             ctx = ContextManager.current()
             source = config.get("metadata", {}).get("source", "")
-            thread_id = original_state.thread_id or config.get("configurable", {}).get("thread_id")
+            thread_id = original_state.thread_id or config.get("configurable", {}).get(
+                "thread_id"
+            )
             if not thread_id:
-                raise ValueError("Cannot self-publish SessionCompletedEvent without thread_id")
+                raise ValueError(
+                    "Cannot self-publish SessionCompletedEvent without thread_id"
+                )
             event_data = SessionCompletedData(
                 thread_id=thread_id,
                 summary=ai_content,
@@ -575,7 +626,9 @@ class SupervisorNode(BaseAgentNode):
                 model=ctx.active_model,
                 duration_ms=elapsed_ms(_direct_start),
             )
-            logger.info("[Supervisor] Direct response → self-publishing SessionCompletedEvent")
+            logger.info(
+                "[Supervisor] Direct response → self-publishing SessionCompletedEvent"
+            )
             await publish_session_completed(data=event_data)
             return StateUpdate(
                 messages=new_messages,

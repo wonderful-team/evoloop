@@ -26,7 +26,9 @@ class McpAuthManager:
         self._handlers: dict[str, AuthHandler] = {}
         self._tokens: dict[str, AuthToken] = {}
 
-    def create_handler(self, server_name: str, auth_config: dict[str, Any]) -> AuthHandler | None:
+    def create_handler(
+        self, server_name: str, auth_config: dict[str, Any]
+    ) -> AuthHandler | None:
         """
         Create appropriate auth handler based on config.
 
@@ -50,7 +52,9 @@ class McpAuthManager:
                 client_secret=auth_config.get("client_secret"),
                 authorization_endpoint=auth_config.get("authorization_endpoint"),
                 token_endpoint=auth_config.get("token_endpoint"),
-                redirect_uri=auth_config.get("redirect_uri", "http://localhost:8877/oauth/callback"),
+                redirect_uri=auth_config.get(
+                    "redirect_uri", "http://localhost:8877/oauth/callback"
+                ),
                 scopes=auth_config.get("scopes", []),
             )
             handler = OAuthAuthorizationCodeHandler(server_name, config)
@@ -62,7 +66,9 @@ class McpAuthManager:
                 method=AuthMethod.OAUTH_DEVICE_CODE,
                 client_id=auth_config.get("client_id"),
                 client_secret=auth_config.get("client_secret"),
-                device_authorization_endpoint=auth_config.get("device_authorization_endpoint"),
+                device_authorization_endpoint=auth_config.get(
+                    "device_authorization_endpoint"
+                ),
                 token_endpoint=auth_config.get("token_endpoint"),
                 scopes=auth_config.get("scopes", []),
             )

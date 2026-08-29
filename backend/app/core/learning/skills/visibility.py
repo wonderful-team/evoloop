@@ -18,14 +18,8 @@ from __future__ import annotations
 from typing import Any
 
 from app.core.config import settings
+from app.core.learning.constants import ROUTABLE_STATUSES
 from app.models.learning import LearnedSkill
-
-# Statuses trusted for routing when ROUTE_INDEX_REQUIRE_VERIFIED is on.
-# Only user-confirmed skills are routable; everything else (draft,
-# pending_review, candidate, needs_update, deprecated, archived, and the
-# never-written "active") stays out of the route index. Legacy rows with
-# status="active" are repaired to "verified" by migrate_legacy_status_rows.
-ROUTABLE_STATUSES = frozenset({"verified"})
 
 # Statuses excluded even in legacy permissive mode
 # (ROUTE_INDEX_REQUIRE_VERIFIED off): only explicitly retired rows skip.

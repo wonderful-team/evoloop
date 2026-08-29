@@ -8,6 +8,7 @@ import os
 import shutil
 from collections.abc import Iterator
 
+from .constants import DEFAULT_MAX_ENTRIES
 from .schemas import (
     DirectoryEntry,
     DirectoryInfo,
@@ -56,7 +57,7 @@ def list_directory(
 def generate_tree(
     path: str,
     max_depth: int = 3,
-    max_entries: int = 200,
+    max_entries: int = DEFAULT_MAX_ENTRIES,
     with_stats: bool = False,
     prefix: str = "",
     exclude_dirs: list[str] | None = None,
@@ -114,18 +115,26 @@ def delete_directory(path: str, recursive: bool = False) -> DirectoryOperationRe
             shutil.rmtree(path)
         else:
             os.rmdir(path)
-        return DirectoryOperationResult(success=True, status=DirectoryStatus.SUCCESS, path=path, message="Deleted")
+        return DirectoryOperationResult(
+            success=True, status=DirectoryStatus.SUCCESS, path=path, message="Deleted"
+        )
     except Exception as e:
-        return DirectoryOperationResult(success=False, status=DirectoryStatus.ERROR, path=path, message=str(e))
+        return DirectoryOperationResult(
+            success=False, status=DirectoryStatus.ERROR, path=path, message=str(e)
+        )
 
 
 def delete_file(path: str) -> DirectoryOperationResult:
     """Delete a file."""
     try:
         os.remove(path)
-        return DirectoryOperationResult(success=True, status=DirectoryStatus.SUCCESS, path=path, message="Deleted")
+        return DirectoryOperationResult(
+            success=True, status=DirectoryStatus.SUCCESS, path=path, message="Deleted"
+        )
     except Exception as e:
-        return DirectoryOperationResult(success=False, status=DirectoryStatus.ERROR, path=path, message=str(e))
+        return DirectoryOperationResult(
+            success=False, status=DirectoryStatus.ERROR, path=path, message=str(e)
+        )
 
 
 def move_path(source: str, destination: str) -> DirectoryOperationResult:
@@ -141,7 +150,9 @@ def move_path(source: str, destination: str) -> DirectoryOperationResult:
             message="Moved",
         )
     except Exception as e:
-        return DirectoryOperationResult(success=False, status=DirectoryStatus.ERROR, path=source, message=str(e))
+        return DirectoryOperationResult(
+            success=False, status=DirectoryStatus.ERROR, path=source, message=str(e)
+        )
 
 
 # ============================================================================

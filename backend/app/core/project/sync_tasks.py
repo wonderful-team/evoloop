@@ -40,7 +40,9 @@ async def sync_project_to_cloud_task(_self, repo_id: int):
                 return
 
             if repo.project_id:
-                logger.info(f"[SyncTask] Repo {repo_id} already synced (PID: {repo.project_id}). Skipping.")
+                logger.info(
+                    f"[SyncTask] Repo {repo_id} already synced (PID: {repo.project_id}). Skipping."
+                )
                 return
 
             try:
@@ -76,7 +78,9 @@ async def sync_project_to_cloud_task(_self, repo_id: int):
     retry_backoff_max=300,
     max_retries=3,
 )
-async def sync_tasks_to_evocloud_task(_self, task_ids: list[str], analysis_id: str | None = None):
+async def sync_tasks_to_evocloud_task(
+    _self, task_ids: list[str], analysis_id: str | None = None
+):
     """
     Background task to sync requirement tasks to EvoCloud.
     Called automatically after requirement analysis is confirmed.
@@ -88,7 +92,9 @@ async def sync_tasks_to_evocloud_task(_self, task_ids: list[str], analysis_id: s
     await db_resource_manager.initialize(create_tables=False, seed_data=False)
 
     try:
-        logger.info(f"[ReqSync] Starting sync for analysis {analysis_id}, {len(task_ids)} tasks")
+        logger.info(
+            f"[ReqSync] Starting sync for analysis {analysis_id}, {len(task_ids)} tasks"
+        )
 
         async with session_scope() as session:
             from sqlalchemy import select
@@ -127,12 +133,16 @@ async def sync_tasks_to_evocloud_task(_self, task_ids: list[str], analysis_id: s
                         task.sync_status = "synced"
                         task.synced_at = datetime.now()
                         synced_count += 1
-                        logger.info(f"[ReqSync] Task {task.id} synced: {task.evocloud_task_id}")
+                        logger.info(
+                            f"[ReqSync] Task {task.id} synced: {task.evocloud_task_id}"
+                        )
                     else:
                         task.sync_status = "failed"
                         task.sync_error = result.get("message", "Unknown error")
                         failed_count += 1
-                        logger.error(f"[ReqSync] Task {task.id} failed: {task.sync_error}")
+                        logger.error(
+                            f"[ReqSync] Task {task.id} failed: {task.sync_error}"
+                        )
 
                 except Exception as e:
                     task.sync_status = "failed"

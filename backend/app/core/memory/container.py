@@ -133,15 +133,6 @@ class MemoryContainer:
         return self._manager
 
     @property
-    def pruning_service(self) -> MemoryPruningService:
-        """Get memory pruning service (lazy)."""
-        if self._pruning is None:
-            # Note: project_context and todo_service will be injected as needed
-            # e.g. from the domain services
-            self._pruning = MemoryPruningService(storage=self.storage)
-        return self._pruning
-
-    @property
     def retrieval_service(self) -> MemoryRetriever:
         """
         Get memory retrieval service (lazy).
@@ -155,25 +146,3 @@ class MemoryContainer:
                 config=self.config,
             )
         return self._smart_retriever
-
-    @property
-    def smart_retriever(self) -> MemoryRetriever:
-        """Get smart memory retriever (lazy) - alias for retrieval_service."""
-        return self.retrieval_service
-
-    @property
-    def quality_analyzer(self) -> MemoryQualityAnalyzer:
-        """Get quality analyzer (lazy)."""
-        if self._quality is None:
-            self._quality = MemoryQualityAnalyzer(
-                storage=self.storage,
-                config=self.config,
-            )
-        return self._quality
-
-    @property
-    def state_tracker(self) -> MemoryStateTracker:
-        """Get state tracker (lazy)."""
-        if self._state_tracker is None:
-            self._state_tracker = MemoryStateTracker()
-        return self._state_tracker

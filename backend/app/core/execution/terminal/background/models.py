@@ -11,7 +11,18 @@ from typing import Any
 
 from pydantic import ConfigDict, Field
 
-from app.core.execution.terminal.background.schemas import TaskMetadata, TaskStatus, TaskType
+from app.core.execution.constants import (
+    DEFAULT_OUTPUT_LINES,
+    DEFAULT_TASK_TIMEOUT_SECONDS,
+    MAX_OUTPUT_BUFFER_LINES,
+    MAX_RESULT_LIST_ITEMS,
+    MAX_RESULT_STRING_LENGTH,
+)
+from app.core.execution.terminal.background.schemas import (
+    TaskMetadata,
+    TaskStatus,
+    TaskType,
+)
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
@@ -40,7 +51,7 @@ class BackgroundTask(DynamicBaseModel):
 
     # Execution
     process_id: int | None = None
-    timeout_seconds: int = 3600  # Default 1 hour max
+    timeout_seconds: int = DEFAULT_TASK_TIMEOUT_SECONDS
 
     # Timing
     created_at: datetime = Field(default_factory=datetime.now)
@@ -48,7 +59,9 @@ class BackgroundTask(DynamicBaseModel):
     completed_at: datetime | None = None
 
     # Output
-    output_buffer: deque = Field(default_factory=lambda: deque(maxlen=1000))
+    output_buffer: deque = Field(
+        default_factory=lambda: deque(maxlen=MAX_OUTPUT_BUFFER_LINES)
+    )
     result: Any = None
     error_message: str | None = None
 
@@ -58,7 +71,9 @@ class BackgroundTask(DynamicBaseModel):
     # Internal: cancellation callback
     cancel_fn: Callable[[], None] | None = Field(default=None, exclude=True)
 
-    def to_dict(self, include_output: bool = True, output_lines: int = 50) -> dict:
+    def to_dict(
+        self, include_output: bool = True, output_lines: int = DEFAULT_OUTPUT_LINES
+    ) -> dict:
         """Convert to dictionary for API responses."""
         from app.core.tools.registry import get_tool_metadata
 
@@ -70,7 +85,9 @@ class BackgroundTask(DynamicBaseModel):
         # Override timing to string
         data["created_at"] = self.created_at.isoformat()
         data["started_at"] = self.started_at.isoformat() if self.started_at else None
-        data["completed_at"] = self.completed_at.isoformat() if self.completed_at else None
+        data["completed_at"] = (
+            self.completed_at.isoformat() if self.completed_at else None
+        )
 
         # Add derived properties
         data["elapsed_seconds"] = self.elapsed_seconds
@@ -94,7 +111,10 @@ class BackgroundTask(DynamicBaseModel):
                 display_title = metadata.get_display_name(self.tool_name, summary_args)
             except Exception as e:
                 import logging
-                logging.getLogger(__name__).debug(f"Failed to resolve display title for {self.tool_name}: {e}")
+
+                logging.getLogger(__name__).debug(
+                    f"Failed to resolve display title for {self.tool_name}: {e}"
+                )
 
         data["display_title"] = display_title
         # Keep title as-is but also provide the rendered one for UI
@@ -113,7 +133,7 @@ class BackgroundTask(DynamicBaseModel):
 
         return data
 
-    def get_recent_output(self, n: int = 50) -> str:
+    def get_recent_output(self, n: int = DEFAULT_OUTPUT_LINES) -> str:
         """Get last n lines of output."""
         lines = list(self.output_buffer)
         return "\n".join(lines[-n:])
@@ -157,8 +177,8 @@ class BackgroundTask(DynamicBaseModel):
         if isinstance(self.result, dict):
             return self.result
         if isinstance(self.result, list):
-            return self.result[:100]  # Limit array size
-        return str(self.result)[:1000]  # Fallback to string
+            return self.result[:MAX_RESULT_LIST_ITEMS]  # Limit array size
+        return str(self.result)[:MAX_RESULT_STRING_LENGTH]  # Fallback to string
 
     def set_cancel_callback(self, callback: Callable[[], None]) -> None:
         """Set callback for cancellation."""

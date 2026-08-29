@@ -94,7 +94,9 @@ class EnvironmentLifecycleSubscriber:
             _background_tasks.clear()
             logger.info("[Environment] Background tasks cancelled")
         except Exception as e:
-            logger.warning(f"[Environment] Cleanup errors during shutdown: {e}", exc_info=True)
+            logger.warning(
+                f"[Environment] Cleanup errors during shutdown: {e}", exc_info=True
+            )
 
 
 @event_register()
@@ -125,14 +127,18 @@ class DeviceEventSubscriber:
 
             state = get_awakened_state()
             if state and state.android_devices:
-                device = next((d for d in state.android_devices if d.device_id == device_id), None)
+                device = next(
+                    (d for d in state.android_devices if d.device_id == device_id), None
+                )
                 if device:
                     logger.info(f"📱 Probing apps on device: {device_id}")
                     try:
                         explorer = AndroidExplorer()
                         await explorer.scan(device_id)
                     except Exception as e:
-                        logger.warning(f"Failed to probe device {device_id}: {e}", exc_info=True)
+                        logger.warning(
+                            f"Failed to probe device {device_id}: {e}", exc_info=True
+                        )
 
     @event_subscribe(EventType.DEVICE_DISCONNECTED)
     async def on_device_disconnected(self, event: "DeviceDisconnectedEvent") -> None:
@@ -147,7 +153,6 @@ class DeviceEventSubscriber:
         from app.core.environment import _refresh_state
 
         await _refresh_state()
-
 
 
 class SystemEventSubscriber:
@@ -187,4 +192,6 @@ class SystemEventSubscriber:
         category = event.data.get("category")
         description = event.data.get("description")
 
-        logger.info(f"🚧 Learned boundary: {category} for tool {tool_name}: {description}")
+        logger.info(
+            f"🚧 Learned boundary: {category} for tool {tool_name}: {description}"
+        )

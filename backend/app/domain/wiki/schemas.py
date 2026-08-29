@@ -15,10 +15,6 @@ class WikiPageBase(SQLModel):
     order: int = 0
 
 
-class WikiPageCreate(WikiPageBase):
-    pass
-
-
 class WikiPageRead(WikiPageBase):
     id: int
     created_at: datetime

@@ -94,7 +94,9 @@ def _source_file_to_dict(sf: SourceFile) -> dict[str, Any]:
         "scan_status": sf.scan_status,
         "security_scan_status": sf.security_scan_status,
         "parsed_at": sf.parsed_at.isoformat() if sf.parsed_at else None,
-        "last_indexed_at": sf.last_indexed_at.isoformat() if sf.last_indexed_at else None,
+        "last_indexed_at": sf.last_indexed_at.isoformat()
+        if sf.last_indexed_at
+        else None,
     }
 
 
@@ -140,7 +142,9 @@ async def query_code_chunks(
         return "No active repository found for this project."
 
     async with session_scope() as session:
-        stmt = select(CodeChunk).join(SourceFile, CodeChunk.source_file_id == SourceFile.id)
+        stmt = select(CodeChunk).join(
+            SourceFile, CodeChunk.source_file_id == SourceFile.id
+        )
         stmt = stmt.where(SourceFile.repository_id == repo_id)
         if type:
             stmt = stmt.where(CodeChunk.chunk_type == type)

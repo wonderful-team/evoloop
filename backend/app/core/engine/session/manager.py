@@ -61,7 +61,6 @@ class SessionManager:
             self._sessions.pop(thread_id, None)
             return True
 
-
         stopped = False
         if await worker_registry.cancel_worker(thread_id):
             stopped = True

@@ -11,6 +11,7 @@ from app.core.engine.message.native_classes import (
     SystemMessage,
     ToolMessage,
 )
+from app.core.memory.constants import DEFAULT_SEARCH_LIMIT, SHORT_TERM_MAX_MESSAGES
 from app.core.memory.interfaces import IShortTermMemory
 from app.infrastructure.database import session_scope
 from app.models.conversation import Message
@@ -59,7 +60,9 @@ class SqlShortTermMemory(IShortTermMemory):
                 id=gen_uuid(),
                 thread_id=thread_id,
                 role=role,
-                content=message.content if isinstance(message.content, str) else str(message.content),
+                content=message.content
+                if isinstance(message.content, str)
+                else str(message.content),
                 sequence_number=next_seq,
                 action_type="text",
             )
@@ -70,10 +73,15 @@ class SqlShortTermMemory(IShortTermMemory):
 
     async def get_context(self, thread_id: str, limit: int = 50) -> list[BaseMessage]:
         async with session_scope() as db:
-            visible_stmt = select(Message).where(
-                Message.thread_id == thread_id,
-                Message.is_visible == True,
-            ).order_by(Message.id.desc()).limit(limit)
+            visible_stmt = (
+                select(Message)
+                .where(
+                    Message.thread_id == thread_id,
+                    Message.is_visible == True,
+                )
+                .order_by(Message.id.desc())
+                .limit(limit)
+            )
 
             result = await db.execute(visible_stmt)
             visible_messages = result.scalars().all()
@@ -100,11 +108,15 @@ class SqlShortTermMemory(IShortTermMemory):
 
             invisible_messages = []
             if recent_run_ids:
-                invisible_stmt = select(Message).where(
-                    Message.thread_id == thread_id,
-                    Message.is_visible == False,
-                    Message.run_id.in_(recent_run_ids)
-                ).order_by(Message.sequence_number.asc())
+                invisible_stmt = (
+                    select(Message)
+                    .where(
+                        Message.thread_id == thread_id,
+                        Message.is_visible == False,
+                        Message.run_id.in_(recent_run_ids),
+                    )
+                    .order_by(Message.sequence_number.asc())
+                )
 
                 invisible_result = await db.execute(invisible_stmt)
                 invisible_messages = invisible_result.scalars().all()
@@ -139,17 +151,18 @@ class SqlShortTermMemory(IShortTermMemory):
                     tool_call_id = f"orphan_{msg.id}"
                     name = "unknown"
 
-                lc_messages.append(ToolMessage(
-                    content=msg.content or "",
-                    tool_call_id=tool_call_id,
-                    name=name
-                ))
+                lc_messages.append(
+                    ToolMessage(
+                        content=msg.content or "", tool_call_id=tool_call_id, name=name
+                    )
+                )
 
-        logger.debug(f"SqlShortTermMemory: Retrieved {len(lc_messages)} messages for thread {thread_id}")
+        logger.debug(
+            f"SqlShortTermMemory: Retrieved {len(lc_messages)} messages for thread {thread_id}"
+        )
         return lc_messages
 
     async def prune(self, thread_id: str) -> None:
-        MAX_MESSAGES = 100
 
         async with session_scope() as db:
             count_stmt = select(Message).where(Message.thread_id == thread_id)
@@ -157,10 +170,10 @@ class SqlShortTermMemory(IShortTermMemory):
             all_messages = result.scalars().all()
             total_count = len(all_messages)
 
-            if total_count <= MAX_MESSAGES:
+            if total_count <= SHORT_TERM_MAX_MESSAGES:
                 return
 
-            to_delete = total_count - MAX_MESSAGES
+            to_delete = total_count - SHORT_TERM_MAX_MESSAGES
             oldest_stmt = (
                 select(Message.id)
                 .where(Message.thread_id == thread_id)
@@ -175,9 +188,16 @@ class SqlShortTermMemory(IShortTermMemory):
                 delete_stmt = delete(Message).where(Message.id.in_(ids_to_delete))
                 await db.execute(delete_stmt)
                 await db.commit()
-                logger.info(f"SqlShortTermMemory: Pruned {len(ids_to_delete)} old messages from thread {thread_id}")
+                logger.info(
+                    f"SqlShortTermMemory: Pruned {len(ids_to_delete)} old messages from thread {thread_id}"
+                )
 
-    async def search_messages(self, query: str, thread_id: str | None = None, limit: int = 10) -> list[BaseMessage]:
+    async def search_messages(
+        self,
+        query: str,
+        thread_id: str | None = None,
+        limit: int = DEFAULT_SEARCH_LIMIT,
+    ) -> list[BaseMessage]:
         async with session_scope() as db:
             keywords = [k.strip() for k in query.split() if k.strip()]
 

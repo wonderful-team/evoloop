@@ -34,7 +34,9 @@ def levenshtein(a: str, b: str) -> int:
     return matrix[len(a)][len(b)]
 
 
-def generate_unified_diff(original: str, modified: str, file_path: str = "file", context_lines: int = 3) -> str:
+def generate_unified_diff(
+    original: str, modified: str, file_path: str = "file", context_lines: int = 3
+) -> str:
     """Generate unified diff format."""
     original_lines = original.splitlines(keepends=True)
     modified_lines = modified.splitlines(keepends=True)

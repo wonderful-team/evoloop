@@ -9,11 +9,11 @@ from collections.abc import Callable
 import httpx
 
 from app.core.config import settings
-from app.core.evocloud.backends._auth_mixin import AuthMixin
-from app.core.evocloud.backends._devices_mixin import DevicesMixin
-from app.core.evocloud.backends._projects_mixin import ProjectsMixin
-from app.core.evocloud.backends._subscription_mixin import SubscriptionMixin
-from app.core.evocloud.backends._sync_mixin import SyncMixin
+from app.core.evocloud.backends.auth_mixin import AuthMixin
+from app.core.evocloud.backends.devices_mixin import DevicesMixin
+from app.core.evocloud.backends.projects_mixin import ProjectsMixin
+from app.core.evocloud.backends.subscription_mixin import SubscriptionMixin
+from app.core.evocloud.backends.sync_mixin import SyncMixin
 from app.core.evocloud.interfaces.client import EvoCloudClientProtocol
 from app.core.evocloud.routes import RouteTarget, get_endpoint_route
 from app.core.evocloud.schemas import EvoCloudConfig

@@ -84,9 +84,15 @@ class AnnotatedTreeGenerator:
         try:
             if style == "flat":
                 flat_paths = self._collect_flat_paths(root_node)
-                return render_template("domain/codebase/codebase_tree.prompt.j2", style="flat", flat_paths=flat_paths)
+                return render_template(
+                    "domain/codebase/codebase_tree.prompt.j2",
+                    style="flat",
+                    flat_paths=flat_paths,
+                )
 
-            return render_template("domain/codebase/codebase_tree.prompt.j2", style="tree", root=root_node)
+            return render_template(
+                "domain/codebase/codebase_tree.prompt.j2", style="tree", root=root_node
+            )
         except Exception as e:
             logger.exception(f"Failed to render tree: {e}")
             return "Error rendering tree structure."
@@ -103,19 +109,6 @@ class AnnotatedTreeGenerator:
             elif child.type == "file":
                 paths.append(os.path.join(current_path, child.name))
         return paths
-
-    def _is_within_limit(self, text: str) -> bool:
-        if not self.max_lines:
-            return True
-        return text.count("\n") <= self.max_lines
-
-    def _truncate_lines(self, text: str) -> str:
-        if not self.max_lines:
-            return text
-        lines = text.split("\n")
-        if len(lines) > self.max_lines:
-            return "\n".join(lines[: self.max_lines]) + f"\n... [Truncated at {self.max_lines} lines]"
-        return text
 
     def _is_path_ignored(self, path: str, ignored_paths: set) -> bool:
         """

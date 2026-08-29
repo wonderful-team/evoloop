@@ -6,112 +6,19 @@ to the frontend to request human input or actions. All interactions are
 blocking (agent paused) until user responds.
 """
 
-from app.core.monitoring.schemas import (
-    ConfirmPayload,
-    ConfirmRequest,
-    FileSelectPayload,
-    FileSelectRequest,
-    HumanRequestData,
-    HumanRequestType,
-    ProjectSwitchPayload,
-    ProjectSwitchRequest,
-    TextInputRequest,
-)
-
-
-def create_text_input_request(
-    prompt: str,
-    placeholder: str | None = None,
-    multiline: bool = False,
-    allow_cancel: bool = True,
-) -> TextInputRequest:
-    """Create a human request for text input."""
-    return TextInputRequest(
-        type=HumanRequestType.TEXT,
-        prompt=prompt,
-        placeholder=placeholder or "Enter your response...",
-        multiline=multiline,
-        allow_cancel=allow_cancel,
-    )
-
-
-def create_project_switch_request(
-    message: str = "This operation requires a specific project.",
-    allow_global: bool = False,
-    suggested_project_id: int | None = None,
-    show_project_list: bool = True,
-    temporary: bool = True,
-    allow_cancel: bool = True,
-) -> ProjectSwitchRequest:
-    """Create a human request for project switch."""
-    return ProjectSwitchRequest(
-        type=HumanRequestType.PROJECT_SWITCH,
-        prompt=message,
-        allow_cancel=allow_cancel,
-        payload=ProjectSwitchPayload(
-            allow_global=allow_global,
-            suggested_project_id=suggested_project_id,
-            show_project_list=show_project_list,
-            temporary=temporary,
-        ),
-    )
-
-
-def create_confirm_request(
-    prompt: str,
-    title: str | None = None,
-    confirm_text: str = "Confirm",
-    cancel_text: str = "Cancel",
-    allow_cancel: bool = True,
-) -> ConfirmRequest:
-    """Create a human request for confirmation."""
-    return ConfirmRequest(
-        type=HumanRequestType.CONFIRMATION,
-        prompt=prompt,
-        title=title or "Confirmation Required",
-        allow_cancel=allow_cancel,
-        payload=ConfirmPayload(
-            confirm_text=confirm_text,
-            cancel_text=cancel_text,
-        ),
-    )
-
-
-def create_file_select_request(
-    prompt: str,
-    multiple: bool = False,
-    file_types: list[str] | None = None,
-    allow_cancel: bool = True,
-) -> FileSelectRequest:
-    """Create a human request for file selection."""
-    return FileSelectRequest(
-        type=HumanRequestType.FILE_SELECT,
-        prompt=prompt,
-        allow_cancel=allow_cancel,
-        payload=FileSelectPayload(
-            multiple=multiple,
-            file_types=file_types or [],
-        ),
-    )
-
+from app.core.monitoring import constants as monitoring_constants
+from app.core.monitoring.schemas import HumanRequestData, HumanRequestType
 
 # =============================================================================
 # Workspace Mode Helpers - For tools that need a project in workspace mode
 # =============================================================================
 
-GLOBAL_MODE_MESSAGES = {
-    "code_search": "[Workspace Mode]: Code search requires a project. Please provide a project_id or switch to a project.",
-    "wiki": "[Workspace Mode]: Wiki requires a project.",
-    "architecture": "[Workspace Mode]: Architecture consultation requires a project.",
-    "file_operation": "[Workspace Mode]: File operations require a project.",
-    "git": "[Workspace Mode]: Git operations require a project.",
-    "default": "[Workspace Mode]: This operation requires a specific project.",
-}
-
 
 def get_global_mode_message(tool_category: str = "default") -> str:
     """Return standardized error message for global mode restriction."""
-    return GLOBAL_MODE_MESSAGES.get(tool_category, GLOBAL_MODE_MESSAGES["default"])
+    return monitoring_constants.GLOBAL_MODE_MESSAGES.get(
+        tool_category, monitoring_constants.GLOBAL_MODE_MESSAGES["default"]
+    )
 
 
 async def resolve_project_with_hitl(
@@ -202,27 +109,3 @@ async def require_project_for_tool(
         return get_global_mode_message(tool_category)
 
     return project_id
-
-
-async def handle_global_mode_tool(tool_name: str, message: str | None = None) -> str:
-    """
-    Handle global mode when a tool requires a specific project.
-    This will PAUSE agent execution until user switches to a project or cancels.
-
-    DEPRECATED: Use `require_project_for_tool()` or `resolve_project_with_hitl()` instead
-    for better integration with tool logic.
-
-    Args:
-        tool_name: Name of the tool being called
-        message: Custom message to show user
-
-    Returns:
-        Error message to return to LLM (if user cancels)
-    """
-    ctx_result = await require_project_for_tool(tool_name, "default", message)
-
-    # If int is returned, it means project was resolved (shouldn't happen in this flow)
-    if isinstance(ctx_result, int):
-        return f"[Project Resolved] {ctx_result}"
-
-    return ctx_result

@@ -54,17 +54,21 @@ class EpisodeReplay:
             ts = entry.updated_at or entry.created_at
             if ts and isinstance(ts, datetime) and ts < cutoff:
                 continue
-            episodes.append({
-                "id": entry.id,
-                "goal": (entry.title or "").replace("Episode: ", ""),
-                "result": entry.content or "",
-                "description": entry.description or "",
-                "timestamp": ts.isoformat() if ts else "",
-                "project_id": entry.project_id,
-                "source_message_id": entry.source_message_id,
-            })
+            episodes.append(
+                {
+                    "id": entry.id,
+                    "goal": (entry.title or "").replace("Episode: ", ""),
+                    "result": entry.content or "",
+                    "description": entry.description or "",
+                    "timestamp": ts.isoformat() if ts else "",
+                    "project_id": entry.project_id,
+                    "source_message_id": entry.source_message_id,
+                }
+            )
 
-        logger.info("[Dream:Replay] Loaded %d episodes (days_back=%d)", len(episodes), days_back)
+        logger.info(
+            "[Dream:Replay] Loaded %d episodes (days_back=%d)", len(episodes), days_back
+        )
         return episodes
 
     def format_for_distillation(self, episodes: list[dict[str, Any]]) -> str:

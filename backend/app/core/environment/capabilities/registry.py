@@ -2,8 +2,6 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from app.i18n.service import i18n
-
 
 class ActionDef(BaseModel):
     """
@@ -21,14 +19,6 @@ class ActionDef(BaseModel):
     # Mapping to technical tool action names
     # e.g., mappings={"mobile": "tap"} for a "click" action
     mappings: dict[str, str] = Field(default_factory=dict)
-
-    def get_label(self, lang: str = "zh") -> str:
-        """Get the localized label for this action."""
-        return i18n.get(f"{self.translation_key}.label", lang=lang, default=self.id)
-
-    def get_description(self, lang: str = "zh") -> str:
-        """Get the localized description for this action."""
-        return i18n.get(f"{self.translation_key}.desc", lang=lang, default=self.description)
 
 
 class ActionRegistry:

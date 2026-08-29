@@ -3,6 +3,7 @@ from typing import Annotated
 
 from app.core.engine.message.native_classes import RunnableConfig
 from app.core.file import FileSearcher
+from app.core.file.constants import MAX_MATCHES
 from app.core.tools import evoloop_tool
 from app.core.tools.base import InjectedToolArg
 
@@ -21,8 +22,6 @@ async def grep_search_internal(
         target_path = await resolve_and_validate_path(path, config)
     except ValueError as e:
         return str(e)
-
-    MAX_MATCHES = 100
 
     results = await FileSearcher.search_content(
         pattern=pattern,

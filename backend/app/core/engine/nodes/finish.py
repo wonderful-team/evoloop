@@ -13,7 +13,11 @@ from app.core.engine.nodes.base import BaseNode
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.services.audit_service import AuditResult, AuditService
 from app.core.engine.state import AgentState, StateUpdate
-from app.core.engine.state.sub_schemas import AuditAnomaly, AuditInputData, ProgressMetrics
+from app.core.engine.state.sub_schemas import (
+    AuditAnomaly,
+    AuditInputData,
+    ProgressMetrics,
+)
 from app.core.events.schemas import SessionCompletedData
 from app.infrastructure.database import session_scope
 from app.models import AgentActivity
@@ -108,10 +112,7 @@ class FinishNode(BaseNode):
         # If the worker already concluded that verification is impossible due to
         # environment limitations, do not flag it as actionable incompleteness.
         if state.shared_context and state.shared_context.get("verification_impossible"):
-            anomalies = [
-                a for a in anomalies
-                if a.anomaly_type != "incomplete_plan"
-            ]
+            anomalies = [a for a in anomalies if a.anomaly_type != "incomplete_plan"]
             anomalies.append(
                 AuditAnomaly(
                     anomaly_type="verification_impossible",
@@ -254,7 +255,12 @@ class FinishNode(BaseNode):
             # 修正指令必须是监察者实际给出的理由；无理由的撤回不构成可执行指令，
             # 不硬编兜底文案，直接升级 Supervisor 决策。
             correction = state.audit_reason or audit_result.meta.get("reason")
-            if correctable and correction and retry_count < 2 and iteration_count < max_steps:
+            if (
+                correctable
+                and correction
+                and retry_count < 2
+                and iteration_count < max_steps
+            ):
                 correction_msg = SystemMessage(
                     content=render_template(
                         "core/engine/fragments/auditor_correction.j2",

@@ -216,9 +216,6 @@ class VisionLLMFactory:
 
 
 # Convenience functions
-def get_vision_llm(model_name: str | None = None, **kwargs) -> Any:
-    """Get a default Vision LLM instance (sync)."""
-    return VisionLLMFactory.create_vision_llm(model_name=model_name, **kwargs)
 
 
 async def get_vision_llm_async(model_name: str | None = None, **kwargs) -> Any:

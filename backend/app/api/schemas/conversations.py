@@ -38,10 +38,6 @@ class ConversationSearchResult(DynamicBaseModel):
     match_snippet: str | None = None
 
 
-class RenameRequest(DynamicBaseModel):
-    title: str
-
-
 class ConversationUpdateRequest(DynamicBaseModel):
     title: str | None = None
     is_pinned: bool | None = None
@@ -96,12 +92,6 @@ class RewindResponse(BaseAPIResponse):
     thread_id: str
     removed_count: int = 0
     files_reverted: int = 0
-
-
-class ConversationRenameResponse(BaseAPIResponse):
-    status: str
-    thread_id: str
-    title: str
 
 
 class ConversationDeleteResponse(BaseAPIResponse):

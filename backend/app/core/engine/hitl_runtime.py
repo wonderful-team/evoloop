@@ -103,9 +103,7 @@ class HitlEngineRuntime:
                     status=HITLRequestStatus.COMPLETED.value,
                     message_id=msg_id,
                 )
-                publisher = MessagePublisher(
-                    thread_id=thread_id, project_id=project_id
-                )
+                publisher = MessagePublisher(thread_id=thread_id, project_id=project_id)
                 await publisher.publish(block)
         await repo.update_tool_result_by_tool_call_id(tool_call_id, final_result)
 

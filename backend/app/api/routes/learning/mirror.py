@@ -30,7 +30,7 @@ from app.core.learning.trace.repository import trace_repository
 from app.infrastructure.database import session_scope
 from app.infrastructure.drivers.adb import adb_driver
 
-from ._shared import _active_sessions
+from .shared import _active_sessions
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

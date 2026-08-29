@@ -238,7 +238,9 @@ def is_binary(path: str) -> bool:
                     return True
                 # Check for high ratio of non-printable characters
                 if len(chunk) > 0:
-                    non_printable = sum(1 for b in chunk if b < 32 and b not in (9, 10, 13))
+                    non_printable = sum(
+                        1 for b in chunk if b < 32 and b not in (9, 10, 13)
+                    )
                     if non_printable / len(chunk) > 0.3:
                         return True
         except OSError:

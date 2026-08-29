@@ -260,14 +260,6 @@ class EvoCloudManager:
                 return list(self._projects_cache)
             return []
 
-    async def get_project_by_id(self, project_id: int) -> EvoCloudProjectSummary | None:
-        """Get project details by numeric ID using cached data."""
-        projects = await self.scan_projects()
-        for p in projects:
-            if p.get("id") == project_id:
-                return p
-        return None
-
 
 # Global Instance
 evocloud_manager = EvoCloudManager()

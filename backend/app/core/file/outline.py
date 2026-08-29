@@ -9,54 +9,18 @@ use app.domain.codebase.indexing instead.
 import ast
 import logging
 import os
-import re
 
+from app.core.file.constants import OUTLINE_MAX_ENTRIES, OUTLINE_PATTERNS
 from app.core.file.schemas import FilePreview, FileStats, OutlineEntry
 
 from .io import detect_encoding
 
 logger = logging.getLogger(__name__)
 
-# Language-specific patterns for lightweight parsing
-OUTLINE_PATTERNS = {
-    "py": {
-        "class": re.compile(r"^class\s+(\w+)"),
-        "function": re.compile(r"^(?:async\s+)?def\s+(\w+)"),
-    },
-    "js": {
-        "class": re.compile(r"^class\s+(\w+)"),
-        "function": re.compile(r"^(?:async\s+)?(?:function\s+)?(\w+)\s*\("),
-        "method": re.compile(r"^(\w+)\s*:\s*(?:async\s+)?\("),
-    },
-    "ts": {
-        "class": re.compile(r"^class\s+(\w+)"),
-        "interface": re.compile(r"^interface\s+(\w+)"),
-        "function": re.compile(r"^(?:async\s+)?(?:function\s+)?(\w+)\s*[<(]"),
-        "method": re.compile(r"^(\w+)\s*\??\s*:\s*(?:async\s+)?\("),
-    },
-    "go": {
-        "function": re.compile(r"^func\s+(?:\([^)]+\)\s+)?(\w+)"),
-        "struct": re.compile(r"^type\s+(\w+)\s+struct"),
-        "interface": re.compile(r"^type\s+(\w+)\s+interface"),
-    },
-    "java": {
-        "class": re.compile(r"^(?:public\s+|private\s+|protected\s+)?class\s+(\w+)"),
-        "method": re.compile(r"^(?:public\s+|private\s+|protected\s+)?(?:static\s+)?\w+\s+(\w+)\s*\("),
-    },
-    "cpp": {
-        "class": re.compile(r"^class\s+(\w+)"),
-        "struct": re.compile(r"^struct\s+(\w+)"),
-        "function": re.compile(r"^\w+\s+\*?\s*(\w+)\s*\([^)]*\)\s*\{"),
-    },
-    "h": {
-        "class": re.compile(r"^class\s+(\w+)"),
-        "struct": re.compile(r"^struct\s+(\w+)"),
-        "function": re.compile(r"^\w+\s+\*?\s*(\w+)\s*\("),
-    },
-}
 
-
-def get_file_outline(file_path: str, max_entries: int = 100) -> list[OutlineEntry]:
+def get_file_outline(
+    file_path: str, max_entries: int = OUTLINE_MAX_ENTRIES
+) -> list[OutlineEntry]:
     """
     Extract structural outline from code files using lightweight parsing.
 
@@ -91,7 +55,11 @@ def get_file_outline(file_path: str, max_entries: int = 100) -> list[OutlineEntr
                     break
 
                 stripped = line.strip()
-                if not stripped or stripped.startswith("#") or stripped.startswith("//"):
+                if (
+                    not stripped
+                    or stripped.startswith("#")
+                    or stripped.startswith("//")
+                ):
                     continue
 
                 indent = len(line) - len(line.lstrip())
@@ -102,10 +70,7 @@ def get_file_outline(file_path: str, max_entries: int = 100) -> list[OutlineEntr
                         name = match.group(1)
                         outline.append(
                             OutlineEntry(
-                                type=entry_type,
-                                name=name,
-                                line=line_num,
-                                indent=indent
+                                type=entry_type, name=name, line=line_num, indent=indent
                             )
                         )
                         break
@@ -116,7 +81,9 @@ def get_file_outline(file_path: str, max_entries: int = 100) -> list[OutlineEntr
     return outline
 
 
-def _get_python_outline_ast(file_path: str, max_entries: int = 100) -> list[dict]:
+def _get_python_outline_ast(
+    file_path: str, max_entries: int = OUTLINE_MAX_ENTRIES
+) -> list[dict]:
     """
     Extract outline from Python file using AST (most accurate).
 
@@ -146,10 +113,7 @@ def _get_python_outline_ast(file_path: str, max_entries: int = 100) -> list[dict
                 indent = _get_line_indent(lines, line_num)
                 outline.append(
                     OutlineEntry(
-                        type="class",
-                        name=node.name,
-                        line=line_num,
-                        indent=indent
+                        type="class", name=node.name, line=line_num, indent=indent
                     )
                 )
 
@@ -191,10 +155,7 @@ def _get_python_outline_ast(file_path: str, max_entries: int = 100) -> list[dict
                 indent = _get_line_indent(lines, line_num)
                 outline.append(
                     OutlineEntry(
-                        type="function",
-                        name=node.name,
-                        line=line_num,
-                        indent=indent
+                        type="function", name=node.name, line=line_num, indent=indent
                     )
                 )
 
@@ -218,7 +179,9 @@ def _get_line_indent(lines: list[str], line_num: int) -> int:
     return len(line) - len(line.lstrip())
 
 
-def get_large_file_preview(file_path: str, context_lines: int = 5, max_preview_lines: int = 100) -> FilePreview:
+def get_large_file_preview(
+    file_path: str, context_lines: int = 5, max_preview_lines: int = 100
+) -> FilePreview:
     """
     Get a preview of a large file with structural outline and sample content.
 
@@ -248,10 +211,12 @@ def get_large_file_preview(file_path: str, context_lines: int = 5, max_preview_l
     # Add context around outline entries
     for entry in outline[:20]:  # Top 20 outline items
         line = entry["line"]
-        preview_line_numbers.update(range(
-            max(1, line - context_lines),
-            min(info.total_lines + 1, line + context_lines + 1)
-        ))
+        preview_line_numbers.update(
+            range(
+                max(1, line - context_lines),
+                min(info.total_lines + 1, line + context_lines + 1),
+            )
+        )
 
     # Sort and limit preview lines
     sorted_lines = sorted(preview_line_numbers)
@@ -263,7 +228,9 @@ def get_large_file_preview(file_path: str, context_lines: int = 5, max_preview_l
     preview_content = ""
     last_printed = 0
 
-    result = read_file(file_path, start_line=1, end_line=sorted_lines[-1] if sorted_lines else 1)
+    result = read_file(
+        file_path, start_line=1, end_line=sorted_lines[-1] if sorted_lines else 1
+    )
     if not result.success:
         return FilePreview(
             stats=FileStats(
@@ -286,7 +253,9 @@ def get_large_file_preview(file_path: str, context_lines: int = 5, max_preview_l
 
         # Detect gaps
         if last_printed and line_num > last_printed + 1:
-            preview_content += f"     ... ({line_num - last_printed - 1} lines omitted) ...\n"
+            preview_content += (
+                f"     ... ({line_num - last_printed - 1} lines omitted) ...\n"
+            )
 
         line_content = all_lines[line_num - 1]
         preview_content += f"{line_num:4d}: {line_content}\n"

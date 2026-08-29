@@ -18,6 +18,7 @@ from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
 from app.core.engine.message.native_classes import BaseMessage
 from app.core.file import compute_sha256
+from app.core.memory import constants as memory_constants
 from app.core.memory.config import MemoryConfig
 from app.core.memory.interfaces import IShortTermMemory
 from app.core.memory.models import (
@@ -45,8 +46,6 @@ class MemoryManager:
     - Extraction: Automatic memory creation
     - Retrieval: Smart memory selection
     """
-
-    MAINTENANCE_THRESHOLD = 50  # Only run pruning/consolidation when library reaches this scale
 
     def __init__(
         self,
@@ -160,7 +159,9 @@ class MemoryManager:
         )
         await self.save_memory(entry)
 
-    async def get_merged_preferences(self, member_id: int, project_id: int | None = None) -> str:
+    async def get_merged_preferences(
+        self, member_id: int, project_id: int | None = None
+    ) -> str:
         """Get merged preferences formatted for LLM context."""
         memories = await self.search_memories(
             query="preference",
@@ -179,7 +180,9 @@ class MemoryManager:
             if "preference" in mem.tags:
                 lines.append(f"- {mem.description}")
 
-        return "\n".join(lines) if len(lines) > 1 else "No specific preferences recorded."
+        return (
+            "\n".join(lines) if len(lines) > 1 else "No specific preferences recorded."
+        )
 
     # ========================================================================
     # Knowledge & Concepts (Unified Facade)
@@ -233,7 +236,7 @@ class MemoryManager:
         self,
         query: str,
         project_id: int | None = None,
-        limit: int = 10,
+        limit: int = memory_constants.DEFAULT_SEARCH_LIMIT,
         member_id: int = 0,
     ) -> list[Concept]:
         """
@@ -260,7 +263,7 @@ class MemoryManager:
         self,
         query: str,
         project_id: int | None = None,
-        limit: int = 10,
+        limit: int = memory_constants.DEFAULT_SEARCH_LIMIT,
         member_id: int = 0,
     ) -> list[dict]:
         """
@@ -281,13 +284,15 @@ class MemoryManager:
         self,
         concept_name: str,
         project_id: int | None = None,
-        limit: int = 10,
+        limit: int = memory_constants.DEFAULT_SEARCH_LIMIT,
         member_id: int = 0,
     ) -> list[dict]:
         """Find all episodes linked to a specific concept."""
         return []
 
-    async def get_concept_episode_counts_batch(self, project_id: int | None = None, member_id: int = 0) -> dict[str, int]:
+    async def get_concept_episode_counts_batch(
+        self, project_id: int | None = None, member_id: int = 0
+    ) -> dict[str, int]:
         """Efficiently get counts for all concepts in one go."""
         return {}
 
@@ -348,19 +353,6 @@ class MemoryManager:
             for r in results
         ]
 
-    async def retrieve_experience(self, goal: str, project_id: int, top_k: int = 3, member_id: int = 0) -> str:
-        """Find past episodes similar to the current goal."""
-        episodes = await self.search_episodes(goal, project_id, limit=top_k, member_id=member_id)
-        if not episodes:
-            return ""
-
-        lines = ["### Past Experiences:", ""]
-        for ep in episodes:
-            lines.append(f"- **Goal**: {ep['goal']}")
-            lines.append(f"  **Result**: {ep['result'][:200]}...")
-            lines.append("")
-        return "\n".join(lines)
-
     async def get_directory_info(self, project_id: int, path: str) -> dict:
         """Retrieve architectural summary for a directory."""
         return {
@@ -378,7 +370,9 @@ class MemoryManager:
         """Save a memory entry."""
         await self._storage.save(entry)
 
-    async def ingest_project_profile(self, project_id: int, content: str, member_id: int = 0) -> None:
+    async def ingest_project_profile(
+        self, project_id: int, content: str, member_id: int = 0
+    ) -> None:
         """
         Ingest PROJECT.md content into the memory system as a PROJECT-type entry.
 
@@ -405,7 +399,9 @@ class MemoryManager:
             tags=["project_profile", "auto_ingested"],
         )
         await self._storage.save(entry)
-        logger.info(f"[MemoryManager] Ingested PROJECT.md for project {project_id} ({len(content)} chars)")
+        logger.info(
+            f"[MemoryManager] Ingested PROJECT.md for project {project_id} ({len(content)} chars)"
+        )
 
     async def delete_memory(self, entry_id: str) -> bool:
         """Permanently delete a memory entry by ID."""
@@ -434,7 +430,7 @@ class MemoryManager:
         privacy: PrivacyLevel | None = None,
         project_id: int | None = None,
         filters: dict[str, Any] | None = None,
-        limit: int = 10,
+        limit: int = memory_constants.DEFAULT_SEARCH_LIMIT,
         member_id: int = 0,
     ) -> list[MemoryEntry]:
         """
@@ -461,7 +457,9 @@ class MemoryManager:
             member_id=member_id,
         )
 
-    async def find_by_hash(self, content_hash: str, project_id: int | None = None) -> MemoryEntry | None:
+    async def find_by_hash(
+        self, content_hash: str, project_id: int | None = None
+    ) -> MemoryEntry | None:
         """
         Find a memory entry by its content hash.
 
@@ -514,7 +512,7 @@ class MemoryManager:
     async def search_cold_memory(
         self,
         query: str,
-        max_results: int = 5,
+        max_results: int = memory_constants.DEFAULT_RETRIEVAL_RESULTS,
     ) -> list[MemoryEntry]:
         """
         Search Tier 2 cold memory (full storage).
@@ -594,23 +592,6 @@ class MemoryManager:
             member_id=member_id,
         )
 
-    async def get_recent_memories(
-        self,
-        count: int = 5,
-        project_id: int | None = None,
-    ) -> list[MemoryEntry]:
-        """
-        Get most recently updated memories.
-
-        Args:
-            count: Number of entries to return
-            project_id: Optional project filter
-
-        Returns:
-            List of recent memory entries
-        """
-        return await self._storage.get_recent(count, project_id=project_id)
-
     async def deduplicate_checkpoints(
         self, dry_run: bool = True
     ) -> "CheckpointDedupResult":
@@ -629,7 +610,9 @@ class MemoryManager:
         if hasattr(self._storage, "deduplicate_checkpoints"):
             return await self._storage.deduplicate_checkpoints(dry_run)
         else:
-            logger.warning("[MemoryManager] deduplicate_checkpoints not supported by current storage backend")
+            logger.warning(
+                "[MemoryManager] deduplicate_checkpoints not supported by current storage backend"
+            )
             return CheckpointDedupResult(
                 dry_run=dry_run,
                 total_checkpoints=0,
@@ -648,7 +631,9 @@ class MemoryManager:
     #   AuditService → EXTRACTION_REQUESTED event → subscribers.py → save_memory()
     # The AutoMemoryExtractor (auto_extraction.py) has been removed as dead code.
 
-    async def run_maintenance(self, project_id: int | None = None, force: bool = False) -> dict:
+    async def run_maintenance(
+        self, project_id: int | None = None, force: bool = False
+    ) -> dict:
         """
         Run system maintenance: Pruning and Consolidation.
 
@@ -657,11 +642,15 @@ class MemoryManager:
         from datetime import datetime
 
         # Check threshold
-        memories = await self.list_memories(limit=self.MAINTENANCE_THRESHOLD + 5)
+        memories = await self.list_memories(
+            limit=memory_constants.MAINTENANCE_THRESHOLD + 5
+        )
         count = len(memories)
 
-        if count < self.MAINTENANCE_THRESHOLD and not force:
-            logger.info(f"[MemoryManager] Skipping maintenance: current count {count} < threshold {self.MAINTENANCE_THRESHOLD}")
+        if count < memory_constants.MAINTENANCE_THRESHOLD and not force:
+            logger.info(
+                f"[MemoryManager] Skipping maintenance: current count {count} < threshold {memory_constants.MAINTENANCE_THRESHOLD}"
+            )
             return {"status": "skipped", "count": count}
 
         logger.info(f"[MemoryManager] Starting governance cycle (count: {count})")
@@ -686,18 +675,3 @@ class MemoryManager:
             "logs": pruning_logs,
             "timestamp": datetime.utcnow().isoformat(),
         }
-
-    async def find_relevant_memories(
-        self,
-        query: str,
-        context: dict[str, Any] | None = None,
-        max_results: int = 5,
-    ) -> list[MemoryEntry]:
-        """
-        Find memories relevant to the current query.
-        """
-        return await self.retrieval.find_relevant(
-            query=query,
-            context=context,
-            max_results=max_results,
-        )

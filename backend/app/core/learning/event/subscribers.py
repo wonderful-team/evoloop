@@ -34,7 +34,9 @@ class TraceRewindSubscriber:
         run_ids = list(event.affected_run_ids or [])
 
         if not message_ids and not run_ids:
-            logger.debug(f"[TraceRewindSubscriber] No affected message/run IDs for thread {event.thread_id}; skipping.")
+            logger.debug(
+                f"[TraceRewindSubscriber] No affected message/run IDs for thread {event.thread_id}; skipping."
+            )
             return
 
         async with session_scope() as session:
@@ -48,7 +50,9 @@ class TraceRewindSubscriber:
             )
 
         event.results["trace_events"] = count
-        logger.info(f"[TraceRewindSubscriber] Deleted {count} trace events for thread {event.thread_id}")
+        logger.info(
+            f"[TraceRewindSubscriber] Deleted {count} trace events for thread {event.thread_id}"
+        )
 
 
 @event_register()

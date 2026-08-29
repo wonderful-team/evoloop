@@ -191,7 +191,8 @@ async def update_macro(
             confirmed = await confirm_macro(int(macro_id))
             script_note = (
                 " New script dry-run verified and re-activated."
-                if confirmed else " Activation failed after rewrite; the macro is inactive — report this."
+                if confirmed
+                else " Activation failed after rewrite; the macro is inactive — report this."
             )
 
         updated = ", ".join(fields.keys())

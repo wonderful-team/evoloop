@@ -71,39 +71,11 @@ class Project:
             member_id=repo.member_id,
         )
 
-    @classmethod
-    def from_cloud_dict(cls, data: dict[str, Any]) -> Project:
-        """Construct from an EvoCloud project dict."""
-        return cls(
-            project_id=data.get("project_id"),
-            cloud_project_id=data.get("project_id"),
-            path=data.get("external_path"),
-            name=data.get("name"),
-            sync_status="SYNCED" if data.get("project_id") else "DETECTED",
-            extra={k: v for k, v in data.items() if k not in ("project_id", "external_path", "name")},
-        )
-
     # --- Predicates ---
-
-    @property
-    def is_synced(self) -> bool:
-        return self.sync_status == "SYNCED"
 
     @property
     def is_ignored(self) -> bool:
         return self.sync_status == "IGNORED"
-
-    @property
-    def is_detected(self) -> bool:
-        return self.sync_status == "DETECTED"
-
-    @property
-    def is_disconnected(self) -> bool:
-        return self.sync_status == "DISCONNECTED"
-
-    @property
-    def has_cloud(self) -> bool:
-        return self.cloud_project_id is not None or self.project_id is not None
 
     def __fspath__(self) -> str:
         """Support os.path functions — returns the local path."""

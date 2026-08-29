@@ -30,11 +30,11 @@ class MessageClassifier:
     # 内部 JSON 响应的特征键（用于识别内部 LLM 响应）
     _INTERNAL_JSON_KEYS = {
         "selected_indices",  # memory selection
-        "reasoning",         # memory selection reasoning
-        "match_found",       # skill discovery
-        "skill_id",          # skill reference
-        "subtasks",          # task decomposition
-        "can_parallelize",   # task analysis
+        "reasoning",  # memory selection reasoning
+        "match_found",  # skill discovery
+        "skill_id",  # skill reference
+        "subtasks",  # task decomposition
+        "can_parallelize",  # task analysis
     }
 
     @classmethod
@@ -69,7 +69,9 @@ class MessageClassifier:
             error_type = metadata.get("error_type", "")
 
             # Skip flags (Don't save to DB, but keep streaming if needed)
-            if metadata.get("skip_persistence") or metadata.get("skip_message_persistence"):
+            if metadata.get("skip_persistence") or metadata.get(
+                "skip_message_persistence"
+            ):
                 return MessageCategory.TRANSIENT_MESSAGE
 
             # source 标记优先于 is_error 推断
@@ -161,7 +163,9 @@ class MessageClassifier:
             MessageCategory.TOOL_OUTPUT 或 MessageCategory.INTERNAL_TOOL_CALL
         """
         # Check metadata from tool result
-        if metadata and (metadata.get("skip_persistence") or metadata.get("skip_message_persistence")):
+        if metadata and (
+            metadata.get("skip_persistence") or metadata.get("skip_message_persistence")
+        ):
             return MessageCategory.TRANSIENT_MESSAGE
 
         tool_metadata = get_tool_metadata(tool_name)
@@ -170,19 +174,6 @@ class MessageClassifier:
             return MessageCategory.INTERNAL_TOOL_CALL
 
         return MessageCategory.TOOL_OUTPUT
-
-    @classmethod
-    def classify_user_message(
-        cls,
-        content: str,
-        metadata: dict | None = None,
-    ) -> MessageCategory:
-        """
-        分类用户消息
-
-        目前用户消息只有一种分类，但保留扩展性
-        """
-        return MessageCategory.USER
 
     @staticmethod
     def _has_hidden_audit_tags(content: str) -> bool:

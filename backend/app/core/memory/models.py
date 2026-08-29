@@ -153,7 +153,9 @@ class MemoryEntry(DynamicBaseModel):
         try:
             frontmatter = safe_yaml_loads(parts[1])
         except YAMLError as e:
-            raise ValueError(f"Invalid YAML frontmatter in {file_path or 'unknown'}: {e}")
+            raise ValueError(
+                f"Invalid YAML frontmatter in {file_path or 'unknown'}: {e}"
+            )
 
         if not isinstance(frontmatter, dict):
             raise ValueError(f"Frontmatter must be a dict in {file_path or 'unknown'}")
@@ -165,7 +167,9 @@ class MemoryEntry(DynamicBaseModel):
         return cls.model_validate(data)
 
     @classmethod
-    def _from_content_only(cls, text: str, file_path: str | None = None) -> "MemoryEntry":
+    def _from_content_only(
+        cls, text: str, file_path: str | None = None
+    ) -> "MemoryEntry":
         """Create entry from content only (infer metadata from path)."""
         mem_type = MemoryType.PROJECT
         privacy = PrivacyLevel.PRIVATE

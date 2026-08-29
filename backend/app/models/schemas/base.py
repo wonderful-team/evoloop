@@ -5,27 +5,11 @@ from datetime import datetime
 from pydantic import BaseModel
 
 
-class NamedEntity(BaseModel):
-    """Base for entities with id, name, and description."""
-
-    id: str
-    name: str
-    description: str = ""
-
-
 class TimestampedEntity(BaseModel):
     """Base for entities with created_at and updated_at."""
 
     created_at: datetime | str | None = None
     updated_at: datetime | str | None = None
-
-
-class ProgressTrackable(BaseModel):
-    """Base for task/step/execution models that track status and progress."""
-
-    status: str
-    progress: int = 0
-    result: str | None = None
 
 
 class ScopedRequest(BaseModel):
