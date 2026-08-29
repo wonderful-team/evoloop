@@ -7,21 +7,20 @@ write_app_map, then explicitly triggers macro synthesis.
 
 import logging
 import os
-import time
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 
 from app.api.deps import CurrentUserOptional, TokenDep
 from app.core.atlas.source import persistence
-from app.core.atlas.source.event import publish_app_map_generate_completed
 from app.core.engine.background_agent import run_agent_background
 from app.core.engine.dispatch import dispatch_agent_run
 from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket
-from app.core.execution.macro import list_macros
+from app.core.learning.macro import list_macros
 from app.core.learning.skills.discovery import skill_discovery
 from app.core.project.utils import get_project_path
 from app.core.tools.registry import get_tool_bundle
+from app.utils.id import unique_id
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +30,6 @@ _SURVEY_TOOLS = [
     "write_app_map",
     "read_app_map",
     "list_app_maps",
-    "generate_macros_from_app_map",
     "create_plan",
     "update_step_status",
 ]
@@ -42,8 +40,8 @@ _OUTPUT_CONTRACT = (
     "risk_tier (ui|data|money); (2) every action must cite controller+line and "
     "every element page+line so the validator can spot-check them against the "
     "real source — fabricated entries are rejected on write; (3) money-write "
-    "fields accept absolute values only; (4) write the map via write_app_map, "
-    "self-review completeness, then call generate_macros_from_app_map."
+    "fields accept absolute values only; (4) write the map via write_app_map "
+    "and self-review completeness."
 )
 
 
@@ -83,7 +81,7 @@ async def generate_app_map(
     if not req.entity:
         raise HTTPException(400, "entity is required")
 
-    thread_id = f"appmap-gen-{req.project_id}-{req.entity}-{int(time.time())}"
+    thread_id = unique_id("appmap-gen", req.project_id, req.entity)
 
     skill = await _ensure_app_map_analysis_skill()
     if not skill:
@@ -92,7 +90,7 @@ async def generate_app_map(
     message = (
         f"**Mission Goal**: Survey the project at {path} and produce a complete "
         f"AppMap for the '{req.entity}' entity. Follow the AppMap Analysis SOP, "
-        "then call write_app_map and generate_macros_from_app_map."
+        "then call write_app_map."
     )
 
     from app.core.context import thread_context_store
@@ -142,25 +140,6 @@ async def generate_app_map(
     return TaskAcceptedResponse(status="accepted", task_id=thread_id)
 
 
-@router.post("/app-maps/{app_map_id}/generate-macros", response_model=TaskAcceptedResponse)
-async def generate_macros(
-    app_map_id: int,
-    _token: TokenDep,
-) -> TaskAcceptedResponse:
-    app_map = await persistence.get_app_map(app_map_id)
-    if app_map is None:
-        raise HTTPException(404, f"AppMap #{app_map_id} not found")
-    if app_map.status != "active":
-        raise HTTPException(400, f"AppMap #{app_map_id} is {app_map.status}")
-
-    await publish_app_map_generate_completed(
-        app_map_id=app_map_id,
-        project_id=app_map.project_id,
-        member_id=app_map.member_id,
-    )
-    return TaskAcceptedResponse(status="accepted", task_id=f"macro-synth-{app_map_id}")
-
-
 @router.get("/app-maps")
 async def list_app_maps(project_id: int, _token: TokenDep):
 
@@ -199,10 +178,9 @@ async def train_operation_maps(
     bg_tasks: BackgroundTasks,
     _token: TokenDep,
 ) -> TaskAcceptedResponse:
-    """Train a project's operation library (AppMap seed + runtime verify).
+    """Train a project's operation library (AppMap seed).
 
-    Dispatched as a background task: phase 1 = indexing -> AppMap (v2.0
-    pipeline); phase 2 = runtime verify + repair + macro re-synthesis (v3.1).
+    Dispatched as a background task: indexing -> AppMap (deterministic pipeline).
     """
     from app.core.atlas.source.train_orchestrator import train_project
 
@@ -210,12 +188,11 @@ async def train_operation_maps(
     if not path:
         raise HTTPException(404, "Project not found or has no local path")
 
-    task_id = f"operation-train-{req.project_id}-{int(time.time())}"
+    task_id = unique_id("operation-train", req.project_id)
     bg_tasks.add_task(
         train_project,
         project_id=req.project_id,
         entity=req.entity,
-        base_url=req.base_url,
         skip_static_seed=req.skip_static_seed,
     )
     logger.info(

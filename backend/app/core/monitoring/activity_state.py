@@ -11,6 +11,7 @@ from sqlalchemy import func, select
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models import AgentActivity, Message
+from app.models.subagent import SubagentRun
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,7 @@ class ActivityState(DynamicBaseModel):
     active_memories: list[dict] = Field(default_factory=list)
     human_request: dict | None = None
     final_outcome: str = ""
+    subagents: list[dict] = Field(default_factory=list)
 
 
 class ActivityStateService:
@@ -181,6 +183,7 @@ class ActivityStateService:
                 )
 
                 artifacts_raw = json.loads(activity.artifacts_json or "[]")
+                subagents = await self._load_subagents(session, thread_id)
                 return ActivityState(
                     status=activity.status,
                     main_goal=activity.main_goal,
@@ -192,10 +195,39 @@ class ActivityStateService:
                     active_memories=json.loads(activity.active_memories_json or "[]"),
                     human_request=json.loads(activity.human_request_json) if activity.human_request_json else None,
                     final_outcome=activity.final_outcome,
+                    subagents=subagents,
                 )
             except (json.JSONDecodeError, ValueError) as e:
                 logger.exception(f"Failed to parse activity state for {thread_id}: {e}")
                 return ActivityState(status="error")
+
+    @staticmethod
+    async def _load_subagents(session: Any, thread_id: str) -> list[dict]:
+        """Recover subagent status from the SubagentRun table for the right panel.
+
+        Frontend restores the live subagent panel from this on conversation load /
+        reconnect (SSE lifecycle events only cover the current connection).
+        """
+        stmt = (
+            select(SubagentRun)
+            .where(SubagentRun.parent_thread_id == thread_id)
+            .order_by(SubagentRun.started_at)
+        )
+        runs = (await session.execute(stmt)).scalars().all()
+        subagents = []
+        for r in runs:
+            subagent_id = r.id.split("-sub-")[-1] if "-sub-" in r.id else r.id
+            subagents.append(
+                {
+                    "subagent_id": subagent_id,
+                    "subagent_thread_id": r.thread_id,
+                    "instruction": r.instruction,
+                    "status": r.status,
+                    "result": r.result or "",
+                    "error": r.error,
+                }
+            )
+        return subagents
 
     async def update_field(self, thread_id: str, field: str, value: Any) -> bool:
         """Update a single field in the activity state."""

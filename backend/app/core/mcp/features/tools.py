@@ -24,11 +24,27 @@ class McpToolsFeature(McpFeature):
         self._tools: list = []
         self._schemas: dict[str, Any] = {}
         self._native_tools: list[EvoLoopTool] = []
+        self._ensure_alive: Any = None
+        self._ensure_alive_force: Any = None
 
-    async def initialize(self, session: ClientSession, server_name: str) -> None:
-        """Initialize by fetching tools from server."""
+    async def initialize(
+        self,
+        session: ClientSession,
+        server_name: str,
+        ensure_alive: Any | None = None,
+        ensure_alive_force: Any | None = None,
+    ) -> None:
+        """Initialize by fetching tools from server.
+
+        ``ensure_alive``: 可选协程（server_name）→ 活会话。工具调用前先调用它，
+        会话失联时自动重连，避免打到僵尸会话上挂死。
+        ``ensure_alive_force``: 可选协程（server_name）→ 强制重连后的活会话。
+        工具调用失败时用它强制重连并重试一次（处理"ping 通但会话已退化"）。
+        """
         self._session = session
         self._server_name = server_name
+        self._ensure_alive = ensure_alive
+        self._ensure_alive_force = ensure_alive_force
 
         try:
             result = await session.list_tools()
@@ -76,9 +92,26 @@ class McpToolsFeature(McpFeature):
         server_name = self._server_name
 
         for tool in self._tools:
+            feature = self
 
             async def _tool_func(*_args, tool_name: str = tool.name, **kwargs) -> Any:
-                return await session.call_tool(tool_name, arguments=kwargs)
+                # 会话保活检查：失联自动重连，用活会话调用（防僵尸会话挂死）。
+                session = feature._session
+                if feature._ensure_alive is not None:
+                    session = await feature._ensure_alive(feature._server_name)
+                if session is None:
+                    raise RuntimeError(f"MCP server '{feature._server_name}' 不可用")
+                try:
+                    return await session.call_tool(tool_name, arguments=kwargs)
+                except Exception:
+                    # call 失败可能发生在"ping 通但会话已退化"的僵尸会话上
+                    # （远程空闲关闭 SSE 后，ping 偶可成功、实际调用挂/失败）。
+                    # 强制重连一次并重试，避免一直打到退化会话上拉不到数据。
+                    if feature._ensure_alive is not None:
+                        fresh = await feature._ensure_alive_force(feature._server_name)
+                        if fresh is not None and fresh is not session:
+                            return await fresh.call_tool(tool_name, arguments=kwargs)
+                    raise
 
             args_schema = self._create_args_schema(tool.name, tool.inputSchema)
             formatted_name = format_mcp_tool_name(server_name, tool.name)

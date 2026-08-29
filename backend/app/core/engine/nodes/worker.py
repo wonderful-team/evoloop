@@ -121,6 +121,13 @@ class WorkerNode(BaseAgentNode):
 
     async def get_tools(self, state: AgentState) -> list[Any]:
         tools = await tool_manager.get_node_tools("worker", state)
+        # R5: subagent 执行体排除委派工具（A2A 跨机 + route_to 本机委派），
+        # 防止委派递归爆炸；HITL 工具（ask_human/request_authorization 等）不排除
+        # ——走 5.5 HITL 透传。
+        # ⚠ 不在 _build_child_ticket 用 agent_config.tools 排除（那是追加语义，不生效）。
+        if state.ticket and state.ticket.ticket_type == "subagent":
+            _SUBAGENT_EXCLUDED_TOOLS = {"send_agent_task", "list_agents", "route_to"}
+            tools = [t for t in tools if t.name not in _SUBAGENT_EXCLUDED_TOOLS]
         tool_names = [t.name for t in tools]
         logger.info(f"[Worker] Loaded {len(tools)} tools: {tool_names}")
         return tools

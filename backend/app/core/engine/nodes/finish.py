@@ -8,6 +8,7 @@ import time
 
 from app.core.config import settings
 from app.core.engine.context_trimmer import ContextTrimmer, TrimTrigger
+from app.core.engine.message.native_classes import SystemMessage
 from app.core.engine.nodes.base import BaseNode
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.services.audit_service import AuditResult, AuditService
@@ -16,6 +17,8 @@ from app.core.engine.state.sub_schemas import AuditAnomaly, AuditInputData, Prog
 from app.core.events.schemas import SessionCompletedData
 from app.infrastructure.database import session_scope
 from app.models import AgentActivity
+from app.utils.template import render_template
+from app.utils.time import elapsed_ms
 
 logger = logging.getLogger(__name__)
 
@@ -219,7 +222,11 @@ class FinishNode(BaseNode):
         is_shadow_mode = state.shadow_audit or False
         tool_history = state.tool_history or []
 
-        await self._prepare_audit_input(state)
+        # 审计输入只在真正要审计时构建（needs_audit=false 直接以最终回复收尾，
+        # 不必为不执行的审计准备结构化输入）。
+        needs_audit = bool(state.ticket and state.ticket.needs_audit)
+        if needs_audit:
+            await self._prepare_audit_input(state)
 
         service = self._audit_service or AuditService()
         audit_result: AuditResult = await service.execute(
@@ -238,6 +245,33 @@ class FinishNode(BaseNode):
         )
 
         if final_outcome.upper() == "INCOMPLETE":
+            retry_count = state.audit_retry_count or 0
+            correctable = bool(
+                audit_result.meta.get("correctable") or state.audit_correctable
+            )
+            # Phase E3: correctable=true 且未超重试上限（≤2）→ 机器路由回 Worker
+            # 针对性修正（执行层闭环，Supervisor 不介入）。超限升级 Supervisor。
+            # 修正指令必须是监察者实际给出的理由；无理由的撤回不构成可执行指令，
+            # 不硬编兜底文案，直接升级 Supervisor 决策。
+            correction = state.audit_reason or audit_result.meta.get("reason")
+            if correctable and correction and retry_count < 2 and iteration_count < max_steps:
+                correction_msg = SystemMessage(
+                    content=render_template(
+                        "core/engine/fragments/auditor_correction.j2",
+                        correction=correction,
+                    )
+                )
+                logger.warning(
+                    f"[Finish] Verdict: INCOMPLETE + correctable. Routing back to "
+                    f"Worker (retry {retry_count + 1}/2)."
+                )
+                return StateUpdate(
+                    messages=messages + [correction_msg],
+                    next_node=RoutingTarget.WORKER,
+                    worker_outcome="incomplete",
+                    final_outcome=final_outcome,
+                    audit_retry_count=retry_count + 1,
+                )
             if iteration_count < max_steps:
                 logger.warning(
                     "[Finish] Verdict: INCOMPLETE. Routing back to Supervisor."
@@ -255,7 +289,7 @@ class FinishNode(BaseNode):
 
         state.audit_tier = "unified"
         state.summary = summary
-        total_duration = (time.time() - start_time) * 1000
+        total_duration = elapsed_ms(start_time)
 
         try:
             stop_ctx = HookContext(

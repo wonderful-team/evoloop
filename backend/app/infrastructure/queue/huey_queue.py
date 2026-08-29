@@ -295,8 +295,12 @@ class HueyTaskScheduler(TaskScheduler, SyncTaskMixin):
 
                 nest_asyncio.apply(loop)
                 return loop.run_until_complete(_execute())
-            else:
-                return loop.run_until_complete(_execute())
+            if loop.is_running():
+                # worker：事件循环由 bin/run_worker.py 的后台线程 run_forever 持续驱动。
+                # 用线程安全投递 + 阻塞等结果；不能 run_until_complete（loop 已在跑）。
+                future = asyncio.run_coroutine_threadsafe(_execute(), loop)
+                return future.result()
+            return loop.run_until_complete(_execute())
         except Exception as e:
             # Log the full exception for debugging
             error_msg = f"[Huey] Task execution failed: {func.__name__}: {type(e).__name__}: {e}"

@@ -24,11 +24,20 @@ class RoutingTarget(str, Enum):
     FLASH_BRAIN = "flash_brain"
     SUPERVISOR = "supervisor"
     SEQUENTIAL_WORKFLOW = "sequential_workflow"
+    SPAWN_SUBAGENTS = "spawn_subagents"
+    AGGREGATE_SUBAGENTS = "aggregate_subagents"
     END = "END"
 
 
 def route_worker_by_outcome(state: AgentState) -> str:
-    """Worker 的路由由执行结果决定，LLM 不参与。"""
+    """Worker 的路由由执行结果决定，LLM 不参与（session 与非 session 统一）。
+
+    - 成功 → finish：**是否审计**由 Finish/AuditService 按 `needs_audit` 判定
+      （默认 false 只呈现 worker 报告不审计；true 才走监察者完整验收）。
+      统一两条执行路径：session（rollout 结束直出报告）与非 session（图循环
+      worker→finish，Finish 无审计直出）行为一致，无额外 Supervisor 呈现轮。
+    - 失败/截断/错误 → supervisor（Supervisor 决策重试或换方案）。
+    """
     outcome = state.worker_outcome
     if outcome in ("truncated", "failed", "error"):
         return "supervisor"
@@ -61,6 +70,8 @@ def route_supervisor(state: AgentState) -> str:
             RoutingTarget.SUPERVISOR,
             RoutingTarget.SEQUENTIAL_WORKFLOW,
             RoutingTarget.END,
+            RoutingTarget.SPAWN_SUBAGENTS,
+            RoutingTarget.AGGREGATE_SUBAGENTS,
         }
 
         if next_node in terminal_targets:
@@ -86,6 +97,10 @@ def route_finish(state: AgentState) -> str:
     if state.next_node == RoutingTarget.SUPERVISOR:
         logger.info("[Router] Finish routing back to Supervisor (truncation recovery or explicit signal).")
         return RoutingTarget.SUPERVISOR
+    # Phase E3: 监察者驳回且 correctable → 回 Worker 针对性修正（执行层闭环）。
+    if state.next_node == RoutingTarget.WORKER:
+        logger.info("[Router] Finish routing back to Worker (auditor correctable redo).")
+        return RoutingTarget.WORKER
     # If FinishNode explicitly set next_node to END, respect its decision even if
     # blocked_by_hook is still True from a previous turn (prevents infinite loops
     # when Supervisor -> Chat -> Finish re-enters Finish after a historic block).

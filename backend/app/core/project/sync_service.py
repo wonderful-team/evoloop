@@ -332,6 +332,11 @@ class ProjectSyncService:
                         db_repo.sync_status = "SYNCED"
                         session.add(db_repo)
 
+                # 同步内存实例：第二个 session 更新的是另一实例，返回给调用方的
+                # repo 仍是 project_id=None，会导致 import 响应拿不到真实 PID。
+                repo.project_id = cloud_project_id
+                repo.sync_status = "SYNCED"
+
                 evocloud_manager.invalidate_projects_cache()
                 logger.info(f"[ProjectSync] Imported project synced to cloud (ID: {cloud_project_id})")
             else:

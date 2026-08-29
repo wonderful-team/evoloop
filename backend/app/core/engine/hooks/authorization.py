@@ -3,11 +3,13 @@ Authorization gate hook.
 
 Replaces the hard-coded sensitive_file_protection_gate with a project-configurable
 policy engine that escalates to HITL approval instead of blindly blocking.
+
+EXECUTION_MODE=docker 时，工作区外文件访问由沙箱容器隔离兜底，不再发起 HITL
+（项目 .evoloop 元数据与 project.json 策略仍强制生效）。
 """
 
 import logging
 import os
-import re
 from datetime import datetime, timezone
 
 from app.core.context.thread_store import thread_context_store
@@ -15,39 +17,13 @@ from app.core.engine.hooks.core import HookContext, HookEvent, HookResult, hook_
 from app.core.engine.hooks.schemas import ToolInput
 from app.core.engine.state.sub_schemas import PendingApproval
 from app.core.hitl.authorization import AuthorizationDecision, AuthorizationService
+from app.core.hitl.core import hitl_enabled
 from app.core.hitl.policies import AuthorizationPolicy
 from app.core.project.utils import get_project_path
-from app.core.security.path import is_path_safe, is_project_metadata_path
+from app.core.security.path import is_path_safe
 from app.i18n.service import i18n
 
 logger = logging.getLogger(__name__)
-
-
-def _path_contains_evoloop(tool_input: ToolInput | None) -> bool:
-    """Check if any path argument touches a project-local metadata directory.
-
-    The global EvoLoop app data directory (``~/.evoloop``) is explicitly allowed;
-    only ``.evoloop`` directories inside project workspaces are protected.
-    Also scans ``execute_command`` command text: shell 访问项目元数据同样禁止。
-    """
-    if tool_input is None:
-        return False
-    paths = []
-    if tool_input.path:
-        paths.append(tool_input.path)
-    if tool_input.args:
-        for key in (
-            "AbsolutePath",
-            "TargetFile",
-            "SearchPath",
-            "TargetDirectory",
-            "DirectoryPath",
-        ):
-            val = tool_input.args.get(key)
-            if val and isinstance(val, str):
-                paths.append(val)
-
-    return any(is_project_metadata_path(p) for p in paths)
 
 
 def _extract_path_from_input(tool_name: str, tool_input: ToolInput | None) -> tuple[str, str] | None:
@@ -92,16 +68,18 @@ async def authorization_gate(context: HookContext) -> HookResult:
     sensitive resource defined in the project's .evoloop/project.json, and the user
     has not already granted permission, it raises a HITL authorization request.
     """
-    if not context.project_id:
-        # Global mode: no project-specific authorization policies
-        return HookResult(success=True)
-
-    # Project metadata is always protected (no HITL escalation).
-    if _path_contains_evoloop(context.tool_input):
+    # Project metadata is always protected (no HITL escalation), 与项目/全局无关。
+    # 必须早于全局早退执行：否则全局模式（project_id 为空）下，execute_command
+    # 命令文本里的 .evoloop 引用将无人拦截（LocalSandbox 无 OS 隔离）。
+    if context.tool_input is not None and context.tool_input.touches_project_metadata():
         return HookResult(
             block=True,
             message=i18n.get("engine.authorization.metadata_access_prohibited"),
         )
+
+    if not context.project_id:
+        # Global mode: no project-specific authorization policies
+        return HookResult(success=True)
 
     auth_service = AuthorizationService(context.project_id)
     decision = await auth_service.evaluate(
@@ -175,6 +153,17 @@ async def authorization_gate(context: HookContext) -> HookResult:
                 )
 
     if decision.approved and not decision.requires_hitl:
+        return HookResult(success=True)
+
+    # EXECUTION_MODE=docker：所有 HITL 授权决策自动批准（沙箱隔离兜底）。
+    # 覆盖工作区外路径与 project.json 策略两路；元数据硬拦截（上方早退）不受影响。
+    # 判定单一出处：hitl_enabled()（hitl/core.py），避免与 _is_docker_mode 双答案漂移。
+    if decision.requires_hitl and not hitl_enabled():
+        logger.info(
+            "[AuthorizationGate] docker mode: auto-approving %s %s (sandbox isolation)",
+            decision.action,
+            decision.resource_path or "",
+        )
         return HookResult(success=True)
 
     if decision.requires_hitl and decision.policy is not None:

@@ -107,8 +107,7 @@ async def _persist_file_operation(
     )
 
 
-@shared_task(name="engine_persist_file_operation")  # type: ignore[reportCallIssue]
-async def persist_file_operation_task(
+async def _run_persist_file_operation(
     thread_id: str,
     message_id: str,
     file_path: str,
@@ -118,7 +117,11 @@ async def persist_file_operation_task(
     run_id: str | None = None,
     tool_call_id: str | None = None,
 ):
-    """Background task wrapper."""
+    """完整文件操作持久化：落库 + SSE 徽章 + 变更集事件。
+
+    供 ``persist_file_operation_task``（Celery/Huey 任务包装）与嵌入式模式
+    （``FileChangeTracker`` 进程内确定性调用）共用，保证两条路径功能一致。
+    """
     from sqlalchemy.orm import selectinload
 
     from app.core.engine.message.mapper import BlockMapper
@@ -172,6 +175,30 @@ async def persist_file_operation_task(
         )
     except Exception as e:
         logger.warning(f"[Task] Failed to publish changeset updated event: {e}", exc_info=True)
+
+
+@shared_task(name="engine_persist_file_operation")  # type: ignore[reportCallIssue]
+async def persist_file_operation_task(
+    thread_id: str,
+    message_id: str,
+    file_path: str,
+    operation: str,
+    diff_content: str,
+    original_content: str | None = None,
+    run_id: str | None = None,
+    tool_call_id: str | None = None,
+):
+    """Background task wrapper（完整逻辑见 ``_run_persist_file_operation``）。"""
+    await _run_persist_file_operation(
+        thread_id=thread_id,
+        message_id=message_id,
+        file_path=file_path,
+        operation=operation,
+        diff_content=diff_content,
+        original_content=original_content,
+        run_id=run_id,
+        tool_call_id=tool_call_id,
+    )
 
 
 @shared_task(name="engine_harvest_concepts")  # type: ignore[reportCallIssue]
@@ -306,18 +333,13 @@ async def record_episode_task(
                             instructions=result.skill.instructions,
                         )
 
-                        db_macro = await create_macro_from_synthesis(
+                        db_macro = await MacroService.create_for_skill(
                             db,
-                            name=db_skill.name,
-                            description=db_skill.description,
-                            trigger_patterns=db_skill.trigger_patterns,
-                            parameters=normalize_parameters(result.skill.parameters),
-                            macro_script=macro_script,
-                            fallback_skill_id=db_skill.id,
-                            source_thread_id=result.skill.source_thread_id,
+                            db_skill,
+                            macro_script,
                             project_id=project_id,
+                            source_thread_id=result.skill.source_thread_id,
                         )
-                        db_skill.macro_id = db_macro.id
                     await publish_skill_mutated(skill_id=db_skill.id, action="create")
                     await publish_macro_mutated(db_macro.id, action="create")
                     logger.info(f"[Task] ✅ Skill synthesis complete: {result.skill.name} (pending_review)")
@@ -508,22 +530,38 @@ async def reconcile_skill_macro_task(skill_id: int, thread_id: str, model: str |
 
 @periodic_task(cron="* * * * *", name="engine_scheduler_tick_periodic")
 def engine_scheduler_tick_periodic():
-    """每分钟轮询值守/自主任务的周期调度。
+    """值守/自主调度已改由 **API 进程**驱动（app.main.lifespan 的后台循环）。
 
-    复用 engine_scheduler_tick 的 tick 逻辑（Celery beat 的 60s 调度
-    在 Huey 模式不生效，此处用 Huey periodic 替代）。
+    worker 不再跑 tick（避免与 API 双调度、避免值守 Agent 会话落在 worker 而
+    SSE 收不到实时事件）。此 periodic 保留为 no-op 占位，避免旧注册/测试引用报错。
     """
-    engine_scheduler_tick.delay()
+    logger.debug("[Scheduler] 调度由 API 进程驱动，worker tick 跳过")
+
+
+# 进程内 tick 单飞标志（值守轮巡在 tick 内原地执行，防周期性 tick 堆积）
+_engine_scheduler_tick_active = False
 
 
 @shared_task(name="engine_scheduler_tick")  # type: ignore[reportCallIssue]
 async def engine_scheduler_tick():
     """
     Background task to poll for due autonomous tasks.
-    """
-    from app.infrastructure.scheduler.service import SchedulerService
 
-    await SchedulerService.tick()
+    进程内单飞守卫：值守轮巡现改为在 tick 内原地 await 执行，一次轮巡可能
+    持续数十秒~分钟。若上一轮 tick 尚未结束，本轮直接跳过，避免每分钟的
+    周期性 tick 排队积压、重复扫描同一批任务。
+    """
+    global _engine_scheduler_tick_active
+    if _engine_scheduler_tick_active:
+        logger.info("[Scheduler] tick 已在运行，跳过本轮")
+        return
+    _engine_scheduler_tick_active = True
+    try:
+        from app.infrastructure.scheduler.service import SchedulerService
+
+        await SchedulerService.tick()
+    finally:
+        _engine_scheduler_tick_active = False
 
 
 @shared_task(name="run_autonomous_task_execution")  # type: ignore[reportCallIssue]
@@ -558,7 +596,7 @@ async def run_autonomous_task_execution(task_id: int, project_id: int | None = N
             skill_name = skills[0].name if skills else ""
             skill_id = skills[0].id if skills else 0
 
-        thread_id = f"auton-{task_id}-{int(time.time())}"
+        thread_id = unique_id("auton", task_id)
 
         from app.utils.template import render_template
 

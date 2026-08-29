@@ -215,11 +215,9 @@
       "delete_file": "删除文件 '{path}'",
       "generate_macros": "生成宏",
       "list_app_maps": "列出 App 图谱",
-      "list_operation_paths": "列出操作路径",
       "list_scheduled_tasks": "列出定时任务",
       "list_vault_credentials": "列出凭据",
       "move_file": "移动文件 '{path}'",
-      "navigate_operation": "导航操作: {operation}",
       "query_code_chunks": "查询代码块[[ (query: {query}) ]]",
       "query_code_relations": "查询代码关系[[ (query: {query}) ]]",
       "query_security_findings": "查询安全发现[[ (query: {query}) ]]",
@@ -227,7 +225,6 @@
       "read_app_map": "读取 App 图谱 '{app_name}'",
       "request_secure_credential": "请求安全凭据 (key: {key})",
       "schedule_periodic_task": "设置定时任务 '{task_name}'",
-      "set_agent_name": "设置助手名称 '{name}'",
       "update_blackboard": "更新黑板",
       "write_app_map": "写入 App 图谱 '{app_name}'",
       "get_skill": "读取技能[[ (id: {skill_id}) ]][[ (名称: {skill_name}) ]]",
@@ -556,6 +553,7 @@
     "batch_approved": "批量审批已通过（批次 ID: {grant_id}，共 {count} 项操作）。请继续执行已批准的操作，它们在有效期内不会再触发二次确认。",
     "batch_approved_fallback": "批量审批已通过。请继续执行已批准的操作。",
     "batch_rejected": "批量审批已被拒绝。请勿执行批次中的操作。",
+    "operation_rejected": "操作已被用户拒绝（{tool}），未执行。请立即终止该操作：不要重试、不要改道执行其他写操作；如实向用户汇报已取消，并等待下一步指示。",
     "access_rejected": "用户拒绝了该访问请求（REJECTED）：{path}。请勿重试此路径，改用其他可用方式或向用户说明后继续完成其余任务。",
     "authorization": {
       "tool_not_subject_to_authorization": "该工具不受项目级授权控制",
@@ -569,6 +567,14 @@
         "execute": "执行 {resource_path}"
       },
       "missing_policy_error": "没有匹配的策略，无法发起授权请求"
+    }
+  },
+  "engine": {
+    "authorization": {
+      "metadata_access_prohibited": "[安全违规] 禁止访问项目元数据（.evoloop）。",
+      "outside_workspace_description": "敏感文件访问超出允许的工作空间边界：{resource_path}",
+      "outside_workspace_reason": "访问 {resource_path} 需要用户审批（超出工作空间/允许边界）",
+      "denied_message": "[授权被拒绝] {reason}"
     }
   }
 }

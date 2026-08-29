@@ -16,6 +16,7 @@ from app.core.engine.message.factory import MessageBlockFactory
 from app.core.engine.message.handler import MessageHandler
 from app.core.engine.message.publisher import MessagePublisher
 from app.core.monitoring.activity import activity_monitor
+from app.core.monitoring.schemas import HumanRequestData
 from app.models.schemas.events import QuotaExhaustedEvent, StatusEvent
 from app.utils.id import gen_uuid_hex
 
@@ -275,7 +276,10 @@ async def hitl_scenario(thread_id: str):
         {"CommandLine": "npm run deploy:production"}, run_id,
     )
     await MessageHandler.stream_progress(
-        thread_id, "正在建立 SSH 连接并同步打包文件...", progress=40, status="running",
+        thread_id,
+        "正在建立 SSH 连接并同步打包文件...",
+        progress=40,
+        status="running",
     )
     await asyncio.sleep(0.8)
 
@@ -286,12 +290,14 @@ async def hitl_scenario(thread_id: str):
         progress=40,
         status="interrupted",
     )
-    await activity_monitor.request_human_interaction(
+    await activity_monitor.set_human_request(
         thread_id=thread_id,
-        request_type="approval",
-        prompt="检测到即将执行部署脚本，是否批准部署至生产环境？",
-        payload={"context": "生产服务器：aws-prod-01, 目标版本：v2.1.0"},
-        allow_cancel=True,
+        request_data=HumanRequestData(
+            type="approval",
+            prompt="检测到即将执行部署脚本，是否批准部署至生产环境？",
+            payload={"context": "生产服务器：aws-prod-01, 目标版本：v2.1.0"},
+            allow_cancel=True,
+        ),
     )
     await asyncio.sleep(4.0)
     await activity_monitor.clear_human_request(thread_id)

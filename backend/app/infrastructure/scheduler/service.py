@@ -65,27 +65,23 @@ class SchedulerService:
 
             # 值守任务（params_template 带 duty_channel 标记）走轻量轮巡路径，
             # 不依赖 Android 设备池，直接 poll_once → dispatch。
-            # run_duty_poll 只收 project_id，history 由系统按 local_path 推断（§6.8.3）。
+            # 值守轮巡**不进持久队列**：在 tick 进程内直接 await 执行，
+            # 避免 Huey 队列里残留旧 run_duty_poll 任务、重启后重复执行。
             from app.core.channel.duty.scheduler import task_is_duty, try_claim_inflight
 
             if task_is_duty(task.params_template):
-                from app.core.channel.duty.scheduler import run_duty_poll
+                from app.core.channel.duty.scheduler import run_duty_poll_with_release
 
                 kind = task.params_template.get("kind")
                 # 防积压：该 (project_id, kind) 已在飞（排队中或执行中）→ 跳过本轮
-                # 投递，只推进 next_run_at，不重复入队。执行结束由 run_duty_poll
-                # finally 释放登记。
+                # 投递，只推进 next_run_at，不重复执行。执行结束由
+                # run_duty_poll_with_release finally 释放登记。
                 if not try_claim_inflight(task.project_id, kind):
                     logger.info(f"[Scheduler] Duty task {task.id} in-flight (project={task.project_id}, kind={kind}), skip dispatch")
                     return
 
-                run_duty_poll.delay(
-                    project_id=task.project_id,
-                    kind=kind,
-                )
-                logger.info(
-                    f"[Scheduler] Dispatched duty task {task.id} (next run: {task.next_run_at})"
-                )
+                await run_duty_poll_with_release(project_id=task.project_id, kind=kind)
+                logger.info(f"[Scheduler] Ran duty task {task.id} (next run: {task.next_run_at})")
                 return
 
             # Prepare payload for background agent

@@ -201,7 +201,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
             "tool_call_id": tool_call_id,
             "seq": result.sequence_number,
         }
-        logger.debug(f"[DatabaseCallback] Tool started: {tool_name} (tool_call_id={tool_call_id}, seq={result.sequence_number})")
+        logger.info(f"[DatabaseCallback] Tool started: {tool_name} (run_id={run_id_str}, tool_call_id={tool_call_id}, seq={result.sequence_number})")
 
     async def on_tool_error(
         self,

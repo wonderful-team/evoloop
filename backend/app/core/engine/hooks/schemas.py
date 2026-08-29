@@ -5,7 +5,16 @@ from typing import Any
 from pydantic import ConfigDict, Field
 
 from app.core.engine.message.native_classes import BaseMessage
+from app.core.security.path import command_touches_project_metadata, is_project_metadata_path
 from app.infrastructure.pydantic_base import DynamicBaseModel
+
+_METADATA_ARG_KEYS = (
+    "AbsolutePath",
+    "TargetFile",
+    "SearchPath",
+    "TargetDirectory",
+    "DirectoryPath",
+)
 
 
 class HookMetadata(DynamicBaseModel):
@@ -28,6 +37,23 @@ class ToolInput(DynamicBaseModel):
     content: str | None = None
     query: str | None = None
     args: dict[str, Any] | None = None
+
+    def touches_project_metadata(self) -> bool:
+        """Whether this tool call references project-local metadata (``.evoloop``).
+
+        收集 path/args 结构化字段与 ``execute_command`` 命令文本，统一交给
+        ``core.security.path`` 的判定函数裁决；全局 ``~/.evoloop`` 应用数据豁免。
+        """
+        if self.path and is_project_metadata_path(self.path):
+            return True
+        if self.args:
+            for key in _METADATA_ARG_KEYS:
+                val = self.args.get(key)
+                if val and isinstance(val, str) and is_project_metadata_path(val):
+                    return True
+        if self.command and command_touches_project_metadata(self.command):
+            return True
+        return False
 
 
 class ToolResult(DynamicBaseModel):

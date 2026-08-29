@@ -10,6 +10,31 @@ Migration Note:
 """
 
 # Editor (for advanced use)
+from app.utils.filename import sanitize_filename
+
+# Hashing Utilities
+from app.utils.hash import (
+    compute_content_hash,
+    compute_file_hash,
+    compute_hash,
+    compute_md5,
+    compute_sha256,
+    compute_state_id,
+    compute_version_hash,
+    sha256_digest,
+)
+from app.utils.path import (
+    cleanup_file,
+    get_absolute_path,
+    get_relative_path,
+    get_unique_filename,
+    is_path_readable,
+    is_path_writable,
+    is_safe_path,
+    normalize_path,
+    safe_join,
+)
+
 from . import editor
 
 # Directory Operations
@@ -39,18 +64,6 @@ from .filter import (
     get_ripgrep_exclude_args,
     is_encrypted_path,
     is_ignored_path,
-)
-
-# Hashing Utilities
-from .hash import (
-    compute_content_hash,
-    compute_file_hash,
-    compute_hash,
-    compute_md5,
-    compute_sha256,
-    compute_state_id,
-    compute_version_hash,
-    sha256_digest,
 )
 
 # I/O Operations
@@ -87,20 +100,6 @@ from .outline import (
     get_file_outline,
     get_large_file_preview,
 )
-
-# Path Utilities
-from .path_utils import (
-    cleanup_file,
-    get_absolute_path,
-    get_relative_path,
-    get_unique_filename,
-    is_path_readable,
-    is_path_writable,
-    is_safe_path,
-    normalize_path,
-    safe_join,
-    sanitize_filename,
-)
 from .schemas import (
     FileChunk,
     PaginationInfo,
@@ -118,16 +117,38 @@ from .traverser import FileTraverser, TraverseOptions
 from .tree import TreeService
 from .types import (
     get_category as get_file_category,
+)
+from .types import (
     get_extension as get_file_ext,
+)
+from .types import (
     guess_mime as guess_mime_type,
+)
+from .types import (
     is_archive as is_archive_file,
+)
+from .types import (
     is_audio as is_audio_file,
+)
+from .types import (
     is_binary as is_binary_file,
+)
+from .types import (
     is_code as is_code_file,
+)
+from .types import (
     is_document as is_document_file,
+)
+from .types import (
     is_image as is_image_file,
+)
+from .types import (
     is_test as is_test_file,
+)
+from .types import (
     is_text as is_text_file,
+)
+from .types import (
     is_video as is_video_file,
 )
 

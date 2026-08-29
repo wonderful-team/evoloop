@@ -18,15 +18,14 @@ from app.api.responses import BaseAPIResponse
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.engine.dispatch import dispatch_agent_run
 from app.core.events.publishers import publish_macro_mutated, publish_skill_mutated
-from app.core.execution.macro import (
+from app.core.learning.macro import (
     WEB_POLICY,
     MacroEngine,
     MacroScriptCompiler,
     confirm_macro,
-    create_macro_from_synthesis,
     load_macro,
-    update_macro,
 )
+from app.core.learning.macro.service import MacroService
 from app.core.learning.schemas import (
     CreateSkillFromYamlRequest,
     CreateSkillFromYamlResponse,
@@ -63,15 +62,15 @@ from app.core.learning.skills.validator import SkillValidator
 from app.core.learning.trace.parser import TraceParser
 from app.core.learning.workflow_synthesizer import WorkflowSynthesizer
 from app.infrastructure.database import session_scope
+from app.utils.json import safe_load_json_list
 from app.utils.parameters import (
     derive_parameters_from_macro,
     missing_required_params,
-    normalize_parameters,
 )
 from app.utils.template import render_template
 from app.utils.yaml import YAMLError, macro_from_yaml, validate_macro_yaml
 
-from ._shared import _member_id, _normalize_json_list, _normalize_skill_params
+from ._shared import _member_id, _normalize_skill_params
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -82,16 +81,12 @@ router = APIRouter()
     response_model=SynthesizeSkillResponse,
     dependencies=[Depends(require_benefit("skill_learning"))],
 )
-async def synthesize_skill(
-    body: SynthesizeRequest, current_user: CurrentUserOptional = None
-):
+async def synthesize_skill(body: SynthesizeRequest, current_user: CurrentUserOptional = None):
     """Synthesize a new skill from a trace sequence."""
     try:
         parser = TraceParser(body.thread_id, body.session_id)
         sequence = await parser.parse()
-        synthesizer = WorkflowSynthesizer(
-            body.thread_id, body.session_id, sequence=sequence
-        )
+        synthesizer = WorkflowSynthesizer(body.thread_id, body.session_id, sequence=sequence)
         result = await synthesizer.synthesize()
         skill = result.skill
         if skill is None:
@@ -112,19 +107,14 @@ async def synthesize_skill(
                 source_session_id=skill.source_session_id,
                 instructions=skill.instructions,
             )
-            new_macro = await create_macro_from_synthesis(
+            new_macro = await MacroService.create_for_skill(
                 db,
-                name=db_skill.name,
-                description=db_skill.description,
-                trigger_patterns=db_skill.trigger_patterns,
-                parameters=normalize_parameters(db_skill.parameters),
-                macro_script=macro_script,
-                fallback_skill_id=db_skill.id,
-                source_thread_id=skill.source_thread_id,
+                db_skill,
+                macro_script,
                 project_id=body.project_id,
                 member_id=_member_id(current_user),
+                source_thread_id=skill.source_thread_id,
             )
-            db_skill.macro_id = new_macro.id
 
         await publish_skill_mutated(skill_id=db_skill.id, action="create")
         await publish_macro_mutated(new_macro.id, action="create")
@@ -187,9 +177,9 @@ async def list_skills(
                 name=s.name,
                 description=s.description,
                 namespace=s.namespace,
-                trigger_patterns=_normalize_json_list(s.trigger_patterns),
+                trigger_patterns=safe_load_json_list(s.trigger_patterns),
                 parameters=_normalize_skill_params(s.parameters),
-                tools_used=_normalize_json_list(s.tools_used),
+                tools_used=safe_load_json_list(s.tools_used),
                 success_count=s.success_count,
                 failure_count=s.failure_count,
                 is_active=s.is_active,
@@ -227,10 +217,10 @@ async def get_skill(skill_id: int, current_user: CurrentUserOptional = None):
         name=skill.name,
         description=skill.description,
         namespace=skill.namespace,
-        trigger_patterns=_normalize_json_list(skill.trigger_patterns),
+        trigger_patterns=safe_load_json_list(skill.trigger_patterns),
         parameters=_normalize_skill_params(skill.parameters),
-        preconditions=_normalize_json_list(skill.preconditions),
-        tools_used=_normalize_json_list(skill.tools_used),
+        preconditions=safe_load_json_list(skill.preconditions),
+        tools_used=safe_load_json_list(skill.tools_used),
         source_thread_id=skill.source_thread_id,
         source_session_id=skill.source_session_id,
         success_count=skill.success_count,
@@ -314,10 +304,10 @@ async def update_skill(
                 name=skill.name,
                 description=skill.description,
                 namespace=skill.namespace,
-                trigger_patterns=_normalize_json_list(skill.trigger_patterns),
+                trigger_patterns=safe_load_json_list(skill.trigger_patterns),
                 parameters=_normalize_skill_params(skill.parameters),
-                preconditions=_normalize_json_list(skill.preconditions),
-                tools_used=_normalize_json_list(skill.tools_used),
+                preconditions=safe_load_json_list(skill.preconditions),
+                tools_used=safe_load_json_list(skill.tools_used),
                 source_thread_id=skill.source_thread_id,
                 source_session_id=skill.source_session_id,
                 success_count=skill.success_count,
@@ -364,7 +354,6 @@ async def run_skill(
             if body.project_id is not None
             else DEFAULT_PROJECT_ID,
             policy=WEB_POLICY,
-            skill_name=skill.name,
         )
         if result.status in ("not_routable", "missing_params", "bad_macro"):
             status = {
@@ -417,7 +406,7 @@ async def run_skill(
 
     # 用用户线程执行技能 → 统一走 session_manager.submit（进会话主循环，
     # 享受统一生命周期），与 voice/web/mobile 主交互路径一致。
-    from app.core.session.manager import session_manager
+    from app.core.engine.session.manager import session_manager
 
     await session_manager.submit(body.thread_id, result.inputs)
 
@@ -507,18 +496,13 @@ async def create_skill_from_yaml(
                 parameters=derived_params,
                 tools_used=[],
             )
-            macro = await create_macro_from_synthesis(
+            macro = await MacroService.create_for_skill(
                 db,
-                name=skill.name,
-                description=skill.description,
-                trigger_patterns=skill.trigger_patterns,
-                parameters=normalize_parameters(skill.parameters),
-                macro_script=body.yaml_content,
-                fallback_skill_id=skill.id,
+                skill,
+                body.yaml_content,
                 project_id=body.project_id,
                 member_id=_member_id(current_user),
             )
-            skill.macro_id = macro.id
 
         await publish_skill_mutated(skill_id=skill.id, action="create")
         await publish_macro_mutated(macro.id, action="create")
@@ -599,22 +583,9 @@ async def update_skill_yaml(
             if not skill:
                 raise HTTPException(status_code=404, detail="Skill not found")
 
-            if skill.macro_id:
-                macro = await load_macro(skill.macro_id, db=db)
-                if macro is not None:
-                    await update_macro(macro.id, {"macro_script": yaml_content}, db=db)
-            else:
-                macro = await create_macro_from_synthesis(
-                    db,
-                    name=skill.name,
-                    description=skill.description,
-                    trigger_patterns=skill.trigger_patterns,
-                    parameters=normalize_parameters(skill.parameters),
-                    macro_script=yaml_content,
-                    fallback_skill_id=skill.id,
-                    member_id=_member_id(current_user),
-                )
-                skill.macro_id = macro.id
+            macro_id = await MacroService.reconcile_for_skill(
+                db, skill, yaml_content, source_thread_id=skill.source_thread_id
+            )
 
             await db.flush()
 

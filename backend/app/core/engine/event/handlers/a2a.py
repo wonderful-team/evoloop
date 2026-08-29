@@ -256,9 +256,45 @@ class A2ACommandHandler:
 
             repo = MessageRepository(caller_thread_id)
             await repo.update_content_by_tool_call_id(tool_call_id, result_content)
+            # Phase B：结果也写入 AI tool_call 消息（id 在 tool_calls JSON 里），
+            # 否则 reload state 时 build_agent_state 只保留 AI 消息、看不到结果。
+            await repo.update_ai_tool_message_content(tool_call_id, result_content)
             await close_hitl_message(caller_thread_id, tool_call_id, "completed")
         else:
             logger.warning(f"[A2A] Could not find matching pending tool call for task_id {task_id}")
+
+        # Phase D: 发布公开生命周期事件（前端"A2A 委派"面板）。
+        from app.core.events.publishers import publish_a2a_lifecycle
+
+        a2a_status = {
+            "success": "completed",
+            "failed": "failed",
+            "cancelled": "cancelled",
+            "timeout": "timeout",
+        }.get(result.status, "failed")
+        await publish_a2a_lifecycle(
+            thread_id=caller_thread_id,
+            task_id=task_id,
+            status=a2a_status,
+            result=result.summary or "",
+            error=result.error or None,
+        )
+
+        # Phase B：调用方是普通 Worker 且其 rollout 正在挂起等待本回调时，
+        # 结果已写入 DB 工具消息，交由 rollout 重载 state 继续 Mission——
+        # 不能再走 session resume（否则与仍在运行的 rollout 并发冲突）。
+        from app.core.engine.worker_registry import (
+            is_worker_waiting_a2a,
+            resolve_a2a_wait,
+        )
+
+        if is_worker_waiting_a2a(caller_thread_id):
+            logger.info(
+                f"[A2A] Caller {caller_thread_id} has a Worker rollout awaiting this "
+                "callback; resolving in place (no session resume)"
+            )
+            resolve_a2a_wait(caller_thread_id)
+            return
 
         # Resume Caller Agent
         # 会话模式（§4.6）：有活会话 → gate 注入 a2a_result（重建 state reload 被改写消息续跑）；

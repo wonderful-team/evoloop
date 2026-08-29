@@ -316,25 +316,16 @@ async def _create_macro_from_script(
 ) -> str:
     """Agent-written macro path: validate, gate, dry-run, persist."""
     try:
-        cleaned_steps, _ = cleanup_macro_steps(script_steps)
+        from app.core.learning.macro.authoring import validate_script
 
-        try:
-            script = MacroScript(steps=cleaned_steps)
-        except Exception as e:
-            return f"Error: Invalid macro script: {e}"
+        validation = await validate_script(script_steps, thread_id=target_thread, project_id=project_id)
+        if not validation.ok:
+            return f"Error: {validation.error}"
 
-        reason = scan_step_families(script.steps, DEFAULT_ALLOWED_FAMILIES)
-        if reason:
-            return f"Error: Risk gate rejected: {reason}"
+        max_risk = validation.max_risk
+        requires_confirmation = validation.requires_confirmation
 
-        result = await verify_macro_script(cleaned_steps, thread_id=target_thread, _project_id=project_id)
-        if not result.success:
-            return f"Error: Macro verification failed: {result.error or result.status}"
-
-        max_risk = compute_max_risk(script.steps)
-        requires_confirmation = max_risk in {"money", "escape"}
-
-        final_params = finalize_macro_parameters(parameters, script.to_yaml())
+        final_params = finalize_macro_parameters(parameters, MacroScript(steps=validation.cleaned_steps).to_yaml())
 
         async with session_scope() as db:
             existing = await find_macro_by_name(name, project_id=project_id, db=db)
@@ -347,7 +338,7 @@ async def _create_macro_from_script(
                 description=description,
                 trigger_patterns=trigger_patterns or [],
                 parameters=final_params,
-                macro_script=script.to_yaml(),
+                macro_script=MacroScript(steps=validation.cleaned_steps).to_yaml(),
                 risk_tier=max_risk,
                 requires_confirmation=requires_confirmation,
                 source_thread_id=target_thread,

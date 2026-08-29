@@ -43,7 +43,7 @@ class FinishPromptBuilder(BasePromptBuilder):
             from app.core.context.manager import ContextManager
 
             ctx = ContextManager.current()
-            mode = self.get_sandbox_mode()
+            mode = self.get_displayed_execution_mode()
             project_profile = self.read_project_profile(ctx.working_directory, "[FinishPrompt]")
 
             sys_info = {
@@ -54,7 +54,6 @@ class FinishPromptBuilder(BasePromptBuilder):
 
             is_voice = ctx.metadata.get("source") == "voice"
             is_duty = self._is_duty_context()
-            has_skill_used = self._has_skill_used()
 
             template_vars = {
                 "user_lang": self.get_user_lang(),
@@ -65,7 +64,6 @@ class FinishPromptBuilder(BasePromptBuilder):
                 "sandbox_mode": mode,
                 "is_voice": is_voice,
                 "is_duty": is_duty,
-                "has_skill_used": has_skill_used,
             }
 
             return render_template("core/engine/finish.prompt.j2", **template_vars)

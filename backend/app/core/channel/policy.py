@@ -126,6 +126,14 @@ class OutputChannelPolicy:
         Returns:
             A set of channel names to deliver the payload to.
         """
+        # Subagent 执行体的所有消息对用户通道不可见（R3）：subagent 是后台并行执行，
+        # 不应出现在 voice/web/mobile 的消息流里。HITL 透传由父 Supervisor 在主会话发起。
+        from app.core.context.manager import ContextManager
+
+        ctx = ContextManager.current()
+        if ctx and (ctx.metadata or {}).get("task_type") == "subagent":
+            return set()
+
         channels = cls._resolve(payload, session_source, node_source)
         return channels
 

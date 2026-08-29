@@ -7,7 +7,9 @@ Previously located in app.core.engine.hitl.
 import json
 import logging
 
-from app.core.engine.message.repository import MessageRepository
+from sqlalchemy import select
+
+from app.core.hitl.activity_sink import get_activity_sink
 from app.core.hitl.batch_grants import approve_grant_by_request_id, reject_grant_by_request_id
 from app.core.hitl.constants import (
     DEFAULT_GRANTED_BY,
@@ -23,6 +25,8 @@ from app.core.hitl.core import (
 from app.core.hitl.engine_runtime import get_runtime
 from app.core.hitl.types import HITLDecision, HITLRequestStatus, HumanRequestType
 from app.i18n.service import i18n
+from app.infrastructure.database import session_scope
+from app.models import Message
 
 logger = logging.getLogger(__name__)
 
@@ -209,8 +213,7 @@ async def close_hitl_message(thread_id: str, tool_call_id: str, status: str = HI
     row (its HITL request came from ``send_agent_task``).
     """
     try:
-        repo = MessageRepository(thread_id=thread_id)
-        success = await repo.update_status_by_tool_call_id(tool_call_id, status)
+        success = await get_runtime().close_hitl_message(thread_id, tool_call_id, status)
         if success:
             logger.debug(f"HITL message {tool_call_id} closed as {status}")
         else:
@@ -317,7 +320,6 @@ class HITLOrchestrator:
     async def handle_resume(thread_id: str, tool_call: dict, user_input: str | None) -> str:
         """Processes resume logic: normalization, atomic dual-track closure, activity cleanup."""
         from app.core.hitl.core import finalize_request
-        from app.core.monitoring.activity import activity_monitor
 
         normalized = normalize_hitl_input(
             tool_call, user_input, request_type=tool_call.get("request_type")
@@ -338,14 +340,13 @@ class HITLOrchestrator:
             response=normalized,
             sibling_key=sibling_key,
         )
-        await activity_monitor.clear_human_request(thread_id)
+        await get_activity_sink().clear_human_request(thread_id)
         return normalized
 
     @staticmethod
     async def handle_cancel(thread_id: str, tool_call: dict) -> str:
         """Processes cancellation logic: atomic dual-track closure, activity cleanup."""
         from app.core.hitl.core import finalize_request
-        from app.core.monitoring.activity import activity_monitor
 
         request_id = tool_call.get("request_id")
         # 取消时同工具+同参数的兄弟 pending 请求一并取消，避免残留。
@@ -360,7 +361,7 @@ class HITLOrchestrator:
             status=HITLRequestStatus.CANCELLED.value,
             sibling_key=sibling_key,
         )
-        await activity_monitor.clear_human_request(thread_id)
+        await get_activity_sink().clear_human_request(thread_id)
         return HITLDecision.CANCELLED.value
 
     @staticmethod
@@ -379,37 +380,18 @@ class HITLOrchestrator:
         - 更新原 ask_human / 授权工具的 tool 消息内容为最终结果，而不是新增
           一条 tool 消息——否则同一 tool_call 出现两条 tool 结果，LLM 重建
           上下文会取到空的旧 tool_output（HITL 选项未被 Agent 消费的问题）。
+
+        实现位于 engine runtime（``EngineRuntime.persist_hitl_user_message``），
+        编排层只负责领域语义，不反向依赖 message 子系统。
         """
-        from app.core.engine.message.repository import MessageRepository
-
-        repo = MessageRepository(thread_id, project_id, member_id=member_id)
-        if user_content:
-            msg_id, seq = await repo.persist(
-                role="human",
-                content=user_content,
-                category="user",
-                action_type="text",
-                status=HITLRequestStatus.COMPLETED.value,
-            )
-            # 实时推送到当前会话渠道（SSE 等）：与 persist_user_message 一致，
-            # 否则 human 消息只落库、SSE 流收不到（前端仅历史加载才显示）。
-            if msg_id:
-                from app.core.engine.message.factory import MessageBlockFactory
-                from app.core.engine.message.publisher import MessagePublisher
-
-                block = MessageBlockFactory.from_event(
-                    thread_id=thread_id,
-                    sequence_number=seq,
-                    role="human",
-                    content=user_content,
-                    category="user",
-                    status=HITLRequestStatus.COMPLETED.value,
-                    message_id=msg_id,
-                )
-                publisher = MessagePublisher(thread_id=thread_id, project_id=project_id)
-                await publisher.publish(block)
-        # 只更新 role='tool' 的结果消息（避免误改同 tool_call_id 的 hitl_request）
-        await repo.update_tool_result_by_tool_call_id(tool_call_id, final_result)
+        await get_runtime().persist_hitl_user_message(
+            thread_id=thread_id,
+            project_id=project_id,
+            member_id=member_id,
+            tool_call_id=tool_call_id,
+            user_content=user_content,
+            final_result=final_result,
+        )
 
     @staticmethod
     async def resume_and_persist(
@@ -442,12 +424,14 @@ class HITLOrchestrator:
         )
         # 落为 human 消息（用户可见）+ 更新原 tool 消息结果（Agent 可见），
         # 而非新增 tool 消息（避免同 tool_call 双 tool 结果导致 Agent 取空）。
+        # 用户可见文案按"点了什么存什么"：中文界面落中文（批准/拒绝），英文界面
+        # 落英文（Approve/Reject）；normalized 只用于内部决策（APPROVED/REJECTED）。
         await HITLOrchestrator.persist_hitl_user_message(
             thread_id=thread_id,
             project_id=project_id,
             member_id=member_id,
             tool_call_id=pending_tool["id"],
-            user_content=normalized_input,
+            user_content=user_input or normalized_input,
             final_result=final_result,
         )
         return True
@@ -497,6 +481,26 @@ class HITLOrchestrator:
         # 自由文本类型（无 authorization）：原样返回用户输入，不触发任何
         # APPROVED/REJECTED 判定——"REJECTED" 作为文本输入是合法内容。
         if not authorization:
+            # 确认/审批类被拒绝：返回描述性本地化文案（而非裸 REJECTED 标记），
+            # 让 Agent 明确知道"操作未执行、应终止并汇报"，避免偏离主题另起炉灶。
+            # 仅 approval/confirmation 类生效；自由文本类（text/choice/multi_choice
+            # /project_switch/file_select）里 "REJECTED" 是合法文本，必须原样透传。
+            request_type = pending_tool.get("request_type")
+            is_approval = request_type in (
+                HumanRequestType.CONFIRMATION.value,
+                HumanRequestType.APPROVAL.value,
+            )
+            # 未知/缺失 request_type（legacy pending）：退回按工具名启发式判定
+            #（与 normalize_hitl_input 的 fallback 一致）。
+            if request_type is None:
+                name = (tool_name or "").lower()
+                is_approval = name in ("ask_confirm", "request_approval")
+            if (
+                is_approval
+                and isinstance(fallback_result, str)
+                and fallback_result.upper() == HITLDecision.REJECTED.value
+            ):
+                return i18n.get("hitl.operation_rejected", tool=tool_name or "")
             return fallback_result
 
         # 用户拒绝（授权门控）：不授权、不重执行，返回明确拒绝说明。
@@ -519,14 +523,6 @@ class HITLOrchestrator:
             except Exception as e:
                 logger.warning(f"[HITL] grant_permission failed for approval: {e}")
 
-        if state is None:
-            from app.core.engine.state import AgentState
-
-            state = AgentState(
-                thread_id=config.get("configurable", {}).get("thread_id"),
-                project_id=project_id,
-            )
-
         # 门控豁免声明（resume_override，由发起端在请求元数据中声明）：
         # 批准后重执行时按声明注入 args 标记，避免再次触发确认形成死循环
         # （宏确认注入 skip_confirmation 参数）。不在编排层按工具名特判。
@@ -536,20 +532,13 @@ class HITLOrchestrator:
             tool_args = {**tool_args, **args_override}
 
         try:
-            from app.core.engine.tools.executor import AgentToolExecutor
-            from app.core.tools.manager import tool_manager
-
-            tool_map = {
-                t.name: t for t in await tool_manager.get_node_tools("worker", state)
-            }
-            executor = AgentToolExecutor(
-                tool_map=tool_map,
-                state=state,
+            return await get_runtime().execute_tool(
+                tool_name=tool_name,
+                tool_args=tool_args,
+                tool_call_id=tool_call_id,
                 config=config,
-                name="HITLResume"
+                state=state,
             )
-            result = await executor.execute_tool(tool_name, tool_args, tool_call_id, [])
-            return result.message.content or ""
         except Exception as e:
             logger.exception(f"[HITL] Re-execution failed for {tool_name}: {e}")
             return f"[HITL Re-execution Failed] {e}"
@@ -567,6 +556,7 @@ class HITLOrchestrator:
         parent_id: str | None = None,
         original_tool_name: str | None = None,
         original_tool_args: dict | None = None,
+        action: str | None = None,
     ) -> HumanInputRequest:
         """
         Trigger an authorization-style HITL request.
@@ -617,7 +607,12 @@ class HITLOrchestrator:
             original_tool_name=original_tool_name,
             original_tool_args=original_tool_args,
             resource_path=resource_path,
-            action=action_description.split(" ", 1)[0] if action_description else "",
+            # action 用规范值（如 "read"/"write"），而非本地化描述的首词——
+            # 否则 grant 存的 action（如 "读取"）与授权钩子比对的规范 action（"read"）
+            # 永不匹配，导致敏感路径批准后重执行再次触发审批 → 无限循环。
+            action=action or (
+                action_description.split(" ", 1)[0] if action_description else ""
+            ),
         )
 
         raise_hitl_interrupt(request.id, response_text)

@@ -119,7 +119,7 @@ async def emit_tool_start(
                 tool_call_id=tool_call_id,
             )
         except _CALLBACK_EXCEPTIONS as e:
-            logger.debug(f"[CallbackBridge] on_tool_start failed: {e}", exc_info=True)
+            logger.info(f"[CallbackBridge] on_tool_start failed for {getattr(cb, '__class__', None)}: {e}", exc_info=True)
 
 
 async def emit_tool_end(

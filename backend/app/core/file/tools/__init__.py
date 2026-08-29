@@ -19,6 +19,7 @@ from .grep_search import grep_search
 from .list_dir import list_dir
 from .move_file import move_file
 from .read_file import read_file
+from .utils import resolve_and_validate_path
 from .write_file import write_file
 
 __all__ = [
@@ -30,4 +31,5 @@ __all__ = [
     "delete_file",
     "grep_search",
     "find_files",
+    "resolve_and_validate_path",
 ]

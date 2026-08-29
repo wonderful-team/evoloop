@@ -19,7 +19,7 @@ from sqlalchemy.orm import selectinload
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.channel.input.mobile_input import mobile_input
 from app.core.engine.dispatch import dispatch_agent_run
-from app.core.engine.event import ConversationEventType
+from app.core.engine.event import AgentEventType, ConversationEventType
 from app.core.engine.event.handlers import A2ACommandHandler, MemoryCommandHandler
 from app.core.engine.event.schemas import (
     ConversationDeletedEvent,
@@ -570,3 +570,57 @@ class EngineConversationCleanup:
             await session.execute(delete(FileOperation).where(FileOperation.thread_id == thread_id))
 
         logger.info(f"[EngineCleanup] Engine cleanup done for thread {thread_id}")
+
+
+@event_register()
+class ConversationLifecycleSubscriber:
+    """
+    会话生命周期订阅器（run 生命周期 → 会话领域事件）。
+
+    引擎的 run 生命周期事件（run_end / session_completed）目前只投递到
+    chat 频道（按 thread），供"主消息列表"使用。本订阅器把同一份生命周期
+    翻译成会话领域事件 ``conversation.updated`` 发布到 system 频道，
+    让"会话列表"这类全局视图也能感知任意会话的状态变化。
+
+    设计定位：这是会话领域（Conversation）对引擎生命周期事件的投影，
+    不是为某个 UI 组件特设的机制 —— 系统频道的 conversation.* 事件
+    （created / updated / deleted）就是会话域的统一对外事件流。
+    """
+
+    async def _publish_updated(self, thread_id: str, status: str = "") -> None:
+        if not thread_id:
+            return
+        from app.core.engine.event.publishers import publish_conversation_updated
+
+        async with session_scope() as session:
+            conv = await session.get(Conversation, thread_id)
+            if not conv:
+                # 非持久化会话（后台任务、值守等）不属于会话域，跳过
+                return
+            await publish_conversation_updated(
+                thread_id=thread_id,
+                project_id=conv.project_id,
+                member_id=conv.member_id,
+                title=conv.title or "",
+                status=status,
+            )
+
+    @event_subscribe(AgentEventType.RUN_COMPLETED)
+    async def on_run_completed(self, event) -> None:
+        try:
+            await self._publish_updated(event.thread_id, status=event.status or "done")
+        except Exception as e:
+            logger.warning(
+                f"[ConversationLifecycle] run_end projection failed for {event.thread_id}: {e}",
+                exc_info=True,
+            )
+
+    @event_subscribe(SystemEventType.SESSION_COMPLETED)
+    async def on_session_completed(self, event) -> None:
+        try:
+            await self._publish_updated(event.thread_id, status="done")
+        except Exception as e:
+            logger.warning(
+                f"[ConversationLifecycle] session_completed projection failed for {event.thread_id}: {e}",
+                exc_info=True,
+            )

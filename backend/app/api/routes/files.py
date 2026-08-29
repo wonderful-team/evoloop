@@ -35,13 +35,21 @@ from app.core.file import (
 )
 from app.core.file.traverser import TraverseOptions
 from app.core.project.utils import get_project_path, get_workspace_root
+from app.core.security.path import get_allowed_roots, is_under_allowed_root
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["files"])
 
 
 def _assert_path_allowed(target_path: str) -> None:
-    """Check path against the same security boundary as Agent tools."""
+    """Check path against the same security boundary as Agent tools.
+
+    Allowed roots (see ``app/core/security/path.py``): the current project /
+    working directory, ``WORKSPACE_ROOT``, the app data dir (``~/.evoloop``)
+    and ``ALLOWED_PATH_PREFIXES``. This mirrors what Agent tools may touch, so
+    ``file://`` previews and downloads of project files work while arbitrary
+    paths stay blocked.
+    """
     normalized = os.path.realpath(os.path.expanduser(target_path))
 
     # Allow chat upload directory
@@ -49,11 +57,10 @@ def _assert_path_allowed(target_path: str) -> None:
     if normalized.startswith(upload_dir):
         return
 
-    # Allow all ALLOWED_PATH_PREFIXES
-    for prefix in settings.ALLOWED_PATH_PREFIXES:
-        expanded = os.path.realpath(os.path.expanduser(prefix))
-        if normalized.startswith(expanded):
-            return
+    # Allow all Agent-tool roots (WORKSPACE_ROOT, ~/.evoloop, allowed prefixes,
+    # and the resolved project/working dirs when available).
+    if is_under_allowed_root(normalized, allowed_roots=get_allowed_roots()):
+        return
 
     raise HTTPException(403, "Access denied: path not in allowed prefixes")
 

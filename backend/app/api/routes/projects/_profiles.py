@@ -6,7 +6,6 @@ Discovery is Agent-driven via the Skill system.
 
 import logging
 import os
-import time
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 
@@ -29,6 +28,7 @@ from app.core.project.utils import (
 )
 from app.infrastructure.config.service import SystemConfigService
 from app.models.learning import LearnedSkill
+from app.utils.id import unique_id
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +56,7 @@ async def discover_profile(
     if not os.path.isdir(path):
         raise HTTPException(400, f"Project path does not exist: {path}")
 
-    thread_id = f"discovery-{project_id}-{int(time.time())}"
+    thread_id = unique_id("discovery", project_id)
 
     skill = await _ensure_project_discovery_skill()
     if not skill:

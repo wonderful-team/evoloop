@@ -14,7 +14,7 @@ BlockMapper —— 各层 ↔ MessageBlock 的标准化转换器。
 """
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
@@ -30,6 +30,7 @@ from app.core.engine.message.native_classes import (
 from app.core.engine.message.reasoning import extract_reasoning_from_message
 from app.core.engine.message.schemas import MessageBlock, ToolCall
 from app.core.engine.message.utils import normalize_tool_calls
+from app.utils.time import parse_iso_timestamp, ts_from_dt
 
 logger = logging.getLogger(__name__)
 
@@ -274,13 +275,8 @@ class BlockMapper:
 
         # Mobile 兼容：created_at 从 ISO 字符串转 Unix 秒级
         if msg.created_at:
-            try:
-                dt = datetime.fromisoformat(msg.created_at.replace("Z", "+00:00"))
-                if dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=timezone.utc)
-                data["created_at"] = int(dt.timestamp())
-            except (ValueError, TypeError):
-                data["created_at"] = 0
+            created = parse_iso_timestamp(msg.created_at)
+            data["created_at"] = ts_from_dt(created, default=0)
 
         # Mobile 兼容：is_visible bool → int
         data["is_visible"] = 1 if msg.is_visible else 0

@@ -14,7 +14,9 @@ from pydantic import BaseModel
 from app.core.hitl.batch_grants import create_pending_grant, update_grant_request_id
 from app.core.hitl.constants import DEFAULT_BATCH_GRANT_TTL_SECONDS
 from app.core.hitl.core import (
+    auto_hitl_response,
     create_request,
+    hitl_enabled,
     push_hitl_notification,
     raise_hitl_interrupt,
 )
@@ -64,6 +66,15 @@ async def ask_human(
 
     Returns the user's response as a string.
     """
+    # EXECUTION_MODE=docker：无人值守流水线不挂起，走自动应答（沙箱隔离兜底）。
+    if not hitl_enabled():
+        answer = auto_hitl_response(input_type, default_value=default_value, options=options)
+        logger.info(
+            "[HITL] docker mode: ask_human auto-answered type=%s (sandbox isolation)",
+            input_type,
+        )
+        return answer
+
     ctx_fields = resolve_tool_context()
     thread_id = ctx_fields["thread_id"]
     project_id = ctx_fields["project_id"]
@@ -115,8 +126,8 @@ async def ask_human(
 
     logger.info(f"Human input requested: {prompt[:50]}...")
 
-    # Push HITL request via MessageHandler (push_hitl_notification 内部会
-    # 同步调用 activity_monitor.set_human_request，此处不再重复通知)。
+    # Push HITL request via MessageHandler（push_hitl_notification 内部通过
+    # ActivitySink 通知 monitoring，此处不再重复通知）。
     await push_hitl_notification(
         thread_id=thread_id,
         request=request,
@@ -176,6 +187,14 @@ async def ask_confirm(
 
     Returns "APPROVED" or "REJECTED" based on user decision.
     """
+    # EXECUTION_MODE=docker：无人值守流水线不挂起，自动 APPROVED（沙箱隔离兜底）。
+    if not hitl_enabled():
+        logger.info(
+            "[HITL] docker mode: ask_confirm auto-approved '%s' (sandbox isolation)",
+            action_description[:50],
+        )
+        return HITLDecision.APPROVED.value
+
     ctx_fields = resolve_tool_context()
     thread_id = ctx_fields["thread_id"]
     project_id = ctx_fields["project_id"]

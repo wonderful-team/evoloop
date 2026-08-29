@@ -31,6 +31,17 @@ async def resolve_and_validate_path(path: str, config: RunnableConfig | None = N
     if normalized_path.startswith("uploads/"):
         return await _resolve_uploads_path(normalized_path, config)
 
+    # 输入参数本身命中项目元数据（.evoloop）时直接拦截，
+    # 防止绝对路径经重定向"换壳"进工作目录后绕过元数据保护。
+    if is_project_metadata_path(path):
+        raise ValueError(
+            i18n.get(
+                "domain_tools.files.security_violation",
+                path=path,
+                root="project metadata directory",
+            )
+        )
+
     # 非 uploads 路径：允许访问。全局模式（project_id=0）下使用 WORKSPACE_ROOT 作为工作目录。
     # 具体项目的文件访问权限由 working_directory 和安全检查（target_path.startswith(root)）保证。
     # Security Check
@@ -46,6 +57,14 @@ async def resolve_and_validate_path(path: str, config: RunnableConfig | None = N
             if target_path.startswith(prefix):
                 is_safe = True
                 break
+
+    if not is_safe:
+        # 工作区外的绝对路径重定向到工作目录下（如 /tmp/x.txt → <wd>/tmp/x.txt），
+        # 避免"已授权重执行仍被沙箱拒绝"，落盘结果始终在工作区内。
+        redirected = resolve_path(normalized_path, base_path=root)
+        if redirected and redirected.startswith(root):
+            target_path = redirected
+            is_safe = True
 
     if not is_safe:
         raise ValueError(i18n.get("domain_tools.files.security_violation", path=path, root=root))

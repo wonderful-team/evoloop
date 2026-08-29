@@ -9,7 +9,6 @@ import os
 from typing import Annotated
 
 from app.core.engine.message.native_classes import RunnableConfig
-from app.core.engine.tasks import persist_file_operation_task
 from app.core.file import (
     FileStatus,
 )
@@ -36,9 +35,6 @@ async def handle_write(
     try:
         target_path = await resolve_and_validate_path(path, config)
 
-        original_content = None
-        op_type = "ADD"
-
         if os.path.exists(target_path):
             if action == "create":
                 return (
@@ -46,42 +42,11 @@ async def handle_write(
                     "This tool can only create NEW files. To modify or append to an existing file, "
                     "use the edit_file tool."
                 )
-            # If overwrite is True and file exists, read original content for Rewind
-            from app.core.file.verification import safe_read_with_hash
-
-            original_content, _, _ = safe_read_with_hash(target_path)
-            op_type = "EDIT"
 
         # Use core.file for the actual write operation
         result = core_write_file(target_path, content)
 
         if result.status == FileStatus.SUCCESS:
-            # Record Rewind operation
-            from app.core.context import ContextManager
-            from app.core.file.editor.algorithms import generate_unified_diff
-
-            ctx = ContextManager.current()
-            if ctx.thread_id:
-                try:
-                    diff = generate_unified_diff(
-                        original=original_content or "",
-                        modified=content,
-                        file_path=path,
-                    )
-                    persist_file_operation_task.delay(
-                        thread_id=ctx.thread_id,
-                        message_id="",
-                        file_path=str(target_path),
-                        operation=op_type,
-                        diff_content=diff,
-                        original_content=original_content,
-                        run_id=ctx.run_id,
-                        tool_call_id=ctx.current_tool_call_id,
-                    )
-                except Exception as e:
-                    import logging
-                    logging.getLogger(__name__).error(f"Failed to persist file operation: {e}")
-            
             return i18n.get("domain_tools.files.write_success", path=path)
         elif result.status == FileStatus.PERMISSION_DENIED:
             return i18n.get("domain_tools.files.write_error", error=result.error_message)

@@ -72,6 +72,10 @@ class AgentStateBase(DynamicBaseModel):
     force_comprehensive_audit: bool | None = None
     test_failures: Any | None = None
     lint_errors: Any | None = None
+    # --- Audit rejection redo (Phase E3) ---
+    audit_correctable: bool | None = None
+    audit_reason: str | None = None
+    audit_retry_count: int = 0
 
     # --- 6. Telemetry & Workspace ---
     tool_memory: dict | None = None
@@ -132,26 +136,6 @@ class AgentStateBase(DynamicBaseModel):
         return self
 
 
-def merge_dicts(a: dict | None, b: dict | None) -> dict:
-    """Merge two optional dicts; values from ``b`` override ``a``."""
-    result = dict(a or {})
-    if b:
-        result.update(b)
-    return result
-
-
-def add_unique_items(a: list | None, b: list | None) -> list:
-    """Concatenate two optional lists while preserving order and removing duplicates."""
-    combined = (a or []) + (b or [])
-    seen: set = set()
-    result = []
-    for item in combined:
-        if item not in seen:
-            seen.add(item)
-            result.append(item)
-    return result
-
-
 class AgentState(AgentStateBase):
     workspace_context: WorkspaceContext | None = None
     tool_history: list[str] = Field(default_factory=list)
@@ -164,8 +148,37 @@ class AgentState(AgentStateBase):
     session_goal: str | None = None
     session_handoff: bool = False  # 会话模式：Supervisor 决策出 WORKER，交给主循环启动 rollout
 
+    # --- Subagent (parallel execution) ---
+    subagent_plan: dict | None = None  # SubagentPlan.model_dump()
+    active_subagents: list[dict] = Field(default_factory=list)
+    completed_subagents: list[dict] = Field(default_factory=list)
+    pending_subagent_aggregation: dict | None = None
+    pending_need_inputs: list[dict] = Field(default_factory=list)
+    pending_subagent_hitl_requests: list[dict] = Field(default_factory=list)
+    active_subagent_hitl: dict = Field(default_factory=dict)  # {sub_tid: tool_call_id}
+    last_aggregation_result: str | None = None
+    # 聚合轮标记：由 subagent_completed 唤醒（无用户新消息）时置位，
+    # Supervisor 据此在"还有 subagent 在跑"时跳过 LLM 直接等待，避免陈旧上下文抢跑。
+    subagent_aggregation_turn: bool = False
+    # 聚合后呈现标记：AggregateSubagents 置位，Supervisor 据此禁止重新委派
+    # （LLM 在聚合轮仍可能再次 route_to/spawn，需确定性收尾呈现聚合结果）。
+    presentation_pending: bool = False
+
 
 class StateUpdate(AgentStateBase):
     next_node: str | None = None
     iteration_count: int | None = None
     resume_tool_call: dict[str, Any] | None = None
+
+    # --- Subagent (parallel execution): 显式声明，保证 merge_state_update 可写回
+    # 且属性访问可用（不依赖 pydantic extra 隐式行为）。与 AgentState 对齐。
+    subagent_plan: dict | None = None
+    active_subagents: list[dict] = Field(default_factory=list)
+    completed_subagents: list[dict] = Field(default_factory=list)
+    pending_subagent_aggregation: dict | None = None
+    pending_need_inputs: list[dict] = Field(default_factory=list)
+    pending_subagent_hitl_requests: list[dict] = Field(default_factory=list)
+    active_subagent_hitl: dict = Field(default_factory=dict)
+    last_aggregation_result: str | None = None
+    subagent_aggregation_turn: bool = False
+    presentation_pending: bool = False

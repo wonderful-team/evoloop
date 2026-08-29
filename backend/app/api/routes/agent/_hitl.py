@@ -1,5 +1,4 @@
 import logging
-import time
 
 from fastapi import APIRouter, BackgroundTasks
 
@@ -10,6 +9,7 @@ from app.core.engine.graph_runner import resume_graph_background
 from app.core.engine.message.native_classes import ToolMessage
 from app.core.hitl.types import HITLDecision
 from app.core.monitoring.activity import activity_monitor
+from app.utils.id import unique_id
 
 router = APIRouter()
 
@@ -18,8 +18,8 @@ logger = logging.getLogger(__name__)
 
 @router.post("/hitl/cancel")
 async def cancel_hitl_request(req: CancelHITLRequest, bg_tasks: BackgroundTasks):
+    from app.core.engine.session.manager import session_manager
     from app.core.hitl.orchestrator import HITLOrchestrator
-    from app.core.session.manager import session_manager
 
     active_model = req.model
     if not active_model:
@@ -64,7 +64,7 @@ async def cancel_hitl_request(req: CancelHITLRequest, bg_tasks: BackgroundTasks)
         "configurable": {
             "thread_id": req.thread_id,
             "model": active_model,
-            "run_id": f"cancel-{req.thread_id}-{int(time.time())}",
+            "run_id": unique_id("cancel", req.thread_id),
         },
         "metadata": {"project_id": req.project_id},
     }

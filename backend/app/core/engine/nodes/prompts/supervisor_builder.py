@@ -49,7 +49,7 @@ class SupervisorPromptBuilder(BasePromptBuilder):
         await plugin_registry.ahydrate_context(ctx)
         user_lang = self.get_user_lang()
         actual_cwd = self.get_mapped_cwd(ctx.working_directory or ctx.metadata.get("cwd", ""))
-        mode = self.get_sandbox_mode()
+        mode = self.get_displayed_execution_mode()
 
         # 2. Protocol & Sys Info Prep (STATIC parts only)
         project_profile = self.read_project_profile(ctx.working_directory, "[SupervisorPrompt]")
@@ -155,6 +155,16 @@ class SupervisorPromptBuilder(BasePromptBuilder):
             "plan": active_plan_data,
             "plan_approved": state.plan_approved,
             "shared_context": state.shared_context or {},
+            "active_subagents": getattr(state, "active_subagents", None) or [],
+            "completed_subagents_count": len(getattr(state, "completed_subagents", None) or []),
+            "pending_need_inputs": [
+                c.get("need_input")
+                for c in (getattr(state, "completed_subagents", None) or [])
+                if c.get("need_input")
+            ],
+            "pending_subagent_hitl_requests": (
+                getattr(state, "pending_subagent_hitl_requests", None) or []
+            ),
         }
 
         rendered = render_template("core/engine/fragments/supervisor_context_ticket.j2", **template_vars)

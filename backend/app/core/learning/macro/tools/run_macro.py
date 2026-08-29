@@ -80,40 +80,50 @@ async def _run_macro_row(macro_id, macro_name, params, thread_id, skip_confirmat
     # 豁免（skip_confirmation=True）由 Agent 层控制——运营人员明确授权后由 Agent 传入，
     # 引擎只保证"未确认不得执行"。
     if not skip_confirmation and getattr(macro, "requires_confirmation", False):
-        original_args = {"macro_id": macro.id}
-        if macro_name:
-            original_args["macro_name"] = macro_name
-        if params:
-            original_args["params"] = params
-
-        # Intent-level batch grant: if this operation is covered by an approved
-        # batch grant, execute without per-call confirmation.
-        if is_operation_granted(thread_id, "run_macro", params=params, macro_id=macro.id):
+        # EXECUTION_MODE=docker：无人值守流水线不发起宏确认 HITL，
+        # 视为自动批准（沙箱隔离兜底）。
+        if not hitl_enabled():
             logger.info(
-                "[run_macro] Operation covered by batch grant for macro=%s (id=%s), bypassing confirmation.",
+                "[run_macro] docker mode: auto-approving confirmation for macro=%s (id=%s)",
                 macro.name,
                 macro.id,
             )
             skip_confirmation = True
+        else:
+            original_args = {"macro_id": macro.id}
+            if macro_name:
+                original_args["macro_name"] = macro_name
+            if params:
+                original_args["params"] = params
 
-        # If the same macro+params was recently approved, execute directly without
-        # asking for confirmation again. The original behavior returned a vague
-        # "already approved" message without executing, leaving the Agent uncertain.
-        if not skip_confirmation:
-            from app.core.hitl.core import find_recently_approved_by_key
-
-            recently_approved = await find_recently_approved_by_key(
-                thread_id, "run_macro", original_args
-            )
-            if recently_approved:
+            # Intent-level batch grant: if this operation is covered by an approved
+            # batch grant, execute without per-call confirmation.
+            if is_operation_granted(thread_id, "run_macro", params=params, macro_id=macro.id):
                 logger.info(
-                    "[run_macro] Recently approved request %s found for macro=%s (id=%s), executing directly.",
-                    recently_approved,
+                    "[run_macro] Operation covered by batch grant for macro=%s (id=%s), bypassing confirmation.",
                     macro.name,
                     macro.id,
                 )
-            else:
-                return await _request_macro_confirmation(macro, thread_id, original_args)
+                skip_confirmation = True
+
+            # If the same macro+params was recently approved, execute directly without
+            # asking for confirmation again. The original behavior returned a vague
+            # "already approved" message without executing, leaving the Agent uncertain.
+            if not skip_confirmation:
+                from app.core.hitl.core import find_recently_approved_by_key
+
+                recently_approved = await find_recently_approved_by_key(
+                    thread_id, "run_macro", original_args
+                )
+                if recently_approved:
+                    logger.info(
+                        "[run_macro] Recently approved request %s found for macro=%s (id=%s), executing directly.",
+                        recently_approved,
+                        macro.name,
+                        macro.id,
+                    )
+                else:
+                    return await _request_macro_confirmation(macro, thread_id, original_args)
 
     execution_params = params.copy() if params else {}
     execution_params["_macro_id"] = macro.id

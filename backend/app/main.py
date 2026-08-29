@@ -39,6 +39,14 @@ async def lifespan(app: FastAPI):  # noqa: ARG001
 
     await db_resource_manager.initialize(create_tables=True)
 
+    # Register the subagent event listener (routes completion/HITL events to parent queues).
+    try:
+        from app.core.engine.nodes.utils.subagent_events import ensure_listener
+
+        ensure_listener()
+    except Exception as e:
+        logger.warning(f"Failed to register subagent event listener: {e}")
+
     # Restore persisted SharedState (active project_id) so voice / duty chains
     # get the correct project context even after a backend restart.
     try:
@@ -72,47 +80,39 @@ async def lifespan(app: FastAPI):  # noqa: ARG001
     await publish_app_started(startup_time)
     logger.info("[Startup] APP_STARTED event published")
 
-    # L0 Matcher: dispatch Init Spec build (clients pull via GET /route/init).
-    # The Huey worker writes the enriched RouteCatalog to the shared cache;
-    # the API-side L0 matcher is lazily loaded from the same cache on the first
-    # route request, so we do not rebuild it synchronously here.
+    # --- 值守/自主调度：由 API 进程驱动 ---
+    # 值守 Agent 会话跑在 API 进程 → 事件直接进 API 的本地 broker → SSE 实时到前端
+    # （worker 进程的 broker 是进程内、且未注册 sse 渠道，值守跑在 worker 前端收不到实时事件）。
+    scheduler_task: asyncio.Task | None = None
     try:
-        from app.core.routing import tasks as routing_tasks
+        async def _scheduler_loop():
+            from app.infrastructure.scheduler.service import SchedulerService
 
-        routing_tasks.build_l0_init_spec.delay()
-        logger.info("[Startup] L0 Init Spec build dispatched")
-    except Exception as e:
-        logger.warning(f"[Startup] L0 Init Spec dispatch failed (non-critical): {e}", exc_info=True)
-
-    # Wire voice WebSocket transport at startup so VoiceChannel (Agent TTS
-    # streaming and macro presenters) can push to WS regardless of which code
-    # path triggered the Agent — not just the first voice.route.
-    try:
-        from app.api.routes.voice_ws import _envelope as _ws_envelope
-        from app.core.channel.output.voice_channel import VoiceChannel
-        from app.core.schemas.canonical import MessageType as _MsgType
-        from app.core.voice.connection import manager as _ws_manager
-
-        VoiceChannel.bind(
-            manager=_ws_manager,
-            envelope_fn=_ws_envelope,
-            message_type=_MsgType,
-        )
-        logger.info("[Startup] VoiceChannel WS transport wired")
-    except (ImportError, TypeError) as e:
-        logger.warning(
-            "[Startup] VoiceChannel wiring failed (non-critical): %s", e, exc_info=True
-        )
+            while True:
+                try:
+                    await SchedulerService.tick()
+                except Exception:
+                    logger.exception("[Scheduler] tick 执行失败")
+                await asyncio.sleep(60)
 
         scheduler_task = asyncio.create_task(_scheduler_loop())
         logger.info("[Startup] 值守/自主调度循环已启动 (API 进程)")
     except Exception as e:
-        logger.warning(f"[Startup] Macro migration failed (non-critical): {e}", exc_info=True)
+        logger.warning(f"[Startup] 调度循环启动失败 (非关键): {e}")
 
     yield
 
     # --- Shutdown ---
     logger.info("Shutting down EvoLoop resources...")
+
+    # 停止值守/自主调度循环
+    if scheduler_task is not None:
+        scheduler_task.cancel()
+        try:
+            await scheduler_task
+        except asyncio.CancelledError:
+            pass
+        logger.info("[Shutdown] 调度循环已停止")
 
     # 1. Publish Application Stopping Event
     # This triggers all decentalized LifecycleHandlers (EvoCloud, Memory, Indexing, MCP, etc.)

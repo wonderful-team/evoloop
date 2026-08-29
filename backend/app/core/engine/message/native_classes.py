@@ -137,10 +137,6 @@ class ToolMessage(BaseMessage):
         )
 
 
-class RemoveMessage(BaseMessage):
-    type: str = "remove"
-
-
 class AIMessageChunk(AIMessage):
     """Chunk representing streamed AI response delta."""
 

@@ -42,7 +42,7 @@ class ToolState(DynamicBaseModel):
     path: str | None = None
     metadata: Any = Field(default_factory=dict)
 
-    def get_summary(self, output: str) -> tuple[str, bool]:
+    def get_summary(self, output: str) -> str:
         """
         Generate summary for tool output.
 
@@ -53,14 +53,11 @@ class ToolState(DynamicBaseModel):
             output: Raw tool output
 
         Returns:
-            tuple: (processed_output, is_file_content)
-            - processed_output: Summary or truncated output
-            - is_file_content: Whether tool affects file paths
+            Summary text（走 summary_template，过长时截断）。
+            注：不再从 ``affected_path_keys`` 推导 "is_file_content"——那是
+            UI 展示语义，与快照路径契约无关（UI 改由 tool_meta.affected_paths
+            提供实际受影响路径）。本方法当前无生产调用者，仅作工具摘要格式化。
         """
-        # Check if tool affects file paths (for UI display)
-        affected_keys = self.metadata.get("affected_path_keys", [])
-        is_file_content = len(affected_keys) > 0
-
         # Try to use summary template from metadata
         summary_template = self.metadata.get("summary_template")
 
@@ -71,15 +68,12 @@ class ToolState(DynamicBaseModel):
             try:
                 line_count = len(output_str.splitlines())
                 file_info = self.path or "file"
-                return (
-                    i18n.get(
-                        summary_template,
-                        path=file_info,
-                        count=line_count,
-                        lines=line_count,
-                        items=line_count,
-                    ),
-                    is_file_content,
+                return i18n.get(
+                    summary_template,
+                    path=file_info,
+                    count=line_count,
+                    lines=line_count,
+                    items=line_count,
                 )
             except Exception as e:
                 logger.debug("Suppressed error: %s", e, exc_info=True)
@@ -88,12 +82,9 @@ class ToolState(DynamicBaseModel):
         if len(output_str) > 500:
             lines = output_str.splitlines()
             if len(lines) > 20:
-                return (
-                    f"{output_str[:300]}\n...\n[Truncated {len(lines)} lines / {len(output_str)} chars]",
-                    is_file_content,
-                )
+                return f"{output_str[:300]}\n...\n[Truncated {len(lines)} lines / {len(output_str)} chars]"
 
-        return output_str, is_file_content
+        return output_str
 
 
 class ToolStateStore:

@@ -355,6 +355,23 @@ class InferenceEngine:
     ) -> dict:
         from app.core.monitoring.activity import activity_monitor
 
+        # Runtime-injected SystemMessage instructions (e.g. the Supervisor's
+        # "[SYSTEM NOTE] ACCEPT the Worker report, do NOT dispatch another
+        # Worker", "[SYSTEM ALERT] previous Worker truncated/failed") are merged
+        # into the static system prompt so they reach the LLM. They were
+        # previously dropped by the `role != "system"` filter below, so the LLM
+        # never saw the very instructions meant to stop it re-dispatching.
+        runtime_system_content = [
+            str(m.content)
+            for m in messages
+            if m.role == "system" and str(getattr(m, "content", "") or "").strip()
+        ]
+        if runtime_system_content:
+            system_prompt = system_prompt + "\n\n" + "\n\n".join(runtime_system_content)
+            logger.info(
+                f"[{name}] Merged {len(runtime_system_content)} runtime system message(s) "
+                f"into system prompt (+{sum(len(c) for c in runtime_system_content)} chars)"
+            )
         system_messages = self.build_system_messages(system_prompt)
         history_messages = [m for m in messages if m.role != "system"]
         loop_messages: list[BaseMessage] = system_messages + history_messages

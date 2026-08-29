@@ -271,6 +271,36 @@ class WeComDutyChannel(DutyChannel):
         except Exception:
             logger.exception("[wecom_duty] 发送回复失败 contact=%s", contact)
 
+    @event_subscribe(SystemEventType.SESSION_COMPLETED)
+    async def on_business_poll_completed(self, event: Any) -> None:
+        """业务巡检任务会话完成（含 HITL 被人工答复后）→ 释放 pending，允许下轮巡检。
+
+        thread_id 格式：duty_business_{project_id}_{task_id}_{run_ts}。
+        """
+        data = getattr(event, "data", None)
+        if data is None:
+            return
+        thread_id = getattr(data, "thread_id", "") or ""
+        if not thread_id.startswith("duty_business_"):
+            return
+        rest = thread_id[len("duty_business_") :]
+        pid_part, _, remaining = rest.partition("_")
+        try:
+            project_id = int(pid_part)
+        except (ValueError, TypeError):
+            return
+        task_id = remaining.rsplit("_", 1)[0] if "_" in remaining else remaining
+        if not task_id:
+            return
+        from app.core.channel.duty.base import release_business_pending
+
+        release_business_pending(project_id, task_id)
+        logger.info(
+            "[wecom_duty] 业务巡检任务完成，释放 pending (project=%s, prompt=%s)",
+            project_id,
+            task_id,
+        )
+
     def _contact_from_thread(self, thread_id: str) -> tuple[str, int]:
         """从值守 thread_id（duty_{project}_{contact}）解析出 (联系人, project_id)。"""
         if not thread_id.startswith("duty_"):
@@ -319,7 +349,7 @@ class WeComDutyChannel(DutyChannel):
                     thread_id,
                     result.inputs,
                     await_completion=True,
-                    timeout=None,
+                    timeout=self.DUTY_WECOM_DELIVERY_TIMEOUT,
                 )
             except Exception:
                 logger.exception("[%s] Failed to dispatch duty message for %s", self.name, contact)

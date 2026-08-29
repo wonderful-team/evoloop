@@ -9,11 +9,13 @@
 等枚举定义见 ``app.core.hitl.types``。
 """
 
-from app.core.engine.message.category import MessageCategory
 from app.core.hitl.types import HITLDecision
 
-#: HITL 请求消息契约值（与 ``MessageCategory.HITL_REQUEST`` 同源，单一来源为枚举）
-MESSAGE_CATEGORY_HITL_REQUEST = MessageCategory.HITL_REQUEST.value
+#: HITL 请求消息契约值。与 ``engine.message.category.MessageCategory.HITL_REQUEST``
+#: 保持同值：hitl 为叶子模块不依赖 engine，两端一致性由
+#: ``tests/unit/core/hitl/test_hitl_contract.py`` 常量断言守护，防止漂移
+#: 导致消息分类错乱。
+MESSAGE_CATEGORY_HITL_REQUEST = "hitl_request"
 MESSAGE_STATUS_WAITING_HUMAN = "waiting_human"
 MESSAGE_ACTION_TYPE_HUMAN_REQUEST = "human_request"
 

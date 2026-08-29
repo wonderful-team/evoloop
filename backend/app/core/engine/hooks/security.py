@@ -12,7 +12,6 @@ import re
 
 from app.core.engine.hooks.core import HookContext, HookEvent, HookResult, hook_system
 from app.core.engine.hooks.schemas import ToolInput
-from app.core.security.path import is_project_metadata_path
 from app.core.security.secrets import censor_tool_result, inject_secrets_into_tool_input
 
 logger = logging.getLogger(__name__)
@@ -101,68 +100,6 @@ async def dangerous_command_gate(context: HookContext) -> HookResult:
     return HookResult(success=True)
 
 
-@hook_system.register(
-    HookEvent.PRE_TOOL_USE,
-    matcher="^(view_file|grep_search|read_file|replace_file_content|multi_replace_file_content|write_to_file)$",
-    priority=4,
-)
-async def project_metadata_protection_gate(context: HookContext) -> HookResult:
-    """
-    Protect project metadata (.evoloop directory) from agent access.
-
-    Project_id -> local_path mappings and other metadata must not be altered or
-    deleted by the agent.  Project-level sensitive files (e.g. .env) are now
-    handled by the authorization_gate hook instead of being hard-blocked here.
-    """
-    tool_name = context.tool_name or ""
-    tool_input = context.tool_input
-    if not tool_input:
-        return HookResult(success=True)
-
-    paths_to_check = []
-    if tool_input.path:
-        paths_to_check.append(tool_input.path)
-    if tool_input.args:
-        for key in (
-            "AbsolutePath",
-            "TargetFile",
-            "SearchPath",
-            "TargetDirectory",
-            "DirectoryPath",
-        ):
-            val = tool_input.args.get(key)
-            if val and isinstance(val, str):
-                paths_to_check.append(val)
-
-    for path in paths_to_check:
-        if is_project_metadata_path(path):
-            logger.warning(
-                f"[SecurityHook] Blocked access to project metadata via {tool_name}: {path}"
-            )
-            return HookResult(
-                success=False,
-                block=True,
-                message=(
-                    f"[SECURITY VIOLATION] Access Denied: Reading or modifying project metadata ({path}) is "
-                    "prohibited to protect project identity and local path mappings."
-                ),
-            )
-
-    if tool_name == "grep_search" and tool_input.args:
-        search_path = tool_input.args.get("SearchPath") or ""
-        if is_project_metadata_path(search_path):
-            logger.warning(
-                f"[SecurityHook] Blocked grep search in project metadata: {search_path}"
-            )
-            return HookResult(
-                success=False,
-                block=True,
-                message="[SECURITY VIOLATION] Access Denied: Searching inside project metadata is prohibited.",
-            )
-
-    return HookResult(success=True)
-
-
 @hook_system.register(HookEvent.PRE_TOOL_USE, matcher=".*", priority=3)
 async def sensitive_file_placeholder_replacement_gate(context: HookContext) -> HookResult:
     """
@@ -220,9 +157,8 @@ async def sensitive_file_censorship_gate(context: HookContext) -> HookResult:
             if ctx_secrets:
                 injected_secrets = list(ctx_secrets)
         except Exception as e:
-            logger.debug(f"[CENSOR] Failed to read EvoContext injected_secrets: {e}", exc_info=True)
+            logger.debug(f"[CENSOR] Failed to read EvoContext injected_secrets: {e}")
 
-    logger.info(f"[CENSOR DEBUG] injected_secrets={injected_secrets}, has_tool_result={context.tool_result is not None}, output={context.tool_result.output if context.tool_result else None}")
     if not injected_secrets or not context.tool_result:
         return HookResult(success=True)
 

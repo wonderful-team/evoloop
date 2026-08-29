@@ -82,6 +82,8 @@ class AuthorizationService:
             parent_id=parent_id,
             original_tool_name=original_tool_name or tool_name,
             original_tool_args=original_tool_args,
+            # 透传规范 action（"read"/"write"），供批准后 grant 落盘与钩子比对一致。
+            action=decision.action,
         )
 
     async def grant_permission(

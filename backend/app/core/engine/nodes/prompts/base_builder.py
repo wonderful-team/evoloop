@@ -3,8 +3,8 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 from app.core.engine.nodes.utils.node_utils import (
+    get_displayed_execution_mode,
     get_mapped_cwd,
-    get_sandbox_mode,
     read_project_profile,
     to_template_context,
 )
@@ -33,9 +33,9 @@ class BasePromptBuilder(ABC):
 
         return SystemConfigService.get_language_preference()
 
-    def get_sandbox_mode(self) -> str:
-        """Helper to get the current sandbox execution mode (local/docker)."""
-        return get_sandbox_mode()
+    def get_displayed_execution_mode(self) -> str:
+        """Helper to get the execution mode shown in the prompt (可覆写表现层)."""
+        return get_displayed_execution_mode()
 
     def get_mapped_cwd(self, raw_cwd: str) -> str:
         """Helper to standardize and map the working directory path."""

@@ -28,6 +28,8 @@ def format_event_for_frontend(event: Any) -> dict:
     )
     from app.core.events.base import BaseEvent
     from app.core.events.schemas import SessionCompletedEvent
+    from app.core.events.schemas.a2a import A2ALifecycleEvent
+    from app.core.events.schemas.subagent import SubagentLifecycleEvent
     from app.core.file.event.schemas import ChangesetUpdatedEvent
     from app.core.monitoring.event import (
         ActivityStateRefreshedEvent,
@@ -107,6 +109,31 @@ def format_event_for_frontend(event: Any) -> dict:
             "run_id": event.payload.get("run_id"),
             "status": event.status,
             "final_outcome": event.payload.get("outcome") or event.payload.get("summary"),
+        }
+    elif isinstance(event, SubagentLifecycleEvent):
+        return {
+            "type": "subagent",
+            "thread_id": event.thread_id,
+            "subagent_id": event.subagent_id,
+            "subagent_thread_id": event.subagent_thread_id,
+            "instruction": event.instruction,
+            "status": event.status,
+            "result": event.result,
+            "error": event.error,
+            "timestamp": event.timestamp.isoformat(),
+        }
+    elif isinstance(event, A2ALifecycleEvent):
+        return {
+            "type": "a2a",
+            "thread_id": event.thread_id,
+            "task_id": event.task_id,
+            "target_device_key": event.target_device_key,
+            "target_device_name": event.target_device_name,
+            "instruction": event.instruction,
+            "status": event.status,
+            "result": event.result,
+            "error": event.error,
+            "timestamp": event.timestamp.isoformat(),
         }
     elif isinstance(event, BackgroundTaskEvent):
         return {

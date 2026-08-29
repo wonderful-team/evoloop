@@ -213,37 +213,3 @@ def auto_discover_handlers(scan_roots: list[str] | None = None, instantiate: boo
     )
 
     return discovered_classes
-
-
-def auto_discover_all() -> None:
-    """
-    Convenience function to auto-discover all event handlers in the application.
-
-    This is the main entry point for application startup.
-    Scans all default root packages recursively.
-    """
-    auto_discover_handlers(DEFAULT_SCAN_ROOTS)
-    logger.info("[Discovery] ✓ All event handlers auto-discovered and registered")
-
-
-def reset_discovery_cache() -> None:
-    """
-    Reset the discovery cache. Useful for testing.
-    """
-    global _scanned_modules, _registered_handlers
-    _scanned_modules.clear()
-    _registered_handlers.clear()
-    logger.debug("[Discovery] Cache reset")
-
-
-def get_discovered_stats() -> dict[str, int]:
-    """
-    Get discovery statistics.
-
-    Returns:
-        Dict with 'scanned_modules' and 'registered_handlers' counts
-    """
-    return {
-        "scanned_modules": len(_scanned_modules),
-        "registered_handlers": len(_registered_handlers),
-    }

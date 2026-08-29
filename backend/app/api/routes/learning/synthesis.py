@@ -10,10 +10,6 @@ from fastapi import APIRouter, HTTPException
 
 from app.api.deps import CurrentUserOptional
 from app.core.events.publishers import publish_macro_mutated, publish_skill_mutated
-from app.core.execution.macro import (
-    MacroScript,
-    create_macro_from_synthesis,
-)
 from app.core.learning.multimodal_synthesizer import (
     MultimodalSkillSynthesizer,
     RecordingSession,
@@ -31,7 +27,6 @@ from app.core.learning.schemas import (
 from app.core.learning.skills.lifecycle import create_from_synthesis
 from app.infrastructure.database import session_scope
 from app.utils.parameters import normalize_parameters
-from app.utils.yaml import YAMLError, macro_from_yaml
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -90,34 +85,30 @@ async def synthesize_from_recording(
 
             verification = {"status": "skipped"}
             if macro_script:
-                macro = await create_macro_from_synthesis(
+                macro = await MacroService.create_for_skill(
                     db,
-                    name=db_skill.name,
-                    description=db_skill.description,
-                    trigger_patterns=db_skill.trigger_patterns,
-                    parameters=normalize_parameters(db_skill.parameters),
-                    macro_script=macro_script,
-                    fallback_skill_id=db_skill.id,
-                    source_thread_id=skill_data.get("source_thread_id"),
+                    db_skill,
+                    macro_script,
                     project_id=request.project_id,
                     member_id=current_user.id if current_user else 0,
+                    source_thread_id=skill_data.get("source_thread_id"),
                 )
-                db_skill.macro_id = macro.id
 
                 # Structural validation only — never execute the macro here
-                try:
+                from app.core.learning.macro.authoring import validate_macro_structure
 
-                    steps = macro_from_yaml(macro_script)
-                    MacroScript(steps=steps)
-                    verification = {
+                ok, error, step_count = validate_macro_structure(macro_script)
+                verification = (
+                    {
                         "status": "structure_valid",
-                        "step_count": len(steps),
+                        "step_count": step_count,
                     }
-                except (ValueError, TypeError, KeyError, YAMLError) as e:
-                    verification = {
+                    if ok
+                    else {
                         "status": "structure_invalid",
-                        "error_message": str(e),
+                        "error_message": error,
                     }
+                )
                 from app.core.learning.skills.lifecycle import patch_skill
 
                 await patch_skill(db_skill, validation_report=verification)

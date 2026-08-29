@@ -57,7 +57,7 @@ class WorkerPromptBuilder(BasePromptBuilder):
         ctx = ContextManager.current()
         await plugin_registry.ahydrate_context(ctx)
 
-        mode = self.get_sandbox_mode()
+        mode = self.get_displayed_execution_mode()
 
         # Read PROJECT.md if exists (static for the session)
         project_profile = self.read_project_profile(ctx.working_directory, "[WorkerPrompt]")
@@ -126,6 +126,8 @@ class WorkerPromptBuilder(BasePromptBuilder):
             "user_lang": self.get_user_lang(),
             "user_preferences": ctx.metadata.get("user_preferences", {}),
             "has_file_operations": True,
+            "is_subagent": bool(self.ticket and self.ticket.ticket_type == "subagent"),
+            "subagent_id": ctx.metadata.get("subagent_id", ""),
         }
 
         return render_template("core/engine/worker.prompt.j2", **self.to_template_context(template_vars))

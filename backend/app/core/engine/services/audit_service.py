@@ -21,6 +21,7 @@ from app.core.engine.state import AgentState
 from app.core.engine.state.sub_schemas import VerificationStatus
 from app.core.environment import get_telemetry_dict
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.utils.time import elapsed_ms
 
 logger = logging.getLogger(__name__)
 
@@ -68,36 +69,35 @@ def _extract_final_summary(messages: list) -> str:
                     if match:
                         return match.group(1).strip()
                 return content
-    return "Task completed."
+    return ""
 
 
 def _build_audit_input(state: AgentState) -> dict:
     if state.audit_input_data:
         return state.audit_input_data.model_dump()
 
+    # 轻量兜底：生产路径 Finish 总会先 _prepare_audit_input，此处仅覆盖
+    # 直接调用 AuditService（非 Finish 路径）的少数场景，不做重复的重型构建。
     plan_progress = state.plan_progress
-
-    # Build tool stats from tool_history
     tool_stats: dict[str, int] = {}
     for sig in state.tool_history or []:
         tool_name = sig.split(":")[0] if ":" in sig else sig
         tool_stats[tool_name] = tool_stats.get(tool_name, 0) + 1
-
-    progress = {
-        "total_steps": plan_progress.total_steps if plan_progress else 0,
-        "completed_steps": plan_progress.completed_steps if plan_progress else 0,
-        "total_deliverables": len(state.audit_input_data.deliverables) if state.audit_input_data and state.audit_input_data.deliverables else 0,
-        "completed_deliverables": 0,
-    }
 
     return {
         "original_goal": state.session_goal or "",
         "plan_summary": {
             "total": plan_progress.total_steps if plan_progress else 0,
             "completed": plan_progress.completed_steps if plan_progress else 0,
-            "remaining": (plan_progress.total_steps - plan_progress.completed_steps) if plan_progress else 0,
+            "remaining": (
+                plan_progress.total_steps - plan_progress.completed_steps
+                if plan_progress else 0
+            ),
         },
-        "progress": progress,
+        "progress": {
+            "total_steps": plan_progress.total_steps if plan_progress else 0,
+            "completed_steps": plan_progress.completed_steps if plan_progress else 0,
+        },
         "deliverables": [],
         "tool_stats": tool_stats,
         "anomalies": [a.model_dump() for a in (state.audit_anomalies or [])],
@@ -272,12 +272,32 @@ class AuditService:
         final_outcome = outcome_match.group(1).strip() if outcome_match else "COMPLETED"
         state.final_outcome = final_outcome
 
+        # Phase E3: 驳回闭环 —— 提取 correctable 标记 + 可执行修正指令。
+        reason_match = re.search(
+            r"<evoloop_audit_reason>(.*?)</evoloop_audit_reason>",
+            full_text,
+            re.IGNORECASE | re.DOTALL,
+        )
+        audit_reason = reason_match.group(1).strip() if reason_match else ""
+        correctable_match = re.search(
+            r"<evoloop_correctable>(.*?)</evoloop_correctable>",
+            full_text,
+            re.IGNORECASE | re.DOTALL,
+        )
+        correctable = (
+            correctable_match.group(1).strip().lower() == "true"
+            if correctable_match
+            else False
+        )
+        state.audit_correctable = correctable
+        state.audit_reason = audit_reason or None
+
         # Append Finish node tool calls to global tool_history with finish: prefix
         if result.tool_history:
             prefixed = [f"finish:{t}" for t in result.tool_history]
             state.tool_history = (state.tool_history or []) + prefixed
 
-        duration = (time.time() - start) * 1000
+        duration = elapsed_ms(start)
 
         # Background extraction
         await self._dispatch_extraction(
@@ -290,7 +310,12 @@ class AuditService:
 
         return AuditResult(
             summary=summary,
-            meta={"duration_ms": duration, "outcome": final_outcome},
+            meta={
+                "duration_ms": duration,
+                "outcome": final_outcome,
+                "correctable": correctable,
+                "reason": audit_reason or None,
+            },
             messages=result.messages or [],
         )
 

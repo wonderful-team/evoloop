@@ -1,6 +1,6 @@
+"""Agent runtime configuration and execution tickets."""
 from __future__ import annotations
 
-"""Agent runtime configuration and execution tickets."""
 from typing import Any
 
 from pydantic import Field, field_validator, model_validator
@@ -98,6 +98,10 @@ class ExecutionTicket(DynamicBaseModel):
     complexity: str | None = None
     workflow_context: WorkflowContext | None = None
     is_resuming: bool = Field(default=False)
+    needs_audit: bool = Field(
+        default=False,
+        description="When True the Worker delivery is audited by the Reviewer (Finish) after completion (worker-delegation-design.md Phase C.5). Default False = present directly without audit.",
+    )
 
     @field_validator("topic", mode="before")
     @classmethod

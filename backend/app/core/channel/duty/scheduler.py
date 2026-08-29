@@ -31,6 +31,9 @@ DUTY_PARAM_MARKER = "duty_channel"
 # 值守任务种类
 KIND_WECOM = "wecom"  # 企微线（本地客户端 GUI 轮巡）：客户消息轮巡
 KIND_KF = "kf"  # 商城微信客服线（经 MCP 接入）：客户咨询消息轮巡
+# 客服轮巡硬超时（电路断路器）：即使轮巡内部有未知卡点（外部 MCP/工具挂起），
+# 超过时限强制中断并释放全局锁，避免拖死整个值守调度器。
+KF_POLL_HARD_TIMEOUT = 180.0
 KIND_BUSINESS_POLL = "business_poll"  # 运营线：业务巡检
 
 # 项目渠道名 → 值守任务种类（provision 按 active_channels 建任务）
@@ -88,21 +91,46 @@ def release_inflight(project_id: int, kind: str) -> None:
     _inflight.pop((project_id, kind), None)
 
 
-async def _run_kind(kind: str, run: Callable[[], Awaitable[T]]) -> T | None:
+async def _run_kind(
+    kind: str,
+    run: Callable[[], Awaitable[T]],
+    *,
+    skip_if_active: bool = True,
+    run_timeout: float | None = None,
+) -> T | None:
     """按种类执行一个轮巡任务。
 
     到达即占用 kind：同种类上一个还没处理完时，新到同类任务直接跳过；
     不同种类不互斥，排队等全局串行锁执行。
+
+    ``skip_if_active=False``：不整轮跳过（排全局锁等待）。客服(kf)用此模式，
+    配合渠道内「按客户隔离在飞」，让不同客户的消息互不阻塞。
+
+    ``run_timeout``：整个轮巡的硬超时（电路断路器）。即使轮巡内部有未知卡点
+    （外部工具/MCP 挂起），超过时限也强制取消并释放全局锁，避免拖死整个
+    值守调度器。客服轮巡用它兜底。
     """
-    if kind in _active_kinds:
+    if skip_if_active and kind in _active_kinds:
         logger.info("[duty] 同种类任务仍在进行（kind=%s），跳过", kind)
         return None
-    _active_kinds.add(kind)
+    if skip_if_active:
+        _active_kinds.add(kind)
     try:
         async with _exec_lock:
+            if run_timeout is not None:
+                try:
+                    return await asyncio.wait_for(run(), timeout=run_timeout)
+                except asyncio.TimeoutError:
+                    logger.error(
+                        "[duty] 轮巡 kind=%s 执行超过 %ss，强制中断并释放锁（电路断路器）",
+                        kind,
+                        run_timeout,
+                    )
+                    return None
             return await run()
     finally:
-        _active_kinds.discard(kind)
+        if skip_if_active:
+            _active_kinds.discard(kind)
 
 
 async def _run_duty_poll_impl(project_id: int, kind: str | None = None) -> int:
@@ -141,7 +169,12 @@ async def _run_duty_poll_impl(project_id: int, kind: str | None = None) -> int:
                 logger.warning("[duty] 未知值守种类 %s，跳过", kind)
                 return 0
             channel = _build_channel(cls_name, cfg)
-            handled = await _run_kind(kind, lambda: channel.poll_once(project_id))
+            handled = await _run_kind(
+                kind,
+                lambda: channel.poll_once(project_id),
+                skip_if_active=(kind != KIND_KF),
+                run_timeout=(KF_POLL_HARD_TIMEOUT if kind == KIND_KF else None),
+            )
             total += handled or 0
         return total
 

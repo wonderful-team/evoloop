@@ -32,6 +32,7 @@ from .schemas.auth import CacheInvalidateResponse as CacheInvalidateResponse
 from .schemas.auth import EvoCloudProxyResponse as EvoCloudProxyResponse
 from .schemas.auth import LoginResult as LoginResult
 from .schemas.auth import MemberBenefitsResponse as MemberBenefitsResponse
+from .subagent import SubagentRun as SubagentRun
 from .system import Job as Job
 from .system import McpServer as McpServer
 from .system import ProjectResource as ProjectResource

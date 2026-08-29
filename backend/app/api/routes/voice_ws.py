@@ -46,8 +46,10 @@ from app.core.voice.connection import manager
 from app.core.voice.state_machine import VoiceSessionState, voice_state_machine
 from app.infrastructure.config.service import SystemConfigService
 from app.infrastructure.voice.volc_asr import VolcAsrClient
-from app.infrastructure.voice.volc_tts import VolcTtsClient, s16le_to_f32le
+from app.infrastructure.voice.volc_tts import VolcTtsClient
+from app.utils.audio import s16le_to_f32le
 from app.utils.id import gen_uuid
+from app.utils.time import elapsed_ms
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/voice", tags=["voice"])
@@ -266,7 +268,7 @@ async def _handle_route(body: dict[str, Any], conn_id: str) -> None:
 
         await session_manager.submit(thread_id, dispatch_result.inputs)
         _is_sending_chat_tts_text.pop(thread_id, None)
-        total_ms = (time.time() - t_total_start) * 1000
+        total_ms = elapsed_ms(t_total_start)
         logger.info("[voice-perf] %s injected into session total=%.0fms", thread_id, total_ms)
 
 

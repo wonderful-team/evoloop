@@ -89,6 +89,11 @@ async def send_agent_task(
 ) -> str:
     """
     Delegate a subtask to another Agent (worker) device.
+    Use this when the current machine genuinely cannot complete a part of the
+    mission itself (missing capability/device). This is an execution-layer tool:
+    the Worker decides in-flight that local tools cannot do it, dispatches the
+    task, suspends until the remote callback returns, then continues with the
+    result.
     This will upload attachments, send the task envelope, and suspend caller execution.
     The caller agent will automatically resume when the worker sends back the result callback.
     """
@@ -171,6 +176,17 @@ async def send_agent_task(
         logger.exception(f"[A2A] Failed to dispatch task to gateway: {e}")
         return f"Error dispatching task: {e}"
 
+    # Phase D: 发布公开生命周期事件（前端"A2A 委派"面板）。
+    from app.core.events.publishers import publish_a2a_lifecycle
+
+    await publish_a2a_lifecycle(
+        thread_id=thread_id,
+        task_id=task_id,
+        target_device_key=target_device_key,
+        instruction=instruction,
+        status="started",
+    )
+
     tool_call_id = kwargs.get("tool_call_id") or f"call-{task_id}"
 
     from app.core.monitoring.activity import HumanRequestData, activity_monitor
@@ -199,8 +215,11 @@ async def send_agent_task(
 
     await activity_monitor.set_human_request(thread_id, req_data)
 
-    from app.core.exceptions import AgentHumanInterruptException
-    raise AgentHumanInterruptException(f"A2A Task {task_id} dispatched. Pausing execution.")
+    from app.core.exceptions import AgentA2AInterruptException
+    raise AgentA2AInterruptException(
+        request_id=task_id,
+        message=f"A2A Task {task_id} dispatched to {target_device_key}. Pausing execution.",
+    )
 
 
 # ==========================================

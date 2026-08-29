@@ -1,7 +1,6 @@
 import asyncio
 import json
 import logging
-import time
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -30,7 +29,7 @@ from app.core.monitoring.activity import activity_monitor
 from app.core.routing.dispatch_handler import dispatch_user_message, route_lock_scope
 from app.infrastructure.database import session_scope
 from app.models import Message
-from app.utils.id import gen_uuid
+from app.utils.id import gen_uuid, unique_id
 
 router = APIRouter()
 
@@ -66,7 +65,7 @@ async def chat_endpoint(
         project_id = await shared_state.get_active_project_id()
 
     ctx = EvoContext(
-        request_id=f"req-{req.thread_id}-{int(time.time())}",
+        request_id=unique_id("req", req.thread_id),
         thread_id=req.thread_id,
         project_id=project_id,
         command_id=req.command_id,
@@ -125,7 +124,7 @@ async def chat_endpoint(
             raise HTTPException(status_code=500, detail=dispatch_result.error)
 
         # 会话模式：统一走 session_manager.submit 注入会话主循环
-        from app.core.session.manager import session_manager
+        from app.core.engine.session.manager import session_manager
 
         await session_manager.submit(req.thread_id, dispatch_result.inputs)
 
@@ -166,7 +165,7 @@ async def stop_chat(req: ChatRequest):
     if not req.thread_id:
         raise HTTPException(status_code=400, detail="thread_id is required")
     # 统一走 session_manager.stop_agent（有会话 → session.stop；无会话 → stop_run + cancel_worker 双兜底）
-    from app.core.session.manager import session_manager
+    from app.core.engine.session.manager import session_manager
 
     await session_manager.stop_agent(req.thread_id, "web_stop")
     return StopChatResponse(status="stopping", thread_id=req.thread_id)
@@ -187,9 +186,9 @@ async def stop_all_agent(
     member_id 从 token 解析，用于按用户过滤会话（web/voice/mobile 共用）。
     """
     from app.core.channel.duty import provision
+    from app.core.engine.session.manager import session_manager
     from app.core.engine.worker_registry import worker_registry
     from app.core.identity import identity_service
-    from app.core.session.manager import session_manager
 
     # 从 token 解析当前用户 member_id（用于按用户过滤会话）
     member_id = None
@@ -382,7 +381,7 @@ async def retry_chat(
         raise HTTPException(status_code=500, detail=result.error)
 
     # 会话模式：统一走 session_manager.submit（有活会话注入，无活会话创建并启动）
-    from app.core.session.manager import session_manager
+    from app.core.engine.session.manager import session_manager
 
     await session_manager.submit(req.thread_id, result.inputs)
 
@@ -409,7 +408,7 @@ async def resume_chat(
             active_model = loaded_ctx.active_model
 
     # 会话模式（§4.5）：有活会话 → 注入恢复/新输入，会话主循环处理；无活会话 → 原单发路径
-    from app.core.session.manager import session_manager
+    from app.core.engine.session.manager import session_manager
 
     session = session_manager.get(req.thread_id)
     if session is not None and session.lifecycle == "running":
@@ -529,7 +528,7 @@ async def resume_chat(
         "configurable": {
             "thread_id": req.thread_id,
             "model": active_model,
-            "run_id": f"resume-{req.thread_id}-{int(time.time())}",
+            "run_id": unique_id("resume", req.thread_id),
         },
         "metadata": {"project_id": req.project_id},
     }

@@ -49,31 +49,21 @@ class MacroResolver:
     async def _list_macros_by_name(self, name: str, project_id: int) -> list[Macro]:
         """Load all verified, active macros by name, scoped to ``project_id``.
 
-        Ordered preset-first, then newest-first (``created_at`` desc), so that
-        the most recently confirmed macro wins when multiple macros share the
-        same intent label or trigger pattern.  This keeps runtime resolution
-        consistent with the Init Spec (which also keeps the newest macro for a
-        repeated pattern).
+        Ordered project-first, then preset-first, then newest-first
+        (``created_at`` desc), so that the most recently confirmed macro wins
+        when multiple macros share the same intent label or trigger pattern.
+        This keeps runtime resolution consistent with the Init Spec (which
+        also keeps the newest macro for a repeated pattern).
         """
         from app.core.learning.macro.service import MacroService
 
-        macros = await list_macros(status="verified", is_active=True)
-        macros = [
+        macros = await MacroService.list_routable_macros(project_id=project_id)
+        return [
             m
             for m in macros
             if m.name == name
             and (m.project_id is None or m.project_id == project_id)
         ]
-        # Project-first, then preset, then newest: while operating inside a
-        # project, that project's macros win over global/system macros.
-        macros.sort(
-            key=lambda m: (
-                m.project_id != project_id,
-                m.namespace != "preset",
-                -(m.created_at.timestamp() if m.created_at else 0),
-            )
-        )
-        return macros
 
     def _extract_slot_name(self, macro: Macro) -> str | None:
         """Return the first slot name declared by the macro, if any."""

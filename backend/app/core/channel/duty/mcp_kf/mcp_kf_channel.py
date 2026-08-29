@@ -21,6 +21,7 @@ from app.core.channel.base import ChannelContext, IncomingMessage
 from app.core.channel.duty.base import ContactDelta, DutyChannel, RawInbound
 from app.core.events.decorators import event_register, event_subscribe
 from app.core.events.registry import SystemEventType
+from app.utils.text import chunk_text
 
 logger = logging.getLogger(__name__)
 
@@ -162,6 +163,7 @@ class MpcKfChannel(DutyChannel):
             thread_id=self._thread_for(project_id, raw.contact),
             text=raw.text,
             project_id=project_id,
+            member_id=await self._duty_member_id(),
             references=references,
             metadata={
                 "source": "duty",
@@ -203,49 +205,61 @@ class MpcKfChannel(DutyChannel):
         侧补偿（客户再发消息触发新一轮）。
         """
         contact = delta.contact
-        thread_id = self._thread_for(project_id, contact)
-        lock = self._lock_for(thread_id)
-        async with lock:
-            try:
-                # 记录回复路由（open_kfid/site_id 取自最新一条消息）
-                first = delta.raws[0]
-                row = first.extra or {}
-                open_kfid = str(row.get("open_kfid") or "")
-                site_id = int(row.get("site_id", 1) or 1)
-                if open_kfid:
-                    self._kf_routing[contact] = (open_kfid, site_id)
+        from app.core.channel.duty.scheduler import release_inflight, try_claim_inflight
+        # 按客户隔离在飞：同一客户已在处理则跳过（防重复派发），不同客户互不阻塞。
+        if not try_claim_inflight(project_id, f"kf:{contact}"):
+            logger.info(
+                "[mcp_kf] 客户 %s 的消息已在飞处理，跳过本次派发 (project=%s)",
+                contact,
+                project_id,
+            )
+            return
+        try:
+            thread_id = self._thread_for(project_id, contact)
+            lock = self._lock_for(thread_id)
+            async with lock:
+                try:
+                    # 记录回复路由（open_kfid/site_id 取自最新一条消息）
+                    first = delta.raws[0]
+                    row = first.extra or {}
+                    open_kfid = str(row.get("open_kfid") or "")
+                    site_id = int(row.get("site_id", 1) or 1)
+                    if open_kfid:
+                        self._kf_routing[contact] = (open_kfid, site_id)
 
-                # 读取即 ack：先标记该联系人的这批消息已处理
-                ids = [
-                    int(r.extra.get("id"))
-                    for r in delta.raws
-                    if r.extra and r.extra.get("id")
-                ]
-                if ids:
-                    await self._call_kf_tool("kf_mark_processed", ids=",".join(str(i) for i in ids))
-                    logger.info("[mcp_kf] 已标记 %d 条消息已处理 (contact=%s)", len(ids), contact)
+                    # 读取即 ack：先标记该联系人的这批消息已处理
+                    ids = [
+                        int(r.extra.get("id"))
+                        for r in delta.raws
+                        if r.extra and r.extra.get("id")
+                    ]
+                    if ids:
+                        await self._call_kf_tool("kf_mark_processed", ids=",".join(str(i) for i in ids))
+                        logger.info("[mcp_kf] 已标记 %d 条消息已处理 (contact=%s)", len(ids), contact)
 
-                # 该联系人的多条新消息合并为一条消息内容，一次送 Agent
-                msg = await self._to_incoming(first, project_id)
-                if len(delta.raws) > 1:
-                    body = "\n".join(f"- {r.text}" for r in delta.raws)
-                    msg.text = body
-                    msg.metadata["kf_message_ids"] = ids
-                result = await self.dispatch(msg)  # 基类 → dispatch_agent_run
-                if result is None or getattr(result, "inputs", None) is None:
-                    logger.warning("[mcp_kf] dispatch 未返回 inputs，跳过 (contact=%s)", contact)
-                    return
-                # 标准链路：Agent 引擎完整推理（await 等 Agent 跑完，回复经事件到 send）。
-                from app.core.session.manager import session_manager
+                    # 该联系人的多条新消息合并为一条消息内容，一次送 Agent
+                    msg = await self._to_incoming(first, project_id)
+                    if len(delta.raws) > 1:
+                        body = "\n".join(f"- {r.text}" for r in delta.raws)
+                        msg.text = body
+                        msg.metadata["kf_message_ids"] = ids
+                    result = await self.dispatch(msg)  # 基类 → dispatch_agent_run
+                    if result is None or getattr(result, "inputs", None) is None:
+                        logger.warning("[mcp_kf] dispatch 未返回 inputs，跳过 (contact=%s)", contact)
+                        return
+                    # 标准链路：Agent 引擎完整推理（await 等 Agent 跑完，回复经事件到 send）。
+                    from app.core.engine.session.manager import session_manager
 
-                await session_manager.submit(
-                    thread_id,
-                    result.inputs,
-                    await_completion=True,
-                    timeout=None,
-                )
-            except Exception:
-                logger.exception("[%s] Failed to dispatch duty message for %s", self.name, contact)
+                    await session_manager.submit(
+                        thread_id,
+                        result.inputs,
+                        await_completion=True,
+                        timeout=self.DUTY_KF_DELIVERY_TIMEOUT,
+                    )
+                except Exception:
+                    logger.exception("[%s] Failed to dispatch duty message for %s", self.name, contact)
+        finally:
+            release_inflight(project_id, f"kf:{contact}")
 
     async def _send_reply(self, contact: str, text: str, project_id: int = 0) -> bool:
         """发送回复到商城微信客服（调 ``kf_send_text``），返回是否成功。
@@ -259,7 +273,7 @@ class MpcKfChannel(DutyChannel):
             return False
         open_kfid, site_id = routing
 
-        chunks = self._chunk_reply(text)
+        chunks = chunk_text(text, MpcKfChannel.MAX_MESSAGE_LEN)
         if not chunks:
             return False
         sent_all = True
@@ -284,38 +298,22 @@ class MpcKfChannel(DutyChannel):
                 _time.sleep(0.5)
         return sent_all
 
-    @staticmethod
-    def _chunk_reply(text: str, limit: int | None = None) -> list[str]:
-        """把长回复拆分为可发送的多个分段（不丢内容），复用 GUI 线逻辑。"""
-        limit = limit or MpcKfChannel.MAX_MESSAGE_LEN
-        text = (text or "").strip()
-        if not text:
-            return []
-        if len(text) <= limit:
-            return [text]
-
-        chunks: list[str] = []
-        remaining = text
-        while len(remaining) > limit:
-            cut = remaining.rfind("\n", 0, limit)
-            if cut < limit // 2:
-                cut = remaining.rfind("。", 0, limit)
-            if cut <= 0:
-                cut = limit
-            chunks.append(remaining[:cut].strip())
-            remaining = remaining[cut:].strip()
-        if remaining:
-            chunks.append(remaining)
-        return chunks
-
     # ── MCP 工具调用封装 ──────────────────────────────────────
+
+    # 单次 kf 工具调用超时：远程 MCP 会话偶发僵死（连接 CLOSE_WAIT）时，
+    # 调用会无限挂起，把整个 kf 轮巡（以及持有它的调度器锁）拖死。
+    # 加超时兜底：挂死的调用跳过并留日志，不让外部 MCP 阻塞客服值守。
+    KF_TOOL_TIMEOUT = 10.0
+    # 推送后首次轮巡拉空时的补轮巡延迟：覆盖远程"推送即断"后 keepalive 重连窗口
+    KF_PUSH_RETRY_DELAY = 8.0
 
     async def _call_kf_tool(self, tool_name: str, **kwargs) -> dict[str, Any]:
         """调用客服后端 MCP server 的 kf 工具，解析 content[0].text 的 JSON 返回。
 
         server 名来自项目配置 callback.mcp_server（不在代码写死）。工具未配置 /
         未注册 / 调用失败 / 返回非 JSON → logger.warning + 返回 {}（轮巡对外部
-        服务瞬时故障容忍，但不静默：必须留日志）。
+        服务瞬时故障容忍，但不静默：必须留日志）。调用本身有超时兜底，
+        防远程 MCP 会话僵死时无限挂起。
         """
         from app.core.mcp.client.manager import mcp_client_manager
 
@@ -333,7 +331,17 @@ class MpcKfChannel(DutyChannel):
             logger.warning("[mcp_kf] 工具 %s 不在 %s 上", full_name, server)
             return {}
         try:
-            result = await tool.func(**kwargs)
+            result = await asyncio.wait_for(
+                tool.func(**kwargs),
+                timeout=self.KF_TOOL_TIMEOUT,
+            )
+        except asyncio.TimeoutError:
+            logger.warning(
+                "[mcp_kf] 调用 %s 超时(>%ss)，跳过（外部 MCP 僵死不能阻塞值守）",
+                full_name,
+                self.KF_TOOL_TIMEOUT,
+            )
+            return {}
         except Exception as e:
             logger.warning("[mcp_kf] 调用 %s 失败: %s", full_name, e, exc_info=True)
             return {}
@@ -423,8 +431,19 @@ class MpcKfChannel(DutyChannel):
             return
         logger.info("[mcp_kf] 收到 KF_NEW_MESSAGE 推送，立即轮巡 (project=%s)", project_id)
         try:
-            from app.core.channel.duty.scheduler import KIND_KF, run_duty_poll
+            from app.core.channel.duty.scheduler import (
+                KIND_KF,
+                run_duty_poll_with_release,
+            )
 
-            run_duty_poll.delay(project_id=project_id, kind=KIND_KF)
+            # 值守轮巡不进持久队列：进程内直接执行（避免队列残留旧任务）。
+            handled = await run_duty_poll_with_release(project_id=project_id, kind=KIND_KF)
+            # 远程 servicer 推送 kf_new_message 后经常紧接着关闭 SSE 连接
+            # （"推送即断"），此时立即轮巡会打到退化会话上、kf_list 超时返回空。
+            # 等一拍（覆盖 keepalive 重连窗口），再补一次轮巡兜底。
+            if handled <= 0:
+                logger.info("[mcp_kf] 推送后首次轮巡未拉到消息，%ss 后补轮巡兜底", self.KF_PUSH_RETRY_DELAY)
+                await asyncio.sleep(self.KF_PUSH_RETRY_DELAY)
+                await run_duty_poll_with_release(project_id=project_id, kind=KIND_KF)
         except Exception:
             logger.exception("[mcp_kf] KF_NEW_MESSAGE 触发轮巡异常 project=%s", project_id)

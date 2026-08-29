@@ -8,7 +8,6 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from app.core.config import settings
 from app.core.engine.hooks import HookContext, HookEvent, ToolResult, hook_system
 from app.core.engine.hooks.schemas import ToolInput
 from app.core.engine.message.native_classes import BaseMessage, ToolMessage
@@ -16,8 +15,6 @@ from app.core.engine.signals import AgentSignal, signal_manager
 from app.core.engine.state import AgentState, RunnableConfigMetadata
 from app.core.exceptions import AgentHumanInterruptException
 from app.core.tools import get_working_directory
-from app.infrastructure.queue.factory import get_scheduler
-from app.utils.diff import diff_tracker
 from app.utils.extract import safe_parse_json
 from app.utils.id import gen_uuid
 
@@ -133,8 +130,8 @@ class AgentToolExecutor:
 
             is_mutating = tool.metadata.get("is_state_mutating", False)
             if self.enable_diff_tracking and is_mutating:
+                from app.core.file.changes.tracker import file_change_tracker
                 from app.core.tools.registry import get_tool_affected_paths
-                from app.utils.diff import diff_tracker
 
                 snapshot_paths = get_tool_affected_paths(tool_name, tool_args)
                 resolved_abs_paths = []
@@ -146,8 +143,8 @@ class AgentToolExecutor:
                             abs_path = os.path.abspath(os.path.join(wd, abs_path))
 
                         resolved_abs_paths.append(abs_path)
-                        if not diff_tracker.has_snapshot(abs_path, thread_id):
-                            diff_tracker.capture_snapshot(abs_path, thread_id)
+                        if not file_change_tracker.has_snapshot(abs_path, thread_id):
+                            file_change_tracker.capture(abs_path, thread_id)
                             logger.info(f"[{self.name}] Captured snapshot for: {abs_path}")
                     except Exception as e:
                         logger.warning(f"[ToolExecutor] Failed to resolve path for snapshot: {path} | Error: {e}", exc_info=True)
@@ -196,7 +193,7 @@ class AgentToolExecutor:
             tool_message_id = gen_uuid()
 
             if self.enable_diff_tracking and tool.metadata.get("is_state_mutating"):
-                await self._track_diffs(tool_name, tool_args, thread_id, tool_message_id, tool_id)
+                await self._track_diffs(tool_name, tool_args, thread_id, tool_message_id, tool_id, tool)
 
             msg = self._create_tool_message(
                 content=str(content),
@@ -208,9 +205,14 @@ class AgentToolExecutor:
             return ToolExecutionResult(message=msg, raw_result=content)
 
         except AgentHumanInterruptException:
+            # HITL 中断：清理本次捕获的快照，避免内存泄漏 / 陈旧快照被复用。
+            self._discard_snapshots(thread_id)
             raise
         except Exception as e:
             content = f"Error executing {tool_name}: {e}"
+
+            # 工具执行失败：快照不会被 _track_diffs 消费，必须丢弃。
+            self._discard_snapshots(thread_id)
 
             if tool_callbacks:
                 await emit_tool_error(tool_callbacks, tool_name, e, tool_run_id)
@@ -244,6 +246,14 @@ class AgentToolExecutor:
             )
             return ToolExecutionResult(message=msg, raw_result=None)
 
+    def _discard_snapshots(self, thread_id: str) -> None:
+        """丢弃本次调用已捕获但未消费的快照（执行失败 / HITL 中断路径）。"""
+        from app.core.file.changes.tracker import file_change_tracker
+
+        for path in getattr(self, "_current_resolved_paths", None) or []:
+            file_change_tracker.discard(path, thread_id)
+        self._current_resolved_paths = []
+
     async def _track_diffs(
         self,
         tool_name: str,
@@ -251,58 +261,29 @@ class AgentToolExecutor:
         thread_id: str,
         message_id: str,
         tool_call_id: str,
+        tool: Any = None,
     ) -> None:
-        from app.core.tools.registry import get_tool_map
+        from app.core.file.changes.tracker import file_change_tracker
 
-        tool_map = get_tool_map()
-        tool_obj = tool_map.get(tool_name)
-
-        if not tool_obj or not tool_obj.metadata.get("is_state_mutating"):
+        # 调用点已按 is_state_mutating 门控并传入工具对象，此处仅做防御性校验
+        #（不再重复 get_tool_map 全局查找）。
+        if not tool or not tool.metadata.get("is_state_mutating"):
             return
 
         snapshot_paths = self._current_resolved_paths
         if not snapshot_paths:
             return
 
+        meta = RunnableConfigMetadata.from_config(self.config)
         for path in snapshot_paths:
             try:
-                operation, diff, original_content = diff_tracker.compute_diff(path, thread_id)
-                if diff:
-                    logger.info(f"📝 Diff Detected ({operation}) on {path} (Persisting in Background)")
-                    try:
-                        from app.core.engine.state.config import RunnableConfigMetadata
-
-                        meta = RunnableConfigMetadata.from_config(self.config)
-                        msg_id = message_id
-                        if settings.EMBEDDED_MODE:
-                            from app.core.engine.tasks import persist_file_operation_task
-
-                            await persist_file_operation_task(
-                                thread_id=thread_id,
-                                message_id=str(msg_id),
-                                file_path=path,
-                                operation=operation,
-                                diff_content=diff,
-                                original_content=original_content,
-                                run_id=meta.run_id,
-                                tool_call_id=tool_call_id,
-                            )
-                        else:
-                            get_scheduler().send_task(
-                                "engine_persist_file_operation",
-                                kwargs={
-                                    "thread_id": thread_id,
-                                    "message_id": str(msg_id),
-                                    "file_path": path,
-                                    "operation": operation,
-                                    "diff_content": diff,
-                                    "original_content": original_content,
-                                    "run_id": meta.run_id,
-                                    "tool_call_id": tool_call_id,
-                                },
-                            )
-                    except Exception as e:
-                        logger.warning(f"Failed to dispatch FileOperation to Celery: {e}", exc_info=True)
+                await file_change_tracker.compute_and_persist(
+                    path=path,
+                    thread_id=thread_id,
+                    message_id=str(message_id),
+                    tool_call_id=tool_call_id,
+                    run_id=meta.run_id,
+                )
             except OSError as e:
                 logger.exception(f"Failed to process diff for {path}: {e}")
 

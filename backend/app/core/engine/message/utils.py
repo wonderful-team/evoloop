@@ -232,15 +232,6 @@ def get_message_text(message: Any) -> str:
     return ""
 
 
-def get_last_human_message(messages: list) -> str | None:
-    """Extract last user message content from message list."""
-    for msg in reversed(messages):
-        role = msg.get("role") if isinstance(msg, dict) else getattr(msg, "type", None)
-        if role in ("user", "human"):
-            return get_message_text(msg)
-    return None
-
-
 def estimate_message_tokens(msg: Any) -> int:
     """
     Estimate token count for a single message.

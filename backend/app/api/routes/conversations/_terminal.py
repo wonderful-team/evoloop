@@ -5,12 +5,12 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.core.context.manager import ContextManager, EvoContext
-from app.core.execution.terminal.manager import terminal_manager
 from app.core.execution.terminal.background import (
     CreateBackgroundTaskRequest,
     TaskType,
     task_manager,
 )
+from app.core.execution.terminal.manager import terminal_manager
 from app.infrastructure.database import session_scope
 from app.models import Conversation
 

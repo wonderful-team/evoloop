@@ -24,8 +24,32 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from app.core.channel.base import IncomingMessage, InputChannel
+from app.core.identity import identity_service
 
 logger = logging.getLogger(__name__)
+
+# 业务巡检"在审/等待"登记（进程内）：{(project_id, task_id): thread_id}
+# 任务派发后若 Agent 进入 HITL 等待人工，会话仍存活 → 该任务标记为 pending，
+# 下轮扫描跳过，避免同一批待办被反复巡检、HITL 请求堆积。会话真正完成
+# （SESSION_COMPLETED）后由 release_business_pending 清除，下轮才可重新巡检。
+# 单 worker 进程内有效：重启后清空，下轮扫描重新派发（可接受）。
+_BUSINESS_PENDING: dict[tuple[int, str], str] = {}
+
+
+def release_business_pending(project_id: int, task_id: str) -> None:
+    """业务巡检任务会话完成（SESSION_COMPLETED）后释放 pending。"""
+    _BUSINESS_PENDING.pop((project_id, task_id), None)
+
+
+def is_business_pending(project_id: int, task_id: str) -> bool:
+    """该任务是否处于"在审/等待"（上一轮已派发且会话仍存活）。"""
+    thread_id = _BUSINESS_PENDING.get((project_id, task_id))
+    if not thread_id:
+        return False
+    from app.core.engine.session.manager import session_manager
+
+    sess = session_manager.get(thread_id)
+    return sess is not None and getattr(sess, "lifecycle", None) == "running"
 
 
 @dataclass
@@ -107,15 +131,27 @@ class DutyChannel(InputChannel, ABC):
         return handled
 
     async def business_poll_check(self, project_id: int) -> int:
-        """业务巡检：扫描任务列表，把到期的任务逐条作为独立 human 消息发给 Agent。
+        """业务巡检：扫描任务列表，先"认领"所有到期任务，再**串行**逐条派发给 Agent。
 
         调度以 business_poll_interval（分钟）为频率扫描列表，真正的执行节奏由
         每条任务的 next_run_at + interval_minutes 控制。每条任务使用独立的
         会话（thread_id="duty_business_{project_id}_{task_id}"），彼此不共享上下文。
 
+        **认领即推进**：扫描一开始，把所有「到期 + 启用 + 未在飞」的任务统一推进
+        next_run_at 并立即落盘完整列表——即使进程被强杀/重启，这些任务都已标记为
+        "已调度"，**一个都不重跑**（"进程停止，任务就停止"），也不截断配置。
+
+        **串行派发**：对已认领的任务一次只派一条，`await wait_delivery_complete()`
+        等它完成（含 HITL 被人工答复）才派下一条——同一时刻只有一个巡检 Agent 在跑，
+        不并发抢浏览器。HITL 挂起时该任务保持 pending、不误判为完成。
+        串行期间 scheduler 的 _active_kinds[KIND_BUSINESS_POLL] 保持占用，阻止再次进入。
+
         返回本轮成功发送并更新 next_run_at 的任务数。
         """
-        from app.core.channel.duty.config import load_duty_config, save_business_poll_prompts
+        from app.core.channel.duty.config import (
+            load_duty_config,
+            save_business_poll_prompts,
+        )
         from app.core.state import shared_state
 
         cfg = await load_duty_config(project_id)
@@ -129,43 +165,57 @@ class DutyChannel(InputChannel, ABC):
 
         now_dt = datetime.now(timezone.utc)
         now_ts = now_dt.timestamp()
-        updated_prompts: list[dict] = []
         sent = 0
+        # 巡检会话归属操作者（解析一次，整轮复用），使其出现在前台会话列表
+        duty_member_id = await identity_service.get_member_id()
 
-        for raw in prompts:
+        # ── 1. 认领 pass：把本轮所有到期任务先推进 next_run_at 并落盘 ──
+        claimed: list[int] = []
+        for i, raw in enumerate(prompts):
             if not isinstance(raw, dict):
-                updated_prompts.append(raw)
                 continue
-            p = dict(raw)
+            p = raw
             if not p.get("enabled", True):
-                updated_prompts.append(p)
                 continue
             try:
                 next_dt = datetime.fromisoformat(p.get("next_run_at", ""))
                 if next_dt.timestamp() > now_ts:
-                    updated_prompts.append(p)
                     continue
             except (ValueError, TypeError):
-                updated_prompts.append(p)
                 continue
+            # pending：上一轮已派发、会话仍在跑（含 HITL 等人工）→ 本轮不认领、不派发
+            if is_business_pending(project_id, str(p.get("id") or "")):
+                logger.info(
+                    "[duty] 业务巡检任务 pending，等待上一轮完成 (project=%s, prompt=%s)",
+                    project_id,
+                    p.get("id"),
+                )
+                continue
+            interval = int(p.get("interval_minutes") or 60)
+            prompts[i]["next_run_at"] = (now_dt + timedelta(minutes=interval)).isoformat()
+            claimed.append(i)
 
+        if claimed:
+            # 认领即落盘完整列表：进程被强杀/重启后，这些任务都已推进，不重跑
+            await save_business_poll_prompts(project_id, prompts)
+
+        # ── 2. 串行派发已认领的任务 ──
+        for i in claimed:
+            p = prompts[i]
             prompt_text = (
-                str(p.get("prompt") or "")
-                .replace("{project_id}", str(ctx_project_id))
-                .strip()
+                (p.get("prompt") or "").replace("{project_id}", str(ctx_project_id)).strip()
             )
             if not prompt_text:
-                updated_prompts.append(p)
                 continue
 
-            # 每次巡检用独立 thread（带 run 时间戳）：业务巡检是一次性独立查证，
-            # 不应共享同一条任务的历史（否则历史无限堆积、Agent 消化重复上下文）。
+            # 每次巡检用独立 thread（带 run 时间戳）：业务巡检是一次性独立查证
             task_thread_id = f"duty_business_{project_id}_{p.get('id')}_{int(now_ts)}"
             msg = IncomingMessage(
                 source="duty",
                 thread_id=task_thread_id,
                 text=prompt_text,
                 project_id=ctx_project_id,
+                member_id=duty_member_id,
                 metadata={"source": "duty", "channel_name": self.name},
             )
             try:
@@ -176,7 +226,6 @@ class DutyChannel(InputChannel, ABC):
                         project_id,
                         p.get("id"),
                     )
-                    updated_prompts.append(p)
                     continue
                 from app.core.engine.session.manager import session_manager
 
@@ -184,36 +233,27 @@ class DutyChannel(InputChannel, ABC):
                     task_thread_id, result.inputs, await_completion=False
                 )
 
-                # 派发成功即推进 next_run_at：不等 Agent 完成 delivery。
-                # 否则若某条任务卡在 HITL/长任务（wait_delivery_complete 无超时
-                # 永久阻塞），整轮扫描停滞，后续任务与 save_business_poll_prompts
-                # 都不执行，next_run_at 永不落盘。
-                interval = int(p.get("interval_minutes") or 60)
-                p["next_run_at"] = (now_dt + timedelta(minutes=interval)).isoformat()
-                updated_prompts.append(p)
                 sent += 1
+                _BUSINESS_PENDING[(project_id, str(p.get("id") or ""))] = task_thread_id
                 logger.info(
                     "[duty] 业务巡检任务已发起 (project=%s, prompt=%s)",
                     project_id,
                     p.get("id"),
                 )
-                # delivery 完成仅作观察（带超时，best-effort），不影响调度推进
-                delivered = await session.wait_delivery_complete(timeout=30)
-                if not delivered:
-                    logger.warning(
-                        "[duty] 业务巡检任务 delivery 超时 (project=%s, prompt=%s)",
-                        project_id,
-                        p.get("id"),
-                    )
+
+                # 串行：等这条 delivery 完成（含 HITL 被人工答复）才派下一条。
+                # 会话被停止/关闭（_close_session 触发 delivery 通知）也会让这里返回。
+                await session.wait_delivery_complete()
             except Exception:
                 logger.exception(
                     "[duty] 业务巡检任务失败 (project=%s, prompt=%s)",
                     project_id,
                     p.get("id"),
                 )
-                updated_prompts.append(p)
 
-        await save_business_poll_prompts(project_id, updated_prompts)
+        # 兜底落盘完整列表（保留 enabled/disabled 等字段与已推进的 next_run_at）
+        if claimed:
+            await save_business_poll_prompts(project_id, prompts)
         return sent
 
     async def _scan_contacts_one(self) -> ContactDelta | None:

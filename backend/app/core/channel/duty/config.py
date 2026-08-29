@@ -134,5 +134,28 @@ async def save_business_poll_prompts(project_id: int, prompts: list[dict]) -> No
         return
     pj = read_project_json(path)
     duty = pj.get("customer_service_duty") or {}
-    duty["business_poll_prompts"] = prompts
+
+    current: dict[str, dict] = {}
+    for p in duty.get("business_poll_prompts") or []:
+        if isinstance(p, dict) and p.get("id"):
+            current[p["id"]] = p
+
+    merged: list[dict] = []
+    for p in prompts:
+        if not isinstance(p, dict):
+            merged.append(p)
+            continue
+        pid = p.get("id")
+        base = current.get(pid)
+        if base is None:
+            merged.append(p)  # 文件里没有的任务：整条写入
+            continue
+        # 保留文件当前字段（含文案），仅回填调度字段
+        item = dict(base)
+        for k in ("next_run_at", "enabled", "interval_minutes"):
+            if k in p:
+                item[k] = p[k]
+        merged.append(item)
+
+    duty["business_poll_prompts"] = merged
     write_project_json(path, {"customer_service_duty": duty})

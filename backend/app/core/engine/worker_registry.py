@@ -70,10 +70,21 @@ class WorkerRegistry:
     async def cancel_worker(self, thread_id: str) -> bool:
         async with self._lock:
             record = self._records.pop(thread_id, None)
+            # 级联取消 split 子任务（Worker 裂变的 subagent，run parent = <thread_id>-split-*）
+            split_prefix = f"{thread_id}-split"
+            split_records = [
+                (tid, rec)
+                for tid, rec in self._records.items()
+                if tid.startswith(split_prefix)
+            ]
+            for tid, rec in split_records:
+                self._records.pop(tid, None)
+                if rec.task is not None and not rec.task.done():
+                    rec.task.cancel()
         if record is not None and record.task is not None and not record.task.done():
             record.task.cancel()
             return True
-        return False
+        return bool(split_records)
 
     async def cancel_all(self, project_id: int | None = None) -> int:
         """取消所有注册的运行中任务（L0 宏等独立执行），返回取消数。
@@ -110,6 +121,44 @@ class WorkerRegistry:
     async def has_running_worker(self, thread_id: str) -> bool:
         record = await self.get_worker(thread_id)
         return record is not None and record.status == "running"
+
+
+# ───────────────────────── A2A wait coordination ─────────────────────────
+#
+# Worker rollout registers a per-thread asyncio.Event before parking on a remote
+# A2A callback (worker-delegation-design.md Phase B). The A2A callback handler
+# (event/handlers/a2a.py) resolves it AFTER writing the callback result into the
+# persisted tool message, so the rollout can reload state and continue its
+# mission. In-memory only — consistent with the existing session/A2A co-location
+# assumption (session_manager + inject_resume are also in-memory).
+
+_a2a_waits: dict[str, asyncio.Event] = {}
+
+
+def register_a2a_wait(thread_id: str) -> asyncio.Event:
+    """Register (or reuse) the wait event for a Worker awaiting an A2A callback."""
+    ev = _a2a_waits.get(thread_id)
+    if ev is None:
+        ev = asyncio.Event()
+        _a2a_waits[thread_id] = ev
+    return ev
+
+
+def is_worker_waiting_a2a(thread_id: str) -> bool:
+    """True when a Worker rollout is currently parked on an A2A callback for this thread."""
+    return thread_id in _a2a_waits
+
+
+def resolve_a2a_wait(thread_id: str) -> None:
+    """Set the wait event — call AFTER the callback result is persisted."""
+    ev = _a2a_waits.get(thread_id)
+    if ev is not None:
+        ev.set()
+
+
+def clear_a2a_wait(thread_id: str) -> None:
+    """Remove the wait registration (timeout / cancellation / normal resume)."""
+    _a2a_waits.pop(thread_id, None)
 
 
 # Module singleton

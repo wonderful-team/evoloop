@@ -2,6 +2,7 @@ import asyncio
 import logging
 
 from app.core.config import settings
+from app.core.execution.execution_mode import get_execution_mode
 from app.core.execution.sandbox.base import Sandbox
 from app.core.execution.sandbox.local import LocalSandbox
 
@@ -27,7 +28,9 @@ class SandboxFactory:
             if cls._instance:
                 return cls._instance
 
-            mode = settings.EXECUTION_MODE.lower()
+            # 事实层单一出处：SandboxFactory 与 hitl_enabled 共用同一判定，
+            # 不读 SystemConfig 表覆写（后者仅供 prompt 渲染）。
+            mode = get_execution_mode()
             image = settings.SANDBOX_IMAGE
 
             logger.info(f"Initializing Sandbox in mode: {mode}")

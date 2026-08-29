@@ -486,6 +486,39 @@ class MessageRepository:
             logger.exception(f"[MessageRepository] Failed to update content by tool_call_id {tool_call_id}: {e}")
             raise
 
+    async def update_ai_tool_message_content(self, tool_call_id: str, content: str) -> bool:
+        """Update content of the AI message whose ``tool_calls`` JSON contains ``tool_call_id``.
+
+        Phase B（worker-delegation-design.md）：A2A 回调结果需在 AI tool_call 消息上可见。
+        ``update_content_by_tool_call_id`` 只匹配 ``tool_call_id`` 列（system/tool 消息），
+        而 AI 消息的 id 在 ``tool_calls`` JSON 里；reload state 时 build_agent_state 会保留
+        该 AI 消息，因此把结果写到这里，Worker 重载后才能真正看到远程结果。
+        """
+        try:
+            from app.core.engine.message.utils import normalize_tool_calls
+
+            async with session_scope() as session:
+                stmt = (
+                    select(Message)
+                    .where(Message.thread_id == self.thread_id)
+                    .where(Message.role == "ai")
+                    .order_by(Message.sequence_number.desc())
+                    .limit(10)
+                )
+                rows = (await session.execute(stmt)).scalars().all()
+                for msg in rows:
+                    if not msg.tool_calls:
+                        continue
+                    for tc in normalize_tool_calls(msg.tool_calls):
+                        if tc.get("id") == tool_call_id:
+                            msg.content = content
+                            logger.info(f"[MessageRepository] Updated AI tool message content for tool_call_id {tool_call_id}")
+                            return True
+            return False
+        except Exception as e:
+            logger.exception(f"[MessageRepository] Failed to update AI tool message content by tool_call_id {tool_call_id}: {e}")
+            raise
+
     async def get_last_message_id(self, session=None) -> str | None:
         """Get the ID of the most recent message in the thread."""
         try:
@@ -525,7 +558,7 @@ class MessageRepository:
                 select(Message)
                 .where(
                     Message.thread_id == self.thread_id,
-                    Message.is_visible == True,
+                    Message.is_visible,
                     or_(
                         Message.category.is_(None),
                         Message.category != MessageCategory.HITL_REQUEST.value,
@@ -570,7 +603,7 @@ class MessageRepository:
                     select(Message)
                     .where(
                         Message.thread_id == self.thread_id,
-                        Message.is_visible == False,
+                        not Message.is_visible,
                         Message.run_id.in_(run_ids),
                     )
                     .options(selectinload(Message.references))
@@ -586,7 +619,7 @@ class MessageRepository:
                 total_count = (await session.execute(
                     select(func.count(Message.id)).where(
                         Message.thread_id == self.thread_id,
-                        Message.is_visible == True,
+                        Message.is_visible,
                         Message.category != MessageCategory.HITL_REQUEST.value
                     )
                 )).scalar()

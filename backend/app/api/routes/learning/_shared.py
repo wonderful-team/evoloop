@@ -14,23 +14,6 @@ logger = logging.getLogger(__name__)
 _active_sessions: dict[str, dict] = {}
 
 
-def _normalize_json_list(raw: str | list | None) -> list:
-    """Normalize a JSON column that may be a list, a JSON string, or a
-    double-encoded JSON string (legacy rows store json.dumps inside a JSON
-    column, which deserializes back to a str)."""
-    if not raw:
-        return []
-    data = raw
-    for _ in range(2):
-        if not isinstance(data, str):
-            break
-        try:
-            data = json.loads(data)
-        except (json.JSONDecodeError, TypeError):
-            return []
-    return data if isinstance(data, list) else []
-
-
 def _member_id(current_user: Any) -> int:
     """Safely extract member_id from optional current user."""
     if current_user is None:

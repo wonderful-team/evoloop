@@ -583,6 +583,9 @@ class Settings(BaseSettings):
     WORKER_AGENT_MAX_STEPS: int = 100
     FINISH_AGENT_MAX_STEPS: int = 10
 
+    # Subagent（并行执行）：进程重启后 stale running/awaiting 收割阈值（秒）
+    SUBAGENT_STALE_AFTER_SECONDS: int = 3600
+
     # Long-horizon task limits (e.g. wiki generation, large codebase analysis)
     LONG_HORIZON_SUPERVISOR_MAX_STEPS: int = 100
     LONG_HORIZON_RECURSION_LIMIT: int = 250

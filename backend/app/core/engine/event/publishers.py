@@ -80,6 +80,7 @@ async def publish_conversation_updated(
     project_id: int = DEFAULT_PROJECT_ID,
     member_id: int = 0,
     title: str = "",
+    status: str = "",
 ) -> None:
     """Publish a conversation-updated event so frontends can refresh their lists."""
     await system_bus.publish(
@@ -88,6 +89,7 @@ async def publish_conversation_updated(
             project_id=project_id,
             member_id=member_id,
             title=title,
+            status=status,
         )
     )
 

@@ -111,6 +111,7 @@ class EvoLoopTool(StructuredTool):
         self.args_schema = args_schema
         self.metadata = {}
         self.handle_tool_error = True
+        self.affected_path_extractor = None
 
         sig = inspect.signature(func)
         self._accepts_config = "config" in sig.parameters
@@ -147,6 +148,7 @@ def evoloop_tool(
     config: EvoLoopToolConfig | None = None,
     is_state_mutating: bool = False,
     affected_path_keys: list[str] | None = None,
+    affected_path_extractor: Callable | None = None,
     summary_template: str | None = None,
     is_memory_tool: bool = False,
     is_multimodal: bool = False,
@@ -281,6 +283,7 @@ def evoloop_tool(
             args_schema=kwargs.get("args_schema"),
         )
 
+        tool_instance.affected_path_extractor = affected_path_extractor
         tool_instance.metadata["is_state_mutating"] = config.is_state_mutating
         tool_instance.metadata["affected_path_keys"] = config.affected_path_keys
         tool_instance.metadata["summary_template"] = config.summary_template

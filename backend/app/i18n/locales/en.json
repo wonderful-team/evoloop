@@ -214,11 +214,9 @@
       "delete_file": "Delete file '{path}'",
       "generate_macros": "Generate macros",
       "list_app_maps": "List app maps",
-      "list_operation_paths": "List operation paths",
       "list_scheduled_tasks": "List scheduled tasks",
       "list_vault_credentials": "List vault credentials",
       "move_file": "Move file '{path}'",
-      "navigate_operation": "Navigate operation: {operation}",
       "query_code_chunks": "Query code chunks[[ (query: {query}) ]]",
       "query_code_relations": "Query code relations[[ (query: {query}) ]]",
       "query_security_findings": "Query security findings[[ (query: {query}) ]]",
@@ -226,7 +224,6 @@
       "read_app_map": "Read app atlas '{app_name}'",
       "request_secure_credential": "Request secure credential (key: {key})",
       "schedule_periodic_task": "Schedule periodic task '{task_name}'",
-      "set_agent_name": "Set agent name '{name}'",
       "update_blackboard": "Update blackboard",
       "write_app_map": "Write app atlas '{app_name}'",
       "get_skill": "Read skill[[ (id: {skill_id}) ]][[ (name: {skill_name}) ]]",
@@ -550,6 +547,7 @@
     "batch_approved": "Batch approval granted (batch ID: {grant_id}, {count} operations). Proceed with the approved operations; they will not re-prompt for confirmation while valid.",
     "batch_approved_fallback": "Batch approval granted. Proceed with the approved operations.",
     "batch_rejected": "Batch approval was rejected. Do not execute the operations in the batch.",
+    "operation_rejected": "The operation was rejected by the user ({tool}) and was NOT executed. Stop this operation immediately: do not retry, do not re-route to other write operations. Report the cancellation honestly to the user and wait for further instructions.",
     "access_rejected": "User rejected this access request (REJECTED): {path}. Do not retry this path; use alternative approaches or continue with the rest of the task.",
     "authorization": {
       "tool_not_subject_to_authorization": "Tool not subject to project-level authorization",
@@ -563,6 +561,14 @@
         "execute": "execute {resource_path}"
       },
       "missing_policy_error": "Cannot request authorization without a matching policy"
+    }
+  },
+  "engine": {
+    "authorization": {
+      "metadata_access_prohibited": "[SECURITY VIOLATION] Access to project metadata (.evoloop) is prohibited.",
+      "outside_workspace_description": "Sensitive file access outside allowed workspace boundaries: {resource_path}",
+      "outside_workspace_reason": "Access to {resource_path} requires user approval (outside workspace/allowed boundaries)",
+      "denied_message": "[AUTHORIZATION DENIED] {reason}"
     }
   }
 }

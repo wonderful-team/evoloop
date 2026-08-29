@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 from sqlalchemy import select
 
 from app.core.events import system_bus
+from app.core.hitl.types import HumanRequestType
 from app.core.monitoring.event import SystemLogEvent, SystemStatusEvent
 from app.core.monitoring.schemas import (
     AgentActivityState,
@@ -216,6 +217,17 @@ class ActivityMonitor:
             if isinstance(request_data, HumanRequestData)
             else request_data
         )
+
+        # Validate request type against the known set.
+        request_type = request_dict.get("type") if isinstance(request_dict, dict) else None
+        valid_types = [t.value for t in HumanRequestType]
+        if request_type not in valid_types:
+            logger.warning(
+                "[ActivityMonitor] Unknown request type: %s (expected one of %s)",
+                request_type,
+                valid_types,
+            )
+
         success = await self._state_service.set_human_request(thread_id, request_dict)
 
         if success:

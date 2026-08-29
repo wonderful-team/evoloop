@@ -41,8 +41,8 @@ from app.infrastructure.database import session_scope
 from app.infrastructure.database.vector import get_vector_store
 from app.models import Repository
 
-from ._generations import router as generations_router
 from ._duty import router as duty_router
+from ._generations import router as generations_router
 from ._listing import _resolve_project_id
 from ._listing import router as listing_router
 from ._modules import router as modules_router
@@ -181,6 +181,7 @@ async def import_project_by_path(req: ImportProjectByPathRequest, _token: TokenD
         return ImportProjectByPathResponse(
             status="success",
             repo_id=repo.id,
+            project_id=repo.project_id,
             name=repo.name,
             message=f"Project '{repo.name}' imported successfully",
         )

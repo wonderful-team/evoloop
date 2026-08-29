@@ -3,16 +3,15 @@ import os
 from mcp.server.fastmcp import FastMCP
 
 from app.constants import DEFAULT_PROJECT_ID
-from app.domain.codebase.exploration import ask_codebase, find_symbol
-from app.domain.codebase.retrieval.tools import search_codebase
-from app.domain.tools.execution import execute_command
-from app.domain.tools.files import (
+from app.core.file.tools import (
     edit_file,
     list_dir,
     read_file,
     write_file,
 )
-from app.domain.tools.files import grep_search as search_code
+from app.core.file.tools import grep_search as search_code
+from app.domain.codebase.exploration import ask_codebase, find_symbol
+from app.domain.codebase.retrieval.tools import search_codebase
 from app.utils.json import dumps
 
 # Initialize FastMCP Server

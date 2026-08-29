@@ -83,8 +83,7 @@ class MacroDeviceMap:
         markers = tuple(get_store().device_markers or [])
         marker_tokens = _marker_tokens(markers)
 
-        macros = await list_macros(status="verified", is_active=True)
-        macros.sort(key=lambda m: m.id)
+        macros = await MacroService.list_routable_macros()
 
         device: dict[int, DeviceKind] = {}
         # phone macro id -> bare subject cores (marker stripped).

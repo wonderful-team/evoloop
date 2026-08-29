@@ -6,7 +6,6 @@ used both by explicit HITL tools (ask_human, ask_confirm) and by the authorizati
 framework running inside hooks.
 """
 
-import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Literal
@@ -15,18 +14,56 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, update
 
 from app.core.exceptions import AgentHumanInterruptException
+from app.core.execution.execution_mode import is_docker_mode
+from app.core.hitl.activity_sink import get_activity_sink
 from app.core.hitl.constants import (
     MESSAGE_CATEGORY_HITL_REQUEST,
     MESSAGE_STATUS_WAITING_HUMAN,
 )
-from app.core.hitl.types import HITLRequestStatus, HumanRequestType
-from app.core.monitoring.activity import activity_monitor
+from app.core.hitl.engine_runtime import get_runtime
+from app.core.hitl.types import HITLDecision, HITLRequestStatus, HumanRequestType
 from app.infrastructure.database import session_scope
 from app.models import Message
 from app.models.conversation import HumanRequest
 from app.utils.id import gen_uuid
 
 logger = logging.getLogger(__name__)
+
+
+# ============ Execution-mode guard ============
+
+
+def hitl_enabled() -> bool:
+    """HITL 是否生效。
+
+    EXECUTION_MODE=docker 时豁免全部 HITL 拦截：无人值守流水线不应因审批/提问
+    而挂起，命令与文件访问由沙箱容器隔离兜底（项目 .evoloop 元数据仍硬拦截，
+    不在本引导范围内）。
+    docker 判定单一出处：execution.execution_mode.is_docker_mode（进程事实模式）。
+    """
+    return not is_docker_mode()
+
+
+def auto_hitl_response(
+    request_type: str,
+    default_value: str | None = None,
+    options: list[str] | None = None,
+) -> str:
+    """docker 模式下无人值守的自动应答。
+
+    approval/confirmation → APPROVED；其次用 default_value；再其次用首个选项；
+    兜底返回空串。
+    """
+    if request_type in (
+        HumanRequestType.APPROVAL.value,
+        HumanRequestType.CONFIRMATION.value,
+    ):
+        return HITLDecision.APPROVED.value
+    if default_value:
+        return default_value
+    if options:
+        return options[0]
+    return ""
 
 
 # ============ Data Models ============
@@ -392,55 +429,63 @@ async def push_hitl_notification(
     在发起时声明，resume 端按声明注入 ``{"args": {...}}``，避免按工具名特判。
     """
     # 1. Notify Activity Monitor with structured data
-    await activity_monitor.set_human_request(
+    await get_activity_sink().set_human_request(
         thread_id=thread_id,
         request_data=request_data,
     )
 
-    # 2. Push via MessageHandler for real-time UI delivery
-    try:
-        from app.core.engine.message import MessageHandler
+    # 2. Assemble authorization/resume metadata (hitl domain, stays here)
+    metadata = {}
+    if original_tool_name or original_tool_args:
+        metadata["original_tool"] = {
+            "name": original_tool_name,
+            "args": original_tool_args or {},
+        }
+    if resource_path or action:
+        metadata["authorization"] = {
+            "resource_path": resource_path,
+            "action": action,
+            "project_id": project_id,
+        }
+    if skip_grant:
+        metadata["authorization"] = metadata.get("authorization") or {}
+        metadata["authorization"]["skip_grant"] = True
+    if resume_override:
+        metadata["resume"] = resume_override
 
-        handler = MessageHandler(
+    # 3. Push via EngineRuntime for real-time UI delivery. subagent 透传判断
+    #    （"问人始终发生在主会话"）与 MessageHandler 后台任务均由 engine
+    #    runtime 完成——hitl 只依赖协议，不再反向引用 engine。
+    try:
+        get_runtime().push_hitl_request(
             thread_id=thread_id,
             project_id=project_id,
             run_id=run_id,
-        )
-        metadata = {}
-        if original_tool_name or original_tool_args:
-            metadata["original_tool"] = {
-                "name": original_tool_name,
-                "args": original_tool_args or {},
-            }
-        if resource_path or action:
-            metadata["authorization"] = {
-                "resource_path": resource_path,
-                "action": action,
-                "project_id": project_id,
-            }
-        if skip_grant:
-            metadata["authorization"] = metadata.get("authorization") or {}
-            metadata["authorization"]["skip_grant"] = True
-        if resume_override:
-            metadata["resume"] = resume_override
-        asyncio.create_task(
-            handler.handle_hitl_request(
-                request_type=request.request_type,
-                prompt=request.prompt,
-                request_id=request.id,
-                options=request.options,
-                context=request.context,
-                default_value=request.default_value,
-                tool_call_id=tool_call_id,
-                tool_name=tool_name or request.request_type,
-                parent_id=parent_id,
-                metadata=metadata if metadata else None,
-            )
+            request_type=request.request_type,
+            prompt=request.prompt,
+            request_id=request.id,
+            options=request.options,
+            context=request.context,
+            default_value=request.default_value,
+            tool_call_id=tool_call_id,
+            tool_name=tool_name or request.request_type,
+            parent_id=parent_id,
+            metadata=metadata if metadata else None,
         )
     except Exception as e:
-        logger.warning(f"Failed to push HITL request via MessageHandler: {e}")
+        logger.warning(f"Failed to push HITL request via EngineRuntime: {e}")
 
 
 def raise_hitl_interrupt(request_id: str, response_text: str) -> None:
-    """Raise the interrupt exception that pauses graph execution."""
+    """Raise the interrupt exception that pauses graph execution.
+
+    EXECUTION_MODE=docker 时豁免：调用方已提前进入自动放行语义，此处兜底
+    保证任何残留路径都不会再抛中断（避免无人值守流水线被挂起）。
+    """
+    if not hitl_enabled():
+        logger.warning(
+            "[HITL] docker mode: suppressing interrupt for request %s (sandbox isolation)",
+            request_id,
+        )
+        return
     raise AgentHumanInterruptException(request_id, response_text)

@@ -40,8 +40,10 @@ async def run_node_loop(
     synchronously — it sets ``state.session_handoff = True`` and breaks so the
     session main loop can launch a background rollout.
     """
+    from app.core.engine.nodes.aggregate_subagents import AggregateSubagentsNode
     from app.core.engine.nodes.finish import FinishNode
     from app.core.engine.nodes.sequential_workflow import SequentialWorkflowNode
+    from app.core.engine.nodes.spawn_subagents import SpawnSubagentsNode
     from app.core.engine.nodes.supervisor import SupervisorNode
     from app.core.engine.nodes.worker import WorkerNode
     from app.core.engine.routers import (
@@ -56,6 +58,8 @@ async def run_node_loop(
     worker_node = WorkerNode()
     finish_node = FinishNode()
     sequential_workflow_node = SequentialWorkflowNode()
+    spawn_subagents_node = SpawnSubagentsNode()
+    aggregate_subagents_node = AggregateSubagentsNode()
 
     step_count = 0
 
@@ -95,6 +99,14 @@ async def run_node_loop(
             merge_state_update(state, update)
             if not state.next_node or state.next_node == RoutingTarget.SEQUENTIAL_WORKFLOW:
                 state.next_node = RoutingTarget.SUPERVISOR
+        elif current_node == RoutingTarget.SPAWN_SUBAGENTS:
+            update = await spawn_subagents_node(state, config)
+            merge_state_update(state, update)
+            state.next_node = RoutingTarget.SUPERVISOR
+        elif current_node == RoutingTarget.AGGREGATE_SUBAGENTS:
+            update = await aggregate_subagents_node(state, config)
+            merge_state_update(state, update)
+            state.next_node = RoutingTarget.SUPERVISOR
         else:
             # Unknown node (e.g. legacy "chat" signal) → route to Supervisor for graceful handling
             logger.warning(f"[{log_prefix}] Unknown node {current_node}, routing to Supervisor.")

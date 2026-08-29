@@ -87,28 +87,6 @@ async def replay_memory(project_id: int | None = None) -> MemoryContext:
     )
 
 
-def _parse_episodes(raw_text: str) -> list[EpisodeSummary]:
-    """Parse episode text into structured summaries."""
-    episodes = []
-
-    if not raw_text:
-        return episodes
-
-    # Expected format: "[date] goal -> result"
-    pattern = r"\[([^\]]+)\]\s+(.+?)\s*[-→>]+\s*(\w+)"
-
-    for match in re.finditer(pattern, raw_text):
-        episodes.append(
-            EpisodeSummary(
-                date=match.group(1).strip(),
-                goal=match.group(2).strip(),
-                result=match.group(3).strip().upper(),
-            )
-        )
-
-    return episodes[:5]  # Limit to 5
-
-
 def _parse_concepts(raw_data: str | list[str]) -> list[ConceptSummary]:
     """Parse concept text or list into structured summaries."""
     concepts = []
@@ -149,9 +127,7 @@ def _read_journal_highlights() -> str:
     try:
         from app.core.config import settings
 
-        journal_path = os.path.join(
-            settings.BRAIN_MEMORY_ROOT, "knowledge", "journal.md"
-        )
+        journal_path = os.path.join(settings.BRAIN_MEMORY_ROOT, "knowledge", "journal.md")
         if not os.path.exists(journal_path):
             return ""
 

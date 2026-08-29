@@ -51,10 +51,22 @@ tool_bundles:
 nodes:
   - id: "supervisor"
     path: "app.core.engine.nodes.supervisor.SupervisorNode"
+    # Policy (config layer): the Supervisor handles simple, known, one-shot
+    # actions with macros and routes everything else to a Worker.
+    # - simple_task_tools: tools it may use directly for simple tasks.
+    # - discovery_empty_result: when discovery returns nothing → delegate.
+    # - execution_tools_belong_to: complex/execution work always goes here.
+    policy:
+      simple_task_tools: ["run_macro", "list_macros", "list_skills"]
+      discovery_empty_result: "delegate_to_worker"
+      execution_target: "worker"
     tools:
       # Triage & orchestration
       - "route_to"
       - "update_blackboard"
+      # Subagent control
+      - "cancel_subagent"
+      - "cancel_all_subagents"
       # Skill & macro discovery (for routing, not execution)
       - "list_skills"
       # - "get_skill"
@@ -70,13 +82,11 @@ nodes:
       # Human interaction / multi-agent dispatch
       - "ask_confirm"
       - "ask_human"
-      - "list_agents"
-      - "send_agent_task"
+      # ⚠ A2A 工具（list_agents / send_agent_task）已收敛到 Worker（Phase B）：
+      #   Supervisor 需要远程设备能力时普通 route_to(worker)，由执行层判断委派。
       # Vault & Credentials (Secure credential management)
       - "list_vault_credentials"
       - "request_secure_credential"
-      # Session control (rename only; end/cancel are handled by natural agent response)
-      - "set_agent_name"
 
   - id: "worker"
     path: "app.core.engine.nodes.worker.WorkerNode"
@@ -93,7 +103,7 @@ nodes:
       - "update_blackboard"
       - "report_outcome"
       # - "desktop_control"
-      # - "mobile_control"
+      - "mobile_control"
       # - "analyze_image"
       # - "verify_ui_state"
       - "browser_control"
@@ -118,7 +128,7 @@ nodes:
       - "recall"
       - "search_history"
       # - "list_skills"
-      # - "get_skill"
+      - "get_skill"
       # - "update_skill"
       # - "delete_skill"
       - "run_macro"
@@ -126,7 +136,7 @@ nodes:
       - "create_macro"
       - "read_macro"
       - "update_macro"
-      - "reconcile_skill"
+      # - "reconcile_skill"
       # - "query_app_atlas"
       # - "list_app_atlas"
       # - "search_native_tools"
@@ -168,6 +178,7 @@ nodes:
       - "list_agents"
       - "send_agent_task"
       - "complete_task"
+      - "route_to"
 
   - id: "finish"
     path: "app.core.engine.nodes.finish.FinishNode"
@@ -221,10 +232,11 @@ edges:
       finish: "finish"
       supervisor: "supervisor"
 
-  # 4. Finish -> Supervisor/End (Conditional Loopback)
+  # 4. Finish -> Supervisor/Worker/End (Conditional Loopback)
   - from: "finish"
     type: "conditional"
     router: "app.core.engine.routers.route_finish"
     map:
       supervisor: "supervisor"
+      worker: "worker"
       END: "END"

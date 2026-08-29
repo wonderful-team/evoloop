@@ -122,7 +122,11 @@ class MessageClassifier:
             has_visible, has_hidden = cls._analyze_tool_visibility(tool_calls)
 
             if has_hidden and not has_visible:
-                # 只调用 hidden 工具
+                # 只调用 hidden 工具。但若消息携带实际正文（如 Supervisor 派活前的
+                # 安抚文案），该内容对用户可见且需持久化，归为 ASSISTANT_TOOL_CALL
+                # 而非丢弃。纯 hidden 工具调用且无正文 → INTERNAL_TOOL_CALL（不入库）。
+                if content and content.strip():
+                    return MessageCategory.ASSISTANT_TOOL_CALL
                 return MessageCategory.INTERNAL_TOOL_CALL
             elif has_visible:
                 # 调用 visible 工具（可能也包含 hidden）

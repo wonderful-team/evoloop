@@ -46,11 +46,23 @@ class RoutingContext(DynamicBaseModel):
 
     ticket_type: str = "task"
     priority: str = "normal"
-    focus_paths: list[str] = Field(default_factory=list)
-    topic: str | None = None
+    focus_paths: list[str] = Field(
+        default_factory=list,
+        description="Optional. List of file paths or workspace areas the specialist should focus on. MUST be an array of strings, each element one path.",
+    )
+    topic: str | None = Field(
+        default=None,
+        description="A short noun-phrase identifying the action/topic itself (e.g. 'ship the order', 'fix the bug'), not its preparation.",
+    )
     query: str | None = None
-    acceptance_criteria: list[str] = Field(default_factory=list)
-    constraints: list[str] = Field(default_factory=list)
+    acceptance_criteria: list[str] = Field(
+        default_factory=list,
+        description="REQUIRED to be a JSON array of strings. Each element is ONE verifiable outcome that defines 'done' (e.g. 'all pending orders cancelled and re-verified'). NEVER pass a single string here — always wrap in brackets, e.g. [\"<criterion 1>\", \"<criterion 2>\"].",
+    )
+    constraints: list[str] = Field(
+        default_factory=list,
+        description="Optional. JSON array of constraint strings. MUST be an array of strings, never a single string.",
+    )
     agent_config: AgentRuntimeConfig | None = None
     namespace_context: str | None = None
     skill_ids: list[int] | None = None
@@ -58,8 +70,15 @@ class RoutingContext(DynamicBaseModel):
     macro_goal: str | None = None
     historical_context: Any | None = None
     referenced_tech: Any | None = None
-    dependencies: list[str] | None = None
+    dependencies: list[str] | None = Field(
+        default=None,
+        description="Optional. JSON array of dependency name strings. MUST be an array of strings, never a single string.",
+    )
     verbose_output: bool = True
+    needs_audit: bool = Field(
+        default=False,
+        description="Optional. When True the delegated Worker's delivery is audited by the Reviewer (Finish) after completion; default False = present directly without audit. Set True only when the user explicitly asked for a check/review, or the task clearly needs review.",
+    )
 
 
 class RouteToSignal(AgentSignal):
@@ -75,6 +94,12 @@ class RouteToSignal(AgentSignal):
         if self.skill_ids and not self.context.skill_ids:
             self.context.skill_ids = self.skill_ids
         return self
+
+
+class SpawnSubagentsSignal(AgentSignal):
+    """Signal to spawn parallel subagents."""
+
+    plan: dict = Field(default_factory=dict)  # SubagentPlan.model_dump()
 
 
 # ───────────────────────── Interceptors ─────────────────────────
@@ -96,14 +121,27 @@ async def _emit_tool_event(event: str, tool_name: str, input_or_output: Any, run
                 await fn(output=input_or_output, run_id=run_id)
 
 
-async def intercept_route_to(tool_call: dict, config: dict) -> RouteToSignal | None:
-    """Intercept route_to tool calls → RouteToSignal (tool is NOT executed)."""
+async def intercept_route_to(tool_call: dict, config: dict) -> RouteToSignal | SpawnSubagentsSignal | None:
+    """Intercept route_to tool calls → RouteToSignal (tool is NOT executed).
+
+    When the Supervisor passes ``subtasks`` (it decomposed the task itself in
+    the conversation, with full context), return a SpawnSubagentsSignal instead
+    so the parallel spawn node runs the subtasks.
+    """
     tc_id = tool_call["id"]
     args = tool_call.get("args", {}) or {}
     if isinstance(args, str):
         args = safe_parse_json(args) or {}
 
     await _emit_tool_event("start", "route_to", args, tc_id, config)
+
+    # Supervisor 自己分解好的并行子任务（route_to 的 subtasks 参数）
+    subtasks = args.get("subtasks")
+    if subtasks:
+        signal = await _build_spawn_signal_from_subtasks(subtasks, args, tc_id, config)
+        if signal is not None:
+            return signal
+        logger.warning("[Signals] route_to subtasks provided but all invalid; falling back to normal route")
 
     target = args.get("target", "finish")
     reason = args.get("reason", "")
@@ -112,7 +150,7 @@ async def intercept_route_to(tool_call: dict, config: dict) -> RouteToSignal | N
         context_data = safe_parse_json(context_data) or {}
 
     if isinstance(context_data, dict):
-        for field in ["skill_ids", "workflow_mode"]:
+        for field in ["skill_ids", "workflow_mode", "needs_audit"]:
             if field in args and field not in context_data:
                 context_data[field] = args[field]
 
@@ -139,6 +177,63 @@ async def intercept_route_to(tool_call: dict, config: dict) -> RouteToSignal | N
 
     await _emit_tool_event("end", "route_to", f"Routing to {target}", tc_id, config)
     return signal
+
+
+async def _build_spawn_signal_from_subtasks(
+    subtasks: Any,
+    args: dict,
+    tc_id: str,
+    config: dict,
+) -> SpawnSubagentsSignal | None:
+    """Validate Supervisor-provided subtasks and build a SpawnSubagentsSignal.
+
+    Returns None when every element is invalid (missing id/instruction) so the
+    caller can fall back to a normal route_to.
+    """
+    if not isinstance(subtasks, list):
+        return None
+
+    validated = []
+    for st in subtasks:
+        if not isinstance(st, dict):
+            continue
+        instruction = st.get("instruction")
+        sub_id = st.get("id")
+        if not sub_id or not instruction or not isinstance(instruction, str):
+            continue
+        validated.append({
+            "id": str(sub_id),
+            "instruction": instruction,
+            "role": st.get("role") or "Subagent",
+            "focus_paths": st.get("focus_paths") or [],
+            "acceptance_criteria": st.get("acceptance_criteria") or [],
+            "skill_hint": st.get("skill_hint"),
+            "system_instructions": st.get("system_instructions") or "",
+        })
+
+    if not validated:
+        return None
+
+    reason = args.get("reason") or ""
+    context_data = args.get("context", {})
+    if isinstance(context_data, str):
+        context_data = safe_parse_json(context_data) or {}
+    parent_task = (
+        reason
+        or (context_data.get("topic") if isinstance(context_data, dict) else "")
+        or "parallel subtasks"
+    )
+
+    plan = {
+        "subtasks": validated,
+        "requires_aggregation": True,
+        "aggregation_strategy": "merge",
+        "parent_task": parent_task,
+        "max_parallel": len(validated),
+    }
+    logger.info(f"[Signals] Intent: Spawn {len(validated)} subagents via route_to subtasks")
+    await _emit_tool_event("end", "route_to", f"Spawning {len(validated)} subagents", tc_id, config)
+    return SpawnSubagentsSignal(plan=plan)
 
 
 async def _resolve_skill_tool_allowlist(skill_ids: list[int | str]) -> list[str]:
@@ -300,6 +395,7 @@ async def handle_route_to(state: AgentState, signal: RouteToSignal, _config: dic
         parameters=TicketParameters(**parameters) if parameters else None,
         historical_context=historical_context,
         referenced_tech=routing_context.referenced_tech,
+        needs_audit=routing_context.needs_audit,
     )
 
     visited_nodes = state.visited_nodes or []
@@ -325,6 +421,17 @@ async def handle_route_to(state: AgentState, signal: RouteToSignal, _config: dic
         ticket=execution_ticket,
         visited_nodes=visited_nodes,
         session_goal=session_goal if session_goal is not None else state.session_goal,
+    )
+
+
+async def handle_spawn_subagents(_state: AgentState, signal: SpawnSubagentsSignal, _config: dict) -> StateUpdate:
+    """Handle SpawnSubagentsSignal: set subagent_plan and route to spawn node."""
+    plan = signal.plan
+    logger.info(f"[Signals] 🚀 Spawning {len(plan.get('subtasks', []))} subagents")
+
+    return StateUpdate(
+        next_node=RoutingTarget.SPAWN_SUBAGENTS,
+        subagent_plan=plan,
     )
 
 
@@ -377,3 +484,4 @@ signal_manager.register_interceptor("route_to", intercept_route_to)
 
 # Register handlers
 signal_manager.register_handler(RouteToSignal, handle_route_to)
+signal_manager.register_handler(SpawnSubagentsSignal, handle_spawn_subagents)

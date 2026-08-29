@@ -68,6 +68,38 @@ async def publish_session_completed(data) -> None:
     await system_bus.publish(SessionCompletedEvent(data=data, source=source))
 
 
+async def publish_a2a_lifecycle(
+    thread_id: str,
+    task_id: str,
+    status: str,
+    *,
+    target_device_key: str = "",
+    target_device_name: str = "",
+    instruction: str = "",
+    result: str = "",
+    error: str | None = None,
+) -> None:
+    """Publish a public A2A lifecycle event (frontend "A2A 委派" panel).
+
+    Symmetric with the subagent lifecycle event. ``status`` ∈
+    started | completed | failed | timeout | cancelled.
+    """
+    from app.core.events.schemas.a2a import A2ALifecycleEvent
+
+    await system_bus.publish(
+        A2ALifecycleEvent(
+            thread_id=thread_id,
+            task_id=task_id,
+            target_device_key=target_device_key,
+            target_device_name=target_device_name,
+            instruction=instruction,
+            status=status,
+            result=result,
+            error=error,
+        )
+    )
+
+
 async def publish_config_changed(key: str, old_value: str, new_value: str) -> None:
     """Publish a system event when a configuration value changes."""
     await system_bus.publish(

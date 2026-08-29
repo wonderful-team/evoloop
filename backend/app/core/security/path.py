@@ -125,3 +125,38 @@ def is_project_metadata_path(path: str) -> bool:
         return False
 
     return True
+
+
+def command_touches_project_metadata(command: str) -> bool:
+    """Return ``True`` if shell ``command`` text references project-local metadata.
+
+    ``execute_command`` carries paths as free-form text rather than structured
+    fields, so tokens containing ``.evoloop`` are extracted (case-insensitive),
+    shell metacharacters are stripped, and only path-like tokens are sent to
+    :func:`is_project_metadata_path` for a verdict. The global app data directory
+    ``~/.evoloop`` stays exempt via the shared predicate.
+    """
+    if not command or ".evoloop" not in command.lower():
+        return False
+
+    for token in re.findall(r"(?i)\S*\.evoloop\S*", command):
+        cleaned = token.strip("'\"\\`;|&()[]{}<>$ \t\n")
+        if _is_path_like_token(cleaned) and is_project_metadata_path(cleaned):
+            return True
+    return False
+
+
+def _is_path_like_token(token: str) -> bool:
+    """Return ``True`` if ``token`` looks like a filesystem path reference.
+
+    避免把 ``echo foo.evoloop.bar`` 这类只是含 ``.evoloop`` 子串的普通词误判为路径。
+    """
+    if not token:
+        return False
+    if token.startswith(("/", "./", "../", "~/", "\\")):
+        return True
+    if "/" in token or "\\" in token:
+        return True
+    if token.startswith("."):
+        return token.startswith(".evoloop") or token.startswith("..")
+    return False

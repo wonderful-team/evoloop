@@ -2,7 +2,6 @@ import logging
 from typing import Annotated
 
 from app.core.engine.message.native_classes import RunnableConfig
-from app.core.engine.tasks import persist_file_operation_task
 from app.core.file.editor import (
     EditFileRequest,
     EditPreviewResult,
@@ -75,34 +74,6 @@ async def handle_multi_edit(
             logger.debug(f"[Type Check] Failed: {e}", exc_info=True)
         template_context["diagnostics"] = diagnostics
 
-    # Record Rewind operation
-    from app.core.context import ContextManager
-    from app.core.file.editor.algorithms import generate_unified_diff
-    from app.core.file.io import read_file
-
-    ctx = ContextManager.current()
-    if ctx.thread_id:
-        try:
-            original_content = result.get("original_content", "")
-            modified_content = read_file(target_path).content
-            diff = generate_unified_diff(
-                original=original_content,
-                modified=modified_content,
-                file_path=path
-            )
-            persist_file_operation_task.delay(
-                thread_id=ctx.thread_id,
-                message_id="",
-                file_path=str(target_path),
-                operation="EDIT",
-                diff_content=diff,
-                original_content=original_content,
-                run_id=ctx.run_id,
-                tool_call_id=ctx.current_tool_call_id,
-            )
-        except Exception as e:
-            logger.exception(f"Failed to persist file operation: {e}")
-
     return render_template("domain/tools/multi_edit_success.prompt.j2", **template_context), {"count": result["applied_edits"]}
 
 
@@ -160,35 +131,6 @@ async def handle_edit(request: EditFileRequest) -> str:
         except Exception as e:
             logger.debug(f"[Type Check] Failed: {e}", exc_info=True)
         template_context["diagnostics"] = diagnostics
-
-    if result["success"]:
-        # Record Rewind operation
-        from app.core.context import ContextManager
-        from app.core.file.editor.algorithms import generate_unified_diff
-        from app.core.file.io import read_file
-
-        ctx = ContextManager.current()
-        if ctx.thread_id:
-            try:
-                original_content = result.get("original_content", "")
-                modified_content = read_file(target_path).content
-                diff = generate_unified_diff(
-                    original=original_content,
-                    modified=modified_content,
-                    file_path=request.path,
-                )
-                persist_file_operation_task.delay(
-                    thread_id=ctx.thread_id,
-                    message_id="",
-                    file_path=str(target_path),
-                    operation="EDIT",
-                    diff_content=diff,
-                    original_content=original_content,
-                    run_id=ctx.run_id,
-                    tool_call_id=ctx.current_tool_call_id,
-                )
-            except Exception as e:
-                logger.exception(f"Failed to persist file operation: {e}")
 
     return render_template("domain/tools/edit_result.prompt.j2", **template_context)
 

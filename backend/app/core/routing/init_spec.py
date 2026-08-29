@@ -160,13 +160,7 @@ async def enrich_spec_with_macro_triggers(spec: RouteCatalog) -> RouteCatalog:
     from app.core.learning.macro.service import MacroService
 
     try:
-        macros = await list_macros(status="verified", is_active=True)
-        macros.sort(
-            key=lambda m: (
-                m.namespace != "preset",
-                -(m.created_at.timestamp() if m.created_at else 0),
-            )
-        )
+        macros = await MacroService.list_routable_macros()
     except Exception:
         logger.debug("[init_spec] macro trigger load skipped", exc_info=True)
         return spec

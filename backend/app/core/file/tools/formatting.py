@@ -9,9 +9,7 @@ from app.utils.detect import detect_language
 from app.utils.template import render_template
 
 
-def format_file_content(
-    filename: str, content: str, lang: str = None, has_header: bool = False
-) -> str:
+def format_file_content(filename: str, content: str, lang: str = None, has_header: bool = False) -> str:
     """Format file content with optional syntax highlighting.
 
     Args:

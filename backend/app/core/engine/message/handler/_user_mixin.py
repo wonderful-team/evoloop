@@ -25,6 +25,7 @@ class UserMessageMixin:
         tool_name: str | None = None,
         parent_id: str | None = None,
         metadata: dict | None = None,
+        suppress_user_push: bool = False,
     ) -> MessageHandlerResult:
         logger.info(
             f"[MessageHandler] Handling HITL request: {request_id} (tool={tool_name})"
@@ -73,39 +74,40 @@ class UserMessageMixin:
             executor_device_key=dev_key,
             executor_device_name=dev_name,
         )
-        await self._dispatch_block(
-            role="system",
-            content=content,
-            category=MessageCategory.HITL_REQUEST.value,
-            status=MESSAGE_STATUS_WAITING_HUMAN,
-            sequence_number=seq,
-            tool_name=tool_name,
-            tool_call_id=tool_call_id or request_id,
-            metadata=final_metadata if final_metadata else None,
-            # SSE-only: HITL request UI lives only in the web chat; mobile and
-            # voice do not yet support interactive human-in-the-loop prompts.
-            channels={"sse"},
-            parent_id=effective_parent_id,
-        )
-
-        if not self._publisher:
-            self._publisher = MessagePublisher(
-                thread_id=self.thread_id, project_id=self.project_id
+        if not suppress_user_push:
+            await self._dispatch_block(
+                role="system",
+                content=content,
+                category=MessageCategory.HITL_REQUEST.value,
+                status=MESSAGE_STATUS_WAITING_HUMAN,
+                sequence_number=seq,
+                tool_name=tool_name,
+                tool_call_id=tool_call_id or request_id,
+                metadata=final_metadata if final_metadata else None,
+                # SSE-only: HITL request UI lives only in the web chat; mobile and
+                # voice do not yet support interactive human-in-the-loop prompts.
+                channels={"sse"},
+                parent_id=effective_parent_id,
             )
-        await self._publisher.publish_hitl_request(
-            request_id=request_id,
-            request_type=request_type,
-            prompt=prompt,
-            options=options,
-            context=context,
-            default_value=default_value,
-            tool_name=tool_name,
-            metadata=final_metadata if final_metadata else None,
-        )
+
+            if not self._publisher:
+                self._publisher = MessagePublisher(
+                    thread_id=self.thread_id, project_id=self.project_id
+                )
+            await self._publisher.publish_hitl_request(
+                request_id=request_id,
+                request_type=request_type,
+                prompt=prompt,
+                options=options,
+                context=context,
+                default_value=default_value,
+                tool_name=tool_name,
+                metadata=final_metadata if final_metadata else None,
+            )
 
         return MessageHandlerResult(
             category=MessageCategory.HITL_REQUEST.value,
             persisted=True,
-            streamed=True,
+            streamed=not suppress_user_push,
             message_id=message_id,
         )

@@ -135,6 +135,9 @@ class ConversationUpdatedEvent(AgentEvent):
     Published when an existing interactive conversation is updated
     (e.g. its ``updated_at`` bumped by a new message).
 
+    ``status``（可选）携带触发的终态（done/cancelled/failed 等），用于让前端
+    区分"仅仅是数据变化"与"本轮 run 已完成"（后者驱动未读完成提示）。
+
     Bridged to the frontend via the system channel so all clients
     (desktop / mobile) can refresh their conversation lists in real-time
     when a session is continued from another device or channel
@@ -146,6 +149,7 @@ class ConversationUpdatedEvent(AgentEvent):
     project_id: int = DEFAULT_PROJECT_ID
     member_id: int = 0
     title: str = ""
+    status: str = ""
 
     is_public: bool = True
     broadcast_channel: str = "system"
@@ -156,6 +160,7 @@ class ConversationUpdatedEvent(AgentEvent):
             project_id=self.project_id,
             member_id=self.member_id,
             title=self.title,
+            status=self.status,
         )
 
 
