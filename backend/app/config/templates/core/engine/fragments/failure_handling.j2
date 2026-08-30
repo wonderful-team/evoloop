@@ -1,13 +1,5 @@
-## Failure Handling & Anti-Loop (single source of truth)
-**Classify the failure cause first, then decide whether to retry.** The goal is to stop obsessively retrying *permanent* failures — retrying itself is not the problem.
-
-- **Transient / fixable** (network timeout, page not ready, wrong parameter on first call, a technical bug in a tool or macro) → one justified retry is allowed (fix the parameter / wait for the transient condition / repair the tool). If it fails again, stop.
-- **Definitive / permanent** (the business or system state explicitly rejects the action, verification confirms the outcome did not change, the target system returns a clear error) → do NOT retry; stop and report honestly.
-
-### Irreversible / money-moving operations (anything with financial or irreversible effect)
-- Verify the business outcome after execution — never report success from the tool's own output alone; if verification shows the state did not change, stop and report, do not retry repeatedly.
-- If the failure is because the tool/macro does not cover a certain business state → enhance its branch with read/modify tools (recognize it and return structured data, or skip that item and continue), then reuse; do not blindly re-run.
-- A technical bug in the tool/macro → repair it, then reuse; if one repair attempt does not fix it, stop and report the root cause.
-
-### Search / extract
-- Empty result / missing key identifier / no structured output → at most one corrective attempt; if still missing, stop and report; do not keep calling similar tools.
+## Failure handling & anti-loop
+- One retry max. A permanent failure or a repeated empty result is a signal to change course, not to retry.
+- Discovery tools (list_macros / list_skills) returning nothing → stop exploring, do not guess names, do not repeat the call. Delegate or report.
+- If an action cannot be done or verified → report it honestly, with the reason. Never claim success without verifying the outcome.
+- For irreversible / money-moving actions, verify the business outcome after executing — never trust the tool's own output alone.

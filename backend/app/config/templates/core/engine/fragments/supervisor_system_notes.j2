@@ -1,0 +1,18 @@
+{% if note_type == "unverifiable" -%}
+[SYSTEM NOTE] The previous Worker execution reported that the outcome is unverifiable due to environment limitations:
+
+{{ reason }}
+
+ACCEPT this report and respond to the user. Do NOT dispatch another Worker for verification.
+{%- elif note_type == "worker_outcome" -%}
+[SYSTEM ALERT] The previous Worker execution was {{ outcome }}.
+If TRUNCATED: The worker hit its step limit before finishing. You MUST review the progress and issue a new `route_to` ticket to continue the work.
+If FAILED/ERROR/INCOMPLETE: Review the last tool errors and decide whether to retry or formulate a new plan.
+DO NOT return an empty response. You must take explicit action.
+{%- elif note_type == "preserve_report" -%}
+[SYSTEM NOTE] The Worker has returned the following final report. ACCEPT the report and respond to the user if it already answers the mission. Do NOT dispatch another Worker for verification unless the report is incomplete.
+
+{{ report }}
+{%- elif note_type == "presentation" -%}
+[SYSTEM NOTE] 所有并行子任务已完成并聚合，聚合结果已在上文。请直接基于聚合结果向用户呈现最终汇总，不要重新委派 subagent 或发起新的 Worker。
+{%- endif %}

@@ -56,6 +56,46 @@
 ## Active Ticket: None
 {%- endif %}
 
+{%- if active_subagents %}
+## Active Subagents
+当前有 {{ active_subagents|length }} 个 subagent 正在并行执行：
+{% for a in active_subagents %}
+- [{{ a.subagent_id }}] {{ a.instruction[:60] }}（{{ a.status }}）
+{% endfor %}
+
+用户意图判断：
+1. **QUERY** — 用户询问 subagent 进展 → 汇报各 subagent 状态，不取消任何 subagent，不起新 Worker
+2. **NEW_COMMAND（与本任务无关）** — 用户发起新任务 → 起新 Worker，subagent 继续运行
+3. **NEW_COMMAND（与本任务相关）** — 用户想调整当前任务 → 评估是否需要 cancel 部分/全部 subagent，重新分解
+4. **CANCEL** — 用户明确要取消 → 调用 cancel_subagent(sub_tid)（active_subagents 里的 thread_id）取消特定 subagent，或 cancel_all_subagents() 取消全部
+{%- endif %}
+
+{%- if pending_subagent_hitl_requests %}
+## Subagent HITL Requests Needing Your Input
+以下 subagent 在访问敏感资源时触发了确认请求，需要你在主会话向用户提问：
+{% for req in pending_subagent_hitl_requests %}
+- [{{ req.subagent_id }}] 类型 {{ req.request_type }}：{{ req.prompt }}
+  选项：{{ req.options }}
+  上下文：{{ req.context }}
+{% endfor %}
+请调用 `ask_human` 向用户一次性提问；获得回答后由系统自动转发给对应 subagent。
+{%- endif %}
+
+{%- if pending_need_inputs %}
+## Subagent Results Needing User Input
+以下 subagent 的执行结果需要用户确认（来自远端 A2A 任务）：
+{% for ni in pending_need_inputs %}
+- [{{ ni.subagent_id }}] 问题：{{ ni.question }}
+  选项：{{ ni.options }}
+  上下文：{{ ni.context }}
+  原 A2A 任务 id：{{ ni.source_task_id }}
+{% endfor %}
+
+请调用 `ask_human` 工具向用户一次性提问，获得回答后：
+1. 如果还有未处理的 need_input，继续调用 `ask_human`
+2. 全部问完后，对每个 need_input 调用 `send_agent_task` 发送 resume 任务到服务器（task_id 复用原任务、is_resume=True）
+{%- endif %}
+
 {%- if plan %}
 ## Active Plan: {{ plan.title }} ({{ 'APPROVED' if plan_approved else 'PENDING' }})
   {% for s in plan.steps[:10] -%}

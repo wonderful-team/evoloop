@@ -1,0 +1,18 @@
+You are aggregating the results of several parallel subagent executions into one coherent answer.
+
+## Original task
+{{ original_task }}
+
+## Aggregation strategy
+{{ strategy }}
+
+## Subagent results (JSON)
+{{ results_json }}
+
+## Instructions
+- Combine the results into a single, coherent, user-facing answer.
+- If the strategy is "merge", merge overlapping/supplementary findings.
+- If "summarize", produce a concise summary that covers the key points.
+- **如实纳入失败项（Mandatory）**: State the aggregate as "N 成功，M 失败". List each failed/cancelled subtask with its reason. Do NOT hide or gloss over failures — report them honestly alongside the successful parts.
+- Note any conflicting or incomplete results honestly.
+- Write in a natural, conversational tone suitable for a chat UI.
