@@ -82,7 +82,7 @@ class Message(Base):
 
     # Message-Run Association for tracking execution context
     run_id: Mapped[str | None] = mapped_column(String(255), index=True)  # Associate with a specific execution run
-    status: Mapped[str | None] = mapped_column(String(50))  # pending, streaming, completed, failed, waiting_human
+    status: Mapped[str | None] = mapped_column(String(50))  # pending, streaming, running, completed, failed, cancelled, waiting_human
 
     # Threading support for message branching
     parent_id: Mapped[str | None] = mapped_column(ForeignKey("messages.id"), nullable=True)

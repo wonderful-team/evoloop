@@ -18,6 +18,11 @@ from app.core.project.event import (
     ProjectEventType,
     ProjectMovedEvent,
 )
+from app.domain.codebase.constants import (
+    GENERATION_ITEM_APPMAP,
+    GENERATION_ITEM_SUMMARY,
+    GENERATION_ITEM_WIKI,
+)
 from app.domain.codebase.event.types import IndexingEventType
 
 logger = logging.getLogger(__name__)
@@ -261,7 +266,11 @@ class GenerationAutoDispatchSubscriber:
             from app.domain.codebase.generation.runner import run_generation_item
             from app.domain.codebase.generation.scheduler import dispatch_generation
 
-            items = ["wiki", "appmap", "summary"]
+            items = [
+                GENERATION_ITEM_WIKI,
+                GENERATION_ITEM_APPMAP,
+                GENERATION_ITEM_SUMMARY,
+            ]
 
             # Mark them as pending in the scheduler
             await dispatch_generation(project_id, items)

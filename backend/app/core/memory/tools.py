@@ -9,7 +9,12 @@ from typing import Annotated
 
 from app.core.config import settings
 from app.core.context.manager import ContextManager
-from app.core.memory.constants import DEFAULT_SEARCH_LIMIT, FORGET_SAFETY_WINDOW
+from app.core.memory.constants import (
+    DEFAULT_SEARCH_LIMIT,
+    FORGET_SAFETY_WINDOW,
+    OP_STATUS_ERROR,
+    OP_STATUS_SUCCESS,
+)
 from app.core.memory.models import MemoryEntry, MemoryType, PrivacyLevel
 from app.core.memory.short_term import SqlShortTermMemory
 from app.core.tools import evoloop_tool
@@ -403,7 +408,7 @@ async def forget_tool_outputs(
 
         msg = f"Successfully forgot {len(results['forgotten'])} outputs, saved {total_saved} chars."
         return msg, {
-            "status": "success",
+            "status": OP_STATUS_SUCCESS,
             "count": len(results["forgotten"]),
             "total_saved": total_saved,
             "reason": reason,
@@ -412,7 +417,7 @@ async def forget_tool_outputs(
 
     except Exception as e:
         logger.exception(f"[ContextMgmt] Forget failed: {e}")
-        return f"Error: {str(e)}", {"status": "error"}
+        return f"Error: {str(e)}", {"status": OP_STATUS_ERROR}
 
 
 @evoloop_tool(
@@ -448,7 +453,7 @@ async def recall_tool_output(
 
             if not msg or not msg.content:
                 return f"Error: Content for {tool_call_id} not found.", {
-                    "status": "error",
+                    "status": OP_STATUS_ERROR,
                     "_signal": "recall_tool_output",
                 }
 
@@ -473,7 +478,7 @@ async def recall_tool_output(
             return (
                 f"Successfully recalled content for {tool_call_id} (Length: {len(msg.content)})",
                 {
-                    "status": "success",
+                    "status": OP_STATUS_SUCCESS,
                     "tool_call_id": tool_call_id,
                     "_signal": "recall_tool_output",
                 },
@@ -481,7 +486,7 @@ async def recall_tool_output(
 
     except Exception as e:
         logger.exception(f"[ContextMgmt] Recall failed: {e}")
-        return f"Error: {str(e)}", {"status": "error"}
+        return f"Error: {str(e)}", {"status": OP_STATUS_ERROR}
 
 
 @evoloop_tool(

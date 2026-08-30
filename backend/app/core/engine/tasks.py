@@ -10,6 +10,8 @@ from sqlalchemy import desc, func, select
 from app.constants import DEFAULT_INTERNAL_LLM_TOKENS, DEFAULT_PROJECT_ID
 from app.core.config import settings
 from app.core.context.manager import ContextManager, EvoContext
+from app.core.engine.message.category import MessageCategory
+from app.core.engine.message.constants import MessageStatus
 from app.core.learning.macro import MacroScriptCompiler
 from app.core.learning.macro.service import MacroService
 from app.core.learning.trace.recorder import sync_thread_to_graph
@@ -33,10 +35,10 @@ async def _notify_file_operation(
         id=f"file-op-{thread_id}-{message_id}",
         thread_id=thread_id,
         role="system",
-        category="file_operation",
+        category=MessageCategory.FILE_OPERATION,
         content=f"File {operation}: {file_path}",
         content_type="text",
-        status="completed",
+        status=MessageStatus.COMPLETED,
         is_visible=False,
         sequence_number=int(time.time() * 1000),
         meta_data={
@@ -635,7 +637,7 @@ async def run_autonomous_task_execution(task_id: int, project_id: int | None = N
         )
 
         # 2. Trigger Unified Dispatcher
-        from app.core.engine.dispatch import dispatch_agent_run
+        from app.core.engine.dispatch import DispatchStatus, dispatch_agent_run
 
         result = await dispatch_agent_run(
             thread_id=thread_id,
@@ -649,7 +651,7 @@ async def run_autonomous_task_execution(task_id: int, project_id: int | None = N
             },
         )
 
-        if result.status == "failed":
+        if result.status == DispatchStatus.FAILED:
             raise RuntimeError(f"Dispatch failed for task {task_id}: {result.error}")
 
         logger.info(

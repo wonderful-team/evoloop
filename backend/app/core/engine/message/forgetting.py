@@ -4,6 +4,7 @@ Soft forgetting utilities for message history.
 Replaces content of forgotten tool outputs with lightweight summaries.
 """
 
+from app.core.engine.message.constants import MessageRole
 from app.core.engine.message.native_classes import BaseMessage, ToolMessage
 from app.core.memory.tool_output_memory import ToolOutputMemory
 from app.utils.template import render_template
@@ -17,7 +18,7 @@ def apply_forgotten_status(
 
     result: list = []
     for msg in messages:
-        if msg.role == "tool":
+        if msg.role == MessageRole.TOOL:
             tool_call_id = msg.tool_call_id
             if tool_call_id and tool_memory.is_forgotten(tool_call_id):
                 record = tool_memory.get_forgotten_info(tool_call_id)

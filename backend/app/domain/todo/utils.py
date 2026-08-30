@@ -7,7 +7,7 @@ common utilities from app.utils.
 
 from datetime import datetime, timedelta
 
-from app.models.todo import TodoStatus
+from app.models.todo import TodoPriority, TodoStatus
 from app.utils.time import is_past, parse_relative_time, utcnow
 
 # Re-export parse_relative_time for domain convenience
@@ -61,9 +61,9 @@ def format_todo_summary(todo) -> str:
         priority_str = str(priority).lower()
 
     priority_marker = {
-        "high": "[!]",
-        "medium": "",
-        "low": "",
+        TodoPriority.HIGH: "[!]",
+        TodoPriority.MEDIUM: "",
+        TodoPriority.LOW: "",
     }.get(priority_str, "")
 
     # Format due date if present
@@ -136,9 +136,9 @@ def get_priority_weight(priority) -> int:
         priority_str = str(priority).lower()
 
     weights = {
-        "high": 3,
-        "medium": 2,
-        "low": 1,
+        TodoPriority.HIGH: 3,
+        TodoPriority.MEDIUM: 2,
+        TodoPriority.LOW: 1,
     }
     return weights.get(priority_str, 2)
 

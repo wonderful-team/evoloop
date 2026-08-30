@@ -2,7 +2,12 @@
 
 from typing import Any
 
-from app.core.schemas.canonical import Endpoint, create_envelope
+from app.core.schemas.canonical import (
+    Endpoint,
+    EndpointKind,
+    MessageType,
+    create_envelope,
+)
 from app.models.schemas.auth import EvoCloudProxyResponse
 
 
@@ -17,7 +22,7 @@ class DevicesMixin:
         device_key: str,
         cmd_data: dict,
         token: str | None = None,
-        envelope_type: str = "command.relay",
+        envelope_type: str = MessageType.COMMAND_RELAY.value,
     ) -> dict:
         """Send a command to a device through the Gateway using canonical envelope v2.0."""
         body = dict(cmd_data)
@@ -33,8 +38,8 @@ class DevicesMixin:
         envelope = create_envelope(
             type=envelope_type,
             body=body,
-            source=Endpoint(kind="backend"),
-            target=Endpoint(kind="mobile", device_key=device_key),
+            source=Endpoint(kind=EndpointKind.BACKEND),
+            target=Endpoint(kind=EndpointKind.MOBILE, device_key=device_key),
         ).model_dump()
         data = {"target_device_key": device_key, "envelope": envelope}
         return await self.request(

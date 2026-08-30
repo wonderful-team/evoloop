@@ -1,6 +1,7 @@
 """State sub-schemas for agent state tracking."""
 
 import logging
+from enum import Enum
 from typing import Any
 
 from pydantic import Field
@@ -8,6 +9,13 @@ from pydantic import Field
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
+
+
+class WorkflowStepStatus(str, Enum):
+    """Result status of a single sequential workflow step."""
+
+    SUCCESS = "success"
+    FAILED = "failed"
 
 
 class VerificationStatus(DynamicBaseModel):
@@ -96,4 +104,4 @@ class WorkflowStepResult(DynamicBaseModel):
     skill_id: int | str | None = None
     skill_name: str | None = None
     output: str | None = None
-    status: str | None = None
+    status: WorkflowStepStatus | None = None

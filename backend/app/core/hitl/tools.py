@@ -7,7 +7,7 @@ live there so they can also be used by the authorization framework.
 """
 
 import logging
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -22,7 +22,7 @@ from app.core.hitl.core import (
 )
 from app.core.hitl.prompts import build_approval_context, resolve_tool_context
 from app.core.hitl.schemas import RequestApprovalArgs, RequestHumanInputArgs
-from app.core.hitl.types import HITLDecision, HumanRequestType
+from app.core.hitl.types import HITLDecision, HumanRequestType, RiskLevel
 from app.core.tools import evoloop_tool
 from app.i18n.service import i18n
 from app.utils.id import gen_uuid
@@ -42,15 +42,7 @@ logger = logging.getLogger(__name__)
 )
 async def ask_human(
     prompt: str,
-    input_type: Literal[
-        "text",
-        "choice",
-        "multi_choice",
-        "confirmation",
-        "approval",
-        "project_switch",
-        "file_select",
-    ] = "text",
+    input_type: HumanRequestType = HumanRequestType.TEXT,
     options: list[str] | None = None,
     context: str | None = None,
     default_value: str | None = None,
@@ -92,7 +84,7 @@ async def ask_human(
     current_tool_call_id = ctx_fields["tool_call_id"]
     last_ai_message_id = ctx_fields["parent_id"]
 
-    # input_type 是 Literal 受限字符串，其值即标准 request_type
+    # input_type 是 HumanRequestType 枚举，其值即标准 request_type
     # （与 HumanRequestType 枚举值一致），直接透传给 create_request 校验。
 
     # Validate choice options
@@ -169,7 +161,7 @@ async def ask_human(
 )
 async def ask_confirm(
     action_description: str,
-    risk_level: Literal["low", "medium", "high", "critical"] = "medium",
+    risk_level: RiskLevel = RiskLevel.MEDIUM,
     details: str | None = None,
     consequences: str | None = None,
     operations: list[dict[str, Any]] | None = None,

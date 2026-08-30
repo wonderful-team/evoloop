@@ -4,17 +4,19 @@
 HITL 子系统，避免 hitl 反向依赖 domain。
 """
 
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import BaseModel, Field
+
+from app.core.hitl.types import HumanRequestType, RiskLevel
 
 
 class RequestHumanInputArgs(BaseModel):
     prompt: str = Field(
         ..., description="The question or instruction to present to the user."
     )
-    input_type: Literal["text", "choice", "multi_choice", "confirmation"] = Field(
-        "text",
+    input_type: HumanRequestType = Field(
+        HumanRequestType.TEXT,
         description="Type of input: 'text' for free-form, 'choice' for single selection, 'multi_choice' for multi-select (comma-separated result), 'confirmation' for yes/no.",
     )
     options: list[str] | None = Field(
@@ -59,8 +61,8 @@ class RequestApprovalArgs(BaseModel):
     action_description: str = Field(
         ..., description="Clear description of the action that requires approval."
     )
-    risk_level: Literal["low", "medium", "high", "critical"] = Field(
-        "medium",
+    risk_level: RiskLevel = Field(
+        RiskLevel.MEDIUM,
         description="Risk level of the action to help user make informed decision.",
     )
     details: str | None = Field(

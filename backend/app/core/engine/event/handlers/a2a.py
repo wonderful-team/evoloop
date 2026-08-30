@@ -19,7 +19,9 @@ from sqlalchemy import select
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
 from app.core.engine.background_agent import run_agent_background
-from app.core.engine.dispatch import dispatch_agent_run
+from app.core.engine.dispatch import DispatchStatus, dispatch_agent_run
+from app.core.engine.message.category import MessageCategory
+from app.core.engine.message.constants import MessageStatus
 from app.core.engine.session.manager import session_manager
 from app.core.evocloud.manager import evocloud_manager
 from app.core.evocloud.schemas import AgentTask, AgentTaskResult, RemoteCommand
@@ -150,7 +152,7 @@ class A2ACommandHandler:
         await repo.persist(
             role="system",
             content=system_content,
-            category="internal_system",
+            category=MessageCategory.INTERNAL_SYSTEM,
             is_visible=True,
         )
 
@@ -170,7 +172,7 @@ class A2ACommandHandler:
             },
         )
 
-        if result.status == "failed":
+        if result.status == DispatchStatus.FAILED:
             logger.error(f"[A2A] Dispatch failed for A2A task: {result.error}")
             await self._send_a2a_error(task, f"Agent dispatch failed: {result.error}")
             return
@@ -275,7 +277,7 @@ class A2ACommandHandler:
             # Phase B：结果也写入 AI tool_call 消息（id 在 tool_calls JSON 里），
             # 否则 reload state 时 build_agent_state 只保留 AI 消息、看不到结果。
             await repo.update_ai_tool_message_content(tool_call_id, result_content)
-            await close_hitl_message(caller_thread_id, tool_call_id, "completed")
+            await close_hitl_message(caller_thread_id, tool_call_id, MessageStatus.COMPLETED)
         else:
             logger.warning(
                 f"[A2A] Could not find matching pending tool call for task_id {task_id}"

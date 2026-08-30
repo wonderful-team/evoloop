@@ -11,6 +11,8 @@ import logging
 from typing import Any
 
 from app.core.context.manager import ContextManager
+from app.core.engine.message.category import MessageCategory
+from app.core.engine.message.constants import MessageStatus
 from app.core.engine.message.factory import MessageBlockFactory
 from app.core.engine.message.handler import MessageHandler
 from app.core.engine.message.publisher import MessagePublisher
@@ -18,7 +20,6 @@ from app.core.engine.message.repository import MessageRepository
 from app.core.engine.state import AgentState
 from app.core.engine.tools.executor import AgentToolExecutor
 from app.core.hitl.engine_runtime import register_engine_runtime
-from app.core.hitl.types import HITLRequestStatus
 from app.core.tools.manager import tool_manager
 
 logger = logging.getLogger(__name__)
@@ -89,9 +90,9 @@ class HitlEngineRuntime:
             msg_id, seq = await repo.persist(
                 role="human",
                 content=user_content,
-                category="user",
+                category=MessageCategory.USER,
                 action_type="text",
-                status=HITLRequestStatus.COMPLETED.value,
+                status=MessageStatus.COMPLETED,
             )
             if msg_id:
                 block = MessageBlockFactory.from_event(
@@ -99,8 +100,8 @@ class HitlEngineRuntime:
                     sequence_number=seq,
                     role="human",
                     content=user_content,
-                    category="user",
-                    status=HITLRequestStatus.COMPLETED.value,
+                    category=MessageCategory.USER,
+                    status=MessageStatus.COMPLETED,
                     message_id=msg_id,
                 )
                 publisher = MessagePublisher(thread_id=thread_id, project_id=project_id)

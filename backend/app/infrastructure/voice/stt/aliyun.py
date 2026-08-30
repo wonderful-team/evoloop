@@ -101,7 +101,7 @@ class AliyunProvider(BaseSTTProvider):
                 "response_format": "verbose_json",
             }
 
-            if language_code and language_code != "auto":
+            if language_code and language_code != VoiceLocale.AUTO.value:
                 kwargs["language"] = language_code
 
             if options.prompt:

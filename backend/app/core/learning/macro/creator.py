@@ -13,12 +13,11 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import select
 
+import app.core.learning.constants as _mc
 from app.core.config import settings
 from app.core.learning.constants import ALLOWED_UI_ACTIONS
 from app.infrastructure.database import session_scope
 from app.models import AgentActivity, Message, TraceEvent
-
-import app.core.learning.constants as _mc
 
 if TYPE_CHECKING:
     from app.models.macro import Macro
@@ -175,7 +174,10 @@ class MacroCreatorService:
             from app.core.learning.macro.compiler import MacroScriptCompiler
             from app.core.learning.macro.lifecycle import create_macro_from_synthesis
             from app.core.learning.trace.parser import TraceParser
-            from app.core.learning.workflow_synthesizer import WorkflowSynthesizer
+            from app.core.learning.workflow_synthesizer import (
+                SynthesisMode,
+                WorkflowSynthesizer,
+            )
             from app.utils.parameters import normalize_parameters
 
             sequence = await TraceParser(thread_id).parse()
@@ -194,7 +196,7 @@ class MacroCreatorService:
             macro_script = compiled.to_yaml()
 
             synthesizer = WorkflowSynthesizer(
-                thread_id, sequence=sequence, macro_script=macro_script, mode="macro"
+                thread_id, sequence=sequence, macro_script=macro_script, mode=SynthesisMode.MACRO
             )
             synthesis_result = await synthesizer.synthesize()
             macro_metadata = synthesis_result.macro

@@ -16,7 +16,7 @@ from app.api.schemas.tasks import (
 )
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.engine.background_agent import run_agent_background
-from app.core.engine.dispatch import dispatch_agent_run
+from app.core.engine.dispatch import DispatchStatus, dispatch_agent_run
 from app.core.evocloud import evocloud_manager
 from app.utils.id import unique_id
 from app.utils.template import render_template
@@ -179,7 +179,7 @@ async def execute_task(
         metadata={"task_id": task_id, "goal_prefix": "[Task Execution] "},
     )
 
-    if result.status == "failed":
+    if result.status == DispatchStatus.FAILED:
         raise HTTPException(status_code=500, detail=result.error)
 
     bg_tasks.add_task(run_agent_background, thread_id, result.inputs)

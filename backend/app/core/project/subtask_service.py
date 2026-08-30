@@ -13,6 +13,14 @@ import logging
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from app.core.project.constants import (
+    TASK_PRIORITY_MEDIUM,
+    TASK_STATUS_COMPLETED,
+    TASK_STATUS_FAILED,
+    TASK_STATUS_FILTER_ALL,
+    TASK_STATUS_IN_PROGRESS,
+    TASK_STATUS_PENDING,
+)
 from app.infrastructure.database import session_scope
 from app.models.project import ProjectTask
 from app.utils.id import gen_uuid
@@ -47,7 +55,7 @@ class SubtaskService:
 
     @staticmethod
     async def list_project_tasks(
-        project_id: int, status_filter: str = "all", limit: int = 20
+        project_id: int, status_filter: str = TASK_STATUS_FILTER_ALL, limit: int = 20
     ) -> list[ProjectTask]:
         """
         List root tasks for a project.
@@ -63,7 +71,7 @@ class SubtaskService:
                 .limit(limit)
             )
 
-            if status_filter != "all":
+            if status_filter != TASK_STATUS_FILTER_ALL:
                 query = query.where(ProjectTask.status == status_filter)
 
             result = await session.execute(query)
@@ -75,7 +83,7 @@ class SubtaskService:
         title: str,
         analysis_id: str | None = None,
         description: str = "",
-        priority: str = "medium",
+        priority: str = TASK_PRIORITY_MEDIUM,
         estimated_hours: int = 0,
         subtasks: list[dict] = None,
         created_by: str = "agent",
@@ -106,7 +114,7 @@ class SubtaskService:
                 project_id=project_id,
                 member_id=member_id,
                 parent_id=None,  # Root task
-                status="pending",
+                status=TASK_STATUS_PENDING,
                 progress=0,
                 task_data={
                     "title": title,
@@ -116,7 +124,7 @@ class SubtaskService:
                     "created_by": created_by,
                     "is_parent": True,
                 },
-                sync_status="pending",
+                sync_status=TASK_STATUS_PENDING,
             )
             session.add(parent_task)
             await session.flush()  # Get parent ID
@@ -130,7 +138,7 @@ class SubtaskService:
                         project_id=project_id,
                         member_id=member_id,
                         parent_id=parent_task.id,
-                        status="pending",
+                        status=TASK_STATUS_PENDING,
                         progress=0,
                         task_data={
                             "title": subtask_data.get("title", f"Subtask {i + 1}"),
@@ -140,7 +148,7 @@ class SubtaskService:
                             "order": i,  # Execution order
                             "created_by": created_by,
                         },
-                        sync_status="pending",
+                        sync_status=TASK_STATUS_PENDING,
                     )
                     session.add(subtask)
 
@@ -190,7 +198,7 @@ class SubtaskService:
             "description": task.task_data.get("description", ""),
             "status": task.status,
             "progress": task.progress,
-            "priority": task.task_data.get("priority", "medium"),
+            "priority": task.task_data.get("priority", TASK_PRIORITY_MEDIUM),
             "estimated_hours": task.task_data.get("estimated_hours", 0),
             "is_parent": len(task.subtasks) > 0,
             "created_at": task.created_at.isoformat() if task.created_at else None,
@@ -237,9 +245,9 @@ class SubtaskService:
             # Update task
             if status:
                 task.status = status
-                if status == "completed":
+                if status == TASK_STATUS_COMPLETED:
                     task.progress = 100
-                elif status == "pending":
+                elif status == TASK_STATUS_PENDING:
                     task.progress = 0
 
             if progress is not None:
@@ -286,18 +294,18 @@ class SubtaskService:
         parent.progress = int(weighted_progress)
 
         # Update parent status
-        all_completed = all(s.status == "completed" for s in subtasks)
-        any_failed = any(s.status == "failed" for s in subtasks)
-        any_in_progress = any(s.status == "in_progress" for s in subtasks)
+        all_completed = all(s.status == TASK_STATUS_COMPLETED for s in subtasks)
+        any_failed = any(s.status == TASK_STATUS_FAILED for s in subtasks)
+        any_in_progress = any(s.status == TASK_STATUS_IN_PROGRESS for s in subtasks)
 
         if all_completed:
-            parent.status = "completed"
+            parent.status = TASK_STATUS_COMPLETED
         elif any_failed:
-            parent.status = "failed"
+            parent.status = TASK_STATUS_FAILED
         elif any_in_progress:
-            parent.status = "in_progress"
+            parent.status = TASK_STATUS_IN_PROGRESS
         else:
-            parent.status = "pending"
+            parent.status = TASK_STATUS_PENDING
 
         parent.updated_at = utcnow()
         logger.info(
@@ -329,7 +337,7 @@ class SubtaskService:
             root_tasks = result.scalars().all()
 
             for root in root_tasks:
-                if root.status == "completed":
+                if root.status == TASK_STATUS_COMPLETED:
                     continue
 
                 # Load subtasks
@@ -337,7 +345,7 @@ class SubtaskService:
 
                 if not root.subtasks:
                     # Leaf task, can execute
-                    if root.status == "pending":
+                    if root.status == TASK_STATUS_PENDING:
                         return {
                             "id": root.id,
                             "title": root.task_data.get("title", ""),
@@ -349,7 +357,7 @@ class SubtaskService:
                     for subtask in sorted(
                         root.subtasks, key=lambda x: x.task_data.get("order", 0)
                     ):
-                        if subtask.status == "pending":
+                        if subtask.status == TASK_STATUS_PENDING:
                             return {
                                 "id": subtask.id,
                                 "title": subtask.task_data.get("title", ""),

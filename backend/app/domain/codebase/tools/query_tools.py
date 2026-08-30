@@ -15,6 +15,7 @@ from sqlalchemy import select
 from app.core.context.manager import ContextManager
 from app.core.monitoring.ui_actions import require_project_for_tool
 from app.core.tools import evoloop_tool
+from app.domain.codebase.constants import REPO_SYNC_INACTIVE_STATUSES
 from app.infrastructure.database import session_scope
 from app.models import (
     CodeChunk,
@@ -50,7 +51,7 @@ async def _resolve_repo_id(project_id: int | None) -> int | None:
         stmt = (
             select(Repository.id)
             .where(Repository.project_id == pid)
-            .where(Repository.sync_status.notin_(["IGNORED", "DISCONNECTED"]))
+            .where(Repository.sync_status.notin_(REPO_SYNC_INACTIVE_STATUSES))
             .limit(1)
         )
         result = await session.execute(stmt)

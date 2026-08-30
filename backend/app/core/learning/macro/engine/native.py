@@ -51,9 +51,7 @@ class NativeMixin:
                     process.returncode,
                     err_msg,
                 )
-                raise ValueError(
-                    f"Native script exited with code {process.returncode}: {err_msg}"
-                )
+                raise ValueError(f"Native script exited with code {process.returncode}: {err_msg}")
 
             if sync_state and os.path.exists(sync_state):
                 with open(sync_state, encoding="utf-8") as f:
@@ -62,9 +60,7 @@ class NativeMixin:
                 items = state_data.get("items", [])
                 if items:
                     extracted_data["batch_items"] = items
-                    logger.info(
-                        f"[{thread_id}] Synced {len(items)} items from {sync_state} to extracted_data"
-                    )
+                    logger.info(f"[{thread_id}] Synced {len(items)} items from {sync_state} to extracted_data")
 
         except asyncio.TimeoutError:
             logger.error("[%s] Native script timed out after 300s", thread_id)

@@ -5,7 +5,12 @@ import os
 from app.constants import EXTENSION_MAP, SOFTWARE_DIRECTORIES, SOFTWARE_INDICATORS
 
 # Names of generation artifacts that can be dispatched and tracked.
-GENERATION_ITEMS = frozenset({"wiki", "appmap", "summary"})
+GENERATION_ITEM_WIKI = "wiki"
+GENERATION_ITEM_APPMAP = "appmap"
+GENERATION_ITEM_SUMMARY = "summary"
+GENERATION_ITEMS = frozenset(
+    {GENERATION_ITEM_WIKI, GENERATION_ITEM_APPMAP, GENERATION_ITEM_SUMMARY}
+)
 
 # Maximum directory depth for the code-file scan heuristic.
 CLASSIFIER_MAX_DEPTH = 2
@@ -14,7 +19,71 @@ CLASSIFIER_MAX_DEPTH = 2
 CODE_FILE_THRESHOLD = 3
 
 # Combined set of files/directories that strongly indicate a software project.
+# Membership in the set of files/directories that strongly indicate a software project.
 SOFTWARE_MARKERS = SOFTWARE_INDICATORS | SOFTWARE_DIRECTORIES
+
+# ====================== Indexing job statuses (Repository.indexing_status) ======================
+#: Job queued for dispatch.
+INDEXING_STATUS_QUEUED = "queued"
+#: Job queuing (transient in-memory state).
+INDEXING_STATUS_QUEUING = "queuing"
+#: Index not yet started.
+INDEXING_STATUS_PENDING = "pending"
+#: Index is actively running.
+INDEXING_STATUS_INDEXING = "indexing"
+#: Index is actively running (alias used by status setters).
+INDEXING_STATUS_IN_PROGRESS = "in_progress"
+#: Index finished successfully.
+INDEXING_STATUS_COMPLETED = "completed"
+#: Index failed.
+INDEXING_STATUS_FAILED = "failed"
+#: Index hit an unrecoverable error.
+INDEXING_STATUS_ERROR = "error"
+#: Index finished (in-memory success-state alias of completed).
+INDEXING_STATUS_DONE = "done"
+#: Index was cancelled.
+INDEXING_STATUS_CANCELLED = "cancelled"
+#: No active index job.
+INDEXING_STATUS_IDLE = "idle"
+
+#: Indexing statuses that count as "terminal" (persist last_indexed_at).
+INDEXING_TERMINAL_STATUSES = frozenset({INDEXING_STATUS_COMPLETED, INDEXING_STATUS_FAILED})
+
+# ====================== Source file scan statuses (SourceFile.scan_status / security_scan_status) ======================
+#: File scan pending.
+SCAN_STATUS_PENDING = "pending"
+#: File scan completed.
+SCAN_STATUS_COMPLETED = "completed"
+#: File scan failed.
+SCAN_STATUS_FAILED = "failed"
+
+#: Canonical set of file scan statuses.
+SCAN_STATUSES = frozenset({SCAN_STATUS_PENDING, SCAN_STATUS_COMPLETED, SCAN_STATUS_FAILED})
+
+# ====================== Repository cloud sync statuses (Repository.sync_status) ======================
+#: Newly detected, awaiting user confirmation.
+REPO_SYNC_STATUS_DETECTED = "DETECTED"
+#: User chose to ignore this repository.
+REPO_SYNC_STATUS_IGNORED = "IGNORED"
+#: User confirmed, awaiting cloud sync.
+REPO_SYNC_STATUS_PENDING_CREATION = "PENDING_CREATION"
+#: Successfully synced with cloud.
+REPO_SYNC_STATUS_SYNCED = "SYNCED"
+#: Local directory was deleted.
+REPO_SYNC_STATUS_DISCONNECTED = "DISCONNECTED"
+
+#: Statuses considered "locally tracked / imported" (usable for execution).
+REPO_SYNC_TRACKED_STATUSES = frozenset(
+    {REPO_SYNC_STATUS_SYNCED, REPO_SYNC_STATUS_PENDING_CREATION}
+)
+
+#: Statuses treated as inactive / excluded from active working sets.
+REPO_SYNC_INACTIVE_STATUSES = (
+    REPO_SYNC_STATUS_IGNORED,
+    REPO_SYNC_STATUS_DISCONNECTED,
+)
+
+
 
 # File extensions recognized as source code.
 CODE_EXTENSIONS = set(EXTENSION_MAP.keys())

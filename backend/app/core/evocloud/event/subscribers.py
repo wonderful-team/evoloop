@@ -15,6 +15,7 @@ from app.core.engine.rewind import MESSAGES_CLEANUP, MessagesCleanupEvent
 from app.core.events import BaseEvent, SystemEventType
 from app.core.events.decorators import event_register, event_subscribe
 from app.core.evocloud.manager import evocloud_manager
+from app.core.schemas.canonical import MessageType
 from app.infrastructure.config.service import SystemConfigService
 
 logger = logging.getLogger(__name__)
@@ -153,7 +154,7 @@ class EvoCloudSyncSubscriber:
 
             device_key = await identity_service.store.get_device_key()
             await ch.send_envelope(
-                env_type="agent.status",
+                env_type=MessageType.AGENT_STATUS,
                 body={
                     "thread_id": getattr(event, "thread_id", ""),
                     "status": getattr(event, "status", "done"),

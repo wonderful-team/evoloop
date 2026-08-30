@@ -39,7 +39,7 @@ class McpAuthManager:
         Returns:
             AuthHandler instance or None if no auth needed
         """
-        method = auth_config.get("method", "api_key")
+        method = auth_config.get("method", AuthMethod.API_KEY.value)
 
         if method == AuthMethod.API_KEY:
             # API Key is handled via headers/env, no handler needed

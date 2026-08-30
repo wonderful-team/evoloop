@@ -10,6 +10,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, cast
 
+from app.core.engine.message.constants import MessageRole, MessageStatus
 from app.core.engine.message.schemas import MessageBlock, ToolCall
 from app.core.engine.message.utils import normalize_tool_calls
 from app.core.tools.registry import get_tool_metadata
@@ -39,7 +40,7 @@ class MessageBlockFactory:
         msg_id = str(cls._get_val(msg, "id"))
         content = cls._get_val(msg, "content", "")
         thinking = cls._get_val(msg, "thinking")
-        status = cls._get_val(msg, "status", "completed")
+        status = cls._get_val(msg, "status", MessageStatus.COMPLETED)
         created_at = cls._get_val(msg, "created_at")
         if isinstance(created_at, datetime):
             created_at = created_at.isoformat()
@@ -75,7 +76,7 @@ class MessageBlockFactory:
                 references.append(msg_ref)
 
         # 4. Human / System / AI / Tool
-        if role == "ai":
+        if role == MessageRole.AI:
             raw_tool_calls = cls._get_val(msg, "tool_calls") or []
             serializable_tool_calls = []
 
@@ -91,7 +92,7 @@ class MessageBlockFactory:
 
             return MessageBlock(
                 id=msg_id,
-                role="ai",
+                role=MessageRole.AI,
                 content=content,
                 thinking=thinking,
                 tool_calls=serializable_tool_calls,
@@ -105,7 +106,7 @@ class MessageBlockFactory:
                 source=cls._get_val(msg, "source"),
             )
 
-        elif role == "tool":
+        elif role == MessageRole.TOOL:
             tool_name = cls._get_val(msg, "tool_name")
             tool_call_id = cls._get_val(msg, "tool_call_id") or msg_id
 
@@ -135,7 +136,7 @@ class MessageBlockFactory:
 
             return MessageBlock(
                 id=msg_id,
-                role="tool",
+                role=MessageRole.TOOL,
                 content=content,
                 created_at=created_at or "",
                 status=status,
@@ -171,12 +172,12 @@ class MessageBlockFactory:
         cls,
         thread_id: str,
         sequence_number: int,
-        role: str,
+        role: MessageRole,
         content: str | None = None,
         thinking: str | None = None,
         tool_calls: list | None = None,
         category: str = "",
-        status: str = "completed",
+        status: str = MessageStatus.COMPLETED,
         tool_name: str | None = None,
         tool_call_id: str | None = None,
         metadata: dict | None = None,
@@ -202,14 +203,14 @@ class MessageBlockFactory:
 
         # Resolve Tool Meta (if missing, rebuild it)
         tool_meta = metadata.get("tool_meta")
-        if not tool_meta and role == "tool" and tool_name:
+        if not tool_meta and role == MessageRole.TOOL and tool_name:
             metadata_registry = get_tool_metadata(tool_name)
 
             # Try to extract result meta from content if role is tool and status is completed
             result_meta = {}
             output = content or metadata.get("output", "")
             if (
-                status == "completed"
+                status == MessageStatus.COMPLETED
                 and isinstance(output, str)
                 and output.strip().startswith("{")
             ):
@@ -235,7 +236,7 @@ class MessageBlockFactory:
             **{k: v for k, v in metadata.items() if k not in ["input", "tool_meta"]},
         }
 
-        if role == "tool":
+        if role == MessageRole.TOOL:
             clean_meta["input"] = input_args
             clean_meta["tool_meta"] = tool_meta
 
@@ -276,8 +277,8 @@ class MessageBlockFactory:
             parent_id=parent_id,
             tool_name=tool_name,
             tool_call_id=tool_call_id,
-            input=input_args if role == "tool" else None,
-            tool_meta=tool_meta if role == "tool" else None,
+            input=input_args if role == MessageRole.TOOL else None,
+            tool_meta=tool_meta if role == MessageRole.TOOL else None,
             executor_device_key=executor_device_key,
             executor_device_name=executor_device_name,
             source=source,

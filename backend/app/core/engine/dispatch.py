@@ -24,6 +24,7 @@ import os
 import shutil
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from enum import Enum
 from typing import Any
 
 from app.constants import DEFAULT_PROJECT_ID
@@ -35,6 +36,8 @@ from app.core.engine.event.publishers import (
 )
 from app.core.engine.hooks import HookContext, HookEvent, hook_system
 from app.core.engine.hooks.schemas import HookMetadata
+from app.core.engine.message.category import MessageCategory
+from app.core.engine.message.constants import MessageStatus
 from app.core.engine.message.reference import reference_service
 from app.core.project.utils import get_project_path
 from app.infrastructure.database import session_scope
@@ -43,11 +46,18 @@ from app.models import Conversation
 logger = logging.getLogger(__name__)
 
 
+class DispatchStatus(str, Enum):
+    """Preparation-phase outcome of :class:`DispatchResult`."""
+
+    QUEUED = "queued"
+    FAILED = "failed"
+
+
 @dataclass
 class DispatchResult:
     """Result of the synchronous dispatch preparation phase."""
 
-    status: str  # "queued" | "failed"
+    status: DispatchStatus
     thread_id: str
     message_id: str | None = None  # DB persisted message id (UUID)
     inputs: dict[str, Any] | None = None
@@ -302,7 +312,7 @@ async def dispatch_agent_run(
             msg_id, seq = await repo.persist(
                 role="human",
                 content=message_content,
-                category="user",
+                category=MessageCategory.USER,
                 is_visible=True,
                 references=references_list,
                 source=source,
@@ -320,8 +330,8 @@ async def dispatch_agent_run(
                     sequence_number=seq,
                     role="human",
                     content=message_content,
-                    category="user",
-                    status="completed",
+                    category=MessageCategory.USER,
+                    status=MessageStatus.COMPLETED,
                     references=references_list,
                     message_id=msg_id,
                     source=source,
@@ -349,7 +359,7 @@ async def dispatch_agent_run(
     }
 
     return DispatchResult(
-        status="queued",
+        status=DispatchStatus.QUEUED,
         thread_id=thread_id,
         message_id=persisted_msg_id,
         inputs=inputs,
@@ -406,7 +416,7 @@ async def persist_user_message(
         msg_id, seq = await repo.persist(
             role="human",
             content=content,
-            category="user",
+            category=MessageCategory.USER,
             is_visible=True,
             message_id=message_id,
             session=session,
@@ -421,8 +431,8 @@ async def persist_user_message(
                 sequence_number=seq,
                 role="human",
                 content=content,
-                category="user",
-                status="completed",
+                category=MessageCategory.USER,
+                status=MessageStatus.COMPLETED,
                 message_id=msg_id,
             )
             resolved_project_id = (

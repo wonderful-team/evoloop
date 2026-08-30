@@ -4,9 +4,11 @@ import logging
 from app.core.config import settings
 from app.infrastructure.vision.providers.base import VisionProvider
 from app.infrastructure.vision.providers.llm.vlm_provider import MultimodalVLMProvider
-from app.infrastructure.vision.providers.ocr.android_vision import AndroidVisionOCRProvider
+from app.infrastructure.vision.providers.ocr.android_vision import (
+    AndroidVisionOCRProvider,
+)
 from app.infrastructure.vision.providers.ocr.macos_vision import MacOSVisionOCRProvider
-from app.infrastructure.vision.types import VisionTask
+from app.infrastructure.vision.types import PlatformType, VisionTask
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +89,7 @@ class VisionRouter:
             current_ecosystem = ctx.metadata.get("current_ecosystem")
 
             # 1. Android Specific OCR
-            if kwargs.get("on_android") or current_ecosystem == "android":
+            if kwargs.get("on_android") or current_ecosystem == PlatformType.ANDROID.value:
                 for p in self.providers:
                     if isinstance(p, AndroidVisionOCRProvider) and await p.is_available():
                         return p

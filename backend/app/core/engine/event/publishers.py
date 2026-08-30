@@ -7,6 +7,7 @@ Helper functions for publishing agent-related events.
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.events import system_bus
+from app.core.monitoring.constants import ActivityStatus
 
 from .schemas import (
     AgentRunCompletedEvent,
@@ -35,7 +36,7 @@ async def publish_agent_run_completed(
     thread_id: str,
     project_id: int = DEFAULT_PROJECT_ID,
     goal: str = "",
-    status: str = "done",
+    status: ActivityStatus = ActivityStatus.DONE,
     source: str = "",
     payload: dict | None = None,
 ) -> None:

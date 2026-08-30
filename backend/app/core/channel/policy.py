@@ -47,6 +47,7 @@ from __future__ import annotations
 import contextvars
 import logging
 
+from app.core.engine.message.constants import MessageStatus
 from app.core.engine.message.schemas import MessageBlock
 from app.core.events.base import BaseEvent
 from app.models.schemas.events import (
@@ -95,7 +96,7 @@ def _has_route_to_call(block: object) -> bool:
 
 
 def _is_streaming_block(block: object) -> bool:
-    return getattr(block, "status", "") in ("streaming", "running")
+    return getattr(block, "status", "") in (MessageStatus.STREAMING, MessageStatus.RUNNING)
 
 
 class OutputChannelPolicy:

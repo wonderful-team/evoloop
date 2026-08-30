@@ -1,6 +1,10 @@
 import logging
 
 from app.core.engine.message.category import MessageCategory
+from app.core.engine.message.constants import (
+    MessageContentType,
+    MessageRole,
+)
 from app.core.engine.message.publisher import MessagePublisher
 from app.core.engine.message.schemas import MessageHandlerResult
 from app.models.schemas.events import (
@@ -32,11 +36,11 @@ class ErrorMessageMixin:
             error_markdown = f"**{classification.title}**\n\n{classification.message}\n\n*Hint: {classification.hint}*"
             dev_key, dev_name = self._get_device_attribution()
             message_id, _ = await self._repository.persist(
-                role="ai",
+                role=MessageRole.AI,
                 content=error_markdown,
                 category=category.value,
                 is_visible=True,
-                content_type="markdown",
+                content_type=MessageContentType.MARKDOWN,
                 executor_device_key=dev_key,
                 executor_device_name=dev_name,
             )
@@ -72,7 +76,7 @@ class ErrorMessageMixin:
                 )
             )
 
-        error_role = "ai" if classification.is_terminal else "system"
+        error_role = MessageRole.AI if classification.is_terminal else MessageRole.SYSTEM
         await self._dispatch_block(
             role=error_role,
             content=f"**{classification.title}**\n{classification.message}",

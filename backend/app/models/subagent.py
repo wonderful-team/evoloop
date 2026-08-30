@@ -11,8 +11,20 @@ Design (docs/subagent-design.md §3.1, §D4):
 """
 
 from datetime import datetime, timezone
+from enum import Enum
 
 from sqlmodel import Field, SQLModel
+
+
+class SubagentStatus(str, Enum):
+    """Lifecycle status of a SubagentRun."""
+
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+    AWAITING_HUMAN = "awaiting_human"
+    AWAITING_A2A = "awaiting_a2a"
 
 
 class SubagentRun(SQLModel, table=True):
@@ -27,7 +39,7 @@ class SubagentRun(SQLModel, table=True):
     focus_paths: str | None = None  # JSON list
     acceptance_criteria: str | None = None  # JSON list
 
-    status: str = "running"  # running|completed|failed|cancelled|awaiting_human|awaiting_a2a
+    status: SubagentStatus = Field(default=SubagentStatus.RUNNING)
     result: str | None = None
     error: str | None = None
     tools_used: str | None = None  # JSON list of tool names

@@ -5,6 +5,7 @@ EvoLoop Message Converter Utility (Native Python / Lightweight)
 import logging
 from typing import Any
 
+from app.core.engine.message.constants import MessageRole
 from app.core.engine.message.native_classes import (
     AIMessage,
     BaseMessage,
@@ -15,45 +16,29 @@ from app.core.engine.message.native_classes import (
 
 logger = logging.getLogger(__name__)
 
-_ROLE_MAP = {
-    "user": "human",
-    "assistant": "ai",
-    "ai": "ai",
-    "human": "human",
-    "system": "system",
-    "tool": "tool",
+# Backward-compatible aliases for external/OpenAI-style dict input.
+_CANONICAL_ROLE: dict[str, MessageRole] = {
+    "user": MessageRole.HUMAN,
+    "assistant": MessageRole.AI,
+    "human": MessageRole.HUMAN,
+    "ai": MessageRole.AI,
+    "system": MessageRole.SYSTEM,
+    "tool": MessageRole.TOOL,
 }
 
 
 def _dict_to_message(d: dict) -> BaseMessage:
     """Convert a dict (with 'role' or 'type' key) to a native message object."""
-    role = d.get("role")
-    type_ = d.get("type")
-    if not role and type_:
-        role = {
-            "human": "user",
-            "ai": "assistant",
-            "system": "system",
-            "tool": "tool",
-        }.get(type_)
-    if not role:
-        role = "user"
-    native_type = _ROLE_MAP.get(role, "human")
-    if native_type == "human":
-        return HumanMessage(
-            **{k: v for k, v in d.items() if k != "role" and k != "type"}
-        )
-    elif native_type == "ai":
-        return AIMessage(**{k: v for k, v in d.items() if k != "role" and k != "type"})
-    elif native_type == "system":
-        return SystemMessage(
-            **{k: v for k, v in d.items() if k != "role" and k != "type"}
-        )
-    elif native_type == "tool":
-        return ToolMessage(
-            **{k: v for k, v in d.items() if k != "role" and k != "type"}
-        )
-    return HumanMessage(content=d.get("content", ""))
+    role = d.get("role") or d.get("type") or MessageRole.HUMAN
+    canonical = _CANONICAL_ROLE.get(role, MessageRole.HUMAN)
+    payload = {k: v for k, v in d.items() if k not in ("role", "type")}
+    if canonical == MessageRole.AI:
+        return AIMessage(**payload)
+    if canonical == MessageRole.TOOL:
+        return ToolMessage(**payload)
+    if canonical == MessageRole.SYSTEM:
+        return SystemMessage(**payload)
+    return HumanMessage(**payload)
 
 
 def _normalize_to_native(messages: list[Any]) -> list[BaseMessage]:
@@ -97,17 +82,17 @@ class EvoMessageConverter:
             content = msg.content
             tool_calls = msg.tool_calls
 
-            if not content and role not in ("tool", "assistant"):
+            if not content and role not in (MessageRole.TOOL.value, MessageRole.AI.value):
                 continue
-            if role == "assistant" and not content and not tool_calls:
+            if role == MessageRole.AI and not content and not tool_calls:
                 continue
 
-            if role == "tool":
+            if role == MessageRole.TOOL:
                 is_orphaned = True
                 tool_call_id = msg.tool_call_id
                 if stage1:
                     last = stage1[-1]
-                    if last.role == "assistant" and last.tool_calls:
+                    if last.role == MessageRole.AI and last.tool_calls:
                         ids = [
                             tc.get("id")
                             for tc in last.tool_calls
@@ -133,8 +118,8 @@ class EvoMessageConverter:
 
             if stage1:
                 last = stage1[-1]
-                if last.role == role and role in ("user", "assistant"):
-                    if role == "assistant" and last.tool_calls:
+                if last.role == role and role in (MessageRole.HUMAN.value, MessageRole.AI.value):
+                    if role == MessageRole.AI and last.tool_calls:
                         stage1.append(msg)
                         continue
                     if last.name == "context_ticket" or msg.name == "context_ticket":
@@ -151,7 +136,7 @@ class EvoMessageConverter:
 
         for msg in stage1:
             role = msg.role
-            if role in ("user", "assistant") and open_tool_calls:
+            if role in (MessageRole.HUMAN.value, MessageRole.AI.value) and open_tool_calls:
                 for tcid, tname in list(open_tool_calls.items()):
                     final_repaired.append(
                         ToolMessage(
@@ -162,7 +147,7 @@ class EvoMessageConverter:
                     )
                 open_tool_calls = {}
 
-            if role == "assistant" and msg.tool_calls:
+            if role == MessageRole.AI and msg.tool_calls:
                 for tc in msg.tool_calls:
                     if isinstance(tc, dict):
                         tcid = tc.get("id")
@@ -170,7 +155,7 @@ class EvoMessageConverter:
                         if tcid:
                             open_tool_calls[tcid] = tname or "unknown_tool"
 
-            if role == "tool" and msg.tool_call_id in open_tool_calls:
+            if role == MessageRole.TOOL and msg.tool_call_id in open_tool_calls:
                 del open_tool_calls[msg.tool_call_id]
 
             final_repaired.append(msg)
@@ -186,10 +171,10 @@ class EvoMessageConverter:
                 )
 
         # 3. Ensure starting message
-        non_system = [i for i, m in enumerate(final_repaired) if m.role != "system"]
+        non_system = [i for i, m in enumerate(final_repaired) if m.role != MessageRole.SYSTEM]
         if non_system:
             first = non_system[0]
-            if final_repaired[first].role == "assistant":
+            if final_repaired[first].role == MessageRole.AI:
                 final_repaired.insert(
                     first, HumanMessage(content=_t("conversation_continuation"))
                 )

@@ -8,13 +8,14 @@ from typing import Any
 
 from app.core.config import settings
 from app.core.engine import get_default_engine
+from app.core.engine.message.constants import MessageRole
 from app.core.engine.message.native_classes import AIMessage, HumanMessage
 from app.core.engine.message.utils import get_message_text
 from app.core.engine.nodes.base import BaseAgentNode
 from app.core.engine.nodes.prompts import WorkerPromptBuilder
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.state import AgentState, StateUpdate
-from app.core.engine.state.sub_schemas import WorkflowStepResult
+from app.core.engine.state.sub_schemas import WorkflowStepResult, WorkflowStepStatus
 from app.core.tools.manager import tool_manager
 
 logger = logging.getLogger(__name__)
@@ -129,7 +130,7 @@ class SequentialWorkflowNode(BaseAgentNode):
                         skill_id=skill.id,
                         skill_name=skill_name,
                         output=str(e),
-                        status="failed",
+                        status=WorkflowStepStatus.FAILED,
                     )
                 ],
             )
@@ -137,7 +138,7 @@ class SequentialWorkflowNode(BaseAgentNode):
         if engine_result.messages:
             last_msg = engine_result.messages[-1]
             step_output = (
-                get_message_text(last_msg) if last_msg.role == "assistant" else ""
+                get_message_text(last_msg) if last_msg.role == MessageRole.AI else ""
             )
         else:
             step_output = ""
@@ -149,7 +150,7 @@ class SequentialWorkflowNode(BaseAgentNode):
                     skill_id=skill.id,
                     skill_name=skill_name,
                     output=step_output,
-                    status="failed",
+                    status=WorkflowStepStatus.FAILED,
                 )
             )
             return StateUpdate(
@@ -171,7 +172,7 @@ class SequentialWorkflowNode(BaseAgentNode):
                 skill_id=skill.id,
                 skill_name=skill_name,
                 output=step_output,
-                status="success",
+                status=WorkflowStepStatus.SUCCESS,
             )
         )
 

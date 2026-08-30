@@ -8,6 +8,7 @@ import logging
 from enum import Enum
 
 from app.core.config import settings
+from app.core.engine.schemas import WorkerOutcome
 from app.core.engine.state import AgentState
 
 logger = logging.getLogger(__name__)
@@ -38,7 +39,7 @@ def route_worker_by_outcome(state: AgentState) -> str:
     - 失败/截断/错误 → supervisor（Supervisor 决策重试或换方案）。
     """
     outcome = state.worker_outcome
-    if outcome in ("truncated", "failed", "error"):
+    if outcome in (WorkerOutcome.TRUNCATED, WorkerOutcome.FAILED, WorkerOutcome.ERROR):
         return "supervisor"
     return "finish"
 

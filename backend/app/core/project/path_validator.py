@@ -4,6 +4,7 @@ import os
 from sqlalchemy import select
 
 from app.core.file import is_ignored_path
+from app.domain.codebase.constants import REPO_SYNC_TRACKED_STATUSES
 from app.infrastructure.database import session_scope
 from app.models.codebase import Repository
 
@@ -63,7 +64,7 @@ async def validate_project_path(candidate_path: str, workspace_root: str) -> Non
     # Check overlapping with other registered active projects in DB
     async with session_scope() as session:
         stmt = select(Repository).where(
-            Repository.sync_status.in_(["SYNCED", "PENDING_CREATION"])
+            Repository.sync_status.in_(REPO_SYNC_TRACKED_STATUSES)
         )
         result = await session.execute(stmt)
         active_repos = result.scalars().all()

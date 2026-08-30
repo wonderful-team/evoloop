@@ -26,10 +26,11 @@ import tempfile
 import time
 from pathlib import Path
 
+import app.core.learning.constants as _mc
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
-from app.core.learning.constants import DEFAULT_VIDEO_FPS
 from app.core.engine.message.native_classes import HumanMessage, SystemMessage
+from app.core.learning.constants import DEFAULT_VIDEO_FPS
 from app.core.learning.macro import (
     MacroScriptCompiler,
     MacroVerificationResult,
@@ -533,7 +534,7 @@ class MultimodalSkillSynthesizer:
         # 准备原始数据，格式化逻辑移至模板
         event_data = []
         for event in events:
-            if event.action_type in ("mouse_move", "cursor_move", "touch_up"):
+            if event.action_type in ("mouse_move", "cursor_move", _mc.TOUCH_UP):
                 continue
 
             norm_pos = normalizer.normalize(event.mouse_x, event.mouse_y)
@@ -541,7 +542,7 @@ class MultimodalSkillSynthesizer:
             event_data.append(
                 {
                     "action_name": "tap"
-                    if event.action_type == "touch_down"
+                    if event.action_type == _mc.TOUCH_DOWN
                     else event.action_type,
                     "timestamp": event.timestamp or 0.0,
                     "norm_pos": norm_pos,
@@ -577,7 +578,7 @@ class MultimodalSkillSynthesizer:
                 payload = getattr(keyframe.related_event, "payload", {}) or {}
                 action_name = (
                     "tap"
-                    if keyframe.related_event.action_type == "touch_down"
+                    if keyframe.related_event.action_type == _mc.TOUCH_DOWN
                     else keyframe.related_event.action_type
                 )
                 frame.norm_events = [

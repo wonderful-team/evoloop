@@ -11,6 +11,7 @@ from sqlalchemy import select
 
 from app.core.engine.rewind import REWIND_REQUESTED, RewindRequestedEvent
 from app.core.events.decorators import event_register, event_subscribe
+from app.domain.planning.constants import PlanStatus, PlanStepStatus
 from app.infrastructure.database import session_scope
 
 logger = logging.getLogger(__name__)
@@ -71,7 +72,7 @@ class PlanRewind:
                             PlanUpdatedEvent(
                                 thread_id=event.thread_id,
                                 plan_id=plan.id,
-                                status="deleted",
+                                status=PlanStepStatus.DELETED.value,
                             )
                         )
                     except Exception as e:
@@ -99,11 +100,11 @@ class PlanRewind:
                         reset_count += 1
 
                 if reset_count > 0:
-                    plan.status = "active"
+                    plan.status = PlanStatus.ACTIVE.value
                     # Set the first non-completed step to in_progress
                     for s in steps:
-                        if s.status != "completed":
-                            s.status = "in_progress"
+                        if s.status != PlanStepStatus.COMPLETED.value:
+                            s.status = PlanStepStatus.IN_PROGRESS.value
                             break
 
                 self._reset_count = reset_count
@@ -183,7 +184,7 @@ class PlanRewind:
         """Reset a PlanStep to its initial state."""
         step.execution_run_id = None
         step.result = None
-        step.status = "pending"
+        step.status = PlanStepStatus.PENDING.value
 
     async def cleanup(self, thread_id: str, **kwargs) -> int:
         """Direct cleanup entry point (non-event-driven usage)."""
@@ -208,8 +209,8 @@ class PlanRewind:
             for step in steps:
                 self._reset_step(step)
             if steps:
-                steps[0].status = "in_progress"
-            plan.status = "active"
+                steps[0].status = PlanStepStatus.IN_PROGRESS.value
+            plan.status = PlanStatus.ACTIVE.value
             return len(steps)
 
     def get_reset_count(self) -> int:

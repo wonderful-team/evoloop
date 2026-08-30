@@ -19,7 +19,7 @@ from app.api.schemas.projects.profiles import (
 )
 from app.core import file as file_utils
 from app.core.engine.background_agent import run_agent_background
-from app.core.engine.dispatch import dispatch_agent_run
+from app.core.engine.dispatch import DispatchStatus, dispatch_agent_run
 from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket
 from app.core.project.utils import (
     get_project_path,
@@ -89,7 +89,7 @@ async def discover_profile(
         metadata={"goal_prefix": "[Project Discovery] "},
     )
 
-    if result.status == "failed":
+    if result.status == DispatchStatus.FAILED:
         raise HTTPException(500, detail=result.error)
 
     user_lang = SystemConfigService.get_language_preference()

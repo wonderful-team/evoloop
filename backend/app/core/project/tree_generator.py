@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
 from app.core.project import cache as project_cache
+from app.domain.codebase.constants import SCAN_STATUS_COMPLETED
 from app.infrastructure.database import session_scope
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models import CodeChunk, Repository, SourceFile
@@ -232,7 +233,7 @@ class AnnotatedTreeGenerator:
             repo_path = repo.local_path
             stmt = select(SourceFile).where(
                 SourceFile.repository_id == repo.id,
-                SourceFile.scan_status == "completed",
+                SourceFile.scan_status == SCAN_STATUS_COMPLETED,
             )
             if self.with_symbols:
                 stmt = stmt.options(selectinload(SourceFile.chunks))

@@ -31,14 +31,6 @@ class BaseMessage(BaseModel):
 
     model_config = {"arbitrary_types_allowed": True, "extra": "allow"}
 
-    _TYPE_TO_ROLE = {
-        "human": "user",
-        "ai": "assistant",
-        "system": "system",
-        "tool": "tool",
-        "remove": "remove",
-    }
-
     def __init__(
         self,
         content: Any,
@@ -59,7 +51,7 @@ class BaseMessage(BaseModel):
 
     @property
     def role(self) -> str:
-        return self._TYPE_TO_ROLE.get(self.type, "user")
+        return self.type or "human"
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(content={self.content!r}, id={self.id!r})"

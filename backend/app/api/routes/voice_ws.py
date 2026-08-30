@@ -26,6 +26,7 @@ from pydantic import BaseModel
 
 from app.core.channel.output.voice_channel import VoiceChannel
 from app.core.context import EvoContext
+from app.core.engine.dispatch import DispatchStatus
 from app.core.events import system_bus
 from app.core.events.registry import SystemEventType
 from app.core.events.schemas.lifecycle import ConfigChangedEvent
@@ -255,7 +256,7 @@ async def _handle_route(body: dict[str, Any], conn_id: str) -> None:
         logger.info("[voice-perf] %s L0 miss → agent dispatch", thread_id)
 
         dispatch_result = outcome.inputs
-        if dispatch_result is None or dispatch_result.status == "failed":
+        if dispatch_result is None or dispatch_result.status == DispatchStatus.FAILED:
             if dispatch_result is not None:
                 await voice_executor.push_voice_result(
                     thread_id, "failed", getattr(dispatch_result, "error", "")
@@ -1079,7 +1080,7 @@ async def run_agent_pipeline(websocket: WebSocket, thread_id: str, text: str) ->
 
             logger.info("[voice-perf] %s L0 miss → agent dispatch", thread_id)
             dispatch_result = outcome.inputs
-            if dispatch_result is None or dispatch_result.status == "failed":
+            if dispatch_result is None or dispatch_result.status == DispatchStatus.FAILED:
                 if dispatch_result is not None:
                     await voice_executor.push_voice_result(
                         thread_id, "failed", getattr(dispatch_result, "error", "")

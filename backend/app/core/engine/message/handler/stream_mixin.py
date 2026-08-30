@@ -1,5 +1,6 @@
 from typing import Any, cast
 
+from app.core.engine.message.constants import MessageStatus
 from app.core.engine.message.publisher import MessagePublisher
 from app.models.schemas.events import (
     ProgressEvent,
@@ -38,7 +39,7 @@ class StreamMixin:
         thread_id: str,
         message: str,
         progress: int | None = None,
-        status: str = "running",
+        status: str = MessageStatus.RUNNING,
         metadata: dict | None = None,
     ) -> None:
         publisher = MessagePublisher(thread_id=thread_id)

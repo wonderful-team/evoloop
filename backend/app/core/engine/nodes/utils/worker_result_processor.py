@@ -8,9 +8,10 @@ MCP interception, and subtask result collection.
 import json
 import logging
 
+from app.core.engine.message.constants import MessageRole
 from app.core.engine.message.native_classes import AIMessage, RunnableConfig
 from app.core.engine.message.utils import get_message_text
-from app.core.engine.schemas import EngineResult
+from app.core.engine.schemas import EngineResult, NodeOutcomeStatus, WorkerOutcome
 from app.core.engine.state import AgentState, StateUpdate
 from app.core.engine.state.config import ExecutionTicket
 from app.core.engine.state.sub_schemas import VerificationStatus
@@ -34,14 +35,14 @@ async def process_worker_result(
         last_msg = engine_result.messages[-1]
         last_role = last_msg.role
         worker_content = (
-            get_message_text(last_msg) if last_role in ("assistant", "ai") else ""
+            get_message_text(last_msg) if last_role == MessageRole.AI else ""
         )
 
     tool_history = engine_result.tool_history or []
 
     if not worker_content and engine_result.messages:
         for msg in reversed(engine_result.messages):
-            if msg.role == "tool":
+            if msg.role == MessageRole.TOOL:
                 worker_content = get_message_text(msg)
                 break
 
@@ -50,20 +51,20 @@ async def process_worker_result(
     )
 
     outcome = engine_result.outcome
-    if outcome and outcome.status == "truncated":
-        worker_outcome = "truncated"
+    if outcome and outcome.status == NodeOutcomeStatus.TRUNCATED:
+        worker_outcome = WorkerOutcome.TRUNCATED
         if execution_ticket:
             execution_ticket.is_resuming = True
-    elif outcome and outcome.status in ("failed", "error"):
-        worker_outcome = "failed"
+    elif outcome and outcome.status in (NodeOutcomeStatus.FAILED, NodeOutcomeStatus.ERROR):
+        worker_outcome = WorkerOutcome.FAILED
         if execution_ticket:
             execution_ticket.is_resuming = False
     elif "[ERROR:" in worker_content or worker_content.strip().startswith("Error:"):
-        worker_outcome = "failed"
+        worker_outcome = WorkerOutcome.FAILED
         if execution_ticket:
             execution_ticket.is_resuming = False
     else:
-        worker_outcome = "success"
+        worker_outcome = WorkerOutcome.SUCCESS
         if execution_ticket:
             execution_ticket.is_resuming = False
 

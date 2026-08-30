@@ -2,11 +2,14 @@
 
 集中定义 HITL 跨子系统共享的非枚举常量，消除散落各处的硬编码字符串：
 
-- 消息契约值（category / status / action_type）
+- 消息契约值（category / action_type）
 - 授权门控默认值（default REJECTED / granted_by / TTL）
 
 审批决策令牌（APPROVED/REJECTED/CANCELLED）、双轨请求状态与批量授权状态
 等枚举定义见 ``app.core.hitl.types``。
+
+status 词表（含 waiting_human）由 ``engine.message.MessageStatus`` 单一收编，
+hitl 直接引用枚举，不再在本地维护复制字面量。
 """
 
 from app.core.hitl.types import HITLDecision
@@ -16,7 +19,6 @@ from app.core.hitl.types import HITLDecision
 #: ``tests/unit/core/hitl/test_hitl_contract.py`` 常量断言守护，防止漂移
 #: 导致消息分类错乱。
 MESSAGE_CATEGORY_HITL_REQUEST = "hitl_request"
-MESSAGE_STATUS_WAITING_HUMAN = "waiting_human"
 MESSAGE_ACTION_TYPE_HUMAN_REQUEST = "human_request"
 
 #: 授权门控默认值

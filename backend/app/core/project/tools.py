@@ -5,6 +5,7 @@ from typing import Any
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.context.manager import ContextManager
 from app.core.evocloud import evocloud_manager
+from app.core.project.constants import TASK_PRIORITY_MEDIUM
 from app.core.project.subtask_service import subtask_service
 from app.core.project.sync_tasks import sync_tasks_to_evocloud_task
 from app.core.tools import evoloop_tool
@@ -42,7 +43,7 @@ async def create_project_tasks(
                 title=task_def.get("title", "Untitled Task"),
                 analysis_id=None,  # Independent of requirement analysis
                 description=task_def.get("description", source_context or ""),
-                priority=task_def.get("priority", "medium"),
+                priority=task_def.get("priority", TASK_PRIORITY_MEDIUM),
                 estimated_hours=task_def.get("estimated_hours", 0),
                 subtasks=task_def.get("subtasks", []),
             )

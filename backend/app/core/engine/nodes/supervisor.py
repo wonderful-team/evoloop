@@ -6,15 +6,17 @@ from sqlalchemy import select
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
+from app.core.engine.message.constants import MessageRole
 from app.core.engine.message.native_classes import AIMessage, BaseMessage, SystemMessage
 from app.core.engine.nodes.base import BaseAgentNode
 from app.core.engine.nodes.prompts import SupervisorContext, SupervisorPromptBuilder
 from app.core.engine.routers import RoutingTarget
-from app.core.engine.schemas import EngineResult
+from app.core.engine.schemas import EngineResult, WorkerOutcome
 from app.core.engine.state import AgentState, StateUpdate
 from app.core.tools.manager import tool_manager
 from app.i18n.service import i18n
 from app.infrastructure.database import session_scope
+from app.models.subagent import SubagentStatus
 from app.utils.template import render_template
 from app.utils.time import elapsed_ms
 
@@ -42,7 +44,7 @@ class SupervisorNode(BaseAgentNode):
         latest_tool_idx = -1
 
         for i, msg in enumerate(messages):
-            if msg.role == "user" and msg.name == "context_ticket":
+            if msg.role == MessageRole.HUMAN and msg.name == "context_ticket":
                 latest_ticket_idx = i
             if msg.role == "tool":
                 latest_tool_idx = i
@@ -56,7 +58,7 @@ class SupervisorNode(BaseAgentNode):
             latest_tool_call_id = getattr(latest_tool, "tool_call_id", None)
             for i in range(latest_tool_idx - 1, -1, -1):
                 m = messages[i]
-                if m.role != "assistant" or not getattr(m, "tool_calls", None):
+                if m.role != MessageRole.AI or not getattr(m, "tool_calls", None):
                     continue
                 ids = [
                     tc.get("id") if isinstance(tc, dict) else getattr(tc, "id", None)
@@ -70,13 +72,13 @@ class SupervisorNode(BaseAgentNode):
             role = msg.role
             if role == "system":
                 result.append(msg)
-            elif role == "user":
+            elif role == MessageRole.HUMAN:
                 if msg.name == "context_ticket":
                     if i == latest_ticket_idx:
                         result.append(msg)
                 else:
                     result.append(msg)
-            elif role == "assistant":
+            elif role == MessageRole.AI:
                 # 保留无 tool_calls 的普通 assistant 消息，以及最新 tool 结果
                 # 配对的 assistant(tool_calls) 消息；其余历史 tool_calls 丢弃。
                 if not msg.tool_calls or i == keep_assistant_idx:
@@ -96,7 +98,7 @@ class SupervisorNode(BaseAgentNode):
     def _extract_final_report(messages: list[BaseMessage]) -> str | None:
         """Return the most recent plaintext assistant report if one exists."""
         for msg in reversed(messages):
-            if msg.role == "assistant" and not getattr(msg, "tool_calls", None):
+            if msg.role == MessageRole.AI and not getattr(msg, "tool_calls", None):
                 content = str(getattr(msg, "content", "") or "").strip()
                 if len(content) > 30:
                     return content
@@ -218,7 +220,12 @@ class SupervisorNode(BaseAgentNode):
                 logger.info(
                     "[Supervisor] Worker reported unverifiable outcome; flagged and instructed to accept."
                 )
-            elif worker_outcome in ("truncated", "failed", "error", "incomplete"):
+            elif worker_outcome in (
+                WorkerOutcome.TRUNCATED,
+                WorkerOutcome.FAILED,
+                WorkerOutcome.ERROR,
+                WorkerOutcome.INCOMPLETE,
+            ):
                 warning_msg = render_template(
                     "core/engine/fragments/supervisor_system_notes.j2",
                     note_type="worker_outcome",
@@ -228,7 +235,11 @@ class SupervisorNode(BaseAgentNode):
 
             # Preserve the Worker's final plaintext report for context so the
             # Supervisor does not mistakenly re-route after the Worker has concluded.
-            if worker_outcome in ("success", "done") and final_report:
+            if worker_outcome in (
+                WorkerOutcome.SUCCESS,
+                WorkerOutcome.DONE,
+                WorkerOutcome.COMPLETED,
+            ) and final_report:
                 preserve_msg = render_template(
                     "core/engine/fragments/supervisor_system_notes.j2",
                     note_type="preserve_report",
@@ -255,7 +266,12 @@ class SupervisorNode(BaseAgentNode):
             running = [
                 a
                 for a in (state.active_subagents or [])
-                if a.get("status") in ("running", "awaiting_a2a", "awaiting_human")
+                if a.get("status")
+                in (
+                    SubagentStatus.RUNNING,
+                    SubagentStatus.AWAITING_A2A,
+                    SubagentStatus.AWAITING_HUMAN,
+                )
             ]
             if running:
                 logger.info(
@@ -381,7 +397,11 @@ class SupervisorNode(BaseAgentNode):
         pending = state.pending_subagent_aggregation
         expected = pending.get("expected_count", 0)
 
-        terminal_statuses = {"completed", "failed", "cancelled"}
+        terminal_statuses = {
+            SubagentStatus.COMPLETED,
+            SubagentStatus.FAILED,
+            SubagentStatus.CANCELLED,
+        }
         completed = [
             c
             for c in (state.completed_subagents or [])
@@ -390,7 +410,8 @@ class SupervisorNode(BaseAgentNode):
         awaiting = [
             a
             for a in (state.active_subagents or [])
-            if a.get("status") in ("awaiting_a2a", "awaiting_human")
+            if a.get("status")
+            in (SubagentStatus.AWAITING_A2A, SubagentStatus.AWAITING_HUMAN)
         ]
 
         if awaiting:
@@ -588,13 +609,13 @@ class SupervisorNode(BaseAgentNode):
 
         ai_content = ""
         last_msg = new_messages[-1] if new_messages else None
-        if last_msg and last_msg.role == "assistant":
+        if last_msg and last_msg.role == MessageRole.AI:
             ai_content = str(last_msg.content).strip()
 
         if ai_content:
             if (
                 last_msg.additional_kwargs.get("is_truncated")
-                and original_state.worker_outcome == "truncated"
+                and original_state.worker_outcome == WorkerOutcome.TRUNCATED
             ):
                 return StateUpdate(
                     messages=new_messages,
@@ -646,6 +667,7 @@ class SupervisorNode(BaseAgentNode):
     async def _sync_db_plan_step_on_signal_consume(
         self, state: AgentState, config: dict
     ) -> None:
+        from app.domain.planning.constants import PlanStatus, PlanStepStatus
         from app.models.planning import Plan as DBPlan
         from app.models.planning import PlanStep as DBPlanStep
 
@@ -655,7 +677,8 @@ class SupervisorNode(BaseAgentNode):
 
         async with session_scope() as session:
             stmt = select(DBPlan).where(
-                DBPlan.thread_id == thread_id, DBPlan.status == "active"
+                DBPlan.thread_id == thread_id,
+                DBPlan.status == PlanStatus.ACTIVE.value,
             )
             result = await session.execute(stmt)
             db_plan = result.scalar_one_or_none()
@@ -671,14 +694,14 @@ class SupervisorNode(BaseAgentNode):
             steps = result_steps.scalars().all()
 
             for step in steps:
-                if step.status == "in_progress":
-                    step.status = "completed"
+                if step.status == PlanStepStatus.IN_PROGRESS.value:
+                    step.status = PlanStepStatus.COMPLETED.value
                     step.result = "Completed via signal queue dispatch."
                     break
 
             for step in steps:
-                if step.status in ("pending",):
-                    step.status = "in_progress"
+                if step.status in (PlanStepStatus.PENDING.value,):
+                    step.status = PlanStepStatus.IN_PROGRESS.value
                     break
 
             from app.core.events import system_bus

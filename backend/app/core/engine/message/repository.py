@@ -10,6 +10,12 @@ from sqlalchemy import desc, func, or_, select, update
 from sqlalchemy.orm import selectinload
 
 from app.core.engine.message.category import MessageCategory
+from app.core.engine.message.constants import (
+    MessageActionType,
+    MessageContentType,
+    MessageRole,
+    MessageStatus,
+)
 from app.core.engine.message.sequence import SequenceService
 from app.infrastructure.database import session_scope
 from app.models import Message, MessageReference
@@ -39,17 +45,17 @@ class MessageRepository:
 
     async def persist(
         self,
-        role: str,
+        role: MessageRole,
         content: str | None,
         thinking: str | None = None,
         tool_calls: list | None = None,
         category: str = "",
-        action_type: str = "text",
-        status: str = "completed",
+        action_type: MessageActionType = MessageActionType.TEXT,
+        status: str = MessageStatus.COMPLETED,
         is_visible: bool = True,
         tool_call_id: str | None = None,
         tool_name: str | None = None,
-        content_type: str = "text",
+        content_type: MessageContentType = MessageContentType.TEXT,
         metadata: dict | None = None,
         parent_id: str | None = None,
         references: list[dict] | None = None,
@@ -67,7 +73,7 @@ class MessageRepository:
             (message_id, sequence_number) or (None, 0) on failure
         """
         # Allow empty content for running tool steps (pre-inserted before execution)
-        if not content and not thinking and not tool_calls and status != "running":
+        if not content and not thinking and not tool_calls and status != MessageStatus.RUNNING:
             logger.warning(
                 f"[MessageRepository] Skipping persist for {role}: no content, thinking, or tool_calls"
             )
@@ -277,7 +283,7 @@ class MessageRepository:
 
         Args:
             sequence_number: The sequence_number of the message to update
-            **fields: Fields to update (e.g. status="completed", content="...")
+            **fields: Fields to update (e.g. status=MessageStatus.COMPLETED, content="...")
 
         Returns:
             The message ID (UUID string) if updated, None if message not found
@@ -430,7 +436,7 @@ class MessageRepository:
                     stmt_tool = (
                         select(Message)
                         .where(Message.thread_id == self.thread_id)
-                        .where(Message.role == "tool")
+                        .where(Message.role == MessageRole.TOOL)
                         .where(Message.tool_call_id == tool_call_id)
                         .order_by(desc(Message.sequence_number))
                         .limit(1)
@@ -450,7 +456,7 @@ class MessageRepository:
                 stmt_ai = (
                     select(Message)
                     .where(Message.thread_id == self.thread_id)
-                    .where(Message.role == "ai")
+                    .where(Message.role == MessageRole.AI)
                     .where(Message.tool_calls.is_not(None))
                     .order_by(desc(Message.sequence_number))
                     .limit(1)
@@ -516,7 +522,7 @@ class MessageRepository:
                     update(Message)
                     .where(Message.thread_id == self.thread_id)
                     .where(Message.tool_call_id == tool_call_id)
-                    .where(Message.role == "tool")
+                    .where(Message.role == MessageRole.TOOL)
                     .values(content=content)
                 )
                 result = await session.execute(stmt)
@@ -573,7 +579,7 @@ class MessageRepository:
                 stmt = (
                     select(Message)
                     .where(Message.thread_id == self.thread_id)
-                    .where(Message.role == "ai")
+                    .where(Message.role == MessageRole.AI)
                     .order_by(Message.sequence_number.desc())
                     .limit(10)
                 )

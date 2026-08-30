@@ -436,7 +436,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
 
             project_id = await shared_state.get("project_id", "0")
             state_env = create_envelope(
-                type="system.state_changed",
+                type=MessageType.SYSTEM_STATE_CHANGED,
                 body={
                     "key": "project_id",
                     "value": str(project_id),
@@ -489,9 +489,9 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
         return True
 
     _LINK_LAYER_HANDLERS: dict[str, Callable[["EvoCloudWebSocketLink", dict], Awaitable[bool]]] = {
-        "command.relay": _on_command_relay_protocol,
-        "system.init": _on_init_protocol,
-        "system.error": _on_error_protocol,
+        MessageType.COMMAND_RELAY.value: _on_command_relay_protocol,
+        MessageType.SYSTEM_INIT.value: _on_init_protocol,
+        MessageType.SYSTEM_ERROR.value: _on_error_protocol,
     }
 
     async def _handle_ws_message(self, message: str):
@@ -516,7 +516,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                 if not should_publish:
                     return
 
-            if msg_type == "command.ack":
+            if msg_type == MessageType.COMMAND_ACK:
                 logger.debug(f"[EvoCloud] command.ack received: cmd_id={body.get('command_id')} status={body.get('status')}")
                 return
 

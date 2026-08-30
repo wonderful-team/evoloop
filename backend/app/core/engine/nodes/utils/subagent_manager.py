@@ -11,7 +11,7 @@ from sqlalchemy import select
 from app.core.engine.worker_registry import worker_registry
 from app.infrastructure.database import session_scope
 from app.infrastructure.database.resource_manager import db_resource_manager
-from app.models.subagent import SubagentRun
+from app.models.subagent import SubagentRun, SubagentStatus
 
 logger = logging.getLogger(__name__)
 
@@ -36,19 +36,23 @@ async def cancel_subagent(parent_tid: str, sub_tid: str) -> bool:
     from app.core.monitoring.activity import activity_monitor
 
     run = await _get_run(sub_tid)
-    if not run or run.status not in ("running", "awaiting_a2a", "awaiting_human"):
+    if not run or run.status not in (
+        SubagentStatus.RUNNING,
+        SubagentStatus.AWAITING_A2A,
+        SubagentStatus.AWAITING_HUMAN,
+    ):
         return False
 
     # Synchronize activity_monitor so late callbacks auto-drop via check_cancellation.
     await activity_monitor.stop_run(sub_tid)
     await worker_registry.cancel_worker(sub_tid)
 
-    if run.status == "awaiting_human":
+    if run.status == SubagentStatus.AWAITING_HUMAN:
         from app.core.engine.nodes.utils.subagent_hitl import clear_subagent_hitl_route
 
         await clear_subagent_hitl_route(parent_tid, sub_tid)
 
-    await _update_run(sub_tid, status="cancelled")
+    await _update_run(sub_tid, status=SubagentStatus.CANCELLED)
     return True
 
 
@@ -57,7 +61,13 @@ async def cancel_all_subagents(parent_tid: str) -> int:
     async with session_scope() as session:
         stmt = select(SubagentRun).where(
             SubagentRun.parent_thread_id == parent_tid,
-            SubagentRun.status.in_(("running", "awaiting_a2a", "awaiting_human")),
+            SubagentRun.status.in_(
+                (
+                    SubagentStatus.RUNNING,
+                    SubagentStatus.AWAITING_A2A,
+                    SubagentStatus.AWAITING_HUMAN,
+                )
+            ),
         )
         runs = (await session.execute(stmt)).scalars().all()
 
@@ -91,7 +101,13 @@ async def recover_subagent_state(parent_tid: str) -> dict:
         # 仅当超过 stale 截止才回收。
         running_stmt = select(SubagentRun).where(
             SubagentRun.parent_thread_id == parent_tid,
-            SubagentRun.status.in_(("running", "awaiting_a2a", "awaiting_human")),
+            SubagentRun.status.in_(
+                (
+                    SubagentStatus.RUNNING,
+                    SubagentStatus.AWAITING_A2A,
+                    SubagentStatus.AWAITING_HUMAN,
+                )
+            ),
         )
         running = (await session.execute(running_stmt)).scalars().all()
         for r in running:
@@ -104,7 +120,7 @@ async def recover_subagent_state(parent_tid: str) -> dict:
             if started.tzinfo is None:
                 started = started.replace(tzinfo=timezone.utc)
             if (not task_alive) or (started < reap_cutoff):
-                r.status = "failed"
+                r.status = SubagentStatus.FAILED
                 r.error = (
                     f"orphaned: 进程重启后 subagent task 丢失（原状态 {r.status}）"
                 )
@@ -118,7 +134,11 @@ async def recover_subagent_state(parent_tid: str) -> dict:
 
     active, completed = [], []
     for r in runs:
-        if r.status in ("running", "awaiting_a2a", "awaiting_human"):
+        if r.status in (
+            SubagentStatus.RUNNING,
+            SubagentStatus.AWAITING_A2A,
+            SubagentStatus.AWAITING_HUMAN,
+        ):
             active.append(
                 {
                     "subagent_id": r.id,
@@ -127,7 +147,11 @@ async def recover_subagent_state(parent_tid: str) -> dict:
                     "status": r.status,
                 }
             )
-        elif r.status in ("completed", "failed", "cancelled"):
+        elif r.status in (
+            SubagentStatus.COMPLETED,
+            SubagentStatus.FAILED,
+            SubagentStatus.CANCELLED,
+        ):
             completed.append(
                 {
                     "subagent_id": r.id,

@@ -23,6 +23,7 @@ from app.core.events.decorators import (
 from app.domain.todo.schemas import TodoCreate
 from app.domain.todo.service import TodoService
 from app.infrastructure.database import session_scope
+from app.models.todo import TodoPriority
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +57,7 @@ class TodoLifecycleSubscriber:
                         },
                         "priority": {
                             "type": "string",
-                            "enum": ["high", "medium", "low"],
+                            "enum": [p.value for p in TodoPriority],
                             "description": "Priority level",
                         },
                         "category": {"type": "string", "description": "Task category"},
@@ -93,7 +94,7 @@ class TodoLifecycleSubscriber:
                 ExtractedTodo(
                     title=item.get("title", ""),
                     description=item.get("description", ""),
-                    priority=item.get("priority", "medium"),
+                    priority=item.get("priority", TodoPriority.MEDIUM),
                     category=item.get("category", "general"),
                     confidence=item.get("confidence", 0.7),
                     reasoning=item.get("reasoning"),

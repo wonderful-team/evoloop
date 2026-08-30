@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field, model_validator
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.events.base import BaseEvent, EventData
 from app.core.events.registry import SystemEventType
+from app.core.monitoring.constants import ActivityStatus
 
 
 class AgentEvent(BaseEvent):
@@ -45,7 +46,7 @@ class AgentRunCompletedEvent(AgentEvent):
     thread_id: str = ""
     project_id: int = DEFAULT_PROJECT_ID
     goal: str = ""
-    status: str = "done"
+    status: ActivityStatus = ActivityStatus.DONE
     source: str = ""
     payload: dict[str, Any] = Field(default_factory=dict)
 

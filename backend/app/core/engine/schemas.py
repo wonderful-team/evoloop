@@ -1,5 +1,6 @@
 """Core engine schemas — graph config, execution results, and operational models."""
 
+from enum import Enum
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -8,12 +9,44 @@ from app.core.engine.message.native_classes import BaseMessage
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
+class NodeOutcomeStatus(str, Enum):
+    """Terminal status of a node execution outcome."""
+
+    SUCCESS = "success"
+    TRUNCATED = "truncated"
+    INTERRUPTED = "interrupted"
+    ERROR = "error"
+    FAILED = "failed"
+
+
 class NodeOutcome(DynamicBaseModel):
     """Structured outcome of a node execution."""
 
-    status: str = "success"
+    status: NodeOutcomeStatus = NodeOutcomeStatus.SUCCESS
     reason: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class WorkerOutcome(str, Enum):
+    """Supervisor-facing result of a Worker execution."""
+
+    SUCCESS = "success"
+    DONE = "done"
+    COMPLETED = "completed"
+    TRUNCATED = "truncated"
+    FAILED = "failed"
+    ERROR = "error"
+    INCOMPLETE = "incomplete"
+
+
+class RolloutOutcome(str, Enum):
+    """Terminal outcome returned by a Worker rollout to the session / subagent runner."""
+
+    DONE = "done"
+    FAILED = "failed"
+    TRUNCATED = "truncated"
+    CANCELLED = "cancelled"
+    INTERRUPTED = "interrupted"
 
 
 class EngineResult(DynamicBaseModel):

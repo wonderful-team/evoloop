@@ -4,10 +4,9 @@ import logging
 import os
 from datetime import datetime
 
-from app.core.learning.macro.schemas import MacroSource
-from app.core.monitoring.activity import activity_monitor
-
 import app.core.learning.constants as _mc
+from app.core.learning.macro.schemas import CollectMode, MacroSource
+from app.core.monitoring.activity import activity_monitor
 from app.utils.geometry import parse_bounds
 
 logger = logging.getLogger(__name__)
@@ -45,21 +44,15 @@ class LoopMixin:
             else:
                 warn_msg = f"[WARNING] Batch loop skipped: No items found for key '{items_key}'"
                 logger.warning(f"[{thread_id}] {warn_msg}")
-                await activity_monitor.log_event(
-                    "macro_thought", {"text": warn_msg}, thread_id
-                )
+                await activity_monitor.log_event("macro_thought", {"text": warn_msg}, thread_id)
                 if execution_warnings is not None:
                     execution_warnings.append(
                         f"loop step {step.step_number} 迭代 0 次（items_key '{items_key}' 无数据）"
                     )
                 return True, "", None
 
-        logger.info(
-            f"[{thread_id}] Starting Batch Loop: {len(items)} items for key '{items_key}'"
-        )
-        await activity_monitor.log_event(
-            "macro_thought", {"text": f"Starting loop ({len(items)} items)"}, thread_id
-        )
+        logger.info(f"[{thread_id}] Starting Batch Loop: {len(items)} items for key '{items_key}'")
+        await activity_monitor.log_event("macro_thought", {"text": f"Starting loop ({len(items)} items)"}, thread_id)
 
         is_dynamic = False
         bundle_id = None
@@ -71,14 +64,10 @@ class LoopMixin:
                 from app.infrastructure.drivers.adb import adb_driver
 
                 device_id = ContextManager.get_var("device_id")
-                curr_app = await asyncio.to_thread(
-                    adb_driver.get_current_app, device_id=device_id
-                )
+                curr_app = await asyncio.to_thread(adb_driver.get_current_app, device_id=device_id)
                 bundle_id = curr_app.get("package")
                 if bundle_id:
-                    dynamic_apps = await DynamicAppTriage.get_dynamic_apps(
-                        platform="android"
-                    )
+                    dynamic_apps = await DynamicAppTriage.get_dynamic_apps(platform="android")
                     is_dynamic = bundle_id in dynamic_apps
             except Exception as e:
                 logger.warning(f"Failed to detect dynamic status: {e}", exc_info=True)
@@ -197,7 +186,7 @@ class LoopMixin:
         list_config = payload.get("list_config", {})
         detail_config = payload.get("detail_config", {})
 
-        state = {"items": [], "phase": "list", "created_at": datetime.now().isoformat()}
+        state = {"items": [], "phase": _mc.LOOP_PHASE_LIST, "created_at": datetime.now().isoformat()}
         if os.path.exists(state_file):
             try:
                 with open(state_file, encoding="utf-8") as f:
@@ -208,24 +197,18 @@ class LoopMixin:
                     exc_info=True,
                 )
 
-        if (collect_mode in ("list", "auto")) and (
-            state["phase"] == "list" or collect_mode == "list"
+        if (collect_mode in (CollectMode.LIST, CollectMode.AUTO)) and (
+            state["phase"] == _mc.LOOP_PHASE_LIST or collect_mode == _mc.LOOP_PHASE_LIST
         ):
             logger.info(f"[{thread_id}] Starting LIST phase for batch collection")
-            await activity_monitor.log_event(
-                "macro_thought", {"text": "Starting list collection phase"}, thread_id
-            )
+            await activity_monitor.log_event("macro_thought", {"text": "Starting list collection phase"}, thread_id)
 
             max_screens = int(list_config.get("max_screens") or 10)
             swipe_distance = int(list_config.get("swipe_distance") or 1200)
             wait_ms = int(list_config.get("wait_after_swipe_ms") or 1500)
 
-            anchor_rule = list_config.get(
-                "anchor_element", {"type": "price", "pattern": "￥[0-9,.]+"}
-            )
-            feature_config = list_config.get(
-                "feature_region", {"offset_y": -200, "height": 200, "max_features": 4}
-            )
+            anchor_rule = list_config.get("anchor_element", {"type": "price", "pattern": "￥[0-9,.]+"})
+            feature_config = list_config.get("feature_region", {"offset_y": -200, "height": 200, "max_features": 4})
 
             seen_signatures = {item["signature"] for item in state["items"]}
             new_items_count = 0
@@ -258,7 +241,7 @@ class LoopMixin:
                 for item in items:
                     if item["signature"] not in seen_signatures:
                         seen_signatures.add(item["signature"])
-                        item["status"] = "pending"
+                        item["status"] = _mc.LOOP_ITEM_PENDING
                         item["collected_at"] = datetime.now().isoformat()
                         item["screen_num"] = screen_num + 1
                         state["items"].append(item)
@@ -302,7 +285,7 @@ class LoopMixin:
                     logger.exception(f"[{thread_id}] Scroll action exception: {e}")
                     break
 
-            state["phase"] = "detail"
+            state["phase"] = _mc.LOOP_PHASE_DETAIL
             state["updated_at"] = datetime.now().isoformat()
             with open(state_file, "w", encoding="utf-8") as f:
                 json.dump(state, f, ensure_ascii=False, indent=2)
@@ -316,7 +299,7 @@ class LoopMixin:
                 thread_id,
             )
 
-            if collect_mode == "list":
+            if collect_mode == CollectMode.LIST:
                 extracted_data["collected_items"] = state["items"]
                 extracted_data["collect_state_file"] = state_file
                 return (
@@ -325,17 +308,15 @@ class LoopMixin:
                     {"state_file": state_file},
                 )
 
-        if collect_mode in ("detail", "auto") and state["phase"] in (
-            "detail",
-            "completed",
+        if collect_mode in (CollectMode.DETAIL, CollectMode.AUTO) and state["phase"] in (
+            _mc.LOOP_PHASE_DETAIL,
+            _mc.LOOP_PHASE_COMPLETED,
         ):
             logger.info(f"[{thread_id}] Starting DETAIL phase for batch collection")
-            await activity_monitor.log_event(
-                "macro_thought", {"text": "Starting detail execution phase"}, thread_id
-            )
+            await activity_monitor.log_event("macro_thought", {"text": "Starting detail execution phase"}, thread_id)
 
             pending_items = [
-                item for item in state["items"] if item.get("status") == "pending"
+                item for item in state["items"] if item.get("status") == _mc.LOOP_ITEM_PENDING
             ]
             if not pending_items:
                 logger.info(f"[{thread_id}] No pending items to process")
@@ -349,9 +330,7 @@ class LoopMixin:
             fail_count = 0
 
             for i, item in enumerate(pending_items):
-                logger.info(
-                    f"[{thread_id}] Processing item {i + 1}/{len(pending_items)}: {item['signature'][:50]}"
-                )
+                logger.info(f"[{thread_id}] Processing item {i + 1}/{len(pending_items)}: {item['signature'][:50]}")
 
                 try:
                     from app.core.environment.controllers.mobile import MobileController
@@ -368,9 +347,7 @@ class LoopMixin:
                         disable_trace_screenshot=True,
                         expected_pkg=active_bundle_id,
                     )
-                    await asyncio.sleep(
-                        detail_config.get("wait_after_tap_ms", 2000) / 1000
-                    )
+                    await asyncio.sleep(detail_config.get("wait_after_tap_ms", 2000) / 1000)
 
                     if step.steps:
                         iter_params = dict(params)
@@ -389,14 +366,12 @@ class LoopMixin:
                         )
 
                         if not success:
-                            logger.warning(
-                                f"[{thread_id}] Detail steps failed for item {i}: {msg}"
-                            )
-                            item["status"] = "failed"
+                            logger.warning(f"[{thread_id}] Detail steps failed for item {i}: {msg}")
+                            item["status"] = _mc.LOOP_ITEM_FAILED
                             item["error"] = msg
                             fail_count += 1
                         else:
-                            item["status"] = "done"
+                            item["status"] = _mc.LOOP_ITEM_DONE
                             item["completed_at"] = datetime.now().isoformat()
 
                             capture_config = detail_config.get("data_capture")
@@ -405,13 +380,11 @@ class LoopMixin:
                                     val = extracted_data.get(source_key)
                                     if val is not None:
                                         item[target_key] = val
-                                logger.info(
-                                    f"[{thread_id}] Captured {len(capture_config)} fields into item {i}"
-                                )
+                                logger.info(f"[{thread_id}] Captured {len(capture_config)} fields into item {i}")
 
                             success_count += 1
                     else:
-                        item["status"] = "done"
+                        item["status"] = _mc.LOOP_ITEM_DONE
                         item["completed_at"] = datetime.now().isoformat()
                         success_count += 1
 
@@ -429,7 +402,7 @@ class LoopMixin:
 
                 except Exception as e:
                     logger.exception(f"[{thread_id}] Error processing item {i}: {e}")
-                    item["status"] = "failed"
+                    item["status"] = _mc.LOOP_ITEM_FAILED
                     item["error"] = str(e)
                     fail_count += 1
 
@@ -437,18 +410,14 @@ class LoopMixin:
                     with open(state_file, "w", encoding="utf-8") as f:
                         json.dump(state, f, ensure_ascii=False, indent=2)
 
-            state["phase"] = "completed"
+            state["phase"] = _mc.LOOP_PHASE_COMPLETED
             state["updated_at"] = datetime.now().isoformat()
             with open(state_file, "w", encoding="utf-8") as f:
                 json.dump(state, f, ensure_ascii=False, indent=2)
 
-            result_msg = (
-                f"Detail phase complete: {success_count} succeeded, {fail_count} failed"
-            )
+            result_msg = f"Detail phase complete: {success_count} succeeded, {fail_count} failed"
             logger.info(f"[{thread_id}] {result_msg}")
-            await activity_monitor.log_event(
-                "macro_thought", {"text": f"{result_msg}"}, thread_id
-            )
+            await activity_monitor.log_event("macro_thought", {"text": f"{result_msg}"}, thread_id)
 
             extracted_data["collect_results"] = {
                 "total": len(state["items"]),
@@ -532,10 +501,7 @@ class LoopMixin:
                         s_bounds = _parse_bounds_local(s_bounds_str)
                         if not s_bounds:
                             continue
-                        if (
-                            s_bounds["top"] >= feature_bounds["top"]
-                            and s_bounds["bottom"] <= feature_bounds["bottom"]
-                        ):
+                        if s_bounds["top"] >= feature_bounds["top"] and s_bounds["bottom"] <= feature_bounds["bottom"]:
                             s_text = sibling.get("text", "") or sibling.get(
                                 "content-desc", ""
                             )

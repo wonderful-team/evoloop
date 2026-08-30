@@ -19,13 +19,15 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
+from app.models.subagent import SubagentStatus
+
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class WorkerRecord:
     task: asyncio.Task[Any] | None = None
-    status: str = "running"  # running | completed | failed | cancelled
+    status: SubagentStatus = SubagentStatus.RUNNING
     description: str = ""
     started_at: float = 0.0
     result: str | None = None
@@ -47,7 +49,7 @@ class WorkerRegistry:
 
             self._records[thread_id] = WorkerRecord(
                 task=task,
-                status="running",
+                status=SubagentStatus.RUNNING,
                 description=description,
                 started_at=time.time(),
                 project_id=thread_context_store.get_active_project(thread_id),
@@ -109,16 +111,16 @@ class WorkerRegistry:
                 return None
             # Clean up completed tasks
             if (
-                record.status == "running"
+                record.status == SubagentStatus.RUNNING
                 and record.task is not None
                 and record.task.done()
             ):
-                record.status = "completed"
+                record.status = SubagentStatus.COMPLETED
             return record
 
     async def has_running_worker(self, thread_id: str) -> bool:
         record = await self.get_worker(thread_id)
-        return record is not None and record.status == "running"
+        return record is not None and record.status == SubagentStatus.RUNNING
 
 
 # ───────────────────────── A2A wait coordination ─────────────────────────

@@ -17,7 +17,7 @@ from app.domain.todo.service import TodoNotFoundError
 from app.domain.todo.utils import parse_due_date
 from app.i18n.service import i18n
 from app.infrastructure.database.sql.database import session_scope
-from app.models.todo import TodoStatus
+from app.models.todo import TodoPriority, TodoStatus
 
 
 @evoloop_tool(
@@ -27,7 +27,7 @@ async def create_todo(
     title: str,
     description: str | None = None,
     due_date: str | None = None,
-    priority: Literal["low", "medium", "high"] = "medium",
+    priority: Literal["low", "medium", "high"] = TodoPriority.MEDIUM,
     category: str | None = None,
     project_id: int | None = None,
     config: Annotated[RunnableConfig, InjectedToolArg] = None,

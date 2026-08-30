@@ -7,6 +7,8 @@ Mobile 推送逻辑集中到此，避免重复实现和遗漏。
 
 import logging
 
+from app.core.engine.message.constants import MessageRole, MessageStatus
+
 logger = logging.getLogger(__name__)
 
 
@@ -38,10 +40,10 @@ class MobileErrorNotifier:
             seq = await self._next_sequence()
             error_plain = f"{classification.title}\n\n{classification.message}"
             await self._handler._dispatch_block(
-                role="ai",
+                role=MessageRole.AI,
                 content=f"请求失败: {error_plain}",
                 category=classification.error_type,
-                status="failed",
+                status=MessageStatus.FAILED,
                 sequence_number=seq,
                 # Mobile-only: this is the device-push copy of the error; the
                 # web/SSE copy is dispatched separately by the error handler.

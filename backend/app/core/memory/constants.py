@@ -41,3 +41,15 @@ SHORT_TERM_MAX_MESSAGES = 100
 MAX_TOTAL_LINES = 200
 #: Maximum total byte size for the two-tier memory summary.
 MAX_TOTAL_BYTES = 25 * 1024  # 25KB
+
+# ====================== Tool operation result statuses ======================
+#: Tool operation reported a successful outcome.
+OP_STATUS_SUCCESS = "success"
+#: Tool operation reported a failure.
+OP_STATUS_ERROR = "error"
+
+# ====================== Maintenance / Governance statuses ======================
+#: Maintenance skipped because the memory count is below threshold.
+MAINTENANCE_STATUS_SKIPPED = "skipped"
+#: Maintenance governance cycle completed.
+MAINTENANCE_STATUS_COMPLETED = "completed"

@@ -13,6 +13,16 @@ from app.core.project.utils import (
     write_project_json,
 )
 from app.core.security.policy_loader import DEFAULT_SENSITIVE_PATTERNS
+from app.domain.codebase.constants import (
+    INDEXING_STATUS_FAILED,
+    INDEXING_STATUS_PENDING,
+    REPO_SYNC_INACTIVE_STATUSES,
+    REPO_SYNC_STATUS_DISCONNECTED,
+    REPO_SYNC_STATUS_IGNORED,
+    REPO_SYNC_STATUS_PENDING_CREATION,
+    REPO_SYNC_STATUS_SYNCED,
+    REPO_SYNC_TRACKED_STATUSES,
+)
 from app.domain.codebase.indexing.service import IndexingService
 from app.infrastructure.database import session_scope
 from app.models.codebase import Repository
@@ -162,7 +172,7 @@ class ProjectSyncService:
                 existing_repo = await self._indexing_service.get_repo_by_path(
                     local_path
                 )
-                if existing_repo and existing_repo.sync_status == "IGNORED":
+                if existing_repo and existing_repo.sync_status == REPO_SYNC_STATUS_IGNORED:
                     is_ignored = True
 
             if is_ignored:
@@ -234,7 +244,7 @@ class ProjectSyncService:
                     # Check if a Repository with this project_id already exists
                     stmt = select(Repository).where(
                         Repository.project_id == recovered_project_id,
-                        Repository.sync_status.notin_(["IGNORED", "DISCONNECTED"]),
+                        Repository.sync_status.notin_(REPO_SYNC_INACTIVE_STATUSES),
                     )
                     result = await session.execute(stmt)
                     existing_repo = result.scalars().first()
@@ -242,7 +252,7 @@ class ProjectSyncService:
                     if existing_repo:
                         existing_repo.local_path = path
                         existing_repo.relative_path = repo_name
-                        existing_repo.sync_status = "SYNCED"
+                        existing_repo.sync_status = REPO_SYNC_STATUS_SYNCED
                         await session.commit()
                         logger.info(
                             f"[ProjectSync] Updated existing Repository {existing_repo.id} "
@@ -266,8 +276,8 @@ class ProjectSyncService:
                             url="local",
                             local_path=path,
                             relative_path=repo_name,
-                            sync_status="SYNCED",
-                            indexing_status="pending",
+                            sync_status=REPO_SYNC_STATUS_SYNCED,
+                            indexing_status=INDEXING_STATUS_PENDING,
                             detected_at=utcnow(),
                             imported_at=utcnow(),
                             project_id=recovered_project_id,
@@ -319,14 +329,14 @@ class ProjectSyncService:
             repo = result.scalars().first()
 
             if repo:
-                if repo.sync_status in ["SYNCED", "PENDING_CREATION"]:
+                if repo.sync_status in REPO_SYNC_TRACKED_STATUSES:
                     raise ValueError(
                         f"Project is already registered at this path: '{repo.name}'"
                     )
 
                 # Restore previously ignored or disconnected project
-                repo.sync_status = "PENDING_CREATION"
-                repo.indexing_status = "pending"
+                repo.sync_status = REPO_SYNC_STATUS_PENDING_CREATION
+                repo.indexing_status = INDEXING_STATUS_PENDING
                 repo.imported_at = utcnow()
                 repo.name = repo_name
                 session.add(repo)
@@ -338,8 +348,8 @@ class ProjectSyncService:
                     url="local",
                     local_path=abs_path,
                     relative_path=os.path.relpath(abs_path, workspace_root),
-                    sync_status="PENDING_CREATION",
-                    indexing_status="pending",
+                    sync_status=REPO_SYNC_STATUS_PENDING_CREATION,
+                    indexing_status=INDEXING_STATUS_PENDING,
                     detected_at=utcnow(),
                     imported_at=utcnow(),
                     project_id=None,
@@ -377,13 +387,13 @@ class ProjectSyncService:
                     db_repo = await session.get(Repository, repo.id)
                     if db_repo:
                         db_repo.project_id = cloud_project_id
-                        db_repo.sync_status = "SYNCED"
+                        db_repo.sync_status = REPO_SYNC_STATUS_SYNCED
                         session.add(db_repo)
 
                 # 同步内存实例：第二个 session 更新的是另一实例，返回给调用方的
                 # repo 仍是 project_id=None，会导致 import 响应拿不到真实 PID。
                 repo.project_id = cloud_project_id
-                repo.sync_status = "SYNCED"
+                repo.sync_status = REPO_SYNC_STATUS_SYNCED
 
                 evocloud_manager.invalidate_projects_cache()
                 logger.info(
@@ -521,7 +531,7 @@ class ProjectSyncService:
                     return
 
                 to_disconnect = [
-                    r for r in all_repos if r.sync_status != "DISCONNECTED"
+                    r for r in all_repos if r.sync_status != REPO_SYNC_STATUS_DISCONNECTED
                 ]
                 if not to_disconnect:
                     logger.debug(
@@ -532,7 +542,7 @@ class ProjectSyncService:
                 for r in to_disconnect:
                     db_repo = await session.get(Repository, r.id)
                     if db_repo:
-                        db_repo.sync_status = "DISCONNECTED"
+                        db_repo.sync_status = REPO_SYNC_STATUS_DISCONNECTED
 
                 repo_id = to_disconnect[0].id
                 project_id = to_disconnect[0].project_id
@@ -592,8 +602,8 @@ class ProjectSyncService:
                 r.local_path = dest_path
                 r.relative_path = new_name
                 r.name = new_name
-                if r.sync_status == "DISCONNECTED":
-                    r.sync_status = "SYNCED"
+                if r.sync_status == REPO_SYNC_STATUS_DISCONNECTED:
+                    r.sync_status = REPO_SYNC_STATUS_SYNCED
                 session.add(r)
 
         # Start New Watch
@@ -644,14 +654,16 @@ class ProjectSyncService:
         # A. Restored Projects (In DB as DISCONNECTED, but now in FS)
         for p in known_paths & fs_paths:
             repo = known_projects_map[p]
-            if repo.sync_status == "DISCONNECTED":
+            if repo.sync_status == REPO_SYNC_STATUS_DISCONNECTED:
                 logger.info(f"[ProjectSync] Restoring disconnected project: {p}")
                 try:
                     async with session_scope() as session:
                         r = await session.get(Repository, repo.id)
                         if r:
                             r.sync_status = (
-                                "SYNCED" if r.project_id else "PENDING_CREATION"
+                                REPO_SYNC_STATUS_SYNCED
+                                if r.project_id
+                                else REPO_SYNC_STATUS_PENDING_CREATION
                             )
                             session.add(r)
                             repo.sync_status = r.sync_status
@@ -663,7 +675,7 @@ class ProjectSyncService:
         # B. Retry Pending Cloud Sync for Syncing Projects
         for p in fs_paths:
             repo = known_projects_map[p]
-            if repo.sync_status == "PENDING_CREATION":
+            if repo.sync_status == REPO_SYNC_STATUS_PENDING_CREATION:
                 logger.info(f"[ProjectSync] Retrying cloud sync for: {p}")
                 try:
                     from app.core.project.sync_tasks import sync_project_to_cloud_task
@@ -673,7 +685,7 @@ class ProjectSyncService:
                     logger.exception(f"[ProjectSync] Failed to queue retry: {e}")
 
         # C. Restart watching for imported projects (SYNCED or PENDING_CREATION)
-        imported_statuses = {"SYNCED", "PENDING_CREATION"}
+        imported_statuses = REPO_SYNC_TRACKED_STATUSES
         for p in fs_paths:
             repo = known_projects_map[p]
             if repo.sync_status in imported_statuses:
@@ -688,7 +700,10 @@ class ProjectSyncService:
 
                     # Trigger background indexing if incomplete
                     if (
-                        repo.indexing_status in ("pending", "failed")
+                        repo.indexing_status in (
+                            INDEXING_STATUS_PENDING,
+                            INDEXING_STATUS_FAILED,
+                        )
                         or not repo.last_indexed_at
                     ):
                         logger.info(

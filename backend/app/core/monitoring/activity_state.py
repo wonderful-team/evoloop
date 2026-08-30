@@ -9,6 +9,8 @@ from typing import Any
 from pydantic import Field
 from sqlalchemy import func, select
 
+from app.core.engine.message.constants import MessageStatus
+from app.core.monitoring.constants import ActivityStatus
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models import AgentActivity, Message
 from app.models.subagent import SubagentRun
@@ -33,7 +35,7 @@ class ActivityArtifact(DynamicBaseModel):
 class ActivityState(DynamicBaseModel):
     """Full activity state for an agent run."""
 
-    status: str
+    status: ActivityStatus
     main_goal: str = ""
     updated_at: float = 0.0
     running_tools_count: int = 0
@@ -90,7 +92,7 @@ class ActivityStateService:
             activity = AgentActivity(thread_id=thread_id)
             session.add(activity)
 
-        activity.status = "running"
+        activity.status = ActivityStatus.RUNNING
         # 记录当前 run，使 end_run 能校验 run_id 隔离，避免旧 run 的取消/结束
         # 覆盖新 run 的活动状态。
         activity.run_id = run_id
@@ -108,7 +110,7 @@ class ActivityStateService:
     async def end_run(
         self,
         thread_id: str,
-        status: str = "done",
+        status: ActivityStatus = ActivityStatus.DONE,
         final_outcome: str | None = None,
         session=None,
         run_id: str | None = None,
@@ -127,7 +129,7 @@ class ActivityStateService:
     async def _end_run_with_session(
         self,
         thread_id: str,
-        status: str,
+        status: ActivityStatus,
         final_outcome: str | None,
         session,
         run_id: str | None = None,
@@ -155,13 +157,22 @@ class ActivityStateService:
             return ActivityState(status=status)
 
         # Idempotent: skip if already in a terminal state
-        if activity.status in ("done", "cancelled", "failed", "quota_exhausted"):
+        if activity.status in (
+            ActivityStatus.DONE,
+            ActivityStatus.CANCELLED,
+            ActivityStatus.FAILED,
+            ActivityStatus.QUOTA_EXHAUSTED,
+        ):
             return ActivityState(status=activity.status)
 
-        if activity.status in ("quota_exhausted", "cancelled", "failed"):
+        if activity.status in (
+            ActivityStatus.QUOTA_EXHAUSTED,
+            ActivityStatus.CANCELLED,
+            ActivityStatus.FAILED,
+        ):
             final_status = activity.status
-        elif activity.status == "stopping":
-            final_status = "cancelled"
+        elif activity.status == ActivityStatus.STOPPING:
+            final_status = ActivityStatus.CANCELLED
         else:
             final_status = status
         activity.status = final_status
@@ -175,7 +186,7 @@ class ActivityStateService:
         async with self._get_session_scope()() as session:
             activity = await session.get(AgentActivity, thread_id)
             if activity is None:
-                return ActivityState(status="idle")
+                return ActivityState(status=ActivityStatus.IDLE)
 
             try:
                 running_count = await session.scalar(
@@ -183,7 +194,7 @@ class ActivityStateService:
                     .select_from(Message)
                     .where(Message.thread_id == thread_id)
                     .where(Message.role == "tool")
-                    .where(Message.status == "running")
+                    .where(Message.status == MessageStatus.RUNNING)
                 )
 
                 artifacts_raw = json.loads(activity.artifacts_json or "[]")
@@ -211,7 +222,7 @@ class ActivityStateService:
                 )
             except (json.JSONDecodeError, ValueError) as e:
                 logger.exception(f"Failed to parse activity state for {thread_id}: {e}")
-                return ActivityState(status="error")
+                return ActivityState(status=ActivityStatus.ERROR)
 
     @staticmethod
     async def _load_subagents(session: Any, thread_id: str) -> list[dict]:
@@ -302,7 +313,7 @@ class ActivityStateService:
             activity = await session.get(AgentActivity, thread_id)
             if activity is None:
                 return False
-            activity.status = "stopping"
+            activity.status = ActivityStatus.STOPPING
         _CANCELLATION_CACHE.pop(thread_id, None)
         return True
 
@@ -328,7 +339,7 @@ class ActivityStateService:
             select(AgentActivity.status).where(AgentActivity.thread_id == thread_id)
         )
         status = result.scalar_one_or_none()
-        is_cancelled = status == "stopping"
+        is_cancelled = status == ActivityStatus.STOPPING
         _CANCELLATION_CACHE[thread_id] = (
             is_cancelled,
             now + _CANCELLATION_CACHE_TTL_SECONDS,
@@ -341,7 +352,7 @@ class ActivityStateService:
             activity = await session.get(AgentActivity, thread_id)
             if activity is None:
                 return False
-            activity.status = "interrupted"
+            activity.status = ActivityStatus.INTERRUPTED
             activity.human_request_json = json.dumps(request_data)
         return True
 
@@ -351,7 +362,7 @@ class ActivityStateService:
             activity = await session.get(AgentActivity, thread_id)
             if activity is None:
                 return False
-            activity.status = "idle"
+            activity.status = ActivityStatus.IDLE
             activity.human_request_json = None
         return True
 

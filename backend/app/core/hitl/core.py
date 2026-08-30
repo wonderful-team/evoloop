@@ -13,13 +13,11 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 from sqlalchemy import select, update
 
+from app.core.engine.message.constants import MessageStatus
 from app.core.exceptions import AgentHumanInterruptException
 from app.core.execution.execution_mode import is_docker_mode
 from app.core.hitl.activity_sink import get_activity_sink
-from app.core.hitl.constants import (
-    MESSAGE_CATEGORY_HITL_REQUEST,
-    MESSAGE_STATUS_WAITING_HUMAN,
-)
+from app.core.hitl.constants import MESSAGE_CATEGORY_HITL_REQUEST
 from app.core.hitl.engine_runtime import get_runtime
 from app.core.hitl.types import HITLDecision, HITLRequestStatus, HumanRequestType
 from app.infrastructure.database import session_scope
@@ -274,7 +272,7 @@ async def _close_sibling_requests(
                 Message.thread_id == thread_id,
                 Message.role == "system",
                 Message.category == MESSAGE_CATEGORY_HITL_REQUEST,
-                Message.status == MESSAGE_STATUS_WAITING_HUMAN,
+                Message.status == MessageStatus.WAITING_HUMAN,
                 Message.tool_call_id != tool_call_id,
             )
         )
@@ -338,7 +336,7 @@ async def _find_pending_by_key(
                     Message.thread_id == thread_id,
                     Message.role == "system",
                     Message.category == MESSAGE_CATEGORY_HITL_REQUEST,
-                    Message.status == MESSAGE_STATUS_WAITING_HUMAN,
+                    Message.status == MessageStatus.WAITING_HUMAN,
                 )
                 .order_by(Message.sequence_number.desc())
             )

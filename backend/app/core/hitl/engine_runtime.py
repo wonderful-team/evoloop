@@ -86,6 +86,13 @@ def register_engine_runtime(runtime: EngineRuntime) -> None:
         _runtime = runtime
 
 
+def reset_engine_runtime() -> None:
+    """清除已注册引擎实现，主要用于测试隔离。"""
+    global _runtime
+    with _runtime_lock:
+        _runtime = None
+
+
 def get_runtime() -> EngineRuntime:
     """返回已注册的引擎实现；未注册时惰性装配一次并缓存。
 

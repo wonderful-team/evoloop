@@ -11,6 +11,7 @@ from app.core.engine.message.repository import MessageRepository
 from app.core.engine.nodes.base import BaseNode
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.state import AgentState, StateUpdate
+from app.models.subagent import SubagentStatus
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +118,7 @@ def _concatenate(results: list[dict]) -> str:
     for r in results:
         status = r.get("status", "unknown")
         result = str(r.get("result", "")).strip()
-        if status == "completed":
+        if status == SubagentStatus.COMPLETED:
             success += 1
             items.append(result)
         else:

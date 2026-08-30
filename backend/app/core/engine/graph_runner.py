@@ -8,6 +8,7 @@ from app.constants import DEFAULT_PROJECT_ID
 from app.core.engine.state import AgentState
 from app.core.exceptions import AgentCancelledException, AgentHumanInterruptException
 from app.core.monitoring.activity import activity_monitor
+from app.core.monitoring.constants import ActivityStatus
 from app.infrastructure.database.sql.database import session_scope
 from app.models import Message
 
@@ -74,16 +75,18 @@ async def resume_graph_background(
         await run_node_loop(state, resume_config, thread_id, log_prefix="ResumeGraph")
 
         await ContextManager.save(thread_id)
-        await activity_monitor.end_run(thread_id, "done", run_id=run_id)
+        await activity_monitor.end_run(thread_id, ActivityStatus.DONE, run_id=run_id)
 
     except AgentCancelledException:
-        await activity_monitor.end_run(thread_id, "cancelled", run_id=run_id)
+        await activity_monitor.end_run(thread_id, ActivityStatus.CANCELLED, run_id=run_id)
     except AgentHumanInterruptException:
         logger.info(f"Resume interrupted for human input: {thread_id}", exc_info=True)
-        await activity_monitor.end_run(thread_id, "human_interrupt", run_id=run_id)
+        await activity_monitor.end_run(
+            thread_id, ActivityStatus.HUMAN_INTERRUPT, run_id=run_id
+        )
     except Exception as e:
         logger.exception(f"Resume error for {thread_id}: {e}")
-        await activity_monitor.end_run(thread_id, "failed", run_id=run_id)
+        await activity_monitor.end_run(thread_id, ActivityStatus.FAILED, run_id=run_id)
 
 
 async def _restore_resume_context(

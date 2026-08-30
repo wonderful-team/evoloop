@@ -1,5 +1,6 @@
 import logging
 
+from app.core.engine.message.constants import MessageRole, MessageStatus
 from app.core.engine.message.publisher import MessagePublisher
 
 logger = logging.getLogger(__name__)
@@ -28,7 +29,7 @@ class DispatchMixin:
         thinking: str | None = None,
         tool_calls: list | None = None,
         category: str = "",
-        status: str = "completed",
+        status: str = MessageStatus.COMPLETED,
         sequence_number: int = 0,
         tool_name: str | None = None,
         tool_call_id: str | None = None,
@@ -47,12 +48,12 @@ class DispatchMixin:
         dispatch_content = content or ""
         # Blank raw tool output for streaming/running status updates; the UI only
         # needs metadata (tool name, display name) to show "running" indicators.
-        if role == "tool" and status in ("streaming", "running"):
+        if role == MessageRole.TOOL and status in (MessageStatus.STREAMING, MessageStatus.RUNNING):
             dispatch_content = ""
 
         dev_key = None
         dev_name = None
-        if role != "human":
+        if role != MessageRole.HUMAN:
             dev_key, dev_name = self._get_device_attribution()
 
         from app.core.engine.message.factory import MessageBlockFactory

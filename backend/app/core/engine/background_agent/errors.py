@@ -7,11 +7,13 @@ import logging
 from app.core.engine.error_handler import LLMErrorHandler
 from app.core.engine.message.category import MessageCategory
 from app.core.engine.message.classifier import MessageClassifier
+from app.core.engine.message.constants import MessageStatus
 from app.core.engine.message.mobile_notifier import MobileErrorNotifier
 from app.core.engine.message.sequence import SequenceService
 from app.core.events import system_bus
 from app.core.exceptions import AgentHumanInterruptException
 from app.core.monitoring.activity import activity_monitor
+from app.core.monitoring.constants import ActivityStatus
 from app.i18n.service import i18n
 from app.infrastructure.database import session_scope
 from app.models import Message
@@ -61,7 +63,7 @@ async def handle_task_exception(
 
     if error_type == "auth_expired":
         logger.warning(f"[EvoLoopAuth] Thread {thread_id} platform auth expired")
-        await activity_monitor.end_run(thread_id, "failed")
+        await activity_monitor.end_run(thread_id, ActivityStatus.FAILED)
         await system_bus.publish(
             AuthExpiredEvent(
                 thread_id=thread_id,
@@ -77,7 +79,7 @@ async def handle_task_exception(
         logger.warning(
             f"[LLMAuthError] Thread {thread_id} hit LLM API authentication error"
         )
-        await activity_monitor.end_run(thread_id, "failed")
+        await activity_monitor.end_run(thread_id, ActivityStatus.FAILED)
         await system_bus.publish(
             LLMAuthErrorEvent(
                 thread_id=thread_id,
@@ -91,7 +93,7 @@ async def handle_task_exception(
 
     if error_type == "quota_exhausted":
         logger.warning(f"[QuotaExhausted] Thread {thread_id} hit quota limit")
-        await activity_monitor.end_run(thread_id, "quota_exhausted")
+        await activity_monitor.end_run(thread_id, ActivityStatus.QUOTA_EXHAUSTED)
         await system_bus.publish(
             QuotaExhaustedEvent(
                 thread_id=thread_id,
@@ -104,7 +106,7 @@ async def handle_task_exception(
         return True
 
     # 3. Handle Retryable or Fatal errors
-    await activity_monitor.end_run(thread_id, "failed")
+    await activity_monitor.end_run(thread_id, ActivityStatus.FAILED)
 
     # Standard classification of "retryable" keywords
     is_retryable = error_type in ("rate_limit", "service_unavailable", "network_error")
@@ -148,7 +150,7 @@ async def handle_task_exception(
                 role="ai",
                 content=user_message,
                 category=action_type,
-                status="failed",
+                status=MessageStatus.FAILED,
                 sequence_number=handler._stream_seq + 1,
                 metadata={"is_error": True, "error_type": action_type},
                 # SSE-only: this error block is a transient chat notification.
@@ -199,7 +201,7 @@ async def persist_system_error(
                 content=error_details,
                 sequence_number=seq,
                 category=category.value,
-                status="failed",
+                status=MessageStatus.FAILED,
                 content_type="markdown",
                 is_visible=False,
                 run_id=run_id,

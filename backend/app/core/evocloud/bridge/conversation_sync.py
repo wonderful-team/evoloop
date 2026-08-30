@@ -7,6 +7,7 @@ from datetime import datetime
 
 from sqlalchemy import select
 
+from app.core.evocloud.constants import SYNC_STATUS_SYNCED
 from app.infrastructure.database import session_scope
 from app.models import Conversation as ConversationModel
 from app.models import Message as MessageModel
@@ -119,14 +120,14 @@ class ConversationSyncManager:
             async with session_scope() as db:
                 # 1. 获取未同步的会话ID
                 result = await db.execute(
-                    select(ConversationModel.id).where(ConversationModel.sync_status != 'synced')
+                    select(ConversationModel.id).where(ConversationModel.sync_status != SYNC_STATUS_SYNCED)
                 )
                 pending_thread_ids = {str(r[0]) for r in result.all()}
 
                 # 2. 获取包含未同步消息的会话ID
                 msg_result = await db.execute(
                     select(MessageModel.thread_id)
-                    .where(MessageModel.sync_status != "synced")
+                    .where(MessageModel.sync_status != SYNC_STATUS_SYNCED)
                     .distinct()
                 )
                 msg_thread_ids = {str(r[0]) for r in msg_result.all() if r[0]}

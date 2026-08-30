@@ -8,9 +8,11 @@ import time
 
 from app.core.config import settings
 from app.core.engine.context_trimmer import ContextTrimmer, TrimTrigger
+from app.core.engine.message.constants import MessageRole
 from app.core.engine.message.native_classes import SystemMessage
 from app.core.engine.nodes.base import BaseNode
 from app.core.engine.routers import RoutingTarget
+from app.core.engine.schemas import WorkerOutcome
 from app.core.engine.services.audit_service import AuditResult, AuditService
 from app.core.engine.state import AgentState, StateUpdate
 from app.core.engine.state.sub_schemas import (
@@ -65,7 +67,7 @@ class FinishNode(BaseNode):
         # Preserve the most recent worker final report / system note in the audit input.
         key_digest = ""
         for msg in reversed(state.messages):
-            if msg.role == "assistant" and not getattr(msg, "tool_calls", None):
+            if msg.role == MessageRole.AI and not getattr(msg, "tool_calls", None):
                 text = str(getattr(msg, "content", "") or "").strip()
                 if len(text) > 30:
                     key_digest = text[:600]
@@ -274,7 +276,7 @@ class FinishNode(BaseNode):
                 return StateUpdate(
                     messages=messages + [correction_msg],
                     next_node=RoutingTarget.WORKER,
-                    worker_outcome="incomplete",
+                    worker_outcome=WorkerOutcome.INCOMPLETE,
                     final_outcome=final_outcome,
                     audit_retry_count=retry_count + 1,
                 )
@@ -285,7 +287,7 @@ class FinishNode(BaseNode):
                 return StateUpdate(
                     messages=messages,
                     next_node=RoutingTarget.SUPERVISOR,
-                    worker_outcome="incomplete",
+                    worker_outcome=WorkerOutcome.INCOMPLETE,
                     final_outcome=final_outcome,
                 )
             else:
@@ -327,7 +329,7 @@ class FinishNode(BaseNode):
                 return StateUpdate(
                     messages=messages + [block_msg],
                     next_node=RoutingTarget.SUPERVISOR,
-                    worker_outcome="failed",
+                    worker_outcome=WorkerOutcome.FAILED,
                     blocked_by_hook=True,
                 )
         except (ValueError, RuntimeError, OSError) as e:
@@ -357,7 +359,7 @@ class FinishNode(BaseNode):
             role = msg.type
             content = msg.content or ""
             is_internal_finish = (
-                role == "assistant"
+                role == MessageRole.AI
                 and content
                 and (
                     "<evoloop_session_audit>" in str(content)

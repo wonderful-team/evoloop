@@ -25,6 +25,7 @@ from sqlalchemy import select
 from app.core.engine.loop import merge_state_update
 from app.core.engine.nodes.worker import WorkerNode
 from app.core.engine.routers import RoutingTarget, route_worker_by_outcome
+from app.core.engine.schemas import RolloutOutcome, WorkerOutcome
 from app.core.exceptions import (
     AgentA2AInterruptException,
     AgentCancelledException,
@@ -43,11 +44,11 @@ async def run_worker_rollout(
     config: dict[str, Any],
     thread_id: str,
     max_steps: int = 100,
-) -> str:
-    """Execute the Worker ReAct loop until terminal outcome; return outcome string.
+) -> RolloutOutcome:
+    """Execute the Worker ReAct loop until terminal outcome; return outcome.
 
     Mutates *state* in place (shares the parent AgentState). Outcomes:
-    ``done | failed | truncated | cancelled``.
+    :class:`RolloutOutcome` (``done | failed | truncated | cancelled | interrupted``).
 
     Phase B: when the Worker dispatches an A2A subtask (``AgentA2AInterruptException``),
     the loop does NOT terminate — it parks until the remote callback result is
@@ -56,7 +57,7 @@ async def run_worker_rollout(
     from app.core.monitoring.activity import activity_monitor
 
     worker_node = WorkerNode()
-    outcome = "failed"
+    outcome = RolloutOutcome.FAILED
 
     try:
         step_count = 0
@@ -70,13 +71,13 @@ async def run_worker_rollout(
                 # Worker 发起 A2A：挂起等回调 → 重载 state → 继续 ReAct。
                 state = await _wait_a2a_callback_then_reload(state, config, thread_id)
                 if state is None:
-                    outcome = "interrupted"
+                    outcome = RolloutOutcome.INTERRUPTED
                     break
                 continue
             except AgentHumanInterruptException as e:
                 # 普通 HITL（敏感文件批准等）：请求已注册，由 session 主循环
                 # 感知并挂起等待批准（_hang_for_resume）。
-                outcome = "interrupted"
+                outcome = RolloutOutcome.INTERRUPTED
                 logger.info(f"[WorkerRollout] {thread_id} interrupted (HITL): {e}")
                 break
             merge_state_update(state, update)
@@ -103,34 +104,38 @@ async def run_worker_rollout(
                 # 成功→finish（是否审计由 Finish/AuditService 按 needs_audit 判定）。
                 # needs_audit=true 时 session 主循环依据 state.ticket.needs_audit 重进图跑验收。
                 outcome = (
-                    "done"
-                    if worker_outcome in ("completed", "success")
+                    RolloutOutcome.DONE
+                    if worker_outcome in (WorkerOutcome.COMPLETED, WorkerOutcome.SUCCESS)
                     else (
-                        "failed"
-                        if worker_outcome in ("truncated", "failed", "error")
-                        else "done"
+                        RolloutOutcome.FAILED
+                        if worker_outcome in (
+                            WorkerOutcome.TRUNCATED,
+                            WorkerOutcome.FAILED,
+                            WorkerOutcome.ERROR,
+                        )
+                        else RolloutOutcome.DONE
                     )
                 )
                 break
             if next_node == "supervisor":
-                outcome = "failed"
+                outcome = RolloutOutcome.FAILED
                 break
             # Otherwise keep looping (rare; worker usually resolves in one call).
         else:
-            outcome = "truncated"
+            outcome = RolloutOutcome.TRUNCATED
     except AgentCancelledException:
-        outcome = "cancelled"
+        outcome = RolloutOutcome.CANCELLED
         logger.info(f"[WorkerRollout] {thread_id} cancelled")
     except AgentHumanInterruptException as e:
         # 兜底：split/sequential 等其它执行段抛出的 HITL（Worker 本体已在上层 try 处理）。
-        outcome = "interrupted"
+        outcome = RolloutOutcome.INTERRUPTED
         logger.info(f"[WorkerRollout] {thread_id} interrupted (HITL): {e}")
     except asyncio.CancelledError:
         # 主动取消（session._cancel_rollout）：不传播，让聚合轮能看到 outcome=cancelled。
-        outcome = "cancelled"
+        outcome = RolloutOutcome.CANCELLED
         logger.info(f"[WorkerRollout] {thread_id} task cancelled")
     except Exception as e:
-        outcome = "failed"
+        outcome = RolloutOutcome.FAILED
         logger.error(f"[WorkerRollout] {thread_id} failed: {e}", exc_info=True)
 
     logger.info(f"[WorkerRollout] {thread_id} finished with outcome={outcome}")

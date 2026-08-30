@@ -651,7 +651,10 @@ class MemoryManager:
             logger.info(
                 f"[MemoryManager] Skipping maintenance: current count {count} < threshold {memory_constants.MAINTENANCE_THRESHOLD}"
             )
-            return {"status": "skipped", "count": count}
+            return {
+                "status": memory_constants.MAINTENANCE_STATUS_SKIPPED,
+                "count": count,
+            }
 
         logger.info(f"[MemoryManager] Starting governance cycle (count: {count})")
 
@@ -669,7 +672,7 @@ class MemoryManager:
         await self.regenerate_memory_md()
 
         return {
-            "status": "completed",
+            "status": memory_constants.MAINTENANCE_STATUS_COMPLETED,
             "low_quality_count": low_quality_count,
             "pruning_count": len(pruning_logs),
             "logs": pruning_logs,

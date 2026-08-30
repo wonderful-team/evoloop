@@ -188,3 +188,22 @@ VOICE_POLICY = ExecutionPolicy(
     allow_self_heal=False,
     allowed_sources=frozenset({DESKTOP, DOM}),
 )
+
+# ---- MacroRunResult.status (execution outcome) ----
+RUN_RESULT_FALLBACK_REQUIRED = "fallback_required"
+RUN_RESULT_CANCELLED = "cancelled"
+
+# ---- Macro loop item lifecycle (collect_loop item["status"]) ----
+LOOP_ITEM_PENDING = "pending"
+LOOP_ITEM_DONE = "done"
+LOOP_ITEM_FAILED = "failed"
+
+# ---- Macro collect_loop phase (state["phase"]) ----
+LOOP_PHASE_LIST = "list"
+LOOP_PHASE_DETAIL = "detail"
+LOOP_PHASE_COMPLETED = "completed"
+
+# ---- Macro verification result status (MacroVerificationResult.status) ----
+VERIFY_STATUS_SUCCESS = "success"
+VERIFY_STATUS_FAILED = "failed"
+VERIFY_STATUS_ERROR = "error"

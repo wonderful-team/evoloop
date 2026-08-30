@@ -1,11 +1,13 @@
 import logging
 from typing import Any
 
+from app.core.learning.constants import RUN_RESULT_FALLBACK_REQUIRED
 from app.core.learning.macro.engine import MacroEngine
 from app.core.learning.macro.event.publishers import publish_macro_execution_failed
 from app.core.learning.macro.healing_policy import SelfHealingPolicy
 from app.core.learning.macro.schemas import MacroRunResult, MacroScript
 from app.core.monitoring.activity import activity_monitor
+from app.core.monitoring.constants import ActivityStatus
 from app.models.macro import Macro
 
 logger = logging.getLogger(__name__)
@@ -223,7 +225,7 @@ class MacroService:
 
             if not success:
                 logger.error("[%s] Macro execution failed: %s", thread_id, msg)
-                await activity_monitor.end_run(thread_id, "failed")
+                await activity_monitor.end_run(thread_id, ActivityStatus.FAILED)
 
                 # --- Unified Self-Healing Decision ---
                 decision = SelfHealingPolicy.check(macro=macro, execution_params=params)
@@ -239,9 +241,7 @@ class MacroService:
                         healing_disabled_reason=decision.reason,
                         healing_disabled_source=decision.source,
                         step_log=(fallback_ctx or {}).get("step_log"),
-                        execution_warnings=(fallback_ctx or {}).get(
-                            "execution_warnings"
-                        ),
+                        execution_warnings=(fallback_ctx or {}).get("execution_warnings"),
                     )
 
                 # Self-healing is allowed - trigger fallback via event system
@@ -260,7 +260,7 @@ class MacroService:
                     message=msg,
                     allow_self_healing=True,
                     suggestions=event.suggestions,
-                    status="fallback_required",
+                    status=RUN_RESULT_FALLBACK_REQUIRED,
                     fallback_context=fallback_ctx,
                     step_log=(fallback_ctx or {}).get("step_log"),
                     execution_warnings=(fallback_ctx or {}).get("execution_warnings"),
@@ -272,7 +272,7 @@ class MacroService:
                 {"text": "Macro execution completed successfully."},
                 thread_id,
             )
-            await activity_monitor.end_run(thread_id, "done")
+            await activity_monitor.end_run(thread_id, ActivityStatus.DONE)
             return MacroRunResult(
                 success=True,
                 message="Deterministic Macro Execution Complete.",
@@ -283,7 +283,7 @@ class MacroService:
 
         except Exception as e:
             logger.error(f"[{thread_id}] Macro service crash: {e}", exc_info=True)
-            await activity_monitor.end_run(thread_id, "failed")
+            await activity_monitor.end_run(thread_id, ActivityStatus.FAILED)
             return MacroRunResult(
                 success=False, message=f"System error during macro execution: {str(e)}"
             )

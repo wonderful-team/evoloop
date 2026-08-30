@@ -25,7 +25,7 @@ async def mark_subagent_awaiting_human_and_publish(thread_id: str) -> None:
 
     from app.core.context.manager import ContextManager
     from app.infrastructure.database import session_scope
-    from app.models.subagent import SubagentRun
+    from app.models.subagent import SubagentRun, SubagentStatus
 
     ctx = ContextManager.current()
     if not ctx or ctx.metadata.get("task_type") != "subagent":
@@ -51,8 +51,8 @@ async def mark_subagent_awaiting_human_and_publish(thread_id: str) -> None:
     async with session_scope() as session:
         stmt = select(SubagentRun).where(SubagentRun.thread_id == thread_id)
         run = (await session.execute(stmt)).scalar_one_or_none()
-        if run and run.status == "running":
-            run.status = "awaiting_human"
+        if run and run.status == SubagentStatus.RUNNING:
+            run.status = SubagentStatus.AWAITING_HUMAN
 
     # Publish to the parent thread's queue (system_bus subscriber routes it).
     from app.core.events import system_bus

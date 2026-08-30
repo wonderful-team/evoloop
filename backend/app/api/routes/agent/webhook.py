@@ -8,7 +8,7 @@ from app.constants import DEFAULT_PROJECT_ID
 from app.core.context import thread_context_store
 from app.core.context.manager import ContextManager, EvoContext
 from app.core.engine.background_agent import run_agent_background
-from app.core.engine.dispatch import dispatch_agent_run
+from app.core.engine.dispatch import DispatchStatus, dispatch_agent_run
 from app.core.evocloud import evocloud_manager
 from app.domain.codebase.indexing.manager import indexing_manager
 from app.domain.codebase.indexing.service import IndexingService
@@ -49,7 +49,7 @@ async def webhook_endpoint(req: WebhookRequest, bg_tasks: BackgroundTasks):
         metadata={"goal_prefix": f"[{req.source.capitalize()} Event] "},
     )
 
-    if result.status == "failed":
+    if result.status == DispatchStatus.FAILED:
         raise HTTPException(status_code=500, detail=result.error)
 
     bg_tasks.add_task(run_agent_background, tid, result.inputs)

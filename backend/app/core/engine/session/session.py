@@ -35,6 +35,7 @@ from app.core.engine.runner_base import (
     build_ctx,
     build_execution_config,
 )
+from app.core.engine.schemas import RolloutOutcome
 from app.core.engine.session.gate import GateEvent, ThreadGate
 from app.core.exceptions import AgentCancelledException, AgentHumanInterruptException
 from app.core.hitl.orchestrator import HITLOrchestrator
@@ -275,10 +276,10 @@ def _is_current_rollout(session: AgentSession, ev: GateEvent) -> bool:
     return ev.payload.get("rollout_id") == session.worker.rollout_id
 
 
-async def _rollout_outcome(session: AgentSession) -> str:
+async def _rollout_outcome(session: AgentSession) -> RolloutOutcome | str:
     """读取当前 rollout 的 outcome（worker_completed 事件发出时 task 已 done）。
 
-    HITL 中断时 run_worker_rollout 正常返回 ``"interrupted"``（非异常）。
+    HITL 中断时 run_worker_rollout 正常返回 ``interrupted``（非异常）。
     """
     if session.worker is None or session.worker.task is None:
         return ""
@@ -439,14 +440,14 @@ async def _run_turn(
                     # 循环，由外层 loop 顶部消费 pending_resume 继续执行——
                     # 否则 pending_resume 设了但没有新 delivery 会挂起。
                     rollout_outcome = await _rollout_outcome(session)
-                    if rollout_outcome == "interrupted":
+                    if rollout_outcome == RolloutOutcome.INTERRUPTED:
                         await _hang_for_resume(session)
                         break
                     # needs_audit=true：Worker 交付需经监察者（Finish）验收后再呈现。
                     # 重载 state（DB 为准，含 A2A 回调结果）+ 保留 tool_history/worker_outcome
                     # → 置 next_node=finish → 跳出内层循环，由外层 run_node_loop 跑验收
                     # （session_mode=True 保障 INCOMPLETE 回 Supervisor 时的 handoff 语义）。
-                    if rollout_outcome == "done" and _should_run_finish_audit(state):
+                    if rollout_outcome == RolloutOutcome.DONE and _should_run_finish_audit(state):
                         reloaded = await _reload_session_state(session, state, config)
                         if reloaded is not None:
                             session.state = reloaded

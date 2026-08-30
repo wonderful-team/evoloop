@@ -15,6 +15,7 @@ from app.core.engine.constants import (
     MAX_RETRY_ERRORS,
     TRIM_THRESHOLD_RATIO,
 )
+from app.core.engine.message.constants import MessageRole
 from app.core.engine.message.converter import EvoMessageConverter
 from app.core.engine.message.forgetting import apply_forgotten_status
 from app.core.engine.message.native_classes import (
@@ -96,7 +97,7 @@ class ContextTrimmer:
 
         # --- Stage 0: Prune trailing errors ---
         pruned_errors = 0
-        while working and working[-1].role == "assistant":
+        while working and working[-1].role == MessageRole.AI:
             metadata = working[-1].additional_kwargs or {}
             if metadata.get("is_error") is True:
                 working.pop()
@@ -228,7 +229,7 @@ class ContextTrimmer:
 
         for msg in messages:
             is_error = False
-            if msg.role == "assistant":
+            if msg.role == MessageRole.AI:
                 if msg.additional_kwargs.get("is_error"):
                     is_error = True
                 elif isinstance(msg.content, str) and msg.content.startswith("Error:"):
@@ -244,19 +245,19 @@ class ContextTrimmer:
 
         last_human_idx = -1
         for idx, msg in enumerate(non_error_messages):
-            if msg.role == "user" and msg.name != "context_ticket":
+            if msg.role == MessageRole.HUMAN and msg.name != "context_ticket":
                 last_human_idx = idx
 
         if last_human_idx >= 0:
             segment = non_error_messages[: last_human_idx + 1]
             deduped: list[BaseMessage] = []
             for msg in segment:
-                if msg.role == "user" and msg.name == "context_ticket":
+                if msg.role == MessageRole.HUMAN and msg.name == "context_ticket":
                     deduped.append(msg)
                     continue
-                if msg.role == "user" and deduped:
+                if msg.role == MessageRole.HUMAN and deduped:
                     prev = deduped[-1]
-                    if prev.role == "user" and prev.name != "context_ticket":
+                    if prev.role == MessageRole.HUMAN and prev.name != "context_ticket":
                         prev_text = get_message_text(prev)
                         curr_text = get_message_text(msg)
                         if (
@@ -317,21 +318,21 @@ class ContextTrimmer:
             content = msg.content
             is_ticket = msg.name == "context_ticket"
 
-            if role == "user":
+            if role == MessageRole.HUMAN:
                 if is_ticket or middle_tokens + msg_tokens <= middle_budget:
                     middle_messages.insert(0, msg)
                     middle_tokens += msg_tokens
                     middle_idx = i
                 if not is_ticket and middle_tokens + msg_tokens > middle_budget:
                     break
-            elif role == "assistant" and msg.tool_calls:
+            elif role == MessageRole.AI and msg.tool_calls:
                 if middle_tokens + msg_tokens <= middle_budget:
                     middle_messages.insert(0, msg)
                     middle_tokens += msg_tokens
                     middle_idx = i
                 else:
                     break
-            elif role == "assistant":
+            elif role == MessageRole.AI:
                 if len(content) > 500:
                     summarized = AIMessage(
                         content=content[:200] + "... [Earlier response]",
@@ -382,7 +383,7 @@ class ContextTrimmer:
         # Layer 3: Topic marker
         if middle_idx > 0:
             first_human = next(
-                (m for m in messages[:middle_idx] if m.role == "user"),
+                (m for m in messages[:middle_idx] if m.role == MessageRole.HUMAN),
                 None,
             )
             if first_human:

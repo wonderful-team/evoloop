@@ -9,6 +9,7 @@ from app.core.engine.background_agent.errors import handle_task_exception
 from app.core.engine.background_agent.models import BackgroundAgentInputs
 from app.core.exceptions import AgentCancelledException, AgentHumanInterruptException
 from app.core.monitoring.activity import activity_monitor
+from app.core.monitoring.constants import ActivityStatus
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +105,7 @@ async def run_agent_background(
                 await publish_agent_run_completed(
                     thread_id=thread_id,
                     project_id=project_id,
-                    status="failed",
+                    status=ActivityStatus.FAILED,
                     source=inputs.metadata.get("source", ""),
                     payload={"summary": str(e)[:300]},
                 )

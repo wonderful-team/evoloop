@@ -5,6 +5,7 @@ import os
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.evocloud import evocloud_manager
 from app.core.monitoring.activity import activity_monitor
+from app.core.monitoring.constants import ActivityStatus
 from app.core.project.service import project_context_manager
 from app.core.project.utils import read_project_json, write_project_json
 from app.core.security.policy_loader import DEFAULT_SENSITIVE_PATTERNS
@@ -45,13 +46,9 @@ async def _summarize_project_logic(name: str, path: str, module_graph: str = "")
     # Start Activity
     sys_tid = f"sys:{project_id}:summarization"
     await activity_monitor.start_run(sys_tid, f"Summarize Project: {name}")
-    await activity_monitor.update_agent_state(
-        sys_tid, "Summarizing", "Project Analysis", "Gathering Context..."
-    )
+    await activity_monitor.update_agent_state(sys_tid, "Summarizing", "Project Analysis", "Gathering Context...")
 
-    container = None
     try:
-        arch_summary = "Not available yet."
         # Prefer framework_profile from project.json, fallback to DirectorySummarizer
         pj = read_project_json(path)
         fp = pj.get("framework_profile", {})
@@ -68,9 +65,7 @@ async def _summarize_project_logic(name: str, path: str, module_graph: str = "")
                 arch_summary = summary_dir
 
         # Update Status
-        await activity_monitor.update_agent_state(
-            sys_tid, "Summarizing", "Project Analysis", "Reading Files & Context..."
-        )
+        await activity_monitor.update_agent_state(sys_tid, "Summarizing", "Project Analysis", "Reading Files & Context...")
 
         # 1. Gather Context (Files)
         from app.core.file import FileTraverser
@@ -81,17 +76,12 @@ async def _summarize_project_logic(name: str, path: str, module_graph: str = "")
                 if entry.is_file():
                     files.append(entry.name)
         except Exception as e:
-            logger.debug(
-                f"[ProjectSummarizer] Directory scan failed for {path}: {e}",
-                exc_info=True,
-            )
+            logger.debug(f"[ProjectSummarizer] Directory scan failed for {path}: {e}")
 
         readme_content = project_context_manager.extract_description_from_readme(path)
 
         # Update Status
-        await activity_monitor.update_agent_state(
-            sys_tid, "Summarizing", "Project Analysis", "Generating Summary with LLM..."
-        )
+        await activity_monitor.update_agent_state(sys_tid, "Summarizing", "Project Analysis", "Generating Summary with LLM...")
 
         # 2. Call LLM
         from app.utils.template import render_template
@@ -200,11 +190,11 @@ async def _summarize_project_logic(name: str, path: str, module_graph: str = "")
                 await manager.store_concept(concept)
 
         # Done
-        await activity_monitor.end_run(sys_tid, "done")
+        await activity_monitor.end_run(sys_tid, ActivityStatus.DONE)
 
     except Exception as e:
         logger.exception(f"[ProjectSummarizer] Failed to summarize {name}: {e}")
-        await activity_monitor.end_run(sys_tid, "failed")
+        await activity_monitor.end_run(sys_tid, ActivityStatus.FAILED)
         # Re-raise to let Celery know it failed (triggering retries if configured)
         raise e
 

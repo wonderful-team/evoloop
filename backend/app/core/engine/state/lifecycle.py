@@ -7,6 +7,7 @@ after use, preventing stale state from leaking across turns.
 
 import logging
 
+from app.core.engine.schemas import WorkerOutcome
 from app.core.engine.state import AgentState
 
 logger = logging.getLogger(__name__)
@@ -21,7 +22,7 @@ class StateLifecycleManager:
     """
 
     @staticmethod
-    def consume_worker_outcome(state: AgentState) -> str | None:
+    def consume_worker_outcome(state: AgentState) -> WorkerOutcome | None:
         """Consume and clear state.worker_outcome."""
         outcome = state.worker_outcome
         if outcome is not None:

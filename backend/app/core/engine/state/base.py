@@ -7,6 +7,7 @@ from typing import Any
 from pydantic import Field, model_validator
 
 from app.core.engine.message.native_classes import BaseMessage
+from app.core.engine.schemas import WorkerOutcome
 from app.core.engine.state.config import ExecutionTicket
 from app.core.engine.state.sub_schemas import (
     AuditAnomaly,
@@ -36,7 +37,7 @@ class AgentStateBase(DynamicBaseModel):
     ticket: ExecutionTicket | None = None
     verification: VerificationStatus | None = None
     route_reason: str | None = None
-    worker_outcome: str | None = None
+    worker_outcome: WorkerOutcome | None = None
     summary: str | None = None
     remaining_work: str | None = None
     blocked_by_hook: bool | None = None

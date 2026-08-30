@@ -10,6 +10,7 @@ import time
 
 from app.core.engine.background_agent.models import BackgroundAgentInputs
 from app.core.engine.constants import MAX_PARALLEL
+from app.core.engine.message.constants import MessageRole
 from app.core.engine.message.native_classes import HumanMessage
 from app.core.engine.nodes.base import BaseNode
 from app.core.engine.nodes.utils.subagent_manager import recover_subagent_state
@@ -17,7 +18,7 @@ from app.core.engine.routers import RoutingTarget
 from app.core.engine.state import AgentState, StateUpdate
 from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket
 from app.core.engine.worker_registry import worker_registry
-from app.models.subagent import SubagentRun
+from app.models.subagent import SubagentRun, SubagentStatus
 
 logger = logging.getLogger(__name__)
 
@@ -126,7 +127,7 @@ class SpawnSubagentsNode(BaseNode):
                     "subagent_id": sub_tid,
                     "thread_id": sub_tid,
                     "instruction": subtask["instruction"],
-                    "status": "running",
+                    "status": SubagentStatus.RUNNING.value,
                     "started_at": time.time(),
                 }
             )
@@ -211,7 +212,7 @@ class SpawnSubagentsNode(BaseNode):
             role_name=subtask.get("role", "Subagent"),
             focus_paths=json.dumps(subtask.get("focus_paths", [])),
             acceptance_criteria=json.dumps(subtask.get("acceptance_criteria", [])),
-            status="running",
+            status=SubagentStatus.RUNNING,
         )
         async with session_scope() as session:
             session.add(run)
@@ -259,14 +260,14 @@ class SpawnSubagentsNode(BaseNode):
         parts = []
         # 最近一条用户消息（用户原话）
         for m in reversed(msgs):
-            if m.role == "user":
+            if m.role == MessageRole.HUMAN:
                 content = str(getattr(m, "content", "") or "")
                 if content.strip():
                     parts.append(f"User request: {content[:600]}")
                     break
         # 最近一条 assistant 消息（Supervisor 的委派/决策轮）
         for m in reversed(msgs):
-            if m.role == "assistant":
+            if m.role == MessageRole.AI:
                 content = str(getattr(m, "content", "") or "")
                 if content.strip():
                     parts.append(f"Supervisor: {content[:800]}")
@@ -349,21 +350,24 @@ class SpawnSubagentsNode(BaseNode):
         )
 
         current = await self._get_subagent_run(sub_tid)
-        if current and current.status in ("awaiting_a2a", "awaiting_human"):
+        if current and current.status in (
+            SubagentStatus.AWAITING_A2A,
+            SubagentStatus.AWAITING_HUMAN,
+        ):
             return
 
-        if current and current.status == "cancelled":
-            status, result, error = "cancelled", "", "Cancelled"
+        if current and current.status == SubagentStatus.CANCELLED:
+            status, result, error = SubagentStatus.CANCELLED, "", "Cancelled"
             tools_used = []
         else:
             try:
                 if task.cancelled():
-                    status, result, error = "cancelled", "", "Cancelled"
+                    status, result, error = SubagentStatus.CANCELLED, "", "Cancelled"
                 elif task.exception():
                     exc = task.exception()
-                    status, result, error = "failed", "", str(exc)
+                    status, result, error = SubagentStatus.FAILED, "", str(exc)
                 else:
-                    status = "completed"
+                    status = SubagentStatus.COMPLETED
                     error = None
                     result = (
                         task.result()
@@ -371,7 +375,7 @@ class SpawnSubagentsNode(BaseNode):
                         else str(task.result() or "")
                     )
             except Exception as e:
-                status, result, error = "failed", "", str(e)
+                status, result, error = SubagentStatus.FAILED, "", str(e)
             tools_used = []
 
         await self._update_subagent_run(sub_tid, status, result, error, tools_used)
@@ -417,7 +421,7 @@ class SpawnSubagentsNode(BaseNode):
     async def _update_subagent_run(
         self,
         thread_id: str,
-        status: str,
+        status: SubagentStatus,
         result: str,
         error: str | None,
         tools_used: list,

@@ -51,6 +51,9 @@ class MessageCategory(str, Enum):
     INTERNAL_LLM_JSON = "internal_llm_json"
     """内部 LLM 的 JSON 响应（如 memory 选择），不入库不推送"""
 
+    FILE_OPERATION = "file_operation"
+    """文件操作通知（FILE_OPERATION），仅用于前端 SSE 展示"""
+
     # ========== 错误消息（不入库，仅通知用户） ==========
     ERROR_SYSTEM = "error_system"
     """系统基础设施错误（401/429/500/recursion等），不入库，仅通过SSE通知用户"""

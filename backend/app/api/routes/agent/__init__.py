@@ -39,7 +39,7 @@ async def _prepare_and_dispatch(
 ):
     from app.core.context.manager import ContextManager, EvoContext
     from app.core.engine.background_agent import run_agent_background
-    from app.core.engine.dispatch import dispatch_agent_run
+    from app.core.engine.dispatch import DispatchStatus, dispatch_agent_run
 
     ctx = EvoContext(
         thread_id=thread_id,
@@ -61,7 +61,7 @@ async def _prepare_and_dispatch(
         context=ctx,
     )
 
-    if result.status == "failed":
+    if result.status == DispatchStatus.FAILED:
         raise Exception(result.error)
 
     bg_tasks.add_task(run_agent_background, thread_id, result.inputs)

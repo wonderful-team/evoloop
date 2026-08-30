@@ -13,6 +13,7 @@ from typing import Any
 from app.core.engine.callbacks.base import AsyncCallbackHandler, LLMResult
 from app.core.engine.callbacks.token_filter import TokenFilter
 from app.core.engine.message import MessageHandler, MessagePublisher
+from app.core.engine.message.constants import MessageStatus
 from app.core.engine.message.reasoning import extract_reasoning_from_kwargs
 from app.core.tools.registry import (
     get_tool_affected_paths,
@@ -404,5 +405,5 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
                 message=i18n.get(
                     "common.tool_execution_error", name=tool_name, error=str(error)
                 ),
-                status="failed",
+                status=MessageStatus.FAILED,
             )

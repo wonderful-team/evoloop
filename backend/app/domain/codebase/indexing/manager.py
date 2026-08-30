@@ -11,6 +11,20 @@ from app.core.project.utils import (
     get_workspace_root,
     resolve_project_to_repo,
 )
+from app.domain.codebase.constants import (
+    INDEXING_STATUS_CANCELLED,
+    INDEXING_STATUS_COMPLETED,
+    INDEXING_STATUS_DONE,
+    INDEXING_STATUS_ERROR,
+    INDEXING_STATUS_FAILED,
+    INDEXING_STATUS_IDLE,
+    INDEXING_STATUS_IN_PROGRESS,
+    INDEXING_STATUS_INDEXING,
+    INDEXING_STATUS_QUEUED,
+    INDEXING_TERMINAL_STATUSES,
+    SCAN_STATUS_COMPLETED,
+    SCAN_STATUS_FAILED,
+)
 from app.domain.codebase.indexing.service import IndexingService
 from app.domain.codebase.security import scan_file
 from app.domain.watchers import RepoWatcher
@@ -115,13 +129,13 @@ class IndexingManager:
     def get_repo_status(self, repo_id: int) -> str:
         """Get the current in-memory indexing status for a repository."""
         with self._lock:
-            return self._active_jobs.get(repo_id, "idle")
+            return self._active_jobs.get(repo_id, INDEXING_STATUS_IDLE)
 
     async def cancel_repo_index(self, repo_id: int) -> None:
         """Request cancellation of an active full-index job for a repository."""
         await _request_cancel(repo_id)
         with self._lock:
-            self._active_jobs[repo_id] = "cancelled"
+            self._active_jobs[repo_id] = INDEXING_STATUS_CANCELLED
         logger.info(f"[IndexingManager] Cancel requested for repo {repo_id}")
 
     def cancel_indexing(self, project_id: int) -> None:
@@ -155,7 +169,7 @@ class IndexingManager:
         if await _is_cancel_requested(repo_id):
             logger.info(f"[IndexingManager] Job cancelled for repo {repo_id}")
             with self._lock:
-                self._active_jobs[repo_id] = "cancelled"
+                self._active_jobs[repo_id] = INDEXING_STATUS_CANCELLED
             return True
         return False
 
@@ -223,7 +237,7 @@ class IndexingManager:
 
         service = IndexingService()
         with self._lock:
-            self._active_jobs[repo_id] = "indexing"
+            self._active_jobs[repo_id] = INDEXING_STATUS_INDEXING
         await _clear_cancel_flag(repo_id)
 
         try:
@@ -232,8 +246,8 @@ class IndexingManager:
                 if not repo:
                     logger.warning(f"Repository {repo_id} not found")
                     with self._lock:
-                        self._active_jobs[repo_id] = "error"
-                    await _set_indexing_status(repo_id, "error")
+                        self._active_jobs[repo_id] = INDEXING_STATUS_ERROR
+                    await _set_indexing_status(repo_id, INDEXING_STATUS_ERROR)
                     return
 
                 project_id = repo.project_id
@@ -243,14 +257,16 @@ class IndexingManager:
                         f"[IndexingManager] Could not resolve local path for repo {repo_id}"
                     )
                     with self._lock:
-                        self._active_jobs[repo_id] = "error"
-                    await _set_indexing_status(repo_id, "error")
-                    await self._update_indexing_status(repo_id, "failed")
+                        self._active_jobs[repo_id] = INDEXING_STATUS_ERROR
+                    await _set_indexing_status(repo_id, INDEXING_STATUS_ERROR)
+                    await self._update_indexing_status(repo_id, INDEXING_STATUS_FAILED)
                     return
 
-                await self._update_indexing_status(repo_id, "in_progress")
-                await _set_indexing_status(repo_id, "indexing")
-                await self._publish_status(project_id, repo_id, "indexing")
+                await self._update_indexing_status(
+                    repo_id, INDEXING_STATUS_IN_PROGRESS
+                )
+                await _set_indexing_status(repo_id, INDEXING_STATUS_INDEXING)
+                await self._publish_status(project_id, repo_id, INDEXING_STATUS_INDEXING)
 
                 if await self._check_cancelled(repo_id):
                     return
@@ -300,10 +316,10 @@ class IndexingManager:
                     logger.exception(f"Semantic Extraction Failed: {e}")
 
                 with self._lock:
-                    self._active_jobs[repo_id] = "done"
-                await _set_indexing_status(repo_id, "done")
-                await self._publish_status(project_id, repo_id, "done")
-                await self._update_indexing_status(repo_id, "completed")
+                    self._active_jobs[repo_id] = INDEXING_STATUS_DONE
+                await _set_indexing_status(repo_id, INDEXING_STATUS_DONE)
+                await self._publish_status(project_id, repo_id, INDEXING_STATUS_DONE)
+                await self._update_indexing_status(repo_id, INDEXING_STATUS_COMPLETED)
 
                 if project_id is not None:
                     from app.domain.codebase.event.publishers import (
@@ -315,18 +331,18 @@ class IndexingManager:
         except asyncio.CancelledError:
             logger.info(f"Full Index Cancelled for Repo {repo_id}", exc_info=True)
             with self._lock:
-                self._active_jobs[repo_id] = "cancelled"
-            await _set_indexing_status(repo_id, "cancelled")
-            await self._publish_status(project_id, repo_id, "cancelled")
-            await self._update_indexing_status(repo_id, "failed")
+                self._active_jobs[repo_id] = INDEXING_STATUS_CANCELLED
+            await _set_indexing_status(repo_id, INDEXING_STATUS_CANCELLED)
+            await self._publish_status(project_id, repo_id, INDEXING_STATUS_CANCELLED)
+            await self._update_indexing_status(repo_id, INDEXING_STATUS_FAILED)
             raise
         except Exception as e:
             logger.exception(f"Full Index Failed for Repo {repo_id}: {e}")
             with self._lock:
-                self._active_jobs[repo_id] = "error"
-            await _set_indexing_status(repo_id, "error")
-            await self._publish_status(project_id, repo_id, "error")
-            await self._update_indexing_status(repo_id, "failed")
+                self._active_jobs[repo_id] = INDEXING_STATUS_ERROR
+            await _set_indexing_status(repo_id, INDEXING_STATUS_ERROR)
+            await self._publish_status(project_id, repo_id, INDEXING_STATUS_ERROR)
+            await self._update_indexing_status(repo_id, INDEXING_STATUS_FAILED)
 
     def dispatch_full_index(self, project_id: int, rebuild: bool = False):
         """
@@ -384,10 +400,10 @@ class IndexingManager:
             )
 
         with self._lock:
-            self._active_jobs[repo_id] = "queued"
+            self._active_jobs[repo_id] = INDEXING_STATUS_QUEUED
         await _clear_cancel_flag(repo_id)
-        await _set_indexing_status(repo_id, "queued")
-        await self._publish_status(project_id, repo_id, "queued")
+        await _set_indexing_status(repo_id, INDEXING_STATUS_QUEUED)
+        await self._publish_status(project_id, repo_id, INDEXING_STATUS_QUEUED)
         run_full_indexing_task.delay(repo_id, rebuild)
         logger.info(f"Dispatched full index task for Repo {repo_id}")
 
@@ -397,7 +413,7 @@ class IndexingManager:
             repo = await session.get(Repository, repo_id)
             if repo:
                 repo.indexing_status = status
-                if status in ("completed", "failed"):
+                if status in INDEXING_TERMINAL_STATUSES:
                     from app.utils.time import utcnow
 
                     repo.last_indexed_at = utcnow()
@@ -500,7 +516,7 @@ class IndexingManager:
                 result = await session.execute(
                     select(SourceFile).where(
                         SourceFile.repository_id == repo_id,
-                        SourceFile.scan_status == "completed",
+                        SourceFile.scan_status == SCAN_STATUS_COMPLETED,
                     )
                 )
                 for sf in result.scalars().all():
@@ -609,7 +625,7 @@ class IndexingManager:
                                 code_snippet=finding.code_snippet,
                             )
                         )
-                source_file.security_scan_status = "completed"
+                source_file.security_scan_status = SCAN_STATUS_COMPLETED
         except Exception as e:
             logger.exception(f"Security scan failed for {rel_path}: {e}")
             try:
@@ -621,7 +637,7 @@ class IndexingManager:
                     result = await session.execute(stmt)
                     source_file = result.scalars().first()
                     if source_file is not None:
-                        source_file.security_scan_status = "failed"
+                        source_file.security_scan_status = SCAN_STATUS_FAILED
             except Exception as mark_err:
                 logger.exception(
                     f"Failed to mark security_scan_status as failed: {mark_err}"
@@ -647,7 +663,7 @@ class IndexingManager:
         logger.info(f"Agent analysis dispatched for repo {repo_id} at {repo_path}")
         try:
             from app.core.engine.background_agent import run_agent_background
-            from app.core.engine.dispatch import dispatch_agent_run
+            from app.core.engine.dispatch import DispatchStatus, dispatch_agent_run
 
             thread_id = unique_id("codebase-agent", repo_id)
             from app.core.context.manager import ContextManager, EvoContext
@@ -679,7 +695,7 @@ class IndexingManager:
                     "repo_id": repo_id,
                 },
             )
-            if result.status == "failed":
+            if result.status == DispatchStatus.FAILED:
                 logger.error(
                     f"Agent dispatch failed for repo {repo_id}: {result.error}"
                 )

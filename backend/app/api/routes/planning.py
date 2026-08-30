@@ -4,6 +4,7 @@ from fastapi import APIRouter
 from sqlalchemy import select
 
 from app.api.schemas.planning import PlanDataResponse, PlanResponse, PlanStepResponse
+from app.domain.planning.constants import PlanStatus, PlanStepStatus
 from app.infrastructure.database import session_scope
 from app.models.planning import Plan, PlanStep
 
@@ -21,7 +22,9 @@ async def get_plan(thread_id: str):
     try:
         async with session_scope() as session:
             # 1. Fetch Active Plan
-            stmt = select(Plan).where(Plan.thread_id == thread_id, Plan.status == "active")
+            stmt = select(Plan).where(
+                Plan.thread_id == thread_id, Plan.status == PlanStatus.ACTIVE.value
+            )
             res = await session.execute(stmt)
             db_plan = res.scalars().first()
 
@@ -36,7 +39,10 @@ async def get_plan(thread_id: str):
             steps = res_steps.scalars().all()
 
             # Find current step
-            current_step = next((s for s in steps if s.status == "in_progress"), None)
+            current_step = next(
+                (s for s in steps if s.status == PlanStepStatus.IN_PROGRESS.value),
+                None,
+            )
 
             plan_data = PlanDataResponse(
                 id=db_plan.id,

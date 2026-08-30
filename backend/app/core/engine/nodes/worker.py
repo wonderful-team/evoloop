@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.context import ContextManager
+from app.core.engine.message.constants import MessageRole
 from app.core.engine.nodes.base import BaseAgentNode
 from app.core.engine.nodes.prompts import WorkerPromptBuilder
 from app.core.engine.nodes.utils.skill_resolver import SkillResolver
@@ -152,7 +153,7 @@ class WorkerNode(BaseAgentNode):
             role = msg.role
             if role == "system":
                 result.append(msg)
-            elif role == "user" and not msg.name:
+            elif role == MessageRole.HUMAN and not msg.name:
                 result.append(msg)
             elif is_resuming and msg in tail_messages:
                 if msg not in result:

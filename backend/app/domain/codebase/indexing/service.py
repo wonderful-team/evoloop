@@ -8,15 +8,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.evocloud import evocloud_manager
 from app.core.file import get_file_ext
 from app.core.project.utils import get_project_path
-from app.domain.codebase.indexing.components.content_indexer import ContentIndexer
-from app.domain.codebase.indexing.components.file_preparer import FilePreparer
-from app.domain.codebase.indexing.components.sql_persister import SQLPersister
 from app.domain.codebase.constants import (
     BATCH_MAX_WAIT_MS,
     EMBEDDING_TEXT_CAP,
     EXTRACT_CONCURRENCY,
+    REPO_SYNC_STATUS_PENDING_CREATION,
+    REPO_SYNC_STATUS_SYNCED,
     TEXTS_PER_WINDOW,
 )
+from app.domain.codebase.indexing.components.content_indexer import ContentIndexer
+from app.domain.codebase.indexing.components.file_preparer import FilePreparer
+from app.domain.codebase.indexing.components.sql_persister import SQLPersister
 from app.domain.codebase.indexing.extractors.treesitter_extractor import (
     TreeSitterExtractor,
 )
@@ -80,7 +82,7 @@ class IndexingService:
             # Resolve Project ID dynamically (if not provided)
             # Default to None (Pending) if resolution fails, supporting Offline Mode.
             resolved_pid = project_id
-            sync_status = "SYNCED"
+            sync_status = REPO_SYNC_STATUS_SYNCED
 
             if not resolved_pid:
                 try:
@@ -96,7 +98,7 @@ class IndexingService:
                     )
 
             if not resolved_pid:
-                sync_status = "PENDING_CREATION"
+                sync_status = REPO_SYNC_STATUS_PENDING_CREATION
 
             # Create Repo
             repo = Repository(

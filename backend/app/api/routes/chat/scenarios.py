@@ -16,6 +16,7 @@ from app.core.engine.message.factory import MessageBlockFactory
 from app.core.engine.message.handler import MessageHandler
 from app.core.engine.message.publisher import MessagePublisher
 from app.core.monitoring.activity import activity_monitor
+from app.core.monitoring.constants import ActivityStatus
 from app.core.monitoring.schemas import HumanRequestData
 from app.models.schemas.events import QuotaExhaustedEvent, StatusEvent
 from app.utils.id import gen_uuid_hex
@@ -58,9 +59,7 @@ async def _publish_final_message(
 async def happy_path_scenario(thread_id: str):
     """Simulate a normal streaming chat: plan → tool → plan → tool → answer."""
     run_id = f"run-mock-{gen_uuid_hex()[:8]}"
-    await activity_monitor.start_run(
-        thread_id, main_goal="正常流式对话模拟", run_id=run_id
-    )
+    await activity_monitor.start_run(thread_id, main_goal="正常流式对话模拟", run_id=run_id)
     await asyncio.sleep(0.5)
 
     # Turn 1: list_dir
@@ -239,7 +238,7 @@ async def happy_path_scenario(thread_id: str):
     await _publish_final_message(thread_id, 10, answer_content, answer_thinking, run_id)
     await activity_monitor.end_run(
         thread_id,
-        status="done",
+        status=ActivityStatus.DONE,
         final_outcome="完成代码修改与校验",
         run_id=run_id,
     )
@@ -348,7 +347,7 @@ async def hitl_scenario(thread_id: str):
     await _publish_final_message(thread_id, 4, answer_content, answer_thinking, run_id)
     await activity_monitor.end_run(
         thread_id,
-        status="done",
+        status=ActivityStatus.DONE,
         final_outcome="完成生产环境部署",
         run_id=run_id,
     )
@@ -405,7 +404,7 @@ async def quota_exhausted_scenario(thread_id: str):
 
     await activity_monitor.end_run(
         thread_id,
-        status="failed",
+        status=ActivityStatus.QUOTA_EXHAUSTED,
         final_outcome="因配额耗尽中断执行",
         run_id=run_id,
     )
@@ -496,7 +495,7 @@ async def long_task_scenario(thread_id: str):
     )
     await activity_monitor.end_run(
         thread_id,
-        status="done",
+        status=ActivityStatus.DONE,
         final_outcome="完成全库深度搜索分析",
         run_id=run_id,
     )

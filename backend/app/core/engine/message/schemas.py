@@ -14,6 +14,11 @@ from typing import Any, Literal
 
 from pydantic import Field
 
+from app.core.engine.message.constants import (
+    MessageContentType,
+    MessageRole,
+    MessageStatus,
+)
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
@@ -82,12 +87,12 @@ class MessageBlock(DynamicBaseModel):
     run_id: str | None = None
 
     # === 角色与分类 ===
-    role: Literal["human", "ai", "tool", "system"]
+    role: MessageRole
     category: str = ""  # MessageCategory.value
 
     # === 内容 ===
     content: str = ""
-    content_type: Literal["text", "markdown", "json", "multipart"] = "text"
+    content_type: MessageContentType = MessageContentType.TEXT
 
     # === 思考过程 ===
     thinking: str | None = None
@@ -106,9 +111,7 @@ class MessageBlock(DynamicBaseModel):
     has_file_operations: bool = False
     changeset_count: int = 0
     changeset_files: list[dict[str, Any]] | None = None
-    status: Literal[
-        "pending", "running", "streaming", "completed", "failed", "waiting_human"
-    ] = "completed"
+    status: MessageStatus = MessageStatus.COMPLETED
     is_visible: bool = True
 
     # === 时间戳（统一 ISO 8601，时区敏感）===

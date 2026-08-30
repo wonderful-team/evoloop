@@ -7,10 +7,16 @@ import os
 import time
 
 from app.core.engine.background_agent import run_agent_background
-from app.core.engine.dispatch import dispatch_agent_run
+from app.core.engine.dispatch import DispatchStatus, dispatch_agent_run
 from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket
 from app.core.project.utils import get_project_path
 from app.core.tools.registry import get_tool_bundle
+from app.domain.codebase.constants import (
+    GENERATION_ITEM_APPMAP,
+    GENERATION_ITEM_SUMMARY,
+    GENERATION_ITEM_WIKI,
+    SCAN_STATUS_COMPLETED,
+)
 from app.domain.codebase.generation.scheduler import (
     mark_generation_completed,
     mark_generation_failed,
@@ -55,11 +61,11 @@ async def run_generation_item(project_id: int, item: str) -> None:
     Designed to be used as a ``BackgroundTasks`` target from the API layer.
     """
     try:
-        if item == "wiki":
+        if item == GENERATION_ITEM_WIKI:
             await _run_wiki(project_id)
-        elif item == "appmap":
+        elif item == GENERATION_ITEM_APPMAP:
             await _run_appmap(project_id)
-        elif item == "summary":
+        elif item == GENERATION_ITEM_SUMMARY:
             await _run_summary(project_id)
         else:
             await mark_generation_failed(project_id, item, f"Unknown item: {item}")
@@ -95,7 +101,7 @@ async def _run_wiki(project_id: int) -> None:
         f"**Mission Goal**: Generate a comprehensive Wiki documentation "
         f"for the project at {path}.\n\n"
         "Use `query_code_chunks(is_api_route=true)` to discover API routes, "
-        "and `query_source_files(scan_status='completed')` for the file list. "
+        "and `query_source_files(scan_status='{SCAN_STATUS_COMPLETED}')` for the file list. "
         "Write pages via `write_wiki_page`."
     )
     if module_summary:
@@ -108,7 +114,7 @@ async def _run_wiki(project_id: int) -> None:
         skip_message_persistence=True,
         metadata={"goal_prefix": "[Wiki Generation] "},
     )
-    if result.status == "failed":
+    if result.status == DispatchStatus.FAILED:
         raise RuntimeError(result.error or "Agent dispatch failed")
 
     read_only_tools = [
@@ -198,7 +204,7 @@ async def _run_appmap(project_id: int) -> None:
                     select(SourceFile.path, Repository.id)
                     .join(Repository, SourceFile.repository_id == Repository.id)
                     .where(Repository.project_id == project_id)
-                    .where(SourceFile.scan_status == "completed")
+                    .where(SourceFile.scan_status == SCAN_STATUS_COMPLETED)
                     .order_by(SourceFile.parsed_at.desc())
                 )
                 all_completed_files = rows.all()
@@ -307,7 +313,7 @@ async def _run_appmap(project_id: int) -> None:
         skip_message_persistence=True,
         metadata={"goal_prefix": "[AppMap Generation] "},
     )
-    if result.status == "failed":
+    if result.status == DispatchStatus.FAILED:
         raise RuntimeError(result.error or "Agent dispatch failed")
 
     read_only_tools = [

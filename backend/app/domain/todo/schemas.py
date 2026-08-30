@@ -4,7 +4,6 @@ Todo Domain Schemas - Pydantic models for data transfer.
 This module defines all DTOs (Data Transfer Objects) for the Todo domain,
 ensuring consistent data validation across API, Tools, and Service layers.
 """
-
 from datetime import datetime
 from typing import Literal
 
@@ -41,7 +40,7 @@ class TodoCreate(BaseModel):
 
     title: str = Field(..., min_length=1, max_length=TODO_TITLE_MAX_LENGTH)
     description: str | None = None
-    priority: Literal["low", "medium", "high"] | TodoPriority = TodoPriority.MEDIUM
+    priority: TodoPriority = TodoPriority.MEDIUM
     category: str | None = Field(None, max_length=TODO_CATEGORY_MAX_LENGTH)
     due_date: datetime | str | None = None  # str for flexible parsing
     project_id: int | None = None
@@ -73,7 +72,7 @@ class TodoUpdate(BaseModel):
     title: str | None = Field(None, min_length=1, max_length=TODO_TITLE_MAX_LENGTH)
     description: str | None = None
     status: TodoStatus | None = None
-    priority: Literal["low", "medium", "high"] | TodoPriority | None = None
+    priority: TodoPriority | None = None
     category: str | None = Field(None, max_length=TODO_CATEGORY_MAX_LENGTH)
     due_date: datetime | str | None = None
     project_id: int | None = None
@@ -136,8 +135,8 @@ class ExtractedTodo(BaseModel):
     description: str | None = Field(
         None, description="Detailed explanation or context of the task"
     )
-    priority: Literal["low", "medium", "high"] = Field(
-        "medium", description="Importance level"
+    priority: TodoPriority = Field(
+        TodoPriority.MEDIUM, description="Importance level"
     )
     category: str | None = Field(
         None, description="Broad category, e.g., 'bug', 'feature', 'chore'"

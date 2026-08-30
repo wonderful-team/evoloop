@@ -15,6 +15,7 @@ from app.core.engine.error_handler import (
     LLMErrorHandler,
     with_llm_retry,
 )
+from app.core.engine.message.constants import MessageRole
 from app.core.engine.message.native_classes import (
     AIMessage,
     AIMessageChunk,
@@ -169,7 +170,7 @@ class InferenceEngine:
 
             if loop_messages:
                 for i in range(len(loop_messages) - 1, -1, -1):
-                    if loop_messages[i].role == "user":
+                    if loop_messages[i].role == MessageRole.HUMAN:
                         from app.core.engine.context_monitor import ContextMonitor
 
                         dashboard = (

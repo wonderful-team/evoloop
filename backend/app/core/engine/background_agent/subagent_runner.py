@@ -21,6 +21,7 @@ import logging
 from typing import Any
 
 from app.core.engine.background_agent.models import BackgroundAgentInputs
+from app.core.engine.schemas import RolloutOutcome
 from app.core.exceptions import (
     AgentCancelledException,
     AgentHumanInterruptException,
@@ -120,7 +121,7 @@ async def _run_subagent_worker(
     # Extract the final result text from the Worker's last assistant_response.
     result_text = _extract_final_result(agent_state)
 
-    if outcome == "interrupted":
+    if outcome == RolloutOutcome.INTERRUPTED:
         # HITL 透传：标记 SubagentRun awaiting_human + 发布事件给父（见 subagent_hitl.py）
         from app.core.engine.nodes.utils.subagent_hitl import (
             mark_subagent_awaiting_human_and_publish,
@@ -129,8 +130,8 @@ async def _run_subagent_worker(
         await mark_subagent_awaiting_human_and_publish(thread_id)
         return result_text or ""
 
-    if outcome == "failed":
-        # worker_rollout 会吞掉执行异常并返回 outcome="failed"（配额耗尽、LLM 错误等）。
+    if outcome == RolloutOutcome.FAILED:
+        # worker_rollout 会吞掉执行异常并返回 outcome=failed（配额耗尽、LLM 错误等）。
         # 必须在这里抛出，done_callback 的 task.exception() 才能把 SubagentRun 标为 failed，
         # 否则会出现 "执行失败但标记 completed" 的假成功。
         logger.error(

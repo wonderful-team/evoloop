@@ -15,7 +15,12 @@ import logging
 from pydantic import Field
 from sqlalchemy import or_, select
 
-from app.core.learning.constants import EVENT_CATEGORY_MAP, TOOL_CATEGORY_MAP
+from app.core.learning.constants import (
+    EVENT_CATEGORY_MAP,
+    GLOBAL,
+    MOBILE,
+    TOOL_CATEGORY_MAP,
+)
 from app.core.learning.schemas import (
     ActionCategory,
     ActionSource,
@@ -120,7 +125,7 @@ class TraceParser:
         sequence = TraceSequence(thread_id=self.thread_id, session_id=self.session_id)
 
         for event in events:
-            if event.source == "global":
+            if event.source == GLOBAL:
                 step = self._parse_global_event(event)
             else:
                 step = self._parse_event(event)
@@ -198,7 +203,7 @@ class TraceParser:
                 action_args = payload.get("args", {})
             elif event.event_type in ["click", "input"]:
                 action_args = payload
-            elif event.source == "mobile":
+            elif event.source == MOBILE:
                 # Android mirror raw events: keep them raw; MacroScriptCompiler
                 # will normalize them into macro-executable actions.
                 action_args = payload

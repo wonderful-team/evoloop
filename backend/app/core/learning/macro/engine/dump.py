@@ -43,9 +43,7 @@ class DumpMixin:
     @classmethod
     async def _dump_to_file(cls, thread_id, payload, extracted_data):
         sink_path = payload.get("path", f"/tmp/macro_results_{thread_id}.json")
-        await activity_monitor.log_event(
-            "macro_thought", {"text": f"Dump extracted data to {sink_path}"}, thread_id
-        )
+        await activity_monitor.log_event("macro_thought", {"text": f"Dump extracted data to {sink_path}"}, thread_id)
         try:
             with open(sink_path, "w", encoding="utf-8") as f:
                 json.dump(extracted_data, f, ensure_ascii=False, indent=2)
@@ -64,9 +62,7 @@ class DumpMixin:
 
         await activity_monitor.log_event(
             "macro_thought",
-            {
-                "text": f"Pushing data to MCP server '{mcp_server}' using {mcp_tool_name or operation}"
-            },
+            {"text": f"Pushing data to MCP server '{mcp_server}' using {mcp_tool_name or operation}"},
             thread_id,
         )
 

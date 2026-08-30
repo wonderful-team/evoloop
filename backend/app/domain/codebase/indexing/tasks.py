@@ -83,6 +83,7 @@ async def run_full_indexing_task(repo_id: int, rebuild: bool = False) -> None:
     logger.info(f"[Task] Starting Full Indexing for Repo {repo_id} (Rebuild={rebuild})")
 
     from app.core.monitoring.activity import activity_monitor
+    from app.core.monitoring.constants import ActivityStatus
     from app.domain.codebase.indexing.manager import indexing_manager
 
     sys_tid = f"sys:{repo_id}:indexing"
@@ -95,15 +96,15 @@ async def run_full_indexing_task(repo_id: int, rebuild: bool = False) -> None:
 
         await indexing_manager.trigger_full_index_repo(repo_id, rebuild)
 
-        await activity_monitor.end_run(sys_tid, "done")
+        await activity_monitor.end_run(sys_tid, ActivityStatus.DONE)
         logger.info(f"[Task] Full Indexing Completed for Repo {repo_id}")
 
     except asyncio.CancelledError:
         logger.warning(
             f"[Task] Full indexing cancelled for Repo {repo_id}", exc_info=True
         )
-        await activity_monitor.end_run(sys_tid, "cancelled")
+        await activity_monitor.end_run(sys_tid, ActivityStatus.CANCELLED)
         raise
     except Exception as e:
         logger.exception(f"[Task] Indexing Task Failed: {e}")
-        await activity_monitor.end_run(sys_tid, "failed")
+        await activity_monitor.end_run(sys_tid, ActivityStatus.FAILED)

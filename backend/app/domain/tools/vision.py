@@ -3,6 +3,7 @@ import logging
 from app.core.tools import evoloop_tool
 from app.infrastructure.drivers.macos import macos_driver
 from app.infrastructure.vision import VisionTask, vision_engine
+from app.infrastructure.vision.types import PlatformType
 from app.utils.template import render_template
 
 logger = logging.getLogger(__name__)
@@ -38,7 +39,7 @@ async def analyze_image(
             ctx = ContextManager.current()
             current_ecosystem = ctx.metadata.get("current_ecosystem")
 
-            if current_ecosystem == "android":
+            if current_ecosystem == PlatformType.ANDROID.value:
                 from app.infrastructure.drivers.adb import adb_driver
 
                 ax_tree = adb_driver.dump_ui()

@@ -3,7 +3,7 @@ import time
 
 from app.core.environment import get_current_app_context
 from app.infrastructure.vision.router import get_vision_router
-from app.infrastructure.vision.types import VisionResult, VisionTask
+from app.infrastructure.vision.types import PlatformType, VisionResult, VisionTask
 from app.utils.time import elapsed_ms
 
 logger = logging.getLogger(__name__)
@@ -26,7 +26,9 @@ class VisionEngine:
         start_time = time.time()
 
         # 1. Publish Start Event
-        from app.infrastructure.vision.event.publishers import publish_vision_process_started
+        from app.infrastructure.vision.event.publishers import (
+            publish_vision_process_started,
+        )
         await publish_vision_process_started(task.value, image_source)
 
         # Specialized Logic: DETECTION (Multiple Providers)
@@ -50,10 +52,12 @@ class VisionEngine:
                 app_info = get_current_app_context()
 
                 # 2. Publish to Awakening Event Bus for AppAtlasService to consume
-                from app.core.environment.event.publishers import publish_ui_tree_observed
+                from app.core.environment.event.publishers import (
+                    publish_ui_tree_observed,
+                )
 
                 await publish_ui_tree_observed(
-                    platform="macos",
+                    platform=PlatformType.MACOS.value,
                     bundle_id=app_info.bundle_id or "unknown",
                     window_title=app_info.title or "unknown",
                     elements=[e.model_dump() for e in elements],
@@ -88,7 +92,9 @@ class VisionEngine:
             # Check platform
             platform = kwargs.get("platform")
             if not platform:
-                platform = "android" if kwargs.get("on_android") else "macos"
+                platform = (
+                PlatformType.ANDROID.value if kwargs.get("on_android") else PlatformType.MACOS.value
+            )
 
             # Dispatch to Celery background worker to offload OCR/Neo4j processing
             try:
@@ -104,7 +110,9 @@ class VisionEngine:
 
         # 6. Publish Completion Event
         provider_name = provider.name if task != VisionTask.DETECT else "pipeline_manager"
-        from app.infrastructure.vision.event.publishers import publish_vision_process_completed
+        from app.infrastructure.vision.event.publishers import (
+            publish_vision_process_completed,
+        )
         await publish_vision_process_completed(result, task.value, provider_name)
 
         return result

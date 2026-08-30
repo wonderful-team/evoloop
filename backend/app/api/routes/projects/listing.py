@@ -14,6 +14,12 @@ from app.core.evocloud import evocloud_manager
 from app.core.file import FileTraverser
 from app.core.project.local_index import local_project_index
 from app.core.project.utils import get_workspace_root
+from app.domain.codebase.constants import (
+    INDEXING_STATUS_PENDING,
+    REPO_SYNC_STATUS_DISCONNECTED,
+    REPO_SYNC_STATUS_IGNORED,
+    REPO_SYNC_STATUS_SYNCED,
+)
 from app.domain.wiki.service import wiki_service
 from app.infrastructure.cache import cache
 from app.infrastructure.database import session_scope as session_scope
@@ -52,7 +58,10 @@ async def _read_duty_status(project_id: int, local_path: str, task_or_tasks: Any
             "global_enabled": bool,
         }
     """
-    from app.core.channel.duty.config import clamp_duty_interval, load_global_duty_config
+    from app.core.channel.duty.config import (
+        clamp_duty_interval,
+        load_global_duty_config,
+    )
     from app.core.channel.duty.constants import BUSINESS_POLL_INTERVAL
 
     result = {
@@ -163,7 +172,7 @@ async def get_projects(
 
     try:
         async with session_scope() as session:
-            stmt = select(Repository).where(Repository.sync_status != "IGNORED")
+            stmt = select(Repository).where(Repository.sync_status != REPO_SYNC_STATUS_IGNORED)
             result = await session.execute(stmt)
             repos = result.scalars().all()
 
@@ -210,7 +219,7 @@ async def get_projects(
 
                     if repo and repo.project_id == project_id:
                         local_status_map[project_id] = {
-                            "status": "SYNCED" if exists else "DISCONNECTED",
+                            "status": REPO_SYNC_STATUS_SYNCED if exists else REPO_SYNC_STATUS_DISCONNECTED,
                             "exists_locally": exists,
                             "local_path": actual_path,
                             "repo_id": repo.id,
@@ -219,10 +228,10 @@ async def get_projects(
                         }
                     elif repo and repo.project_id is None:
                         repo.project_id = project_id
-                        repo.sync_status = "SYNCED"
+                        repo.sync_status = REPO_SYNC_STATUS_SYNCED
                         repo.imported_at = utcnow()
                         local_status_map[project_id] = {
-                            "status": "SYNCED",
+                            "status": REPO_SYNC_STATUS_SYNCED,
                             "exists_locally": True,
                             "local_path": actual_path,
                             "repo_id": repo.id,
@@ -231,10 +240,10 @@ async def get_projects(
                         }
                     elif repo and repo.project_id != project_id:
                         repo.project_id = project_id
-                        repo.sync_status = "SYNCED"
+                        repo.sync_status = REPO_SYNC_STATUS_SYNCED
                         repo.imported_at = utcnow()
                         local_status_map[project_id] = {
-                            "status": "SYNCED",
+                            "status": REPO_SYNC_STATUS_SYNCED,
                             "exists_locally": True,
                             "local_path": actual_path,
                             "repo_id": repo.id,
@@ -246,8 +255,8 @@ async def get_projects(
                             name=project_name,
                             url="local",
                             local_path=actual_path,
-                            sync_status="SYNCED",
-                            indexing_status="pending",
+                            sync_status=REPO_SYNC_STATUS_SYNCED,
+                            indexing_status=INDEXING_STATUS_PENDING,
                             detected_at=utcnow(),
                             imported_at=utcnow(),
                             project_id=project_id,
@@ -256,11 +265,11 @@ async def get_projects(
                         await session.flush()
                         logger.info("[ProjectsAPI] Created and linked new repo for '%s'", project_name)
                         local_status_map[project_id] = {
-                            "status": "SYNCED",
+                            "status": REPO_SYNC_STATUS_SYNCED,
                             "exists_locally": True,
                             "local_path": actual_path,
                             "repo_id": new_repo.id,
-                            "indexing_status": "pending",
+                            "indexing_status": INDEXING_STATUS_PENDING,
                             "last_indexed_at": None,
                         }
 
@@ -283,7 +292,7 @@ async def get_projects(
                                     "external_path": actual_path,
                                     "status": 1,
                                     "status_text": "正常",
-                                    "local_status": "SYNCED",
+                                    "local_status": REPO_SYNC_STATUS_SYNCED,
                                     "exists_locally": True,
                                     "local_path": actual_path,
                                     "db_indexing_status": repo.indexing_status,
@@ -291,7 +300,7 @@ async def get_projects(
                                     "has_wiki": False,
                                 })
                                 local_status_map[repo.project_id] = {
-                                    "status": "SYNCED",
+                                    "status": REPO_SYNC_STATUS_SYNCED,
                                     "exists_locally": True,
                                     "local_path": actual_path,
                                     "repo_id": repo.id,
@@ -303,7 +312,7 @@ async def get_projects(
 
             ignored_stmt = select(Repository).where(
                 Repository.project_id.isnot(None),
-                Repository.sync_status == "IGNORED"
+                Repository.sync_status == REPO_SYNC_STATUS_IGNORED
             )
             ignored_result = await session.execute(ignored_stmt)
             for ignored_repo in ignored_result.scalars().all():
@@ -356,7 +365,7 @@ async def get_projects(
 
             valid_local_ids = {
                 pid for pid, info in local_status_map.items()
-                if info.get("exists_locally") is True and info.get("status") != "DISCONNECTED"
+                if info.get("exists_locally") is True and info.get("status") != REPO_SYNC_STATUS_DISCONNECTED
             }
             switchable_ids = cloud_project_ids & valid_local_ids
 
@@ -379,7 +388,7 @@ async def get_projects(
             cloud_project_ids = {_resolve_project_id(p) for p in projects}
             disconnected_ids = {
                 pid for pid, info in local_status_map.items()
-                if info.get("status") == "DISCONNECTED"
+                if info.get("status") == REPO_SYNC_STATUS_DISCONNECTED
             }
             disconnected_ids = cloud_project_ids & disconnected_ids
             projects = [p for p in projects if (_resolve_project_id(p)) in disconnected_ids]

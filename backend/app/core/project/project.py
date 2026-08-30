@@ -25,6 +25,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from app.domain.codebase.constants import (
+    REPO_SYNC_STATUS_DETECTED,
+    REPO_SYNC_STATUS_IGNORED,
+)
+
 if TYPE_CHECKING:
     from app.core.project.local_index import LocalProjectEntry
     from app.models.codebase import Repository
@@ -42,7 +47,7 @@ class Project:
     repo_id: int | None = None
     path: str | None = None
     name: str | None = None
-    sync_status: str = "DETECTED"
+    sync_status: str = REPO_SYNC_STATUS_DETECTED
     member_id: int = 0
     cloud_project_id: int | None = None
     extra: dict[str, Any] = field(default_factory=dict)
@@ -75,7 +80,7 @@ class Project:
 
     @property
     def is_ignored(self) -> bool:
-        return self.sync_status == "IGNORED"
+        return self.sync_status == REPO_SYNC_STATUS_IGNORED
 
     def __fspath__(self) -> str:
         """Support os.path functions — returns the local path."""

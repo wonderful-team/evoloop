@@ -9,6 +9,7 @@ import logging
 
 from sqlalchemy import select
 
+from app.core.engine.message.constants import MessageStatus
 from app.core.hitl.activity_sink import get_activity_sink
 from app.core.hitl.batch_grants import (
     approve_grant_by_request_id,
@@ -17,7 +18,6 @@ from app.core.hitl.batch_grants import (
 from app.core.hitl.constants import (
     DEFAULT_GRANTED_BY,
     MESSAGE_CATEGORY_HITL_REQUEST,
-    MESSAGE_STATUS_WAITING_HUMAN,
 )
 from app.core.hitl.core import (
     HumanInputRequest,
@@ -26,7 +26,7 @@ from app.core.hitl.core import (
     raise_hitl_interrupt,
 )
 from app.core.hitl.engine_runtime import get_runtime
-from app.core.hitl.types import HITLDecision, HITLRequestStatus, HumanRequestType
+from app.core.hitl.types import HITLDecision, HumanRequestType
 from app.i18n.service import i18n
 from app.infrastructure.database import session_scope
 from app.models import Message
@@ -49,7 +49,7 @@ async def get_pending_hitl_call(config: dict) -> dict | None:
                         Message.thread_id == thread_id,
                         Message.role == "system",
                         Message.category == MESSAGE_CATEGORY_HITL_REQUEST,
-                        Message.status == MESSAGE_STATUS_WAITING_HUMAN,
+                        Message.status == MessageStatus.WAITING_HUMAN,
                     )
                     .order_by(Message.sequence_number.desc())
                 )
@@ -215,7 +215,7 @@ def normalize_hitl_input(
 
 
 async def close_hitl_message(
-    thread_id: str, tool_call_id: str, status: str = HITLRequestStatus.COMPLETED.value
+    thread_id: str, tool_call_id: str, status: str = MessageStatus.COMPLETED
 ) -> None:
     """
     Update the status of the HITL request message in the database (single-track).
@@ -357,7 +357,7 @@ class HITLOrchestrator:
             thread_id=thread_id,
             request_id=request_id,
             tool_call_id=tool_call["id"],
-            status=HITLRequestStatus.COMPLETED.value,
+            status=MessageStatus.COMPLETED,
             response=normalized,
             sibling_key=sibling_key,
         )
@@ -379,7 +379,7 @@ class HITLOrchestrator:
             thread_id=thread_id,
             request_id=request_id,
             tool_call_id=tool_call["id"],
-            status=HITLRequestStatus.CANCELLED.value,
+            status=MessageStatus.CANCELLED,
             sibling_key=sibling_key,
         )
         await get_activity_sink().clear_human_request(thread_id)

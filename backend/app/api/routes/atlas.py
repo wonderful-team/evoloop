@@ -14,7 +14,7 @@ from pydantic import BaseModel
 from app.api.deps import CurrentUserOptional, TokenDep
 from app.core.atlas.source import persistence
 from app.core.engine.background_agent import run_agent_background
-from app.core.engine.dispatch import dispatch_agent_run
+from app.core.engine.dispatch import DispatchStatus, dispatch_agent_run
 from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket
 from app.core.learning.macro import list_macros
 from app.core.learning.skills.discovery import skill_discovery
@@ -105,7 +105,7 @@ async def generate_app_map(
         member_id=current_user.id if current_user else None,
         metadata={"goal_prefix": "[AppMap] "},
     )
-    if result.status == "failed":
+    if result.status == DispatchStatus.FAILED:
         raise HTTPException(500, detail=result.error)
 
     read_only_file_tools = [

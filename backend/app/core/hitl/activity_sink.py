@@ -38,6 +38,13 @@ def register_activity_sink(sink: ActivitySink) -> None:
         _sink = sink
 
 
+def reset_activity_sink() -> None:
+    """清除已注册观测实现，主要用于测试隔离。"""
+    global _sink
+    with _sink_lock:
+        _sink = None
+
+
 def get_activity_sink() -> ActivitySink:
     """返回已注册的观测实现；未注册时惰性装配一次并缓存。
 

@@ -12,6 +12,8 @@ from app.domain.planning.constants import (
     RETRIEVAL_LIMIT,
     TREE_FILE_LIMIT,
     TREE_MAX_DEPTH,
+    PlanStatus,
+    PlanStepStatus,
 )
 
 from ...constants import DEFAULT_PROJECT_ID
@@ -69,7 +71,7 @@ async def create_plan(
                 )
                 plan_id = existing_plan.id
                 existing_plan.title = title
-                existing_plan.status = "active"
+                existing_plan.status = PlanStatus.ACTIVE.value
 
                 # Delete old steps for this plan to overwrite with new ones (simplest approach for 'create_plan')
                 # Alternatively we could soft-delete or archive, but 'create_plan' implies a fresh start.
@@ -80,7 +82,10 @@ async def create_plan(
                 # 2. Create Plan
                 plan_id = gen_uuid()
                 new_plan = DBPlan(
-                    id=plan_id, thread_id=thread_id, title=title, status="active"
+                    id=plan_id,
+                    thread_id=thread_id,
+                    title=title,
+                    status=PlanStatus.ACTIVE.value,
                 )
                 session.add(new_plan)
 
@@ -88,7 +93,9 @@ async def create_plan(
             db_steps = []
             for idx, step_title in enumerate(steps):
                 step_id = gen_uuid()
-                status = "in_progress" if idx == 0 else "pending"
+                status = (
+                    PlanStepStatus.IN_PROGRESS.value if idx == 0 else PlanStepStatus.PENDING.value
+                )
 
                 db_step = DBPlanStep(
                     id=step_id,

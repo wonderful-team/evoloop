@@ -2,6 +2,12 @@ import logging
 from datetime import datetime
 
 from app.core.evocloud import evocloud_manager
+from app.core.project.constants import (
+    SYNC_STATUS_FAILED,
+    SYNC_STATUS_SYNCED,
+    TASK_PRIORITY_MEDIUM,
+)
+from app.domain.codebase.constants import REPO_SYNC_STATUS_SYNCED
 from app.domain.codebase.indexing.service import IndexingService
 from app.infrastructure.queue.factory import shared_task
 from app.models.codebase import Repository
@@ -58,7 +64,7 @@ async def sync_project_to_cloud_task(_self, repo_id: int):
                     logger.info(f"[SyncTask] Success! Project ID: {new_pid}")
 
                     repo.project_id = new_pid
-                    repo.sync_status = "SYNCED"
+                    repo.sync_status = REPO_SYNC_STATUS_SYNCED
                     session.add(repo)
                 else:
                     raise RuntimeError(f"Cloud API Failed: {res.get('message')}")
@@ -120,7 +126,7 @@ async def sync_tasks_to_evocloud_task(
                         "project_id": task.project_id,
                         "task_name": task_data.get("title", "Untitled"),
                         "task_desc": _format_task_description(task_data),
-                        "priority": _map_priority(task_data.get("priority", "medium")),
+                        "priority": _map_priority(task_data.get("priority", TASK_PRIORITY_MEDIUM)),
                         "estimated_time": task_data.get("estimated_hours", 0),
                         "tags": task_data.get("tags", []),
                     }
@@ -130,14 +136,14 @@ async def sync_tasks_to_evocloud_task(
 
                     if result.get("code") == 0:
                         task.evocloud_task_id = result["data"]["task_id"]
-                        task.sync_status = "synced"
+                        task.sync_status = SYNC_STATUS_SYNCED
                         task.synced_at = datetime.now()
                         synced_count += 1
                         logger.info(
                             f"[ReqSync] Task {task.id} synced: {task.evocloud_task_id}"
                         )
                     else:
-                        task.sync_status = "failed"
+                        task.sync_status = SYNC_STATUS_FAILED
                         task.sync_error = result.get("message", "Unknown error")
                         failed_count += 1
                         logger.error(
@@ -145,7 +151,7 @@ async def sync_tasks_to_evocloud_task(
                         )
 
                 except Exception as e:
-                    task.sync_status = "failed"
+                    task.sync_status = SYNC_STATUS_FAILED
                     task.sync_error = str(e)
                     failed_count += 1
                     logger.exception(f"[ReqSync] Task {task.id} exception: {e}")

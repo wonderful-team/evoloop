@@ -2,12 +2,14 @@ import json
 import logging
 
 from app.core.engine.message.category import MessageCategory
+from app.core.engine.message.constants import (
+    MessageContentType,
+    MessageRole,
+    MessageStatus,
+)
 from app.core.engine.message.publisher import MessagePublisher
 from app.core.engine.message.schemas import MessageHandlerResult
-from app.core.hitl.constants import (
-    MESSAGE_ACTION_TYPE_HUMAN_REQUEST,
-    MESSAGE_STATUS_WAITING_HUMAN,
-)
+from app.core.hitl.constants import MESSAGE_ACTION_TYPE_HUMAN_REQUEST
 
 logger = logging.getLogger(__name__)
 
@@ -60,13 +62,13 @@ class UserMessageMixin:
 
         dev_key, dev_name = self._get_device_attribution()
         message_id, seq = await self._repository.persist(
-            role="system",
+            role=MessageRole.SYSTEM,
             content=content,
             category=MessageCategory.HITL_REQUEST.value,
             action_type=MESSAGE_ACTION_TYPE_HUMAN_REQUEST,
-            status=MESSAGE_STATUS_WAITING_HUMAN,
+            status=MessageStatus.WAITING_HUMAN,
             is_visible=True,
-            content_type="json",
+            content_type=MessageContentType.JSON,
             tool_call_id=tool_call_id or request_id,
             tool_name=tool_name,
             metadata=final_metadata if final_metadata else None,
@@ -76,10 +78,10 @@ class UserMessageMixin:
         )
         if not suppress_user_push:
             await self._dispatch_block(
-                role="system",
+                role=MessageRole.SYSTEM,
                 content=content,
                 category=MessageCategory.HITL_REQUEST.value,
-                status=MESSAGE_STATUS_WAITING_HUMAN,
+status=MessageStatus.WAITING_HUMAN,
                 sequence_number=seq,
                 tool_name=tool_name,
                 tool_call_id=tool_call_id or request_id,

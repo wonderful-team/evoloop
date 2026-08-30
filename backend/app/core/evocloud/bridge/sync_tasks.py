@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select, update
 
 from app.constants import DEFAULT_PROJECT_ID
+from app.core.evocloud.constants import SYNC_STATUS_SYNCED
 from app.core.evocloud.schemas import SyncConversation, SyncMessage
 from app.infrastructure.database import session_scope
 from app.infrastructure.queue.factory import shared_task
@@ -48,12 +49,12 @@ async def full_sync_task(device_key: str) -> dict:
 
         async with session_scope() as db:
             conv_result = await db.execute(
-                select(ConversationModel).where(ConversationModel.sync_status != 'synced')
+                select(ConversationModel).where(ConversationModel.sync_status != SYNC_STATUS_SYNCED)
             )
             conversations = list(conv_result.scalars().all())
 
             msg_result = await db.execute(
-                select(MessageModel).where(MessageModel.sync_status != "synced")
+                select(MessageModel).where(MessageModel.sync_status != SYNC_STATUS_SYNCED)
             )
             messages = list(msg_result.scalars().all())
 
@@ -133,7 +134,7 @@ async def full_sync_task(device_key: str) -> dict:
                 await db.execute(
                     update(ConversationModel)
                     .where(ConversationModel.id.in_(thread_ids))
-                    .values(sync_status="synced", last_synced_at=datetime.now(timezone.utc))
+                    .values(sync_status=SYNC_STATUS_SYNCED, last_synced_at=datetime.now(timezone.utc))
                 )
 
             msg_ids = [str(m.id) for m in messages if m.id]
@@ -141,7 +142,7 @@ async def full_sync_task(device_key: str) -> dict:
                 await db.execute(
                     update(MessageModel)
                     .where(MessageModel.id.in_(msg_ids))
-                    .values(sync_status="synced", last_synced_at=datetime.now(timezone.utc))
+                    .values(sync_status=SYNC_STATUS_SYNCED, last_synced_at=datetime.now(timezone.utc))
                 )
             await db.commit()
 
@@ -244,14 +245,14 @@ async def incremental_sync_task(device_key: str, thread_ids: list[str]) -> dict:
                             await db.execute(
                                 update(ConversationModel)
                                 .where(ConversationModel.id == thread_id)
-                                .values(sync_status="synced", last_synced_at=datetime.now(timezone.utc))
+                                .values(sync_status=SYNC_STATUS_SYNCED, last_synced_at=datetime.now(timezone.utc))
                             )
 
                             # Also check for unsynced messages in this conversation
                             msg_result = await db.execute(
                                 select(MessageModel).where(
                                     MessageModel.thread_id == thread_id,
-                                    MessageModel.sync_status != "synced",
+                                    MessageModel.sync_status != SYNC_STATUS_SYNCED,
                                 )
                             )
                             unsynced_msgs = msg_result.scalars().all()
@@ -289,7 +290,7 @@ async def incremental_sync_task(device_key: str, thread_ids: list[str]) -> dict:
                                     await db.execute(
                                         update(MessageModel)
                                         .where(MessageModel.id.in_([m.id for m in unsynced_msgs]))
-                                        .values(sync_status="synced", last_synced_at=datetime.now(timezone.utc))
+                                        .values(sync_status=SYNC_STATUS_SYNCED, last_synced_at=datetime.now(timezone.utc))
                                     )
                                     logger.info(f"[SyncTask] Synced {len(unsynced_msgs)} backlogged messages for thread {thread_id}")
                                 else:
@@ -304,7 +305,7 @@ async def incremental_sync_task(device_key: str, thread_ids: list[str]) -> dict:
                                 await db.execute(
                                     update(MessageModel)
                                     .where(MessageModel.id.in_([m.id for m in unsynced_msgs]))
-                                    .values(sync_status="synced", last_synced_at=datetime.now(timezone.utc))
+                                    .values(sync_status=SYNC_STATUS_SYNCED, last_synced_at=datetime.now(timezone.utc))
                                 )
                                 logger.info(f"[SyncTask] Skipped {len(unsynced_msgs)} mobile-only messages for thread {thread_id}")
 

@@ -11,6 +11,9 @@ from app.core.learning.constants import (
     BATCH_LOOP,
     EXTRACT,
     LOOP,
+    VERIFY_STATUS_ERROR,
+    VERIFY_STATUS_FAILED,
+    VERIFY_STATUS_SUCCESS,
     WAIT,
     WHILE,
 )
@@ -64,7 +67,7 @@ async def verify_macro_script(
             steps = macro_script
         else:
             return MacroVerificationResult(
-                status="error",
+                status=VERIFY_STATUS_ERROR,
                 success=False,
                 error="macro_script must be a list of steps or a YAML string",
             )
@@ -83,7 +86,9 @@ async def verify_macro_script(
         expected_keys = [s["key"] for s in steps if s.get("type") == EXTRACT]
         missing_keys = [k for k in expected_keys if k not in extracted_data]
 
-        status = "success" if success and not missing_keys else "failed"
+        status = (
+            VERIFY_STATUS_SUCCESS if success and not missing_keys else VERIFY_STATUS_FAILED
+        )
 
         logger.info(
             f"[{thread_id}] Verification {status}. "
@@ -127,7 +132,7 @@ async def verify_macro_script(
     except Exception:
         logger.exception("[%s] Macro verification crashed", thread_id)
         return MacroVerificationResult(
-            status="error", success=False, error="verification crashed"
+            status=VERIFY_STATUS_ERROR, success=False, error="verification crashed"
         )
 
 

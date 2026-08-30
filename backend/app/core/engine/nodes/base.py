@@ -4,6 +4,7 @@ from typing import Any
 
 from app.core.engine import get_default_engine
 from app.core.engine.constants import MAX_STEPS
+from app.core.engine.message.constants import MessageRole
 from app.core.engine.message.native_classes import HumanMessage
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.schemas import EngineResult
@@ -78,14 +79,14 @@ class BaseAgentNode(BaseNode, ABC):
             )
             tools = await self.get_tools(state)
 
-            # Insert Context Ticket just before the LAST human message (role="user")
+            # Insert Context Ticket just before the LAST human message (role=MessageRole.HUMAN)
             if dynamic_ticket_text:
                 ticket_msg = HumanMessage(
                     content=dynamic_ticket_text, name="context_ticket"
                 )
                 last_human_idx = -1
                 for idx in range(len(state.messages) - 1, -1, -1):
-                    if state.messages[idx].role == "user":
+                    if state.messages[idx].role == MessageRole.HUMAN:
                         last_human_idx = idx
                         break
                 if last_human_idx >= 0:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from sqlalchemy import select
 
+from app.domain.codebase.constants import REPO_SYNC_INACTIVE_STATUSES
 from app.infrastructure.database import session_scope
 from app.models.codebase import Repository
 
@@ -29,7 +30,7 @@ async def get_entity_groups(project_id: int, project_path: str | None = None) ->
             select(Repository.id)
             .where(
                 Repository.project_id == project_id,
-                Repository.sync_status.not_in(("IGNORED", "DISCONNECTED")),
+                Repository.sync_status.not_in(REPO_SYNC_INACTIVE_STATUSES),
             )
             .order_by(Repository.id)
         )

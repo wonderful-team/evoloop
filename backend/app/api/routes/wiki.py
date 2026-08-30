@@ -15,7 +15,7 @@ from sqlmodel import Session
 
 from app.api.deps import CurrentUserOptional, TokenDep, require_benefit
 from app.core.engine.background_agent import run_agent_background
-from app.core.engine.dispatch import dispatch_agent_run
+from app.core.engine.dispatch import DispatchStatus, dispatch_agent_run
 from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket
 from app.core.project.utils import get_project_path
 from app.core.tools.registry import get_tool_bundle
@@ -127,7 +127,7 @@ async def generate_wiki(
         metadata={"goal_prefix": "[Wiki Generation] "},
     )
 
-    if result.status == "failed":
+    if result.status == DispatchStatus.FAILED:
         raise HTTPException(500, detail=result.error)
 
     result.inputs["ticket"] = ExecutionTicket(

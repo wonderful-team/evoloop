@@ -314,8 +314,9 @@ async def complete_task(status: str, summary: str, attachments: list[str] = []) 
         return f"Error sending callback: {e}"
 
     from app.core.monitoring.activity import activity_monitor
+    from app.core.monitoring.constants import ActivityStatus
 
-    await activity_monitor.end_run(thread_id, status="done", final_outcome=summary)
+    await activity_monitor.end_run(thread_id, status=ActivityStatus.DONE, final_outcome=summary)
 
     from app.core.exceptions import AgentCancelledException
 

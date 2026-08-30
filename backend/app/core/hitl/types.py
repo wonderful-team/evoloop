@@ -47,6 +47,15 @@ class HumanRequestType(str, Enum):
     """
 
 
+class RiskLevel(str, Enum):
+    """HITL 审批/操作风险等级（与 RISK_EMOJI 展示键保持一致）。"""
+
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+
 class HITLDecision(str, Enum):
     """审批决策令牌：normalize 输出与结果判定统一使用。"""
 

@@ -16,6 +16,7 @@ from sqlalchemy import select
 
 from app.core.events import system_bus
 from app.core.hitl.types import HumanRequestType
+from app.core.monitoring.constants import ActivityStatus
 from app.core.monitoring.event import SystemLogEvent, SystemStatusEvent
 from app.core.monitoring.schemas import (
     AgentActivityState,
@@ -98,17 +99,17 @@ class ActivityMonitor:
             async with session_scope() as session:
                 activity = await session.get(AgentActivity, thread_id)
                 if activity and activity.status in (
-                    "done",
-                    "failed",
-                    "cancelled",
-                    "quota_exhausted",
+                    ActivityStatus.DONE,
+                    ActivityStatus.FAILED,
+                    ActivityStatus.CANCELLED,
+                    ActivityStatus.QUOTA_EXHAUSTED,
                 ):
                     logger.debug(
                         f"[ActivityMonitor] Skipping end_run for {thread_id}: already {activity.status}"
                     )
                 else:
                     result = await self._state_service.end_run(
-                        thread_id, "done", run_id=run_id
+                        thread_id, ActivityStatus.DONE, run_id=run_id
                     )
                     await self._publish_run_completed(
                         thread_id, result, run_id, task_type
@@ -118,7 +119,7 @@ class ActivityMonitor:
             # 用户主动取消是预期流程，非错误，不打印 Traceback。
             logger.info(f"[ActivityMonitor] 🛑 Run {run_id} cancelled by user")
             result = await self._state_service.end_run(
-                thread_id, "cancelled", run_id=run_id
+                thread_id, ActivityStatus.CANCELLED, run_id=run_id
             )
             await self._publish_run_completed(thread_id, result, run_id, task_type)
             raise
@@ -128,7 +129,7 @@ class ActivityMonitor:
                 f"[ActivityMonitor] 🛑 Run {run_id} cancelled by task cancellation"
             )
             result = await self._state_service.end_run(
-                thread_id, "cancelled", run_id=run_id
+                thread_id, ActivityStatus.CANCELLED, run_id=run_id
             )
             await self._publish_run_completed(thread_id, result, run_id, task_type)
             raise
@@ -142,7 +143,7 @@ class ActivityMonitor:
                 f"[ActivityMonitor] ❌ Run {run_id} failed with error: {e}"
             )
             result = await self._state_service.end_run(
-                thread_id, "failed", run_id=run_id
+                thread_id, ActivityStatus.FAILED, run_id=run_id
             )
             await self._publish_run_completed(thread_id, result, run_id, task_type)
             raise
@@ -193,7 +194,7 @@ class ActivityMonitor:
     async def end_run(
         self,
         thread_id: str,
-        status="done",
+        status=ActivityStatus.DONE,
         final_outcome: str = None,
         run_id: str = None,
         task_type: str = None,
@@ -275,7 +276,7 @@ class ActivityMonitor:
                 )
             )
             await system_bus.publish(
-                SystemStatusEvent(thread_id=thread_id, status="interrupted")
+                SystemStatusEvent(thread_id=thread_id, status=ActivityStatus.INTERRUPTED)
             )
 
     async def clear_human_request(self, thread_id: str):
@@ -286,9 +287,9 @@ class ActivityMonitor:
             await system_bus.publish(
                 HumanRequestEvent(thread_id=thread_id, action="clear")
             )
-            await system_bus.publish(
-                SystemStatusEvent(thread_id=thread_id, status="idle")
-            )
+        await system_bus.publish(
+            SystemStatusEvent(thread_id=thread_id, status=ActivityStatus.IDLE)
+        )
 
     async def update_agent_state(
         self,
@@ -418,7 +419,7 @@ class ActivityMonitor:
         # Default missing threads to "idle" and empty goal
         for tid in thread_ids:
             if tid not in activity_map:
-                activity_map[tid] = {"status": "idle", "main_goal": ""}
+                activity_map[tid] = {"status": ActivityStatus.IDLE.value, "main_goal": ""}
 
         return activity_map
 

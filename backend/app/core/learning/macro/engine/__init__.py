@@ -3,6 +3,7 @@ import logging
 import re
 from typing import Any
 
+import app.core.learning.constants as _mc
 from app.core.context import ContextManager, EvoContext
 from app.core.learning.macro.engine.bash import BashMixin
 from app.core.learning.macro.engine.control import ControlMixin
@@ -19,8 +20,6 @@ from app.core.learning.macro.schemas import (
 )
 from app.core.monitoring.activity import activity_monitor
 from app.utils.id import gen_uuid
-
-import app.core.learning.constants as _mc
 
 logger = logging.getLogger(__name__)
 
@@ -136,11 +135,15 @@ class MacroEngine(
             return MacroRunResult(
                 success=False,
                 message="宏已停止",
-                status="cancelled",
+                status=_mc.RUN_RESULT_CANCELLED,
                 extracted_data={},
             )
 
-        status = "fallback_required" if (not outcome.ok and outcome.fell_back) else None
+        status = (
+            _mc.RUN_RESULT_FALLBACK_REQUIRED
+            if (not outcome.ok and outcome.fell_back)
+            else None
+        )
         return MacroRunResult(
             success=outcome.ok,
             message=outcome.message,
@@ -172,9 +175,7 @@ class MacroEngine(
             params=params,
             extracted_data=extracted_data,
             disable_ocr=disable_ocr,
-            active_bundle_id=params.get("package_name") or params.get("bundle_id")
-            if params
-            else None,
+            active_bundle_id=params.get("package_name") or params.get("bundle_id") if params else None,
             skip_activity_log=skip_activity_log,
             skip_recording=skip_recording,
         )
@@ -277,9 +278,7 @@ class MacroEngine(
                 desc += f"(command='{str(payload.get('command', ''))[:60]}')"
 
             if not skip_activity_log:
-                await activity_monitor.log_event(
-                    "macro_thought", {"text": desc}, thread_id
-                )
+                await activity_monitor.log_event("macro_thought", {"text": desc}, thread_id)
             logger.info(f"[{thread_id}] {desc}")
 
             if step.type in (
@@ -298,14 +297,12 @@ class MacroEngine(
                     execution_warnings=execution_warnings,
                 )
                 if not success:
-                    step_log.append(
-                        {
-                            "step": step_num,
-                            "type": _mc.CONTROL,
-                            "ok": False,
-                            "error": msg,
-                        }
-                    )
+                    step_log.append({
+                        "step": step_num,
+                        "type": _mc.CONTROL,
+                        "ok": False,
+                        "error": msg,
+                    })
                     return False, msg, fallback
                 step_log.append({"step": step_num, "type": _mc.CONTROL, "ok": True})
                 continue
@@ -330,39 +327,31 @@ class MacroEngine(
                         error_msg,
                         screenshot_path,
                     )
-                    step_log.append(
-                        {
-                            "step": step_num,
-                            "type": _mc.EXTRACT,
-                            "ok": False,
-                            "error": error_msg,
-                        }
-                    )
-                    return (
-                        False,
-                        error_msg,
-                        {
-                            "failed_step": step.model_dump(),
-                            "screenshot_path": screenshot_path,
-                            "step_number": step_num,
-                            "event_type": step.event_type or _mc.EXTRACT,
-                            "step_log": step_log,
-                        },
-                    )
-                extracted_value = extracted_data.get(step.key)
-                step_log.append(
-                    {
+                    step_log.append({
                         "step": step_num,
                         "type": _mc.EXTRACT,
-                        "key": step.key,
-                        "ok": True,
-                        "value": (
-                            str(extracted_value)[:80]
-                            if extracted_value is not None
-                            else None
-                        ),
+                        "ok": False,
+                        "error": error_msg,
+                    })
+                    return False, error_msg, {
+                        "failed_step": step.model_dump(),
+                        "screenshot_path": screenshot_path,
+                        "step_number": step_num,
+                        "event_type": step.event_type or _mc.EXTRACT,
+                        "step_log": step_log,
                     }
-                )
+                extracted_value = extracted_data.get(step.key)
+                step_log.append({
+                    "step": step_num,
+                    "type": _mc.EXTRACT,
+                    "key": step.key,
+                    "ok": True,
+                    "value": (
+                        str(extracted_value)[:80]
+                        if extracted_value is not None
+                        else None
+                    ),
+                })
                 # Two-stage macros: extracted values become {{key}} references
                 # for downstream steps. Explicit caller params win; failed
                 # extractions (None) stay unresolved and trip the URL guard.
@@ -382,27 +371,19 @@ class MacroEngine(
                     await cls._handle_native(thread_id, payload, extracted_data)
                 except _STEP_EXCEPTIONS as e:
                     error_msg = str(e)
-                    await cls._handle_action_error(
-                        thread_id, step_num, step.event_type or _mc.NATIVE, error_msg
-                    )
-                    step_log.append(
-                        {
-                            "step": step_num,
-                            "type": _mc.NATIVE,
-                            "ok": False,
-                            "error": error_msg,
-                        }
-                    )
-                    return (
-                        False,
-                        error_msg,
-                        {
-                            "failed_step": step.model_dump(),
-                            "step_number": step_num,
-                            "event_type": step.event_type or _mc.NATIVE,
-                            "step_log": step_log,
-                        },
-                    )
+                    await cls._handle_action_error(thread_id, step_num, step.event_type or _mc.NATIVE, error_msg)
+                    step_log.append({
+                        "step": step_num,
+                        "type": _mc.NATIVE,
+                        "ok": False,
+                        "error": error_msg,
+                    })
+                    return False, error_msg, {
+                        "failed_step": step.model_dump(),
+                        "step_number": step_num,
+                        "event_type": step.event_type or _mc.NATIVE,
+                        "step_log": step_log,
+                    }
                 step_log.append({"step": step_num, "type": _mc.NATIVE, "ok": True})
                 continue
 
@@ -411,27 +392,19 @@ class MacroEngine(
                     await cls._execute_bash_step(thread_id, payload, extracted_data)
                 except _STEP_EXCEPTIONS as e:
                     error_msg = str(e)
-                    await cls._handle_action_error(
-                        thread_id, step_num, _mc.BASH, error_msg
-                    )
-                    step_log.append(
-                        {
-                            "step": step_num,
-                            "type": _mc.BASH,
-                            "ok": False,
-                            "error": error_msg,
-                        }
-                    )
-                    return (
-                        False,
-                        error_msg,
-                        {
-                            "failed_step": step.model_dump(),
-                            "step_number": step_num,
-                            "event_type": _mc.BASH,
-                            "step_log": step_log,
-                        },
-                    )
+                    await cls._handle_action_error(thread_id, step_num, _mc.BASH, error_msg)
+                    step_log.append({
+                        "step": step_num,
+                        "type": _mc.BASH,
+                        "ok": False,
+                        "error": error_msg,
+                    })
+                    return False, error_msg, {
+                        "failed_step": step.model_dump(),
+                        "step_number": step_num,
+                        "event_type": _mc.BASH,
+                        "step_log": step_log,
+                    }
                 step_log.append({"step": step_num, "type": _mc.BASH, "ok": True})
                 # Bash 步骤的输出也应能被下游步骤通过 {{key}} 引用，
                 # 否则跨步骤（如 bash 算 itemids → run_js 使用）会解析为空。
@@ -457,30 +430,20 @@ class MacroEngine(
                             )
                         else:
                             unresolved = f"导航 URL 含未解析参数: {nav_url}"
-                        await cls._handle_action_error(
-                            thread_id, step_num, event_type, unresolved
-                        )
-                        step_log.append(
-                            {
-                                "step": step_num,
-                                "event_type": event_type,
-                                "ok": False,
-                                "error": unresolved,
-                            }
-                        )
-                        return (
-                            False,
-                            unresolved,
-                            {
-                                "failed_step": step.model_dump(),
-                                "step_number": step_num,
-                                "event_type": event_type,
-                                "step_log": step_log,
-                            },
-                        )
-                    elif isinstance(nav_url, str) and not nav_url.startswith(
-                        ("http://", "https://")
-                    ):
+                        await cls._handle_action_error(thread_id, step_num, event_type, unresolved)
+                        step_log.append({
+                            "step": step_num,
+                            "event_type": event_type,
+                            "ok": False,
+                            "error": unresolved,
+                        })
+                        return False, unresolved, {
+                            "failed_step": step.model_dump(),
+                            "step_number": step_num,
+                            "event_type": event_type,
+                            "step_log": step_log,
+                        }
+                    elif isinstance(nav_url, str) and not nav_url.startswith(("http://", "https://")):
                         # 相对路径直接进 page.goto 会报 "Cannot navigate to
                         # invalid URL"（无细节）；在这里给出可行动的报错。
                         unresolved = (
@@ -489,27 +452,19 @@ class MacroEngine(
                             f"{{{{base_url}}}}/admin/orders?page=1）。"
                             f"当前值: {nav_url}"
                         )
-                        await cls._handle_action_error(
-                            thread_id, step_num, event_type, unresolved
-                        )
-                        step_log.append(
-                            {
-                                "step": step_num,
-                                "event_type": event_type,
-                                "ok": False,
-                                "error": unresolved,
-                            }
-                        )
-                        return (
-                            False,
-                            unresolved,
-                            {
-                                "failed_step": step.model_dump(),
-                                "step_number": step_num,
-                                "event_type": event_type,
-                                "step_log": step_log,
-                            },
-                        )
+                        await cls._handle_action_error(thread_id, step_num, event_type, unresolved)
+                        step_log.append({
+                            "step": step_num,
+                            "event_type": event_type,
+                            "ok": False,
+                            "error": unresolved,
+                        })
+                        return False, unresolved, {
+                            "failed_step": step.model_dump(),
+                            "step_number": step_num,
+                            "event_type": event_type,
+                            "step_log": step_log,
+                        }
 
                 if event_type == _mc.OPEN_APP:
                     new_pkg = (
@@ -520,9 +475,7 @@ class MacroEngine(
                     )
                     if new_pkg:
                         active_bundle_id = new_pkg
-                        logger.info(
-                            f"[{thread_id}] Active package updated to: {active_bundle_id}"
-                        )
+                        logger.info(f"[{thread_id}] Active package updated to: {active_bundle_id}")
 
                 retry = int(payload.get("retry") or 0)
                 retry_interval_ms = int(payload.get("retry_interval") or 1000)
@@ -531,9 +484,7 @@ class MacroEngine(
                 while True:
                     try:
                         if source == MacroSource.DOM:
-                            step_ok = await cls._execute_browser_step(
-                                event_type, target_selector, payload
-                            )
+                            step_ok = await cls._execute_browser_step(event_type, target_selector, payload)
                         elif source == MacroSource.MOBILE:
                             await cls._execute_mobile_step(
                                 event_type,
@@ -570,34 +521,24 @@ class MacroEngine(
                         # 重试耗尽 → 停止并携带失败上下文
                         error_msg = str(e)
                         screenshot_path = await cls._debug_screenshot(source)
-                        await cls._handle_action_error(
-                            thread_id, step_num, event_type, error_msg, screenshot_path
-                        )
-                        step_log.append(
-                            {
-                                "step": step_num,
-                                "event_type": event_type,
-                                "ok": False,
-                                "error": error_msg,
-                            }
-                        )
-                        return (
-                            False,
-                            error_msg,
-                            {
-                                "failed_step": step.model_dump(),
-                                "screenshot_path": screenshot_path,
-                                "step_number": step_num,
-                                "step_log": step_log,
-                            },
-                        )
-                step_log.append(
-                    {
-                        "step": step_num,
-                        "event_type": event_type,
-                        "ok": bool(step_ok),
-                    }
-                )
+                        await cls._handle_action_error(thread_id, step_num, event_type, error_msg, screenshot_path)
+                        step_log.append({
+                            "step": step_num,
+                            "event_type": event_type,
+                            "ok": False,
+                            "error": error_msg,
+                        })
+                        return False, error_msg, {
+                            "failed_step": step.model_dump(),
+                            "screenshot_path": screenshot_path,
+                            "step_number": step_num,
+                            "step_log": step_log,
+                        }
+                step_log.append({
+                    "step": step_num,
+                    "event_type": event_type,
+                    "ok": bool(step_ok),
+                })
 
         ctx_out = {"step_log": step_log} if step_log else {}
         if execution_warnings:
@@ -618,12 +559,8 @@ class MacroEngine(
             return None
 
     @classmethod
-    async def _handle_action_error(
-        cls, thread_id, step_num, event_type, error_msg, screenshot_path=None
-    ):
-        logger.error(
-            f"[{thread_id}] Step {step_num} ({event_type}) failed: {error_msg}"
-        )
+    async def _handle_action_error(cls, thread_id, step_num, event_type, error_msg, screenshot_path=None):
+        logger.error(f"[{thread_id}] Step {step_num} ({event_type}) failed: {error_msg}")
         await activity_monitor.log_event(
             "macro_thought",
             {"text": f"Step {step_num} failed: {error_msg[:200]}"},

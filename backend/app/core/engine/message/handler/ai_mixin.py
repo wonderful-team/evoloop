@@ -2,6 +2,11 @@ import logging
 
 from app.core.engine.message.category import MessageCategory
 from app.core.engine.message.classifier import MessageClassifier
+from app.core.engine.message.constants import (
+    MessageContentType,
+    MessageRole,
+    MessageStatus,
+)
 from app.core.engine.message.persistence import MessagePersistencePolicy
 from app.core.engine.message.schemas import MessageHandlerResult
 from app.core.engine.message.stream import MessageStreamPolicy
@@ -62,13 +67,13 @@ class AiMessageMixin:
 
             dev_key, dev_name = self._get_device_attribution()
             msg_id, seq = await self._repository.persist(
-                role="ai",
+                role=MessageRole.AI,
                 content=persist_data.content,
                 thinking=persist_data.thinking,
                 tool_calls=persist_data.tool_calls,
                 category=category.value,
                 is_visible=is_visible,
-                content_type="text",
+                content_type=MessageContentType.TEXT,
                 metadata=metadata,
                 node_source=node_source,
                 parent_id=effective_parent_id,
@@ -80,12 +85,12 @@ class AiMessageMixin:
 
             if msg_id and is_visible and category != MessageCategory.INTERNAL_REASONING:
                 await self._dispatch_block(
-                    role="ai",
+                    role=MessageRole.AI,
                     content=persist_data.content,
                     thinking=persist_data.thinking,
                     tool_calls=persist_data.tool_calls,
                     category=category.value,
-                    status="completed",
+                    status=MessageStatus.COMPLETED,
                     sequence_number=seq,
                     # channels decided by OutputChannelPolicy (node_source ContextVar)
                     parent_id=effective_parent_id,
@@ -95,14 +100,14 @@ class AiMessageMixin:
 
         if stream_data.should_stream and not _is_finish_message:
             await self._dispatch_block(
-                role="ai",
+                role=MessageRole.AI,
                 content=stream_data.content,
                 category=category.value,
                 metadata=metadata,
                 tool_calls=persist_data.tool_calls,
                 thinking=thinking,
                 sequence_number=seq if persist_data.should_persist else 0,
-                status="streaming" if persist_data.should_persist else "completed",
+                status=MessageStatus.STREAMING if persist_data.should_persist else MessageStatus.COMPLETED,
                 references=extracted_refs if persist_data.should_persist else None,
                 # channels decided by OutputChannelPolicy (node_source ContextVar)
                 parent_id=effective_parent_id,

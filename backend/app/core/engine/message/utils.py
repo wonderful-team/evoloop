@@ -5,6 +5,7 @@ Shared message utilities for agent nodes.
 import logging
 from typing import Any
 
+from app.core.engine.message.constants import MessageRole
 from app.core.engine.message.native_classes import (
     AIMessage,
     BaseMessage,
@@ -78,11 +79,11 @@ def to_base_message(msg: Any) -> BaseMessage | None:
 
     try:
         message = None
-        if role == "human" or role == "user":
+        if role == MessageRole.HUMAN:
             message = HumanMessage(
                 content=content, id=msg_id, additional_kwargs=additional_kwargs
             )
-        elif role == "ai" or role == "assistant":
+        elif role == MessageRole.AI:
             tc_source = _msg_field(msg, "tool_calls", [])
             tool_calls = normalize_tool_calls(tc_source)
             message = AIMessage(
@@ -91,7 +92,7 @@ def to_base_message(msg: Any) -> BaseMessage | None:
                 tool_calls=tool_calls,
                 additional_kwargs=additional_kwargs,
             )
-        elif role == "tool":
+        elif role == MessageRole.TOOL:
             message = ToolMessage(
                 content=content,
                 id=msg_id,
@@ -99,7 +100,7 @@ def to_base_message(msg: Any) -> BaseMessage | None:
                 name=_msg_field(msg, "name") or _msg_field(msg, "tool_name"),
                 additional_kwargs=additional_kwargs,
             )
-        elif role == "system":
+        elif role == MessageRole.SYSTEM:
             message = SystemMessage(
                 content=content, id=msg_id, additional_kwargs=additional_kwargs
             )

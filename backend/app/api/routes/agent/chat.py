@@ -22,10 +22,12 @@ from app.core.channel.input.web_input import web_input
 from app.core.config import settings
 from app.core.context import thread_context_store
 from app.core.context.manager import ContextManager, EvoContext
+from app.core.engine.dispatch import DispatchStatus
 from app.core.engine.graph_runner import resume_graph_background
 from app.core.engine.message.native_classes import HumanMessage, ToolMessage
 from app.core.execution.system_tools_formatter import SystemToolsFormatter
 from app.core.monitoring.activity import activity_monitor
+from app.core.monitoring.constants import ActivityStatus
 from app.core.routing.dispatch_handler import dispatch_user_message, route_lock_scope
 from app.infrastructure.database import session_scope
 from app.models import Message
@@ -111,7 +113,7 @@ async def chat_endpoint(
 
             await activity_monitor.end_run(
                 req.thread_id,
-                status="done",
+                status=ActivityStatus.DONE,
                 final_outcome=summary,
             )
             return response
@@ -120,7 +122,7 @@ async def chat_endpoint(
             return JSONResponse({"error": "invalid request"}, status_code=400)
 
         dispatch_result = outcome.inputs
-        if dispatch_result.status == "failed":
+        if dispatch_result.status == DispatchStatus.FAILED:
             raise HTTPException(status_code=500, detail=dispatch_result.error)
 
         # 会话模式：统一走 session_manager.submit 注入会话主循环

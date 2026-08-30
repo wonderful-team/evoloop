@@ -41,10 +41,15 @@ class ProjectStateContextPlugin(ContextPlugin):
         try:
             with sync_session_scope() as session:
                 if ctx.thread_id:
+                    from app.domain.planning.constants import (
+                        PlanStatus,
+                        PlanStepStatus,
+                    )
                     from app.models.planning import Plan, PlanStep
 
                     stmt = select(Plan).where(
-                        Plan.thread_id == ctx.thread_id, Plan.status == "active"
+                        Plan.thread_id == ctx.thread_id,
+                        Plan.status == PlanStatus.ACTIVE.value,
                     )
                     res = session.execute(stmt)
                     db_plan = res.scalars().first()
@@ -62,15 +67,15 @@ class ProjectStateContextPlugin(ContextPlugin):
                         active_step_found = False
                         for s in steps:
                             marker = "[ ]"
-                            if s.status == "completed":
+                            if s.status == PlanStepStatus.COMPLETED.value:
                                 marker = "[x]"
-                            elif s.status == "in_progress":
+                            elif s.status == PlanStepStatus.IN_PROGRESS.value:
                                 marker = "[>] (CURRENT)"
-                            elif s.status == "failed":
+                            elif s.status == PlanStepStatus.FAILED.value:
                                 marker = "[!]"
 
                             steps_str += f"\n{marker} {s.title}"
-                            if s.status == "in_progress":
+                            if s.status == PlanStepStatus.IN_PROGRESS.value:
                                 active_step_found = True
 
                         active_plan_context = (

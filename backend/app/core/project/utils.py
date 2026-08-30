@@ -8,6 +8,7 @@ from sqlalchemy import select
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.file import FileStatus, read_file, write_file_with_verification
 from app.core.project.local_index import local_project_index
+from app.domain.codebase.constants import REPO_SYNC_INACTIVE_STATUSES
 from app.infrastructure.database import session_scope
 from app.models import Repository
 
@@ -168,14 +169,14 @@ async def resolve_project_to_repo(project_id: int) -> Repository | None:
             # If local project.json contains a repo_id, trust it first.
             if local_entry and local_entry.repo_id is not None:
                 repo = await session.get(Repository, local_entry.repo_id)
-                if repo and repo.sync_status not in ("IGNORED", "DISCONNECTED"):
+                if repo and repo.sync_status not in REPO_SYNC_INACTIVE_STATUSES:
                     return repo
 
             # Otherwise, query by project_id among active repos.
             stmt = (
                 select(Repository)
                 .where(Repository.project_id == project_id)
-                .where(Repository.sync_status.notin_(["IGNORED", "DISCONNECTED"]))
+                .where(Repository.sync_status.notin_(REPO_SYNC_INACTIVE_STATUSES))
             )
             result = await session.execute(stmt)
             repos = result.scalars().all()

@@ -11,7 +11,8 @@ from app.core.engine.callbacks.database_logger import current_node_source
 from app.core.engine.constants import MAX_STEPS
 from app.core.engine.context_trimmer import ContextTrimmer
 from app.core.engine.inference_engine import InferenceEngine
-from app.core.engine.schemas import EngineResult, NodeOutcome
+from app.core.engine.message.constants import MessageRole
+from app.core.engine.schemas import EngineResult, NodeOutcome, NodeOutcomeStatus
 from app.core.engine.signals import signal_manager
 from app.core.engine.state import AgentState
 from app.core.engine.tools.executor import AgentToolExecutor
@@ -113,11 +114,11 @@ class AgentEngine:
             iteration_count=state.iteration_count,
         )
 
-        outcome_status = "success"
+        outcome_status = NodeOutcomeStatus.SUCCESS
         if inference_result.get("is_truncated"):
-            outcome_status = "truncated"
+            outcome_status = NodeOutcomeStatus.TRUNCATED
         elif inference_result.get("signal"):
-            outcome_status = "interrupted"
+            outcome_status = NodeOutcomeStatus.INTERRUPTED
         last_msg = (
             inference_result.get("messages", [])[-1]
             if inference_result.get("messages")
@@ -125,10 +126,10 @@ class AgentEngine:
         )
         if (
             last_msg
-            and last_msg.role == "assistant"
+            and last_msg.role == MessageRole.AI
             and last_msg.additional_kwargs.get("is_error")
         ):
-            outcome_status = "error"
+            outcome_status = NodeOutcomeStatus.ERROR
 
         outcome = NodeOutcome(status=outcome_status)
 

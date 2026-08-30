@@ -20,6 +20,12 @@ from typing import TYPE_CHECKING, Any, cast
 if TYPE_CHECKING:
     from app.models.schemas.events import MessageSyncEvent
 
+from app.core.engine.message.constants import (
+    MessageActionType,
+    MessageContentType,
+    MessageRole,
+    MessageStatus,
+)
 from app.core.engine.message.native_classes import (
     AIMessage,
     BaseMessage,
@@ -94,7 +100,7 @@ class BlockMapper:
             run_id=msg.run_id,
             role=cast(Any, msg.role),
             category=msg.category or "",
-            content_type=cast(Any, msg.content_type or "text"),
+            content_type=cast(Any, msg.content_type or MessageContentType.TEXT),
             content=msg.content or "",
             thinking=msg.thinking,
             tool_calls=validated_tool_calls,
@@ -105,8 +111,8 @@ class BlockMapper:
             has_file_operations=has_file_ops,
             changeset_count=changeset_count,
             changeset_files=changeset_files,
-            status=cast(Any, msg.status or "completed"),
-            is_complete=msg.status == "completed",
+            status=cast(Any, msg.status or MessageStatus.COMPLETED),
+            is_complete=msg.status == MessageStatus.COMPLETED,
             is_visible=msg.is_visible,
             created_at=_format_iso(msg.created_at),
             sequence_number=msg.sequence_number or 0,
@@ -126,7 +132,7 @@ class BlockMapper:
             "content_type": msg.content_type,
             "thinking": msg.thinking,
             "tool_calls": msg.tool_calls,
-            "action_type": _infer_action_type(msg),
+            "action_type": _infer_action_type(msg).value,
             "category": msg.category,
             "is_visible": msg.is_visible,
             "sequence_number": msg.sequence_number,
@@ -153,7 +159,7 @@ class BlockMapper:
             "run_id": msg.additional_kwargs.get("run_id"),
             "category": msg.additional_kwargs.get("category", ""),
             "sequence_number": msg.additional_kwargs.get("sequence_number", 0),
-            "content_type": msg.additional_kwargs.get("content_type", "text"),
+            "content_type": msg.additional_kwargs.get("content_type", MessageContentType.TEXT),
             "checkpoint_id": msg.additional_kwargs.get("checkpoint_id"),
         }
 
@@ -165,18 +171,18 @@ class BlockMapper:
                     validated_tool_calls.append(ToolCall(**tc))
 
             return MessageBlock(
-                role="ai",
+                role=MessageRole.AI,
                 content=str(msg.content or ""),
                 tool_calls=validated_tool_calls,
-                status="completed",
+                status=MessageStatus.COMPLETED,
                 **kwargs,
             )
 
         elif isinstance(msg, ToolMessage):
             return MessageBlock(
-                role="tool",
+                role=MessageRole.TOOL,
                 content=str(msg.content or ""),
-                status="completed",
+                status=MessageStatus.COMPLETED,
                 meta_data={
                     "tool_call_id": msg.tool_call_id or "",
                     "tool_name": msg.name or "",
@@ -186,17 +192,17 @@ class BlockMapper:
 
         elif isinstance(msg, HumanMessage):
             return MessageBlock(
-                role="human",
+                role=MessageRole.HUMAN,
                 content=str(msg.content or ""),
-                status="completed",
+                status=MessageStatus.COMPLETED,
                 **kwargs,
             )
 
         elif isinstance(msg, SystemMessage):
             return MessageBlock(
-                role="system",
+                role=MessageRole.SYSTEM,
                 content=str(msg.content or ""),
-                status="completed",
+                status=MessageStatus.COMPLETED,
                 **kwargs,
             )
 
@@ -224,22 +230,22 @@ class BlockMapper:
             },
         }
 
-        if msg.role == "ai":
+        if msg.role == MessageRole.AI:
             return AIMessage(
                 content=msg.content,
                 tool_calls=msg.tool_calls or [],
                 **kwargs,
             )
-        elif msg.role == "tool":
+        elif msg.role == MessageRole.TOOL:
             return ToolMessage(
                 content=msg.content,
                 tool_call_id=msg.meta_data.get("tool_call_id", ""),
                 name=msg.meta_data.get("tool_name", ""),
                 **kwargs,
             )
-        elif msg.role == "human":
+        elif msg.role == MessageRole.HUMAN:
             return HumanMessage(content=msg.content, **kwargs)
-        elif msg.role == "system":
+        elif msg.role == MessageRole.SYSTEM:
             return SystemMessage(content=msg.content, **kwargs)
         else:
             raise ValueError(f"Unknown role: {msg.role}")
@@ -287,7 +293,7 @@ class BlockMapper:
         data.pop("thinking", None)
         data.pop("meta_data", None)
 
-        if msg.role == "human" and msg.id:
+        if msg.role == MessageRole.HUMAN and msg.id:
             data["client_message_id"] = msg.id
 
         return data
@@ -312,10 +318,10 @@ def _format_iso(dt: datetime | str | None) -> str:
     return dt.isoformat()
 
 
-def _infer_action_type(msg: MessageBlock) -> str:
+def _infer_action_type(msg: MessageBlock) -> MessageActionType:
     """从 MessageBlock 推断 action_type（兼容旧系统）"""
     if msg.thinking and not msg.content:
-        return "thinking"
-    if msg.role == "tool":
-        return "tool_output"
-    return "text"
+        return MessageActionType.THINKING
+    if msg.role == MessageRole.TOOL:
+        return MessageActionType.TOOL_OUTPUT
+    return MessageActionType.TEXT

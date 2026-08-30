@@ -3,6 +3,12 @@ from typing import Any
 
 from app.core.engine.message.category import MessageCategory
 from app.core.engine.message.classifier import MessageClassifier
+from app.core.engine.message.constants import (
+    MessageActionType,
+    MessageContentType,
+    MessageRole,
+    MessageStatus,
+)
 from app.core.engine.message.persistence import MessagePersistencePolicy
 from app.core.engine.message.schemas import MessageHandlerResult
 from app.core.engine.message.stream import MessageStreamPolicy
@@ -47,15 +53,15 @@ class ToolMessageMixin:
         if category.should_persist_to_db:
             dev_key, dev_name = self._get_device_attribution()
             message_id, seq = await self._repository.persist(
-                role="tool",
+                role=MessageRole.TOOL,
                 content="",
                 category=category.value,
-                action_type="tool_output",
-                status="running",
+                action_type=MessageActionType.TOOL_OUTPUT,
+                status=MessageStatus.RUNNING,
                 is_visible=True,
                 tool_call_id=tool_call_id,
                 tool_name=tool_name,
-                content_type="text",
+                content_type=MessageContentType.TEXT,
                 metadata={
                     "tool_name": tool_name,
                     "tool_call_id": tool_call_id,
@@ -70,10 +76,10 @@ class ToolMessageMixin:
 
         if category.is_visible_to_user:
             await self._dispatch_block(
-                role="tool",
+                role=MessageRole.TOOL,
                 content="",
                 category=category.value,
-                status="running",
+                status=MessageStatus.RUNNING,
                 sequence_number=seq,
                 tool_name=tool_name,
                 tool_call_id=tool_call_id,
@@ -156,7 +162,7 @@ class ToolMessageMixin:
         if seq and persist_data.should_persist:
             update_result = await self._repository.update(
                 sequence_number=seq,
-                status="completed",
+                status=MessageStatus.COMPLETED,
                 content=persist_data.content,
                 node_source=node_source,
                 meta_data=metadata,
@@ -165,10 +171,10 @@ class ToolMessageMixin:
                 message_id = update_result
                 if category.is_visible_to_user:
                     await self._dispatch_block(
-                        role="tool",
+                        role=MessageRole.TOOL,
                         content=persist_data.content,
                         category=category.value,
-                        status="completed",
+                        status=MessageStatus.COMPLETED,
                         sequence_number=seq,
                         tool_name=persist_data.tool_name,
                         tool_call_id=persist_data.tool_call_id,
@@ -178,14 +184,14 @@ class ToolMessageMixin:
         elif persist_data.should_persist:
             dev_key, dev_name = self._get_device_attribution()
             message_id, seq = await self._repository.persist(
-                role="tool",
+                role=MessageRole.TOOL,
                 content=persist_data.content,
                 category=category.value,
-                action_type="tool_output",
+                action_type=MessageActionType.TOOL_OUTPUT,
                 is_visible=category.is_visible_to_user,
                 tool_call_id=persist_data.tool_call_id,
                 tool_name=persist_data.tool_name,
-                content_type="text",
+                content_type=MessageContentType.TEXT,
                 metadata=metadata,
                 node_source=node_source,
                 executor_device_key=dev_key,
@@ -193,10 +199,10 @@ class ToolMessageMixin:
             )
             if message_id and category.is_visible_to_user:
                 await self._dispatch_block(
-                    role="tool",
+                    role=MessageRole.TOOL,
                     content=persist_data.content,
                     category=category.value,
-                    status="completed",
+                    status=MessageStatus.COMPLETED,
                     sequence_number=seq,
                     tool_name=persist_data.tool_name,
                     tool_call_id=persist_data.tool_call_id,
@@ -206,13 +212,13 @@ class ToolMessageMixin:
 
         if stream_data.should_stream:
             await self._dispatch_block(
-                role="tool",
+                role=MessageRole.TOOL,
                 content=content,
                 category=category.value,
                 tool_name=tool_name,
                 tool_call_id=tool_call_id,
                 sequence_number=seq if persist_data.should_persist else 0,
-                status="completed",
+                status=MessageStatus.COMPLETED,
                 metadata=metadata,
                 message_id=message_id,
                 action="update",
@@ -257,7 +263,7 @@ class ToolMessageMixin:
         if sequence_number:
             update_result = await self._repository.update(
                 sequence_number=sequence_number,
-                status="failed",
+                status=MessageStatus.FAILED,
                 content=content,
                 node_source=node_source,
                 meta_data=metadata,

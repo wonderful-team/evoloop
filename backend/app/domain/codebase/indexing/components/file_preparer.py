@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.file import compute_md5, get_file_ext
 from app.core.file.document_reader import document_reader_service
+from app.domain.codebase.constants import SCAN_STATUS_COMPLETED, SCAN_STATUS_FAILED
 from app.domain.codebase.filter import FileFilter
 from app.domain.codebase.indexing.dirty_check import is_file_changed_since_last_index
 from app.domain.codebase.schemas import PreparedFile
@@ -115,7 +116,7 @@ class FilePreparer:
                 repository_id=prepared.repo.id,
                 path=prepared.rel_path,
                 checksum=prepared.checksum,
-                scan_status="completed",
+                scan_status=SCAN_STATUS_COMPLETED,
                 parsed_at=now,
             )
             session.add(source_file)
@@ -124,7 +125,7 @@ class FilePreparer:
             source_file = prepared.source_file
             source_file.checksum = prepared.checksum
             source_file.last_indexed_at = now
-            source_file.scan_status = "completed"
+            source_file.scan_status = SCAN_STATUS_COMPLETED
             source_file.parsed_at = now
             session.add(source_file)
             await session.flush()
@@ -139,7 +140,7 @@ class FilePreparer:
         """Mark a SourceFile as failed when parsing/indexing fails."""
         if source_file is None:
             return
-        source_file.scan_status = "failed"
+        source_file.scan_status = SCAN_STATUS_FAILED
         source_file.parsed_at = datetime.now(timezone.utc)
         session.add(source_file)
         await session.flush()

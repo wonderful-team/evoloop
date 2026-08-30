@@ -19,7 +19,7 @@ from sqlalchemy.orm import selectinload
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.channel.input.mobile_input import mobile_input
 from app.core.engine.constants import ENGINE_ACTIONS
-from app.core.engine.dispatch import dispatch_agent_run
+from app.core.engine.dispatch import DispatchStatus, dispatch_agent_run
 from app.core.engine.event import AgentEventType, ConversationEventType
 from app.core.engine.event.handlers import A2ACommandHandler, MemoryCommandHandler
 from app.core.engine.event.schemas import (
@@ -30,6 +30,7 @@ from app.core.engine.session.manager import session_manager
 from app.core.events import SystemEventType
 from app.core.events.decorators import event_register, event_subscribe
 from app.core.evocloud.bridge.conversation_sync import get_conversation_sync_manager
+from app.core.evocloud.constants import SYNC_STATUS_PENDING
 from app.core.evocloud.manager import evocloud_manager
 from app.core.evocloud.schemas import RemoteCommand
 from app.core.hitl.types import HITLDecision
@@ -156,7 +157,7 @@ class EngineCommandSubscriber:
                     conv.title = title
                 if is_pinned is not None:
                     conv.is_pinned = bool(is_pinned)
-                conv.sync_status = "pending"
+                conv.sync_status = SYNC_STATUS_PENDING
                 conv.updated_at = datetime.now(timezone.utc)
             logger.info(
                 f"[EngineCommand] conversation_update applied: "
@@ -424,7 +425,7 @@ class EngineCommandSubscriber:
                 return
 
             inputs = outcome.inputs
-            if inputs is None or inputs.status == "failed":
+            if inputs is None or inputs.status == DispatchStatus.FAILED:
                 if inputs is not None:
                     logger.error(f"[EngineCommand] Dispatch failed: {inputs.error}")
                     raise RuntimeError(f"Agent dispatch failed: {inputs.error}")
@@ -572,7 +573,7 @@ class EngineCommandSubscriber:
             metadata={"goal_prefix": "Retry: "},
         )
 
-        if result.status == "failed":
+        if result.status == DispatchStatus.FAILED:
             logger.error(f"[EngineCommand] Retry dispatch failed: {result.error}")
             return
 

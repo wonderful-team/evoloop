@@ -22,12 +22,16 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
+import app.core.learning.constants as _mc
+from app.core.learning.constants import (
+    RUN_RESULT_FALLBACK_REQUIRED,
+    ExecutionPolicy,
+)
 from app.core.learning.macro.engine import MacroEngine
 from app.core.learning.macro.lifecycle import (
     invalidate_macro_cache as _invalidate_lifecycle_cache,
 )
 from app.core.learning.macro.lifecycle import load_macro as _load_macro
-from app.core.learning.constants import ExecutionPolicy
 from app.core.learning.macro.schemas import (
     RISK_TIER_ORDER,
     MacroScript,
@@ -39,8 +43,6 @@ from app.infrastructure.config.vault import SecureVaultService
 from app.models.macro import Macro
 from app.utils.parameters import missing_required_params
 from app.utils.yaml import YAMLError, macro_from_yaml
-
-import app.core.learning.constants as _mc
 
 logger = logging.getLogger(__name__)
 
@@ -388,7 +390,7 @@ async def _run_with_self_heal(
 ) -> ExecutionOutcome:
     """MacroService run with the unified self-healing fallback (web policy)."""
     from app.core.engine.background_agent import run_agent_background
-    from app.core.engine.dispatch import dispatch_agent_run
+    from app.core.engine.dispatch import DispatchStatus, dispatch_agent_run
     from app.core.learning.macro.service import MacroService
     from app.utils.template import render_template
 
@@ -411,7 +413,7 @@ async def _run_with_self_heal(
         else getattr(result, "execution_warnings", None)
     )
 
-    if result.get("status") != "fallback_required":
+    if result.get("status") != RUN_RESULT_FALLBACK_REQUIRED:
         return ExecutionOutcome(
             bool(result.get("success")),
             result.get("message") or "",
@@ -446,7 +448,7 @@ async def _run_with_self_heal(
         model=None,
         metadata={"goal_prefix": "[Self-Healing] "},
     )
-    if dispatched.status == "failed":
+    if dispatched.status == DispatchStatus.FAILED:
         logger.error("[MacroFallback] Dispatch failed: %s", dispatched.error)
         return ExecutionOutcome(
             False,

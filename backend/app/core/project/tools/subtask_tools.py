@@ -12,6 +12,14 @@ import json
 import logging
 
 from app.core.context.manager import ContextManager
+from app.core.project.constants import (
+    TASK_PRIORITY_MEDIUM,
+    TASK_STATUS_COMPLETED,
+    TASK_STATUS_FAILED,
+    TASK_STATUS_FILTER_ALL,
+    TASK_STATUS_IN_PROGRESS,
+    TASK_STATUS_PENDING,
+)
 from app.core.project.subtask_service import subtask_service
 from app.core.tools import evoloop_tool
 from app.infrastructure.database import session_scope
@@ -35,7 +43,7 @@ async def create_task_with_subtasks(
     title: str,
     description: str = "",
     subtasks_json: str = "[]",
-    priority: str = "medium",
+    priority: str = TASK_PRIORITY_MEDIUM,
     estimated_hours: int = 0,
 ) -> str:
     """
@@ -108,7 +116,7 @@ Task ID: {task.id[:8]}
 Subtasks:
 {subtask_list}
 
-You can track progress by asking "show task tree {task.id[:8]}". 
+You can track progress by asking "show task tree {task.id[:8]}".
 I've set this as your current active task.""",
                 {"id": task.id, "count": subtask_count},
             )
@@ -162,10 +170,10 @@ async def get_task_tree_summary(task_id: str) -> str:
 
             # Progress indicator
             status_map = {
-                "completed": "[DONE]",
-                "in_progress": "[IN_PROGRESS]",
-                "failed": "[FAILED]",
-                "pending": "[PENDING]",
+                TASK_STATUS_COMPLETED: "[DONE]",
+                TASK_STATUS_IN_PROGRESS: "[IN_PROGRESS]",
+                TASK_STATUS_FAILED: "[FAILED]",
+                TASK_STATUS_PENDING: "[PENDING]",
             }
             status_icon = status_map.get(node["status"], f"[{node['status'].upper()}]")
 
@@ -212,7 +220,7 @@ async def update_task_completion(
 
     Example:
         task_id: "abc12345"
-        status: "completed"
+        status: TASK_STATUS_COMPLETED
         result_summary: "Implemented user authentication with JWT tokens"
 
     Returns:
@@ -239,9 +247,9 @@ async def update_task_completion(
 
         # Auto-set progress based on status
         if progress is None:
-            if status == "completed":
+            if status == TASK_STATUS_COMPLETED:
                 progress = 100
-            elif status == "pending":
+            elif status == TASK_STATUS_PENDING:
                 progress = 0
 
         success = await subtask_service.update_task_progress(
@@ -322,7 +330,7 @@ I've set this as your current task. You can use update_task_completion without a
 
 
 @evoloop_tool(summary_template="evoloop.tool_summary.list_project_tasks")
-async def list_project_tasks(status_filter: str = "all", limit: int = 20) -> str:
+async def list_project_tasks(status_filter: str = TASK_STATUS_FILTER_ALL, limit: int = 20) -> str:
     """
     List root tasks for the current project.
 
@@ -349,9 +357,9 @@ async def list_project_tasks(status_filter: str = "all", limit: int = 20) -> str
 
         for t in tasks:
             status_label = {
-                "completed": "[DONE]",
-                "in_progress": "[IN_PROGRESS]",
-                "failed": "[FAILED]",
+                TASK_STATUS_COMPLETED: "[DONE]",
+                TASK_STATUS_IN_PROGRESS: "[IN_PROGRESS]",
+                TASK_STATUS_FAILED: "[FAILED]",
             }.get(t.status, "[PENDING]")
 
             title = t.task_data.get("title", "Untitled")

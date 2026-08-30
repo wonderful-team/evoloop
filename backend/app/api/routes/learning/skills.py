@@ -16,7 +16,7 @@ from fastapi import (
 from app.api.deps import CurrentUserOptional, require_benefit
 from app.api.responses import BaseAPIResponse
 from app.constants import DEFAULT_PROJECT_ID
-from app.core.engine.dispatch import dispatch_agent_run
+from app.core.engine.dispatch import DispatchStatus, dispatch_agent_run
 from app.core.events.publishers import publish_macro_mutated, publish_skill_mutated
 from app.core.learning.macro import (
     WEB_POLICY,
@@ -399,7 +399,7 @@ async def run_skill(
         metadata={"goal_prefix": f"[Skill: {skill_name}] "},
     )
 
-    if result.status == "failed":
+    if result.status == DispatchStatus.FAILED:
         raise HTTPException(status_code=500, detail=result.error)
     if result.inputs is None:
         raise HTTPException(status_code=500, detail="Failed to prepare agent inputs")
