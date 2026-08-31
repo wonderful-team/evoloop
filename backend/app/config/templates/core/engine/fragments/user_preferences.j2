@@ -1,9 +1,0 @@
-{% if user_preferences -%}
-### User Preferences
-  {%- for key, value in user_preferences.items() %}
-- **{{ key }}**: {{ value }}
-  {%- endfor %}
-{% endif -%}
-{% if user_lang -%}
-**Language Requirement**: Think, reason, and write your response in {{ user_lang }}.
-{%- endif %}

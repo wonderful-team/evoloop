@@ -1,10 +1,13 @@
 SYSTEM ALERT: The deterministic macro for '{{ skill_name }}' failed.
 
-As Supervisor, you must now ANALYZE the failure context and DELEGATE a fix to a specialized Worker.
+You must now ANALYZE the failure context and recover the task yourself (single-agent ReAct).
 
 **Failure Context**:
 {{ failure_context | tojson(indent=2) }}
 
 **Your Goal**:
 1. Check the failed step and reason.
-2. Call `route_to('worker', ...)` with an appropriate role (e.g., 'Automation Specialist') to heal the process and complete the user's original request.
+2. Determine a fix: either continue with your own tools to complete the original request, or
+   if a part genuinely needs isolated/parallel work, spawn a subagent via the `task` tool
+   (e.g. `task(subagent_type='general', ...)`) to handle it.
+3. Complete the user's original request and report the final result.

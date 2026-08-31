@@ -9,5 +9,5 @@ Attachments downloaded locally at: {{ local_attachment_paths|join(', ') }}
 
 Requirements:
 1. You must execute this subtask in this thread.
-2. When done, you must call the `CompleteTaskTool` tool exactly once to return success or failure.
+2. When done, you must call the `task` tool with `action='complete'` exactly once to return success or failure.
 Do not carry out unnecessary conversation.
