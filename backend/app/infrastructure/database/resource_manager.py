@@ -215,17 +215,30 @@ class DatabaseResourceManager:
             await conn.run_sync(Base.metadata.create_all)
             await conn.run_sync(SQLModel.metadata.create_all)
 
-        # create_all 对已存在的表不加新列。旧库补 agent_activities.run_id
-        # （run_id 隔离修复所需），幂等；新库 create_all 已含该列。
+        # create_all 对已存在的表不加新列。旧库按需 ALTER 补列（幂等）：
+        # run_id（run_id 隔离修复）+ react 度量埋点列（llm_calls 等，§10.2.1 阶段 D）。
+        # 新库 create_all 已含这些列，此处仅在旧库缺列时触发。
+        _AGENT_ACTIVITY_EXTRA_COLUMNS = [
+            ("run_id", "VARCHAR(100)"),
+            ("llm_calls", "INTEGER"),
+            ("input_tokens", "INTEGER"),
+            ("output_tokens", "INTEGER"),
+            ("tool_errors", "INTEGER"),
+        ]
         try:
             async with engine.connect() as conn:
                 cols = await conn.run_sync(
                     lambda c: {col["name"] for col in inspect(c).get_columns("agent_activities")}
                 )
-                if "run_id" not in cols:
+                missing = [
+                    (name, ctype)
+                    for name, ctype in _AGENT_ACTIVITY_EXTRA_COLUMNS
+                    if name not in cols
+                ]
+                for name, ctype in missing:
                     async with engine.begin() as conn2:
                         await conn2.execute(
-                            text("ALTER TABLE agent_activities ADD COLUMN run_id VARCHAR(100)")
+                            text(f"ALTER TABLE agent_activities ADD COLUMN {name} {ctype}")
                         )
                         logger.info("[ResourceManager] Added agent_activities.%s column (schema fallback)", name)
         except Exception as e:  # noqa: BLE001

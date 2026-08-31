@@ -26,19 +26,19 @@ EVENT_CATEGORY_MAP = {
 
 # Tool-specific category overrides
 TOOL_CATEGORY_MAP = {
-    "read_file": ActionCategory.QUERY,
-    "write_file": ActionCategory.EDIT,
-    "edit_file": ActionCategory.EDIT,
-    "grep_search": ActionCategory.QUERY,
-    "find_files": ActionCategory.QUERY,
+    "read": ActionCategory.QUERY,
+    "write": ActionCategory.EDIT,
+    "edit": ActionCategory.EDIT,
+    "grep": ActionCategory.QUERY,
+    "glob": ActionCategory.QUERY,
     "list_dir": ActionCategory.QUERY,
     "search_codebase": ActionCategory.QUERY,
-    "search_web": ActionCategory.QUERY,
-    "execute_command": ActionCategory.COMMAND,
+    "websearch": ActionCategory.QUERY,
+    "bash": ActionCategory.COMMAND,
     "git_operations": ActionCategory.COMMAND,
     "navigate_directory": ActionCategory.NAVIGATION,
-    "mobile_control": ActionCategory.SYSTEM_INTERACTION,
-    "desktop_control": ActionCategory.SYSTEM_INTERACTION,
+    "mobile": ActionCategory.SYSTEM_INTERACTION,
+    "desktop": ActionCategory.SYSTEM_INTERACTION,
 }
 
 # Multimodal synthesis defaults

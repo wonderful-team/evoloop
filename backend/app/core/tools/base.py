@@ -13,6 +13,10 @@ from app.core.tools.schemas import EvoLoopToolConfig
 
 logger = logging.getLogger(__name__)
 
+# Benefit gating is disabled: benefit checks must NOT block tool execution.
+# (Turn on only when entitlement gating is actually provisioned per-account.)
+BENEFIT_GATING_ENABLED: bool = False
+
 
 class ToolResult(str):
     """工具返回值封装：给 Agent 的是纯文本 str，但附带元数据和渲染好的 display_name。"""
@@ -186,7 +190,7 @@ def evoloop_tool(
 
     def decorator(func):
         async def _check_permission(func_name, input_data):
-            if config.required_benefit:
+            if config.required_benefit and BENEFIT_GATING_ENABLED:
                 from app.core.benefits import (
                     benefit_service,
                     create_benefit_error_detail,

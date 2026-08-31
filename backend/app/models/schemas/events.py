@@ -118,6 +118,13 @@ class QuotaExhaustedEvent(BaseStreamEvent):
     hint: str = "Please contact the administrator to add more quota."
 
 
+class MaxStepsReachedEvent(BaseStreamEvent):
+    type: Literal["max_steps_reached"] = "max_steps_reached"
+    title: str = "已达本轮的步数上限"
+    message: str = "本轮执行已达到步数上限，将在此处暂告一段落。"
+    hint: str = "可补充说明或调整指令后继续。"
+
+
 class AuthExpiredEvent(BaseStreamEvent):
     type: Literal["auth_expired"] = "auth_expired"
     title: str = "Auth Expired"

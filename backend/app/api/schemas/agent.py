@@ -35,6 +35,8 @@ class ResumeRequest(ScopedRequest):
     user_input: str | None = None
     command_id: int | None = None
     model: str | None = None
+    # 审批 grant_mode（对齐 OpenCode reply）：once（仅本次）/ always（永久）/ default（TTL）
+    grant_mode: Literal["once", "always", "default"] | None = None
 
 
 class CancelHITLRequest(ScopedRequest):

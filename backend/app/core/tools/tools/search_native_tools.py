@@ -1,13 +1,14 @@
-from app.core.tools import evoloop_tool
+"""Native tool-search service function (non-tool).
+
+§10.2.1：主 Agent 默认面收敛到 15 个后不再需要大目录检索工具，
+``search_native_tools`` 不再作为 ``@evoloop_tool`` 暴露。本函数保留在服务层，
+供 Atlas / 工具管理 UI 等非 Agent 场景使用。
+"""
 
 
-@evoloop_tool(
-    is_hidden=True, summary_template="evoloop.tool_summary.search_native_tools"
-)
 async def search_native_tools(query: str = "") -> str:
     """
     Search available system tools and capabilities.
-    Use this to find specific 'sensors' (telemetry) or 'actuators' (control tools).
     Returns tools grouped by ecosystem for better strategic planning.
     """
     from app.core.tools.manager import tool_manager
@@ -49,7 +50,7 @@ async def search_native_tools(query: str = "") -> str:
             }
         )
 
-    # 构建纯文本输出（Agent 得到的是文本，不是 dict/JSON）
+    # 构建纯文本输出（调用方得到的是文本，不是 dict/JSON）
     lines = []
     for eco, tools in groups.items():
         if not tools:

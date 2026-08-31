@@ -180,9 +180,7 @@ class RetrievalService:
                     for i in r.get("incoming", []):
                         related.add(i["source"])
                 lines = [f"### {r['entity']} ({r['type']})" for r in all_results]
-                lines.append(
-                    f"\n**Entities related to ALL of {entities}:** {', '.join(sorted(related)) if related else '(none)'}"
-                )
+                lines.append(f"\n**Entities related to ALL of {entities}:** {', '.join(sorted(related)) if related else '(none)'}")
             else:
                 lines = []
                 for r in all_results:
@@ -195,9 +193,7 @@ class RetrievalService:
                             f"calls: [{out_str}]" if out_str else "",
                             f"called_by: [{in_str}]" if in_str else "",
                         ]
-                        lines.append(
-                            f"- {r['entity']} ({r['type']}): {'; '.join(p for p in parts if p)}"
-                        )
+                        lines.append(f"- {r['entity']} ({r['type']}): {'; '.join(p for p in parts if p)}")
 
             return "\n".join(lines)
 

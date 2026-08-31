@@ -48,10 +48,10 @@ async def run_macro(
     project_id: int,
     source: str = "voice",
     timeout: float | None = None,
-    worker_registry: WorkerRegistry | None = None,
+    agent_run_registry: AgentRunRegistry | None = None,
 ) -> ActionOutcome:
     """Execute a routed macro. Returns ``ActionOutcome`` with optional navigate route."""
-    registry = worker_registry if worker_registry is not None else _worker_registry
+    registry = agent_run_registry if agent_run_registry is not None else _run_registry
     responses = _routing_store.responses
 
     macro = await load_macro(macro_id, project_id=project_id)

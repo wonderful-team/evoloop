@@ -1,6 +1,14 @@
+"""Secure Vault tool — single unified entry (密码箱 facade).
+
+把 列凭据 / 请求录入 收敛为单一 ``vault`` 工具，按 ``action`` 分发，
+与 ``macro``/``todo`` facade 对齐：只读的 list 与写入的 request 共存于
+同一工具，安全敏感行为由 SecureVaultService 与占位符钩子负责。
+"""
+
+import getpass
 import logging
 import sys
-from typing import Annotated
+from typing import Annotated, Literal
 
 from app.core.context import ContextManager
 from app.core.engine.message.native_classes import RunnableConfig
@@ -12,27 +20,53 @@ logger = logging.getLogger(__name__)
 
 
 @evoloop_tool(
-    is_state_mutating=False,
-    summary_template="evoloop.tool_summary.list_vault_credentials",
+    name="vault",
+    is_state_mutating=True,
+    summary_template="evoloop.tool_summary.vault",
 )
-async def list_vault_credentials(
-    type: str | None = None, config: Annotated[RunnableConfig, InjectedToolArg] = None
+async def vault(
+    action: Literal["list", "request"] = "list",
+    type: str | None = None,
+    identifier: str | None = None,
+    fields: list[str] | None = None,
+    description: str | None = None,
+    config: Annotated[RunnableConfig, InjectedToolArg] = None,
 ) -> str:
-    """
-    List all secure credential identifiers, types, and descriptions available in the Secure Vault
-    for the current project context.
+    """统一密码箱（Secure Vault）入口——列出凭据或请求安全录入。
 
-    This tool does NOT return the decrypted passwords, private keys, or secret payloads.
-    It only returns metadata, letting you know what credential identifiers are available
-    for placeholder substitution (e.g. {{vault.credential_id.field}}).
+    Actions:
+    - list:   列出当前项目上下文中可用的凭据标识、类型与描述。**不返回解密后的
+              明文**，只返回元数据，让你知道哪些 {{vault.<id>.<field>}} 占位符可用。
+    - request: 请求用户安全录入凭据（密码/私钥/API Key），加密存入 vault。
+              录入后可立即用 {{vault.<identifier>.<field>}} 占位符引用。
+
+    WHEN TO USE:
+    - 工具入参需要密钥/口令，但还没存进 vault → list 看是否已有，没有则 request。
+    - 需要把某个凭据写入 vault 供后续占位符替换 → request。
 
     Args:
-        type: Optional filter by credential type (e.g. "ssh", "env", "password", "api_key").
+        action: 执行的动作：
+            - "list": 列出凭据标识/类型/描述（仅元数据，绝不返回解密后的密钥）。可选 type 过滤
+              （ssh/env/password/api_key）。
+            - "request": 提示用户安全录入凭据（密码/私钥/API Key）。需要 identifier、type、fields。
+        identifier: 唯一凭据标识（如 "github_token"、"customer_a_ssh"）。
+        type: 凭据类型（"ssh"、"env"、"password"、"api_key"）。用于 list 过滤或 request 类型。
+        fields: request 需要的字段名列表（如 ["password"]、["private_key"]、["host", "password"]）。
+        description: request 的可选原因说明（展示给用户）。
     """
+    if action == "list":
+        return await _list(type, config)
+    return await _request(identifier, type, fields, description, config)
+
+
+async def _list(type: str | None, config) -> str:
+    """List credential identifiers/types/descriptions (metadata only)."""
     from app.infrastructure.config.vault import SecureVaultService
 
     ctx = ContextManager.current()
     project_id = ctx.project_id
+    thread_id = _resolve_thread_id(config)
+    logger.debug("[SecureVault] list called for thread %s (project %s)", thread_id, project_id)
 
     try:
         credentials = SecureVaultService.list_credentials(project_id=project_id)
@@ -58,36 +92,27 @@ async def list_vault_credentials(
         return f"Error listing credentials: {str(e)}"
 
 
-@evoloop_tool(
-    is_state_mutating=True,
-    summary_template="evoloop.tool_summary.request_secure_credential",
-)
-async def request_secure_credential(
-    identifier: str,
-    type: str,
-    fields: list[str],
-    description: str | None = None,
-    config: Annotated[RunnableConfig, InjectedToolArg] = None,
+async def _request(
+    identifier: str | None,
+    type: str | None,
+    fields: list[str] | None,
+    description: str | None,
+    config,
 ) -> str:
-    """
-    Request the user to securely enter sensitive credentials (passwords, private keys, API keys).
-
-    This triggers a secure prompt where the user enters the secrets directly into the database vault.
-    Once submitted, the credentials are saved encrypted in the vault, and you can use them using
-    the placeholder format: {{vault.identifier.field_name}}.
-
-    Args:
-        identifier: The unique identifier for the credential (e.g. "customer_a_ssh", "github_token")
-        type: The credential type ("ssh", "env", "password", "api_key")
-        fields: The list of field names required (e.g. ["password"], ["private_key"], ["host", "password"])
-        description: A brief explanation of why this credential is required.
-    """
-    import getpass
+    """Request the user to securely enter sensitive credentials."""
+    if not identifier or not type or not fields:
+        return (
+            "Error: action=request requires `identifier`, `type`, and `fields`. "
+            "Example: vault(action='request', identifier='github_token', "
+            "type='api_key', fields=['token'])."
+        )
 
     from app.infrastructure.config.vault import SecureVaultService
 
     ctx = ContextManager.current()
     project_id = ctx.project_id
+    thread_id = _resolve_thread_id(config)
+    logger.debug("[SecureVault] request called for thread %s (project %s)", thread_id, project_id)
 
     # Check if we are in an interactive TTY console (never block the server event loop on stdin)
     if not sys.stdin.isatty() or is_in_event_loop():
@@ -136,3 +161,12 @@ async def request_secure_credential(
     except Exception as e:
         logger.exception(f"Failed to save credential: {e}")
         return f"Error: Failed to save credential: {str(e)}"
+
+
+def _resolve_thread_id(config) -> str:
+    """Extract thread_id from the injected run config (dict or RunnableConfig)."""
+    if not config:
+        return ""
+    if isinstance(config, dict):
+        return config.get("configurable", {}).get("thread_id", "")
+    return getattr(config, "configurable", {}).get("thread_id", "")

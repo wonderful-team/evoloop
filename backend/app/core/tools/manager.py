@@ -31,11 +31,11 @@ class ToolManager:
         Nodes no longer need to manually parse tickets or talk to MCP.
         """
         from app.core.mcp import mcp_client_manager
-        from app.core.tools.registry import get_node_tools
+        from app.core.tools.registry import get_agent_tools
 
         # 1. Fetch statically configured tools for this role (Native + specifically requested MCP if defined in yaml)
         try:
-            tools = get_node_tools(node_name)
+            tools = get_agent_tools(agent)
         except (TypeError, ValueError, RuntimeError, OSError) as e:
             logger.exception(
                 f"[ToolManager] Failed to fetch static tools for {agent}: {e}"
@@ -65,94 +65,26 @@ class ToolManager:
                     if not v.metadata.get("is_multimodal")
                 }
 
-        # 2. Handle Progressive Disclosure (Skill-Tool Handshake & Dynamic Requests)
-        # Only inject external tools if explicitly requested by the state.
+        # 2. Inject connected global MCP tools
+        # react 单 Agent 架构下工具面由 agent_main.yaml 决定，MCP 工具作为全局基础设施
+        # 默认注入（use_mcp_server 工具负责连接管理）。
         if state:
-            execution_ticket = state.ticket
+            try:
+                from app.core.mcp import mcp_client_manager
 
-            # Agent Config for Dynamic Specialist
-            agent_config = execution_ticket.agent_config if execution_ticket else None
-            requested_servers = (
-                execution_ticket.mcp_servers_required if execution_ticket else []
-            )
-            dynamic_tools = agent_config.tools if agent_config else []
-
-            # Dynamically requested individual tools come from agent_config.tools
-            all_requested_tools = set(dynamic_tools)
-
-            if requested_servers or all_requested_tools:
-                try:
-                    # We need to run get_tools synchronously, or rather, it assumes
-                    # mcp_client_manager.get_tools() which returns cached tools is sufficient
-                    # if ensure_connected was called previously (e.g. by `use_mcp_server`).
-
-                    # Use aget_all_tools() to ensure connections are alive before returning cached tools
-                    # 先确保 requested MCP server 已连接（Worker 需要用到）
-                    from app.core.mcp import mcp_client_manager as _mcp
-
-                    for _s in requested_servers:
-                        try:
-                            await _mcp.ensure_connected(_s)
-                        except Exception as _e:
-                            logger.exception(
-                                f"[ToolManager] 连接 MCP server {_s} 失败: {_e}"
-                            )
-                    all_mcp = await mcp_client_manager.aget_all_tools()
-
-                    # Filter for only what was requested to protect context
-                    for t in all_mcp:
-                        if t.name in combined_map:
-                            continue
-
-                        add_tool = False
-
-                        # 1. Is its server explicitly requested?
-                        parsed = parse_mcp_tool_name(t.name)
-                        if parsed:
-                            # 规范化比较（DB 名可能带连字符，parse 后为下划线）
-                            norm = re.sub(r"[^a-zA-Z0-9_]", "_", parsed[0]).lower()
-                            if parsed[0] in requested_servers or norm in [
-                                re.sub(r"[^a-zA-Z0-9_]", "_", s).lower()
-                                for s in requested_servers
-                            ]:
-                                add_tool = True
-
-                        # 2. Is the specific tool explicitly requested?
-                        if t.name in all_requested_tools:
-                            add_tool = True
-
-                        # Edge case for Dynamic Specialist falling back to ANY tool by string match
-                        # (Legacy support for dynamically requesting a tool by its exact name)
-                        if t.name in dynamic_tools:
-                            add_tool = True
-
-                        if add_tool:
-                            combined_map[t.name] = t
-                except (TypeError, ValueError, RuntimeError, OSError) as e:
-                    logger.exception(
-                        f"[ToolManager] Failed to progressively load MCP tools: {e}"
-                    )
-
-            elif not all_requested_tools:
-                # MCP 是全局基础设施：无显式请求时默认注入所有已连接的全局
-                # MCP 工具（值守等场景只管用、不负责加载）。显式 allowlist
-                # （all_requested_tools）存在时不走此分支，避免越过白名单。
-                try:
-                    from app.core.mcp import mcp_client_manager
-
-                    all_mcp = await mcp_client_manager.aget_all_tools()
-                    for t in all_mcp:
-                        if t.name in combined_map:
-                            continue
-                        combined_map[t.name] = t
-                except (TypeError, ValueError, RuntimeError, OSError) as e:
-                    logger.exception(
-                        f"[ToolManager] Failed to inject default MCP tools: {e}"
-                    )
+                all_mcp = await mcp_client_manager.aget_all_tools()
+                for t in all_mcp:
+                    if t.name in combined_map:
+                        continue
+                    combined_map[t.name] = t
+            except (TypeError, ValueError, RuntimeError, OSError) as e:
+                logger.exception(
+                    f"[ToolManager] Failed to inject default MCP tools: {e}"
+                )
 
         if not combined_map:
             logger.warning(
-                f"[ToolManager] get_node_tools('{node_name}') resolved to an empty tool list; "
+                f"[ToolManager] get_agent_tools('{agent}') resolved to an empty tool list; "
                 "agent node will run without tool capabilities. "
                 f"requested_servers={requested_servers}, requested_tools={all_requested_tools}"
             )
@@ -162,7 +94,7 @@ class ToolManager:
         """
         Global dictionary of all tools (NATIVE + CONNECTED MCP).
         WARNING: Do NOT use this to build Prompts (Prompt Explosion).
-        Used purely for `search_native_tools` tool-lookup.
+        Used purely for tool-search / capability-lookup (Atlas、工具管理 UI)。
         """
         from app.core.mcp import mcp_client_manager
         from app.core.tools.registry import get_all_tools

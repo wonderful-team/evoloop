@@ -50,13 +50,12 @@ _EXCLUDED_EVENT_TYPES = frozenset(
         "list_skills",
         "search_history",
         "recall",
-        "read_file",
+        "read",
         "list_dir",
-        "grep_search",
-        "find_files",
-        "ask_human",
+        "grep",
+        "glob",
+        "question",
         "ask_confirm",
-        "forget_tool_outputs",
         "think",
     }
 )

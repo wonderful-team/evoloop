@@ -62,40 +62,6 @@ async def schedule_periodic_task(
         return ControllerResponse.error("Failed to delegate intent", details=str(e))
 
 
-@evoloop_tool(summary_template="evoloop.tool_summary.inspect_task_health")
-async def inspect_task_health(task_id: int) -> str:
-    """
-    Inspect the health and execution history of an autonomous task.
-    Useful for diagnosing why a recurring task might be failing.
-
-    Args:
-        task_id: The ID of the autonomous task to inspect.
-
-    Returns:
-        A detailed report of the task status, failure counts, and last failure reason.
-    """
-    try:
-        async with session_scope() as session:
-            task = await session.get(AutonomousTask, task_id)
-            if not task:
-                return ControllerResponse.not_found(f"Task ID {task_id}")
-
-            status = (
-                "Dead Letter (Disabled)"
-                if task.is_dead_letter
-                else ("Active" if task.is_active else "Paused")
-            )
-
-            try:
-                return SystemToolsFormatter.task_health(task)
-            except Exception as e:
-                logger.exception(f"Failed to render task health: {e}")
-                return f"Task {task_id} health: {status}"
-    except Exception as e:
-        logger.exception(f"Error in inspect_task_health: {e}")
-        return f"Error: Failed to inspect task health. {str(e)}"
-
-
 @evoloop_tool(summary_template="evoloop.tool_summary.list_scheduled_tasks")
 async def list_scheduled_tasks(project_id: int | None = None) -> str:
     """

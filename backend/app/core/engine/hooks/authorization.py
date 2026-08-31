@@ -223,11 +223,15 @@ async def authorization_gate(context: HookContext) -> HookResult:
         return HookResult(success=True)
 
     # Block without HITL (policy match but approval not available / error path)
+    # DeniedError 语义（对齐 OpenCode）：告诉模型被哪条规则拒绝、不要重试。
     return HookResult(
         block=True,
         message=i18n.get(
             "engine.authorization.denied_message",
-            default=f"[AUTHORIZATION DENIED] {decision.reason}",
+            default=(
+                f"[AUTHORIZATION DENIED] 工具 {context.tool_name or ''} 被权限规则拒绝："
+                f"{decision.reason}。请勿重试该调用；如确需使用请联系管理员调整权限。"
+            ),
             reason=decision.reason,
         ),
     )

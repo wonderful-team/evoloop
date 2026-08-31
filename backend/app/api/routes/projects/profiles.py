@@ -20,13 +20,11 @@ from app.api.schemas.projects.profiles import (
 from app.core import file as file_utils
 from app.core.engine.agent import run_agent_background
 from app.core.engine.dispatch import DispatchStatus, dispatch_agent_run
-from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket
 from app.core.project.utils import (
     get_project_path,
     read_project_json,
     write_project_json,
 )
-from app.infrastructure.config.service import SystemConfigService
 from app.models.learning import LearnedSkill
 from app.utils.id import unique_id
 
@@ -91,25 +89,6 @@ async def discover_profile(
 
     if result.status == DispatchStatus.FAILED:
         raise HTTPException(500, detail=result.error)
-
-    user_lang = SystemConfigService.get_language_preference()
-
-    system_instructions = (
-        f"You are a Senior Project Architect. "
-        f"The generated PROJECT.md and all analysis reports MUST be written in {user_lang}. "
-        f"Your mission is to perform a deep discovery of the project at {path}, "
-        f"identify technical debt, tech stack, and ensure the project can be successfully initialized."
-    )
-
-    result.inputs["ticket"] = ExecutionTicket(
-        ticket_type="task",
-        topic="Project Discovery",
-        skill_ids=[skill.id] if skill else None,
-        agent_config=AgentRuntimeConfig(
-            role_name="Worker",
-            system_instructions=system_instructions,
-        ),
-    )
 
     if "metadata" not in result.inputs:
         result.inputs["metadata"] = {}

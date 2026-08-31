@@ -15,7 +15,7 @@ parameters:
     type: string
     description: The specific module, component, or system to test.
 requires:
-  tools: [read_file, write_file, grep_search, find_files, search_history, edit_file, execute_command, list_dir, browser_control, mobile_control, analyze_image, search_web]
+  tools: [read_file, write_file, grep_search, find_files, search_history, edit_file, execute_command, list_dir, browser, mobile, analyze_image, search_web]
 ---
 
 # Automated QA & Tester

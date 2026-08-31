@@ -15,34 +15,14 @@ from app.api.deps import CurrentUserOptional, TokenDep
 from app.core.atlas.source import persistence
 from app.core.engine.agent import run_agent_background
 from app.core.engine.dispatch import DispatchStatus, dispatch_agent_run
-from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket
 from app.core.learning.macro import list_macros
 from app.core.learning.skills.discovery import skill_discovery
 from app.core.project.utils import get_project_path
-from app.core.tools.registry import get_tool_bundle
 from app.utils.id import unique_id
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["atlas"])
-
-_SURVEY_TOOLS = [
-    "write_app_map",
-    "read_app_map",
-    "list_app_maps",
-    "create_plan",
-    "update_step_status",
-]
-
-_OUTPUT_CONTRACT = (
-    "You are surveying a project's source code to produce an AppMap. "
-    "Hard requirements: (1) every action must carry kind (read|write) and "
-    "risk_tier (ui|data|money); (2) every action must cite controller+line and "
-    "every element page+line so the validator can spot-check them against the "
-    "real source — fabricated entries are rejected on write; (3) money-write "
-    "fields accept absolute values only; (4) write the map via write_app_map "
-    "and self-review completeness."
-)
 
 
 class AppMapGenerateRequest(BaseModel):
@@ -107,21 +87,6 @@ async def generate_app_map(
     )
     if result.status == DispatchStatus.FAILED:
         raise HTTPException(500, detail=result.error)
-
-    read_only_file_tools = [
-        t for t in get_tool_bundle("file_tools")
-        if t not in ("edit_file", "delete_file", "move_file", "execute_command")
-    ]
-    result.inputs["ticket"] = ExecutionTicket(
-        ticket_type="task",
-        topic="AppMap Analysis",
-        skill_ids=[skill.id] if skill else None,
-        agent_config=AgentRuntimeConfig(
-            role_name="Worker",
-            system_instructions=_OUTPUT_CONTRACT,
-            tools=_SURVEY_TOOLS + read_only_file_tools,
-        ),
-    )
 
     if "metadata" not in result.inputs:
         result.inputs["metadata"] = {}

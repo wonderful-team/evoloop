@@ -277,7 +277,9 @@ class Settings(BaseSettings):
     MAX_KEYFRAMES: int = 50
 
     # Path Security
-    ALLOWED_PATH_PREFIXES: list[str] = ["/tmp/dataset", "/tmp/evoloop"]
+    # 额外允许的路径前缀（默认关闭，避免 Agent 把文件写到 /tmp 等系统临时目录）。
+    # Agent 的写入/命令沙箱只允许当前项目工作目录；需要额外白名单时在此追加。
+    ALLOWED_PATH_PREFIXES: list[str] = []
 
     # --- Cognitive Brain Configuration ---
     # Memory Architecture Toggle (Phase 4 Autonomy)

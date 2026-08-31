@@ -28,11 +28,19 @@ def _generate_args_schema_from_signature(func) -> type[BaseModel] | None:
     except (ValueError, TypeError):
         return None
 
+    # 解析字符串注解（`from __future__ import annotations` 下 Literal/Annotated
+    # 等为字符串），否则 create_model 会因前向引用无法构建 schema
+    # （如 `task_AutoSchema is not fully defined; you should define Literal`）。
+    try:
+        type_hints = typing.get_type_hints(func)
+    except Exception:  # noqa: BLE001
+        type_hints = {}
+
     fields: dict[str, Any] = {}
     for param_name, param in sig.parameters.items():
         if param_name in ("self", "cls", "config"):
             continue
-        annotation = param.annotation if param.annotation is not inspect.Parameter.empty else Any
+        annotation = type_hints.get(param_name, Any)
         default = param.default if param.default is not inspect.Parameter.empty else ...
         fields[param_name] = (annotation, default)
 

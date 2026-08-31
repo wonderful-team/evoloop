@@ -115,9 +115,7 @@ async def create_plan(
             for s in db_steps:
                 lines.append(f"| `{s.id}` | {s.title} | {s.status} |")
 
-            lines.append(
-                "\n*Tip: Use `update_step_status` with the Step ID to track progress.*"
-            )
+            lines.append("\n*Tip: Use `update_step_status` with the Step ID to track progress.*")
             return_text = "\n".join(lines)
 
         # Notify frontend plan panel to refresh

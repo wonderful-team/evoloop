@@ -2,7 +2,7 @@
 
 Both create_macro (engine/tools/learning.py) and the update_macro rewrite path
 (tools/update_macro.py) run the same pipeline: parse → cleanup → risk gate →
-dry-run verification → risk tier. This module is the single home for that
+real-execution verification → risk tier. This module is the single home for that
 pipeline so callers stop duplicating it.
 """
 
@@ -41,8 +41,9 @@ async def validate_script(
     project_id: int,
     allowed_families: set[str] = DEFAULT_ALLOWED_FAMILIES,
 ) -> ScriptValidation:
-    """Parse, gate, dry-run, and score an Agent-authored macro script.
+    """Parse, gate, real-execute, and score an Agent-authored macro script.
 
+    ⚠️ 验证是真实执行（真的操作环境步骤，仅限滚动深度 max_scrolls），不是模拟。
     Accepts a list of step dicts or a YAML string. Returns a ScriptValidation
     with ok=False and a human-readable error when any gate rejects the script.
     """
@@ -87,7 +88,7 @@ async def validate_script(
 def validate_macro_structure(
     macro_script: str | list[dict[str, Any]],
 ) -> tuple[bool, str, int]:
-    """Lightweight structural validation of a macro script (no dry-run).
+    """Lightweight structural validation of a macro script (no real execution).
 
     Parses a YAML string or a list of step dicts into a MacroScript and
     reports step count. This is the cheap check used by API/display layers

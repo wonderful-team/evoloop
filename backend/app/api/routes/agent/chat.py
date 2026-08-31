@@ -431,6 +431,7 @@ async def resume_chat(
             session.inject_resume(
                 req.user_input or "",
                 project_id=pending.get("project_id") or project_id,
+                grant_mode=req.grant_mode,
             )
         else:
             logger.info("[Chat] Resume as new message into live session %s", req.thread_id)
@@ -488,7 +489,9 @@ async def resume_chat(
         )
 
     if pending_tool:
-        normalized_input = await HITLOrchestrator.handle_resume(req.thread_id, pending_tool, req.user_input)
+        normalized_input = await HITLOrchestrator.handle_resume(
+            req.thread_id, pending_tool, req.user_input, grant_mode=req.grant_mode
+        )
         # 授权门控工具：审批后记录授权并用原始参数重执行，返回真实结果；
         # confirmation 类工具则直接使用归一化输入（APPROVED）。
         resume_config = {
@@ -498,7 +501,8 @@ async def resume_chat(
         final_result = await HITLOrchestrator.resolve_approved_tool_result(
             pending_tool,
             resume_config,
-            normalized_input
+            normalized_input,
+            grant_mode=req.grant_mode,
         )
 
         # 落为 human 消息（用户可见）+ 更新原 tool 消息结果（Agent 可见），

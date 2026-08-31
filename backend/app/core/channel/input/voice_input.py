@@ -74,27 +74,10 @@ class VoiceInputChannel(InputChannel):
             message_id=message_id,
         )
 
-    async def _inject_has_running_worker(
-        self, thread_id: str, meta: dict[str, Any], raw: dict[str, Any]
-    ) -> None:
-        """has_running_worker 数据源：优先会话状态（session.worker），fallback 到 metadata 标记。"""
-        try:
-            from app.core.engine.session.manager import session_manager
-
-            session = session_manager.get(thread_id)
-            if (
-                session is not None
-                and session.worker is not None
-                and not session.worker.done
-            ):
-                meta["has_running_worker"] = "true"
-                meta["running_worker_desc"] = session.worker.description
-                return
-        except Exception:
-            logger.warning("[VoiceInputChannel] session lookup failed", exc_info=True)
-
-        if self._worker_registry is not None:
-            running_worker = await self._worker_registry.get_worker(thread_id)
+    async def _inject_has_running_worker(self, thread_id: str, meta: dict[str, Any], raw: dict[str, Any]) -> None:
+        """has_running_worker 数据源：运行中 agent 注册表（AgentRunRegistry）。"""
+        if self._run_registry is not None:
+            running_worker = await self._run_registry.get_run(thread_id)
             if running_worker and running_worker.status == "running":
                 meta["has_running_worker"] = "true"
                 meta["running_worker_desc"] = running_worker.description

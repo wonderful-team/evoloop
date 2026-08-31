@@ -39,14 +39,6 @@ async def lifespan(app: FastAPI):  # noqa: ARG001
 
     await db_resource_manager.initialize(create_tables=True)
 
-    # Register the subagent event listener (routes completion/HITL events to parent queues).
-    try:
-        from app.core.engine.nodes.utils.subagent_events import ensure_listener
-
-        ensure_listener()
-    except Exception as e:
-        logger.warning(f"Failed to register subagent event listener: {e}")
-
     # Restore persisted SharedState (active project_id) so voice / duty chains
     # get the correct project context even after a backend restart.
     try:

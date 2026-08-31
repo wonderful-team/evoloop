@@ -225,7 +225,6 @@
       "query_security_findings": "Query security findings[[ (query: {query}) ]]",
       "query_source_files": "Query source files[[ (query: {query}) ]]",
       "read_app_map": "Read app atlas '{app_name}'",
-      "request_secure_credential": "Request secure credential (key: {key})",
       "schedule_periodic_task": "Schedule periodic task '{task_name}'",
       "update_blackboard": "Update blackboard",
       "write_app_map": "Write app atlas '{app_name}'",
@@ -556,7 +555,6 @@
     "batch_approved_fallback": "Batch approval granted. Proceed with the approved operations.",
     "batch_rejected": "Batch approval was rejected. Do not execute the operations in the batch.",
     "operation_rejected": "The operation was rejected by the user ({tool}) and was NOT executed. Stop this operation immediately: do not retry, do not re-route to other write operations. Report the cancellation honestly to the user and wait for further instructions.",
-    "access_rejected": "User rejected this access request (REJECTED): {path}. Do not retry this path; use alternative approaches or continue with the rest of the task.",
     "authorization": {
       "tool_not_subject_to_authorization": "Tool not subject to project-level authorization",
       "no_matching_policy": "No matching authorization policy",

@@ -61,38 +61,34 @@ class DeviceInfoMixin:
         try:
             results = []
 
+            # 权威来源优先：mResumedActivity / mCurrentFocus 才是"当前前台"。
+            # `dumpsys activity top` 按任务栈打印多个 App，第一个非系统包往往不是
+            # 当前前台（实测前台是小红书时它先打印闲鱼），只作最后兜底。
+            # 关键：resumed/focus 即使解析到系统包（如桌面 launcher）也代表"前台确实
+            # 不是业务 App"，此时绝不能 fallback 到 activity top（会拿到后台任务栈的
+            # 业务 App）。只有 resumed/focus 完全解析不到时才用 activity top。
+            foreground_was_system: str | None = None
+
             try:
-                stdout, _ = self._run_adb(["shell", "dumpsys", "activity", "top"], device_id=device_id, timeout=3)
+                stdout, _ = self._run_adb(
+                    ["shell", "dumpsys", "activity", "activities"],
+                    device_id=device_id,
+                    timeout=3,
+                )
                 for line in stdout.splitlines():
-                    if "ACTIVITY" in line and "/" in line:
-                        parsed = parse_package_from_line(line, r"ACTIVITY\s+([\w\.]+)/([\w\.\$]+)")
+                    if ("mResumedActivity" in line or "topResumedActivity" in line) and "/" in line:
+                        parsed = parse_package_from_line(line, r"([\w\.]+)/([\w\.\$]+)")
                         if parsed:
                             pkg, act = parsed
-                            if not is_system_package(pkg):
-                                results.append((pkg, act, "top", 3))
+                            if is_system_package(pkg):
+                                foreground_was_system = pkg
+                            else:
+                                results.append((pkg, act, "resumed", 2))
                             break
             except Exception as e:
                 logger.debug("Suppressed error: %s", e, exc_info=True)
 
-            if not results:
-                try:
-                    stdout, _ = self._run_adb(
-                        ["shell", "dumpsys", "activity", "activities"],
-                        device_id=device_id,
-                        timeout=3,
-                    )
-                    for line in stdout.splitlines():
-                        if ("mResumedActivity" in line or "topResumedActivity" in line) and "/" in line:
-                            parsed = parse_package_from_line(line, r"([\w\.]+)/([\w\.\$]+)")
-                            if parsed:
-                                pkg, act = parsed
-                                if not is_system_package(pkg):
-                                    results.append((pkg, act, "resumed", 2))
-                                break
-                except Exception as e:
-                    logger.debug("Suppressed error: %s", e, exc_info=True)
-
-            if not results:
+            if not results and not foreground_was_system:
                 try:
                     stdout, _ = self._run_adb(
                         ["shell", "dumpsys", "window", "windows"],
@@ -104,8 +100,24 @@ class DeviceInfoMixin:
                             parsed = parse_package_from_line(line, r"([\w\.]+)/([\w\.\$]+)")
                             if parsed:
                                 pkg, act = parsed
-                                if not is_system_package(pkg):
+                                if is_system_package(pkg):
+                                    foreground_was_system = pkg
+                                else:
                                     results.append((pkg, act, "focus", 1))
+                                break
+                except Exception as e:
+                    logger.debug("Suppressed error: %s", e, exc_info=True)
+
+            if not results and not foreground_was_system:
+                try:
+                    stdout, _ = self._run_adb(["shell", "dumpsys", "activity", "top"], device_id=device_id, timeout=3)
+                    for line in stdout.splitlines():
+                        if "ACTIVITY" in line and "/" in line:
+                            parsed = parse_package_from_line(line, r"ACTIVITY\s+([\w\.]+)/([\w\.\$]+)")
+                            if parsed:
+                                pkg, act = parsed
+                                if not is_system_package(pkg):
+                                    results.append((pkg, act, "top", 3))
                                 break
                 except Exception as e:
                     logger.debug("Suppressed error: %s", e, exc_info=True)
@@ -115,6 +127,17 @@ class DeviceInfoMixin:
                 "activity": "unknown",
                 "confidence": 0.0,
             }
+
+            # resumed/focus 解析到系统包（如桌面 launcher）时如实返回它，
+            # 表示"前台不是业务 App"——调用方据此回退 expected_pkg，而不是
+            # 错误地落到 activity top 拿到后台任务栈的业务 App。
+            if foreground_was_system and not results:
+                final_data = {
+                    "package": foreground_was_system,
+                    "activity": "unknown",
+                    "confidence": 1.0,
+                    "source": "resumed/system",
+                }
 
             if results:
                 packages = [r[0] for r in results]

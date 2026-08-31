@@ -63,7 +63,7 @@ async def elevated_privilege_gate(context: HookContext) -> HookResult:
                     f"当前执行环境不支持交互式密码输入，此类命令会导致超时且无明确错误提示。\n\n"
                     f"**建议操作**：\n"
                     f"1. 寻找无需{description}的替代方案\n"
-                    f"2. 使用 `ask_human` 工具请求用户协助执行\n"
+                    f"2. 使用 `question` 工具请求用户协助执行\n"
                     f"3. 如需长期使用，请配置免密 sudo 或使用容器环境"
                 ),
             )
@@ -97,7 +97,7 @@ async def dangerous_command_gate(context: HookContext) -> HookResult:
                     f"命令：`{command[:200]}{'...' if len(command) > 200 else ''}`\n\n"
                     f"此类命令可能影响系统安全或稳定性。\n\n"
                     f"**如需执行**：\n"
-                    f"使用 `ask_human` 工具请求用户明确确认后手动执行"
+                    f"使用 `question` 工具请求用户明确确认后手动执行"
                 ),
             )
 

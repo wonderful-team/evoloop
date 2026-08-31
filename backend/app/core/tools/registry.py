@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
 
+from app.core.security.authorization import tool_permission_rule
 from app.core.tools.base import EvoLoopTool as BaseTool
 from app.core.tools.constants import DEFAULT_CONFIG_PATH
 from app.core.tools.schemas import EvoLoopToolConfig
@@ -129,7 +130,8 @@ _scan_lock = threading.Lock()
 
 
 # Critical tools that MUST be present after scanning
-_CRITICAL_TOOLS = ["route_to"]
+# react 模式的核心委派工具（替代图模式的 route_to）
+_CRITICAL_TOOLS = ["task"]
 
 
 def _validate_critical_tools():
@@ -191,14 +193,14 @@ def _ensure_scanned():
 # --- Core Registry Accessors ---
 
 _cached_tool_map: dict[str, BaseTool] | None = None
-_cached_node_tools: dict[str, list[BaseTool]] = {}  # Cache for role-level hydration
+_cached_agent_tools: dict[str, list[BaseTool]] = {}  # Cache for role-level hydration
 
 
 def _invalidate_caches() -> None:
     """Invalidate all tool lookup caches."""
     global _cached_tool_map
     _cached_tool_map = None
-    _cached_node_tools.clear()
+    _cached_agent_tools.clear()
 
 
 def get_tool_map() -> dict[str, BaseTool]:
@@ -256,7 +258,7 @@ def _load_yaml_config(config_path: str | None = None) -> dict:
     return data
 
 
-def _report_missing_tools(node_role: str | None, missing_tools: list[str]):
+def _report_missing_tools(agent: str | None, missing_tools: list[str]):
     """Report missing tools via logger and activity monitor.
 
     缺失可能是预期行为：yaml 声明是节点能力池，部分工具受运行时门控
@@ -264,7 +266,7 @@ def _report_missing_tools(node_role: str | None, missing_tools: list[str]):
     error，避免把"条件性未注册"误报为配置错误。
     """
     logger.warning(
-        f"[ToolRBAC] Missing tools for role '{node_role}': {missing_tools}. "
+        f"[ToolRBAC] Missing tools for role '{agent}': {missing_tools}. "
         f"These tools are declared in YAML but not found in Registry or MCP "
         f"(may be gated by runtime settings)."
     )
@@ -280,7 +282,7 @@ def _report_missing_tools(node_role: str | None, missing_tools: list[str]):
     coro = activity_monitor.log_event(
         event_type="tool_missing",
         data={
-            "node_role": node_role,
+            "agent": agent,
             "missing_tools": missing_tools,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "severity": "warning",
@@ -289,29 +291,36 @@ def _report_missing_tools(node_role: str | None, missing_tools: list[str]):
     loop.create_task(coro)
 
 
-def get_node_tools(node_role: str, config_path: str | None = None) -> list[BaseTool]:
+def get_agent_tools(agent: str, config_path: str | None = None) -> list[BaseTool]:
     """Get tools for a specific agent node/role from YAML config."""
     # 0. Check cache first
-    if not config_path and node_role in _cached_node_tools:
-        return _cached_node_tools[node_role]
+    if not config_path and agent in _cached_agent_tools:
+        return _cached_agent_tools[agent]
 
     config = _load_yaml_config(config_path)
     tool_names: list[str] = []
 
     # Check graph node declarations (only source of truth — role_tools removed)
-    for node in config.get("nodes", []):
-        if node.get("id") == node_role and node.get("tools"):
+    for node in config.get("agents", []):
+        if node.get("id") == agent and node.get("tools"):
             tool_names = node["tools"]
             break
 
     if not tool_names:
         logger.warning(
-            f"[ToolRBAC] No tools declared for node '{node_role}' in YAML config."
+            f"[ToolRBAC] No tools declared for node '{agent}' in YAML config."
         )
-        _report_missing_tools(node_role, [f"<no config for node '{node_role}'>"])
+        _report_missing_tools(agent, [f"<no config for node '{agent}'>"])
         return []
 
-    hydrated = get_tools_by_names(tool_names, source_role=node_role)
+    hydrated = get_tools_by_names(tool_names, source_role=agent)
+
+    # 工具级 deny（TOOL_PERMISSIONS）→ 从工具面移除（对齐 OpenCode visibleTools）：
+    # 被 deny 的工具不暴露给模型，调用即无从发生。
+    denied = [t.name for t in hydrated if tool_permission_rule(t.name) == "deny"]
+    if denied:
+        logger.info(f"[ToolRBAC] Hiding denied tools from {agent} face: {denied}")
+        hydrated = [t for t in hydrated if t.name not in denied]
 
     # 缓存已解析的工具：yaml 声明是节点能力池，可能因运行时门控（如
     # ENABLE_MEMORY=False 禁用的记忆工具）部分未注册——缺失是预期行为，
@@ -321,11 +330,11 @@ def get_node_tools(node_role: str, config_path: str | None = None) -> list[BaseT
         missing_count = len(tool_names) - len(hydrated)
         if missing_count:
             logger.warning(
-                f"[Registry] {node_role} tools: {missing_count} declared tools not "
+                f"[Registry] {agent} tools: {missing_count} declared tools not "
                 f"registered (gated/disabled), caching {len(hydrated)}"
             )
         if hydrated:
-            _cached_node_tools[node_role] = hydrated
+            _cached_agent_tools[agent] = hydrated
 
     return hydrated
 

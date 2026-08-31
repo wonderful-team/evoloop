@@ -20,7 +20,7 @@ parameters:
     type: string
     description: Path to the specific file containing a bug or needing a fix.
 requires:
-  tools: [read_file, write_file, grep_search, find_files, search_history, edit_file, execute_command, list_dir, search_web, browser_control, mobile_control, analyze_image]
+  tools: [read_file, write_file, grep_search, find_files, search_history, edit_file, execute_command, list_dir, search_web, browser, mobile, analyze_image]
 ---
 
 # Universal Code Development
