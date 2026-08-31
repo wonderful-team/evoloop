@@ -198,7 +198,7 @@ async def execute_smart(command: str, timeout: int, config: RunnableConfig | Non
                 f"Command execution timeout ({quick_timeout}s)\n\n"
                 f"命令: `{command}`\n\n"
                 f"建议: 此命令可能需要更长时间，请使用后台模式:\n"
-                f"`execute_command(command='{command}', background=True, timeout=300)`"
+                f"`bash(command='{command}', background=True, timeout=300)`"
             )
 
         async def wait_remaining():

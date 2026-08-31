@@ -120,9 +120,7 @@ async def list_scheduled_tasks(project_id: int | None = None) -> str:
                 return "No autonomous tasks found.", {"count": 0}
 
             try:
-                return SystemToolsFormatter.autonomous_tasks(tasks), {
-                    "count": len(tasks)
-                }
+                return SystemToolsFormatter.autonomous_tasks(tasks), {"count": len(tasks)}
             except Exception as e:
                 logger.exception(f"Failed to render task list: {e}")
                 return f"Found {len(tasks)} tasks.", {"count": len(tasks)}

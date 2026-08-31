@@ -49,7 +49,7 @@ class MessagePublisher:
           never reach mobile or voice (each caller must document why it bypasses
           policy).
         - Otherwise, ``OutputChannelPolicy.resolve()`` decides the channels based
-          on session_source and node_source ContextVars — the single authoritative decision point.
+          on session_source ContextVar — the single authoritative decision point.
         """
         if channels is None:
             from app.core.channel.policy import (
@@ -57,9 +57,7 @@ class MessagePublisher:
                 current_session_source,
             )
             from app.core.context.manager import ContextManager
-            from app.core.engine.callbacks.database_logger import current_node_source
 
-            node_src = current_node_source.get()
             session_src = current_session_source.get()
             # Fallback to EvoContext.metadata.source for callers running outside
             # an active AgentEngine node (e.g. dispatch_agent_run publishing the
@@ -67,7 +65,7 @@ class MessagePublisher:
             if session_src is None:
                 ctx = ContextManager.current()
                 session_src = getattr(ctx.metadata, "source", None)
-            channels = OutputChannelPolicy.resolve(payload, session_src, node_src)
+            channels = OutputChannelPolicy.resolve(payload, session_src)
         else:
             channels = set(channels)
 

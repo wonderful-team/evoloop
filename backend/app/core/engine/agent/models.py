@@ -4,8 +4,6 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.core.engine.state.config import ExecutionTicket
-
 
 class BackgroundAgentInputs(BaseModel):
     """Structured inputs for background agent execution."""
@@ -25,4 +23,3 @@ class BackgroundAgentInputs(BaseModel):
     is_hitl_cancel: bool = False
     session_goal: str | None = None
     working_directory: str | None = None
-    ticket: ExecutionTicket | None = None

@@ -5,8 +5,8 @@ from typing import Any
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.context.manager import ContextManager
-from app.core.engine.background_agent.errors import handle_task_exception
-from app.core.engine.background_agent.models import BackgroundAgentInputs
+from app.core.engine.agent.errors import handle_task_exception
+from app.core.engine.agent.models import BackgroundAgentInputs
 from app.core.exceptions import AgentCancelledException, AgentHumanInterruptException
 from app.core.monitoring.activity import activity_monitor
 from app.core.monitoring.constants import ActivityStatus
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 async def run_agent_background(
     thread_id: str, inputs: BackgroundAgentInputs | dict[str, Any]
 ):
-    """Background task executing nodes via the native agent loop.
+    """Background task executing the single-agent react loop.
 
     单发（subagent/Autonomous Task/代码生成）入口。config/state/callbacks
     构建统一复用 ``app.core.engine.runner_base``（与 session 路径共享，
@@ -74,17 +74,15 @@ async def run_agent_background(
                         config=config,
                         user_input=inputs.hitl_resume_response,
                         state=agent_state,
+                        grant_mode=(inputs.metadata or {}).get("_grant_mode"),
                     )
 
-                agent_state.next_node = inputs.metadata.get(
-                    "initial_node", "supervisor"
-                )
                 agent_state.session_goal = inputs.session_goal or inputs.goal
 
-                from app.core.engine.loop import run_node_loop
+                from app.core.engine.react.loop import run_agent_loop
 
-                await run_node_loop(
-                    agent_state, config, thread_id, log_prefix="BackgroundAgent"
+                await run_agent_loop(
+                    agent_state, config, thread_id, log_prefix="ReactAgent"
                 )
 
                 await ContextManager.save(thread_id)

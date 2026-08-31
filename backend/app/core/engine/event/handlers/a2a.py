@@ -11,6 +11,7 @@ import json
 import logging
 import os
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -18,19 +19,59 @@ from sqlalchemy import select
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
-from app.core.engine.background_agent import run_agent_background
+from app.core.engine.agent import BackgroundAgentInputs, run_agent_background
 from app.core.engine.dispatch import DispatchStatus, dispatch_agent_run
 from app.core.engine.message.category import MessageCategory
 from app.core.engine.message.constants import MessageStatus
 from app.core.engine.session.manager import session_manager
 from app.core.evocloud.manager import evocloud_manager
-from app.core.evocloud.schemas import AgentTask, AgentTaskResult, RemoteCommand
+from app.core.evocloud.schemas import (
+    AgentTask,
+    AgentTaskResult,
+    RemoteCommand,
+    TaskAttachment,
+)
 from app.core.file import compute_file_hash
 from app.infrastructure.database import session_scope
 from app.models import Conversation, Message
 from app.utils.template import render_template
 
 logger = logging.getLogger(__name__)
+
+
+class A2AAttachmentError(Exception):
+    """A2A 附件下载 / MD5 校验失败（异常安全通道，见 download_and_verify_attachment）。"""
+
+
+async def download_and_verify_attachment(
+    client: httpx.AsyncClient,
+    attachment: TaskAttachment,
+    dest_dir: str,
+) -> str:
+    """流式下载 A2A 附件到本地并校验 MD5。
+
+    文件 IO（write_bytes / compute_file_hash / makedirs 由调用方）一律走
+    ``asyncio.to_thread``，满足 AGENTS.md「async 中禁止同步 open()」约束。
+    失败统一抛 ``A2AAttachmentError``，由调用方决定回调错误。
+    """
+    dest_path = Path(os.path.join(dest_dir, attachment.filename))
+    logger.info(f"[A2A] Downloading attachment {attachment.filename} from {attachment.download_url}...")
+    try:
+        async with client.stream("GET", attachment.download_url) as response:
+            response.raise_for_status()
+            data = bytearray()
+            async for chunk in response.aiter_bytes():
+                data.extend(chunk)
+        await asyncio.to_thread(dest_path.write_bytes, bytes(data))
+        actual_md5 = await asyncio.to_thread(compute_file_hash, dest_path)
+    except Exception as e:
+        raise A2AAttachmentError(f"Failed to download attachment {attachment.filename}: {e}") from e
+    if actual_md5 != attachment.md5:
+        raise A2AAttachmentError(
+            f"Attachment MD5 mismatch for {attachment.filename}. "
+            f"Expected: {attachment.md5}, Got: {actual_md5}"
+        )
+    return dest_path
 
 
 class A2ACommandHandler:
@@ -74,40 +115,20 @@ class A2ACommandHandler:
             download_dir = os.path.expanduser(
                 os.path.join(settings.EVOLOOP_APP_DATA_DIR, "attachments", task.task_id)
             )
-            os.makedirs(download_dir, exist_ok=True)
+            await asyncio.to_thread(os.makedirs, download_dir, exist_ok=True)
 
             async with httpx.AsyncClient() as client:
                 for att in task.attachments:
-                    dest_path = os.path.join(download_dir, att.filename)
-                    logger.info(
-                        f"[A2A] Downloading attachment {att.filename} from {att.download_url}..."
-                    )
                     try:
-                        async with client.stream("GET", att.download_url) as response:
-                            response.raise_for_status()
-                            with open(dest_path, "wb") as f:
-                                async for chunk in response.aiter_bytes():
-                                    f.write(chunk)
-
-                        actual_md5 = compute_file_hash(dest_path)
-
-                        if actual_md5 != att.md5:
-                            logger.error(
-                                f"[A2A] MD5 mismatch for {att.filename}. Expected: {att.md5}, Got: {actual_md5}"
-                            )
-                            await self._send_a2a_error(
-                                task, f"Attachment MD5 mismatch for {att.filename}"
-                            )
-                            return
-
+                        dest_path = await download_and_verify_attachment(
+                            client, att, download_dir
+                        )
                         local_attachment_paths.append(dest_path)
-                    except Exception as ex:
+                    except A2AAttachmentError as ex:
                         logger.exception(
                             f"[A2A] Failed to download/verify attachment {att.filename}: {ex}"
                         )
-                        await self._send_a2a_error(
-                            task, f"Failed to download attachment {att.filename}: {ex}"
-                        )
+                        await self._send_a2a_error(task, str(ex))
                         return
 
         executor_device_key = (
@@ -258,7 +279,19 @@ class A2ACommandHandler:
             for msg in messages:
                 if msg.tool_calls:
                     for tc in msg.tool_calls:
-                        if tc.get("name") in ("SendAgentTaskTool", "send_agent_task"):
+                        # 统一体系后 A2A 委派走 task 工具（remote 参数）；
+                        # 兼容历史 SendAgentTaskTool / send_agent_task 名。
+                        if tc.get("name") == "task":
+                            _args = tc.get("args") or tc.get("arguments") or {}
+                            if isinstance(_args, str):
+                                try:
+                                    _args = json.loads(_args)
+                                except Exception:
+                                    _args = {}
+                            if isinstance(_args, dict) and _args.get("remote"):
+                                tool_call_id = tc.get("id")
+                                break
+                        elif tc.get("name") in ("SendAgentTaskTool", "send_agent_task"):
                             tool_call_id = tc.get("id")
                             break
                 if tool_call_id:
@@ -267,7 +300,7 @@ class A2ACommandHandler:
         if tool_call_id:
             # 将 A2A 回调结果写入工具输出，LLM 才能看到并终结，避免因空结果重调。
             # resume 路径的 get_pending_hitl_call 只匹配 status="waiting_human"，
-            # 而 send_agent_task 的 hitl_request 消息默认 status="completed"，
+            # 而 task(remote) 的 hitl_request 消息默认 status="completed"，
             # 因此 hitl_resume_response 不会被消费——必须在此处把结果写进工具消息。
             from app.core.engine.message.repository import MessageRepository
             from app.core.hitl.orchestrator import close_hitl_message
@@ -300,27 +333,10 @@ class A2ACommandHandler:
             error=result.error or None,
         )
 
-        # Phase B：调用方是普通 Worker 且其 rollout 正在挂起等待本回调时，
-        # 结果已写入 DB 工具消息，交由 rollout 重载 state 继续 Mission——
-        # 不能再走 session resume（否则与仍在运行的 rollout 并发冲突）。
-        from app.core.engine.worker_registry import (
-            is_worker_waiting_a2a,
-            resolve_a2a_wait,
-        )
-
-        if is_worker_waiting_a2a(caller_thread_id):
-            logger.info(
-                f"[A2A] Caller {caller_thread_id} has a Worker rollout awaiting this "
-                "callback; resolving in place (no session resume)"
-            )
-            resolve_a2a_wait(caller_thread_id)
-            return
-
         # Resume Caller Agent
         # 会话模式（§4.6）：有活会话 → gate 注入 a2a_result（重建 state reload 被改写消息续跑）；
         # 无活会话 → 回落 run_agent_background 单发入口（兜底）。
         from app.core.context.manager import ContextManager
-        from app.core.engine.background_agent import BackgroundAgentInputs
 
         loaded_ctx = await ContextManager.load(caller_thread_id)
         model = loaded_ctx.active_model if loaded_ctx else None
@@ -334,6 +350,9 @@ class A2ACommandHandler:
         inputs = BackgroundAgentInputs(
             hitl_resume_response=result_content,
             model=model,
+            # B3: 无活会话回落路径必须带上 Caller 线程的真实 project_id，
+            # 否则 runner_base 回退 DEFAULT_PROJECT_ID，A2A 恢复后的执行会归错项目。
+            project_id=loaded_ctx.project_id if loaded_ctx else None,
         )
         logger.info(f"[A2A] Resuming Caller Agent on thread {caller_thread_id}")
         asyncio.create_task(run_agent_background(caller_thread_id, inputs))

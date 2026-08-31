@@ -8,9 +8,7 @@ import time
 
 from app.core.engine.agent import run_agent_background
 from app.core.engine.dispatch import DispatchStatus, dispatch_agent_run
-from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket
 from app.core.project.utils import get_project_path
-from app.core.tools.registry import get_tool_bundle
 from app.domain.codebase.constants import (
     GENERATION_ITEM_APPMAP,
     GENERATION_ITEM_SUMMARY,
@@ -117,30 +115,6 @@ async def _run_wiki(project_id: int) -> None:
     if result.status == DispatchStatus.FAILED:
         raise RuntimeError(result.error or "Agent dispatch failed")
 
-    read_only_tools = [
-        t
-        for t in get_tool_bundle("file_tools")
-        if t not in ("edit_file", "delete_file", "move_file", "execute_command")
-    ]
-    result.inputs["ticket"] = ExecutionTicket(
-        ticket_type="task",
-        topic="Wiki Generation",
-        agent_config=AgentRuntimeConfig(
-            role_name="Worker",
-            tools=[
-                "query_code_chunks",
-                "query_code_relations",
-                "query_source_files",
-                "write_wiki_page",
-                "edit_wiki_page",
-                "read_wiki_page",
-                "list_wiki_pages",
-                "create_plan",
-                "update_step_status",
-            ]
-            + read_only_tools,
-        ),
-    )
     result.inputs.setdefault("metadata", {})["skip_persistence"] = True
     result.inputs["metadata"]["task_type"] = "wiki_generation"
     await run_agent_background(thread_id, result.inputs)
@@ -316,29 +290,8 @@ async def _run_appmap(project_id: int) -> None:
     if result.status == DispatchStatus.FAILED:
         raise RuntimeError(result.error or "Agent dispatch failed")
 
-    read_only_tools = [
-        t
-        for t in get_tool_bundle("file_tools")
-        if t not in ("edit_file", "delete_file", "move_file")
-    ]
-    result.inputs["ticket"] = ExecutionTicket(
-        ticket_type="task",
-        topic="AppMap Analysis",
-        agent_config=AgentRuntimeConfig(
-            role_name="Worker",
-            tools=[
-                "query_code_chunks",
-                "query_code_relations",
-                "read_app_map",
-                "write_app_map",
-                "execute_command",
-            ]
-            + read_only_tools,
-        ),
-    )
     result.inputs.setdefault("metadata", {})["skip_persistence"] = True
     result.inputs["metadata"]["task_type"] = "app_map_generation"
-    result.inputs["metadata"]["initial_node"] = "worker"
     await run_agent_background(thread_id, result.inputs)
 
 

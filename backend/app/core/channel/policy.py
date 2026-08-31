@@ -12,6 +12,7 @@ OutputChannelPolicy — 唯一的出站通道决策权威。
   - MessageBlock.tool_calls（值守场景：主 Agent 派活前的安抚回复）
 
 单 Agent ReAct 架构下只有一个主 Agent 节点，不再按 node_source（supervisor/worker/finish）
+区分通道；子代理执行体的消息由 ``resolve()`` 内按 ``task_type == "subagent"`` 整体屏蔽（R3）。
 
 规则真值表（在此处集中维护，不散落各处）：
 

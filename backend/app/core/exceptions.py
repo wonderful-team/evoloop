@@ -28,7 +28,7 @@ class AgentHumanInterruptException(BaseException):
 class AgentA2AInterruptException(AgentHumanInterruptException):
     """
     Raised when an A2A subtask is dispatched and the caller must pause until the
-    remote callback returns (worker-delegation-design.md Phase B).
+    remote callback returns.
 
     react 主循环把此视为挂起-恢复（非终结 HITL）：主循环退出，会话置
     awaiting_a2a；远端回调结果写入 DB 工具消息后经 session resume 重放消息流

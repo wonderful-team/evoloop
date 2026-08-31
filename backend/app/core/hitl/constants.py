@@ -5,8 +5,8 @@
 - 消息契约值（category / action_type）
 - 授权门控默认值（default REJECTED / granted_by / TTL）
 
-审批决策令牌（APPROVED/REJECTED/CANCELLED）、双轨请求状态与批量授权状态
-等枚举定义见 ``app.core.hitl.types``。
+审批决策令牌（APPROVED/REJECTED/CANCELLED）与双轨请求状态等枚举定义见
+``app.core.hitl.types``。
 
 status 词表（含 waiting_human）由 ``engine.message.MessageStatus`` 单一收编，
 hitl 直接引用枚举，不再在本地维护复制字面量。

@@ -1,242 +1,51 @@
 name: "evoloop_functional"
-version: "3.0"
+version: "4.0"
 state_schema: "app.core.engine.state.AgentState"
 
-interrupt_before: []
+# 执行引擎：单 Agent ReAct 主循环（app/core/engine/react/loop.py），唯一执行体。
+# 无图节点 / signals / routers / ExecutionTicket。
 
-tool_bundles:
-  file_tools:
-    - "list_dir"
-    - "find_files"
-    - "read_file"
-    - "write_file"
-    - "edit_file"
-    - "move_file"
-    - "delete_file"
-    - "grep_search"
-    - "execute_command"
-  browser_tools:
-    - "browser_control"
-    - "clipboard"
-    - "desktop_control"
-    - "analyze_image"
-    - "verify_ui_state"
-  desktop_tools:
-    - "desktop_control"
-    - "open_app"
-    - "clipboard"
-    - "analyze_image"
-  mobile_tools:
-    - "mobile_control"
-    - "list_devices"
-    - "analyze_image"
-  knowledge_tools:
-    - "remember"
-    - "recall"
-    - "search_history"
-    # - "list_skills"
-    # - "get_skill"
-    # - "query_app_atlas"
-    # - "list_app_atlas"
-    - "save_concepts"
-    - "query_concepts"
-  planning_tools:
-    - "create_plan"
-    - "update_step_status"
-    - "create_todo"
-    - "list_todos"
-    - "complete_todo"
-    - "cancel_todo"
-
-nodes:
-  - id: "supervisor"
-    path: "app.core.engine.nodes.supervisor.SupervisorNode"
-    # Policy (config layer): the Supervisor handles simple, known, one-shot
-    # actions with macros and routes everything else to a Worker.
-    # - simple_task_tools: tools it may use directly for simple tasks.
-    # - discovery_empty_result: when discovery returns nothing → delegate.
-    # - execution_tools_belong_to: complex/execution work always goes here.
-    policy:
-      simple_task_tools: ["run_macro", "list_macros", "list_skills"]
-      discovery_empty_result: "delegate_to_worker"
-      execution_target: "worker"
+# =====================================================================
+# 🎯 REACT 主 Agent 工具面（单 Agent ReAct 主循环，重构目标架构）
+# 默认工具面 19 个：核心 12（OpenCode 对齐名）+ 特有 2（macro/remember）+ 具身 4 + 密码箱 1
+#   核心 12：bash/read/glob/grep/edit/write/task/webfetch/websearch/todo/skill/question
+#   特有 2：macro（一体式宏入口，list/read/run/create/update/delete/debug）/ remember
+#   具身 4：browser（网页探索）/ analyze_image（截图视觉分析，VISION_MODEL 未配时自动过滤）
+#          / mobile（Android 设备控制）/ desktop（桌面控制）——mobile/desktop 由 required_benefit
+#          门控，无对应权益的成员调用时被拒（调用时过滤，工具仍常驻 face）
+#   密码箱 1：vault（一体式密码箱入口，action=list 列凭据 / action=request 请求录入）
+# 其余低频/垂直能力（Atlas/Wiki/Codebase/MCP）走 skill/macro/task 索引+按需加载。
+# =====================================================================
+agents:
+  - id: "react"
+    path: "app.core.engine.react.loop"
     tools:
-      # Triage & orchestration
-      - "route_to"
-      - "update_blackboard"
-      # Subagent control
-      - "cancel_subagent"
-      - "cancel_all_subagents"
-      # Skill & macro discovery (for routing, not execution)
-      - "list_skills"
-      # - "get_skill"
-      - "list_macros"
-      - "run_macro"
-      # Memory & concepts
-      - "search_history"
-      - "query_concepts"
+      # 核心文件/执行
+      - "bash"
+      - "read"
+      - "glob"
+      - "grep"
+      - "edit"
+      - "write"
+      # 子代理（新）
+      - "task"
+      # 检索
+      - "webfetch"
+      - "websearch"
+      # 计划 / 待办 facade
+      - "todo"
+      # 技能（索引+按需加载，§5）
+      - "skill"
+      # 交互
+      - "question"
+      # 具身探索（web 界面 / 截图视觉分析；mobile/desktop 由 required_benefit 调用时门控）
+      - "browser"
+      - "analyze_image"
+      - "mobile"
+      - "desktop"
+      # 密码箱（Secure Vault facade：list 列凭据 / request 请求录入；占位符 {{vault.id.key}} 由安全钩子解密）
+      - "vault"
+      # 一等公民：宏（单一 macro 工具，list/read/run/create/update/delete 一体，§5.7）
+      - "macro"
+      # 记忆（特有）
       - "remember"
-      - "recall"
-      # Planning
-      - "create_plan"
-      # Human interaction / multi-agent dispatch
-      - "ask_confirm"
-      - "ask_human"
-      # ⚠ A2A 工具（list_agents / send_agent_task）已收敛到 Worker（Phase B）：
-      #   Supervisor 需要远程设备能力时普通 route_to(worker)，由执行层判断委派。
-      # Vault & Credentials (Secure credential management)
-      - "list_vault_credentials"
-      - "request_secure_credential"
-
-  - id: "worker"
-    path: "app.core.engine.nodes.worker.WorkerNode"
-    tools:
-      # =====================================================================
-      # 🏅 WORKER BASELINE CAPABILITY POOL (v5.0 Unified Architecture)
-      # =====================================================================
-      # This is the global capacity pool. The Supervisor selects and 
-      # explicitly authorizes a subset of these tools via the `route_to` call
-      # based on the current mission and environment telemetry.
-      # =====================================================================
-      # Orchestration & State (Unified Engine Controls)
-      # Desktop & Mobile Automation
-      - "update_blackboard"
-      - "report_outcome"
-      # - "desktop_control"
-      - "mobile_control"
-      # - "analyze_image"
-      # - "verify_ui_state"
-      - "browser_control"
-      # Workspace & Code
-      - "read_file"
-      - "write_file"
-      - "edit_file"
-      - "list_dir"
-      - "grep_search"
-      - "find_files"
-      - "execute_command"
-      # Code Exploration (Unified Layer - replaces consult_lsp, explore_codebase)
-      # - "find_symbol"
-      # - "ask_codebase"
-      # Context Management (Agent-controlled forgetting for long tasks)
-      - "forget_tool_outputs"
-      - "recall_tool_output"
-      - "list_forgotten_outputs"
-      # - "write_handover_notes"
-      # Knowledge & Memory (Simple remember/recall)
-      - "remember"
-      - "recall"
-      - "search_history"
-      # - "list_skills"
-      - "get_skill"
-      # - "update_skill"
-      # - "delete_skill"
-      - "run_macro"
-      - "list_macros"
-      - "create_macro"
-      - "read_macro"
-      - "update_macro"
-      # - "reconcile_skill"
-      # - "query_app_atlas"
-      # - "list_app_atlas"
-      # - "search_native_tools"
-      - "save_concepts"
-      - "query_concepts"
-      # - "sql_query"
-      # Atlas AppMap (source-survey → macro factory)
-      # - "write_app_map"
-      # - "read_app_map"
-      # - "list_app_maps"
-      # - "generate_macros_from_app_map"
-      # Wiki (Project documentation authoring)
-      # - "write_wiki_page"
-      # - "edit_wiki_page"
-      # - "list_wiki_pages"
-      # - "read_wiki_page"
-      # Project Management & Task Breakdown
-      - "create_project_tasks"
-      # Research
-      - "search_web"
-      # Planning & Audit
-      - "create_plan"
-      - "update_step_status"
-      # Planning & Todo (Individual tools replacing manage_todo facade)
-      - "create_todo"
-      - "list_todos"
-      - "complete_todo"
-      - "cancel_todo"
-      # Control
-      - "ask_confirm"
-      - "ask_human"
-      - "wait_for"
-      - "inspect_task_health"
-      # - "list_scheduled_tasks"
-      # - "schedule_periodic_task"
-      # Vault & Credentials (Secure credential management)
-      - "list_vault_credentials"
-      - "request_secure_credential"
-      - "list_agents"
-      - "send_agent_task"
-      - "complete_task"
-      - "route_to"
-
-  - id: "finish"
-    path: "app.core.engine.nodes.finish.FinishNode"
-    streaming: false
-    tools:
-      - "read_file"
-      - "list_dir"
-      - "grep_search"
-      - "find_files"
-      - "find_symbol"
-      # - "ask_codebase"
-      - "search_history"
-      # - "list_skills"
-      # - "get_skill"
-      # - "update_skill"
-      # - "delete_skill"
-      - "list_macros"
-      - "create_macro"
-      - "update_macro"
-      # - "create_skill_from_session"
-      # - "verify_ui_state"
-
-  - id: "sequential_workflow"
-    path: "app.core.engine.nodes.sequential_workflow.SequentialWorkflowNode"
-
-edges:
-  # 1. Supervisor (Router)
-  - from: "supervisor"
-    type: "conditional"
-    router: "app.core.engine.routers.route_supervisor"
-    map:
-      supervisor: "supervisor"
-      finish: "finish"
-      worker: "worker"
-      sequential_workflow: "sequential_workflow"
-
-  # 2. Worker -> Supervisor/Finish (outcome-based)
-  - from: "worker"
-    type: "conditional"
-    router: "app.core.engine.routers.route_worker_by_outcome"
-    map:
-      supervisor: "supervisor"
-      finish: "finish"
-
-  # 3. SequentialWorkflow -> SequentialWorkflow/Finish/Supervisor (Conditional)
-  - from: "sequential_workflow"
-    type: "conditional"
-    router: "app.core.engine.routers.route_by_next_node"
-    map:
-      sequential_workflow: "sequential_workflow"
-      finish: "finish"
-      supervisor: "supervisor"
-
-  # 4. Finish -> Supervisor/Worker/End (Conditional Loopback)
-  - from: "finish"
-    type: "conditional"
-    router: "app.core.engine.routers.route_finish"
-    map:
-      supervisor: "supervisor"
-      worker: "worker"
-      END: "END"

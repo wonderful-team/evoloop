@@ -113,6 +113,7 @@ class ToolMessage(BaseMessage):
         id: str = None,
         additional_kwargs: dict = None,
         metadata: dict = None,
+        attachments: list[dict] | None = None,
         **kwargs: Any,
     ):
         super().__init__(
@@ -124,6 +125,9 @@ class ToolMessage(BaseMessage):
             name=name,
             **kwargs,
         )
+        # attachments: [{"mime": str, "url": str, "filename": str, ...}]
+        # 供多模态消费（图片/PDF 直接进消息流）与前端渲染。
+        self.attachments = attachments or []
 
 
 class AIMessageChunk(AIMessage):

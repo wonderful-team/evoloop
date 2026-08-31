@@ -441,7 +441,7 @@ class EngineCommandSubscriber:
             logger.warning("[EngineCommand] Stop command missing thread_id, skipping")
             return
         logger.info(f"[EngineCommand] Stopping run for thread {thread_id}")
-        # 无会话 → stop_run + cancel_worker 双兜底）
+        # 无会话 → stop_run + cancel_run 双兜底）
         await session_manager.stop_agent(thread_id, "mobile_stop")
 
     async def _handle_retry(self, command: RemoteCommand) -> None:

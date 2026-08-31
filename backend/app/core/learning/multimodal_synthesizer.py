@@ -293,12 +293,12 @@ class MultimodalSkillSynthesizer:
     async def verify_macro(
         self, macro_script: str, project_id: int = DEFAULT_PROJECT_ID
     ) -> MacroVerificationResult:
-        """Dry-run 验证宏脚本的有效性"""
+        """验证宏脚本的可执行性——真实执行（限滚动深度 max_scrolls）"""
         return await verify_macro_script(
             macro_script=macro_script,
             thread_id="multimodal_dryrun",
             _project_id=project_id,
-            params={"max_scrolls": 2, "is_dry_run": True},
+            params={"max_scrolls": 2, "verify_mode": True},
         )
 
     async def _extract_audio(self, video_path: str) -> str | None:

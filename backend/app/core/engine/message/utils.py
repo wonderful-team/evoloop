@@ -53,7 +53,6 @@ def to_base_message(msg: Any) -> BaseMessage | None:
         thinking_raw = msg.get("thinking")
         status = msg.get("status")
         meta_data = msg.get("meta_data") or msg.get("metadata")
-        node_source = msg.get("node_source")
         additional_kwargs = dict(msg.get("additional_kwargs", {}) or {})
     else:
         role = getattr(msg, "role", None)
@@ -63,7 +62,6 @@ def to_base_message(msg: Any) -> BaseMessage | None:
         thinking_raw = getattr(msg, "thinking", None)
         status = getattr(msg, "status", None)
         meta_data = getattr(msg, "meta_data", None) or getattr(msg, "metadata", None)
-        node_source = getattr(msg, "node_source", None)
         additional_kwargs = dict(getattr(msg, "additional_kwargs", {}) or {})
 
     if created_at:
@@ -74,9 +72,6 @@ def to_base_message(msg: Any) -> BaseMessage | None:
         additional_kwargs["status"] = status
     if meta_data:
         additional_kwargs["metadata"] = meta_data
-    if node_source:
-        additional_kwargs["node_source"] = node_source
-
     try:
         message = None
         if role == MessageRole.HUMAN:

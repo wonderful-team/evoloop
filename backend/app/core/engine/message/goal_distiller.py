@@ -20,7 +20,7 @@ class GoalDistiller:
     """
     Distills a clean session goal string.
 
-    Only accepts explicit session_goal strings (e.g. provided by Supervisor).
+    Only accepts explicit session_goal strings (e.g. provided by the Agent).
     Does not attempt to guess or extract goals from arbitrary chat messages.
     """
 

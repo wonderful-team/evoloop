@@ -34,7 +34,7 @@ _DANGEROUS_PATTERNS = [
 ]
 
 
-@hook_system.register(HookEvent.PRE_TOOL_USE, matcher="^execute_command$", priority=5)
+@hook_system.register(HookEvent.PRE_TOOL_USE, matcher="^bash$", priority=5)
 async def elevated_privilege_gate(context: HookContext) -> HookResult:
     """
     Block commands requiring elevated privileges (sudo, su, pkexec).
@@ -71,7 +71,7 @@ async def elevated_privilege_gate(context: HookContext) -> HookResult:
     return HookResult(success=True)
 
 
-@hook_system.register(HookEvent.PRE_TOOL_USE, matcher="^execute_command$", priority=6)
+@hook_system.register(HookEvent.PRE_TOOL_USE, matcher="^bash$", priority=6)
 async def dangerous_command_gate(context: HookContext) -> HookResult:
     """
     Block potentially dangerous system commands.

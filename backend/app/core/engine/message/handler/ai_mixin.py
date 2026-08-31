@@ -23,7 +23,6 @@ class AiMessageMixin:
         metadata: dict | None = None,
         parent_id: str | None = None,
         message_id: str | None = None,
-        node_source: str | None = None,
     ) -> MessageHandlerResult:
         category = MessageClassifier.classify_ai_message(
             content=content,
@@ -42,8 +41,6 @@ class AiMessageMixin:
             metadata=metadata,
         )
 
-        _is_finish_message = node_source == "finish"
-
         if self._deduplicator.is_duplicate(category, content, tool_calls):
             logger.debug("[MessageHandler] Duplicate message detected, skipping")
             return MessageHandlerResult(
@@ -58,7 +55,7 @@ class AiMessageMixin:
 
         effective_parent_id = parent_id or await self._repository.get_last_message_id()
 
-        is_visible = category.is_visible_to_user and not _is_finish_message
+        is_visible = category.is_visible_to_user
 
         if persist_data.should_persist:
             from app.core.engine.message.extractor import attachment_extractor
@@ -75,7 +72,6 @@ class AiMessageMixin:
                 is_visible=is_visible,
                 content_type=MessageContentType.TEXT,
                 metadata=metadata,
-                node_source=node_source,
                 parent_id=effective_parent_id,
                 references=extracted_refs,
                 message_id=msg_id,
@@ -92,13 +88,12 @@ class AiMessageMixin:
                     category=category.value,
                     status=MessageStatus.COMPLETED,
                     sequence_number=seq,
-                    # channels decided by OutputChannelPolicy (node_source ContextVar)
                     parent_id=effective_parent_id,
                     message_id=msg_id,
                     is_visible=is_visible,
                 )
 
-        if stream_data.should_stream and not _is_finish_message:
+        if stream_data.should_stream:
             await self._dispatch_block(
                 role=MessageRole.AI,
                 content=stream_data.content,

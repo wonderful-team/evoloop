@@ -9,7 +9,6 @@ DatabaseCallbackHandler - 数据库日志回调处理器（重构版）
 不再包含复杂的过滤逻辑！
 """
 
-import contextvars
 import logging
 from typing import Any
 from uuid import UUID, uuid4
@@ -18,10 +17,6 @@ from app.core.engine.callbacks.base import AsyncCallbackHandler, LLMResult
 from app.core.engine.message import MessageHandler
 from app.core.engine.message.utils import parse_tool_input
 from app.utils.redact import redact_secrets
-
-current_node_source: contextvars.ContextVar[str | None] = contextvars.ContextVar(
-    "db_node_source", default=None
-)
 
 logger = logging.getLogger(__name__)
 
@@ -148,7 +143,6 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
             output=output,
             tool_call_id=tool_call_id,
             sequence_number=seq,
-            node_source=current_node_source.get(),
         )
         logger.debug(
             f"[DatabaseCallback] Tool output handled: "
@@ -194,7 +188,6 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
             tool_call_id=tool_call_id,
             input_data=input_data,
             parent_id=self._last_ai_message_id,
-            node_source=current_node_source.get(),
         )
 
         # Store in context for HITL tools to access
@@ -239,6 +232,5 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
             error=error,
             tool_call_id=tool_call_id,
             sequence_number=seq,
-            node_source=current_node_source.get(),
         )
         logger.debug(f"[DatabaseCallback] Tool error tracked: {tool_name} (seq={seq})")

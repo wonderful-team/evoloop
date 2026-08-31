@@ -24,7 +24,6 @@ class ToolMessageMixin:
         tool_call_id: str | None = None,
         input_data: dict | None = None,
         parent_id: str | None = None,
-        node_source: str | None = None,
     ) -> MessageHandlerResult:
         metadata = get_tool_metadata(tool_name)
         is_hidden = metadata.is_hidden
@@ -68,7 +67,6 @@ class ToolMessageMixin:
                     "input": input_data,
                     "tool_meta": tool_meta,
                 },
-                node_source=node_source,
                 parent_id=effective_parent_id,
                 executor_device_key=dev_key,
                 executor_device_name=dev_name,
@@ -103,7 +101,6 @@ class ToolMessageMixin:
         tool_call_id: str | None = None,
         run_id: str | None = None,
         sequence_number: int | None = None,
-        node_source: str | None = None,
     ) -> MessageHandlerResult:
         metadata_registry = get_tool_metadata(tool_name)
         input_data = await self._repository.resolve_tool_input(
@@ -164,7 +161,6 @@ class ToolMessageMixin:
                 sequence_number=seq,
                 status=MessageStatus.COMPLETED,
                 content=persist_data.content,
-                node_source=node_source,
                 meta_data=metadata,
             )
             if update_result:
@@ -193,7 +189,6 @@ class ToolMessageMixin:
                 tool_name=persist_data.tool_name,
                 content_type=MessageContentType.TEXT,
                 metadata=metadata,
-                node_source=node_source,
                 executor_device_key=dev_key,
                 executor_device_name=dev_name,
             )
@@ -238,7 +233,6 @@ class ToolMessageMixin:
         error: BaseException,
         tool_call_id: str | None = None,
         sequence_number: int | None = None,
-        node_source: str | None = None,
     ) -> MessageHandlerResult:
         content = str(error) if error else "Tool execution failed"
         seq = sequence_number or 0
@@ -265,7 +259,6 @@ class ToolMessageMixin:
                 sequence_number=sequence_number,
                 status=MessageStatus.FAILED,
                 content=content,
-                node_source=node_source,
                 meta_data=metadata,
             )
             if update_result:
