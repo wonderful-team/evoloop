@@ -190,7 +190,7 @@ def require_benefit(benefit_code: str):
         @router.post("/desktop/control")
         async def desktop_control(
             req: Request,
-            _: bool = Depends(require_benefit("desktop_control"))
+            _: bool = Depends(require_benefit("desktop"))
         ):
             ...
     """
