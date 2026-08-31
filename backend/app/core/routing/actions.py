@@ -62,9 +62,7 @@ async def run_macro(
     nav_info = get_navigation_info(macro)
     if nav_info is not None:
         route, feedback = nav_info
-        return ActionOutcome(
-            True, feedback, "navigate", {"route": route, "feedback": feedback}
-        )
+        return ActionOutcome(True, feedback, "navigate", {"route": route, "feedback": feedback})
 
     # Inject project url as base_url for {{base_url}} substitutions (L0 path
     # runs run_deterministic directly; base_url must be resolved here).
