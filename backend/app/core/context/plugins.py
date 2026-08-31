@@ -120,18 +120,19 @@ class ContextPluginRegistry:
             intent: Optional high-level intent string from the L0 classifier.
                 When ``None``, the classifier-written ``intent_hint`` on
                 ``ctx.metadata`` is used as a fallback so that downstream
-                calls from ``SupervisorPromptBuilder`` / ``WorkerPromptBuilder``
-                land on the same cache bucket as the initial
-                ``AgentContextHydrator.hydrate()`` call rather than overwriting
-                intent-gated state with a fresh "none" bucket run (which would
-                undo the telescopic context selection done upstream).
+                repeated ``ahydrate_context(ctx)`` calls (e.g. from prompt
+                composition after the initial hydrate) land on the same cache
+                bucket as the initial ``AgentContextHydrator.hydrate()`` call
+                rather than overwriting intent-gated state with a fresh "none"
+                bucket run (which would undo the telescopic context selection
+                done upstream).
         """
         # Resolve effective intent: explicit arg takes precedence, otherwise
         # fall back to whatever the L0 classifier wrote onto the context. This
         # keeps repeated ahydrate_context(ctx) calls cache-consistent with the
-        # hydrator's intent-keyed run; otherwise the supervisor / worker
-        # prompt builders' second call would land in the "none" bucket and
-        # re-populate Environment / Project state that the intent had skipped.
+        # hydrator's intent-keyed run; otherwise a second hydrate would land in
+        # the "none" bucket and re-populate Environment / Project state that the
+        # intent had skipped.
         effective_intent = intent
         if effective_intent is None:
             hint = getattr(ctx.metadata, "get", lambda *_: None)("intent_hint")

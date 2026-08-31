@@ -122,33 +122,27 @@ class OutputChannelPolicy:
             A set of channel names to deliver the payload to.
         """
         # Subagent 执行体的所有消息对用户通道不可见（R3）：subagent 是后台并行执行，
-        # 不应出现在 voice/web/mobile 的消息流里。HITL 透传由父 Supervisor 在主会话发起。
+        # 不应出现在 voice/web/mobile 的消息流里。HITL 透传由父主 Agent 在主会话发起。
         from app.core.context.manager import ContextManager
 
         ctx = ContextManager.current()
         if ctx and (ctx.metadata or {}).get("task_type") == "subagent":
             return set()
 
-        channels = cls._resolve(payload, session_source, node_source)
-        return channels
+        return cls._resolve(payload, session_source)
 
     # ── Internal helpers ────────────────────────────────────────────────────────
 
     @classmethod
-    def _resolve(
-        cls,
-        payload: object,
-        session_source: str | None,
-        node_source: str | None,
-    ) -> set[str]:
+    def _resolve(cls, payload: object, session_source: str | None) -> set[str]:
         if isinstance(payload, (TokenEvent, ThinkingEvent, ProgressEvent)):
-            return cls._resolve_stream_event(session_source, node_source)
+            return cls._resolve_stream_event(session_source)
 
         if isinstance(payload, MessageBlock):
-            return cls._resolve_message_block(payload, session_source, node_source)
+            return cls._resolve_message_block(payload, session_source)
 
         if isinstance(payload, BaseEvent):
-            return cls._resolve_base_event(payload, session_source, node_source)
+            return cls._resolve_base_event(payload, session_source)
 
         logger.debug(
             "[OutputChannelPolicy] Unknown payload type %s -> default {sse}",
@@ -157,14 +151,9 @@ class OutputChannelPolicy:
         return {"sse"}
 
     @classmethod
-    def _resolve_stream_event(
-        cls,
-        session_source: str | None,
-        node_source: str | None,
-    ) -> set[str]:
+    def _resolve_stream_event(cls, session_source: str | None) -> set[str]:
         """TokenEvent / ThinkingEvent / ProgressEvent routing."""
-        if _is_voice_session(session_source) and _is_supervisor(node_source):
-            # Only Supervisor tokens go to voice — this is the core bug fix.
+        if _is_voice_session(session_source):
             return {"sse", "voice"}
         return {"sse"}
 
@@ -173,9 +162,8 @@ class OutputChannelPolicy:
         cls,
         block: MessageBlock,
         session_source: str | None,
-        node_source: str | None,
     ) -> set[str]:
-        """MessageBlock routing by role, status and node origin."""
+        """MessageBlock routing by role, status and session origin."""
         role = getattr(block, "role", "")
         streaming = _is_streaming_block(block)
 
@@ -193,20 +181,20 @@ class OutputChannelPolicy:
 
         if role == "ai":
             if streaming:
-                if _is_voice_session(session_source) and _is_supervisor(node_source):
+                if _is_voice_session(session_source):
                     return {"sse", "voice"}
                 return {"sse"}
             # completed / pending / failed etc.
-            if _is_voice_session(session_source) and _is_supervisor(node_source):
+            if _is_voice_session(session_source):
                 return {"sse", "mobile", "voice"}
             if _is_duty_session(session_source):
-                # 值守场景：仅「Supervisor 派活前的安抚文本」（AI + 带 route_to
-                # 工具调用）路由到值守渠道发送给客户；直接回复/最终回复走
-                # SessionCompletedEvent 订阅，避免重复。Worker 中间文本（
-                # node_source=worker）不路由，防止内部过程泄漏给客户。
+                # 值守场景：仅「主 Agent 派活前的安抚文本」（AI + 带委派工具
+                # 调用 task/历史 route_to）路由到值守渠道发送给客户；直接回复/
+                # 最终回复走 SessionCompletedEvent 订阅，避免重复。其余中间文本
+                # 不路由，防止内部过程泄漏给客户。
                 # 用场景标识 "duty" 路由，publisher 端按渠道声明的 scenes
                 # 匹配到具体值守渠道（如 wecom_duty）。
-                if _is_supervisor(node_source) and _has_route_to_call(block):
+                if _has_delegation_call(block):
                     return {"sse", "duty"}
                 return {"sse"}
             return {"sse", "mobile"}
@@ -215,12 +203,7 @@ class OutputChannelPolicy:
         return {"sse", "mobile"}
 
     @classmethod
-    def _resolve_base_event(
-        cls,
-        event: BaseEvent,
-        session_source: str | None,
-        node_source: str | None,
-    ) -> set[str]:
+    def _resolve_base_event(cls, event: BaseEvent, session_source: str | None) -> set[str]:
         """System lifecycle event (SessionCompletedEvent, AgentRunCompletedEvent, …) routing."""
         # If the event itself carries a source, prefer it over the ContextVar.
         event_source = getattr(event, "source", None) or getattr(
