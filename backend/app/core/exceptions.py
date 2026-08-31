@@ -30,9 +30,9 @@ class AgentA2AInterruptException(AgentHumanInterruptException):
     Raised when an A2A subtask is dispatched and the caller must pause until the
     remote callback returns (worker-delegation-design.md Phase B).
 
-    The Worker rollout treats this as a suspend-wait-resume (not a terminal
-    HITL): it parks until the remote callback result is written to DB, reloads
-    its state, and continues the ReAct loop.
+    react 主循环把此视为挂起-恢复（非终结 HITL）：主循环退出，会话置
+    awaiting_a2a；远端回调结果写入 DB 工具消息后经 session resume 重放消息流
+    继续执行（§4.3）。
     """
 
     pass
@@ -72,3 +72,13 @@ class InferenceError(Exception):
         self.user_friendly_msg = user_friendly_msg
         self.raw_error = raw_error
         super().__init__(raw_error)
+
+
+class DoomLoopException(Exception):
+    """
+    Raised when the code-level doom-loop detector finds repeated identical
+    tool invocations (§3 防循环：代码层检测替代 prompt 反循环协议)。
+    由 react 主循环捕获并转为确定性的文本收尾，避免无限循环消耗 token。
+    """
+
+    pass

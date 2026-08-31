@@ -554,7 +554,7 @@ class MacroRunResult(DynamicBaseModel):
 
 
 class MacroVerificationResult(DynamicBaseModel):
-    """Lightweight dry-run verification result for a macro script."""
+    """Result of a macro script's real-execution verification run."""
 
     status: str
     success: bool

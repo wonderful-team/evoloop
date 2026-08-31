@@ -50,7 +50,7 @@ async def list_macros(
 
     # Specific macro lookup by ID
     if macro_id is not None:
-        macro = await load_macro(macro_id)
+        macro = await load_macro(macro_id, project_id=project_id)
         if macro is None or not macro.is_active or macro.status != "verified":
             return ControllerResponse.success(
                 f"Macro #{macro_id} not found or inactive."

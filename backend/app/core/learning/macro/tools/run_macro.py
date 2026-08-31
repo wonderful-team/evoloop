@@ -8,7 +8,7 @@ import logging
 from typing import Annotated, Any
 
 from app.core.engine.message.native_classes import RunnableConfig
-from app.core.hitl.batch_grants import is_operation_granted
+from app.core.hitl.authorization import AuthorizationService
 from app.core.hitl.core import hitl_enabled, raise_hitl_interrupt
 from app.core.hitl.prompts import build_approval_context, resolve_tool_context
 from app.core.learning.macro import (
@@ -56,20 +56,27 @@ async def run_macro(
             note="Use list_macros to discover available macros.",
         )
 
+    from app.constants import DEFAULT_PROJECT_ID
+    from app.core.context.manager import ContextManager
+
+    ctx = ContextManager.current()
+    project_id = ctx.project_id if ctx else DEFAULT_PROJECT_ID
+
     return await _run_macro_row(
-        macro_id, macro_name, params, thread_id, skip_confirmation
+        macro_id, macro_name, params, thread_id, skip_confirmation,
+        project_id=project_id,
     )
 
 
 async def _run_macro_row(
-    macro_id, macro_name, params, thread_id, skip_confirmation=False
+    macro_id, macro_name, params, thread_id, skip_confirmation=False, project_id=None
 ) -> str:
     macro = None
     try:
         if macro_id is not None:
-            macro = await load_macro(int(macro_id))
+            macro = await load_macro(int(macro_id), project_id=project_id)
         elif macro_name:
-            macro = await find_macro_by_name(macro_name)
+            macro = await find_macro_by_name(macro_name, project_id=project_id)
     except Exception as e:
         return ControllerResponse.error(
             f"Failed to look up macro '{macro_name or macro_id}'",
@@ -100,13 +107,15 @@ async def _run_macro_row(
             if params:
                 original_args["params"] = params
 
-            # Intent-level batch grant: if this operation is covered by an approved
-            # batch grant, execute without per-call confirmation.
-            if is_operation_granted(
-                thread_id, "run_macro", params=params, macro_id=macro.id
+            # 宏粒度"总是允许"（grant_mode=always 写盘的持久化授权）：命中即短路确认。
+            # 授权按宏归属项目持久化/读取（AuthorizationService 同一授权域），
+            # 避免在热路径上依赖 resolve_tool_context（其缺 thread_id 会抛错，
+            # 属 fail-fast 语义）。
+            if await AuthorizationService(macro.project_id).is_granted(
+                f"macro:{macro.id}", "macro_run"
             ):
                 logger.info(
-                    "[run_macro] Operation covered by batch grant for macro=%s (id=%s), bypassing confirmation.",
+                    "[run_macro] Macro permanently granted for macro=%s (id=%s), bypassing confirmation.",
                     macro.name,
                     macro.id,
                 )
@@ -134,8 +143,8 @@ async def _run_macro_row(
                     )
 
     execution_params = params.copy() if params else {}
-    execution_params["_macro_id"] = macro.id
-    execution_params["_macro_name"] = macro.name
+    execution_params["macro_id"] = macro.id
+    execution_params["macro_name"] = macro.name
 
     # Inject project url as base_url for {{base_url}} substitutions.
     # Only inject when resolved (None would silently leave {{base_url}}
@@ -212,15 +221,19 @@ def _format_macro_result(macro, result) -> str | None:
 async def _request_macro_confirmation(macro, thread_id, original_args: dict) -> str:
     """向运营人员发起宏执行确认（HITL approval），批准后经 resume 链路重执行。
 
-    请求携带 ``authorization`` 元数据（含 ``skip_grant`` 标记）：批准后
-    ``resolve_approved_tool_result`` 会用原始参数重执行 run_macro，但不持久化
-    授权（宏确认是"每次执行"语义，不写入 project.json authorized_paths）。
+    请求携带 ``authorization`` 元数据（resource_path/action/project_id）：批准后
+    ``resolve_approved_tool_result`` 会用原始参数重执行 run_macro，并按 grant_mode
+    决定是否持久化授权（always→按宏归属项目写永久 grant；once/默认→不写盘，
+    维持"每次执行"语义）。
 
     源头去重：同线程下同宏+同参数已有 pending 请求时复用，避免 Agent 重试
     产生重复 approval 请求。
     """
     ctx_fields = resolve_tool_context()
-    project_id = ctx_fields["project_id"]
+    # 授权按宏归属项目持久化（与 AuthorizationService.is_granted 读取端一致）：
+    # 用 macro.project_id 而非会话项目，避免跨项目调用宏时 grant 写入会话项目、
+    # 读侧永远查不到而导致"总是允许"特性静默失效。
+    project_id = macro.project_id
     command_id = ctx_fields["command_id"]
     current_tool_call_id = ctx_fields["tool_call_id"]
     last_ai_message_id = ctx_fields["parent_id"]
@@ -285,7 +298,7 @@ async def _request_macro_confirmation(macro, thread_id, original_args: dict) -> 
         return response_text  # unreachable
 
     # 循环重试去重：同宏同参数最近已批准（窗口内 completed）时，不再创建新的
-    # approval 请求——Supervisor 在批准后若因未收到结束信号反复发起同一宏，
+    # approval 请求——Agent 在批准后若因未收到结束信号反复发起同一宏，
     # 应复用已批准语义，避免对运营轰炸重复确认请求。
     recently_approved = await find_recently_approved_by_key(
         thread_id, "run_macro", original_args
@@ -311,7 +324,8 @@ async def _request_macro_confirmation(macro, thread_id, original_args: dict) -> 
         macro.name,
         macro.id,
     )
-    # 统一发起 approval（create + push + raise），携带 skip_grant（不持久化授权）；
+    # 统一发起 approval（create + push + raise）；授权持久化由 resume 时的
+    # grant_mode 决定（always→按宏 id 持久化授权，once/默认→仅本次不写盘）。
     # resume_override 声明批准后重执行时注入 skip_confirmation 参数，避免死循环。
     return await HITLOrchestrator.raise_approval(
         thread_id=thread_id,
@@ -327,7 +341,6 @@ async def _request_macro_confirmation(macro, thread_id, original_args: dict) -> 
         original_tool_args=original_args,
         action="macro_run",
         resource_path=f"macro:{macro.id}",
-        skip_grant=True,
         response_template=response_template,
         resume_override={"args": {"skip_confirmation": True}},
     )

@@ -227,13 +227,9 @@ class DatabaseResourceManager:
                         await conn2.execute(
                             text("ALTER TABLE agent_activities ADD COLUMN run_id VARCHAR(100)")
                         )
-                        logger.info(
-                            "[ResourceManager] Added agent_activities.run_id column (schema fallback)"
-                        )
+                        logger.info("[ResourceManager] Added agent_activities.%s column (schema fallback)", name)
         except Exception as e:  # noqa: BLE001
-            logger.warning(
-                "[ResourceManager] Failed to ensure agent_activities.run_id: %s", e
-            )
+            logger.warning("[ResourceManager] Failed to ensure agent_activities schema: %s", e)
 
         logger.info("[ResourceManager] Tables and extensions verified")
 

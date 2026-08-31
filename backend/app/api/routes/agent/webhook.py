@@ -7,7 +7,7 @@ from app.api.schemas.agent import WebhookRequest, WebhookResponse
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.context import thread_context_store
 from app.core.context.manager import ContextManager, EvoContext
-from app.core.engine.background_agent import run_agent_background
+from app.core.engine.agent import run_agent_background
 from app.core.engine.dispatch import DispatchStatus, dispatch_agent_run
 from app.core.evocloud import evocloud_manager
 from app.domain.codebase.indexing.manager import indexing_manager

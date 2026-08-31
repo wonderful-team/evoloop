@@ -23,7 +23,8 @@ from app.core.events.decorators import (
 from app.domain.todo.schemas import TodoCreate
 from app.domain.todo.service import TodoService
 from app.infrastructure.database import session_scope
-from app.models.todo import TodoPriority
+from app.models import Message
+from app.models.todo import TodoPriority, TodoItem
 
 logger = logging.getLogger(__name__)
 
@@ -149,33 +150,21 @@ class TodoRewind:
         )
 
         if message_ids or event.affected_run_ids:
-            count = await self._delete_todos(
-                message_ids=message_ids, run_ids=event.affected_run_ids
-            )
+            count = await self._delete_todos(message_ids=message_ids, run_ids=event.affected_run_ids)
             self._deleted_count = count
             event.results["todos"] = count
-            logger.info(
-                f"[TodoRewind] Deleted {count} todo items for thread {event.thread_id}"
-            )
-        else:
-            logger.debug(
-                f"[TodoRewind] No todo items found to delete for thread {event.thread_id}"
-            )
+            logger.info(f"[TodoRewind] Deleted {count} todo items for thread {event.thread_id}")
 
     async def _find_message_ids(
         self, thread_id: str, target_message_id: str | None, include_target: bool
     ) -> list[str]:
         """Find message IDs to clean up for the given thread."""
-        from app.models import Message
-
         async with session_scope() as session:
             stmt = select(Message.id).where(Message.thread_id == thread_id)
 
             if target_message_id:
                 # Resolve sequence from UUID
-                stmt_target = select(Message.sequence_number).where(
-                    Message.id == target_message_id
-                )
+                stmt_target = select(Message.sequence_number).where(Message.id == target_message_id)
                 res_target = await session.execute(stmt_target)
                 target_seq = res_target.scalar_one_or_none()
 
@@ -199,8 +188,6 @@ class TodoRewind:
         """
         Delete todo items by message IDs or run IDs.
         """
-        from app.models.todo import TodoItem
-
         if not message_ids and not run_ids:
             return 0
 

@@ -87,9 +87,10 @@ def _resolve_command(tokens: list[str]) -> tuple[str, list[str]]:
 
 
 @evoloop_tool(
+    name="bash",
     is_state_mutating=True,
     affected_path_extractor=_parse_command_targets,
-    summary_template="evoloop.tool_summary.execute_command",
+    summary_template="evoloop.tool_summary.bash",
 )
 async def execute_command(
     command: str,
@@ -97,6 +98,21 @@ async def execute_command(
     timeout: int = QUICK_TIMEOUT_SECONDS,
     config: Annotated[RunnableConfig, InjectedToolArg] = None,
 ) -> str:
+    """在用户机器上执行 shell 命令。只用于真实的系统命令 / 终端操作 / 运行脚本。
+
+    **禁止用 bash 做以下事：**
+    - 读文件（用 read 工具）、写文件（用 write/edit）、搜索（用 glob/grep）、编辑（用 edit）。
+    - 查看手机/桌面/网页界面（用 mobile / desktop / browser 工具）。
+    - 给用户发消息（直接用文本回复，不要用 echo/printf）。
+
+    所有文件路径必须在当前会话工作目录内；不要写 /tmp 或项目路径之外。
+    在项目工作目录下运行命令；避免 cd 链，尽量用 workdir。
+
+    Args:
+        command: 要执行的命令。
+        background: 是否后台执行（长任务）。
+        timeout: 超时秒数。
+    """
     timeout = min(
         max(timeout, MIN_COMMAND_TIMEOUT_SECONDS), MAX_COMMAND_TIMEOUT_SECONDS
     )

@@ -12,6 +12,7 @@ import logging
 import time
 from typing import Any
 
+from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
 from app.core.context import EvoContext
 from app.core.context.cache import LayeredContextCache
@@ -19,7 +20,6 @@ from app.core.engine.domain_mapping import resolve_domain
 from app.core.engine.hooks import HookContext, HookEvent, hook_system
 from app.core.engine.message.native_classes import RunnableConfig
 from app.core.learning.macro import list_active_macro_index
-from app.core.routing.conversation_state import ConversationState
 from app.core.routing.constants import (
     DOMAIN_AMBIGUOUS,
     INTENT_DOMAIN_CLASSIFIED,
@@ -27,6 +27,7 @@ from app.core.routing.constants import (
     INTENT_MEMORY_QUERY,
     INTENT_WORKER_TASK,
 )
+from app.core.routing.conversation_state import ConversationState
 from app.core.routing.schemas import IntentHint
 from app.utils.time import elapsed_ms
 
@@ -35,7 +36,8 @@ logger = logging.getLogger(__name__)
 # Gating sets for the static layer (active skills / macros / operation map).
 # When no intent_hint is available we keep the legacy full-load behavior.
 # Intents omitted from a set skip that loader entirely (telescopic loading).
-# See docs/supervisor-telescopic-context-design.md §5.4 for the mapping table.
+# The per-loader gating sets below are the single source of truth for the
+# intent -> loader mapping.
 _INTENTS_NEEDING_ACTIVE_SKILLS = frozenset(
     {INTENT_WORKER_TASK, DOMAIN_AMBIGUOUS, INTENT_MACRO_TASK}
 )
@@ -87,10 +89,7 @@ class AgentContextHydrator:
                 state=state,
             ),
         )
-        if (
-            session_start_result.modified_context
-            and session_start_result.modified_context.state
-        ):
+        if session_start_result.modified_context and session_start_result.modified_context.state:
             mod_state = session_start_result.modified_context.state
             if isinstance(mod_state, dict):
                 for k, v in mod_state.items():
@@ -100,9 +99,7 @@ class AgentContextHydrator:
                     setattr(state, k, getattr(mod_state, k))
 
         # Resolve intent early so Tier 2 memory loading can be gated.
-        intent_hint = ctx.metadata.get("intent_hint") or config.get("metadata", {}).get(
-            "intent_hint"
-        )
+        intent_hint = ctx.metadata.get("intent_hint") or config.get("metadata", {}).get("intent_hint")
         if isinstance(intent_hint, IntentHint):
             intent_hint_obj = intent_hint
         elif isinstance(intent_hint, dict):
@@ -130,16 +127,10 @@ class AgentContextHydrator:
             # suggested_modules so semantic recall is available even for intents
             # (e.g. environment_query) that normally skip it. The routing layer no
             # longer performs this injection; it is part of the engine's mapping.
-            has_prior_context = bool(
-                intent_hint_obj.previous_intent or intent_hint_obj.session_history
-            )
+            has_prior_context = bool(intent_hint_obj.previous_intent or intent_hint_obj.session_history)
             if has_prior_context:
-                boosted = ConversationState.apply_anaphora_boost(
-                    intent_hint_obj, last_human_msg, has_prior_context
-                )
-                intent_hint_obj = intent_hint_obj.model_copy(
-                    update=boosted.model_dump(exclude_none=True)
-                )
+                boosted = ConversationState.apply_anaphora_boost(intent_hint_obj, last_human_msg, has_prior_context)
+                intent_hint_obj = intent_hint_obj.model_copy(update=boosted.model_dump(exclude_none=True))
 
             suggested_modules_raw = intent_hint_obj.suggested_modules
             session_history_raw = intent_hint_obj.session_history
@@ -150,22 +141,15 @@ class AgentContextHydrator:
 
         suggested_modules: set[str] = (
             set(suggested_modules_raw)
-            if isinstance(suggested_modules_raw, list)
-            else set()
+            if isinstance(suggested_modules_raw, list) else set()
         )
         # When the anaphora path is active, blend the running session history into
         # the memory query so semantic recall can surface entities named in
         # earlier turns (e.g. "Apple M1 Max") that are absent from the bare
         # anaphora turn ("那它的内存呢"). Prior turns are weighted first so the
         # recency bias matches how LLMs resolve references.
-        anaphora_active = (
-            "Memory" in suggested_modules and intent not in _INTENTS_NEEDING_MEMORY
-        )
-        if (
-            anaphora_active
-            and isinstance(session_history_raw, list)
-            and session_history_raw
-        ):
+        anaphora_active = "Memory" in suggested_modules and intent not in _INTENTS_NEEDING_MEMORY
+        if anaphora_active and isinstance(session_history_raw, list) and session_history_raw:
             memory_query_text = " ".join(session_history_raw[-3:] + [last_human_msg])
         else:
             memory_query_text = last_human_msg
@@ -184,27 +168,13 @@ class AgentContextHydrator:
         # An intents's suggested_modules containing "Memory" (anaphora path)
         # soft-opens this gate so cross-turn entity recall stays available.
         # When intent is None (no L0 hint available), keep legacy full-load behavior.
-        if last_human_msg and (
-            intent is None
-            or intent in _INTENTS_NEEDING_MEMORY
-            or "Memory" in suggested_modules
-        ):
-            from app.constants import DEFAULT_PROJECT_ID
-
+        if last_human_msg and (intent is None or intent in _INTENTS_NEEDING_MEMORY or "Memory" in suggested_modules):
             if ctx.project_id and ctx.project_id != DEFAULT_PROJECT_ID:
                 # Project mode: query project + global concepts in parallel, then merge
-                project_concepts, global_concepts, episodes = await __import__(
-                    "asyncio"
-                ).gather(
-                    memory_manager.search_concepts(
-                        memory_query_text, ctx.project_id, limit=3
-                    ),
-                    memory_manager.search_concepts(
-                        memory_query_text, DEFAULT_PROJECT_ID, limit=2
-                    ),
-                    memory_manager.search_episodes(
-                        memory_query_text, ctx.project_id, limit=3
-                    ),
+                project_concepts, global_concepts, episodes = await asyncio.gather(
+                    memory_manager.search_concepts(memory_query_text, ctx.project_id, limit=3),
+                    memory_manager.search_concepts(memory_query_text, DEFAULT_PROJECT_ID, limit=2),
+                    memory_manager.search_episodes(memory_query_text, ctx.project_id, limit=3),
                 )
                 # Merge: project concepts first, then global (dedup by name)
                 seen_names: set[str] = set()
@@ -216,11 +186,9 @@ class AgentContextHydrator:
                 concepts = merged_concepts[:5]
             else:
                 # Global mode: query global only
-                concepts, episodes = await __import__("asyncio").gather(
+                concepts, episodes = await asyncio.gather(
                     memory_manager.search_concepts(memory_query_text, ctx.project_id),
-                    memory_manager.search_episodes(
-                        memory_query_text, ctx.project_id, limit=3
-                    ),
+                    memory_manager.search_episodes(memory_query_text, ctx.project_id, limit=3),
                 )
 
             if concepts:
@@ -255,29 +223,24 @@ class AgentContextHydrator:
 
             needs_skills = intent is None or intent in _INTENTS_NEEDING_ACTIVE_SKILLS
             needs_macros = intent is None or intent in _INTENTS_NEEDING_ACTIVE_MACROS
-            needs_operation_map = (
-                intent is None or intent in _INTENTS_NEEDING_OPERATION_MAP
-            ) and ctx.project_id
+            needs_operation_map = (intent is None or intent in _INTENTS_NEEDING_OPERATION_MAP) and ctx.project_id
 
             async def _load_active_skills() -> Any:
                 return (
                     await skill_discovery.get_active_skills_list()
-                    if needs_skills
-                    else ""
+                    if needs_skills else ""
                 )
 
             async def _load_active_macros() -> Any:
                 return (
                     await list_active_macro_index(project_id=ctx.project_id)
-                    if needs_macros
-                    else ""
+                    if needs_macros else ""
                 )
 
             async def _load_operation_map() -> Any:
                 return (
                     await operation_map_summary(ctx.project_id)
-                    if needs_operation_map
-                    else ""
+                    if needs_operation_map else ""
                 )
 
             active_skills, active_macros, operation_map = await asyncio.gather(
@@ -313,7 +276,6 @@ class AgentContextHydrator:
         # Populate context metadata from flat state fields
         ctx.metadata.shared_context = state.shared_context
         ctx.metadata.tool_memory = state.tool_memory
-        ctx.metadata.execution_ticket = state.ticket
         ctx.metadata.iteration_count = iteration_count
 
         # Backward-compatible duck-typing wrapper for plugins or tools that read ctx.metadata.blackboard
@@ -326,7 +288,7 @@ class AgentContextHydrator:
         # 7. Domain Expert Polishing (Event-Driven)
         from app.core.events.publishers import publish_context_polishing
 
-        topic = state.ticket.topic if state.ticket else ""
+        topic = state.session_goal or ""
         await publish_context_polishing(
             thread_id=ctx.thread_id,
             project_id=ctx.project_id,
@@ -340,9 +302,7 @@ class AgentContextHydrator:
         # 8. Retry Hardening (Metadata Reset)
         is_config_retry = config.get("metadata", {}).get("is_retry", False)
         if (is_retry or is_config_retry) and iteration_count == 0:
-            logger.info(
-                "[AgentContextHydrator] 🔄 Retry detected: Performing state metadata reset."
-            )
+            logger.info("[AgentContextHydrator] 🔄 Retry detected: Performing state metadata reset.")
 
             if hasattr(state, "final_outcome"):
                 state.final_outcome = None
@@ -363,6 +323,4 @@ class AgentContextHydrator:
 
         duration_ms = elapsed_ms(start_time)
         if duration_ms > 100:
-            logger.info(
-                f"[AgentContextHydrator] Hydration completed in {duration_ms:.1f}ms"
-            )
+            logger.info(f"[AgentContextHydrator] Hydration completed in {duration_ms:.1f}ms")

@@ -71,11 +71,3 @@ class HITLRequestStatus(str, Enum):
     COMPLETED = "completed"
     CANCELLED = "cancelled"
     TIMEOUT = "timeout"
-
-
-class BatchGrantStatus(str, Enum):
-    """批量审批授权（batch_grants）生命周期状态。"""
-
-    PENDING = "pending"
-    APPROVED = "approved"
-    EXPIRED = "expired"

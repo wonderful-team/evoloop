@@ -20,15 +20,15 @@ async def analyze_image(
     include_ax_tree: bool = False,
 ) -> str:
     """
-    Analyze an image using the unified VisionEngine.
+    用统一的 VisionEngine 分析一张图片。
 
     Args:
-        image_source: The absolute path to a local image file OR a public image URL.
-        question: The question or instruction about the image (e.g., "What is in this image?", "Describe the layout bug").
-        include_ax_tree: If True, dumps the macOS Accessibility (AX) Tree and appends it to the prompt for grounding.
+        image_source: 本地图片文件的绝对路径 或 公开图片 URL。
+        question: 关于图片的问题或指令（如"图片里有什么？"、"描述这个布局问题"）。
+        include_ax_tree: 为 True 时 dump macOS Accessibility (AX) 树并追加到 prompt 用于接地。
 
     Returns:
-        A text description or answer derived from the image analysis.
+        基于图片分析得出的文本描述或答案。
     """
     final_prompt = question
 

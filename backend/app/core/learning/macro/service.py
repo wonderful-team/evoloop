@@ -231,9 +231,7 @@ class MacroService:
                 decision = SelfHealingPolicy.check(macro=macro, execution_params=params)
 
                 if not decision.allowed:
-                    logger.warning(
-                        "[%s] Self-healing disabled: %s", thread_id, decision.reason
-                    )
+                    logger.warning("[%s] Self-healing disabled: %s", thread_id, decision.reason)
                     return MacroRunResult(
                         success=False,
                         message=msg,
@@ -245,9 +243,7 @@ class MacroService:
                     )
 
                 # Self-healing is allowed - trigger fallback via event system
-                macro_name = (
-                    macro.name if macro is not None else params.get("_macro_name")
-                )
+                macro_name = macro.name if macro is not None else params.get("macro_name")
                 event = await publish_macro_execution_failed(
                     macro_name=macro_name or "manual_macro",
                     error_message=msg,

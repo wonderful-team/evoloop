@@ -7,12 +7,7 @@ live there so they can also be used by the authorization framework.
 """
 
 import logging
-from typing import Any
 
-from pydantic import BaseModel
-
-from app.core.hitl.batch_grants import create_pending_grant, update_grant_request_id
-from app.core.hitl.constants import DEFAULT_BATCH_GRANT_TTL_SECONDS
 from app.core.hitl.core import (
     auto_hitl_response,
     create_request,
@@ -25,7 +20,6 @@ from app.core.hitl.schemas import RequestApprovalArgs, RequestHumanInputArgs
 from app.core.hitl.types import HITLDecision, HumanRequestType, RiskLevel
 from app.core.tools import evoloop_tool
 from app.i18n.service import i18n
-from app.utils.id import gen_uuid
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 
 @evoloop_tool(
-    "ask_human",
+    name="question",
     args_schema=RequestHumanInputArgs,
     is_hitl=True,
     summary_template="evoloop.tool_summary.ask_user",
@@ -48,13 +42,13 @@ async def ask_human(
     default_value: str | None = None,
 ) -> str:
     """
-    Pause execution and request input from the user.
+    暂停执行，向用户请求输入。
 
-    Use this tool when you:
-    - Need information that only the user can provide
-    - Require clarification on requirements
-    - Want user to make a decision between options
-    - Need confirmation before proceeding
+    在以下情况使用本工具：
+    - 需要只有用户才能提供的信息
+    - 需要澄清需求
+    - 需要用户在多个选项间做决定
+    - 需要在继续前获得确认
 
     **批量勾选处理范围（重要）**：当需要运营从多个同类待办中**挑选一部分**处理时
     （例如多笔退款/提现中只处理其中几笔），使用 ``input_type="multi_choice"``，
@@ -62,9 +56,9 @@ async def ask_human(
     运营可勾选多项，返回值是**逗号分隔的选中清单**；随后只执行清单内的项。
     不要为每一笔单独请求确认。
 
-    The workflow will pause until the user responds.
+    流程会暂停直到用户响应。
 
-    Returns the user's response as a string.
+    返回用户响应字符串。
     """
     # EXECUTION_MODE=docker：无人值守流水线不挂起，走自动应答（沙箱隔离兜底）。
     if not hitl_enabled():
@@ -143,7 +137,7 @@ async def ask_human(
         },
         project_id=project_id,
         run_id=str(command_id) if command_id else None,
-        tool_name="ask_human",
+        tool_name="question",
         tool_call_id=current_tool_call_id,
         parent_id=last_ai_message_id,
     )
@@ -164,8 +158,6 @@ async def ask_confirm(
     risk_level: RiskLevel = RiskLevel.MEDIUM,
     details: str | None = None,
     consequences: str | None = None,
-    operations: list[dict[str, Any]] | None = None,
-    risk_note: str | None = None,
 ) -> str:
     """
     Request user approval before executing a potentially impactful action.
@@ -175,15 +167,9 @@ async def ask_confirm(
     - Running commands that could have side effects
     - Making irreversible changes
     - Executing operations with significant cost
-    - Running multiple state-changing operations of the same kind in one turn
-      (provide the full ``operations`` list for batch approval)
 
-    When ``operations`` is provided, this becomes a batch approval: the user
-    approves or rejects the entire list at once. Approved operations are covered
-    by a short-lived grant and will not trigger per-call confirmation again.
-
-    **注意**：若运营需要从清单中**只挑选一部分**处理（而非整批批准/驳回），应改
-    用 ``ask_human`` 的 ``input_type="multi_choice"`` 让运营勾选，不要用本工具。
+    **注意**：若运营需要从多个候选中**挑选一部分**处理，应改用 ``ask_human``
+    的 ``input_type="multi_choice"`` 让运营勾选，不要用本工具。
 
     The workflow will pause until the user responds.
 
@@ -204,118 +190,35 @@ async def ask_confirm(
     current_tool_call_id = ctx_fields["tool_call_id"]
     last_ai_message_id = ctx_fields["parent_id"]
 
-    ops: list[dict[str, Any]] = []
-    for op in operations or []:
-        if isinstance(op, BaseModel):
-            ops.append(op.model_dump())
-        elif isinstance(op, dict):
-            ops.append(op)
-    if ops:
-        detail_lines = []
-        for i, op in enumerate(ops, 1):
-            desc = op.get("description") or op.get("tool_name", "")
-            macro_name = op.get("macro_name")
-            macro_id = op.get("macro_id")
-            if macro_name:
-                desc = f"{desc} ({macro_name})"
-            elif macro_id:
-                desc = f"{desc} (macro_id={macro_id})"
-            params = op.get("params") or {}
-            params_str = ", ".join(
-                f"{k}={v}" for k, v in params.items() if not k.startswith("_")
-            )
-            detail_lines.append(
-                f"{i}. {desc}" + (f" ({params_str})" if params_str else "")
-            )
-        batch_details = "\n".join(detail_lines)
-        combined_details = "\n\n".join(filter(None, [details, batch_details]))
-        combined_consequences = "\n\n".join(filter(None, [consequences, risk_note]))
-    else:
-        combined_details = details
-        combined_consequences = consequences
-
     approval_context = build_approval_context(
         action_description=action_description,
         risk_level=risk_level,
-        details=combined_details,
-        consequences=combined_consequences,
+        details=details,
+        consequences=consequences,
     )
 
     logger.info(
-        "Approval requested for: %s... (Risk: %s, batch=%s)",
+        "Approval requested for: %s... (Risk: %s)",
         action_description[:50],
         risk_level,
-        bool(ops),
     )
 
-    # Single-action approval: reuse the unified orchestrator path.
-    if not ops:
-        from app.core.hitl.orchestrator import HITLOrchestrator
+    from app.core.hitl.orchestrator import HITLOrchestrator
 
-        return await HITLOrchestrator.raise_approval(
-            thread_id=thread_id,
-            prompt=action_description,
-            context=approval_context,
-            tool_name="ask_confirm",
-            risk_level=risk_level,
-            tool_call_id=current_tool_call_id,
-            parent_id=last_ai_message_id,
-            project_id=project_id,
-            run_id=str(command_id) if command_id else None,
-            original_tool_name="ask_confirm",
-            response_text_factory=lambda req: i18n.get(
-                "domain_tools.human_input.approval_template",
-                id=req.id,
-                approval_context=approval_context,
-            ),
-        )
-
-    # Batch approval: create the grant first, then link it to the HITL request
-    # so that post-approval resume can activate the grant.
-    grant_id = gen_uuid()
-    create_pending_grant(
-        grant_id=grant_id,
+    return await HITLOrchestrator.raise_approval(
         thread_id=thread_id,
-        request_id="",
-        operations=ops,
-        ttl_seconds=DEFAULT_BATCH_GRANT_TTL_SECONDS,
-    )
-
-    request = await create_request(
-        thread_id=thread_id,
-        request_type=HumanRequestType.APPROVAL.value,
         prompt=action_description,
         context=approval_context,
-        default_value=HITLDecision.REJECTED.value,
-    )
-
-    update_grant_request_id(grant_id, request.id)
-
-    await push_hitl_notification(
-        thread_id=thread_id,
-        request=request,
-        request_data={
-            "id": request.id,
-            "type": HumanRequestType.APPROVAL.value,
-            "prompt": action_description,
-            "context": approval_context,
-            "default_value": HITLDecision.REJECTED.value,
-            "risk_level": risk_level,
-            "batch_grant_id": grant_id,
-            "operations": ops,
-        },
-        project_id=project_id,
-        run_id=str(command_id) if command_id else None,
         tool_name="ask_confirm",
+        risk_level=risk_level,
         tool_call_id=current_tool_call_id,
         parent_id=last_ai_message_id,
+        project_id=project_id,
+        run_id=str(command_id) if command_id else None,
         original_tool_name="ask_confirm",
-        original_tool_args={"grant_id": grant_id},
+        response_text_factory=lambda req: i18n.get(
+            "domain_tools.human_input.approval_template",
+            id=req.id,
+            approval_context=approval_context,
+        ),
     )
-
-    response_text = i18n.get(
-        "domain_tools.human_input.approval_template",
-        id=request.id,
-        approval_context=approval_context,
-    )
-    raise_hitl_interrupt(request.id, response_text)

@@ -3,17 +3,16 @@ AgentEngine - Instance-based execution engine for EvoLoop Agents.
 """
 
 import logging
+from collections.abc import Callable
 from typing import Any
 
 from app.core.channel.policy import current_session_source
 from app.core.context.manager import ContextManager
-from app.core.engine.callbacks.database_logger import current_node_source
 from app.core.engine.constants import MAX_STEPS
 from app.core.engine.context_trimmer import ContextTrimmer
 from app.core.engine.inference_engine import InferenceEngine
 from app.core.engine.message.constants import MessageRole
-from app.core.engine.schemas import EngineResult, NodeOutcome, NodeOutcomeStatus
-from app.core.engine.signals import signal_manager
+from app.core.engine.schemas import EngineResult, RunOutcome, RunOutcomeStatus
 from app.core.engine.state import AgentState
 from app.core.engine.tools.executor import AgentToolExecutor
 from app.core.memory.tool_output_memory import get_tool_memory_from_state
@@ -35,7 +34,6 @@ class AgentEngine:
         enable_diff_tracking: bool = True,
         inference_engine: InferenceEngine | None = None,
         context_trimmer: ContextTrimmer | None = None,
-        signal_registry=None,
     ):
         self._llm_factory = llm_factory or LLMFactory
         self._config_service = config_service
@@ -46,9 +44,8 @@ class AgentEngine:
             llm_factory=self._llm_factory,
             context_trimmer=self._context_trimmer,
         )
-        self._signal_registry = signal_registry or signal_manager
 
-    async def run_node(
+    async def run_react_loop(
         self,
         state: AgentState,
         config: dict,
@@ -57,14 +54,14 @@ class AgentEngine:
         max_steps: int = MAX_STEPS,
         temperature: float = 0.7,
         name: str = "Agent",
-        node_source: str = None,
         parallel_tools: bool = False,
         model: str | None = None,
+        steer_provider: Callable | None = None,
     ) -> EngineResult:
         """Executes the standard Agent ReAct loop."""
         if not model:
             logger.info(
-                f"[{name}] No model provided for node execution; relying on cloud gateway default model routing."
+                f"[{name}] No model provided; relying on cloud gateway default model routing."
             )
 
         llm, _provider = await self._inference_engine.create_llm(
@@ -77,7 +74,6 @@ class AgentEngine:
         trim_result = self._context_trimmer.trim(
             messages=state.messages,
             model=model,
-            node_source=node_source or name.lower(),
             tool_memory=tool_memory,
             is_retry=state.is_retry or False,
         )
@@ -93,10 +89,6 @@ class AgentEngine:
             parallel=parallel_tools,
         )
 
-        interceptors = self._signal_registry.build_interceptors()
-
-        current_node_source.set(node_source or name.lower())
-
         # Propagate session source ("voice"/"web"/"mobile") for OutputChannelPolicy.
         _ctx = ContextManager.current()
         current_session_source.set(getattr(_ctx.metadata, "source", None))
@@ -109,16 +101,14 @@ class AgentEngine:
             name=name,
             max_steps=max_steps,
             tool_executor=tool_executor,
-            interceptors=interceptors,
             model=model,
             iteration_count=state.iteration_count,
+            steer_provider=steer_provider,
         )
 
-        outcome_status = NodeOutcomeStatus.SUCCESS
+        outcome_status = RunOutcomeStatus.SUCCESS
         if inference_result.get("is_truncated"):
-            outcome_status = NodeOutcomeStatus.TRUNCATED
-        elif inference_result.get("signal"):
-            outcome_status = NodeOutcomeStatus.INTERRUPTED
+            outcome_status = RunOutcomeStatus.TRUNCATED
         last_msg = (
             inference_result.get("messages", [])[-1]
             if inference_result.get("messages")
@@ -129,24 +119,16 @@ class AgentEngine:
             and last_msg.role == MessageRole.AI
             and last_msg.additional_kwargs.get("is_error")
         ):
-            outcome_status = NodeOutcomeStatus.ERROR
+            outcome_status = RunOutcomeStatus.ERROR
 
-        outcome = NodeOutcome(status=outcome_status)
+        outcome = RunOutcome(status=outcome_status)
 
         result = EngineResult(
             messages=inference_result.get("messages", []),
             tool_history=inference_result.get("tool_history", []),
             is_truncated=inference_result.get("is_truncated", False),
-            signal=inference_result.get("signal"),
             outcome=outcome,
-            queued_signals=inference_result.get("queued_signals", []),
         )
-
-        if node_source:
-            for msg in inference_result.get("messages", []):
-                if msg.additional_kwargs is None:
-                    msg.additional_kwargs = {}
-                msg.additional_kwargs["node_source"] = node_source
 
         return result
 
@@ -175,9 +157,7 @@ class ToolExecutorAdapter:
         )
         self._parallel = parallel
 
-    async def execute_batch(
-        self, tool_calls: list[dict], local_tool_history: list[str]
-    ) -> tuple[list[Any], Any | None]:
+    async def execute_batch(self, tool_calls: list[dict], local_tool_history: list[str]) -> list[Any]:
         return await self._executor.execute_batch(
             tool_calls, local_tool_history, parallel=self._parallel
         )

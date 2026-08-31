@@ -74,7 +74,7 @@ async def get_devices(token: TokenDep):
     return devices
 
 
-@router.post("/{device_key}/command", dependencies=[Depends(require_benefit("mobile_control"))])
+@router.post("/{device_key}/command", dependencies=[Depends(require_benefit("mobile"))])
 async def send_command(device_key: str, req: SendCommandRequest, token: TokenDep):
     """Send remote command."""
     cmd_data = req.model_dump()

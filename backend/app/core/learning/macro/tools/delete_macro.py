@@ -42,10 +42,15 @@ async def delete_macro(macro_id: int, rationale: str) -> str:
 
     Do NOT delete macros just because they returned empty results once.
     """
+    from app.constants import DEFAULT_PROJECT_ID
+    from app.core.context.manager import ContextManager
+
+    ctx = ContextManager.current()
+    project_id = ctx.project_id if ctx else DEFAULT_PROJECT_ID
     try:
-        macro = await load_macro(int(macro_id))
+        macro = await load_macro(int(macro_id), project_id=project_id)
         if macro is None:
-            return ControllerResponse.error(f"Macro #{macro_id} not found.")
+            return ControllerResponse.error(f"Macro #{macro_id} not found (或不属于当前项目).")
 
         ok = await lifecycle_delete_macro(int(macro_id))
         if not ok:

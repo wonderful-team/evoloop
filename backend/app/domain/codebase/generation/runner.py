@@ -6,7 +6,7 @@ import logging
 import os
 import time
 
-from app.core.engine.background_agent import run_agent_background
+from app.core.engine.agent import run_agent_background
 from app.core.engine.dispatch import DispatchStatus, dispatch_agent_run
 from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket
 from app.core.project.utils import get_project_path

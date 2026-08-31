@@ -35,11 +35,17 @@ async def read_macro(
             note="Use list_macros to discover available macros.",
         )
 
+    from app.constants import DEFAULT_PROJECT_ID
+    from app.core.context.manager import ContextManager
+
+    ctx = ContextManager.current()
+    project_id = ctx.project_id if ctx else DEFAULT_PROJECT_ID
+
     try:
         if macro_id is not None:
-            macro = await load_macro(int(macro_id))
+            macro = await load_macro(int(macro_id), project_id=project_id)
         else:
-            macro = await find_macro_by_name(macro_name)
+            macro = await find_macro_by_name(macro_name, project_id=project_id)
     except Exception as e:
         logger.exception("Failed to load macro for read_macro: %s", e)
         return ControllerResponse.error(f"Failed to load macro: {e}")

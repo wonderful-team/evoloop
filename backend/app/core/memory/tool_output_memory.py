@@ -169,8 +169,9 @@ class ToolOutputMemory:
             )
             return False, "Tool output was not forgotten"
 
-        # Note: We don't remove from forgotten - we just mark it as recalled
-        # The actual restoration is handled by the recall_tool_output tool
+        # Note: We don't remove from forgotten - we just mark it as recalled.
+        # 还原动作已由代码层自动管理（executor 截断 + ContextTrimmer），
+        # 不再有 recall_tool_output 工具。
         self.audit_log.append(
             AuditEntry(
                 action="recall",

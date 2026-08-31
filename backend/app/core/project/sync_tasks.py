@@ -2,11 +2,8 @@ import logging
 from datetime import datetime
 
 from app.core.evocloud import evocloud_manager
-from app.core.project.constants import (
-    SYNC_STATUS_FAILED,
-    SYNC_STATUS_SYNCED,
-    TASK_PRIORITY_MEDIUM,
-)
+from app.core.evocloud.constants import SYNC_STATUS_FAILED, SYNC_STATUS_SYNCED
+from app.core.project.constants import TASK_PRIORITY_MEDIUM
 from app.domain.codebase.constants import REPO_SYNC_STATUS_SYNCED
 from app.domain.codebase.indexing.service import IndexingService
 from app.infrastructure.queue.factory import shared_task

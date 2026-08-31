@@ -15,7 +15,7 @@ from app.api.schemas.tasks import (
     TaskUpdateRequest,
 )
 from app.constants import DEFAULT_PROJECT_ID
-from app.core.engine.background_agent import run_agent_background
+from app.core.engine.agent import run_agent_background
 from app.core.engine.dispatch import DispatchStatus, dispatch_agent_run
 from app.core.evocloud import evocloud_manager
 from app.utils.id import unique_id

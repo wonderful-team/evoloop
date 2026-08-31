@@ -3,8 +3,8 @@ VoiceChannel — pushes agent results to the voice WebSocket for TTS playback.
 
 Handles message types from the ChannelRegistry (selected upstream by OutputChannelPolicy):
 
-1. ``MessageBlock(role=ai, content=...)`` — the Supervisor's 安抚话术 when it
-   routes to a Worker (e.g. "好的，我来处理").  Pushed as
+1. ``MessageBlock(role=ai, content=...)`` — the main Agent's 安抚话术 (its
+   first visible response, e.g. "好的，我来处理").  Pushed as
    ``voice.route_result {routed, text}`` for immediate TTS.
 
 2. ``SessionCompletedEvent(source=voice)`` — terminal success. Pushed as
@@ -13,9 +13,8 @@ Handles message types from the ChannelRegistry (selected upstream by OutputChann
 3. ``AgentRunCompletedEvent(source=voice, status=failed)`` — terminal failure.
    Pushed as ``voice.route_result {failed, error}``.
 
-4. ``TokenEvent`` — streaming LLM tokens from the Supervisor node.  Accumulated
-   and pushed to Volcengine ChatTTSText progressively.  Worker tokens are routed
-   here only if OutputChannelPolicy decides so (by design they should not).
+4. ``TokenEvent`` — streaming LLM tokens from the main Agent.  Accumulated
+   and pushed to Volcengine ChatTTSText progressively.
 
 Streaming TTS via TokenEvent:
 - As LLM tokens arrive (TokenEvent), text accumulates in `_tts_accumulator`.
@@ -62,7 +61,7 @@ class VoiceChannel(Channel):
     _envelope_fn: Any = None
     _message_type: Any = None
 
-    # Per-thread dedup for 安抚话术 (Supervisor first response)
+    # Per-thread dedup for 安抚话术 (main Agent first response)
     _filler_texts: dict[str, set[str]] = {}
     _token_buffers: dict[str, str] = {}
     _streamed_texts: dict[str, str] = {}
@@ -441,7 +440,7 @@ class VoiceChannel(Channel):
             self._tts_accumulator[tid] = buf
             return
 
-        # ── Superviosr 安抚话术：首个回应时推送 ────────────────
+        # ── 主 Agent 安抚话术（首个可见回应）：推送 routed 事件 ──
         if isinstance(payload, MessageBlock):
             if not payload.is_visible:
                 logger.debug(

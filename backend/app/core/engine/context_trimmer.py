@@ -34,13 +34,8 @@ from app.infrastructure.llm.platform_service import llm_platform_service
 
 logger = logging.getLogger(__name__)
 
-NODE_BUDGET_RATIOS: dict[str, float] = {
-    "supervisor": 0.30,
-    "worker": 0.85,
-    "finish": 0.80,
-    "chat": 0.80,
-    "default": 0.60,
-}
+#: 单 Agent ReAct 主循环的 token 预算（唯一执行体，固定占比）。
+REACT_BUDGET_RATIO = 0.80
 
 
 class TrimTrigger(Enum):
@@ -62,11 +57,10 @@ class TrimResult:
     stage_log: list[dict] = field(default_factory=list)
 
 
-def _compute_budget(model: str, node_source: str) -> tuple[int, int]:
+def _compute_budget(model: str) -> tuple[int, int]:
     profile = llm_platform_service.get_profile(model)
     model_max = profile.max_context_tokens or DEFAULT_MAX_CONTEXT_TOKENS
-    node_ratio = NODE_BUDGET_RATIOS.get(node_source, NODE_BUDGET_RATIOS["default"])
-    effective_budget = int(model_max * node_ratio)
+    effective_budget = int(model_max * REACT_BUDGET_RATIO)
     hard_limit = int(model_max * HARD_LIMIT_RATIO)
     return min(effective_budget, hard_limit), hard_limit
 
@@ -81,7 +75,6 @@ class ContextTrimmer:
         messages: list[Any],
         *,
         model: str | None = None,
-        node_source: Literal["supervisor", "worker", "finish", "default"] = "default",
         tool_memory: ToolOutputMemory | None = None,
         is_retry: bool = False,
         stages: set[Literal["forget", "window", "repair"]] | None = None,
@@ -110,7 +103,7 @@ class ContextTrimmer:
             )
 
         # --- Stage 1: Quick exit ---
-        effective_budget, hard_limit = _compute_budget(model or "", node_source)
+        effective_budget, hard_limit = _compute_budget(model or "")
         if (
             before_tokens <= int(effective_budget * TRIM_THRESHOLD_RATIO)
             and not is_retry
@@ -174,7 +167,7 @@ class ContextTrimmer:
         if "window" in stages:
             count_before = len(working)
             tokens_before = count_total_tokens(working)
-            working = self._token_driven_window(working, model, node_source)
+            working = self._token_driven_window(working, model)
             tokens_after = count_total_tokens(working)
             stage_log.append(
                 {
@@ -205,7 +198,7 @@ class ContextTrimmer:
         after_count = len(working)
 
         logger.info(
-            f"[ContextTrimmer] Finished: {node_source} | trigger={trigger.name} | "
+            f"[ContextTrimmer] Finished: react | trigger={trigger.name} | "
             f"tokens={before_tokens} -> {after_tokens} | messages={before_count} -> {after_count}"
         )
 
@@ -276,12 +269,11 @@ class ContextTrimmer:
         self,
         messages: list[BaseMessage],
         model: str,
-        node_source: str,
     ) -> list[BaseMessage]:
         if not messages:
             return messages
 
-        effective_budget, hard_limit = _compute_budget(model or "", node_source)
+        effective_budget, hard_limit = _compute_budget(model or "")
         current_tokens = count_total_tokens(messages)
         if current_tokens <= effective_budget:
             return messages

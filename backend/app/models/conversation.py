@@ -217,6 +217,11 @@ class AgentActivity(Base):
     final_outcome: Mapped[str] = mapped_column(Text, default="")
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     macro_creation_eligible: Mapped[bool] = mapped_column(default=False)
+    # React 引擎度量埋点（§10.2.1 / 阶段 D）：每 run 汇总
+    llm_calls: Mapped[int] = mapped_column(default=0)
+    input_tokens: Mapped[int] = mapped_column(default=0)
+    output_tokens: Mapped[int] = mapped_column(default=0)
+    tool_errors: Mapped[int] = mapped_column(default=0)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow
     )

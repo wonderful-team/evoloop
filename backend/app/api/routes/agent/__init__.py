@@ -1,7 +1,7 @@
 from fastapi import APIRouter, BackgroundTasks
 
 # 直接来自真实来源（_chat 已不再 import；此处保持 test patch 兼容的模块级导出）
-from app.core.engine.background_agent import run_agent_background  # noqa: F401
+from app.core.engine.agent import run_agent_background  # noqa: F401
 
 # External dependencies used by agent endpoints that tests patch directly on agent module
 from app.infrastructure.database.resource_manager import db_resource_manager
@@ -20,7 +20,7 @@ from .chat import (
     thread_context_store,
 )
 from .chat import router as chat_router
-from .hitl import cancel_hitl_request, resume_graph_background
+from .hitl import cancel_hitl_request, resume_agent_background
 from .hitl import router as hitl_router
 from .webhook import EventAdapter, WebhookRequest, evocloud_manager, webhook_endpoint
 from .webhook import router as webhook_router
@@ -38,7 +38,6 @@ async def _prepare_and_dispatch(
     model: str | None = None,
 ):
     from app.core.context.manager import ContextManager, EvoContext
-    from app.core.engine.background_agent import run_agent_background
     from app.core.engine.dispatch import DispatchStatus, dispatch_agent_run
 
     ctx = EvoContext(
@@ -96,7 +95,7 @@ __all__ = [
     "EventAdapter",
     "evocloud_manager",
     "cancel_hitl_request",
-    "resume_graph_background",
+    "resume_agent_background",
     "db_resource_manager",
     "_prepare_and_dispatch",
 ]

@@ -5,8 +5,8 @@ from fastapi import APIRouter, BackgroundTasks
 from app.api.schemas.agent import CancelHITLRequest, CancelHITLResponse
 from app.core.config import settings
 from app.core.context.manager import ContextManager
-from app.core.engine.graph_runner import resume_graph_background
 from app.core.engine.message.native_classes import ToolMessage
+from app.core.engine.resume_runner import resume_agent_background
 from app.core.hitl.types import HITLDecision
 from app.core.monitoring.activity import activity_monitor
 from app.utils.id import unique_id
@@ -31,7 +31,7 @@ async def cancel_hitl_request(req: CancelHITLRequest, bg_tasks: BackgroundTasks)
 
     # 会话模式（§4.5）：活 session → 注入取消事件，由 session 主循环经 resume 链路
     # 统一处理（关闭 DB 双轨 + persist 拒绝结果 + Agent 继续），避免与单发
-    # resume_graph_background 双执行。
+    # resume_agent_background 双执行。
     session = session_manager.get(req.thread_id)
     if session is not None and session.lifecycle == "running":
         if pending_tool:
@@ -71,7 +71,7 @@ async def cancel_hitl_request(req: CancelHITLRequest, bg_tasks: BackgroundTasks)
 
     if settings.EMBEDDED_MODE:
         bg_tasks.add_task(
-            resume_graph_background, req.thread_id, inputs, config,
+            resume_agent_background, req.thread_id, inputs, config,
             run_label="Resuming after cancellation...",
         )
     else:
@@ -84,7 +84,7 @@ async def cancel_hitl_request(req: CancelHITLRequest, bg_tasks: BackgroundTasks)
         from app.infrastructure.queue.factory import get_scheduler
 
         get_scheduler().send_task(
-            "engine_resume_graph_background",
+            "engine_resume_agent_background",
             args=(req.thread_id, serialized_inputs, config, "Resuming after cancellation...", False),
         )
 

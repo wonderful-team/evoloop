@@ -2,7 +2,7 @@
 """
 Atlas Phase 6 端到端测试
 
-使用实际控制工具（desktop_control, mobile_control, browser_control）
+使用实际控制工具（desktop, mobile, browser）
 打开多端应用，验证动态应用检测、元素分类和策略存储逻辑。
 
 测试场景：
@@ -23,9 +23,9 @@ sys.path.insert(0, '/Users/huangjinhuan/项目/develop-assistant.cn/evoloop/back
 
 from app.core.atlas import atlas_engine
 from app.core.atlas.strategy import AtlasStrategyStore, init_default_strategies
-from app.core.environment.tools.desktop import desktop_control
-from app.core.environment.tools.browser import browser_control
-from app.core.environment.tools.mobile import mobile_control
+from app.core.environment.tools.desktop import desktop
+from app.core.environment.tools.browser import browser
+from app.core.environment.tools.mobile import mobile
 from app.core.vision import vision_engine, VisionTask
 from app.infrastructure.drivers.adb import adb_driver
 from app.infrastructure.drivers.macos import macos_driver
@@ -124,7 +124,7 @@ class AtlasE2ETest:
 
         # Step 1: 检查微信是否运行
         print("Step 1: 检查微信状态...")
-        result = await desktop_control.ainvoke({
+        result = await desktop.ainvoke({
             "action": "get_active_app"
         })
         print(f"  当前应用: {result}")
@@ -132,7 +132,7 @@ class AtlasE2ETest:
         # 如果微信不在前台，尝试打开
         if "WeChat" not in result and "微信" not in result:
             print("  尝试激活微信...")
-            result = await desktop_control.ainvoke({
+            result = await desktop.ainvoke({
                 "action": "open_app",
                 "app_name": "WeChat"
             })
@@ -141,7 +141,7 @@ class AtlasE2ETest:
 
         # Step 2: 截图并分析
         print("\nStep 2: 截图分析 UI...")
-        result = await desktop_control.ainvoke({
+        result = await desktop.ainvoke({
             "action": "screenshot",
             "ocr": True
         })
@@ -237,16 +237,16 @@ class AtlasE2ETest:
 
         # Step 2: 打开 Safari
         print("\nStep 2: 打开 Safari...")
-        result = await desktop_control.ainvoke({
+        result = await desktop.ainvoke({
             "action": "open_app",
             "app_name": "Safari"
         })
         print(f"  结果: {result}")
         await asyncio.sleep(2)
 
-        # Step 3: 使用 browser_control 导航
-        print("\nStep 3: 使用 browser_control 导航...")
-        result = await browser_control.ainvoke({
+        # Step 3: 使用 browser 导航
+        print("\nStep 3: 使用 browser 导航...")
+        result = await browser.ainvoke({
             "action": "navigate",
             "url": "https://www.bing.com"
         })
@@ -278,14 +278,14 @@ class AtlasE2ETest:
 
         # Step 2: 打开设置
         print("\nStep 2: 打开 Android 设置...")
-        result = await mobile_control.ainvoke({"action": "open_app",
+        result = await mobile.ainvoke({"action": "open_app",
             "text": "com.android.settings"})
         print(f"  结果: {result}")
         await asyncio.sleep(2)
 
         # Step 3: dump UI
         print("\nStep 3: 获取 UI 结构...")
-        result = await mobile_control.ainvoke({"action": "dump_ui"})
+        result = await mobile.ainvoke({"action": "dump_ui"})
         ui_length = len(result)
         print(f"  UI XML 长度: {ui_length}")
 
@@ -341,20 +341,20 @@ class AtlasE2ETest:
 
         # Step 2: 打开 Chrome
         print("\nStep 2: 打开 Chrome...")
-        result = await desktop_control.ainvoke({"action": "open_app",
+        result = await desktop.ainvoke({"action": "open_app",
             "app_name": "Google Chrome"})
         print(f"  结果: {result}")
         await asyncio.sleep(2)
 
-        # Step 3: 使用 browser_control
-        print("\nStep 3: 使用 browser_control 导航...")
-        result = await browser_control.ainvoke({"action": "navigate", "url": "https://www.google.com"})
+        # Step 3: 使用 browser
+        print("\nStep 3: 使用 browser 导航...")
+        result = await browser.ainvoke({"action": "navigate", "url": "https://www.google.com"})
         print(f"  导航结果: {result[:200]}...")
         await asyncio.sleep(2)
 
         # Step 4: 搜索测试
         print("\nStep 4: 搜索测试...")
-        result = await browser_control.ainvoke({"action": "type_text", "selector": "[name='q']", "text": "Atlas Phase 6"})
+        result = await browser.ainvoke({"action": "type_text", "selector": "[name='q']", "text": "Atlas Phase 6"})
         print(f"  输入结果: {result}")
 
         # Step 5: 验证策略

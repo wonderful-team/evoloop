@@ -4,8 +4,7 @@
 ``settings.EXECUTION_MODE`` 读取，无任何覆写。沙箱构建（SandboxFactory）与 HITL
 豁免（hitl_enabled）必须跟随进程真实模式。
 
-提示词/template 渲染用的可覆写模式见 ``node_utils.get_displayed_execution_mode``：
-它允许 SystemConfig 表覆写，但那是表现层，**不**参与沙箱/HITL 判定。
+（旧图引擎的 ``node_utils.get_displayed_execution_mode`` 表现层覆写已随重构删除。）
 """
 
 from app.core.config import settings

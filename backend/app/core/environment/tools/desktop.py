@@ -1,7 +1,7 @@
 """
 Desktop Control Tool — Agent-facing thin wrapper over DesktopController.
 
-This module exposes `desktop_control`, `verify_ui_state`, `quick_check_screen`
+This module exposes `desktop`, `verify_ui_state`, `quick_check_screen`
 as @evoloop_tools so the Agent can call them via function calling.
 All actual logic lives in:
   app.core.environment.controllers.desktop.DesktopController
@@ -17,10 +17,10 @@ logger = logging.getLogger(__name__)
 
 
 @evoloop_tool(
-    required_benefit="desktop_control",
-    summary_template="evoloop.tool_summary.desktop_control",
+    required_benefit="desktop",
+    summary_template="evoloop.tool_summary.desktop",
 )
-async def desktop_control(
+async def desktop(
     action: Literal[
         "screenshot",
         "click",
@@ -68,133 +68,134 @@ async def desktop_control(
     max_depth: int = 10,
 ) -> str:
     """
-    Control the MacOS desktop - SPEED OPTIMIZED
+    控制 macOS 桌面——速度优化版
 
-    SPEED FIRST RULES - Follow these to execute 3x faster:
+    速度优先规则——遵守这些能快 3 倍：
 
-    RULE 1: KEYBOARD FIRST (Always prefer keyboard over mouse)
-      - GOOD: key_press("cmd+w") to close window
-      - GOOD: key_press("return") to send message
-      - GOOD: key_press("cmd+v") to paste
-      - BAD: DON'T click coordinates unless keyboard won't work
+    规则 1：键盘优先（始终优先键盘而非鼠标）
+      - 好：key_press("cmd+w") 关窗口
+      - 好：key_press("return") 发消息
+      - 好：key_press("cmd+v") 粘贴
+      - 坏：不要点坐标，除非键盘做不到
 
-    RULE 2: USE BATCH MODE (Execute multiple actions together)
-      - GOOD: When: All steps are in THE SAME input field
-      - GOOD: Example: [click input -> type -> return] as ONE batch
-      - GOOD: Skip verification between steps, verify at the END
-      - BAD: DON'T batch across different screens or loading states
+    规则 2：用批量模式（多个动作一起执行）
+      - 好：当所有步骤都在**同一个输入框**时
+      - 好：示例：[点击输入框 -> 输入 -> 回车] 作为一个 batch
+      - 好：步骤间跳过验证，最后再验证
+      - 坏：不要跨不同屏幕或加载状态批量
 
-    RULE 3: SKIP UNNECESSARY SCREENSHOTS
-      - GOOD: In batch: Only screenshot at the START and END
-      - BAD: DON'T screenshot after every action
+    规则 3：跳过不必要的截图
+      - 好：批量中只在开始和结束时截图
+      - 坏：不要每个动作后都截图
 
-    COMMON SHORTCUTS (Memorize these!)
-    - WeChat: return (send), cmd+f (search), cmd+n (new chat)
-    - Chrome: cmd+l (address), cmd+t (new tab), cmd+w (close tab)
-    - System: cmd+tab (switch app), cmd+space (Spotlight)
+    常用快捷键（记牢这些！）
+    - 微信：return（发送）、cmd+f（搜索）、cmd+n（新会话）
+    - Chrome：cmd+l（地址栏）、cmd+t（新标签）、cmd+w（关标签）
+    - 系统：cmd+tab（切换 App）、cmd+space（Spotlight）
 
-    EXAMPLES
+    示例
 
-    Fast - Send WeChat message (3 actions in 1 batch):
-      desktop_control(action="batch", actions=[
+    快 - 发微信消息（1 个 batch 里 3 个动作）：
+      desktop(action="batch", actions=[
           {"action": "click", "element_name": "输入框"},
           {"action": "type_text", "text": "Hello"},
           {"action": "key_press", "key": "return"}
       ])
 
-    Slow - Don't do this (3 separate calls with screenshots):
-      desktop_control(action="click") -> screenshot -> verify
-      desktop_control(action="type_text") -> screenshot -> verify
-      desktop_control(action="key_press") -> screenshot -> verify
+    慢 - 不要这样做（3 次单独调用 + 截图）：
+      desktop(action="click") -> screenshot -> verify
+      desktop(action="type_text") -> screenshot -> verify
+      desktop(action="key_press") -> screenshot -> verify
 
     Args:
-        action: The action to perform:
-            - "screenshot": Capture the screen. Returns the path to the image file.
-            - "click": Click at coordinates (x, y) OR by element_name.
-            - "double_click": Double-click at coordinates (x, y) OR by element_name.
-            - "type_text": Type the given text string.
-            - "key_press": Press a special key (enter, escape, tab, etc.).
-            - "open_app": Open or focus an application by name.
-            - "applescript": Execute raw AppleScript code. WARNING: Do NOT use this for dynamic apps (WeChat, Chrome, Electron apps) as they lack robust AppleScript support. Use native type_text/click instead.
-            - "get_info": Get system hardware and OS environment info.
-            - "list_apps": List installed applications in /Applications.
-            - "get_active_app": Get the currently focused application's name, title, and window bounds.
-            - "scroll": Scroll in the given direction by amount pixels.
-            - "drag_drop": Drag from source to target (by element name or coordinates).
-            - "dump_ui": Dump the Accessibility Tree as JSON array of UI elements.
-            - "gui_extract": Intelligent text extraction from a region or near coordinates (x, y) using OCR.
-            - "batch": Execute multiple actions in sequence. Use for multi-step workflows like: click input -> type text -> press enter. See 'actions' parameter.
-        x: X coordinate for click action.
-        y: Y coordinate for click action.
-        element_name: Semantic name/label of the UI element to click (e.g., "Login", "Close").
-        target: Alias for element_name (for cross-tool consistency).
-        element_role: Optional role filter for the element (e.g., "AXButton", "AXTextField").
-        text: Text to type for type_text action.
-        key: Key name or combination for key_press action (e.g., "enter", "tab", "a", "command+a", "shift+tab").
-        app_name: Application name for open_app action (e.g., "Safari", "Terminal").
-        script: AppleScript code for applescript action.
-        region: Optional region "x,y,w,h" for screenshot action.
-            If not provided, behavior depends on ENABLE_PARTIAL_SCREENSHOT config:
-            - True (default): Automatically captures the current active window region
-            - False: Captures the full screen
-            If the window bounds cannot be determined, falls back to full screen.
-            Examples:
-            - Auto-capture current window: region=None (recommended for most cases)
-            - Capture specific area: region="500,300,200,100" (from OCR/element bounds)
-            - Capture specific window: region="624,102,1195,812" (from get_active_app)
-        force_keystroke: If True for type_text, uses slow AppleScript keystroke instead of fast clipboard paste.
-        ocr: If True for "screenshot", immediately performs OCR and returns text elements + coordinates.
-            NOTE: Coordinates are automatically converted to screen coordinates, even for partial screenshots.
-            You can directly use these coordinates with click/double_click actions.
-        actions: List of action dicts for batch mode.
+        action: 要执行的动作：
+            - "screenshot": 截取屏幕。返回图片文件路径。
+            - "click": 在坐标 (x, y) 或按 element_name 点击。
+            - "double_click": 在坐标 (x, y) 或按 element_name 双击。
+            - "type_text": 输入给定文本。
+            - "key_press": 按特殊键（enter、escape、tab 等）。
+            - "open_app": 按名称打开或聚焦应用。
+            - "applescript": 执行原始 AppleScript。**警告**：不要对动态 App（微信、Chrome、
+              Electron 应用）用此动作——它们缺少健壮的 AppleScript 支持。用原生 type_text/click。
+            - "get_info": 获取系统硬件与 OS 环境信息。
+            - "list_apps": 列出 /Applications 中已安装应用。
+            - "get_active_app": 获取当前聚焦应用的名称、标题与窗口 bounds。
+            - "scroll": 按给定方向滚动 amount 像素。
+            - "drag_drop": 从源拖到目标（按元素名或坐标）。
+            - "dump_ui": 把 Accessibility Tree dump 成 JSON 数组（UI 元素）。
+            - "gui_extract": 用 OCR 从区域或坐标 (x, y) 附近智能提取文本。
+            - "batch": 按顺序执行多个动作。用于多步工作流，如：点输入框 -> 输入 -> 回车。
+              见 'actions' 参数。
+        x: click 动作的 X 坐标。
+        y: click 动作的 Y 坐标。
+        element_name: 要点击的 UI 元素语义名/标签（如 "Login"、"Close"）。
+        target: element_name 的别名（跨工具一致性）。
+        element_role: 元素的可选角色过滤（如 "AXButton"、"AXTextField"）。
+        text: type_text 动作要输入的文本。
+        key: key_press 动作的键名或组合（如 "enter"、"tab"、"a"、"command+a"、"shift+tab"）。
+        app_name: open_app 动作的应用名（如 "Safari"、"Terminal"）。
+        script: applescript 动作的 AppleScript 代码。
+        region: screenshot 动作的可选区域 "x,y,w,h"。
+            不提供时取决于 ENABLE_PARTIAL_SCREENSHOT 配置：
+            - True（默认）：自动截当前活动窗口区域
+            - False：截全屏
+            无法确定窗口 bounds 时回退到全屏。
+            示例：
+            - 自动截当前窗口：region=None（大多数情况推荐）
+            - 截指定区域：region="500,300,200,100"（来自 OCR/元素 bounds）
+            - 截指定窗口：region="624,102,1195,812"（来自 get_active_app）
+        force_keystroke: type_text 为 True 时用慢速 AppleScript keystroke 而非快速剪贴板粘贴。
+        ocr: "screenshot" 为 True 时立即跑 OCR 并返回文本元素 + 坐标。
+            注意：坐标会自动转成屏幕坐标（即使局部截图）。可直接用于 click/double_click。
+        actions: batch 模式的动作 dict 列表。
 
-            CORRECT USE CASES (Safe for batch):
-            - All actions target the SAME input field
-            - Pure keyboard sequence: [cmd+f -> type -> return]
-            - Known workflow: [click input -> type -> return to send]
+            正确用例（适合批量）：
+            - 所有动作都针对**同一个输入框**
+            - 纯键盘序列：[cmd+f -> 输入 -> 回车]
+            - 已知工作流：[点输入框 -> 输入 -> 回车发送]
 
-            DON'T USE BATCH (Use separate calls with verification):
-            - Actions that change screen/state
-            - Actions that need to wait for loading
-            - Actions across different windows
+            不要用批量（用单独调用 + 验证）：
+            - 会改变屏幕/状态的动作
+            - 需要等待加载的动作
+            - 跨不同窗口的动作
 
-            EXAMPLE 1 - WeChat send message (GOOD):
+            示例 1 - 微信发消息（好）：
             [
                 {"action": "click", "element_name": "输入框"},
                 {"action": "type_text", "text": "Hello"},
                 {"action": "key_press", "key": "return"}
             ]
-            Result: 1 screenshot at start, 1 at end. Fast!
+            结果：开始 1 张截图、结束 1 张。快！
 
-            EXAMPLE 2 - Chrome search (GOOD):
+            示例 2 - Chrome 搜索（好）：
             [
-                {"action": "key_press", "key": "cmd+l"},      # Focus address bar
-                {"action": "key_press", "key": "cmd+a"},      # Select all
+                {"action": "key_press", "key": "cmd+l"},      # 聚焦地址栏
+                {"action": "key_press", "key": "cmd+a"},      # 全选
                 {"action": "type_text", "text": "google.com"},
                 {"action": "key_press", "key": "return"}
             ]
-            Result: All keyboard, very fast, no coordinates needed!
+            结果：全是键盘，非常快，无需坐标！
 
-            EXAMPLE 3 - Form fill (GOOD):
+            示例 3 - 填表单（好）：
             [
                 {"action": "click", "element_name": "用户名"},
                 {"action": "type_text", "text": "user@example.com"},
-                {"action": "key_press", "key": "tab"},        # Next field
+                {"action": "key_press", "key": "tab"},        # 下一字段
                 {"action": "type_text", "text": "password"},
-                {"action": "key_press", "key": "return"}      # Submit
+                {"action": "key_press", "key": "return"}      # 提交
             ]
-            Result: 5 actions, 1 batch, 2 screenshots total
-        continue_on_error: For batch mode, whether to continue on error (default True).
-        delay_ms: For batch mode, delay between actions in ms (default 100).
-        direction: Scroll direction (up/down/left/right) for scroll action.
-        amount: Scroll amount in pixels (default 300).
-        x2, y2: Target coordinates for drag_drop action.
-        source_element: Source element name for drag_drop (alternative to x, y).
-        target_element: Target element name for drag_drop (alternative to x2, y2).
-        duration_ms: Duration of drag operation in milliseconds (default 500).
-        role_filter: For dump_ui, filter elements by role (e.g., 'AXButton').
-        name_filter: For dump_ui, filter elements by name (partial match).
-        max_depth: For dump_ui, maximum depth to traverse (default 10).
+            结果：5 个动作，1 个 batch，共 2 张截图
+        continue_on_error: batch 模式是否出错继续（默认 True）。
+        delay_ms: batch 模式动作间延迟毫秒（默认 100）。
+        direction: scroll 动作的滚动方向（up/down/left/right）。
+        amount: 滚动像素（默认 300）。
+        x2, y2: drag_drop 动作的目标坐标。
+        source_element: drag_drop 的源元素名（x, y 的替代）。
+        target_element: drag_drop 的目标元素名（x2, y2 的替代）。
+        duration_ms: 拖拽操作时长毫秒（默认 500）。
+        role_filter: dump_ui 时按角色过滤元素（如 'AXButton'）。
+        name_filter: dump_ui 时按名称过滤元素（部分匹配）。
+        max_depth: dump_ui 的最大遍历深度（默认 10）。
     """
     # Parameter alias: target -> element_name (cross-tool consistency)
     if target and not element_name:
@@ -210,14 +211,14 @@ async def verify_ui_state(
     timeout_seconds: int = 5,
 ) -> str:
     """
-    Verify if a specific UI element or text is present on the screen using AX Tree.
-    Use this after 'click' or 'type_text' to ensure the UI responded as expected.
+    用 AX Tree 验证屏幕上是否存在某个 UI 元素或文本。
+    在 'click' 或 'type_text' 后用本工具确保 UI 按预期响应。
 
     Args:
-        expected_element: Partial name of the UI element to look for.
-        expected_role: Optional role of the element (e.g., 'AXWindow', 'AXButton').
-        expected_text: Optional text that should be present anywhere in the tree.
-        timeout_seconds: (Not currently implemented for polling, but performs one immediate check).
+        expected_element: 要查找的 UI 元素的部分名称。
+        expected_role: 元素的可选角色（如 'AXWindow'、'AXButton'）。
+        expected_text: 应出现在树中任意位置的可选文本。
+        timeout_seconds: （当前未实现轮询，只做一次立即检查）。
     """
     return await DesktopController.verify_ui_state(**locals())
 
@@ -229,22 +230,22 @@ async def quick_check_screen(
     timeout_seconds: int = 5,
 ) -> str:
     """
-    Fast screen state check using AX Tree (no LLM, ~500ms vs ~12s for analyze_image).
+    用 AX Tree 快速检查屏幕状态（无 LLM，~500ms 对比 analyze_image 的 ~12s）。
 
-    Use this instead of analyze_image for simple checks like:
-    - "Is the page loaded?" -> quick_check_screen("is_loaded")
-    - "Does it show 'AI news'?" -> quick_check_screen("has_text", "AI news")
-    - "Is there a Search button?" -> quick_check_screen("has_element", "Search")
+    简单的检查用本工具而非 analyze_image，如：
+    - "页面加载了吗？" -> quick_check_screen("is_loaded")
+    - "显示了 'AI news' 吗？" -> quick_check_screen("has_text", "AI news")
+    - "有 Search 按钮吗？" -> quick_check_screen("has_element", "Search")
 
     Args:
-        check_type: What to check for:
-            - "has_text": Check if target text appears anywhere on screen
-            - "has_element": Check if an element with target name exists
-            - "is_loaded": Check if UI has stabilized (elements present, no loading indicators)
-        target: The text or element name to search for (for has_text/has_element)
-        timeout_seconds: Polling timeout (checks every 500ms until timeout)
+        check_type: 要检查什么：
+            - "has_text": 检查目标文本是否出现在屏幕上任意位置
+            - "has_element": 检查是否存在名为 target 的元素
+            - "is_loaded": 检查 UI 是否已稳定（元素已出现、无加载指示器）
+        target: 要搜索的文本或元素名（用于 has_text/has_element）
+        timeout_seconds: 轮询超时（每 500ms 检查一次直到超时）
 
     Returns:
-        Quick check result (much faster than analyze_image)
+        快速检查结果（比 analyze_image 快得多）
     """
     return await DesktopController.quick_check_screen(**locals())

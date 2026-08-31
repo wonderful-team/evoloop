@@ -285,6 +285,28 @@ class ActivityStateService:
             setattr(activity, db_field, value)
         return True
 
+    async def update_metrics(
+        self,
+        thread_id: str,
+        llm_calls: int = 0,
+        tool_errors: int = 0,
+        input_tokens: int = 0,
+        output_tokens: int = 0,
+    ) -> bool:
+        """Update react engine run metrics (llm_calls / tool_errors / tokens).
+
+        Records must exist (created via start_run); skip if absent.
+        """
+        async with self._get_session_scope()() as session:
+            activity = await session.get(AgentActivity, thread_id)
+            if activity is None:
+                return False
+            activity.llm_calls = llm_calls
+            activity.tool_errors = tool_errors
+            activity.input_tokens = input_tokens
+            activity.output_tokens = output_tokens
+        return True
+
     async def get_field(self, thread_id: str, field: str) -> Any | None:
         """Get a single field from activity state."""
         field_map = {

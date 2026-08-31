@@ -78,7 +78,7 @@ async def handle_read(
 
     # Check existence
     if not os.path.exists(target_path):
-        # Smart Error Handling - suggest similar files
+        # Smart Error Handling - suggest similar files (difflib 相似度 top3)
         parent_dir = os.path.dirname(target_path)
         if os.path.exists(parent_dir):
             try:
@@ -86,6 +86,20 @@ async def handle_read(
 
                 # Convert iterator to list so we can slice it
                 all_entries = list(FileTraverser.list_entries(parent_dir))
+                wanted = os.path.basename(target_path)
+                if wanted:
+                    import difflib
+
+                    names = [
+                        (f"{e.name}/" if e.is_dir() else e.name) for e in all_entries
+                    ]
+                    similar = difflib.get_close_matches(wanted, names, n=3, cutoff=0.2)
+                    if similar:
+                        return i18n.get(
+                            "domain_tools.files.read_not_found_suggest",
+                            path=path,
+                            siblings=", ".join(similar),
+                        )
                 siblings_info = []
                 for entry in all_entries[:20]:
                     if entry.is_dir():
@@ -102,14 +116,27 @@ async def handle_read(
                 logger.debug("Suppressed error: %s", e, exc_info=True)
         return i18n.get("domain_tools.files.read_not_found", path=path)
 
-    # Guard against reading directories
+    # Directory support (§10.2.3: read 吸收 list_dir，目录直接列出条目)
     if os.path.isdir(target_path):
-        return (
-            f"⚠️ Cannot read a directory with read_file.\n\n"
-            f"Path '{path}' is a directory, not a file.\n\n"
-            f"Use list_dir(path='{path}') to explore its contents, "
-            f"or grep_search(pattern='keyword', path='{path}') to find files inside it."
-        )
+        from app.core.file.tools.list_dir import handle_list
+
+        listing = await handle_list(path=path, config=config)
+        if isinstance(listing, tuple):
+            text, meta = listing
+            return f"<directory listing for {path}>\n" + text, meta
+        return listing
+
+    # Binary sniff：检测不可读文本的二进制文件（对齐 OpenCode 50KB sniff）
+    try:
+        with open(target_path, "rb") as _f:
+            _head = _f.read(2048)
+        if b"\x00" in _head:
+            return (
+                f"[Binary file: {path}] 该文件为二进制，无法以文本读取"
+                f"（大小 {os.path.getsize(target_path)} bytes）。"
+            )
+    except OSError as e:
+        logger.debug("Suppressed binary sniff error: %s", e, exc_info=True)
 
     # Check if it's a large file (use core.file for size info)
     try:
@@ -151,9 +178,6 @@ Use `read_file(path='{path}', start_line=N, end_line=M)` to read specific line r
 
         # Format output with metadata
         if include_metadata:
-            meta_start = result.metadata.total_lines  # Will be updated below
-            meta_end = result.metadata.total_lines
-
             # Calculate actual line range
             if result.content:
                 lines_read = result.content.count("\n")
@@ -186,7 +210,8 @@ Use `read_file(path='{path}', start_line=N, end_line=M)` to read specific line r
 
 
 @evoloop_tool(
-    summary_template="evoloop.tool_summary.read_file",
+    name="read",
+    summary_template="evoloop.tool_summary.read",
     affected_path_keys=["path"],
 )
 async def read_file(
@@ -197,35 +222,31 @@ async def read_file(
     config: Annotated[RunnableConfig, InjectedToolArg] = None,
 ) -> str:
     """
-    Read the contents of a file.
+    读取本地文件或目录的内容。如果路径不存在，会返回错误。
 
-    ⚡ EFFICIENCY TIP:
-       - If you need to read a specific small section, pass start_line and end_line.
-       - If you need to inspect many different parts of the same file, it is MUCH MORE EFFICIENT
-         to make a SINGLE call reading a large continuous chunk (e.g. 1 to 1000) rather than
-         making dozens of small read_file calls for individual functions or line ranges.
+    ⚡ 效率提示：
+       - 只需读某段小内容时，传 start_line 和 end_line。
+       - 需要读同一文件多处时，**一次调用读一大段连续内容**（如 1-1000 行）远比
+         多次小段调用（按函数/行区间）更高效。
 
-    Output Limit: Maximum 1000 lines per call.
-    For larger files, make multiple calls to read the next segment (e.g. 1001-2000).
+    输出限制：每次调用最多 1000 行。更大的文件请多次调用读下一段（如 1001-2000）。
 
-    Important: When include_metadata=True (default), the output starts with a header like:
+    重要：当 include_metadata=True（默认）时，输出会带一个头部，如：
       [File: path | Lines X-Y of Z | Hash: abc123]
-    This header is for display and tracking ONLY. The actual file content begins
-    on the line immediately after this header. Do NOT treat the header as part
-    of the file when passing content to write_file or edit_file.
+    该头部仅用于展示与追踪。真正的文件内容从头部下一行开始。**把内容传给
+    write_file / edit_file 时不要把头部当作文件内容。**
 
     Args:
-        path: Absolute or relative path to the file. **REQUIRED**
-        start_line: Optional start line (1-indexed). Can be int or string.
-        end_line: Optional end line (1-indexed, inclusive). Can be int or string.
-        include_metadata: Include file stats and hash in output (default: True).
-                         Set to False for cleaner output in scripts.
+        path: 文件绝对或相对路径。**必填**
+        start_line: 可选起始行（从 1 开始）。可以是 int 或 str。
+        end_line: 可选结束行（从 1 开始，含）。可以是 int 或 str。
+        include_metadata: 输出是否包含文件统计与哈希（默认 True）。脚本中想更干净可设 False。
 
     Examples:
-        read_file(path="main.py")  # First 1000 lines (default)
-        read_file(path="main.py", end_line=500)  # First 500 lines
-        read_file(path="main.py", start_line=1, end_line=1000)  # Lines 1-1000
-        read_file(path="main.py", start_line=1001, end_line=2000)  # Lines 1001-2000
+        read_file(path="main.py")  # 前 1000 行（默认）
+        read_file(path="main.py", end_line=500)  # 前 500 行
+        read_file(path="main.py", start_line=1, end_line=1000)  # 第 1-1000 行
+        read_file(path="main.py", start_line=1001, end_line=2000)  # 第 1001-2000 行
     """
     if not path:
         return "Error: Missing argument 'path'. usage: read_file(path='...')"

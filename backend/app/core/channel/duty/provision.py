@@ -334,7 +334,7 @@ async def _cancel_running_agents(project_id: int) -> None:
 
     对值守 thread（duty_{project}_*）逐个走统一停止入口
     ``session_manager.stop_agent``（有活会话 → session.stop；无会话 →
-    stop_run + cancel_worker 双兜底），与 web/voice/mobile 用户主动停止
+    stop_run + cancel_run 双兜底），与 web/voice/mobile 用户主动停止
     保持一致；随后轮询 AgentActivity.status 直到进入终态
     （done/cancelled/failed），确保"停止"真正完成才返回（供前端 HUD
     显示"已停止"）。

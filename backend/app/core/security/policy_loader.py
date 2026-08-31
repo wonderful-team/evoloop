@@ -62,7 +62,7 @@ class GrantedPermission:
     path: str
     action: str
     approved_at: datetime
-    expires_at: datetime
+    expires_at: datetime | None  # None = 永久（allow always）
     granted_by: str | None = None
 
     def to_dict(self) -> dict:
@@ -70,21 +70,25 @@ class GrantedPermission:
             "path": self.path,
             "action": self.action,
             "approved_at": self.approved_at.isoformat(),
-            "expires_at": self.expires_at.isoformat(),
+            "expires_at": self.expires_at.isoformat() if self.expires_at else None,
             "granted_by": self.granted_by,
         }
 
     @classmethod
     def from_dict(cls, data: dict) -> GrantedPermission:
+        raw_expiry = data.get("expires_at")
         return cls(
             path=data["path"],
             action=data.get("action", "read"),
             approved_at=datetime.fromisoformat(data["approved_at"]),
-            expires_at=datetime.fromisoformat(data["expires_at"]),
+            expires_at=datetime.fromisoformat(raw_expiry) if raw_expiry else None,
             granted_by=data.get("granted_by"),
         )
 
     def is_expired(self, now: datetime | None = None) -> bool:
+        # None 过期时间 = 永久授权（allow always），永不过期。
+        if self.expires_at is None:
+            return False
         if now is None:
             now = datetime.now(timezone.utc)
         if self.expires_at.tzinfo is None:

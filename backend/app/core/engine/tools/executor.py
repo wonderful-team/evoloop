@@ -11,7 +11,6 @@ from pydantic import BaseModel
 from app.core.engine.hooks import HookContext, HookEvent, ToolResult, hook_system
 from app.core.engine.hooks.schemas import ToolInput
 from app.core.engine.message.native_classes import BaseMessage, ToolMessage
-from app.core.engine.signals import AgentSignal, signal_manager
 from app.core.engine.state import AgentState, RunnableConfigMetadata
 from app.core.exceptions import AgentHumanInterruptException
 from app.core.tools import get_working_directory
@@ -166,6 +165,12 @@ class AgentToolExecutor:
                 self._current_resolved_paths = resolved_abs_paths
 
             config = {**(self.config or {})}
+            # ctx.messages 透传（对齐 OpenCode tool Context.messages）：工具可通过
+            # config.configurable._messages 读取当前完整消息流（历史只读）。
+            config["configurable"] = {
+                **(config.get("configurable") or {}),
+                "_messages": self.state.messages or [],
+            }
 
             from uuid import uuid4 as _uuid4
 
@@ -225,6 +230,25 @@ class AgentToolExecutor:
 
             tool_message_id = gen_uuid()
 
+            # A.0 统一截断：超限工具输出自动折叠 + 落盘 + outputPath 回填
+            # （OpenCode truncate 语义，工具作者无感知；react 模式默认开启）。
+            content_str = str(content)
+            attachments: list[dict] = []
+            raw = content
+            if isinstance(raw, dict) and raw.get("attachments"):
+                raw_attach = raw.get("attachments")
+                if isinstance(raw_attach, list):
+                    attachments = [a for a in raw_attach if isinstance(a, dict)]
+
+            # A.0 统一截断：超限工具输出自动折叠 + 落盘 + outputPath 回填
+            # （OpenCode truncate 语义，工具作者无感知；单 Agent ReAct 下始终启用）。
+            from app.core.engine.react.truncate import truncate_output
+
+            t = truncate_output(content_str, thread_id=thread_id)
+            if t.truncated:
+                content_str = t.content
+            content = content_str
+
             if self.enable_diff_tracking and tool.metadata.get("is_state_mutating"):
                 await self._track_diffs(
                     tool_name, tool_args, thread_id, tool_message_id, tool_id, tool
@@ -236,6 +260,7 @@ class AgentToolExecutor:
                 tool_name=tool_name,
                 run_id=run_id,
                 message_id=tool_message_id,
+                attachments=attachments or None,
             )
             return ToolExecutionResult(message=msg, raw_result=content)
 
@@ -336,40 +361,23 @@ class AgentToolExecutor:
         tool_calls: list[dict],
         local_tool_history: list[str],
         parallel: bool = False,
-    ) -> tuple[list[BaseMessage], AgentSignal | None]:
-        async def _run_one(tc: dict) -> tuple[BaseMessage, Any]:
+    ) -> list[BaseMessage]:
+        async def _run_one(tc: dict) -> BaseMessage:
             result = await self.execute_tool(
                 tool_name=tc["name"],
                 tool_args=tc["args"],
                 tool_id=tc["id"],
                 local_tool_history=local_tool_history,
             )
-            return result.message, result.raw_result
-
-        pending_signal = None
-        results = []
+            return result.message
 
         if parallel:
-            batch_results = await asyncio.gather(*[_run_one(tc) for tc in tool_calls])
-            for msg, raw in batch_results:
-                results.append(msg)
-                if not pending_signal:
-                    tool_name = next(
-                        tc["name"] for tc in tool_calls if tc["id"] == msg.tool_call_id
-                    )
-                    pending_signal = signal_manager.detect_post_execution_signal(
-                        tool_name, raw
-                    )
-        else:
-            for tc in tool_calls:
-                msg, raw = await _run_one(tc)
-                results.append(msg)
-                if not pending_signal:
-                    pending_signal = signal_manager.detect_post_execution_signal(
-                        tc["name"], raw
-                    )
+            return list(await asyncio.gather(*[_run_one(tc) for tc in tool_calls]))
 
-        return results, pending_signal
+        results: list[BaseMessage] = []
+        for tc in tool_calls:
+            results.append(await _run_one(tc))
+        return results
 
     def _create_tool_message(
         self,
@@ -378,6 +386,7 @@ class AgentToolExecutor:
         tool_name: str,
         run_id: str | None,
         message_id: str | None = None,
+        attachments: list[dict] | None = None,
     ) -> BaseMessage:
         """Create a native tool message with run_id metadata."""
         metadata = {"run_id": run_id} if run_id else {}
@@ -389,4 +398,5 @@ class AgentToolExecutor:
             id=message_id or gen_uuid(),
             metadata=metadata,
             additional_kwargs=metadata,
+            attachments=attachments or [],
         )

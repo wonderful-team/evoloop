@@ -62,9 +62,10 @@ async def handle_write(
 
 
 @evoloop_tool(
+    name="write",
     is_state_mutating=True,
     affected_path_keys=["path"],
-    summary_template="evoloop.tool_summary.write_file",
+    summary_template="evoloop.tool_summary.write",
 )
 async def write_file(
     path: str,
@@ -72,20 +73,18 @@ async def write_file(
     config: Annotated[RunnableConfig, InjectedToolArg] = None,
 ) -> str:
     """
-    Create a new file.
+    创建新文件。
 
-    For targeted modifications to existing files or to overwrite an existing file,
-    use the edit_file tool instead, as it preserves unchanged content and has better error recovery.
+    对已有文件的定向修改或覆盖，请用 edit_file 工具——它能保留未改内容、错误恢复更好。
 
     Args:
-        path: Target file path. **REQUIRED**
-        content: The actual file content to write. **REQUIRED**
-                 Must contain ONLY the real file text. Do NOT include metadata
-                 headers (e.g. [File: ... | Lines ... | Hash: ...]) from
-                 read_file output.
+        path: 目标文件路径。**必填**
+        content: 要写入的实际文件内容。**必填**
+                 只能包含真实的文件文本。**不要包含** read_file 输出的元数据头
+                 （如 [File: ... | Lines ... | Hash: ...]）。
 
     Examples:
-        write_file(path="src/main.py", content="print('hello')")  # Create new
+        write_file(path="src/main.py", content="print('hello')")  # 新建
     """
     if not path or content is None:
         return (

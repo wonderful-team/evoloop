@@ -24,7 +24,7 @@ This SOP is dedicated to multi-step, in-depth information gathering and analysis
 
 ## 🎯 Critical Rules (Rules of Engagement)
 
-- **Direct Action**: Do not waste steps stating "research plans." Immediately start gathering core facts using tools like `search_web` or `browser_control`.
+- **Direct Action**: Do not waste steps stating "research plans." Immediately start gathering core facts using tools like `search_web` or `browser`.
 - **Efficiency over Exhaustion**: Brute-force URL or physical ID traversal (e.g., clicking `...001.html`, `...002.html`) is strictly prohibited. If search engines are restricted, prioritize finding the **on-site search** or navigation menus of target sites.
 - **Contextual Filtering**: Before clicking a detail page, verify link titles or surrounding context against the mission objective. Skip irrelevant content/ads aggressively.
 - **Evidence-Based Findings**: Cite specific sources for all conclusions. For market data, include critical attributes such as date, location, and specific product specifications (e.g., sulfur content).
@@ -33,7 +33,7 @@ This SOP is dedicated to multi-step, in-depth information gathering and analysis
 ## 🛠 Recommended Execution Flow
 
 1. **Initial Acquisition**: Use `search_web` to identify high-quality information hubs.
-2. **Deep Extraction**: Use `browser_control` to dive into target sites. Prioritize `selector`-based table extraction for structured data.
+2. **Deep Extraction**: Use `browser` to dive into target sites. Prioritize `selector`-based table extraction for structured data.
 3. **Gap Filling**: Identify information gaps (e.g., missing specific port inventory) and perform targeted follow-up searches.
 4. **Final Reporting**: Once mission criteria are met, provide a structured summary report in English.
 
@@ -61,5 +61,5 @@ graph TD
 Wrap diagram code in triple backticks with `mermaid` language identifier.
 
 ## 🧰 Required Tools
-- Web Research: `search_web`, `browser_control`, `crawl_url`
+- Web Research: `search_web`, `browser`, `crawl_url`
 - Support: `read_file`, `grep_search`, `find_files`, `search_history`

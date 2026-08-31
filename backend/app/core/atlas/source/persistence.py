@@ -148,15 +148,13 @@ async def save_app_map(
     existing row is returned unchanged (short-circuit). Otherwise the old map
     is marked superseded and a new row with map_version+1 is inserted.
     """
-    content_hash = compute_content_hash(
-        {
-            "routes": routes,
-            "actions": actions,
-            "elements": elements,
-            "db_tables": db_tables,
-            "extra": extra or {},
-        }
-    )
+    content_hash = compute_content_hash({
+        "routes": routes,
+        "actions": actions,
+        "elements": elements,
+        "db_tables": db_tables,
+        "extra": extra or {},
+    })
 
     async with session_scope() as db:
         stmt = select(AppMap).where(

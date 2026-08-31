@@ -218,11 +218,11 @@ async def _search_parallel_inner(query: str) -> list[str] | None:
     return None
 
 
-@evoloop_tool(summary_template="evoloop.tool_summary.search_web")
-async def search_web(query: str) -> str:
+@evoloop_tool(summary_template="evoloop.tool_summary.websearch")
+async def websearch(query: str) -> str:
     """
-    Searches the web for the given query using DuckDuckGo, Baidu, or Wikipedia.
-    Returns a list of search results with titles and URLs.
+    用 DuckDuckGo / Baidu / Wikipedia 搜索给定查询。
+    返回带标题和 URL 的搜索结果列表。
     """
     # 三个引擎并发，先到先得
     results = await _search_parallel(query)
@@ -238,5 +238,5 @@ async def search_web(query: str) -> str:
     return ControllerResponse.error(
         "Unable to search the web",
         details="Search services are currently unavailable",
-        note="Use 'browser_control' to navigate to target sites directly for higher reliability",
+        note="Use 'browser' to navigate to target sites directly for higher reliability",
     ), {"count": 0}

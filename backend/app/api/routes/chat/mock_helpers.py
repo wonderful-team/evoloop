@@ -14,7 +14,7 @@ async def publish_ai_tool_call(
     call_id: str,
     run_id: str,
 ):
-    """Publish an AI thinking message with tool calls (Supervisor's decision)."""
+    """Publish an AI thinking message with tool calls (Agent's decision)."""
     publisher = MessagePublisher(thread_id)
     msg_block = MessageBlockFactory.from_event(
         thread_id=thread_id,

@@ -120,14 +120,14 @@ async def _ensure_voice_input() -> None:
     if _voice_input_bound:
         return
     from app.core.channel.input.voice_input import voice_input
-    from app.core.engine.worker_registry import worker_registry
+    from app.core.engine.agent_run_registry import agent_run_registry
     from app.core.voice.state_machine import VoiceSessionState, voice_state_machine
 
     voice_input.bind(
         executor=voice_executor,
         state_machine=voice_state_machine,
         state_enum=VoiceSessionState,
-        worker_registry=worker_registry,
+        agent_run_registry=agent_run_registry,
     )
     # VoiceChannel's WS transport (manager/envelope_fn/message_type) is wired
     # at app startup in main.py via VoiceChannel.bind(...), so VoiceChannel
@@ -137,7 +137,7 @@ async def _ensure_voice_input() -> None:
 
 async def _handle_route(body: dict[str, Any], conn_id: str) -> None:
     from app.core.channel.input.voice_input import voice_input
-    from app.core.engine.worker_registry import worker_registry
+    from app.core.engine.agent_run_registry import agent_run_registry
 
     await _ensure_voice_input()
 
@@ -170,7 +170,7 @@ async def _handle_route(body: dict[str, Any], conn_id: str) -> None:
     async with route_lock_scope(thread_id, ctx):
         # Barge-in: if state can't accept route & no worker running
         if not await voice_state_machine.can_accept_route(thread_id):
-            running_worker = await worker_registry.get_worker(thread_id)
+            running_worker = await agent_run_registry.get_run(thread_id)
             if not running_worker:
                 await voice_state_machine.force_set(
                     thread_id, VoiceSessionState.INTERRUPTED
@@ -217,7 +217,7 @@ async def _handle_route(body: dict[str, Any], conn_id: str) -> None:
             project_id=project_id,
             member_id=member_id,
             context=ctx,
-            worker_registry=worker_registry,
+            agent_run_registry=agent_run_registry,
         )
 
         if outcome.handled:
@@ -1023,7 +1023,7 @@ async def _notify_asr_session_dead(websocket: WebSocket) -> None:
 
 async def run_agent_pipeline(websocket: WebSocket, thread_id: str, text: str) -> None:
     from app.core.channel.input.voice_input import voice_input
-    from app.core.engine.worker_registry import worker_registry
+    from app.core.engine.agent_run_registry import agent_run_registry
 
     await _ensure_voice_input()
 
@@ -1068,7 +1068,7 @@ async def run_agent_pipeline(websocket: WebSocket, thread_id: str, text: str) ->
                 project_id=project_id,
                 member_id=member_id,
                 context=ctx,
-                worker_registry=worker_registry,
+                agent_run_registry=agent_run_registry,
             )
             if outcome.handled:
                 if outcome.local_response:

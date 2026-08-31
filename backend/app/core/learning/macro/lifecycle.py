@@ -86,7 +86,7 @@ async def create_macro_from_synthesis(
     return macro
 
 
-def invalidate_macro_cache(_macro_id: int | None = None) -> None:
+def invalidate_macro_cache(macro_id: int | None = None) -> None:
     """No-op cache invalidation.
 
     宏缓存已移除（进程内缓存曾导致 "DB 已更新但执行旧脚本" 问题）：宏每次
@@ -96,17 +96,26 @@ def invalidate_macro_cache(_macro_id: int | None = None) -> None:
     return
 
 
-async def load_macro(macro_id: int, db=None) -> Macro | None:
-    """Load a macro by id. ``db`` optional: pass a session to read inside the
-    caller's transaction."""
+async def load_macro(macro_id: int, project_id: int | None = None, db=None) -> Macro | None:
+    """Load a macro by id. ``project_id`` optional: filter the lookup so the
+    macro must belong to that project (跨项目隔离). ``db`` optional: pass a
+    session to read inside the caller's transaction."""
+
+    async def _get(session):
+        stmt = select(Macro).where(Macro.id == macro_id)
+        if project_id is not None:
+            stmt = stmt.where(Macro.project_id == project_id)
+        result = await session.execute(stmt)
+        return result.scalars().first()
+
     if db is not None:
-        return await db.get(Macro, macro_id)
+        return await _get(db)
     async with session_scope() as _db:
-        return await _db.get(Macro, macro_id)
+        return await _get(_db)
 
 
-async def load_verified_macro(macro_id: int, db=None) -> Macro | None:
-    macro = await load_macro(macro_id, db=db)
+async def load_verified_macro(macro_id: int, project_id: int | None = None, db=None) -> Macro | None:
+    macro = await load_macro(macro_id, project_id=project_id, db=db)
     if macro is None or not macro.is_routable():
         return None
     return macro

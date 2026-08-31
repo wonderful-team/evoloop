@@ -364,8 +364,8 @@ async def find_recently_approved_by_key(
 ) -> str | None:
     """查找同线程下同工具+同参数**最近已批准**的请求。
 
-    防止 Agent/LLM 在批准后因未收到结束信号而反复发起同一写操作（Supervisor
-    循环调用 run_macro），每次循环都产生新的 approval 请求。若同 key 在窗口内
+    防止 Agent/LLM 在批准后因未收到结束信号而反复发起同一写操作（循环
+    调用 run_macro），每次循环都产生新的 approval 请求。若同 key 在窗口内
     已批准（completed），视为"已确认过"，返回该请求 ID 供调用方复用批准语义。
 
     Returns:
@@ -484,7 +484,7 @@ async def push_hitl_notification(
 
 
 def raise_hitl_interrupt(request_id: str, response_text: str) -> None:
-    """Raise the interrupt exception that pauses graph execution.
+    """Raise the interrupt exception that pauses agent execution.
 
     EXECUTION_MODE=docker 时豁免：调用方已提前进入自动放行语义，此处兜底
     保证任何残留路径都不会再抛中断（避免无人值守流水线被挂起）。

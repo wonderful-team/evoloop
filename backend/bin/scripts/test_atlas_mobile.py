@@ -20,7 +20,7 @@ from app.core.atlas import atlas_engine
 from app.core.atlas.models import AtlasApp, AtlasElement, AtlasState
 from app.core.atlas.strategy import AtlasStrategyStore
 from app.core.environment.explorers.dynamic_apps import DynamicAppTriage
-from app.core.environment.tools.mobile import mobile_control
+from app.core.environment.tools.mobile import mobile
 from app.infrastructure.drivers.adb import adb_driver, ADBError
 
 
@@ -128,7 +128,7 @@ class MobileAtlasTest:
 
         # Step 2: 打开微信
         print("\nStep 2: 打开微信...")
-        result = await mobile_control.ainvoke({
+        result = await mobile.ainvoke({
             "action": "open_app",
             "text": bundle_id
         })
@@ -143,7 +143,7 @@ class MobileAtlasTest:
 
         # Step 4: Dump UI
         print("\nStep 4: Dump UI...")
-        result = await mobile_control.ainvoke({
+        result = await mobile.ainvoke({
             "action": "dump_ui"
         })
         ui_length = len(result) if isinstance(result, str) else 0
@@ -181,7 +181,7 @@ class MobileAtlasTest:
 
         # Step 2: 打开设置
         print("\nStep 2: 打开设置...")
-        result = await mobile_control.ainvoke({
+        result = await mobile.ainvoke({
             "action": "open_app",
             "text": bundle_id
         })
@@ -190,7 +190,7 @@ class MobileAtlasTest:
 
         # Step 3: 查找元素（触发 Atlas 学习）
         print("\nStep 3: 查找元素触发 Atlas 学习...")
-        result = await mobile_control.ainvoke({
+        result = await mobile.ainvoke({
             "action": "click",
             "text": "网络",
             "timeout": 5.0
@@ -234,7 +234,7 @@ class MobileAtlasTest:
 
         # Step 2: 打开 Chrome
         print("\nStep 2: 打开 Chrome...")
-        result = await mobile_control.ainvoke({
+        result = await mobile.ainvoke({
             "action": "open_app",
             "text": bundle_id
         })
@@ -243,7 +243,7 @@ class MobileAtlasTest:
 
         # Step 3: 导航到网页
         print("\nStep 3: 导航到网页...")
-        result = await mobile_control.ainvoke({
+        result = await mobile.ainvoke({
             "action": "open_app",
             "text": "com.android.chrome"
         })
@@ -252,7 +252,7 @@ class MobileAtlasTest:
 
         # Step 4: 查找搜索框
         print("\nStep 4: 查找搜索框...")
-        result = await mobile_control.ainvoke({
+        result = await mobile.ainvoke({
             "action": "click",
             "text": "搜索",
             "timeout": 5.0

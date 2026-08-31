@@ -49,7 +49,9 @@ async def _verify_new_script(
     project_id: int,
     macro_script: str,
 ):
-    """Parse, gate, and dry-run a rewritten macro script."""
+    """Parse, gate, and real-execute (验证模式) a rewritten macro script.
+
+    注意：验证是真实执行——会真的操作环境步骤，仅限滚动深度。"""
     from app.core.learning.macro.authoring import validate_script
 
     return await validate_script(
@@ -125,6 +127,12 @@ async def update_macro(
     6. **Parameterize thresholds** via `parameters` + `{{param}}` placeholders
        instead of hardcoding business values.
     """
+    from app.constants import DEFAULT_PROJECT_ID
+    from app.core.context.manager import ContextManager
+
+    ctx = ContextManager.current()
+    project_id = ctx.project_id if ctx else DEFAULT_PROJECT_ID
+
     fields: dict = {}
     if name is not None:
         fields["name"] = name
@@ -143,9 +151,9 @@ async def update_macro(
             )
 
         try:
-            macro = await load_macro(int(macro_id))
+            macro = await load_macro(int(macro_id), project_id=project_id)
             if macro is None:
-                return ControllerResponse.error(f"Macro #{macro_id} not found.")
+                return ControllerResponse.error(f"Macro #{macro_id} not found (或不属于当前项目).")
         except Exception as e:
             logger.exception("Failed to load macro %s for rewrite: %s", macro_id, e)
             return ControllerResponse.error(f"Failed to load macro: {e}")
@@ -173,9 +181,9 @@ async def update_macro(
         )
 
     try:
-        macro = await load_macro(int(macro_id))
+        macro = await load_macro(int(macro_id), project_id=project_id)
         if macro is None:
-            return ControllerResponse.error(f"Macro #{macro_id} not found.")
+            return ControllerResponse.error(f"Macro #{macro_id} not found (或不属于当前项目).")
 
         ok = await lifecycle_update_macro(int(macro_id), fields)
         if not ok:
@@ -184,13 +192,13 @@ async def update_macro(
         script_note = ""
         if "macro_script" in fields:
             # No human review step exists for agent-authored rewrites: the
-            # dry-run verification in _verify_new_script IS the gate. Reset to
+            # real-execution verification in _verify_new_script IS the gate. Reset to
             # pending_review first (invalidate any prior verified state), then
             # self-activate so the repaired macro stays discoverable.
             await downgrade_macro(int(macro_id))
             confirmed = await confirm_macro(int(macro_id))
             script_note = (
-                " New script dry-run verified and re-activated."
+                " New script verified (real execution) and re-activated."
                 if confirmed
                 else " Activation failed after rewrite; the macro is inactive — report this."
             )

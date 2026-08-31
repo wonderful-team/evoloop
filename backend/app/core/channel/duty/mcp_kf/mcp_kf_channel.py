@@ -76,7 +76,7 @@ class MpcKfChannel(DutyChannel):
         self._callback_cfg = channels.get(CHANNEL_KEY) or {}
         self._mcp_server = str(self._callback_cfg.get("mcp_server") or "").strip()
 
-    # ---- 输出 Channel 能力：接收 Supervisor 派活前的安抚回复 ----
+    # ---- 输出 Channel 能力：接收主 Agent 首个可见的安抚回复 ----
     # 本期与 GUI 线一致：安抚回复输出通道（send()）未接入 channel_registry，
     # 直接/最终回复走 SessionCompletedEvent 订阅，避免重复。
 
@@ -381,7 +381,7 @@ class MpcKfChannel(DutyChannel):
 
     @event_subscribe(SystemEventType.SESSION_COMPLETED)
     async def on_session_completed(self, event: Any) -> None:
-        """接收 Agent 会话完成的最终回复（Supervisor 直接回复 / Finish 均发布）。
+        """接收 Agent 会话完成的最终回复（主 Agent 最终回应）。
 
         从 event.data.summary 取最终回复文本，thread_id 反查联系人，MCP 发送。
         """

@@ -57,7 +57,7 @@ class SubagentCompletedEvent(BaseEvent):
 class SubagentHITLRequestEvent(BaseEvent):
     """subagent triggered a HITL request; transparently forward to the parent session.
 
-    Design: docs/subagent-design.md §5.5. The parent Supervisor asks the user in the
+    Design: docs/subagent-design.md §5.5. The parent Agent asks the user in the
     main session, then routes the answer back via ``respond_subagent_hitl``.
     """
 

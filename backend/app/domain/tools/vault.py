@@ -91,9 +91,7 @@ async def request_secure_credential(
 
     # Check if we are in an interactive TTY console (never block the server event loop on stdin)
     if not sys.stdin.isatty() or is_in_event_loop():
-        logger.warning(
-            f"[SecureVault] Non-interactive environment detected. Stdin prompt blocked for: {identifier}"
-        )
+        logger.warning(f"[SecureVault] Non-interactive environment detected. Stdin prompt blocked for: {identifier}")
         return (
             f"[VAULT ERROR] Credential '{identifier}' is missing and cannot be requested interactively "
             f"because the agent is running in a non-interactive server environment.\n"

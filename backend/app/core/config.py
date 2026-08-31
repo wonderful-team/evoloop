@@ -110,6 +110,26 @@ class Settings(BaseSettings):
         False  # Enable automatic macro creation after successful sessions
     )
 
+    # Skill Sedimentation Settings（§3.7）：会话含非平凡可复用解题路径时，
+    # 收尾管线自动触发 skill 候选合成（pending_review，不自动激活）。
+    ENABLE_SKILL_SYNTHESIS: bool = False
+
+    # 工具级权限（对齐 OpenCode Permission ruleset）：{tool_name: "allow"|"ask"|"deny"}。
+    # "ask" 时该工具调用走授权门控 → HITL 审批（approve/reject，批准后 grant 落盘）。
+    # 由 engine/hooks/authorization.py 的 PRE_TOOL_USE 门控消费；空 = 全部允许。
+    TOOL_PERMISSIONS: dict[str, str] = Field(default_factory=dict)
+
+    # 工具输出截断阈值（react/truncate.py，对齐 OpenCode tool_output.max_lines/max_bytes）
+    TOOL_OUTPUT_MAX_LINES: int = 2000
+    TOOL_OUTPUT_MAX_BYTES: int = 32000
+
+    # Agent 执行步数上限（react/loop.py 的 run_agent_loop 默认值）。
+    # 未显式传 max_steps 时，按当前模型上下文相对 128k 基准等比缩放后，
+    # 钳制在 [AGENT_MAX_STEPS_MIN, AGENT_MAX_STEPS_MAX] 区间内。
+    AGENT_MAX_STEPS: int = 100
+    AGENT_MAX_STEPS_MIN: int = 25
+    AGENT_MAX_STEPS_MAX: int = 500
+
     BACKEND_CORS_ORIGINS: Annotated[
         list[AnyUrl] | str, BeforeValidator(parse_cors)
     ] = []
@@ -497,11 +517,6 @@ class Settings(BaseSettings):
     MEMORY_PRUNE_THRESHOLD: int = 100
     CONTEXT_WINDOW_SIZE: int = 20
     MEMORY_MAINTENANCE_ENABLED: bool = False
-
-    # Dynamic Agents
-    SUPERVISOR_AGENT_MAX_STEPS: int = 20
-    WORKER_AGENT_MAX_STEPS: int = 100
-    FINISH_AGENT_MAX_STEPS: int = 10
 
     # Subagent（并行执行）：进程重启后 stale running/awaiting 收割阈值（秒）
     SUBAGENT_STALE_AFTER_SECONDS: int = 3600

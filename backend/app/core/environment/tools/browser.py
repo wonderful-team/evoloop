@@ -1,7 +1,7 @@
 """
 Browser Control Tool — Agent-facing thin wrapper over BrowserController.
 
-This module exposes `browser_control` as an @evoloop_tool so the Agent can
+This module exposes `browser` as an @evoloop_tool so the Agent can
 call it via function calling. All actual logic lives in:
   app.core.environment.controllers.browser.BrowserController
 """
@@ -16,11 +16,11 @@ logger = logging.getLogger(__name__)
 
 
 @evoloop_tool(
-    required_benefit="browser_control",
-    summary_template="evoloop.tool_summary.browser_control",
+    required_benefit="browser",
+    summary_template="evoloop.tool_summary.browser",
     affected_path_keys=["url", "file_path"],
 )
-async def browser_control(
+async def browser(
     action: Literal[
         # Navigation
         "navigate",
@@ -106,89 +106,87 @@ async def browser_control(
     file_path: str | None = None,
 ) -> str:
     """
-    Control a persistent Chromium browser via Playwright.
+    通过 Playwright 控制一个持久化的 Chromium 浏览器。
 
-    This tool provides browser-native automation that complements desktop_control
-    (OS-level). Use browser_control when you need precise DOM interaction,
-    content extraction, or browser state management inside a web page.
+    本工具提供浏览器原生自动化，与 desktop（OS 级）互补。需要在网页内做精确的 DOM
+    交互、内容提取或浏览器状态管理时用 browser。
 
-    Action Groups:
+    动作分组：
 
-    NAVIGATION:
-    - navigate: Go to `url`, waits for networkidle.
-    - back / forward: Browser history.
-    - reload: Refresh current page.
-    - get_url: Return current URL + page title.
-    - new_tab: Open a new tab (optionally at `url`); switches to it.
-    - switch_tab: Switch active tab by `tab_index` (0-based).
+    导航（NAVIGATION）：
+    - navigate: 跳转到 `url`，等待 networkidle。
+    - back / forward: 浏览器历史。
+    - reload: 刷新当前页。
+    - get_url: 返回当前 URL + 页面标题。
+    - new_tab: 打开新标签页（可选带 `url`）；并切换到它。
+    - switch_tab: 按 `tab_index`（从 0 开始）切换活动标签页。
 
-    INTERACTION:
-    - click: Click `selector` or `text`. Falls back to (x, y) coordinates.
-    - double_click: Double-click `selector` or `text`.
-    - hover: Mouse-hover over `selector` (reveals tooltips / dropdowns).
-    - type_text: Type `value` into `selector` / `text`; set `clear_first=False` to append.
-    - select_option: Pick from a <select> by `value` or visible `text`.
-    - key_press: Keyboard shortcut, e.g. "Enter", "Control+a", "Tab".
-    - scroll: Scroll page or `selector` element by `amount` px in `direction`.
-    - drag_drop: Drag `source_selector` and drop onto `target_selector`.
+    交互（INTERACTION）：
+    - click: 点击 `selector` 或 `text`。可回退到 (x, y) 坐标。
+    - double_click: 双击 `selector` 或 `text`。
+    - hover: 鼠标悬停在 `selector` 上（显示 tooltip/下拉）。
+    - type_text: 向 `selector` / `text` 输入 `value`；设 `clear_first=False` 可追加。
+    - select_option: 按 `value` 或可见 `text` 从 <select> 选择。
+    - key_press: 键盘快捷键，如 "Enter"、"Control+a"、"Tab"。
+    - scroll: 按 `amount` 像素沿 `direction` 滚动页面或 `selector` 元素。
+    - drag_drop: 拖动 `source_selector` 并放到 `target_selector`。
 
-    READING:
-    - get_text: Extract visible text from page or `selector`.
-    - get_html: Get outerHTML of page or `selector`.
-    - get_attribute: Get `attribute` value from `selector`.
-    - get_links: Return all href links (optionally scoped to `selector`).
-    - find_element: Check if `selector` / `text` exists, return position.
+    读取（READING）：
+    - get_text: 从页面或 `selector` 提取可见文本。
+    - get_html: 获取页面或 `selector` 的 outerHTML。
+    - get_attribute: 从 `selector` 获取 `attribute` 属性值。
+    - get_links: 返回所有 href 链接（可选限定在 `selector` 内）。
+    - find_element: 检查 `selector` / `text` 是否存在，返回位置。
 
-    PERCEPTION:
-    - screenshot: Capture page (`full_page=True` for full scroll). Immediately
-      runs OCR and returns: image path + OCR text/coordinates (same format as
-      desktop_control).
-    - wait_for: Wait until `selector` / `text` / `url_pattern` matches `state`.
-    - check_element: Return visible/checked/enabled status of `selector`.
+    感知（PERCEPTION）：
+    - screenshot: 截取页面（`full_page=True` 截整页滚动）。立即跑 OCR 并返回：
+      图片路径 + OCR 文本/坐标（与 desktop 同格式）。
+    - wait_for: 等待 `selector` / `text` / `url_pattern` 满足 `state`。
+    - check_element: 返回 `selector` 的可见/勾选/启用状态。
 
-    BATCH & FILE OPERATIONS:
-    - batch: Execute multiple actions in sequence. Provide `actions` list.
-    - upload: Upload a file to a file input element. Provide `file_path`.
+    批量与文件（BATCH & FILE OPERATIONS）：
+    - batch: 按顺序执行多个动作。提供 `actions` 列表。
+    - upload: 上传文件到文件输入元素。提供 `file_path`。
 
-    ADVANCED:
-    - run_js: Execute `script` in page context. Returns JSON-serialisable result.
-    - get_cookies: List all cookies for current domain.
-    - set_cookies: Inject `cookies` list (for pre-authenticated sessions).
-    - local_storage: Get / set / clear localStorage via `storage_action`.
-    - network_wait: Wait for a network request matching `url_pattern` to complete.
-    - dialog_handle: Accept or dismiss the next alert/confirm/prompt.
+    高级（ADVANCED）：
+    - run_js: 在页面上下文执行 `script`。返回 JSON 可序列化结果。
+    - get_cookies: 列出当前域的所有 cookie。
+    - set_cookies: 注入 `cookies` 列表（用于预登录会话）。
+    - local_storage: 通过 `storage_action` get/set/clear localStorage。
+    - network_wait: 等待匹配 `url_pattern` 的网络请求完成。
+    - dialog_handle: 接受或关闭下一个 alert/confirm/prompt。
 
-    LIFECYCLE:
-    - close: Gracefully close the browser.
+    生命周期（LIFECYCLE）：
+    - close: 优雅关闭浏览器。
 
     Args:
-        action: The operation to perform (see above).
-        url: Target URL for navigate / new_tab.
-        tab_index: Zero-based tab index for switch_tab (default: current).
-        selector: CSS selector, XPath (prefix //), or Playwright locator string.
-        text: Visible text to locate an element (alternative to selector).
-        value: Text to type, select-option value/label, or localStorage value.
-        key: Key or shortcut for key_press (e.g. "Enter", "Control+a").
-        source_selector / target_selector: For drag_drop.
-        direction: Scroll direction (up/down/left/right).
-        amount: Scroll distance in pixels (default 300).
-        clear_first: Whether to clear the field before typing (default True).
-        full_page: Capture full scrollable page in screenshot.
-        ocr: Run OCR on screenshot and return detected text (default False).
-        attribute: HTML attribute name for get_attribute.
-        state: Element state to wait for in wait_for (default "visible").
-        url_pattern: Substring/regex to match URL in wait_for / network_wait.
-        timeout_ms: Max wait time in ms (default 15 000).
-        cookies: List of cookie dicts for set_cookies.
-        storage_action: get / set / clear for local_storage.
-        storage_key: localStorage key for get/set.
-        dialog_action: accept / dismiss for dialog_handle.
-        dialog_text: Text to enter into a prompt dialog.
-        script: JavaScript code string for run_js.
-        x, y: Coordinates for click when no selector/text is available.
-        actions: List of action dicts for batch mode.
-        continue_on_error: For batch mode, whether to continue on error (default True).
-        delay_ms: For batch mode, delay between actions in ms (default 100).
-        file_path: Full path to local file for upload action.
+        action: 要执行的操作（见上）。
+        url: navigate / new_tab 的目标 URL。
+        tab_index: switch_tab 的标签页索引（从 0 开始，默认当前）。
+        selector: CSS 选择器、XPath（// 前缀）或 Playwright locator 字符串。
+        text: 定位元素的可见文本（selector 的替代）。
+        value: 要输入的文本、select-option 的 value/label，或 localStorage 值。
+        key: key_press 的键或快捷键（如 "Enter"、"Control+a"）。
+        source_selector / target_selector: drag_drop 用。
+        direction: 滚动方向（up/down/left/right）。
+        amount: 滚动距离像素（默认 300）。
+        clear_first: 输入前是否清空字段（默认 True）。
+        full_page: 截图是否截取整页可滚动内容。
+        ocr: 是否对截图跑 OCR 并返回检测文本（默认 False）。
+        attribute: get_attribute 的 HTML 属性名。
+        state: wait_for 等待的元素状态（默认 "visible"）。
+        url_pattern: wait_for / network_wait 匹配 URL 的子串/正则。
+        timeout_ms: 最大等待毫秒（默认 15 000）。
+        cookies: set_cookies 的 cookie dict 列表。
+        storage_action: local_storage 的 get / set / clear。
+        storage_key: get/set 的 localStorage 键。
+        dialog_action: dialog_handle 的 accept / dismiss。
+        dialog_text: 向 prompt 对话框输入的文本。
+        script: run_js 的 JavaScript 代码字符串。
+        x, y: 无 selector/text 时 click 用的坐标。
+        actions: batch 模式的动作 dict 列表。
+        continue_on_error: batch 模式是否出错继续（默认 True）。
+        delay_ms: batch 模式动作间延迟毫秒（默认 100）。
+        file_path: upload 动作的本地文件完整路径。
     """
     return await BrowserController.execute(**locals())

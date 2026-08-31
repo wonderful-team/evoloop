@@ -1,8 +1,6 @@
 import logging
-import re
 
 from app.core.engine.state import AgentState
-from app.core.mcp.features.base import parse_mcp_tool_name
 from app.core.tools.base import EvoLoopTool as BaseTool
 
 logger = logging.getLogger(__name__)
@@ -27,12 +25,10 @@ class ToolManager:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    async def get_node_tools(
-        self, node_name: str, state: AgentState | None = None
-    ) -> list[BaseTool]:
+    async def get_agent_tools(self, agent: str, state: AgentState | None = None) -> list[BaseTool]:
         """
         Get tools for a specific agent role, handling Progressive Disclosure automatically.
-        Nodes no longer need to manually parse execution_tickets or talk to MCP.
+        Nodes no longer need to manually parse tickets or talk to MCP.
         """
         from app.core.mcp import mcp_client_manager
         from app.core.tools.registry import get_node_tools
@@ -42,7 +38,7 @@ class ToolManager:
             tools = get_node_tools(node_name)
         except (TypeError, ValueError, RuntimeError, OSError) as e:
             logger.exception(
-                f"[ToolManager] Failed to fetch static tools for {node_name}: {e}"
+                f"[ToolManager] Failed to fetch static tools for {agent}: {e}"
             )
             tools = []
 

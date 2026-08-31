@@ -4,8 +4,6 @@
 HITL 子系统，避免 hitl 反向依赖 domain。
 """
 
-from typing import Any
-
 from pydantic import BaseModel, Field
 
 from app.core.hitl.types import HumanRequestType, RiskLevel
@@ -32,31 +30,6 @@ class RequestHumanInputArgs(BaseModel):
     )
 
 
-class BatchOperationItem(BaseModel):
-    """Single operation included in a batch approval request."""
-
-    tool_name: str = Field(
-        ...,
-        description="Tool to execute, e.g. 'run_macro' or 'mcp__mall__agree_refund'.",
-    )
-    macro_id: int | None = Field(
-        None,
-        description="Macro ID when tool_name is 'run_macro'.",
-    )
-    macro_name: str | None = Field(
-        None,
-        description="Macro name (human-readable).",
-    )
-    params: dict[str, Any] = Field(
-        default_factory=dict,
-        description="Business parameters for this operation.",
-    )
-    description: str | None = Field(
-        None,
-        description="Human-readable description shown in the approval card.",
-    )
-
-
 class RequestApprovalArgs(BaseModel):
     action_description: str = Field(
         ..., description="Clear description of the action that requires approval."
@@ -70,17 +43,4 @@ class RequestApprovalArgs(BaseModel):
     )
     consequences: str | None = Field(
         None, description="Potential consequences or impact of this action."
-    )
-    operations: list[BatchOperationItem] | None = Field(
-        None,
-        description=(
-            "Optional batch operation list. When provided, this is a batch approval: "
-            "the user approves/disapproves the entire list at once, and approved "
-            "operations bypass per-call confirmation for the grant window. "
-            "Each entry must include tool_name and the exact business parameters."
-        ),
-    )
-    risk_note: str | None = Field(
-        None,
-        description="Risk explanation for batch approvals (why bulk execution is acceptable or what to watch).",
     )

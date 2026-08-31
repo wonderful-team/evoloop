@@ -1,8 +1,8 @@
 """
 Context Monitor — Real-time context usage monitoring for Agent.
 
-Provides context statistics (in **tokens**) to help Agent make informed decisions
-about context management, including when to use forget_tool_outputs.
+Provides context statistics (in **tokens**) to help the Agent track its budget;
+上下文裁剪/工具输出折叠由系统自动管理（ContextTrimmer + executor 统一截断）。
 
 All metrics are token-based and aligned with ContextTrimmer budgets.
 """

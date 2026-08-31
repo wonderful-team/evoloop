@@ -114,7 +114,7 @@ print(result.summary)  # Shows all elements with IDs
 await click_element(element_id="B1")
 
 # 5. Type message
-await desktop_control(action="type_text", text="Hello!")
+await desktop(action="type_text", text="Hello!")
 
 # 6. Send using menu
 await click_menu_item(app_name="微信", menu_path="聊天>发送")

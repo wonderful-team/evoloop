@@ -98,9 +98,12 @@ class AuthorizationService:
         resource_path: str,
         action: str,
         granted_by: str | None = None,
-        ttl_days: int = DEFAULT_AUTHORIZATION_TTL_DAYS,
+        ttl_days: int | None = DEFAULT_AUTHORIZATION_TTL_DAYS,
     ) -> bool:
-        """Persist a user-granted permission to project.json."""
+        """Persist a user-granted permission to project.json.
+
+        ``ttl_days=None`` 表示永久授权（allow always，expires_at=None）。
+        """
         if not self.project_id:
             return False
 
@@ -109,10 +112,35 @@ class AuthorizationService:
             path=resource_path,
             action=action,
             approved_at=now,
-            expires_at=now + timedelta(days=ttl_days),
+            expires_at=None if ttl_days is None else now + timedelta(days=ttl_days),
             granted_by=granted_by,
         )
         return await PolicyLoader.save_granted_permission(self.project_id, permission)
+
+    async def is_granted(
+        self,
+        resource_path: str,
+        action: str,
+        now: datetime | None = None,
+    ) -> bool:
+        """持久化授权是否命中（path+action 匹配且未过期）。
+
+        宏的"总是允许"（grant_mode=always → ``expires_at=None`` 永久 grant）与
+        普通 TTL grant 均在此命中；调用方（如 run_macro 门控）据此短路后续
+        确认。project_id 缺失时返回 False（无授权域可查）。
+        """
+        if not self.project_id:
+            return False
+        perms = await PolicyLoader.load_granted_permissions(self.project_id)
+        if now is None:
+            now = datetime.now(timezone.utc)
+        for perm in perms:
+            if perm.path != resource_path or perm.action != action:
+                continue
+            if perm.is_expired(now):
+                continue
+            return True
+        return False
 
 
 # Backward-compatible re-export of the decision model.

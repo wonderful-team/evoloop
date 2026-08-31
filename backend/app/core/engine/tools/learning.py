@@ -133,13 +133,13 @@ async def create_macro(
        'pending_review'. A rationale is required in this mode.
 
     In script mode, escape-risk steps (bash, native, applescript, run_js as an
-    ACTION step) are rejected before any dry-run execution because macro
+    ACTION step) are rejected before any real-execution verification because macro
     verification actually executes the script.
 
     ## Evoloop macro authoring standard (MUST follow)
 
     These are the authoritative conventions used by every verified macro in
-    the library. Deviating from them fails dry-run verification:
+    the library. Deviating from them fails real-execution verification:
 
     1. **Navigate URLs must be absolute and use the `{{base_url}}` placeholder.**
        Never use a relative path: `/shop.html#url=...` fails with
@@ -295,7 +295,7 @@ async def _create_macro_from_trace(
             confirmed = await confirm_macro(int(macro_id), db=db)
 
         status_note = (
-            "Dry-run verification passed; the macro is active and discoverable via list_macros."
+            "Verification passed; the macro is active and discoverable via list_macros."
             if confirmed
             else "Activation failed; the macro remains inactive — report this to the user."
         )
@@ -318,7 +318,7 @@ async def _create_macro_from_script(
     parameters: list[dict] | None = None,
     rationale: str | None = None,
 ) -> str:
-    """Agent-written macro path: validate, gate, dry-run, persist."""
+    """Agent-written macro path: validate, gate, real-execute, persist."""
     try:
         from app.core.learning.macro.authoring import validate_script
 
@@ -367,7 +367,7 @@ async def _create_macro_from_script(
             rationale,
         )
 
-        # No human review step exists for agent-authored macros: the dry-run
+        # No human review step exists for agent-authored macros: the real-execution
         # verification above IS the gate. Self-verify by promoting to
         # verified/active so the macro is immediately discoverable via
         # list_macros (which only shows verified macros).
@@ -381,14 +381,14 @@ async def _create_macro_from_script(
                 macro_id,
             )
             return (
-                f"⚠️ Macro created (ID: {macro_id}, name: {name}) and dry-run "
-                f"verified, but activation failed. Report the macro ID to the "
+                f"⚠️ Macro created (ID: {macro_id}, name: {name}) and verified by "
+                f"real execution, but activation failed. Report the macro ID to the "
                 f"user; it is not discoverable yet."
             )
 
         return (
             f"✅ Macro created and self-verified (ID: {macro_id}, name: {name}, "
-            f"risk={max_risk}). Dry-run verification passed and the macro is "
+            f"risk={max_risk}). Real-execution verification passed and the macro is "
             f"now active and discoverable via list_macros."
         )
     except Exception as e:

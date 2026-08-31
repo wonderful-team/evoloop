@@ -197,8 +197,8 @@ async def execute_macro(
         raise HTTPException(404, f"Macro #{macro_id} not found")
 
     execution_params = dict(req.params or {})
-    execution_params["_macro_id"] = macro.id
-    execution_params["_macro_name"] = macro.name
+    execution_params["macro_id"] = macro.id
+    execution_params["macro_name"] = macro.name
     thread_id = req.thread_id or f"macro-exec-{macro_id}"
     result = await MacroEngine.run(
         thread_id,

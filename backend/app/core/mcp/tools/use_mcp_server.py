@@ -52,7 +52,7 @@ async def use_mcp_server(server_name: str) -> str:
         # the AgentEngine rebinds.
         # Actually, if we return this string, the LLM will try to use the tools on the NEXT
         # step in the same AgentEngine loop, which will FAIL because the tools list was bound
-        # at `AgentEngine.run_node` startup.
+        # at `AgentEngine.run_react_loop` startup.
         # To fix this, we return a special directive that forces the LLM to end its turn.
 
         return (

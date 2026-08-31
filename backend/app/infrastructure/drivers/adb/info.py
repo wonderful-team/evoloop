@@ -2,6 +2,8 @@ import logging
 import re
 import time
 
+from app.infrastructure.constants import is_system_package
+
 logger = logging.getLogger(__name__)
 
 
@@ -49,17 +51,6 @@ class DeviceInfoMixin:
             ts, data = self._app_cache[cache_key]
             if now - ts < self._cache_ttl:
                 return data
-
-        def is_system_package(pkg):
-            if not pkg:
-                return True
-            system_prefixes = (
-                "com.android.systemui",
-                "com.android.launcher",
-                "com.google.android.inputmethod",
-                "android",
-            )
-            return pkg.startswith(system_prefixes) or pkg in ("unknown", "error", "")
 
         def parse_package_from_line(line, pattern):
             match = re.search(pattern, line)

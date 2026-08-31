@@ -23,6 +23,7 @@ from app.core.environment.controllers.utils import (
 )
 from app.core.environment.schemas import AppInfo
 from app.core.learning.trace.recorder import get_recorder
+from app.infrastructure.constants import is_system_package
 from app.infrastructure.drivers.adb import ADBError, adb_driver
 from app.infrastructure.vision import VisionTask, vision_engine
 from app.infrastructure.vision.providers.native.android_a11y import (
@@ -254,7 +255,10 @@ class MobileController(
         device_id = ctx.get("device_id")
         curr = await cls.get_current_app_cached(device_id=device_id)
         pkg = curr.get("package")
-        return None if pkg in ("com.android.launcher3", "com.android.systemui") else pkg
+        # 系统包/桌面不应被当作"当前业务 App"：返回 None 让上层回退到 expected_pkg。
+        if not pkg or is_system_package(pkg):
+            return None
+        return pkg
 
     @classmethod
     async def _get_effective_package(cls, ctx: dict) -> str | None:

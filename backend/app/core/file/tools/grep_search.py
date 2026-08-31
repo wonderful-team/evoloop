@@ -50,6 +50,7 @@ async def grep_search_internal(
 
 
 @evoloop_tool(
+    name="grep",
     affected_path_keys=["path"],
     summary_template="evoloop.tool_summary.search_result",
 )
@@ -61,14 +62,14 @@ async def grep_search(
     config: Annotated[RunnableConfig, InjectedToolArg] = None,
 ) -> str:
     """
-    Search for text patterns inside file contents in the specified directory.
-    Uses regex for pattern matching (powered by ripgrep).
+    在指定目录内搜索文件内容中的文本模式。
+    使用正则做模式匹配（基于 ripgrep）。
 
     Args:
-        pattern: The regex or text pattern to search for inside files. **REQUIRED**
-        path: Directory or file path to search in (default: current directory).
-        scope: Optional glob pattern to limit the files searched (e.g., "*.py", "src/services/*").
-        case_insensitive: If True, performs a case-insensitive search.
+        pattern: 要在文件中搜索的正则或文本模式。**必填**
+        path: 要搜索的目录或文件路径（默认当前目录）。
+        scope: 可选 glob 模式，限制被搜索的文件（如 "*.py"、"src/services/*"）。
+        case_insensitive: 为 True 时做不区分大小写的搜索。
     """
     return await grep_search_internal(
         pattern=pattern,

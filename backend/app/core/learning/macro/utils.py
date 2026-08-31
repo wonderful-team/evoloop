@@ -33,25 +33,27 @@ async def verify_macro_script(
     """
     统一宏脚本验证函数
 
-    执行宏脚本的 Dry-run 验证，检查提取目标是否达成。
+    执行宏脚本的验证运行——会**真实执行**环境步骤（开页/点击/采集），仅限制滚动深度
+    （max_scrolls），用于确认脚本真能跑通并采到数据。注意不是模拟：它真的会操作
+    web/桌面/移动端环境。
 
     Args:
         macro_script: 宏脚本步骤列表 (list) 或 YAML 字符串
         thread_id: 验证线程标识（用于日志）
         project_id: 项目ID
-        params: 可选的运行参数（如 {"max_scrolls": 2, "is_dry_run": True}）
+        params: 可选的运行参数（如 {"max_scrolls": 2, "verify_mode": True}）
 
     Returns:
         MacroVerificationResult: 验证结果
     """
-    logger.info(f"[{thread_id}] 🔍 Starting macro verification dry-run...")
+    logger.info(f"[{thread_id}] 🔍 Starting macro script verification run (REAL execution, max_scrolls limited)...")
 
     try:
-        default_params = {"max_scrolls": 2, "is_dry_run": True}
+        default_params = {"max_scrolls": 2, "verify_mode": True}
         if params:
             default_params.update(params)
 
-        # dry-run 与真实执行对齐：注入 {{base_url}}，否则 navigate 步骤的
+        # 验证运行注入 {{base_url}}，否则 navigate 步骤的
         # 占位符/相对路径直接进 page.goto → "Cannot navigate to invalid URL"，
         # 导致 Agent 造宏验证必败且报错无细节。
         if "base_url" not in default_params and _project_id:

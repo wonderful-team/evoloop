@@ -50,7 +50,7 @@ async def list_mirror_devices(current_user: CurrentUserOptional = None):
     return MirrorDevicesResponse(devices=devices, scrcpy_available=scrcpy_available)
 
 
-@router.post("/mirror/start", response_model=MirrorSessionResponse, dependencies=[Depends(require_benefit("desktop_control"))])
+@router.post("/mirror/start", response_model=MirrorSessionResponse, dependencies=[Depends(require_benefit("desktop"))])
 async def start_mirror_session(body: StartMirrorRequest):
     """Start a scrcpy mirroring session."""
     session = await mirror_manager.create_session(body.device_id, record_video=body.record_video)

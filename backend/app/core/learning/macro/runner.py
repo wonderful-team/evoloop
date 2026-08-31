@@ -389,14 +389,14 @@ async def _run_with_self_heal(
     project_id: int,
 ) -> ExecutionOutcome:
     """MacroService run with the unified self-healing fallback (web policy)."""
-    from app.core.engine.background_agent import run_agent_background
+    from app.core.engine.agent import run_agent_background
     from app.core.engine.dispatch import DispatchStatus, dispatch_agent_run
     from app.core.learning.macro.service import MacroService
     from app.utils.template import render_template
 
     exec_params = dict(params or {})
-    exec_params["_macro_id"] = macro.id
-    exec_params["_macro_name"] = macro.name
+    exec_params["macro_id"] = macro.id
+    exec_params["macro_name"] = macro.name
 
     result = await MacroService.run(
         thread_id=thread_id, script_input=script, params=exec_params, macro=macro

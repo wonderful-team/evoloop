@@ -9,58 +9,30 @@ from app.core.engine.message.native_classes import BaseMessage
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
-class NodeOutcomeStatus(str, Enum):
+class RunOutcomeStatus(str, Enum):
     """Terminal status of a node execution outcome."""
 
     SUCCESS = "success"
     TRUNCATED = "truncated"
-    INTERRUPTED = "interrupted"
     ERROR = "error"
     FAILED = "failed"
 
 
-class NodeOutcome(DynamicBaseModel):
+class RunOutcome(DynamicBaseModel):
     """Structured outcome of a node execution."""
 
-    status: NodeOutcomeStatus = NodeOutcomeStatus.SUCCESS
+    status: RunOutcomeStatus = RunOutcomeStatus.SUCCESS
     reason: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
-class WorkerOutcome(str, Enum):
-    """Supervisor-facing result of a Worker execution."""
-
-    SUCCESS = "success"
-    DONE = "done"
-    COMPLETED = "completed"
-    TRUNCATED = "truncated"
-    FAILED = "failed"
-    ERROR = "error"
-    INCOMPLETE = "incomplete"
-
-
-class RolloutOutcome(str, Enum):
-    """Terminal outcome returned by a Worker rollout to the session / subagent runner."""
-
-    DONE = "done"
-    FAILED = "failed"
-    TRUNCATED = "truncated"
-    CANCELLED = "cancelled"
-    INTERRUPTED = "interrupted"
-
-
 class EngineResult(DynamicBaseModel):
-    """Structured result from AgentEngine.run_node() and internal execution methods."""
+    """Structured result from AgentEngine.run_react_loop() and internal execution methods."""
 
     messages: list[BaseMessage] = Field(default_factory=list)
     tool_history: list[str] = Field(default_factory=list)
     is_truncated: bool = False
-    signal: Any | None = None
-    outcome: NodeOutcome | None = None
-    # Additional signals that arrived in the same Supervisor turn and were queued.
-    # Persisted into blackboard.pending_signals by handle_outcome so SupervisorNode
-    # can drain them serially without re-running the LLM.
-    queued_signals: list[Any] = Field(default_factory=list)
+    outcome: RunOutcome | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -124,7 +96,7 @@ class ContextStats(DynamicBaseModel):
             ]
             lines.append(f"Recent tools: {', '.join(recent_names)}")
         if self.usage_ratio >= 0.80:
-            lines.append("Tip: Use forget_tool_outputs to fold old exploration steps")
+            lines.append("Tip: 上下文由系统自动管理（超限工具输出自动折叠），无需手动折叠")
         return "\n".join(lines)
 
 
@@ -158,18 +130,3 @@ class RewindResult(DynamicBaseModel):
             "checkpoint_id": self.checkpoint_id,
             "errors": self.errors if self.errors else None,
         }
-
-
-# ---------------------------------------------------------------------------
-# Prompt Building (from prompts/supervisor_builder.py)
-# ---------------------------------------------------------------------------
-
-
-class SupervisorContext(DynamicBaseModel):
-    """Formalized context structure for Supervisor decision making."""
-
-    tools: list[Any]
-    iteration_count: int
-    last_human_msg: str | None
-    state: Any
-    structured_plan: str | dict | None = None

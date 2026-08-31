@@ -116,7 +116,7 @@ Example 1: Open Safari and navigate to a website
   2. await window_focus(app_name="Safari")
   3. await perform_common_action(app_name="Safari", action="new")
   4. await click_element(element_id="T1")  # Address bar
-  5. await desktop_control(action="type_text", text="https://example.com")
+  5. await desktop(action="type_text", text="https://example.com")
 
 Example 2: Check WeChat messages
   1. badge = await get_dock_badge(app_name="WeChat")

@@ -64,7 +64,7 @@ async def dispatch_user_message(
     project_id: int,
     member_id: int,
     context: EvoContext,
-    worker_registry: Any = None,
+    agent_run_registry: Any = None,
 ) -> DispatchOutcome:
     """Normalize, route, and dispatch a user message from any channel.
 
@@ -189,7 +189,7 @@ async def dispatch_user_message(
             project_id=project_id,
             source=source,
             timeout=macro_timeout,
-            worker_registry=worker_registry,
+            agent_run_registry=agent_run_registry,
         )
         handled = True
         if source == "voice" and outcome.action_type != "navigate" and not outcome.ok:

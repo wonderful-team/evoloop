@@ -88,11 +88,11 @@ class MacroScriptCompiler:
             source_type = MacroSource.DOM
             current_package = step.state_context.get("app_name") or step.node_name
 
-            if action_type == "mobile_control" or step.action_name == "mobile_control":
+            if action_type == "mobile" or step.action_name == "mobile":
                 source_type = MacroSource.MOBILE
             elif (
-                action_type == "desktop_control"
-                or step.action_name == "desktop_control"
+                action_type == "desktop"
+                or step.action_name == "desktop"
             ):
                 source_type = MacroSource.DESKTOP
             elif step.state_context.get("source") == _mc.MOBILE:
@@ -200,7 +200,7 @@ class MacroScriptCompiler:
 
             # Map to MacroStep
             if event_type in (_mc.GET_TEXT, _mc.GET_HTML, _mc.GET_ATTRIBUTE) or (
-                step.action_name == "mobile_control"
+                step.action_name == "mobile"
                 and payload.get("action") == _mc.DUMP_UI
             ):
                 has_extract = True

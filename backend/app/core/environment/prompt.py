@@ -2,7 +2,7 @@
 App Environment Prompt
 
 Centralizes the logic for generating the "Awakening" section of the system prompt.
-This ensures both the Supervisor and Skills share the same understanding of the environment.
+This ensures the Agent and Skills share the same understanding of the environment.
 """
 
 import asyncio

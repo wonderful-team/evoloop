@@ -56,19 +56,9 @@ class SkillHydrator:
             return await skill_discovery.get_namespace_index(namespace_context)
 
         # Eager mode: Fetch and return full SOP instructions
-        execution_ticket = state.ticket
-        # skill_ids takes priority from the ticket if present, otherwise fallback to topic
-        query = (
-            (execution_ticket.skill_ids[0] if execution_ticket.skill_ids else None)
-            if execution_ticket
-            else None
-        )
-        if not query:
-            query = topic
-
-        logger.info(f"[Hydrator] Eagerly hydrating skills for query: {query}")
+        logger.info(f"[Hydrator] Eagerly hydrating skills for query: {topic}")
         match, relevant, reasoning = await skill_discovery.exact_search(
-            query=query, namespace_context=namespace_context
+            query=topic, namespace_context=namespace_context
         )
 
         # exact_search handles both numeric ID, exact name, and namespace/ prefix
@@ -77,15 +67,10 @@ class SkillHydrator:
     @staticmethod
     async def get_node_skills(state: AgentState, node_name: str) -> list[Any]:
         """
-        Helper to get skills tailored for a specific node type.
+        Helper to get skills tailored for a specific agent role.
         """
-        execution_ticket = state.ticket
-        topic = (execution_ticket.topic or "") if execution_ticket else ""
-        namespace_context = (
-            execution_ticket.namespace_context if execution_ticket else None
-        )
+        topic = state.session_goal or ""
 
-        # In Unified Graph (v5), we default to 'eager' hydration for standard Workers.
         return await SkillHydrator.hydrate(
-            state, topic, namespace_context=namespace_context, mode="eager"
+            state, topic, mode="eager"
         )

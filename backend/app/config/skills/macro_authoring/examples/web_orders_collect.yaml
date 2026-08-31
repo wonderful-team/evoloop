@@ -1,0 +1,46 @@
+# ============================================================================
+# 范例 A · 浏览器(DOM)：后台订单翻页采集
+#
+# 📄 可信度：DSL 模板（未在真实页面执行过）。结构正确可参考，但 selector/
+#   run_js 脚本、翻页按钮、字段结构需按 SKILL §8 阶段 A/B 在你的目标页面重新
+#   打样后使用，不要直接照抄参数。
+#
+# 演示点：
+#   - navigate 必须绝对地址 / 用 {{base_url}} 占位（相对路径会被引擎守卫拒绝）
+#   - wait_for 等元素就绪（避免点空）
+#   - 翻页用 loop + condition element_exists(".layui-laypage-next...")
+#   - run_js 放在 EXTRACT 步骤（observe 族），脚本必须是 () => {...} 返回 JSON
+#   - extract 输出并入参数，bash 最后落盘
+# ============================================================================
+version: '1.0'
+steps:
+  - type: action
+    source: dom
+    event_type: navigate
+    payload: {url: '{{base_url}}/admin/orders.html'}
+  - type: action
+    source: dom
+    event_type: wait_for
+    payload: {selector: {type: css, value: '.row'}, state: visible, timeout_ms: 8000}
+  - type: loop
+    source: dom
+    condition: {type: element_exists, target_selector: '.layui-laypage-next:not(.layui-disabled)'}
+    steps:
+      - type: extract
+        source: dom
+        extract_type: run_js
+        key: orders_page
+        payload:
+          script: >
+            () => JSON.stringify({ n: document.querySelectorAll(".row").length,
+            ids: [...document.querySelectorAll(".row .id")].map(e => e.textContent.trim()) })
+      - type: action
+        source: dom
+        event_type: click
+        payload: {selector: {type: css, value: '.layui-laypage-next'}}
+    max_iterations: 5
+  - type: bash
+    payload:
+      command: 'python3 /tmp/orders_to_jsonl.py'   # 读 extracted 汇聚的 orders_page 数据落 JSONL
+      key: report
+      timeout: 60

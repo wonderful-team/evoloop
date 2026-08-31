@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 from app.core.context.manager import ContextManager
 from app.core.context.thread_store import thread_context_store
-from app.core.engine.worker_registry import worker_registry
+from app.core.engine.agent_run_registry import agent_run_registry
 from app.core.monitoring.activity import activity_monitor
 
 if TYPE_CHECKING:
@@ -51,7 +51,7 @@ class SessionManager:
 
         - 有活会话 → ``session.stop``（取消当前 run + 关闭会话）。
         - 无活会话 → ``stop_run``（协作式标志，覆盖所有 Agent 检查点）
-          + ``cancel_worker``（硬中断已注册的后台任务，如 L0 宏任务）。
+          + ``cancel_run``（硬中断已注册的后台任务，如 L0 宏任务）。
 
         返回 True = 存在可停止的会话或任务。
         """
@@ -62,7 +62,7 @@ class SessionManager:
             return True
 
         stopped = False
-        if await worker_registry.cancel_worker(thread_id):
+        if await agent_run_registry.cancel_run(thread_id):
             stopped = True
         await activity_monitor.stop_run(thread_id)
         return stopped
@@ -79,7 +79,7 @@ class SessionManager:
         - ``project_id``：仅停该项目的会话；None = 不限项目。
         - ``member_id``：仅停该用户的会话；None = 不限用户。
         返回停止的会话数。逐个走 ``stop_agent``（有会话 → session.stop；
-        无会话 → stop_run + cancel_worker 双兜底），语义与单端停止一致。
+        无会话 → stop_run + cancel_run 双兜底），语义与单端停止一致。
         """
 
         stopped = 0

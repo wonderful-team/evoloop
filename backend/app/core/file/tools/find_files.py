@@ -148,6 +148,7 @@ async def find_files_internal(
 
 
 @evoloop_tool(
+    name="glob",
     affected_path_keys=["path"],
     summary_template="evoloop.tool_summary.search_result",
 )
@@ -160,15 +161,15 @@ async def find_files(
     config: Annotated[RunnableConfig, InjectedToolArg] = None,
 ) -> str:
     """
-    Find files by their names (like the `find` command).
-    Returns file paths matching the given name pattern, along with short smart previews.
+    按文件名查找文件（类似 `find` 命令）。
+    返回匹配给定名称模式的文件路径，以及简短的内容预览。
 
     Args:
-        pattern: The text to search for in filenames. **REQUIRED**
-        path: Directory path to search in (default: current directory).
-        scope: Optional glob pattern to limit the files searched (e.g., "*.py", "src/services/*").
-        case_insensitive: If True, performs a case-insensitive match on the filename.
-        max_files: Maximum number of files to return (default 20).
+        pattern: 要在文件名中搜索的文本。**必填**
+        path: 要搜索的目录（默认当前目录）。
+        scope: 可选 glob 模式，限制被搜索的文件（如 "*.py"、"src/services/*"）。
+        case_insensitive: 为 True 时对文件名做不区分大小写的匹配。
+        max_files: 返回的最大文件数（默认 20）。
     """
     res_content, res_meta = await find_files_internal(
         pattern=pattern,

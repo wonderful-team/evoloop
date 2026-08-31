@@ -66,7 +66,7 @@ async def happy_path_scenario(thread_id: str):
     await activity_monitor.update_agent_state(
         thread_id=thread_id,
         mode="PLANNING",
-        task_name="Supervisor Plan",
+        task_name="Agent Plan",
         task_status="分析项目结构以确定 UI 组件位置...",
     )
     await asyncio.sleep(0.5)
@@ -109,7 +109,7 @@ async def happy_path_scenario(thread_id: str):
     await activity_monitor.update_agent_state(
         thread_id=thread_id,
         mode="PLANNING",
-        task_name="Supervisor Plan",
+        task_name="Agent Plan",
         task_status="找到 Button.tsx，准备读取文件内容...",
     )
     await asyncio.sleep(0.5)
@@ -118,17 +118,17 @@ async def happy_path_scenario(thread_id: str):
         "我已找到 Button.tsx 文件。现在我将读取它的代码内容以了解目前的属性定义。\n",
     )
     await publish_ai_tool_call(
-        thread_id, 4, "read_file",
+        thread_id, 4, "read",
         {"AbsolutePath": "frontend/src/components/Button.tsx"}, "call_rf1", run_id,
     )
     await activity_monitor.update_agent_state(
         thread_id=thread_id,
         mode="EXECUTING",
-        task_name="Worker: read_file",
+        task_name="Worker: read",
         task_status="正在读取 frontend/src/components/Button.tsx...",
     )
     await publish_tool_start(
-        thread_id, 5, "read_file", "call_rf1",
+        thread_id, 5, "read", "call_rf1",
         {"AbsolutePath": "frontend/src/components/Button.tsx"}, run_id,
     )
     await asyncio.sleep(0.5)
@@ -138,7 +138,7 @@ async def happy_path_scenario(thread_id: str):
         "}"
     )
     await publish_tool_output(
-        thread_id, 5, "read_file", "call_rf1",
+        thread_id, 5, "read", "call_rf1",
         {"AbsolutePath": "frontend/src/components/Button.tsx"},
         file_content, run_id,
     )
@@ -148,7 +148,7 @@ async def happy_path_scenario(thread_id: str):
     await activity_monitor.update_agent_state(
         thread_id=thread_id,
         mode="PLANNING",
-        task_name="Supervisor Plan",
+        task_name="Agent Plan",
         task_status="分析代码并执行修改...",
     )
     await asyncio.sleep(0.5)
@@ -183,7 +183,7 @@ async def happy_path_scenario(thread_id: str):
     await activity_monitor.update_agent_state(
         thread_id=thread_id,
         mode="PLANNING",
-        task_name="Supervisor Plan",
+        task_name="Agent Plan",
         task_status="编译检查与构建校验...",
     )
     await asyncio.sleep(0.5)
@@ -224,7 +224,7 @@ async def happy_path_scenario(thread_id: str):
     await activity_monitor.update_agent_state(
         thread_id=thread_id,
         mode="PLANNING",
-        task_name="Supervisor Plan",
+        task_name="Agent Plan",
         task_status="生成最终答复...",
     )
     await asyncio.sleep(0.5)
@@ -255,7 +255,7 @@ async def hitl_scenario(thread_id: str):
     await activity_monitor.update_agent_state(
         thread_id=thread_id,
         mode="PLANNING",
-        task_name="Supervisor Decision",
+        task_name="Agent Decision",
         task_status="评估生产环境上线环境...",
     )
     await asyncio.sleep(0.5)
@@ -336,7 +336,7 @@ async def hitl_scenario(thread_id: str):
     await activity_monitor.update_agent_state(
         thread_id=thread_id,
         mode="PLANNING",
-        task_name="Supervisor Decision",
+        task_name="Agent Decision",
         task_status="生成上线总结报告...",
     )
     await asyncio.sleep(0.5)
@@ -364,7 +364,7 @@ async def quota_exhausted_scenario(thread_id: str):
     await activity_monitor.update_agent_state(
         thread_id=thread_id,
         mode="PLANNING",
-        task_name="Supervisor Decision",
+        task_name="Agent Decision",
         task_status="正在调度推理模型...",
     )
     await asyncio.sleep(1.0)
@@ -423,18 +423,18 @@ async def long_task_scenario(thread_id: str):
     await activity_monitor.update_agent_state(
         thread_id=thread_id,
         mode="PLANNING",
-        task_name="Supervisor Plan",
+        task_name="Agent Plan",
         task_status="制定代码分析计划...",
     )
     await asyncio.sleep(0.8)
     await _stream_thinking(
         thread_id,
         "用户要求进行一次全库深度的依赖树检索，我需要拆分成多个子任务，"
-        "首先交由 Worker 逐个目录进行 `grep_search` 和 `read_file`。\n",
+        "首先交由 Worker 逐个目录进行 `grep` 和 `read`。\n",
     )
 
     for i in range(1, 13):
-        tool_name = "grep_search" if i % 2 != 0 else "read_file"
+        tool_name = "grep_search" if i % 2 != 0 else "read"
         tool_args = (
             {"Query": f"dependency_{i}"}
             if i % 2 != 0
@@ -478,7 +478,7 @@ async def long_task_scenario(thread_id: str):
     await activity_monitor.update_agent_state(
         thread_id=thread_id,
         mode="PLANNING",
-        task_name="Supervisor Decision",
+        task_name="Agent Decision",
         task_status="正在汇总检索结果...",
     )
     await asyncio.sleep(0.5)

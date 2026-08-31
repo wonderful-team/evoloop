@@ -153,7 +153,7 @@ class SelfHealingPolicy:
         base_msg = (
             "[HINT] Macro step failed. "
             "Since perceptual self-healing is enabled, you should now attempt to recover manually "
-            "using basic tools (browser_control, desktop_control, etc.) to complete the mission. "
+            "using basic tools (browser, desktop, etc.) to complete the mission. "
             "After successful recovery, you may call `reconcile_skill` to fix this macro permanently."
         )
 

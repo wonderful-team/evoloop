@@ -18,7 +18,7 @@ from app.api.schemas.projects.profiles import (
     UpdateProfileRequest,
 )
 from app.core import file as file_utils
-from app.core.engine.background_agent import run_agent_background
+from app.core.engine.agent import run_agent_background
 from app.core.engine.dispatch import DispatchStatus, dispatch_agent_run
 from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket
 from app.core.project.utils import (
@@ -72,7 +72,7 @@ async def discover_profile(
         "1. Identify the tech stack and project type.\n"
         "2. **Infrastructure Discovery**: Check for `docker-compose.yml`, `nginx.conf`, or database requirements. **Attempt to start/install them** (e.g., `docker-compose up -d`, `brew install`).\n"
         "3. **Deployment**: Identify all components and attempt to **start and verify** them. For PHP/Nginx projects, specifically check for correct pathinfo/proxy configuration.\n"
-        "4. **Deep Verification**: Use `browser_control` to verify access and diagnose any 403/404/500 errors.\n"
+        "4. **Deep Verification**: Use `browser` to verify access and diagnose any 403/404/500 errors.\n"
         f"5. **Documentation**: Generate a `PROJECT.md` at the root that summarizes the above, including an 'Infrastructure & Middleware' section. Redact secrets: {secrets_instruction}.\n"
         "6. Stop and report once `PROJECT.md` is written."
     )

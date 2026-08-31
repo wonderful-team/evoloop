@@ -123,9 +123,17 @@ class HitlEngineRuntime:
                 thread_id=config.get("configurable", {}).get("thread_id"),
                 project_id=project_id,
             )
+        # react 模式：主 Agent 工具面 = react 节点；被审批的工具若不在默认面
+        # （如按需注入的具身/MCP 工具），从全量注册表兜底补齐，确保重执行可解析。
         tool_map = {
-            t.name: t for t in await tool_manager.get_node_tools("worker", state)
+            t.name: t for t in await tool_manager.get_agent_tools("react", state)
         }
+        if tool_name not in tool_map:
+            from app.core.tools.registry import get_tool_map
+
+            fallback = get_tool_map().get(tool_name)
+            if fallback is not None:
+                tool_map[tool_name] = fallback
         executor = AgentToolExecutor(
             tool_map=tool_map,
             state=state,

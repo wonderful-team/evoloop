@@ -11,11 +11,8 @@ from sqlalchemy import select
 
 from app.core.engine.message.constants import MessageStatus
 from app.core.hitl.activity_sink import get_activity_sink
-from app.core.hitl.batch_grants import (
-    approve_grant_by_request_id,
-    reject_grant_by_request_id,
-)
 from app.core.hitl.constants import (
+    DEFAULT_AUTHORIZATION_TTL_DAYS,
     DEFAULT_GRANTED_BY,
     MESSAGE_CATEGORY_HITL_REQUEST,
 )
@@ -223,7 +220,7 @@ async def close_hitl_message(
     Unlike ``finalize_request`` (which atomically updates both the
     ``human_requests`` and ``messages`` tracks), this only closes the message
     track. Used by the A2A callback path which never created a human_request
-    row (its HITL request came from ``send_agent_task``).
+    row (its HITL request came from ``task`` 工具的 A2A remote 委派)。
     """
     try:
         success = await get_runtime().close_hitl_message(
@@ -337,7 +334,7 @@ class HITLOrchestrator:
 
     @staticmethod
     async def handle_resume(
-        thread_id: str, tool_call: dict, user_input: str | None
+        thread_id: str, tool_call: dict, user_input: str | None, grant_mode: str | None = None
     ) -> str:
         """Processes resume logic: normalization, atomic dual-track closure, activity cleanup."""
         from app.core.hitl.core import finalize_request
@@ -422,6 +419,7 @@ class HITLOrchestrator:
         config: dict,
         user_input: str | None,
         state=None,
+        grant_mode: str | None = None,
     ) -> bool:
         """统一的后台/会话恢复路径：检测 → 关闭请求 → 审批重执行 → 持久化。
 
@@ -429,8 +427,8 @@ class HITLOrchestrator:
         消除两处几乎相同的 "handle_resume + resolve_approved_tool_result +
         repo.persist" 重复逻辑。返回是否确实消费了 pending 请求。
 
-        注意：``_chat.py`` 的单发（无会话）路径刻意不走这里——它把工具结果写回
-        ``inputs`` 交给 graph，而非独立 persist。
+        注意：``chat.py`` 的单发（无会话）路径刻意不走这里——它把工具结果写回
+        ``inputs.messages``，交给后台 react 循环消费，而非独立 persist。
         """
         pending_tool = await HITLOrchestrator.get_pending_request(
             thread_id, (config.get("configurable") or {}).get("model")
@@ -438,10 +436,10 @@ class HITLOrchestrator:
         if not pending_tool:
             return False
         normalized_input = await HITLOrchestrator.handle_resume(
-            thread_id, pending_tool, user_input
+            thread_id, pending_tool, user_input, grant_mode=grant_mode
         )
         final_result = await HITLOrchestrator.resolve_approved_tool_result(
-            pending_tool, config, normalized_input, state=state
+            pending_tool, config, normalized_input, state=state, grant_mode=grant_mode
         )
         # 落为 human 消息（用户可见）+ 更新原 tool 消息结果（Agent 可见），
         # 而非新增 tool 消息（避免同 tool_call 双 tool 结果导致 Agent 取空）。
@@ -463,6 +461,7 @@ class HITLOrchestrator:
         config: dict,
         fallback_result: str,
         state=None,
+        grant_mode: str | None = None,
     ) -> str:
         """审批后的工具结果：授权门控工具记录授权并重执行，返回真实结果；否则回退。
 
@@ -477,31 +476,6 @@ class HITLOrchestrator:
         tool_name = pending_tool.get("name")
         tool_args = pending_tool.get("args") or {}
         tool_call_id = pending_tool.get("id")
-
-        # 批量审批：请求参数携带 grant_id（ask_confirm 批量确认）时，批准后激活
-        # 对应的 batch grant，拒绝则使其失效。数据驱动判定，不在编排层按工具名特判。
-        grant_id = tool_args.get("grant_id")
-        if grant_id:
-            request_id = pending_tool.get("request_id")
-            if (
-                isinstance(fallback_result, str)
-                and fallback_result.upper() == HITLDecision.APPROVED.value
-            ):
-                grant = approve_grant_by_request_id(request_id) if request_id else None
-                if grant:
-                    return i18n.get(
-                        "hitl.batch_approved",
-                        grant_id=grant.id,
-                        count=len(grant.operations),
-                    )
-                return i18n.get("hitl.batch_approved_fallback")
-            if (
-                isinstance(fallback_result, str)
-                and fallback_result.upper() == HITLDecision.REJECTED.value
-            ):
-                reject_grant_by_request_id(request_id)
-                return i18n.get("hitl.batch_rejected")
-            return fallback_result
 
         authorization = pending_tool.get("authorization")
 
@@ -531,24 +505,48 @@ class HITLOrchestrator:
             return fallback_result
 
         # 用户拒绝（授权门控）：不授权、不重执行，返回明确拒绝说明。
+        # CorrectedError 语义（对齐 OpenCode）：让模型知道该操作被拒、未执行、
+        # 不要重试，避免偏离主题反复尝试。
         if (
             isinstance(fallback_result, str)
             and fallback_result.upper() == HITLDecision.REJECTED.value
         ):
             resource_path = authorization.get("resource_path", "")
-            return i18n.get("hitl.access_rejected", path=resource_path)
+            action = authorization.get("action", "read")
+            return (
+                f"[AUTHORIZATION REJECTED] 用户拒绝了工具 {tool_name or ''} "
+                f"对 {resource_path} 的 {action} 访问。该操作未执行；"
+                "请勿重试或换相近方式规避授权，应停止该操作并向用户说明。"
+            )
 
-        project_id = config.get("metadata", {}).get("project_id") or 0
+        # 落库项目以审批创建端声明的 project_id 为准（宏确认已传 macro.project_id，
+        # 保证 grant 与 AuthorizationService.is_granted 读取端同属一个授权域），
+        # 缺失时回退会话项目。
+        project_id = (
+            authorization.get("project_id")
+            or config.get("metadata", {}).get("project_id")
+            or 0
+        )
         from app.core.hitl.authorization import AuthorizationService
 
-        # skip_grant 标记（如宏执行确认）：批准后仅重执行，不持久化授权——
-        # 门控确认是"每次执行"语义，不应写入 project.json authorized_paths。
-        if not authorization.get("skip_grant"):
+        # grant_mode（对齐 OpenCode reply allow/always/once）：
+        #   "once"    → 仅本次，不持久化授权（等价 skip_grant）
+        #   "always"  → 永久授权（expires_at=None）
+        #   "default"/None → 普通授权维持 TTL grant；宏确认默认"每次执行"不持久化。
+        # 宏（macro_run）只在用户显式选择 always 时才持久化，否则维持老行为（不写盘）。
+        is_macro = authorization.get("action") == "macro_run"
+        skip_grant = (
+            bool(authorization.get("skip_grant"))
+            or grant_mode == "once"
+            or (is_macro and grant_mode != "always")
+        )
+        if not skip_grant:
             try:
                 await AuthorizationService(project_id).grant_permission(
                     resource_path=authorization.get("resource_path", ""),
                     action=authorization.get("action", "read"),
                     granted_by=DEFAULT_GRANTED_BY,
+                    ttl_days=None if grant_mode == "always" else DEFAULT_AUTHORIZATION_TTL_DAYS,
                 )
             except Exception as e:
                 logger.warning(f"[HITL] grant_permission failed for approval: {e}")

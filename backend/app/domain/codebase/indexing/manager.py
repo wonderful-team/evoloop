@@ -662,7 +662,7 @@ class IndexingManager:
         """
         logger.info(f"Agent analysis dispatched for repo {repo_id} at {repo_path}")
         try:
-            from app.core.engine.background_agent import run_agent_background
+            from app.core.engine.agent import run_agent_background
             from app.core.engine.dispatch import DispatchStatus, dispatch_agent_run
 
             thread_id = unique_id("codebase-agent", repo_id)

@@ -233,9 +233,7 @@ class MacroResolver:
 
         词表数据化复用 ``free_text_reject_markers``（与 LocalMatcher 一致）。
         """
-        return any(
-            marker in value for marker in self._routing_store.free_text_reject_markers
-        )
+        return any(marker in value for marker in self._routing_store.free_text_reject_markers)
 
 
 __all__ = ["MacroResolver"]

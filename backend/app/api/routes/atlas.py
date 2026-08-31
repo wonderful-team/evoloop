@@ -13,7 +13,7 @@ from pydantic import BaseModel
 
 from app.api.deps import CurrentUserOptional, TokenDep
 from app.core.atlas.source import persistence
-from app.core.engine.background_agent import run_agent_background
+from app.core.engine.agent import run_agent_background
 from app.core.engine.dispatch import DispatchStatus, dispatch_agent_run
 from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket
 from app.core.learning.macro import list_macros

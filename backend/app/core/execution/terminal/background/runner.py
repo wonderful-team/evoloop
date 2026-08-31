@@ -43,9 +43,7 @@ def _build_allowed_roots(working_dir: str | None) -> list[str]:
     return get_allowed_roots(working_dir=working_dir)
 
 
-def _resolve_working_dir(
-    command: str, config: RunnableConfig | None
-) -> tuple[str | None, str | None]:
+def _resolve_working_dir(command: str, config: RunnableConfig | None) -> tuple[str | None, str | None]:
     """Resolve the working directory and run policy checks.
 
     Returns ``(working_dir, security_error|None)``. When ``security_error`` is
@@ -90,7 +88,7 @@ async def _create_execution_task(command: str, thread_id: str, timeout: int):
             task_type=TaskType.COMMAND,
             title=f"执行: {command[:MAX_COMMAND_TITLE_LENGTH]}{'...' if len(command) > MAX_COMMAND_TITLE_LENGTH else ''}",
             description=f"命令: {command}",
-            tool_name="execute_command",
+            tool_name="bash",
             thread_id=thread_id,
             timeout_seconds=timeout,
             metadata={"enable_streaming_output": True},
@@ -107,9 +105,7 @@ async def _finalize_task(task_id: str, exit_code: int) -> None:
         )
 
 
-async def execute_in_background(
-    command: str, timeout: int, config: RunnableConfig | None
-) -> str:
+async def execute_in_background(command: str, timeout: int, config: RunnableConfig | None) -> str:
     thread_id = get_thread_id(config)
 
     is_dangerous, reason = is_dangerous_command(command)
@@ -130,9 +126,7 @@ async def execute_in_background(
     )
 
 
-async def run_command_background(
-    task, command: str, timeout: int, config: RunnableConfig | None
-):
+async def run_command_background(task, command: str, timeout: int, config: RunnableConfig | None):
     try:
         working_dir, error_msg = _resolve_working_dir(command, config)
         if error_msg:
@@ -161,9 +155,7 @@ async def run_command_background(
         await task_manager.fail_task(task.task_id, error=str(e))
 
 
-async def execute_smart(
-    command: str, timeout: int, config: RunnableConfig | None
-) -> str:
+async def execute_smart(command: str, timeout: int, config: RunnableConfig | None) -> str:
     thread_id = get_thread_id(config)
     quick_timeout = min(timeout, QUICK_TIMEOUT_SECONDS)
 

@@ -31,7 +31,7 @@ class MacroDeviceMap:
     """Catalog-derived device/twin cache.
 
     - ``device_of(macro_id) -> DeviceKind | None``
-    - ``phone_twin(desktop_macro_id) -> phone macro id | None``
+    - ``phone_twin(macro_id) -> phone macro id | None``
 
     Device markers are read from the routing store (``device_markers``).
     Lazy, TTL-based so runtime macro and config changes propagate without a
@@ -50,9 +50,9 @@ class MacroDeviceMap:
         await self._maybe_refresh()
         return self._device.get(macro_id)
 
-    async def phone_twin(self, desktop_macro_id: int) -> int | None:
+    async def phone_twin(self, macro_id: int) -> int | None:
         await self._maybe_refresh()
-        return self._twin.get(desktop_macro_id)
+        return self._twin.get(macro_id)
 
     async def _maybe_refresh(self) -> None:
         now = time.monotonic()

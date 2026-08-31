@@ -49,7 +49,7 @@ class WeComDutyChannel(DutyChannel):
     _instance: WeComDutyChannel | None = None
 
     # 输出管道属性（复用语音链路 MessageBlock → 输出 Channel 的机制）：
-    # Supervisor 在 route_to Worker 前输出的安抚文本会作为 AI MessageBlock
+    # 主 Agent 首个可见响应（安抚话术）会作为 AI MessageBlock
     # 经 OutputChannelPolicy 路由到 wecom_duty，这里负责把它发送到企微。
     accepts_blocks = True
     accepts_stream_events = False
@@ -81,12 +81,12 @@ class WeComDutyChannel(DutyChannel):
         self._history_dir = cfg.get("history_dir", "")
         self._project_id = int(cfg.get("project_id", 0) or 0)
 
-    # ---- 输出 Channel 能力：接收 Supervisor 派活前的安抚回复 ----
+    # ---- 输出 Channel 能力：接收主 Agent 派活前的安抚回复 ----
 
     async def send(self, payload: MessageBlock, ctx: ChannelContext) -> None:
         """处理路由到 wecom_duty 的 MessageBlock（安抚回复）。
 
-        仅处理「Supervisor 派活前」的安抚文本：AI 角色、带 route_to 工具调用
+        仅处理「Agent 派活前」的安抚文本：AI 角色、带委派工具调用（task）
         （policy 已按此精确路由，这里再兜底校验）。直接回复/最终回复仍走
         SessionCompletedEvent 订阅，避免重复发送。
         """
@@ -96,7 +96,7 @@ class WeComDutyChannel(DutyChannel):
             return
         tool_calls = payload.tool_calls or []
         names = [tc.name for tc in tool_calls if getattr(tc, "name", None)]
-        if "route_to" not in names:
+        if "task" not in names:
             return  # 非派活场景（直接回复/最终回复），走 SessionCompletedEvent
         content = (payload.content or "").strip()
         if not content:
@@ -106,7 +106,7 @@ class WeComDutyChannel(DutyChannel):
         if not contact or not project_id:
             return
         logger.info(
-            "[wecom_duty] 收到 Supervisor 安抚回复 (contact=%s): %r",
+            "[wecom_duty] 收到主 Agent 安抚回复 (contact=%s): %r",
             contact,
             content[:50],
         )
@@ -239,7 +239,7 @@ class WeComDutyChannel(DutyChannel):
 
     @event_subscribe(SystemEventType.SESSION_COMPLETED)
     async def on_session_completed(self, event: Any) -> None:
-        """接收 Agent 会话完成的最终回复（Supervisor 直接回复 / Finish 均发布）。
+        """接收 Agent 会话完成的最终回复（主 Agent 最终回应）。
 
         从 event.data.summary 取最终回复文本，thread_id 反查联系人，脚本发送。
         """

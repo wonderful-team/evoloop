@@ -33,9 +33,7 @@ class RetrievalService:
 
         from app.domain.codebase.retrieval.hybrid import hybrid_searcher
 
-        return await hybrid_searcher.search(
-            query, project_id=pid, limit=limit, operator=operator
-        )
+        return await hybrid_searcher.search(query, project_id=pid, limit=limit, operator=operator)
 
     async def get_entity_relations(
         self, symbol_name: str, project_id: int = None
@@ -117,9 +115,7 @@ class RetrievalService:
                         name = target_ent.full_name if target_ent else rel.target_name
                         entry = {"name": name, "type": rel.relation_type, "calls": []}
                         if target_ent:
-                            entry["calls"] = await _collect_calls(
-                                target_ent.id, "out", depth + 1
-                            )
+                            entry["calls"] = await _collect_calls(target_ent.id, "out", depth + 1)
                         results.append(entry)
                 else:
                     rows = (
@@ -168,15 +164,13 @@ class RetrievalService:
                     all_results.append({"entity": name, "error": "not found"})
                     continue
                 outgoing, incoming = await self._load_relations(session, entity)
-                all_results.append(
-                    {
-                        "entity": entity.full_name,
-                        "type": entity.type,
-                        "file": entity.file.path if entity.file else "unknown",
-                        "outgoing": outgoing,
-                        "incoming": incoming,
-                    }
-                )
+                all_results.append({
+                    "entity": entity.full_name,
+                    "type": entity.type,
+                    "file": entity.file.path if entity.file else "unknown",
+                    "outgoing": outgoing,
+                    "incoming": incoming,
+                })
 
             if operator == "and":
                 related = set()
@@ -195,12 +189,8 @@ class RetrievalService:
                     if "error" in r:
                         lines.append(f"- {r['entity']}: {r['error']}")
                     else:
-                        out_str = ", ".join(
-                            o["target"] for o in r.get("outgoing", [])[:10]
-                        )
-                        in_str = ", ".join(
-                            i["source"] for i in r.get("incoming", [])[:10]
-                        )
+                        out_str = ", ".join(o["target"] for o in r.get("outgoing", [])[:10])
+                        in_str = ", ".join(i["source"] for i in r.get("incoming", [])[:10])
                         parts = [
                             f"calls: [{out_str}]" if out_str else "",
                             f"called_by: [{in_str}]" if in_str else "",

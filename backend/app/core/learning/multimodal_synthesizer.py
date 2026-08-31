@@ -192,7 +192,7 @@ class MultimodalSkillSynthesizer:
         # Step 9: 辅助生成确定性宏脚本 (Fallback/Verification Basis)
         compiled_macro = await self._compile_macro_from_events(events)
 
-        # Step 10: 验证 Dry-run (优先验证实际要返回的宏)
+        # Step 10: 验证执行（真实运行；优先验证实际要返回的宏）
         target_macro = parsed["macro_script"] or compiled_macro
 
         # 如果 LLM 返回的是字符串 JSON，尝试解析它

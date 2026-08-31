@@ -52,7 +52,7 @@ class UniversalBridgeSubscriber:
             # Resolve channels via OutputChannelPolicy — no more hardcoded {"sse", "voice"}.
             # node_source is not meaningful for system events (they aren't node outputs).
             session_src = current_session_source.get()
-            channels = OutputChannelPolicy.resolve(event, session_src, node_source=None)
+            channels = OutputChannelPolicy.resolve(event, session_src)
             selected = channel_registry.select(channels, payload_is_block=False)
             for ch in selected:
                 await ch.send(event, ctx)

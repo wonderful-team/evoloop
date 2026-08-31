@@ -23,8 +23,8 @@ from app.core.config import settings
 from app.core.context import thread_context_store
 from app.core.context.manager import ContextManager, EvoContext
 from app.core.engine.dispatch import DispatchStatus
-from app.core.engine.graph_runner import resume_graph_background
 from app.core.engine.message.native_classes import HumanMessage, ToolMessage
+from app.core.engine.resume_runner import resume_agent_background
 from app.core.execution.system_tools_formatter import SystemToolsFormatter
 from app.core.monitoring.activity import activity_monitor
 from app.core.monitoring.constants import ActivityStatus
@@ -166,7 +166,7 @@ async def mock_chat(req: ChatRequest):
 async def stop_chat(req: ChatRequest):
     if not req.thread_id:
         raise HTTPException(status_code=400, detail="thread_id is required")
-    # 统一走 session_manager.stop_agent（有会话 → session.stop；无会话 → stop_run + cancel_worker 双兜底）
+    # 统一走 session_manager.stop_agent（有会话 → session.stop；无会话 → stop_run + cancel_run 双兜底）
     from app.core.engine.session.manager import session_manager
 
     await session_manager.stop_agent(req.thread_id, "web_stop")
@@ -188,8 +188,8 @@ async def stop_all_agent(
     member_id 从 token 解析，用于按用户过滤会话（web/voice/mobile 共用）。
     """
     from app.core.channel.duty import provision
+    from app.core.engine.agent_run_registry import agent_run_registry
     from app.core.engine.session.manager import session_manager
-    from app.core.engine.worker_registry import worker_registry
     from app.core.identity import identity_service
 
     # 从 token 解析当前用户 member_id（用于按用户过滤会话）
@@ -210,7 +210,7 @@ async def stop_all_agent(
             project_id=project_id,
             member_id=member_id,
         )
-        await worker_registry.cancel_all(project_id=project_id)
+        await agent_run_registry.cancel_all(project_id=project_id)
         try:
             await provision.stop_project(project_id)
         except Exception as e:
@@ -218,7 +218,7 @@ async def stop_all_agent(
     else:
         # 全停（值守模式 Esc×2）
         await session_manager.stop_all("esc_stop", member_id=member_id)
-        await worker_registry.cancel_all()
+        await agent_run_registry.cancel_all()
         try:
             await provision.stop_global()
         except Exception as e:
@@ -493,7 +493,7 @@ async def resume_chat(
         # confirmation 类工具则直接使用归一化输入（APPROVED）。
         resume_config = {
             "configurable": {"thread_id": req.thread_id, "model": active_model},
-"metadata": {"project_id": project_id},
+            "metadata": {"project_id": project_id},
         }
         final_result = await HITLOrchestrator.resolve_approved_tool_result(
             pending_tool,
@@ -544,7 +544,7 @@ async def resume_chat(
 
     if settings.EMBEDDED_MODE:
         bg_tasks.add_task(
-            resume_graph_background,
+            resume_agent_background,
             req.thread_id,
             inputs,
             config,
@@ -563,7 +563,7 @@ async def resume_chat(
         from app.infrastructure.queue.factory import get_scheduler
 
         get_scheduler().send_task(
-            "engine_resume_graph_background",
+            "engine_resume_agent_background",
             args=(req.thread_id, serialized_inputs, config, "Resuming...", True),
         )
 

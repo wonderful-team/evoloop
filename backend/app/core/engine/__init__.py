@@ -5,11 +5,11 @@ Usage:
     from app.core.engine import AgentEngine
 
     engine = AgentEngine()
-    result = await engine.run_node(state, config, system_prompt, tools)
+    result = await engine.run_react_loop(state, config, system_prompt, tools)
 
 With dependency injection (for testing):
     engine = AgentEngine(llm_factory=mock_llm)
-    result = await engine.run_node(...)
+    result = await engine.run_react_loop(...)
 """
 
 # Use lazy imports to avoid triggering heavy module loads on

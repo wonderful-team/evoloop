@@ -4,17 +4,10 @@ Consolidated from core and domain layers for unified architecture.
 """
 
 import logging
-import time
-from typing import Annotated
 
 from app.core.config import settings
 from app.core.context.manager import ContextManager
-from app.core.memory.constants import (
-    DEFAULT_SEARCH_LIMIT,
-    FORGET_SAFETY_WINDOW,
-    OP_STATUS_ERROR,
-    OP_STATUS_SUCCESS,
-)
+from app.core.memory.constants import DEFAULT_SEARCH_LIMIT
 from app.core.memory.models import MemoryEntry, MemoryType, PrivacyLevel
 from app.core.memory.short_term import SqlShortTermMemory
 from app.core.tools import evoloop_tool
@@ -27,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 # ========================================================================
-# 1. Inter-Worker Handover Tools
+# 1. Cross-Task Handover Tools
 # ========================================================================
 
 
@@ -37,7 +30,7 @@ logger = logging.getLogger(__name__)
 async def write_handover_notes(notes: str, key: str = "general") -> str:
     """
     Leave critical handover notes (like API contracts, architecture decisions)
-    for the next agent/worker to read. This is a short-term memory explicitly
+    for the next agent to read. This is a short-term memory explicitly
     passed to subsequent tasks in this workflow.
 
     Use this when you have finished designing an interface, API, or component,
@@ -238,7 +231,6 @@ async def search_history(
     query: str,
     limit: int = DEFAULT_SEARCH_LIMIT,
     thread_id: str | None = None,
-    config: dict | None = None,
 ) -> str:
     """
     Search conversation history for specific keywords or topics.

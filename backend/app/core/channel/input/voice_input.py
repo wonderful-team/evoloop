@@ -4,11 +4,11 @@ The L0/L1 routing decision logic has moved to the shared dispatcher in
 ``app.core.routing.dispatch_handler``.  This channel is now responsible only
 for normalizing inbound voice.route payloads into ``IncomingMessage``.
 
-2026-08 (parent-run-liveness): post-dispatch worker registration and task
+2026-08 (parent-run-liveness): post-dispatch run registration and task
 finalization (``post_dispatch`` / ``await_and_finalize`` / ``handle_cancelled``)
 moved into ``AgentSession``; this channel only normalizes input. ``receive``
-injects ``has_running_worker`` from the live session (falling back to the
-metadata flag for non-session single-shot runs).
+injects the ``has_running_worker`` 元数据键（客户端 wire 契约）from the
+AgentRunRegistry（会话外后台执行）。
 """
 
 from __future__ import annotations
@@ -29,21 +29,19 @@ class VoiceInputChannel(InputChannel):
     name = "voice"
 
     def __init__(self) -> None:
-        self._worker_registry: Any = None
+        self._run_registry: Any = None
 
     def bind(
         self,
         executor: Any,
         state_machine: Any,
         state_enum: Any,
-        worker_registry: Any,
+        agent_run_registry: Any,
     ) -> None:
-        """Inject runtime dependencies from voice_ws.py (kept for compat; worker_registry used)."""
-        self._worker_registry = worker_registry
+        """Inject runtime dependencies from voice_ws.py (kept for compat; agent_run_registry used)."""
+        self._run_registry = agent_run_registry
 
-    async def receive(
-        self, raw: dict[str, Any], **kwargs: Any
-    ) -> IncomingMessage | None:
+    async def receive(self, raw: dict[str, Any], **kwargs: Any) -> IncomingMessage | None:
         """Normalize an inbound voice.route message into ``IncomingMessage``.
 
         Returns ``None`` when the payload is not a valid chat message (e.g. a

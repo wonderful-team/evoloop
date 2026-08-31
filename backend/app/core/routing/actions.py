@@ -12,8 +12,8 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any
 
-from app.core.engine.worker_registry import WorkerRegistry
-from app.core.engine.worker_registry import worker_registry as _worker_registry
+from app.core.engine.agent_run_registry import AgentRunRegistry
+from app.core.engine.agent_run_registry import agent_run_registry as _run_registry
 from app.core.learning.macro import (
     VOICE_POLICY,
     WEB_POLICY,
@@ -54,7 +54,7 @@ async def run_macro(
     registry = worker_registry if worker_registry is not None else _worker_registry
     responses = _routing_store.responses
 
-    macro = await load_macro(macro_id)
+    macro = await load_macro(macro_id, project_id=project_id)
     if macro is None:
         return ActionOutcome(False, responses["macro"]["not_found"], "macro", {})
 
@@ -87,7 +87,7 @@ async def run_macro(
         )
 
     task = asyncio.create_task(_run())
-    await registry.register_worker(thread_id, task, description=f"macro:{macro_id}")
+    await registry.register_run(thread_id, task, description=f"macro:{macro_id}")
 
     try:
         if timeout is not None:

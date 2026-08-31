@@ -4,8 +4,8 @@ Consolidates module-level constants that were previously spread across
 engine submodules, so numeric/list/tuple tuning values are not buried in
 business logic.
 
-Engine enums (MessageCategory, Router, EventType, RewindEventType, ...) live
-in their own dedicated enum modules (message/category.py, routers.py,
+Engine enums (MessageCategory, EventType, RewindEventType, ...) live
+in their own dedicated enum modules (message/category.py,
 event/types.py, rewind/event/types.py) and are intentionally NOT moved here.
 Cross-subsystem (global) contract constants belong in ``app.constants``.
 """
@@ -35,8 +35,10 @@ LAYER_MIDDLE_RATIO = 0.40
 MAX_RETRY_ERRORS = 3
 
 # ====================== Agent execution budget ======================
-#: 默认 Agent 步数上限（supervisor/worker 节点默认 max_steps）
-MAX_STEPS = 5
+#: AgentEngine.run_react_loop 的默认步数上限（仅在未显式传入时生效）。
+#: react 主循环由 run_agent_loop 显式传入；未显式传时按当前模型上下文相对 128k
+#: 基准等比缩放（resolve_max_steps），钳制在 settings.AGENT_MAX_STEPS_MIN/MAX 之间。
+MAX_STEPS = 100
 
 # ====================== Engine command actions ======================
 #: 引擎支持的远程命令动作集合

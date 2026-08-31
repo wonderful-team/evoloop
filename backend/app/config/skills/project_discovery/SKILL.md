@@ -38,7 +38,7 @@ Create `PROJECT.md` at the project root that documents this project for AI assis
      - Attempt to deploy and start **ALL** identified services.
      - **Nginx/Proxy Check**: If the project requires specific routing (PHP/Nginx), verify if the proxy/pathinfo configuration is active.
      - Verify startup success for each service by checking logs or port availability.
-     - **Deep Verification**: Use `browser_control` to verify UI rendering and detect 403/404/500 errors.
+     - **Deep Verification**: Use `browser` to verify UI rendering and detect 403/404/500 errors.
      - Note the access URLs, process IDs, and status for **all** started services.
    - **Non-Software Projects**: If it's a documentation, asset, or data project, SKIP this step.
 

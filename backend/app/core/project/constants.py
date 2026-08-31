@@ -27,22 +27,7 @@ TASK_STATUSES = {
     TASK_STATUS_FAILED,
 }
 
-# ====================== Task sync statuses ======================
-#: Sync pending / not yet pushed to external system.
-SYNC_STATUS_PENDING = "pending"
-#: Sync completed / pushed to external system.
-SYNC_STATUS_COMPLETED = "completed"
-#: Sync failed.
-SYNC_STATUS_FAILED = "failed"
-
-#: Canonical set of sync statuses.
-SYNC_STATUSES = {
-    SYNC_STATUS_PENDING,
-    SYNC_STATUS_COMPLETED,
-    SYNC_STATUS_FAILED,
-}
-
-# ====================== Task priority ======================
+# ====================== Task priorities ======================
 #: Low priority.
 TASK_PRIORITY_LOW = "low"
 #: Medium priority.

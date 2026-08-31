@@ -43,7 +43,7 @@ def is_dangerous_command(command: str) -> tuple[bool, str]:
             if restricted in command or restricted.replace(home_dir, "~") in command:
                 return (
                     True,
-                    f"Cannot write to {restricted} using execute_command. Use write_file tool instead.",
+                    f"Cannot write to {restricted} using bash. Use write tool instead.",
                 )
 
     if settings.MULTI_TENANT_MODE:

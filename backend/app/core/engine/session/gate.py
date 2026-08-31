@@ -1,8 +1,8 @@
 """ThreadGate — session event gate (channel-agnostic hang/wake primitive).
 
-The parent Supervisor main loop parks on ``wait_next()`` when it has no work;
-external entrypoints (voice_ws / _chat / mobile subscribers / rollout
-done_callback) inject events via ``put()`` to wake it.
+The session main loop parks on ``wait_next()`` when it has no work;
+external entrypoints (voice_ws / _chat / mobile subscribers / A2A 回调 /
+HITL 恢复) inject events via ``put()`` to wake it.
 """
 
 from __future__ import annotations
@@ -18,7 +18,6 @@ class GateEvent:
 
     kind: Literal[
         "user_message",
-        "worker_completed",
         "session_cancel",
         "session_close",
     ]

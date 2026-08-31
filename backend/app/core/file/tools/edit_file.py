@@ -174,9 +174,10 @@ def format_preview_result(
 
 
 @evoloop_tool(
+    name="edit",
     is_state_mutating=True,
     affected_path_keys=["path"],
-    summary_template="evoloop.tool_summary.edit_file",
+    summary_template="evoloop.tool_summary.edit",
 )
 async def edit_file(
     path: str,
@@ -194,21 +195,23 @@ async def edit_file(
     config: Annotated[RunnableConfig, InjectedToolArg] = None,
 ) -> str:
     """
-    Performs string replacements in files with automatic cascading fuzzy matching, or appends/prepends content. Always call read_file to inspect the content first before using this tool.
+    对文件做字符串替换（带自动级联模糊匹配），或追加/前置内容。使用本工具前
+    请先调用 read_file 查看文件内容。
 
     Args:
-        path: Path to the file to edit.
-        target: The text to find and replace. Optional if append/prepend is provided.
-        replacement: The new text to replace the target. Optional if append/prepend is provided.
-        append: Content to append to the end of the file.
-        prepend: Content to prepend to the beginning of the file.
-        edits: A list of dicts for multiple edits. Each dict can have 'target', 'replacement', 'allow_multiple', 'mode', 'start_line', and 'end_line'.
-        allow_multiple: Replace all occurrences of the target.
-        start_line: Optional. 1-indexed line number where the target text begins. When provided together with end_line, constrains the search scope.
-        end_line: Optional. 1-indexed ending line number (inclusive).
-        expected_hash: Optional hash for optimistic concurrency.
-        dry_run: If True, returns a preview without making changes.
-        verify_types: If True, performs type checking after edit.
+        path: 要编辑的文件路径。
+        target: 要查找并替换的文本。若提供 append/prepend 则可省略。
+        replacement: 替换 target 的新文本。若提供 append/prepend 则可省略。
+        append: 追加到文件末尾的内容。
+        prepend: 前置到文件开头的内容。
+        edits: 批量编辑的 dict 列表。每个 dict 可含 'target'、'replacement'、'allow_multiple'、
+               'mode'、'start_line'、'end_line'。
+        allow_multiple: 替换 target 的所有出现。
+        start_line: 可选。target 文本起始行（从 1 开始）。与 end_line 一起提供时限定搜索范围。
+        end_line: 可选。结束行号（从 1 开始，含）。
+        expected_hash: 可选，乐观并发用的哈希。
+        dry_run: 为 True 时只返回预览、不实际改动。
+        verify_types: 为 True 时在编辑后做类型检查。
 
     Examples:
         edit_file(path="file.txt", target="old", replacement="new")

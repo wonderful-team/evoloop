@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import os
 import re
@@ -6,6 +7,7 @@ import shutil
 import time
 
 from sqlalchemy import desc, func, select
+from sqlalchemy.orm import selectinload
 
 from app.constants import DEFAULT_INTERNAL_LLM_TOKENS, DEFAULT_PROJECT_ID
 from app.core.config import settings
@@ -17,7 +19,7 @@ from app.core.learning.macro.service import MacroService
 from app.core.learning.trace.recorder import sync_thread_to_graph
 from app.infrastructure.database import session_scope
 from app.infrastructure.queue.factory import periodic_task, shared_task
-from app.models import FileOperation, Message
+from app.models import FileOperation, Message, TraceEvent
 from app.utils.id import unique_id
 from app.utils.pydantic_helpers import clean_none_values
 
@@ -109,7 +111,7 @@ async def _persist_file_operation(
     )
 
 
-async def _run_persist_file_operation(
+async def run_persist_file_operation(
     thread_id: str,
     message_id: str,
     file_path: str,
@@ -124,8 +126,6 @@ async def _run_persist_file_operation(
     供 ``persist_file_operation_task``（Celery/Huey 任务包装）与嵌入式模式
     （``FileChangeTracker`` 进程内确定性调用）共用，保证两条路径功能一致。
     """
-    from sqlalchemy.orm import selectinload
-
     from app.core.engine.message.mapper import BlockMapper
     from app.core.engine.message.publisher import MessagePublisher
 
@@ -176,12 +176,10 @@ async def _run_persist_file_operation(
             )
         )
     except Exception as e:
-        logger.warning(
-            f"[Task] Failed to publish changeset updated event: {e}", exc_info=True
-        )
+        logger.warning(f"[Task] Failed to publish changeset updated event: {e}", exc_info=True)
 
 
-@shared_task(name="engine_persist_file_operation")  # type: ignore[reportCallIssue]
+@shared_task(name="engine_persist_file_operation")
 async def persist_file_operation_task(
     thread_id: str,
     message_id: str,
@@ -192,8 +190,8 @@ async def persist_file_operation_task(
     run_id: str | None = None,
     tool_call_id: str | None = None,
 ):
-    """Background task wrapper（完整逻辑见 ``_run_persist_file_operation``）。"""
-    await _run_persist_file_operation(
+    """Background task wrapper。"""
+    await run_persist_file_operation(
         thread_id=thread_id,
         message_id=message_id,
         file_path=file_path,
@@ -205,7 +203,7 @@ async def persist_file_operation_task(
     )
 
 
-@shared_task(name="engine_harvest_concepts")  # type: ignore[reportCallIssue]
+@shared_task(name="engine_harvest_concepts")
 async def harvest_concepts_task(concepts_data: list[dict], project_id: int):
     """
     Background task to store harvested concepts into the memory system.
@@ -237,9 +235,7 @@ async def harvest_concepts_task(concepts_data: list[dict], project_id: int):
                 pkg_match = re.search(r"\(([^)]+)\)", name)
                 bundle_id = pkg_match.group(1) if pkg_match else "unknown"
 
-                from app.core.environment.event.publishers import (
-                    publish_ui_tree_observed,
-                )
+                from app.core.environment.event.publishers import publish_ui_tree_observed
 
                 await publish_ui_tree_observed(
                     platform="android",
@@ -252,7 +248,7 @@ async def harvest_concepts_task(concepts_data: list[dict], project_id: int):
 
                 # 2. Use dehydrated summary as Concept description
                 description = summary
-                logger.debug(f"Dehydrated {name} into summary: {summary}")
+                logger.debug(f"Dehydrated {name} into summary: {description}")
 
         # Use unified MemoryManager interface
         await container.memory_manager.store_concept(
@@ -263,7 +259,7 @@ async def harvest_concepts_task(concepts_data: list[dict], project_id: int):
         logger.info(f"Harvested concept: {name}")
 
 
-@shared_task(name="engine_record_episode")  # type: ignore[reportCallIssue]
+@shared_task(name="engine_record_episode")
 async def record_episode_task(
     thread_id: str,
     project_id: int,
@@ -277,9 +273,7 @@ async def record_episode_task(
     """
     Background task to sync thread trace to the episode graph (memory system).
     """
-    logger.info(
-        f"[Task] Recording episode for thread {thread_id} (Source: {source_message_id}, AutoSynth: {auto_synthesize})..."
-    )
+    logger.info(f"[Task] Recording episode for thread {thread_id} (Source: {source_message_id}, AutoSynth: {auto_synthesize})...")
 
     ctx = EvoContext(thread_id=thread_id, project_id=project_id, active_model=model)
     token = ContextManager.set(ctx)
@@ -302,30 +296,21 @@ async def record_episode_task(
 
             # Check if there are meaningful events to synthesize
             async with session_scope() as db:
-                stmt = select(func.count(TraceEvent.id)).where(
-                    TraceEvent.thread_id == thread_id
-                )
+                stmt = select(func.count(TraceEvent.id)).where(TraceEvent.thread_id == thread_id)
                 count_res = await db.execute(stmt)
                 event_count = count_res.scalar()
 
             if event_count and event_count >= 3:
-                logger.info(
-                    f"[Task] 🧬 Auto-triggering skill synthesis for thread {thread_id} ({event_count} events)"
-                )
+                logger.info(f"[Task] 🧬 Auto-triggering skill synthesis for thread {thread_id} ({event_count} events)")
                 parser = TraceParser(thread_id=thread_id)
                 sequence = await parser.parse()
-                synthesizer = WorkflowSynthesizer(
-                    thread_id=thread_id, sequence=sequence
-                )
+                synthesizer = WorkflowSynthesizer(thread_id=thread_id, sequence=sequence)
                 result = await synthesizer.synthesize()
                 if result and result.skill:
                     # Persist through the single creation service so the skill
                     # lands as pending_review (user confirmation required),
                     # exactly like the REST /skills/synthesize path.
-                    from app.core.events.publishers import (
-                        publish_macro_mutated,
-                        publish_skill_mutated,
-                    )
+                    from app.core.events.publishers import publish_macro_mutated, publish_skill_mutated
                     from app.core.learning.skills.lifecycle import create_from_synthesis
 
                     macro_script = MacroScriptCompiler().compile(sequence).to_yaml()
@@ -354,18 +339,14 @@ async def record_episode_task(
                         )
                     await publish_skill_mutated(skill_id=db_skill.id, action="create")
                     await publish_macro_mutated(db_macro.id, action="create")
-                    logger.info(
-                        f"[Task] ✅ Skill synthesis complete: {result.skill.name} (pending_review)"
-                    )
+                    logger.info(f"[Task] ✅ Skill synthesis complete: {result.skill.name} (pending_review)")
                 else:
-                    logger.info(
-                        "[Task] ⏩ Skill synthesis skipped (no unique pattern found)"
-                    )
+                    logger.info("[Task] ⏩ Skill synthesis skipped (no unique pattern found)")
     finally:
         ContextManager.reset(token)
 
 
-@shared_task(name="engine_cleanup_artifacts")  # type: ignore[reportCallIssue]
+@shared_task(name="engine_cleanup_artifacts")
 def cleanup_artifacts_task(max_age_days: int = 3):
     """
     Background task to cleanup old screenshots and temporary artifacts.
@@ -390,9 +371,7 @@ def cleanup_artifacts_task(max_age_days: int = 3):
                     elif entry.is_dir():
                         shutil.rmtree(entry.path)
             except Exception as e:
-                logger.warning(
-                    f"Failed to delete artifact {entry.path}: {e}", exc_info=True
-                )
+                logger.warning(f"Failed to delete artifact {entry.path}: {e}", exc_info=True)
 
 
 @shared_task(name="engine_git_harvest")  # type: ignore[reportCallIssue]
@@ -409,9 +388,7 @@ async def git_harvest_task(cwd: str, project_id: int, model: str | None = None):
     try:
         # 1. Get Diff
         if not os.path.exists(cwd):
-            logger.warning(
-                f"[Task] Skipping git harvest: Directory '{cwd}' does not exist."
-            )
+            logger.warning(f"[Task] Skipping git harvest: Directory '{cwd}' does not exist.")
             return
 
         cmd = ["git", "diff", "HEAD"]
@@ -471,23 +448,18 @@ async def git_harvest_task(cwd: str, project_id: int, model: str | None = None):
         ContextManager.reset(token)
 
 
-@shared_task(name="engine_reconcile_skill_macro")  # type: ignore[reportCallIssue]
-async def reconcile_skill_macro_task(
-    skill_id: int, thread_id: str, model: str | None = None
-):
+@shared_task(name="engine_reconcile_skill_macro")
+async def reconcile_skill_macro_task(skill_id: int, thread_id: str, model: str | None = None):
     """
     Background task to reconcile a broken skill macro.
     """
     from app.core.events.publishers import publish_skill_mutated
     from app.core.learning.trace.parser import TraceParser
     from app.core.learning.workflow_synthesizer import WorkflowSynthesizer
-    from app.models.learning import TraceEvent
 
     # Pre-check: ensure there are enough trace events to synthesize from
     async with session_scope() as db:
-        stmt = select(func.count(TraceEvent.id)).where(
-            TraceEvent.thread_id == thread_id
-        )
+        stmt = select(func.count(TraceEvent.id)).where(TraceEvent.thread_id == thread_id)
         count_res = await db.execute(stmt)
         event_count = count_res.scalar()
 
@@ -510,9 +482,7 @@ async def reconcile_skill_macro_task(
         macro_script = MacroScriptCompiler().compile(sequence).to_yaml()
 
         if not macro_script:
-            logger.warning(
-                f"[Task] No valid macro synthesized from recovery thread {thread_id}. Aborting patch."
-            )
+            logger.warning(f"[Task] No valid macro synthesized from recovery thread {thread_id}. Aborting patch.")
             return
 
         healed = False
@@ -526,9 +496,7 @@ async def reconcile_skill_macro_task(
             if original_skill:
                 healed = True
                 if repaired_skill.skill and repaired_skill.skill.instructions:
-                    await patch_skill(
-                        original_skill, instructions=repaired_skill.skill.instructions
-                    )
+                    await patch_skill(original_skill, instructions=repaired_skill.skill.instructions)
 
                 # Chain-heal paired flywheel macros (macros table is the
                 # authoritative store for deterministic scripts).
@@ -554,16 +522,6 @@ async def reconcile_skill_macro_task(
                 await publish_macro_mutated(macro_id, action="update")
     finally:
         ContextManager.reset(token)
-
-
-@periodic_task(cron="* * * * *", name="engine_scheduler_tick_periodic")
-def engine_scheduler_tick_periodic():
-    """值守/自主调度已改由 **API 进程**驱动（app.main.lifespan 的后台循环）。
-
-    worker 不再跑 tick（避免与 API 双调度、避免值守 Agent 会话落在 worker 而
-    SSE 收不到实时事件）。此 periodic 保留为 no-op 占位，避免旧注册/测试引用报错。
-    """
-    logger.debug("[Scheduler] 调度由 API 进程驱动，worker tick 跳过")
 
 
 # 进程内 tick 单飞标志（值守轮巡在 tick 内原地执行，防周期性 tick 堆积）
@@ -597,7 +555,7 @@ async def run_autonomous_task_execution(task_id: int, project_id: int | None = N
     """
     Background task to execute an autonomous task.
     """
-    from app.core.engine.background_agent import run_agent_background
+    from app.core.engine.agent import run_agent_background
     from app.core.environment.devices import DevicePool
     from app.models.scheduler import AutonomousTask
 
@@ -686,12 +644,7 @@ async def run_engine_audit_structured_extraction(
     """
     Heavy reasoning extraction implementation.
     """
-    import json
-
-    from app.core.engine.event import (
-        ExtractionCompletedEvent,
-        ExtractionRequest,
-    )
+    from app.core.engine.event import ExtractionCompletedEvent, ExtractionRequest
     from app.core.engine.extraction.schema import build_dynamic_schema
     from app.core.engine.message.converter import EvoMessageConverter
     from app.core.engine.message.native_classes import SystemMessage
@@ -700,9 +653,7 @@ async def run_engine_audit_structured_extraction(
     from app.utils.template import render_template
 
     if not collected_schemas:
-        logger.info(
-            f"[Task] No extraction schemas requested for thread {thread_id}, skipping extraction."
-        )
+        logger.info(f"[Task] No extraction schemas requested for thread {thread_id}, skipping extraction.")
         return
 
     requests = [ExtractionRequest(**s) for s in collected_schemas]
@@ -750,14 +701,10 @@ async def run_engine_audit_structured_extraction(
                 run_id=run_id,
                 extracted_data=extracted_data,
             )
-            logger.info(
-                f"[Task] 🚀 Publishing ExtractionCompletedEvent for thread {thread_id}"
-            )
+            logger.info(f"[Task] 🚀 Publishing ExtractionCompletedEvent for thread {thread_id}")
             await system_bus.publish(event)
     except Exception as e:
-        logger.exception(
-            f"[Task] engine_audit_structured_extraction failed for thread {thread_id}: {e!r}"
-        )
+        logger.exception(f"[Task] engine_audit_structured_extraction failed for thread {thread_id}: {e!r}")
         raise
 
 
@@ -792,13 +739,13 @@ async def run_agent_background_task(thread_id: str, inputs: dict):
     """
     Execute an agent run in the background (within Celery/Huey worker).
     """
-    from app.core.engine.background_agent import run_agent_background
+    from app.core.engine.agent import run_agent_background
 
     await run_agent_background(thread_id, inputs)
 
 
-@shared_task(name="engine_resume_graph_background")  # type: ignore[reportCallIssue]
-async def resume_graph_background_task(
+@shared_task(name="engine_resume_agent_background")  # type: ignore[reportCallIssue]
+async def resume_agent_background_task(
     thread_id: str,
     inputs: dict,
     config: dict,
@@ -808,9 +755,9 @@ async def resume_graph_background_task(
     """
     Execute graph resumption in the background (within Celery/Huey worker).
     """
-    from app.core.engine.graph_runner import resume_graph_background
+    from app.core.engine.resume_runner import resume_agent_background
 
-    await resume_graph_background(
+    await resume_agent_background(
         thread_id=thread_id,
         inputs=inputs,
         config=config,

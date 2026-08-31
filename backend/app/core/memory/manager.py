@@ -628,7 +628,7 @@ class MemoryManager:
     # Extraction Operations
     # ========================================================================
     # NOTE: Memory extraction is handled by the event bus pipeline:
-    #   AuditService → EXTRACTION_REQUESTED event → subscribers.py → save_memory()
+    #   react completion → EXTRACTION_REQUESTED event → subscribers.py → save_memory()
     # The AutoMemoryExtractor (auto_extraction.py) has been removed as dead code.
 
     async def run_maintenance(

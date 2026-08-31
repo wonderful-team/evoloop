@@ -1,0 +1,66 @@
+# ============================================================================
+# 范例 C · 移动端(MOBILE)：每日新上架角色采集
+#
+# ✅ 可信度：真机验证。真机 HYC5T19B11003570 跑通，175 条结构化入库、二次运行
+#   0 新增（增量靠 keys 去重）。参数可直接复用（坐标/锚点正则/解析逻辑都验证过）。
+#
+# 演示点：
+#   - open_app + wait 冷启动；底部 Tab 无稳定 name → tap 用屏幕坐标（bounds 中心）
+#   - IF 兜底：条件元素判定是 dump_ui 后对 target_selector 做「子串」匹配（写可见关键字）
+#   - collect_loop(collect_mode: list)：自动 dump_ui → 锚点正则提取 → signature 去重 → 下滑换屏
+#   - bash 步骤只做只读 JSON 数据加工：解析 → 增量去重 → 按日期分区写 JSONL → stdout 出统计
+# ============================================================================
+version: '1.0'
+steps:
+  - type: action
+    source: mobile
+    event_type: open_app
+    payload: {package_name: com.netease.cbg}
+  - type: action
+    source: mobile
+    event_type: wait
+    payload: {seconds: 6}
+  - type: action
+    source: mobile
+    event_type: tap                      # 底部"角色"Tab，无 name → 坐标
+    payload: {x: 335, y: 748}
+  - type: action
+    source: mobile
+    event_type: wait
+    payload: {seconds: 4}
+  - type: if
+    source: mobile                       # 兜底：已见"总修:" = 已在列表；否则补点
+    condition: {type: element_visible, target_selector: '总修:'}
+    then_steps:
+      - type: action
+        source: mobile
+        event_type: wait
+        payload: {seconds: 1}
+    else_steps:
+      - type: action
+        source: mobile
+        event_type: tap
+        payload: {x: 335, y: 748}
+      - type: action
+        source: mobile
+        event_type: wait
+        payload: {seconds: 4}
+  - type: loop
+    source: mobile
+    collect_mode: list
+    max_iterations: 12
+    payload:
+      state_file: /tmp/cbg_collect.json
+      list_config:
+        max_screens: 12
+        swipe_distance: 1200
+        wait_after_swipe_ms: 1500
+        anchor_element: {type: price, pattern: '￥[0-9,.]+'}
+  - type: bash
+    payload:
+      command: >-
+        python3 /tmp/cbg_process_collected.py
+        /tmp/cbg_collect.json
+        /tmp/cbg_roles_daily_$(date +%Y%m%d).jsonl
+      key: cbg_report
+      timeout: 120

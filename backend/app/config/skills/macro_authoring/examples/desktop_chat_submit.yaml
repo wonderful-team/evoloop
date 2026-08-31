@@ -1,0 +1,50 @@
+# ============================================================================
+# 范例 B · 桌面(DESKTOP)：打开 App → 填框 → 提交（AX 定位 + OCR 兜底）
+#
+# 📄 可信度：DSL 模板（未在真实桌面环境执行过）。结构正确可参考，但 AX name、
+#   坐标、app_name 需按 SKILL §8 阶段 A/B 在你的目标 App 上重新打样后使用，
+#   不要直接照抄参数。
+#
+# 演示点：
+#   - open_app 用 app_name（或 bundle_id + focus:false 无焦点启动）
+#   - 桌面元素定位是 AX name 包含匹配的字符串（element_name）
+#   - key_press('enter') 触发搜索
+#   - IF 条件 element_visible('发送') 走 System Events：name 包含"发送"的 AX 元素
+#   - else_steps 用 gui_extract（OCR 按相对位置取字）兜底拿原因，不猜不硬点
+# ============================================================================
+version: '1.0'
+steps:
+  - type: action
+    source: desktop
+    event_type: open_app
+    payload: {app_name: 'WeChat'}
+  - type: action
+    source: desktop
+    event_type: wait
+    payload: {seconds: 3}
+  - type: action
+    source: desktop
+    event_type: click
+    payload: {element_name: '搜索'}
+  - type: action
+    source: desktop
+    event_type: type_text
+    payload: {text: '{{keyword}}', force_keystroke: true}
+  - type: action
+    source: desktop
+    event_type: key_press
+    payload: {key: 'enter'}
+  - type: if
+    source: desktop
+    condition: {type: element_visible, target_selector: '发送'}
+    then_steps:
+      - type: action
+        source: desktop
+        event_type: click
+        payload: {element_name: '发送'}
+    else_steps:
+      - type: extract
+        source: desktop
+        extract_type: gui_extract
+        key: reason
+        payload: {relative_position: {x: 0.5, y: 0.3}}

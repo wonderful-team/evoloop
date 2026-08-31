@@ -1,6 +1,6 @@
 """API schemas for agent routes."""
 
-from typing import Any
+from typing import Any, Literal
 
 from app.api.schemas.responses import BaseAPIResponse
 from app.constants import DEFAULT_PROJECT_ID

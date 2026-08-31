@@ -91,9 +91,9 @@ class FileChangeTracker:
             # 嵌入式：直接 await 完整持久化协程（落库 + SSE 徽章 + 变更集事件），
             # 进程内确定性完成。不能 await Huey 包装的任务——它返回 Result 而非
             # 协程（历史 executor 路径曾因此静默失败，被宽泛 except 吞掉）。
-            from app.core.engine.tasks import _run_persist_file_operation
+            from app.core.engine.tasks import run_persist_file_operation
 
-            await _run_persist_file_operation(**kwargs)
+            await run_persist_file_operation(**kwargs)
         else:
             from app.infrastructure.queue.factory import get_scheduler
 

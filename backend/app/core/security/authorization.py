@@ -65,14 +65,14 @@ def _extract_resource(tool_name: str, tool_input: Any) -> tuple[str, str] | None
             return str(path), "write"
         return None
 
-    if tool_name == "grep_search":
+    if tool_name == "grep":
         path = tool_input.args.get("SearchPath") if tool_input.args else None
         if path:
             return str(path), "read"
         return None
 
     # Command tool
-    if tool_name == "execute_command":
+    if tool_name == "bash":
         command = tool_input.command or (
             tool_input.args.get("command") if tool_input.args else None
         )

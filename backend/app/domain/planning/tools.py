@@ -17,21 +17,10 @@ from app.domain.planning.constants import (
 )
 
 from ...constants import DEFAULT_PROJECT_ID
+from ...models import PlanStep
+from ...utils.template import render_template
 
 logger = logging.getLogger(__name__)
-
-
-def _render_analysis_prompt(plan: str, context: str, tree: str, user_lang: str) -> str:
-    """Render the feasibility analysis prompt from Jinja2 template."""
-    from app.utils.template import render_template
-
-    return render_template(
-        "domain/planning/feasibility_analysis.prompt.j2",
-        plan=plan,
-        context=context,
-        tree=tree,
-        user_lang=user_lang,
-    )
 
 
 @evoloop_tool(
@@ -66,9 +55,7 @@ async def create_plan(
             existing_plan = result.scalar_one_or_none()
 
             if existing_plan:
-                logger.info(
-                    f"Existing plan found plan_id={existing_plan.id} for thread={thread_id}. Updating."
-                )
+                logger.info(f"Existing plan found plan_id={existing_plan.id} for thread={thread_id}. Updating.")
                 plan_id = existing_plan.id
                 existing_plan.title = title
                 existing_plan.status = PlanStatus.ACTIVE.value
@@ -93,9 +80,7 @@ async def create_plan(
             db_steps = []
             for idx, step_title in enumerate(steps):
                 step_id = gen_uuid()
-                status = (
-                    PlanStepStatus.IN_PROGRESS.value if idx == 0 else PlanStepStatus.PENDING.value
-                )
+                status = PlanStepStatus.IN_PROGRESS.value if idx == 0 else PlanStepStatus.PENDING.value
 
                 db_step = DBPlanStep(
                     id=step_id,
@@ -144,10 +129,7 @@ async def create_plan(
                 PlanUpdatedEvent(thread_id=thread_id, plan_id=plan_id)
             )
         except Exception as e:
-            logger.warning(
-                f"[create_plan] Failed to publish plan updated event: {e}",
-                exc_info=True,
-            )
+            logger.warning(f"[create_plan] Failed to publish plan updated event: {e}")
 
         return return_text, meta
 
@@ -178,9 +160,6 @@ async def update_step_status(
     """
     # Removed invalid import from domain.planning.models
     from app.infrastructure.database import session_scope
-
-    # Use the shared models from infrastructure to match session definition
-    from app.models import PlanStep
 
     try:
         async with session_scope() as session:
@@ -234,10 +213,7 @@ async def update_step_status(
                     )
                 )
         except Exception as e:
-            logger.warning(
-                f"[update_step_status] Failed to publish plan updated event: {e}",
-                exc_info=True,
-            )
+            logger.warning(f"[update_step_status] Failed to publish plan updated event: {e}")
 
         return msg, meta
     except Exception as e:
@@ -294,8 +270,12 @@ async def analyze_feasibility(proposed_plan: str, config: RunnableConfig) -> str
         llm = await LLMFactory.create_llm(LLMConfig(model_name=""))
         user_lang = SystemConfigService.get_language_preference()
 
-        prompt_text = _render_analysis_prompt(
-            plan=proposed_plan, context=context_str, tree=tree, user_lang=user_lang
+        prompt_text = render_template(
+            "domain/planning/feasibility_analysis.prompt.j2",
+            plan=proposed_plan,
+            context=context_str,
+            tree=tree,
+            user_lang=user_lang,
         )
 
         # Use simple invoke with prepared text

@@ -14,7 +14,7 @@ from typing import Any
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.context.manager import ContextManager, EvoContext
 from app.core.context.thread_store import thread_context_store
-from app.core.engine.background_agent.models import BackgroundAgentInputs
+from app.core.engine.agent.models import BackgroundAgentInputs
 from app.core.engine.callbacks.database_logger import DatabaseCallbackHandler
 from app.core.engine.callbacks.transparent import TransparentCallbackHandler
 from app.core.engine.message.converter import EvoMessageConverter
@@ -60,6 +60,19 @@ async def build_ctx(
             pass
     if inputs.metadata and inputs.metadata.get("source"):
         ctx.metadata.source = inputs.metadata["source"]
+    # 子代理/A2A 执行上下文：把派发语义同步到 ctx.metadata，供 R3 通道策略
+    # (task_type=="subagent" 抑制)、hitl 免打扰、递归护栏等按 context 判定的消费者。
+    if inputs.metadata:
+        for _key in (
+            "task_type",
+            "subagent_type",
+            "subagent_depth",
+            "subagent_tools",
+            "subagent_prompt",
+            "is_subagent",
+        ):
+            if inputs.metadata.get(_key) is not None:
+                setattr(ctx.metadata, _key, inputs.metadata[_key])
     ContextManager.set(ctx)
     return ctx
 
@@ -110,7 +123,7 @@ def build_execution_config(
         },
     }
 
-    # Two-tier LLM: Supervisor uses lightning (local), Worker/Finish keep default (cloud).
+    # Lightning 本地模型作为主模型：配置后完整取代默认模型（含 LLM 调用兜底）。
     from app.infrastructure.config.service import SystemConfigService
 
     lightning_mode = SystemConfigService.get_value("LIGHTNING_MODE", "none")
@@ -125,7 +138,6 @@ def build_execution_config(
                 "LIGHTNING_API_KEY", ""
             )
             config["configurable"]["lightning_ctx"] = lightning_ctx
-            config["configurable"]["worker_model"] = model
 
     callbacks = build_callbacks(thread_id, project_id, run_id, ctx.member_id or 0)
     config["configurable"]["message_handler"] = callbacks[1]._handler
@@ -195,15 +207,13 @@ async def build_agent_state(
         logger.debug("history load skipped: %s", e)
 
     raw_data = inputs.model_dump(exclude={"blackboard"})
-    raw_data["ticket"] = inputs.ticket
     raw_data["messages"] = current_messages
     state = AgentStateModel.model_validate(raw_data)
     state.thread_id = thread_id
-    state.next_node = "supervisor"
     state.session_goal = inputs.session_goal or inputs.goal
 
     # Seed shared_context from the cached EvoContext so that flags written by
-    # update_blackboard / report_outcome survive across user turns.
+    # memory tools (write_handover_notes 等) survive across user turns.
     ctx = ContextManager.current()
     if ctx and ctx.metadata and ctx.metadata.shared_context:
         cached = ctx.metadata.shared_context or {}

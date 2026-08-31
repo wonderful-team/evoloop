@@ -7,34 +7,34 @@ OutputChannelPolicy — 唯一的出站通道决策权威。
 决策依据：
   - session_source: EvoContext.metadata.source（"voice" / "web" / "mobile" / ...）
                     由 current_session_source ContextVar 提供（engine.py 在节点启动时 set）
-  - node_source:    current_node_source ContextVar（"supervisor" / "worker" / "finish" / None）
   - payload 类型
   - MessageBlock.status（streaming vs completed）
+  - MessageBlock.tool_calls（值守场景：主 Agent 派活前的安抚回复）
+
+单 Agent ReAct 架构下只有一个主 Agent 节点，不再按 node_source（supervisor/worker/finish）
 
 规则真值表（在此处集中维护，不散落各处）：
 
-  | payload 类型       | status      | node_source     | session_source | → channels            |
-  |--------------------|-------------|-----------------|----------------|-----------------------|
-  | TokenEvent         | —           | supervisor      | voice          | {sse, voice}          |
-  | TokenEvent         | —           | worker/finish/* | voice          | {sse}                 |
-  | TokenEvent         | —           | *               | web/mobile/*   | {sse}                 |
-  | ThinkingEvent      | —           | supervisor      | voice          | {sse, voice}          |
-  | ThinkingEvent      | —           | worker/finish/* | voice          | {sse}                 |
-  | ProgressEvent      | —           | supervisor      | voice          | {sse, voice}          |
-  | ProgressEvent      | —           | worker/finish/* | voice          | {sse}                 |
-  | AI MessageBlock    | streaming   | supervisor      | voice          | {sse, voice}          |
-  | AI MessageBlock    | streaming   | worker/finish/* | voice          | {sse}                 |
-  | AI MessageBlock    | streaming   | *               | web/mobile/*   | {sse}                 |
-  | AI MessageBlock    | completed   | supervisor      | voice          | {sse, mobile, voice}  |
-  | AI MessageBlock    | completed   | worker/finish/* | voice          | {sse, mobile}         |
-  | AI MessageBlock    | completed   | *               | web/mobile/*   | {sse, mobile}         |
-  | Tool MessageBlock  | streaming   | *               | *              | {sse}                 |
-  | Tool MessageBlock  | completed   | *               | *              | {sse, mobile}         |
-  | Human MessageBlock | completed   | mobile          | *              | {sse}                 |
-  | Human MessageBlock | completed   | web/*           | *              | {sse, mobile}         |
-  | BaseEvent (public) | —           | finish/*        | voice          | {sse, voice}          |
-  | BaseEvent (public) | —           | *               | web/mobile/*   | {sse}                 |
-  | Other/unknown      | —           | *               | *              | {sse}                 |
+  | payload 类型       | status      | session_source | → channels            |
+  |--------------------|-------------|----------------|-----------------------|
+  | TokenEvent         | —           | voice          | {sse, voice}          |
+  | TokenEvent         | —           | web/mobile/*   | {sse}                 |
+  | ThinkingEvent      | —           | voice          | {sse, voice}          |
+  | ThinkingEvent      | —           | web/mobile/*   | {sse}                 |
+  | ProgressEvent      | —           | voice          | {sse, voice}          |
+  | ProgressEvent      | —           | web/mobile/*   | {sse}                 |
+  | AI MessageBlock    | streaming   | voice          | {sse, voice}          |
+  | AI MessageBlock    | streaming   | web/mobile/*   | {sse}                 |
+  | AI MessageBlock    | completed   | voice          | {sse, mobile, voice}  |
+  | AI MessageBlock    | completed   | duty*          | {sse} 或 {sse, duty}（带委派调用=安抚）|
+  | AI MessageBlock    | completed   | web/mobile/*   | {sse, mobile}         |
+  | Tool MessageBlock  | streaming   | *              | {sse}                 |
+  | Tool MessageBlock  | completed   | *              | {sse, mobile}         |
+  | Human MessageBlock | completed   | mobile         | {sse}                 |
+  | Human MessageBlock | completed   | web/*          | {sse, mobile}         |
+  | BaseEvent (public) | —           | voice          | {sse, voice}          |
+  | BaseEvent (public) | —           | web/mobile/*   | {sse}                 |
+  | Other/unknown      | —           | *              | {sse}                 |
 
 注意：
   - Tool / Human MessageBlock 默认也走 policy；如有特殊场景需要显式传入 channels，
@@ -59,7 +59,7 @@ from app.models.schemas.events import (
 logger = logging.getLogger(__name__)
 
 #: Thread-scoped session source ("voice"/"web"/"mobile") used by OutputChannelPolicy.
-#: Set by AgentEngine.run_node() from EvoContext.metadata.source.
+#: Set by AgentEngine.run_react_loop() from EvoContext.metadata.source.
 current_session_source: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "session_source", default=None
 )
@@ -76,21 +76,17 @@ def _is_duty_session(session_source: str | None) -> bool:
     return is_duty_source(session_source)
 
 
-def _is_supervisor(node_source: str | None) -> bool:
-    return node_source == "supervisor"
+def _has_delegation_call(block: object) -> bool:
+    """判断 AI MessageBlock 是否携带委派工具调用（派活信号）。
 
-
-def _has_route_to_call(block: object) -> bool:
-    """判断 AI MessageBlock 是否携带 route_to 工具调用（Supervisor 派活信号）。
-
-    Supervisor 派活前会在同一条 assistant 消息里先输出安抚文本 + 附带
-    route_to 工具调用；据此精确识别「安抚回复」，避免把直接回复/最终回复
-    （走 SessionCompletedEvent）重复发送。
+    Agent 委派前会在同一条 assistant 消息里先输出安抚文本 + 附带委派工具
+    调用（task）；据此精确识别「安抚回复」，避免把直接回复/最终回复（走
+    SessionCompletedEvent）重复发送。
     """
     tool_calls = getattr(block, "tool_calls", None) or []
     for tc in tool_calls:
         name = tc.get("name") if isinstance(tc, dict) else getattr(tc, "name", None)
-        if name == "route_to":
+        if name == "task":
             return True
     return False
 
@@ -112,7 +108,6 @@ class OutputChannelPolicy:
         cls,
         payload: object,
         session_source: str | None,
-        node_source: str | None,
     ) -> set[str]:
         """
         Decide the target channels for an outbound payload.
@@ -121,8 +116,6 @@ class OutputChannelPolicy:
             payload:        The outbound object (MessageBlock, TokenEvent, BaseEvent, …).
             session_source: The session's origin ("voice", "web", "mobile", …).
                             Typically comes from ``current_session_source`` ContextVar.
-            node_source:    The agent node currently executing ("supervisor", "worker", …).
-                            Typically comes from ``current_node_source`` ContextVar.
 
         Returns:
             A set of channel names to deliver the payload to.
