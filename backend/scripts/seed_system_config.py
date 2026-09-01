@@ -63,19 +63,19 @@ def init() -> None:
     _seed_llm_config()
 
     try:
-        from app.core.learning.skill_lifecycle import migrate_legacy_status_rows
+        from app.core.learning.skills.lifecycle import migrate_legacy_status_rows
         migrate_legacy_status_rows()
     except (SQLAlchemyError, ConnectionError, ValueError, RuntimeError, TypeError) as e:
         logger.warning(f"Skill lifecycle migration skipped: {e}")
 
     try:
-        from app.core.learning.skill_lifecycle import repair_state_snapshot_encoding
+        from app.core.learning.skills.lifecycle import repair_state_snapshot_encoding
         repair_state_snapshot_encoding()
     except (SQLAlchemyError, ConnectionError, ValueError, RuntimeError, TypeError) as e:
         logger.warning(f"state_snapshot repair skipped: {e}")
 
     try:
-        from app.core.learning.skill_lifecycle import drop_legacy_learning_tables
+        from app.core.learning.skills.lifecycle import drop_legacy_learning_tables
         drop_legacy_learning_tables()
     except (SQLAlchemyError, ConnectionError, ValueError, RuntimeError, TypeError) as e:
         logger.warning(f"Legacy learning table cleanup skipped: {e}")

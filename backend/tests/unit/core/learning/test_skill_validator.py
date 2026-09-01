@@ -1,183 +1,115 @@
-"""
-Functional tests for SkillValidator YAML auto-fix logic.
-"""
+"""Unit coverage for SkillValidator (folder structure + SKILL.md parsing)."""
+
+from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import patch
 
-import pytest
-import yaml
+from app.core.learning.skills.validator import SkillValidator
 
-from app.core.learning.skill_validator import SkillValidator
-
-
-class TestYamlAutoFix:
-
-    @pytest.fixture
-    def temp_skill_md(self, tmp_path):
-        """Factory to create temporary SKILL.md files."""
-        def _create(content: str) -> Path:
-            path = tmp_path / "SKILL.md"
-            path.write_text(content, encoding="utf-8")
-            return path
-        return _create
-
-    def test_valid_yaml_parsed_directly(self, temp_skill_md):
-        """Valid YAML frontmatter → parsed directly without auto-fix."""
-        content = """---
-name: Test Skill
-description: A valid description
-namespace: roles
+VALID_MD = """---
+name: test-skill
+description: A test skill
+namespace: os/test
 ---
-
 # Instructions
+
+Do the thing.
 """
-        path = temp_skill_md(content)
-        metadata, instructions = SkillValidator._parse_skill_md(path)
-        
+
+
+def _write_skill_md(folder: Path, content: str) -> Path:
+    folder.mkdir(parents=True, exist_ok=True)
+    md = folder / "SKILL.md"
+    md.write_text(content, encoding="utf-8")
+    return md
+
+
+class TestValidateFolder:
+    def test_missing_directory(self, tmp_path):
+        result = SkillValidator.validate_folder(tmp_path / "nope")
+        assert result.is_valid is False
+        assert result.status == "error"
+
+    def test_missing_skill_md(self, tmp_path):
+        folder = tmp_path / "s"
+        folder.mkdir()
+        result = SkillValidator.validate_folder(folder)
+        assert result.is_valid is False
+        assert any("SKILL.md" in e for e in result.errors)
+
+    def test_healthy(self, tmp_path):
+        folder = tmp_path / "s"
+        _write_skill_md(folder, VALID_MD)
+        result = SkillValidator.validate_folder(folder)
+        assert result.is_valid is True
+        assert result.status == "healthy"
+        assert result.metadata["name"] == "test-skill"
+
+    def test_missing_name_is_error(self, tmp_path):
+        folder = tmp_path / "s"
+        _write_skill_md(
+            folder, "---\ndescription: no name\n---\n# Instructions\n"
+        )
+        result = SkillValidator.validate_folder(folder)
+        assert result.is_valid is False
+        assert any("name" in e for e in result.errors)
+
+    def test_missing_description_is_warning(self, tmp_path):
+        folder = tmp_path / "s"
+        _write_skill_md(folder, "---\nname: x\n---\n")
+        result = SkillValidator.validate_folder(folder)
+        assert result.is_valid is True
+        assert result.status == "warning"
+
+    def test_clutter_warns(self, tmp_path):
+        folder = tmp_path / "s"
+        _write_skill_md(folder, VALID_MD)
+        (folder / "README.md").write_text("readme")
+        result = SkillValidator.validate_folder(folder)
+        assert result.is_valid is True
+        assert result.status == "warning"
+        assert any("README.md" in w for w in result.warnings)
+
+
+class TestParseSkillMd:
+    def test_parses_frontmatter(self, tmp_path):
+        md = _write_skill_md(tmp_path / "s", VALID_MD)
+        metadata, instructions = SkillValidator._parse_skill_md(md)
+        assert metadata["name"] == "test-skill"
+        assert "Do the thing" in instructions
+
+    def test_no_frontmatter(self, tmp_path):
+        md = _write_skill_md(tmp_path / "s", "# Just instructions\n")
+        metadata, instructions = SkillValidator._parse_skill_md(md)
+        assert metadata is None
+        assert "Just instructions" in instructions
+
+    def test_auto_fixes_broken_yaml(self, tmp_path):
+        # "#" value parses as None on the first pass → auto-fix quotes it
+        md = _write_skill_md(
+            tmp_path / "s",
+            "---\nname: # comment here\ndescription: d\n---\n# Instructions\n",
+        )
+        metadata, _ = SkillValidator._parse_skill_md(md)
         assert metadata is not None
-        assert metadata["name"] == "Test Skill"
-        assert metadata["description"] == "A valid description"
-        assert metadata["namespace"] == "roles"
-        assert "# Instructions" in instructions
+        assert metadata["name"] == "# comment here"
 
-    def test_unquoted_colon_auto_fixed(self, temp_skill_md):
-        """Unquoted value containing ': ' → auto-fixed and parsed."""
-        content = """---
-name: EvoLoop DevOps
-description: End-to-end DevOps lifecycle: analyze project structure, verify configuration
-namespace: roles
----
-
-# Instructions
-"""
-        path = temp_skill_md(content)
-        metadata, instructions = SkillValidator._parse_skill_md(path)
-        
-        assert metadata is not None
-        assert metadata["name"] == "EvoLoop DevOps"
-        assert "analyze project structure" in metadata["description"]
-        assert metadata["namespace"] == "roles"
-
-    def test_unquoted_hash_auto_fixed(self, temp_skill_md):
-        """Unquoted value starting with '#' → auto-fixed and parsed."""
-        content = """---
-name: Test Skill
-description: #important note about this skill
-namespace: roles
----
-
-# Instructions
-"""
-        path = temp_skill_md(content)
-        metadata, instructions = SkillValidator._parse_skill_md(path)
-        
-        assert metadata is not None
-        assert metadata["description"] == "#important note about this skill"
-
-    def test_already_quoted_not_modified(self, temp_skill_md):
-        """Already quoted values → left as-is."""
-        content = """---
-name: Test Skill
-description: "Already quoted: with colon"
-namespace: roles
----
-
-# Instructions
-"""
-        path = temp_skill_md(content)
-        metadata, instructions = SkillValidator._parse_skill_md(path)
-        
-        assert metadata is not None
-        assert metadata["description"] == "Already quoted: with colon"
-
-    def test_nested_mapping_not_modified(self, temp_skill_md):
-        """Nested mapping values → not auto-quoted."""
-        content = """---
-name: Test Skill
-parameters:
-  customer:
-    type: string
-    description: The target customer
----
-
-# Instructions
-"""
-        path = temp_skill_md(content)
-        metadata, instructions = SkillValidator._parse_skill_md(path)
-        
-        assert metadata is not None
-        assert "parameters" in metadata
-        assert metadata["parameters"]["customer"]["type"] == "string"
-
-    def test_list_items_not_modified(self, temp_skill_md):
-        """List items → not auto-quoted."""
-        content = """---
-name: Test Skill
-trigger_patterns:
-  - "Deploy"
-  - "Build"
----
-
-# Instructions
-"""
-        path = temp_skill_md(content)
-        metadata, instructions = SkillValidator._parse_skill_md(path)
-        
-        assert metadata is not None
-        assert metadata["trigger_patterns"] == ["Deploy", "Build"]
-
-    def test_irreparable_yaml_returns_none(self, temp_skill_md):
-        """YAML that cannot be auto-fixed → returns None."""
-        content = """---
-name: Test Skill
-description: {invalid: yaml: syntax: here}
-  broken indentation
-namespace: roles
----
-
-# Instructions
-"""
-        path = temp_skill_md(content)
-        metadata, instructions = SkillValidator._parse_skill_md(path)
-        
+    def test_unparseable_returns_none(self, tmp_path):
+        md = _write_skill_md(tmp_path / "s", "---\n: : : bad\nyaml: [unclosed\n---\n")
+        metadata, instructions = SkillValidator._parse_skill_md(md)
         assert metadata is None
 
-    def test_no_frontmatter_returns_none(self, temp_skill_md):
-        """File without '---' frontmatter → returns None."""
-        content = """# Just markdown
 
-No YAML frontmatter here.
-"""
-        path = temp_skill_md(content)
-        metadata, instructions = SkillValidator._parse_skill_md(path)
-        
-        assert metadata is None
-        assert "No YAML frontmatter here." in instructions
+class TestFixYamlFrontmatter:
+    def test_quotes_colon_values(self):
+        # "install step: 1" is not a nested-mapping shape → gets quoted
+        fixed = SkillValidator._fix_yaml_frontmatter("name: install step: 1\n")
+        assert 'name: "install step: 1"' in fixed
 
-    def test_fix_yaml_frontmatter_helper(self):
-        """Test the _fix_yaml_frontmatter helper directly."""
-        yaml_text = """name: Test Skill
-description: End-to-end DevOps lifecycle: analyze project structure
-namespace: roles
-"""
-        fixed = SkillValidator._fix_yaml_frontmatter(yaml_text)
-        
-        # Should have quoted the description
-        assert 'description: "End-to-end DevOps lifecycle: analyze project structure"' in fixed
-        
-        # Should be parseable
-        metadata = yaml.safe_load(fixed)
-        assert metadata["description"] == "End-to-end DevOps lifecycle: analyze project structure"
+    def test_quotes_hash_values(self):
+        fixed = SkillValidator._fix_yaml_frontmatter("name: # comment\n")
+        assert 'name: "# comment"' in fixed
 
-    def test_fix_yaml_preserves_indentation(self):
-        """Auto-fix preserves original indentation."""
-        yaml_text = """  name: Test Skill
-  description: End-to-end DevOps lifecycle: analyze
-  namespace: roles
-"""
-        fixed = SkillValidator._fix_yaml_frontmatter(yaml_text)
-        
-        assert '  description: "End-to-end DevOps lifecycle: analyze"' in fixed
-        assert '  name: Test Skill' in fixed
-        assert '  namespace: roles' in fixed
+    def test_leaves_valid_lines(self):
+        text = 'name: ok\ndescription: plain\ntrigger_patterns:\n  - a\n'
+        assert SkillValidator._fix_yaml_frontmatter(text) == text

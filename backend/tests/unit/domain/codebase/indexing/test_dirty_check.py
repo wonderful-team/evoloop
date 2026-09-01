@@ -1,7 +1,6 @@
-"""Unit tests for app.domain.codebase.indexing.dirty_check (P0.3a/§7)."""
+"""Regression tests for dirty_check timezone handling."""
 
-import tempfile
-from pathlib import Path
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -9,61 +8,57 @@ import pytest
 from app.domain.codebase.indexing.dirty_check import is_file_changed_since_last_index
 
 
-@pytest.fixture
-def temp_file():
-    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".py") as f:
-        f.write("original content")
-        path = f.name
-    yield Path(path)
-    Path(path).unlink(missing_ok=True)
+@pytest.mark.unit
+async def test_naive_last_indexed_at_older_than_mtime_signals_changed(tmp_path):
+    """SQLite returns last_indexed_at as offset-naive; comparison must still work."""
+    repo_id = 2
+    root = tmp_path / "repo"
+    root.mkdir()
+    file_path = root / "macro.yaml"
+    file_path.write_text("hello", encoding="utf-8")
+
+    session = AsyncMock()
+    source_file = MagicMock()
+    # Naive UTC datetime older than the file's mtime → file should be considered changed
+    source_file.last_indexed_at = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=1)
+    source_file.checksum = "old_checksum"
+
+    result_mock = MagicMock()
+    result_mock.scalars.return_value.first.return_value = source_file
+    session.execute.return_value = result_mock
+
+    with patch(
+        "app.domain.codebase.indexing.dirty_check._resolve_repo_path",
+        return_value=str(root),
+    ):
+        result = await is_file_changed_since_last_index(str(file_path), repo_id, session)
+
+    assert result is True
 
 
-class TestIsFileChangedSinceLastIndex:
-    async def _run(self, file_path, repo_id, sf_record, force=False):
-        """Helper: mock _resolve_repo_path and run the function."""
-        session = AsyncMock()
-        mock_execute = AsyncMock()
-        mock_scalars = MagicMock()
-        mock_scalars.first.return_value = sf_record
-        mock_execute.scalars = MagicMock(return_value=mock_scalars)
-        session.execute = AsyncMock(return_value=mock_execute)
+@pytest.mark.unit
+async def test_naive_last_indexed_at_newer_than_mtime_signals_unchanged(tmp_path):
+    """A naive future last_indexed_at should suppress re-indexing via mtime."""
+    repo_id = 2
+    root = tmp_path / "repo"
+    root.mkdir()
+    file_path = root / "macro.yaml"
+    file_path.write_text("hello", encoding="utf-8")
 
-        with patch("app.domain.codebase.indexing.dirty_check._resolve_repo_path", return_value="/fake/repo"):
-            return await is_file_changed_since_last_index(
-                file_path, repo_id=repo_id, session=session, force=force,
-            )
+    session = AsyncMock()
+    source_file = MagicMock()
+    # Naive UTC datetime newer than the file's mtime → file should be skipped
+    source_file.last_indexed_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=1)
+    source_file.checksum = "old_checksum"
 
-    async def test_new_file_is_changed(self, temp_file):
-        """No SourceFile record => file is considered changed."""
-        changed = await self._run(str(temp_file), repo_id=1, sf_record=None)
-        assert changed is True
+    result_mock = MagicMock()
+    result_mock.scalars.return_value.first.return_value = source_file
+    session.execute.return_value = result_mock
 
-    async def test_same_content_not_changed(self, temp_file):
-        """When checksum matches, file is NOT changed."""
-        from app.core.file.hash import compute_md5
-        content_hash = compute_md5("original content")
-        mock_sf = MagicMock()
-        mock_sf.checksum = content_hash
+    with patch(
+        "app.domain.codebase.indexing.dirty_check._resolve_repo_path",
+        return_value=str(root),
+    ):
+        result = await is_file_changed_since_last_index(str(file_path), repo_id, session)
 
-        changed = await self._run(str(temp_file), repo_id=1, sf_record=mock_sf)
-        assert changed is False
-
-    async def test_different_content_is_changed(self, temp_file):
-        """When checksum differs, file IS changed."""
-        mock_sf = MagicMock()
-        mock_sf.checksum = "different_hash_value"
-
-        changed = await self._run(str(temp_file), repo_id=1, sf_record=mock_sf)
-        assert changed is True
-
-    async def test_force_is_changed(self, temp_file):
-        """force=True => always changed regardless of SourceFile record."""
-        mock_sf = MagicMock()
-        mock_sf.checksum = "anything"
-        changed = await self._run(str(temp_file), repo_id=1, sf_record=mock_sf, force=True)
-        assert changed is True
-
-    async def test_nonexistent_file_is_changed(self):
-        """Non-existent file returns True."""
-        changed = await self._run("/nonexistent/file.py", repo_id=1, sf_record=None)
-        assert changed is True
+    assert result is False

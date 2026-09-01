@@ -1,73 +1,77 @@
+"""Integration tests for duplicate-method consolidation refactors.
+
+These tests run in-process against the current source tree (no HTTP server),
+so they exercise the code on disk regardless of any running service.
 """
-Pytest configuration for integration tests.
-"""
+
+from __future__ import annotations
+
+import os
+import tempfile
+from contextlib import asynccontextmanager
+from pathlib import Path
 
 import pytest
-from contextlib import asynccontextmanager
-from unittest.mock import AsyncMock, MagicMock, patch
+
+# --- Test-scoped SQLite DB so DB-backed helpers are exercised for real. ---
+# Set before importing any app module so `settings` picks up the test DB URI.
+_TEST_DB_DIR = Path(tempfile.mkdtemp(prefix="evo_integration_"))
+_TEST_DB_PATH = _TEST_DB_DIR / "test.db"
+
+os.environ.setdefault("SQLITE_PATH", str(_TEST_DB_PATH))
+os.environ.setdefault("EMBEDDED_MODE", "true")
 
 
-def pytest_configure(config):
-    """Register custom markers."""
-    config.addinivalue_line("markers", "integration: mark test as integration test")
+@pytest.fixture(scope="session")
+def test_db_path() -> Path:
+    return _TEST_DB_PATH
 
 
-def pytest_collection_modifyitems(config, items):
-    """Add integration marker to all tests in this directory."""
-    for item in items:
-        if "integration" in str(item.fspath):
-            item.add_marker(pytest.mark.integration)
+@pytest.fixture(scope="session")
+def test_session_scope(test_db_path: Path):
+    """A lightweight async session scope bound to the test SQLite DB.
 
+    Mirrors ``app.infrastructure.database.session_scope`` but skips the global
+    resource manager / vector-store initialization. Callers should
+    monkeypatch the target module's ``session_scope`` with this fixture.
+    """
+    from sqlalchemy.ext.asyncio import (
+        AsyncSession,
+        async_sessionmaker,
+        create_async_engine,
+    )
 
-@pytest.fixture(autouse=True)
-def mock_database_session():
-    """Globally mock database session_scope for all integration tests."""
-    from app.infrastructure.database.resource_manager import db_resource_manager
+    from app.infrastructure.database.sql.database import Base
 
-    # Save and reset db_resource_manager state to prevent pollution from other tests
-    original_session_factory = getattr(db_resource_manager, '_session_factory', None)
-    original_initialized = getattr(db_resource_manager, '_initialized', False)
-    db_resource_manager._initialized = False
-    db_resource_manager._session_factory = None
+    engine = create_async_engine(
+        f"sqlite+aiosqlite:///{test_db_path}",
+        poolclass=None,  # NullPool: fresh connection per use (loop-safe)
+    )
 
-    session = MagicMock()
-    session.get = AsyncMock(return_value=None)
-    session.execute = AsyncMock()
-    session.scalar = AsyncMock(return_value=0)
-    session.add = MagicMock()
-    session.flush = AsyncMock()
-    session.commit = AsyncMock()
-    result_mock = MagicMock()
-    result_mock.scalar.return_value = None
-    result_mock.scalars.return_value = MagicMock(all=MagicMock(return_value=[]))
-    session.execute.return_value = result_mock
+    async def _create_tables() -> None:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
+    import asyncio
+
+    asyncio.run(_create_tables())
+
+    factory = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
 
     @asynccontextmanager
     async def _scope():
-        # If a real session factory was set by another fixture (e.g. _real_db),
-        # delegate to it so tests that need a real DB can function. We must
-        # preserve the transactional semantics of the real session_scope (commit
-        # on success, rollback on exception), otherwise writes are lost.
-        if db_resource_manager._session_factory is not None:
-            async with db_resource_manager.session_factory() as real_session:
-                try:
-                    yield real_session
-                    await real_session.commit()
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError):
-                    await real_session.rollback()
-                    raise
-                finally:
-                    await real_session.close()
-        else:
-            yield session
+        async with factory() as session:
+            try:
+                yield session
+                await session.commit()
+            except Exception:
+                await session.rollback()
+                raise
+            finally:
+                await session.close()
 
-    with patch("app.infrastructure.database.session_scope", _scope), \
-         patch("app.infrastructure.database.session_scope", _scope), \
-         patch("app.core.engine.dispatch.session_scope", _scope), \
-         patch("app.core.engine.message.sequence.session_scope", _scope), \
-         patch("app.core.engine.message.repository.session_scope", _scope):
-        yield session
+    yield _scope
 
-    # Restore original state
-    db_resource_manager._session_factory = original_session_factory
-    db_resource_manager._initialized = original_initialized
+    import asyncio
+
+    asyncio.run(engine.dispose())

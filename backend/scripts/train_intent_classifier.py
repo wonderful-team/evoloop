@@ -1,220 +1,166 @@
 #!/usr/bin/env python3
-"""
-Train a BERT-based intent classifier from intents.yaml.
-Outputs: onnx model + label mapping + optional Core ML model.
+"""训练 L0 意图分类器（BERT）并导出 ONNX。
 
-Usage:
-    uv run python scripts/train_intent_classifier.py \
-        --data data/intents.yaml \
-        --output models/action_classifier
-"""
+用法：
+    python3 scripts/train_intent_classifier.py
 
-import argparse
+数据：data/intents.yaml（intents 字典，297 个意图）
+输出：models/action_classifier/{classifier.onnx, labels.json, tokenizer.json, ...}
+推理端：app/core/routing/action_classifier.py（ONNX Runtime，输入 input_ids/attention_mask）
+"""
 import json
-import logging
+import os
+import shutil
 import sys
 from pathlib import Path
 
+import numpy as np
 import torch
 import yaml
-from datasets import Dataset
-from transformers import (
-    BertForSequenceClassification,
-    BertTokenizer,
-    Trainer,
-    TrainingArguments,
-)
+from torch.utils.data import Dataset
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
-logger = logging.getLogger(__name__)
+ROOT = Path(__file__).resolve().parent.parent
+DATA_PATH = ROOT / "data" / "intents.yaml"
+OUT_DIR = ROOT / "models" / "action_classifier"
+BACKUP_DIR = ROOT / "models" / "action_classifier.pre_train"
 
+MAX_LEN = 32
+NUM_EPOCHS = 12
+BATCH_SIZE = 32
+LR = 3e-5
 
-def load_data(path: str) -> tuple[list[str], list[str]]:
-    """Load intents from YAML. Returns (texts, label_names)."""
-    with open(path) as f:
-        raw = yaml.safe_load(f)
-
-    texts: list[str] = []
-    labels: list[str] = []
-    for intent_name, examples in raw["intents"].items():
-        if not isinstance(examples, list):
-            continue
-        for ex in examples:
-            if isinstance(ex, str) and ex.strip():
-                texts.append(ex.strip())
-                labels.append(intent_name)
-    return texts, labels
+LABEL_IDS_TO_SKIP = set()
 
 
-def build_label_map(names: list[str]) -> tuple[dict[str, int], dict[int, str]]:
-    """Build str→int and int→str mappings sorted by name for determinism."""
-    unique = sorted(set(names))
-    name2id = {n: i for i, n in enumerate(unique)}
-    id2name = {i: n for n, i in name2id.items()}
-    return name2id, id2name
+class IntentDataset(Dataset):
+    def __init__(self, texts, labels, tokenizer):
+        self.texts = texts
+        self.labels = labels
+        self.tokenizer = tokenizer
+
+    def __len__(self):
+        return len(self.texts)
+
+    def __getitem__(self, idx):
+        enc = self.tokenizer(
+            self.texts[idx],
+            padding="max_length",
+            truncation=True,
+            max_length=MAX_LEN,
+        )
+        return {
+            "input_ids": torch.tensor(enc["input_ids"], dtype=torch.long),
+            "attention_mask": torch.tensor(enc["attention_mask"], dtype=torch.long),
+            "labels": torch.tensor(self.labels[idx], dtype=torch.long),
+        }
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Train BERT intent classifier")
-    parser.add_argument("--data", default="data/intents.yaml", help="Training data YAML")
-    parser.add_argument("--output", default="models/action_classifier", help="Output directory")
-    parser.add_argument("--model-name", default="bert-base-chinese", help="Base model")
-    parser.add_argument("--epochs", type=int, default=10, help="Training epochs")
-    parser.add_argument("--batch-size", type=int, default=16, help="Per-device batch size")
-    parser.add_argument("--lr", type=float, default=3e-5, help="Learning rate")
-    parser.add_argument("--max-length", type=int, default=32, help="Max token length")
-    parser.add_argument("--export-onnx", action=argparse.BooleanOptionalAction, default=True, help="Export ONNX")
-    parser.add_argument("--export-coreml", action="store_true", help="Export Core ML (macOS only)")
-    args = parser.parse_args()
+    from transformers import BertForSequenceClassification, BertTokenizer
 
-    out_dir = Path(args.output)
-    out_dir.mkdir(parents=True, exist_ok=True)
+    if not DATA_PATH.exists():
+        print(f"[train] intents.yaml not found: {DATA_PATH}", file=sys.stderr)
+        sys.exit(1)
 
-    # ── 1. Load data ──
-    logger.info("Loading data from %s", args.data)
-    texts, labels = load_data(args.data)
-    logger.info("Loaded %d examples across %d intent classes",
-                len(texts), len(set(labels)))
+    with open(DATA_PATH, encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    intents = data.get("intents", {})
+    intent_names = list(intents.keys())
+    name2id = {n: i for i, n in enumerate(intent_names)}
+    id2name = {str(i): n for i, n in enumerate(intent_names)}
+    print(f"[train] loaded {len(intent_names)} intents from {DATA_PATH.name}")
 
-    name2id, id2name = build_label_map(labels)
-    label_ids = [name2id[l] for l in labels]
+    texts, labels = [], []
+    per_intent = {}
+    for name, examples in intents.items():
+        n = len(examples)
+        per_intent[name] = n
+        for ex in examples:
+            texts.append(str(ex))
+            labels.append(name2id[name])
+    print(f"[train] total examples: {len(texts)}")
+    print(f"[train] 登录 examples: {per_intent.get('登录', 0)} | 注销: {per_intent.get('注销', 0)}")
 
-    # Save label mapping
-    mapping_path = out_dir / "labels.json"
-    with open(mapping_path, "w") as f:
-        json.dump({"id2name": id2name, "name2id": name2id}, f, ensure_ascii=False, indent=2)
-    logger.info("Label mapping saved to %s (%d classes)", mapping_path, len(id2name))
+    # 备份现有模型（防止训练中断破坏生产模型）
+    if OUT_DIR.exists():
+        if BACKUP_DIR.exists():
+            shutil.rmtree(BACKUP_DIR)
+        shutil.copytree(OUT_DIR, BACKUP_DIR)
+        print(f"[train] backed up current model -> {BACKUP_DIR}")
 
-    # ── 2. Tokenize ──
-    logger.info("Loading tokenizer: %s", args.model_name)
-    tokenizer = BertTokenizer.from_pretrained(args.model_name)
-
-    dataset = Dataset.from_dict({"text": texts, "label": label_ids})
-
-    def tokenize_fn(examples):
-        return tokenizer(
-            examples["text"],
-            padding="max_length",
-            truncation=True,
-            max_length=args.max_length,
-        )
-
-    dataset = dataset.map(tokenize_fn, batched=True)
-    dataset = dataset.train_test_split(test_size=0.1, seed=42)
-    logger.info("Train: %d, Eval: %d", len(dataset["train"]), len(dataset["test"]))
-
-    # ── 3. Train ──
-    logger.info("Loading model: %s (%d labels)", args.model_name, len(id2name))
+    tokenizer = BertTokenizer.from_pretrained("bert-base-chinese", local_files_only=True)
     model = BertForSequenceClassification.from_pretrained(
-        args.model_name,
-        num_labels=len(id2name),
-        hidden_dropout_prob=0.1,
+        "bert-base-chinese", num_labels=len(intent_names), local_files_only=True
     )
 
-    training_args = TrainingArguments(
-        output_dir=str(out_dir / "checkpoints"),
-        num_train_epochs=args.epochs,
-        per_device_train_batch_size=args.batch_size,
-        per_device_eval_batch_size=args.batch_size * 2,
-        learning_rate=args.lr,
-        warmup_ratio=0.1,
-        logging_steps=10,
-        eval_strategy="epoch",
-        save_strategy="epoch",
-        save_total_limit=2,
-        load_best_model_at_end=True,
-        metric_for_best_model="loss",
-        greater_is_better=False,
-        report_to="none",
-    )
+    dataset = IntentDataset(texts, labels, tokenizer)
 
-    trainer = Trainer(
-        model=model,
-        args=training_args,
-        train_dataset=dataset["train"],
-        eval_dataset=dataset["test"],
-    )
+    from torch.utils.data import DataLoader
 
-    trainer.train()
+    loader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=LR)
+    device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+    print(f"[train] device={device}")
 
-    # ── 4. Save HuggingFace model ──
-    model.save_pretrained(str(out_dir))
-    tokenizer.save_pretrained(str(out_dir))
-    logger.info("Model saved to %s", out_dir)
+    model.to(device)
+    model.train()
+    for epoch in range(NUM_EPOCHS):
+        total_loss, total = 0.0, 0
+        for batch in loader:
+            input_ids = batch["input_ids"].to(device)
+            attention_mask = batch["attention_mask"].to(device)
+            labels_b = batch["labels"].to(device)
+            outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels_b)
+            loss = outputs.loss
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            total_loss += loss.item() * len(labels_b)
+            total += len(labels_b)
+        print(f"[train] epoch {epoch + 1}/{NUM_EPOCHS} loss={total_loss / total:.4f}")
 
-    # ── 5. Export ONNX ──
-    if args.export_onnx:
-        logger.info("Exporting ONNX...")
-        import onnxruntime as ort
+    # 保存 PyTorch 模型（便于后续继续训练）
+    model.save_pretrained(str(OUT_DIR))
+    tokenizer.save_pretrained(str(OUT_DIR))
+    print(f"[train] saved pytorch model -> {OUT_DIR}")
 
-        model.eval()
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        model.to(device)
+    # 写 labels.json
+    labels = {"id2name": id2name, "name2id": name2id}
+    with open(OUT_DIR / "labels.json", "w", encoding="utf-8") as f:
+        json.dump(labels, f, ensure_ascii=False, indent=2)
+    print(f"[train] saved labels.json ({len(intent_names)} labels)")
 
-        dummy = tokenizer(
-            "测试文本",
-            padding="max_length",
-            truncation=True,
-            max_length=args.max_length,
-            return_tensors="pt",
-        )
-
+    # 导出 ONNX（推理端期望 input_ids + attention_mask, int64）
+    model.eval()
+    dummy_ids = torch.randint(0, 30522, (1, MAX_LEN), dtype=torch.long).to(device)
+    dummy_mask = torch.ones((1, MAX_LEN), dtype=torch.long).to(device)
+    with torch.no_grad():
         torch.onnx.export(
             model,
-            (dummy["input_ids"].to(device), dummy["attention_mask"].to(device)),
-            str(out_dir / "classifier.onnx"),
+            (dummy_ids, dummy_mask),
+            str(OUT_DIR / "classifier.onnx"),
             input_names=["input_ids", "attention_mask"],
             output_names=["logits"],
             dynamic_axes={
-                "input_ids": {0: "batch_size"},
-                "attention_mask": {0: "batch_size"},
+                "input_ids": {0: "batch"},
+                "attention_mask": {0: "batch"},
+                "logits": {0: "batch"},
             },
-            opset_version=18,
+            opset_version=14,
         )
-        logger.info("ONNX model exported to %s/classifier.onnx", out_dir)
+    print(f"[train] exported ONNX -> {OUT_DIR / 'classifier.onnx'}")
 
-        # Validate ONNX
-        session = ort.InferenceSession(str(out_dir / "classifier.onnx"))
-        inputs = {
-            session.get_inputs()[0].name: dummy["input_ids"].numpy(),
-            session.get_inputs()[1].name: dummy["attention_mask"].numpy(),
-        }
-        output = session.run(None, inputs)
-        logger.info("ONNX validation OK — output shape: %s", output[0].shape)
+    # 快速验证：用 onnxruntime 检查输出维度
+    import onnxruntime as ort
 
-    # ── 6. Export Core ML (macOS ANE) ──
-    if args.export_coreml:
-        try:
-            import coremltools as ct
+    sess = ort.InferenceSession(str(OUT_DIR / "classifier.onnx"))
+    inp = {sess.get_inputs()[0].name: dummy_ids.cpu().numpy(),
+           sess.get_inputs()[1].name: dummy_mask.cpu().numpy()}
+    logits = sess.run(None, inp)[0]
+    print(f"[train] ONNX verify: logits shape={logits.shape} (expected [{1}, {len(intent_names)}])")
+    assert logits.shape[1] == len(intent_names), "ONNX output dim mismatch"
 
-            logger.info("Exporting Core ML...")
-            device = torch.device("cpu")  # Core ML export needs CPU
-            model.to(device)
-            model.eval()
-
-            traced = torch.jit.trace(
-                model.bert,
-                (dummy["input_ids"].to("cpu"), dummy["attention_mask"].to("cpu")),
-            )
-            mlmodel = ct.convert(
-                traced,
-                inputs=[ct.TensorType(
-                    name="input_ids",
-                    shape=(1, args.max_length),
-                    dtype=int,
-                )],
-                compute_units=ct.ComputeUnit.ALL,
-                minimum_deployment_target=ct.target.macOS,
-            )
-            mlmodel.save(str(out_dir / "classifier.mlpackage"))
-            logger.info("Core ML model exported to %s/classifier.mlpackage", out_dir)
-        except Exception as e:
-            logger.warning("Core ML export failed (skipping): %s", e)
-
-    logger.info("Done. Model files in %s:", out_dir)
-    for f in out_dir.iterdir():
-        if not f.is_dir():
-            logger.info("  %s (%d bytes)", f.name, f.stat().st_size)
+    print("[train] DONE")
 
 
 if __name__ == "__main__":

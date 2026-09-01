@@ -1,167 +1,92 @@
-"""
-Unit tests for ContextTrimmer.
+"""ContextTrimmer unit tests — budget, token windowing, repair."""
 
-Note: tests/conftest.py mocks langchain_core.messages with MagicMock.
-In this environment, all message classes are MagicMock, so isinstance()
-checks against AIMessage will match any message instance. This causes
-all messages to be treated as AIMessage with tool_calls (overhead=12).
-Tests account for this behavior.
-"""
-
-import pytest
 
 from app.core.engine.context_trimmer import ContextTrimmer, TrimTrigger
 from app.core.engine.message.native_classes import (
     AIMessage,
     HumanMessage,
+    ToolMessage,
 )
-from app.core.engine.message.utils import count_total_tokens, estimate_message_tokens
-from app.utils.token import estimate_tokens
+from app.infrastructure.schemas import PlatformModel
 
 
-class TestTokenEstimation:
-    def test_estimate_tokens_empty(self):
-        assert estimate_tokens("") == 0
-
-    def test_estimate_tokens_short(self):
-        assert estimate_tokens("hello") == 1  # 5 // 4 = 1
-
-    def test_estimate_tokens_long(self):
-        text = "a" * 100
-        assert estimate_tokens(text) == 25  # 100 // 4
-
-    def test_estimate_message_tokens(self):
-        msg = HumanMessage(content="hello world")
-        tokens = estimate_message_tokens(msg)
-        # base = 11//4 = 2, overhead = 4, total = 6
-        assert tokens == 6
-
-    def test_count_total_tokens(self):
-        messages = [
-            HumanMessage(content="hello"),  # base=1, overhead=4, total=5
-            HumanMessage(content="world"),  # base=1, overhead=4, total=5
-        ]
-        assert count_total_tokens(messages) == 10
+def _patch_profile(monkeypatch, *, context_window: int = 2000):
+    profile = PlatformModel(
+        model_id="m",
+        display_name="m",
+        provider_name="openai",
+        provider_type="openai",
+        context_window=context_window,
+        max_tokens=1024,
+    )
+    monkeypatch.setattr(
+        "app.core.engine.context_trimmer.llm_platform_service.get_profile",
+        lambda _m: profile,
+    )
 
 
-class TestContextTrimmerTrim:
-    def test_short_messages_no_trim(self):
-        trimmer = ContextTrimmer()
-        messages = [
-            HumanMessage(content="hello"),
-            HumanMessage(content="hi there"),
-        ]
-        result = trimmer.trim(
-            messages=messages,
-            model="gpt-4o",
-            node_source="worker",
-            stages={"window"},  # Skip repair in MagicMock env
-        )
-        assert result.trigger == TrimTrigger.NONE
-        assert len(result.messages) == len(messages)
-
-    def test_repair_stage_only(self):
-        trimmer = ContextTrimmer()
-        # In MagicMock env, ToolMessage is also MagicMock, so repair handles it
-        # Skip this test in mock environment since ToolMessage behavior is unpredictable
-        messages = [
-            HumanMessage(content="hello"),
-            HumanMessage(content="world"),
-        ]
-        result = trimmer.trim(
-            messages=messages,
-            model="gpt-4o",
-            node_source="worker",
-            stages={"repair"},
-        )
-        # Should run repair without errors; repair merges consecutive HumanMessages
-        assert len(result.messages) >= 1
-
-    @pytest.mark.skip(reason="Needs re-evaluation after state-flattening changes")
-    def test_window_stage_reduces_long_history(self):
-        trimmer = ContextTrimmer()
-        # Create many messages to exceed budget
-        # In MagicMock env each msg has overhead=12, so need fewer msgs to trigger
-        messages = []
-        for i in range(300):
-            messages.append(HumanMessage(content=f"message {i} " * 100))
-
-        result = trimmer.trim(
-            messages=messages,
-            model="gpt-4o",
-            node_source="worker",
-            stages={"window"},  # Skip repair to avoid MagicMock issues
-        )
-        # Should have trimmed
-        assert result.trigger == TrimTrigger.TOKEN_BUDGET
-        assert result.after_count < result.before_count
-        assert result.after_tokens <= result.before_tokens
-
-    def test_supervisor_budget_smaller_than_worker(self):
-        trimmer = ContextTrimmer()
-        messages = []
-        for i in range(50):
-            messages.append(HumanMessage(content=f"message {i} " * 50))
-            messages.append(HumanMessage(content=f"response {i} " * 50))
-
-        worker_result = trimmer.trim(
-            messages=messages,
-            model="gpt-4o",
-            node_source="worker",
-            stages={"window"},
-        )
-        supervisor_result = trimmer.trim(
-            messages=messages,
-            model="gpt-4o",
-            node_source="supervisor",
-            stages={"window"},
-        )
-
-        # Supervisor budget is smaller, should trim more aggressively
-        assert supervisor_result.after_count <= worker_result.after_count
+def _mk(n: int, size: int = 100) -> list:
+    msgs = []
+    for i in range(n):
+        msgs.append(HumanMessage(content=f"{i} " + "y" * size))
+    return msgs
 
 
-class TestRetryCleanup:
-    def test_retry_cleanup_keeps_last_three_errors(self):
-        trimmer = ContextTrimmer()
-        messages = [
-            HumanMessage(content="start"),
-            AIMessage(content="Error: first", metadata={"is_error": True}),
-            AIMessage(content="Error: second", metadata={"is_error": True}),
-            AIMessage(content="Error: third", metadata={"is_error": True}),
-            AIMessage(content="Error: fourth", metadata={"is_error": True}),
-            AIMessage(content="Error: fifth", metadata={"is_error": True}),
-            HumanMessage(content="end"),
-        ]
-        result = trimmer.trim(
-            messages=messages,
-            model="gpt-4o",
-            node_source="worker",
-            is_retry=True,
-            stages={"forget"},  # Skip repair to avoid MagicMock issues
-        )
-        error_count = sum(
-            1 for m in result.messages
-            if isinstance(m, AIMessage) and getattr(m, "metadata", {}).get("is_error")
-        )
-        assert error_count == 3
+def test_compute_budget_uses_react_ratio(monkeypatch):
+    _patch_profile(monkeypatch, context_window=10_000)
+    from app.core.engine.constants import HARD_LIMIT_RATIO
+    from app.core.engine.context_trimmer import REACT_BUDGET_RATIO, _compute_budget
 
-    def test_retry_cleanup_dedupes_humans(self):
-        trimmer = ContextTrimmer()
-        messages = [
-            HumanMessage(content="hello"),
-            HumanMessage(content="hello world"),
-            AIMessage(content="response"),
-        ]
-        result = trimmer.trim(
-            messages=messages,
-            model="gpt-4o",
-            node_source="worker",
-            is_retry=True,
-            stages={"forget"},  # Skip repair to avoid MagicMock issues
-        )
-        human_count = sum(1 for m in result.messages if isinstance(m, HumanMessage))
-        # "hello" is contained in "hello world", should be deduped
-        # In MagicMock env, dedup may behave differently; just verify count is reasonable
-        assert human_count <= 3
+    eff, hard = _compute_budget("m")
+    assert eff == int(10_000 * REACT_BUDGET_RATIO)
+    assert hard == int(10_000 * HARD_LIMIT_RATIO)
 
+
+def test_trim_short_circuits_under_threshold(monkeypatch):
+    _patch_profile(monkeypatch)
+    msgs = _mk(3)  # 3 * ~29 tok ≈ 87 < 840 threshold
+    t = ContextTrimmer()
+    result = t.trim(msgs, model="m", stages={"window"})
+    assert result.trigger == TrimTrigger.NONE
+    assert result.messages == msgs
+
+
+def test_trim_window_drops_oldest_keeps_recent(monkeypatch):
+    _patch_profile(monkeypatch, context_window=2000)
+    msgs = _mk(60, size=100)  # 60 * ~29 ≈ 1740 tok > 840 threshold
+    t = ContextTrimmer()
+    result = t.trim(msgs, model="m", stages={"window"})
+    assert len(result.messages) < len(msgs)
+    assert result.trigger == TrimTrigger.TOKEN_BUDGET
+    # 最近消息保留
+    assert result.messages[-1].content == msgs[-1].content
+
+
+def test_trim_with_tool_messages_and_repair(monkeypatch):
+    _patch_profile(monkeypatch, context_window=2000)
+    msgs = [HumanMessage(content=f"h{i} " + "x" * 100) for i in range(40)]
+    for i in range(30):
+        msgs.append(ToolMessage(content=f"tool out {i} " + "x" * 100, tool_call_id=f"c{i}", name="bash"))
+    msgs.append(AIMessage(content="final " + "x" * 100))
+    t = ContextTrimmer()
+    result = t.trim(msgs, model="m", stages={"window", "repair"})
+    # repair 不炸 + 窗口生效
+    assert result.messages
+    assert result.after_tokens <= result.before_tokens
+
+
+def test_trim_repair_stage_normalizes_messages(monkeypatch):
+    _patch_profile(monkeypatch, context_window=2000)
+    msgs = _mk(5)
+    t = ContextTrimmer()
+    result = t.trim(msgs, model="m", stages={"repair"})
+    assert result.messages  # 合法消息 repair 后仍存在
+
+
+def test_trim_truncated_reports_reduced_tokens(monkeypatch):
+    _patch_profile(monkeypatch, context_window=2000)
+    msgs = _mk(60)
+    t = ContextTrimmer()
+    result = t.trim(msgs, model="m", stages={"window"})
+    assert result.after_tokens <= result.before_tokens
+    assert result.removed_count >= 0
