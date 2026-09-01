@@ -48,6 +48,44 @@ _INTENTS_NEEDING_OPERATION_MAP = frozenset({INTENT_WORKER_TASK, DOMAIN_AMBIGUOUS
 _INTENTS_NEEDING_MEMORY = frozenset({INTENT_MEMORY_QUERY, DOMAIN_AMBIGUOUS})
 
 
+async def _resolve_explicit_skills(explicit: list[dict]) -> list[dict]:
+    """Resolve explicit skill_ids/names into SkillListItem-shaped dicts.
+
+    显式 skill_ids（前端勾选 / references 附带）→ 精确预加载，而非全量列表。
+    按 id（数字优先）或 name 解析，保证 <available_skills> 只注入用户指定的技能。
+    """
+    from app.core.learning.skills.discovery import skill_discovery
+
+    resolved: list[dict] = []
+    for item in explicit:
+        if not isinstance(item, dict):
+            continue
+        sid = item.get("id") or item.get("skill_id")
+        sname = item.get("name") or item.get("skill_name")
+        skill = None
+        if sid is not None:
+            try:
+                skill = await skill_discovery.get_skill_by_id(int(sid))
+            except (TypeError, ValueError):
+                skill = None
+        if skill is None and sname:
+            match, matched, _ = await skill_discovery.exact_search(str(sname))
+            skill = matched[0] if matched else None
+        if skill is None:
+            continue
+        resolved.append({
+            "id": skill.id,
+            "name": skill.name,
+            "namespace": skill.namespace or "general",
+            "description": (skill.description or "No description.").replace("\n", " "),
+        })
+    logger.info(
+        "[ContextHydrator] Explicit skills preloaded: %s",
+        [r["name"] for r in resolved],
+    )
+    return resolved
+
+
 class AgentContextHydrator:
     """
     Unified context hydration service.
@@ -226,10 +264,12 @@ class AgentContextHydrator:
             needs_operation_map = (intent is None or intent in _INTENTS_NEEDING_OPERATION_MAP) and ctx.project_id
 
             async def _load_active_skills() -> Any:
-                return (
-                    await skill_discovery.get_active_skills_list()
-                    if needs_skills else ""
-                )
+                if not needs_skills:
+                    return ""
+                explicit = (config.get("metadata") or {}).get("explicit_skills")
+                if explicit:
+                    return await _resolve_explicit_skills(explicit)
+                return await skill_discovery.get_active_skills_list()
 
             async def _load_active_macros() -> Any:
                 return (
@@ -255,11 +295,20 @@ class AgentContextHydrator:
             return data
 
         session_id = config.get("configurable", {}).get("run_id", ctx.request_id)
+        explicit = (config.get("metadata") or {}).get("explicit_skills") or []
+        explicit_key = "|".join(
+            sorted(
+                str(x.get("id") or x.get("skill_id") or x.get("name") or "")
+                for x in explicit
+                if isinstance(x, dict)
+            )
+        )
         static_layer = await LayeredContextCache.get_static_layer(
             session_id=session_id,
             project_id=ctx.project_id,
             loader_fn=_load_static_data,
             intent=intent,
+            explicit_key=explicit_key,
         )
 
         ctx.metadata.project_concepts = static_layer.project_concepts
