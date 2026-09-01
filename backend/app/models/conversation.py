@@ -93,9 +93,6 @@ class Message(Base):
 
     parent: Mapped["Message | None"] = relationship("Message", remote_side="[Message.id]", backref="children")
 
-    # Node source tracking — identifies which graph node produced this message
-    node_source: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
-
     # Message source — identifies which client/entry produced this message
     # values: "desktop", "mobile", "api"
     source: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)

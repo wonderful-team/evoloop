@@ -104,7 +104,6 @@ class AiMessageMixin:
                 sequence_number=seq if persist_data.should_persist else 0,
                 status=MessageStatus.STREAMING if persist_data.should_persist else MessageStatus.COMPLETED,
                 references=extracted_refs if persist_data.should_persist else None,
-                # channels decided by OutputChannelPolicy (node_source ContextVar)
                 parent_id=effective_parent_id,
                 message_id=msg_id,
                 is_visible=is_visible,

@@ -6,7 +6,7 @@ OutputChannelPolicy — 唯一的出站通道决策权威。
 
 决策依据：
   - session_source: EvoContext.metadata.source（"voice" / "web" / "mobile" / ...）
-                    由 current_session_source ContextVar 提供（engine.py 在节点启动时 set）
+                    由 current_session_source ContextVar 提供（engine.py 在 run_agent_loop 前 set）
   - payload 类型
   - MessageBlock.status（streaming vs completed）
   - MessageBlock.tool_calls（值守场景：主 Agent 派活前的安抚回复）

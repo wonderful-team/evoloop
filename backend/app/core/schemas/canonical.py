@@ -132,7 +132,6 @@ class SyncMessage(BaseModel):
     checkpoint_id: str | None = None
     tool_calls: list[dict[str, Any]] | None = None
     category: str | None = None
-    node_source: str | None = None
     source: str | None = None
     is_visible: bool | None = None
     metadata: dict[str, Any] | None = None
