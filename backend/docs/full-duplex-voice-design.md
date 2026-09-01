@@ -2376,7 +2376,7 @@ async def _dispatch_macro(self, thread_id, macro_id, args, project_id):
     超时保护：5 秒上限，防止 osascript 阻塞（如系统对话框等待）。
     Barge-in：包装为 task 注册到 worker_registry，用户说"停"时可 cancel。
     """
-    from app.core.execution.macro.runner import (
+    from app.core.learning.macro.runner import (
         VOICE_POLICY, MacroGateError, load_macro, preflight, run_deterministic,
     )
 

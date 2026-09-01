@@ -167,8 +167,8 @@ Rewind 流程：
 所有需要同时生成 skill 和 macro 的地方改为两段式调用：
 
 ```python
-from app.core.learning.skill_synthesizer import WorkflowSynthesizer
-from app.core.execution.macro.compiler import MacroScriptCompiler
+from app.core.learning.workflow_synthesizer import WorkflowSynthesizer
+from app.core.learning.macro.compiler import MacroScriptCompiler
 from app.core.learning.trace_parser import TraceParser
 
 sequence = await TraceParser(thread_id).parse()

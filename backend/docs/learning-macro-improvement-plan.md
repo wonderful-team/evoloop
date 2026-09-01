@@ -316,7 +316,7 @@ MacroScript(steps=steps)  # 只验证结构
 
 ```python
 # 新增 dry-run 验证
-from app.core.execution.macro.utils import verify_macro_script
+from app.core.learning.macro.utils import verify_macro_script
 result = await verify_macro_script(
     macro_script=macro_script,
     thread_id=f"dryrun_{session_id}",

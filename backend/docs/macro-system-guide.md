@@ -128,6 +128,44 @@ pending_review ──→ verified ──→ obsolete
 | `dialog_handle` | `action` (accept/dismiss) | 弹窗处理 |
 | `reload` | — | 刷新 |
 
+#### 2.3.1 执行语义（等待 / 校验 / 重试）
+
+宏步骤（`action`）除动作本身外，可通过 `payload` 声明**执行语义**，由引擎统一处理。这些字段对所有 `source` 生效（`retry` 全源，`pre_wait`/`post_verify` 主要 dom）。
+
+| payload 字段 | 类型 | 作用 | 失败行为 |
+|---|---|---|---|
+| `pre_wait` | object | **动作前**等某元素就绪（素材/弹窗/数据加载） | wait_for 超时 → ❌ → 停止 |
+| `post_verify` | object | **动作后**校验预期状态（URL 跳转 / 元素出现） | wait_for 超时 → ❌ → 停止 |
+| `retry` | int | 步骤失败重试次数（默认 0） | 重试耗尽 → 截图 + 停止 |
+| `retry_interval` | int(ms) | 重试间隔（默认 1000） | — |
+| `require_success` | bool | run_js 返回 false/undefined 时视为失败 | 默认 false（仅 warning）；true → 停止 |
+| `continue_on_error` | bool | 显式跳过错误继续（逃生阀） | true → 记录后继续 |
+
+**示例（发布实物商品的选图/提交防护）**：
+
+```yaml
+- step_number: 11
+  type: action
+  event_type: run_js
+  payload:
+    script: "() => { ... 选中素材 ... return true; }"
+    require_success: true   # 选图失败 → 停止
+    retry: 2                # 素材瞬时未加载 → 重试 2 次
+    retry_interval: 1000
+- step_number: 16
+  type: action
+  event_type: click
+  target_selector: ".js-save"
+  payload:
+    post_verify:            # 提交后校验 URL 跳转
+      url_pattern: "goods/lists"
+      timeout_ms: 10000
+```
+
+**执行顺序**：`pre_wait`（等就绪）→ 动作 → `require_success`/结果 → `post_verify`（校验效果）→ 失败按 `retry` 重试，耗尽则停止并截图。`continue_on_error: true` 可让宏显式跳过某步失败。
+
+> 设计意图：宏是"动作序列"，这些字段把它升级为「动作 + 前置就绪 + 后置校验」的契约，避免"动作执行了但操作没生效"（点空/填空/提交未跳转）时引擎仍盲目继续。
+
 #### mobile（Android 移动端）
 
 | event_type | payload 关键字段 | 说明 |
@@ -241,8 +279,16 @@ pending_review ──→ verified ──→ obsolete
 
 ### 2.5 变量注入
 
+#### 2.5.1 占位符标准写法（必须遵守）
+
+- 统一使用 `{{ param }}` 格式，**`{{` 与 `}}` 内侧必须有空格**（引擎正则 `\{\{\s*...\s*\}\}` 兼容有/无空格，但文档统一标准为带空格写法）。
+- **严禁在 `{{` 后跟反斜杠/续行符**（如 `{{ \ new_service_name }}`），引擎正则匹配不到，占位符静默失效，宏功能降级。
+- 占位符名与**宏参数表（`parameters`）必须一一对应**：脚本用到的 `{{ param }}` 必须在参数表声明（`base_url` 由引擎自动注入、`extract` 步骤的 `key` 为内部中间变量，二者除外）。
+- 宏名中的 `{param}` 占位符（如「同意退款{query}」）**必须与参数表参数名一致**，否则 Agent 会被宏名误导传错参数。
+- **严禁在宏名中使用模糊占位符 `{query}`**：`query` 语义不明（名称/编号/单号），Agent 无法判断该传什么。宏名应体现动作+业务对象（如「删除商品」），定位所需的参数（名称/编码/单号）通过**参数表 description 明确语义**（如 `商品名称或商品编码（SKU），任一即可，宏自动识别`），而不是塞进宏名。参数表冗余的 `base_url` 声明必须删除（引擎自动注入）。
+
 ```yaml
-# 参数注入（执行时传入）
+# 参数注入（执行时传入）——带空格标准写法
 - type: action
   event_type: input
   source: dom
@@ -262,13 +308,39 @@ pending_review ──→ verified ──→ obsolete
   source: dom
   target_selector: "{{ item.link }}"
 
-# 基础 URL（项目配置）
+# 基础 URL（项目配置，引擎自动注入，无需参数表声明）
 - type: action
   event_type: navigate
   source: dom
   payload:
     url: "{{ base_url }}/list"
 ```
+
+#### 2.5.2 两阶段宏（extract 结果供下游步骤引用）
+
+`extract` 步骤的返回值会绑定为 `{{ key }}`，供**后续步骤**引用（典型场景：先提取详情页链接，再 navigate 跳转）。这类占位符是**宏内部中间变量，不加入参数表**。
+
+```yaml
+# 第一步：从列表页提取详情链接 → 绑定为 {{ detail_url }}
+- type: extract
+  source: dom
+  event_type: run_js
+  extract_type: run_js
+  key: detail_url
+  payload:
+    script: "() => { ... return link.getAttribute('href'); }"
+
+# 第二步：使用提取值导航（无需参数表声明 detail_url）
+- type: action
+  source: dom
+  event_type: navigate
+  payload:
+    url: "{{ detail_url }}"
+```
+
+#### 2.5.3 未传参数的行为
+
+未提供的参数注入为空字符串（不会把 `{{ query }}` 字面量带进页面）。宏脚本应自行防御空值（如 `if (q && q.indexOf('{{') !== 0)`），避免空值污染页面。
 
 ### 2.6 数据提取与导出
 
