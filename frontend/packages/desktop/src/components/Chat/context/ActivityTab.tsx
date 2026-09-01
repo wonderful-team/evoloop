@@ -11,8 +11,10 @@ import {
   ChevronDown,
   ChevronRight,
   Cpu,
+  GitBranch,
   Loader2,
   Map as MapIcon,
+  MonitorSmartphone,
   Wrench,
 } from "lucide-react"
 import { memo, useEffect, useMemo, useRef, useState } from "react"
@@ -44,6 +46,34 @@ interface Plan {
 
 interface ActivityTabProps {
   activeThreadId?: string
+}
+
+const SUBAGENT_STATUS_STYLE: Record<string, { dot: string; labelKey: string }> =
+  {
+    started: {
+      dot: "bg-yellow-500 animate-pulse",
+      labelKey: "chat.subagentRunning",
+    },
+    completed: { dot: "bg-green-500", labelKey: "chat.subagentCompleted" },
+    failed: { dot: "bg-red-500", labelKey: "chat.subagentFailed" },
+    cancelled: {
+      dot: "bg-muted-foreground",
+      labelKey: "chat.subagentCancelled",
+    },
+  }
+
+const A2A_STATUS_STYLE: Record<string, { dot: string; labelKey: string }> = {
+  started: {
+    dot: "bg-yellow-500 animate-pulse",
+    labelKey: "chat.a2aWaitingCallback",
+  },
+  completed: { dot: "bg-green-500", labelKey: "chat.a2aCompleted" },
+  failed: { dot: "bg-red-500", labelKey: "chat.a2aFailed" },
+  timeout: { dot: "bg-orange-500", labelKey: "chat.a2aTimeout" },
+  cancelled: {
+    dot: "bg-muted-foreground",
+    labelKey: "chat.a2aCancelled",
+  },
 }
 
 /**
@@ -114,6 +144,30 @@ export function ActivityTab({ activeThreadId }: ActivityTabProps) {
       setSkillsOpen(hasSkills)
     }
   }, [hasSkills])
+
+  const subagents = useAgentStore((state) => state.subagents)
+  const activeSubagentDetail = useAgentStore(
+    (state) => state.activeSubagentDetail,
+  )
+  const [subagentsOpen, setSubagentsOpen] = useState(false)
+  const subagentsInteracted = useRef(false)
+  const hasSubagents = subagents.length > 0
+  useEffect(() => {
+    if (!subagentsInteracted.current) {
+      setSubagentsOpen(hasSubagents)
+    }
+  }, [hasSubagents])
+
+  const a2aDelegations = useAgentStore((state) => state.a2aDelegations)
+  const activeA2ADetail = useAgentStore((state) => state.activeA2ADetail)
+  const [a2aOpen, setA2AOpen] = useState(false)
+  const a2aInteracted = useRef(false)
+  const hasA2A = a2aDelegations.length > 0
+  useEffect(() => {
+    if (!a2aInteracted.current) {
+      setA2AOpen(hasA2A)
+    }
+  }, [hasA2A])
 
   const sessionGoal = useChatStore((state) => state.sessionGoal)
   const [goalOpen, setGoalOpen] = useState(true)
@@ -345,6 +399,153 @@ export function ActivityTab({ activeThreadId }: ActivityTabProps) {
                       </div>
                     ))}
                   </div>
+                )}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+
+          {/* === BLOCK 2.5: SUBAGENTS === */}
+          <Collapsible
+            open={subagentsOpen}
+            onOpenChange={(open) => {
+              subagentsInteracted.current = true
+              setSubagentsOpen(open)
+            }}
+            className="flex flex-col border-b border-border transition-[border-color] duration-200 shrink-0"
+          >
+            <CollapsibleTrigger asChild>
+              <div className="flex items-center gap-2 p-2 cursor-pointer hover:bg-muted/50 transition-colors bg-muted/20 shrink-0">
+                {subagentsOpen ? (
+                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                ) : (
+                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                )}
+                <GitBranch className="h-3.5 w-3.5 text-primary/70 shrink-0" />
+                <span className="text-[10px] font-bold text-muted-foreground flex-1">
+                  {t("chat.subagentsTitle")}
+                </span>
+                {hasSubagents && (
+                  <span className="text-[10px] text-primary shrink-0">
+                    {t("chat.subagentActive")}
+                  </span>
+                )}
+              </div>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="p-2 space-y-2">
+                {subagents.length === 0 ? (
+                  <div className="text-xs text-muted-foreground italic text-center py-6 border-2 border-dashed rounded-md mx-2">
+                    {t("chat.noSubagents")}
+                  </div>
+                ) : (
+                  subagents.map((s) => {
+                    const style =
+                      SUBAGENT_STATUS_STYLE[s.status] ??
+                      SUBAGENT_STATUS_STYLE.started
+                    const isActive =
+                      activeSubagentDetail === s.subagent_thread_id
+                    return (
+                      <button
+                        type="button"
+                        key={s.subagent_thread_id}
+                        onClick={() =>
+                          useAgentStore
+                            .getState()
+                            ._openSubagentDetail(s.subagent_thread_id)
+                        }
+                        className={`flex items-start gap-2.5 p-2 rounded-lg border transition-colors cursor-pointer text-left w-full font-inherit ${
+                          isActive
+                            ? "bg-primary/10 border-primary/40"
+                            : "bg-muted/20 border-border/30 hover:bg-muted/30"
+                        }`}
+                      >
+                        <span
+                          className={`mt-1 h-2 w-2 rounded-full shrink-0 ${style.dot}`}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-medium text-foreground line-clamp-2">
+                            {s.instruction || s.subagent_id}
+                          </div>
+                          <div className="text-[10px] text-muted-foreground mt-0.5">
+                            {t(style.labelKey)}
+                          </div>
+                        </div>
+                        <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-1" />
+                      </button>
+                    )
+                  })
+                )}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+
+          {/* === BLOCK 2.6: A2A DELEGATIONS === */}
+          <Collapsible
+            open={a2aOpen}
+            onOpenChange={(open) => {
+              a2aInteracted.current = true
+              setA2AOpen(open)
+            }}
+            className="flex flex-col border-b border-border transition-[border-color] duration-200 shrink-0"
+          >
+            <CollapsibleTrigger asChild>
+              <div className="flex items-center gap-2 p-2 cursor-pointer hover:bg-muted/50 transition-colors bg-muted/20 shrink-0">
+                {a2aOpen ? (
+                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                ) : (
+                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                )}
+                <MonitorSmartphone className="h-3.5 w-3.5 text-primary/70 shrink-0" />
+                <span className="text-[10px] font-bold text-muted-foreground flex-1">
+                  {t("chat.a2aTitle")}
+                </span>
+                {hasA2A && (
+                  <span className="text-[10px] text-primary shrink-0">
+                    {t("chat.a2aActive")}
+                  </span>
+                )}
+              </div>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="p-2 space-y-2">
+                {a2aDelegations.length === 0 ? (
+                  <div className="text-xs text-muted-foreground italic text-center py-6 border-2 border-dashed rounded-md mx-2">
+                    {t("chat.noA2ADelegations")}
+                  </div>
+                ) : (
+                  a2aDelegations.map((d) => {
+                    const style =
+                      A2A_STATUS_STYLE[d.status] ?? A2A_STATUS_STYLE.started
+                    const isActive = activeA2ADetail === d.task_id
+                    return (
+                      <button
+                        type="button"
+                        key={d.task_id}
+                        onClick={() =>
+                          useAgentStore.getState()._openA2ADetail(d.task_id)
+                        }
+                        className={`flex items-start gap-2.5 p-2 rounded-lg border transition-colors cursor-pointer text-left w-full font-inherit ${
+                          isActive
+                            ? "bg-primary/10 border-primary/40"
+                            : "bg-muted/20 border-border/30 hover:bg-muted/30"
+                        }`}
+                      >
+                        <span
+                          className={`mt-1 h-2 w-2 rounded-full shrink-0 ${style.dot}`}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-medium text-foreground line-clamp-2">
+                            {d.instruction || d.task_id}
+                          </div>
+                          <div className="text-[10px] text-muted-foreground mt-0.5">
+                            {d.target_device_name || d.target_device_key} ·{" "}
+                            {t(style.labelKey)}
+                          </div>
+                        </div>
+                        <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-1" />
+                      </button>
+                    )
+                  })
                 )}
               </div>
             </CollapsibleContent>

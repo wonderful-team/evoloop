@@ -15,6 +15,7 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { WebView } from 'react-native-webview';
 import { useTheme } from '@/theme';
 import { useGlobalToast } from '@/contexts/ToastContext';
+import { BASE_URL } from '@/constants/config';
 
 import { useTranslation } from 'react-i18next';
 import { CodeBlock } from './CodeBlock';
@@ -61,6 +62,7 @@ export function ImageViewer({ uri, visible, onClose }: ImageViewerProps) {
 // 图片消息组件
 function ImageMessage({ url }: { url: string }) {
   const [viewerVisible, setViewerVisible] = useState(false);
+  const imageUrl = url.startsWith('/api/') ? `${BASE_URL}${url}` : url;
 
   return (
     <>
@@ -68,10 +70,10 @@ function ImageMessage({ url }: { url: string }) {
         style={styles.imageContainer}
         onPress={() => setViewerVisible(true)}
       >
-        <Image source={{ uri: url }} style={styles.image} resizeMode="cover" />
+        <Image source={{ uri: imageUrl }} style={styles.image} resizeMode="cover" />
       </TouchableOpacity>
       <ImageViewer
-        uri={url}
+        uri={imageUrl}
         visible={viewerVisible}
         onClose={() => setViewerVisible(false)}
       />
@@ -162,6 +164,29 @@ function AudioMessage({ url, name }: { url: string; name: string }) {
   );
 }
 
+// 视频消息组件
+function VideoMessage({ url, name }: { url: string; name: string }) {
+  const { colors } = useTheme();
+  const videoUrl = url.startsWith('/api/') ? `${BASE_URL}${url}` : url;
+
+  return (
+    <View style={styles.videoContainer}>
+      <Text
+        numberOfLines={1}
+        style={[styles.videoName, { color: colors.onSurfaceVariant }]}
+      >
+        {name}
+      </Text>
+      <Video
+        source={{ uri: videoUrl }}
+        style={styles.video}
+        controls
+        resizeMode="contain"
+      />
+    </View>
+  );
+}
+
 // 主内容组件
 interface MessageContentProps {
   content: string;
@@ -194,9 +219,9 @@ export function MessageContent({ content, isUser = false, isStreaming = false }:
     }
     displayContent = displayContent.replace(/<\/?report>/gi, '');
 
-    // 分割内容：按 [Image:/File:/Audio:] 分割
+    // 分割内容：按 [Image:/File:/Audio:/Video:] 分割
     const parts = displayContent.split(
-      /(\[(?:Image|File|Audio):\s*[^\]]+\]\([^)]+\)|\[(?:Image|File|Audio):\s*[^\]]+\])/g
+      /(\[(?:Image|File|Audio|Video):\s*[^\]]+\]\([^)]+\)|\[(?:Image|File|Audio|Video):\s*[^\]]+\])/g
     );
 
     return { displayContent, parts };
@@ -327,9 +352,10 @@ export function MessageContent({ content, isUser = false, isStreaming = false }:
     <View style={styles.container}>
       {parts.map((part, index) => {
         // 匹配图片
-        const imageMatch = part.match(/^\[Image:\s*([^\]]+)\]$/);
+        const imageMatch = part.match(/^\[Image:\s*([^\]]+)\](?:\(([^)]+)\))?$/);
         if (imageMatch) {
-          return <ImageMessage key={index} url={imageMatch[1]} />;
+          const url = imageMatch[2] || imageMatch[1];
+          return <ImageMessage key={index} url={url} />;
         }
 
         // 匹配文件
@@ -344,6 +370,14 @@ export function MessageContent({ content, isUser = false, isStreaming = false }:
           const name = audioMatch[1];
           const url = audioMatch[2] || audioMatch[1];
           return <AudioMessage key={index} url={url} name={name} />;
+        }
+
+        // 匹配视频
+        const videoMatch = part.match(/^\[Video:\s*([^\]]+)\](?:\(([^)]+)\))?$/);
+        if (videoMatch) {
+          const name = videoMatch[1];
+          const url = videoMatch[2] || videoMatch[1];
+          return <VideoMessage key={index} url={url} name={name} />;
         }
 
         // 使用统一拦截器提取所有特殊块 (Mermaid, ECharts, Map, Artifact)
@@ -754,6 +788,22 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginLeft: 8,
     flex: 1,
+  },
+  videoContainer: {
+    marginVertical: 4,
+    borderRadius: 8,
+    overflow: 'hidden',
+    maxWidth: 280,
+  },
+  videoName: {
+    fontSize: 13,
+    marginBottom: 4,
+  },
+  video: {
+    width: 260,
+    height: 160,
+    borderRadius: 8,
+    backgroundColor: '#000',
   },
   modalContainer: {
     flex: 1,

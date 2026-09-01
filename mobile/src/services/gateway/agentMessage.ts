@@ -36,6 +36,7 @@ export interface AgentToolCall {
 export interface AgentToolMeta {
   display_name?: string;
   affected_path_keys?: string[];
+  affected_paths?: string[];
 }
 
 /**

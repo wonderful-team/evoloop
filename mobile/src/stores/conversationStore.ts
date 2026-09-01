@@ -84,7 +84,10 @@ interface ConversationState {
   // 添加到记忆
   addToMemory: (projectId: number, deviceKey: string, request: AddMemoryRequest, messageId?: string, conversationId?: string) => Promise<any>;
   updateMemory: (projectId: number, deviceKey: string, name: string, request: UpdateMemoryRequest) => Promise<void>;
-  deleteMemory: (projectId: number, deviceKey: string, name: string) => Promise<void>;
+  deleteMemory: (projectId: number, deviceKey: string, name: string, messageId?: string) => Promise<void>;
+
+  // 更新指定消息的记忆标记（乐观更新）
+  updateMessageRemembered: (messageId: string, isRemembered: boolean) => void;
 
   // 置顶与重命名会话
   togglePinConversation: (id: string) => Promise<void>;
@@ -398,6 +401,17 @@ export const useConversationStore = create<ConversationState>()(
         set({ messages: updatedMessages });
       },
 
+      // 更新指定消息的记忆标记（乐观更新）
+      updateMessageRemembered: (messageId, isRemembered) => {
+        const { messages } = get();
+        const index = messages.findIndex(m => m.id === messageId);
+        if (index === -1) {return;}
+
+        const updatedMessages = [...messages];
+        updatedMessages[index] = { ...updatedMessages[index], is_remembered: isRemembered };
+        set({ messages: updatedMessages });
+      },
+
       // 清空消息
       clearMessages: () => {
         set({
@@ -562,8 +576,8 @@ export const useConversationStore = create<ConversationState>()(
       updateMemory: async (projectId, deviceKey, name, request) => {
         await conversationApi.updateMemory(projectId, deviceKey, name, request);
       },
-      deleteMemory: async (projectId, deviceKey, name) => {
-        await conversationApi.deleteMemory(projectId, deviceKey, name);
+      deleteMemory: async (projectId, deviceKey, name, messageId) => {
+        await conversationApi.deleteMemory(projectId, deviceKey, name, messageId);
       },
 
       // 置顶/取消置顶会话

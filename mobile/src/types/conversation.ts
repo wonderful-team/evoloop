@@ -61,7 +61,7 @@ export interface ChatMessage {
   /** 工具调用 ID */
   tool_call_id?: string;
   /** 工具元信息：display_name 等前端展示数据 */
-  tool_meta?: { display_name?: string; affected_path_keys?: string[] };
+  tool_meta?: { display_name?: string; affected_path_keys?: string[]; affected_paths?: string[] };
   /** AI 发出的工具调用列表 */
   tool_calls?: Array<Record<string, any>>;
   /** 消息分类标签 (MessageCategory.value) */

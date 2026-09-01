@@ -5,6 +5,7 @@ import { ProjectManager } from '@/services/projects/ProjectManager';
 import { useProjectStore } from '@/stores/projectStore';
 import { useDeviceStore } from '@/stores/deviceStore';
 import { useConversationStore } from '@/stores/conversationStore';
+import { useGateway } from '@/hooks/useGateway';
 import { GLOBAL_PROJECT } from '@/types';
 
 interface UseProjectsOptions {
@@ -16,6 +17,23 @@ export function useProjects(options: UseProjectsOptions = {}) {
   const store = useProjectStore();
   const deviceKey = useDeviceStore((state) => state.currentDevice?.deviceKey);
   const { projects, currentProject, isGlobalMode, isLoading, error } = store;
+
+  // 监听后端推送的当前项目（SharedState SSOT，经 Gateway WS）
+  useGateway({
+    autoConnect: autoFetch,
+    onMessage: (message: any) => {
+      try {
+        if (message?.type === 'system.state_changed' && message?.data) {
+          const body = message.data as { key?: string; value?: string };
+          if (body.key === 'project_id') {
+            ProjectManager.applyProjectFromBackend(body.value);
+          }
+        }
+      } catch (e) {
+        console.error('[useProjects] 处理后端项目状态失败:', e);
+      }
+    },
+  });
 
   // 自动获取项目列表
   useEffect(() => {

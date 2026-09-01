@@ -4,7 +4,13 @@ import {
   DialogContent,
   DialogTitle,
 } from "@evoloop/shared/components/ui/dialog"
-import { FileText, Loader2, Music, X } from "lucide-react"
+import {
+  Clapperboard,
+  FileText,
+  Loader2,
+  Music,
+  X,
+} from "lucide-react"
 import { memo, useCallback, useDeferredValue, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown"
@@ -12,7 +18,7 @@ import ReactMarkdown, { defaultUrlTransform } from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { Mermaid } from "@/components/Common/Mermaid"
 import { openExternalLink, previewFile } from "@/utils/fileLinkHandler"
-import { resolveHrefPreview } from "@/utils/fileUtils"
+import { resolveHrefPreview, resolveLocalFileSrc } from "@/utils/fileUtils"
 import { EChartsArtifact } from "./Artifacts/EChartsArtifact"
 import { extractArtifactsFromContent } from "./Artifacts/utils"
 import { ChangesetSnapshot } from "./ChangesetSnapshotView"
@@ -38,7 +44,7 @@ function ImageViewer({
         </DialogTitle>
         <div className="relative w-full h-full flex items-center justify-center p-2">
           <img
-            src={src}
+            src={resolveLocalFileSrc(src)}
             alt={t("common.fullView")}
             className="max-w-full max-h-full object-contain"
           />
@@ -140,20 +146,25 @@ export const MessageContent = memo(
           if (!textContent) return null
 
           const subParts = textContent.split(
-            /(\[(?:Image|File|Audio):\s*[^\]]+\]\([^)]+\)|\[(?:Image|File|Audio):\s*[^\]]+\])/g,
+            /(\[(?:Image|File|Audio|Video):\s*[^\]]+\]\([^)]+\)|\[(?:Image|File|Audio|Video):\s*[^\]]+\])/g,
           )
 
           return (
             <div key={pIdx} className="flex flex-col gap-2">
               {subParts.map((subPart, index) => {
-                const imageMatch = subPart.match(/^\[Image:\s*([^\]]+)\]$/)
+                const imageMatch = subPart.match(
+                  /^\[Image:\s*([^\]]+)\](?:\(([^)]+)\))?$/,
+                )
                 const fileMatch = subPart.match(/^\[File:\s*([^\]]+)\]$/)
                 const audioMatch = subPart.match(
                   /^\[Audio:\s*([^\]]+)\](?:\(([^)]+)\))?$/,
                 )
+                const videoMatch = subPart.match(
+                  /^\[Video:\s*([^\]]+)\](?:\(([^)]+)\))?$/,
+                )
 
                 if (imageMatch) {
-                  const url = imageMatch[1]
+                  const url = imageMatch[2] || imageMatch[1]
                   return (
                     <div key={index} className="my-2">
                       <button
@@ -162,7 +173,7 @@ export const MessageContent = memo(
                         onClick={() => setViewerImage(url)}
                       >
                         <img
-                          src={url}
+                          src={resolveLocalFileSrc(url)}
                           alt={t("chat.messageList.userUpload")}
                           className="w-full h-full object-cover"
                         />
@@ -218,6 +229,33 @@ export const MessageContent = memo(
                           >
                             {t("chat.messageList.audioNotSupported")}
                           </audio>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                }
+
+                if (videoMatch) {
+                  const name = videoMatch[1]
+                  const url = videoMatch[2] || videoMatch[1]
+                  return (
+                    <div key={index} className="my-2">
+                      <div className="inline-flex items-center gap-3 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg max-w-full">
+                        <div className="bg-blue-500/20 p-2 rounded-md shrink-0">
+                          <Clapperboard className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                        </div>
+                        <div className="flex flex-col min-w-0 flex-1">
+                          <span className="text-sm font-medium text-blue-800 dark:text-blue-200 truncate">
+                            {name}
+                          </span>
+                          <video
+                            controls
+                            src={resolveLocalFileSrc(url)}
+                            className="max-w-[320px] rounded-lg border bg-black mt-1"
+                            preload="metadata"
+                          >
+                            {t("chat.messageList.videoNotSupported")}
+                          </video>
                         </div>
                       </div>
                     </div>
@@ -448,7 +486,7 @@ export const MessageContent = memo(
                       img: ({ src, alt }) =>
                         src ? (
                           <img
-                            src={src}
+                            src={resolveLocalFileSrc(src)}
                             alt={alt}
                             className="max-w-full rounded-lg my-2"
                           />

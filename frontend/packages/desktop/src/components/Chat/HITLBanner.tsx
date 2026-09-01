@@ -2,6 +2,7 @@ import { cn } from "@evoloop/shared/lib/utils"
 import { AlertCircle } from "lucide-react"
 import { memo } from "react"
 import { useTranslation } from "react-i18next"
+import { HITL_STATUS } from "@/stores/agent/hitlConstants"
 import { useAgentStore } from "@/stores/agentStore"
 
 /**
@@ -14,7 +15,7 @@ export const HITLBanner = memo(() => {
   const humanRequest = useAgentStore((s) => s.humanRequest)
 
   // Only show when interrupted with a human request
-  const isVisible = status === "interrupted" && humanRequest !== null
+  const isVisible = status === HITL_STATUS.interrupted && humanRequest !== null
 
   if (!isVisible) return null
 

@@ -11,6 +11,7 @@ import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { ProjectSwitcher } from "@/components/Sidebar/ProjectSwitcher"
 import { useAgentStore } from "@/stores/agentStore"
+import { HITL_STATUS } from "@/stores/agent/hitlConstants"
 import { type Project, useProjectStore } from "@/stores/projectStore"
 import { MessageContent } from "./MessageContent"
 
@@ -54,10 +55,13 @@ export function HumanRequestCard({ request }: HumanRequestCardProps) {
   const [showProjectSwitcher, setShowProjectSwitcher] = useState(false)
   const [selectedProject, setSelectedProject] = useState<Project | null>(null)
 
-  const handleResponse = async (response: string) => {
+  const handleResponse = async (
+    response: string,
+    grantMode?: "once" | "always" | "default",
+  ) => {
     setIsSubmitting(true)
     try {
-      await resumeAgent(response)
+      await resumeAgent(response, grantMode)
     } finally {
       setIsSubmitting(false)
     }
@@ -318,7 +322,7 @@ export function HumanRequestCard({ request }: HumanRequestCardProps) {
 
           {/* Action Footer - Only show if pending */}
           <div className="flex justify-end items-center gap-3 border-t border-border/30 pt-2 mt-2">
-            {!request.status || request.status === "waiting_human" ? (
+            {!request.status || request.status === HITL_STATUS.waitingHuman ? (
               <>
                 <Button
                   variant="ghost"
@@ -377,7 +381,13 @@ export function HumanRequestCard({ request }: HumanRequestCardProps) {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleResponse("no")}
+                        onClick={() =>
+                          handleResponse(
+                            request.type === "approval"
+                              ? t("common.reject")
+                              : t("common.no"),
+                          )
+                        }
                         disabled={isSubmitting}
                         className="h-8 rounded-full px-5 border-destructive/20 text-destructive hover:bg-destructive/5 font-bold text-xs"
                       >
@@ -386,17 +396,43 @@ export function HumanRequestCard({ request }: HumanRequestCardProps) {
                           ? t("common.reject")
                           : t("common.no")}
                       </Button>
-                      <Button
-                        size="sm"
-                        onClick={() => handleResponse("yes")}
-                        disabled={isSubmitting}
-                        className="h-8 rounded-full px-5 font-bold text-xs"
-                      >
-                        <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
-                        {request.type === "approval"
-                          ? t("common.approve")
-                          : t("common.yes")}
-                      </Button>
+                      {request.type === "approval" ? (
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              handleResponse(t("common.approve"), "once")
+                            }
+                            disabled={isSubmitting}
+                            className="h-8 rounded-full px-5 font-bold text-xs"
+                          >
+                            <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
+                            {t("hitl.approveOnce")}
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() =>
+                              handleResponse(t("common.approve"), "always")
+                            }
+                            disabled={isSubmitting}
+                            className="h-8 rounded-full px-5 font-bold text-xs"
+                          >
+                            <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
+                            {t("hitl.approveAlways")}
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          size="sm"
+                          onClick={() => handleResponse(t("common.yes"))}
+                          disabled={isSubmitting}
+                          className="h-8 rounded-full px-5 font-bold text-xs"
+                        >
+                          <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
+                          {t("common.yes")}
+                        </Button>
+                      )}
                     </>
                   )}
                 </div>

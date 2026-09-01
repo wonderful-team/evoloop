@@ -366,6 +366,7 @@
     "llmAuthErrorDesc": "API 密钥无效或已过期，请检查 LLM 设置",
     "messageList": {
       "audioNotSupported": "不支持音频播放",
+      "videoNotSupported": "不支持视频播放",
       "clickToOpen": "点击打开",
       "copy": "复制",
       "preview": "预览",
@@ -499,12 +500,7 @@
       "working": "工作中..."
     },
     "runningTasks": {
-      "openTerminalTitle": "打开终端 – {{title}}",
-      "terminalModeActive": "终端模式已激活",
-      "switchToChat": "切换到聊天视图",
-      "switchToTerminal": "切换到终端视图",
-      "exit": "退出",
-      "terminalIcon": ">_"
+      "openTerminalTitle": "打开终端 – {{title}}"
     },
     "stepGroupsCount": "{{count}} 轮执行",
     "steps": {
@@ -589,7 +585,39 @@
     },
     "toolMessage": {
       "fallbackName": "工具"
-    }
+    },
+    "subagentsTitle": "并行子任务",
+    "noSubagents": "无并行子任务",
+    "subagentRunning": "运行中",
+    "subagentCompleted": "已完成",
+    "subagentFailed": "失败",
+    "subagentCancelled": "已取消",
+    "subagentActive": "并行执行中",
+    "tabChat": "聊天",
+    "tabSubagentDetail": "子任务详情",
+    "subagentDetailTask": "子任务描述",
+    "subagentDetailResult": "执行结果",
+    "subagentDetailError": "错误信息",
+    "subagentDetailMeta": "标识",
+    "subagentDetailEmpty": "未找到子任务详情",
+    "subagentDetailClose": "关闭",
+    "subagentDetailBack": "返回",
+    "a2aTitle": "A2A 委派",
+    "noA2ADelegations": "无远程委派",
+    "a2aWaitingCallback": "等待回调",
+    "a2aCompleted": "已完成",
+    "a2aFailed": "失败",
+    "a2aTimeout": "超时",
+    "a2aCancelled": "已取消",
+    "a2aActive": "委派执行中",
+    "tabA2ADetail": "A2A 委派详情",
+    "a2aDetailTask": "委派指令",
+    "a2aDetailResult": "回调结果",
+    "a2aDetailError": "错误信息",
+    "a2aDetailDevice": "目标设备",
+    "a2aDetailEmpty": "未找到委派详情",
+    "a2aDetailClose": "关闭",
+    "a2aDetailBack": "返回"
   },
   "common": {
     "actions": "操作",
@@ -2549,7 +2577,8 @@
       "custom": "自定义键值字典",
       "env": "环境变量 (.env)",
       "password": "用户名和密码",
-      "ssh": "SSH 服务器（主机、端口、用户、密钥/密码）"
+      "ssh": "SSH 服务器（主机、端口、用户、密钥/密码）",
+      "website": "网站账号"
     },
     "view": {
       "title": "查看凭证",
@@ -2589,6 +2618,8 @@
     "localInjection": "本地组件注入",
     "hitl": {
       "approval": "审批",
+      "approveOnce": "仅本次",
+      "approveAlways": "总是允许",
       "confirmation": "确认",
       "choice": "选择",
       "text": "输入",
@@ -2621,5 +2652,9 @@
   "agentStop": {
     "stopped": "已停止所有 Agent 活动",
     "failed": "停止失败，请重试"
+  },
+  "hitl": {
+    "approveOnce": "仅本次",
+    "approveAlways": "总是允许"
   }
 }

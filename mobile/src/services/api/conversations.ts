@@ -331,6 +331,7 @@ export async function deleteMemory(
   projectId: number,
   deviceKey: string,
   name: string,
+  messageId?: string,
 ): Promise<void> {
   const envelope = {
     version: '2.0',
@@ -341,7 +342,10 @@ export async function deleteMemory(
     body: {
       action: 'memory_delete',
       project_id: projectId,
-      content: { name },
+      content: {
+        name,
+        source_message_id: messageId,
+      },
     },
   };
   const response = await api.post('/gateway/api/v1/message/send', {

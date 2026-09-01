@@ -23,6 +23,7 @@ export interface ToolStep {
   tool_meta?: {
     display_name?: string
     affected_path_keys?: string[]
+    affected_paths?: string[]
   }
 }
 

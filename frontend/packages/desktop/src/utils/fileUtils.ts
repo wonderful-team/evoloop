@@ -1,4 +1,5 @@
 import type { MessageReference } from "@/components/Chat/ChatMessageItem"
+import { OpenAPI } from "@/client"
 
 export function isAbsolutePath(path: string): boolean {
   return (
@@ -12,6 +13,19 @@ export function getFileName(path: string): string {
 
 export function cleanFileUrl(href: string): string {
   return href.replace(/^file:\/\//, "")
+}
+
+/**
+ * Resolve a local file reference to a renderable <img src>.
+ *
+ * Raw `file://` URLs are blocked by browsers (and Tauri's asset protocol does
+ * not cover arbitrary project paths), so we proxy through the backend
+ * `/api/v1/files/raw` endpoint — which enforces the same allowed-root security
+ * boundary as the Agent tools (WORKSPACE_ROOT, ~/.evoloop, uploads).
+ */
+export function resolveLocalFileSrc(src: string): string {
+  if (!src.startsWith("file://")) return src
+  return getRawFileUrl(cleanFileUrl(src), undefined, OpenAPI.BASE)
 }
 
 export function getRawFileUrl(

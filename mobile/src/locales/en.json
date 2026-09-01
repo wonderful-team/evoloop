@@ -98,6 +98,8 @@
     "learnFromConversation": "Remember",
     "addedToMemory": "Remembered",
     "addMemoryFailed": "Failed to remember: ",
+    "removedFromMemory": "Removed from memory",
+    "removeMemoryFailed": "Failed to remove from memory: ",
     "fallbackMessage": "Message",
     "selectDevice": "Select Device",
     "guestMode": "Guest Mode - Tap to login",

@@ -98,6 +98,8 @@
     "learnFromConversation": "从对话学习",
     "addedToMemory": "已记住",
     "addMemoryFailed": "记住失败：",
+    "removedFromMemory": "已移除记忆",
+    "removeMemoryFailed": "移除记忆失败：",
     "fallbackMessage": "消息",
     "selectDevice": "选择设备",
     "guestMode": "游客模式 - 点击登录",

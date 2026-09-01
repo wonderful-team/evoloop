@@ -32,6 +32,8 @@ interface MessageListProps {
     diff?: string,
   ) => void
   footer?: React.ReactNode
+  /** Render these messages instead of the session's (e.g. subagent detail view) */
+  overrideMessages?: Message[]
 }
 
 type RenderItem =
@@ -235,12 +237,16 @@ export const MessageList = memo(function MessageList({
   onQuote,
   onViewChangeset,
   footer,
+  overrideMessages,
 }: MessageListProps) {
   const { t } = useTranslation()
-  const messages = useChatStore((s) => s.messages)
-  const hasMoreHistory = useChatStore((s) => s.hasMoreHistory)
-  const isLoadingHistory = useChatStore((s) => s.isLoadingHistory)
+  const storeMessages = useChatStore((s) => s.messages)
+  const storeHasMoreHistory = useChatStore((s) => s.hasMoreHistory)
+  const storeIsLoadingHistory = useChatStore((s) => s.isLoadingHistory)
   const loadMoreHistory = useChatStore((s) => s.loadMoreHistory)
+  const messages = overrideMessages ?? storeMessages
+  const hasMoreHistory = overrideMessages ? false : storeHasMoreHistory
+  const isLoadingHistory = overrideMessages ? false : storeIsLoadingHistory
   const scrollerRef = useRef<HTMLElement | null>(null)
   const virtuosoRef = useRef<VirtuosoHandle>(null)
   // Use refs to avoid stale closures in Virtuoso callbacks
@@ -712,41 +718,41 @@ export const MessageList = memo(function MessageList({
       .filter(Boolean) as VirtItem[]
   }, [renderItems, messages.length])
 
-  // Pin-to-bottom driven by the LAST RENDERED item's signature.
+  // Pin-to-bottom driven by the LAST RENDERED item.
   //
-  // Why the rendered tail and not just the last raw message:
+  // Why a sticky-scroll on the raw scroller instead of Virtuoso's followOutput:
   //  - SSE tokens grow the last AI message in-place (array length unchanged),
   //    so Virtuoso's followOutput (length-only) never fires -> we re-pin here.
-  //  - When the tail is a "turn_steps_group", its fold/unfold (isTurnActive)
-  //    changes height without changing any single message's content. Including
-  //    isTurnActive + step count lets a fold after a retry also re-pin, instead
-  //    of leaving the scrollbar bounced up over the retried message.
-  // We only scroll when atBottomRef (Virtuoso's own at-bottom state) is true,
-  // so an up-scrolled user is never yanked to the bottom.
-  const lastTailSigRef = useRef<string | null>(null)
+  //  - Tool steps grow the tail "turn_steps_group" in place the same way, but
+  //    a signature like `content.length` misses them (flat rows, static content).
+  //  - scrollToIndex("LAST") computes its target from Virtuoso's internal size
+  //    cache, which is updated asynchronously (ResizeObserver). Right after a
+  //    step is appended the cache is stale, so the computed target equals the
+  //    current scrollTop -> the single re-pin is a no-op and the new step ends
+  //    up cut off at the bottom. Reading the real DOM scrollHeight instead is
+  //    self-correcting for any growth (AI content, tool steps, meta_data, etc.).
+  // We only pin while the user has not deliberately scrolled up, so an
+  // up-scrolled user is never yanked to the bottom.
   useLayoutEffect(() => {
     if (virtItems.length === 0) return
-    const tail = virtItems[virtItems.length - 1]
-    let sig: string
-    if (tail.type === "turn_steps_group") {
-      const lastStep = tail.steps ? tail.steps[tail.steps.length - 1] : null
-      sig = `g|${tail.isTurnActive}|${tail.steps?.length ?? 0}|${
-        lastStep ? (lastStep.content || "").length : 0
-      }`
-    } else {
-      const d = tail.data as any
-      sig = `m|${String(d?.id ?? "")}|${(d?.content || "").length}`
+    if (userScrolledUpRef.current) return
+    const el = scrollerRef.current
+    if (!el) return
+    const pin = () => {
+      if (userScrolledUpRef.current) return
+      const tail = virtItems[virtItems.length - 1]
+      // TEMP DEBUG: verify tool steps land at the bottom (remove after check)
+      console.debug("[ScrollPin]", {
+        tail: tail.type,
+        steps:
+          tail.type === "turn_steps_group" ? tail.steps?.length : undefined,
+        delta: el.scrollHeight - el.clientHeight - el.scrollTop,
+      })
+      el.scrollTop = el.scrollHeight
     }
-    if (sig !== lastTailSigRef.current) {
-      lastTailSigRef.current = sig
-      if (!userScrolledUpRef.current) {
-        virtuosoRef.current?.scrollToIndex({
-          index: "LAST",
-          align: "end",
-          behavior: "auto",
-        })
-      }
-    }
+    pin()
+    // rAF fallback: catch late DOM growth (async step mount, etc.)
+    requestAnimationFrame(pin)
   }, [virtItems])
 
   const virtuosoContext = useMemo(

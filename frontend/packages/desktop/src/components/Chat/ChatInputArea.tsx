@@ -16,7 +16,6 @@ import {
 import { cn } from "@evoloop/shared/lib/utils"
 import {
   BookOpen,
-  Clock,
   Ear,
   FileText,
   Loader2,
@@ -34,9 +33,7 @@ import {
   forwardRef,
   memo,
   useCallback,
-  useEffect,
   useImperativeHandle,
-  useMemo,
   useRef,
   useState,
 } from "react"
@@ -47,7 +44,6 @@ import { SkillLibraryDialog } from "@/components/Learning/SkillLibraryDialog"
 import { useAutoSpeak } from "@/hooks/useTTS"
 import { useWakeWord, useWakeWordSettings } from "@/hooks/useWakeWord"
 import { isTauri, safeInvoke } from "@/lib/tauri"
-import type { ActiveTaskInfo } from "@/stores/chat/types"
 import { useChatStore } from "@/stores/chatStore"
 import { useVoiceStore } from "@/stores/voiceStore"
 import { FilePreview, type PickedFile } from "./FilePreview"
@@ -58,36 +54,6 @@ import {
   ReferencePicker,
   type ReferencePickerHandle,
 } from "./ReferencePicker"
-
-function TaskPill({
-  task,
-  onClick,
-}: {
-  task: ActiveTaskInfo
-  onClick: () => void
-}) {
-  const { t } = useTranslation()
-  const isRunning = task.status === "running"
-  const label =
-    task.title.length > 30
-      ? `${task.title.slice(0, 27)}${t("common.ellipsis")}`
-      : task.title
-
-  return (
-    <button
-      onClick={onClick}
-      className="group flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-mono transition-all bg-background/80 border border-border/80 text-foreground shadow-2xs hover:border-primary hover:bg-muted/60 focus:outline-none focus-visible:ring-1 focus-visible:ring-primary shrink-0 cursor-pointer"
-      title={t("chat.interface.openTerminal", { title: task.title })}
-    >
-      {isRunning ? (
-        <Loader2 className="h-3 w-3 animate-spin text-green-500 flex-shrink-0" />
-      ) : (
-        <Clock className="h-3 w-3 text-amber-500 flex-shrink-0" />
-      )}
-      <span className="max-w-[120px] truncate">{label}</span>
-    </button>
-  )
-}
 
 interface ChatInputAreaProps {
   onSend: (text: string, pickedFiles?: any[]) => void
@@ -126,8 +92,6 @@ export const ChatInputArea = memo(
       const { t } = useTranslation()
       const isTerminalMode = useChatStore((s) => s.isTerminalMode)
       const setTerminalMode = useChatStore((s) => s.setTerminalMode)
-      const activeTasks = useChatStore((s) => s.activeTasks)
-      const tasks = useMemo(() => Object.values(activeTasks), [activeTasks])
       const [inputValue, setInputValue] = useState("")
       const [isUploading, setIsUploading] = useState(false)
       const [pickedFiles, setPickedFiles] = useState<PickedFile[]>([])
@@ -625,13 +589,6 @@ export const ChatInputArea = memo(
                       <span>{t("chat.interface.terminalMode")}</span>
                       <X className="h-3.5 w-3.5 ml-0.5 opacity-60 group-hover:opacity-100 transition-opacity" />
                     </button>
-                    {tasks.map((task) => (
-                      <TaskPill
-                        key={task.task_id}
-                        task={task}
-                        onClick={() => setTerminalMode(true)}
-                      />
-                    ))}
                   </div>
                 ) : (
                   <>
@@ -693,13 +650,6 @@ export const ChatInputArea = memo(
                       >
                         <Terminal size={16} />
                       </Button>
-                      {tasks.map((task) => (
-                        <TaskPill
-                          key={task.task_id}
-                          task={task}
-                          onClick={() => setTerminalMode(true)}
-                        />
-                      ))}
                     </div>
                   </>
                 )}

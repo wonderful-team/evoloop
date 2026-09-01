@@ -48,7 +48,13 @@ function formatToolInput(
     return { label: t("chat.process.param"), value: data }
   }
 
-  // 1. Use backend-provided affected_path_keys
+  // 1. 优先用后端解析出的实际受影响路径（覆盖 affected_path_keys 与
+  //    execute_command 的 affected_path_extractor），前端不依赖原始 keys 契约。
+  if (toolMeta?.affected_paths?.length > 0) {
+    return { label: t("chat.process.path"), value: String(toolMeta.affected_paths[0]) }
+  }
+
+  // 2. Backward compat: backend-provided affected_path_keys
   if (toolMeta?.affected_path_keys?.length > 0) {
     for (const key of toolMeta.affected_path_keys) {
       if (data[key] != null && data[key] !== "") {
@@ -60,7 +66,7 @@ function formatToolInput(
     }
   }
 
-  // 2. Generic fallback - show first meaningful field
+  // 3. Generic fallback - show first meaningful field
   const skipFields = ["Mode", "TaskName", "TaskStatus"]
   for (const [key, val] of Object.entries(data)) {
     if (skipFields.includes(key)) continue

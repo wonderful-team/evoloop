@@ -14,19 +14,24 @@ import {
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query"
+import { ArrowLeft } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { AgentService, ConversationsService, MemoryService } from "@/client"
 import { isLoggedIn } from "@/hooks/useAuth"
 import { useSystemEvent } from "@/hooks/useSystemEvent"
+import type { SystemEvent } from "@/lib/SystemSSEClient"
+import { HITL_STATUS } from "@/stores/agent/hitlConstants"
 import { useAgentStore } from "@/stores/agentStore"
 import { useChangesetStore } from "@/stores/changesetStore"
 import { useChatStore } from "@/stores/chatStore"
 import { useProjectStore } from "@/stores/projectStore"
 import { useUIStore } from "@/stores/uiStore"
+import { useUnreadCompletionsStore } from "@/stores/unreadCompletionsStore"
 import { BreadcrumbStatus } from "./BreadcrumbStatus"
 import { ChatInputArea, type ChatInputAreaHandle } from "./ChatInputArea"
+import type { Message } from "./ChatMessageItem"
 import { ChatSidebar, type Thread } from "./ChatSidebar"
 import { ContextPanel } from "./ContextPanel"
 import { DebugManager } from "./DebugManager"
@@ -37,7 +42,16 @@ import { MessageList } from "./MessageList"
 import { QuotaExhaustedBanner } from "./QuotaExhaustedBanner"
 import { QuotaExhaustedCard } from "./QuotaExhaustedCard"
 import { RewindConfirmDialog } from "./RewindConfirmDialog"
+import { RunningTasksDock } from "./RunningTasksDock"
 import { TerminalCanvas } from "./TerminalCanvas"
+
+// 会话"已完成"的终态集合（后端 run_end / conversation.updated 携带的 status）
+const TERMINAL_STATUSES = [
+  HITL_STATUS.done,
+  HITL_STATUS.failed,
+  HITL_STATUS.cancelled,
+  HITL_STATUS.completed,
+]
 
 export function ChatInterface() {
   // --- Store State (selective subscriptions to avoid unnecessary re-renders) ---
@@ -52,6 +66,8 @@ export function ChatInterface() {
   const status = useAgentStore((s) => s.status)
   const humanRequest = useAgentStore((s) => s.humanRequest)
   const stopAgent = useAgentStore((s) => s.stopAgent)
+  const activeSubagentDetail = useAgentStore((s) => s.activeSubagentDetail)
+  const activeA2ADetail = useAgentStore((s) => s.activeA2ADetail)
   const markChangeAsViewed = useChangesetStore((s) => s.markChangeAsViewed)
   const markAllChangesAsViewed = useChangesetStore(
     (s) => s.markAllChangesAsViewed,
@@ -62,6 +78,100 @@ export function ChatInterface() {
   const currentProject = useProjectStore((s) => s.currentProject)
   const isGlobalMode = useProjectStore((s) => s.isGlobalMode)
   const queryClient = useQueryClient()
+
+  // --- Main area tabs: chat | subagent detail | a2a detail ---
+  const [mainTab, setMainTab] = useState<"chat" | "subagent" | "a2a">("chat")
+  useEffect(() => {
+    if (activeSubagentDetail) setMainTab("subagent")
+  }, [activeSubagentDetail])
+  useEffect(() => {
+    if (activeA2ADetail) setMainTab("a2a")
+  }, [activeA2ADetail])
+
+  // Leaving to another conversation exits subagent/a2a detail mode.
+  useEffect(() => {
+    setMainTab("chat")
+    useAgentStore.getState()._closeSubagentDetail()
+    useAgentStore.getState()._closeA2ADetail()
+  }, [activeThreadId])
+
+  const subagents = useAgentStore((s) => s.subagents)
+  const activeSubagent = useMemo(
+    () => subagents.find((s) => s.subagent_thread_id === activeSubagentDetail),
+    [subagents, activeSubagentDetail],
+  )
+  // Render the subagent detail as a message list inside the chat main area.
+  const subagentMessages = useMemo<Message[]>(() => {
+    if (!activeSubagent) return []
+    const msgs: Message[] = []
+    if (activeSubagent.instruction) {
+      msgs.push({
+        id: `${activeSubagent.subagent_thread_id}-task`,
+        role: "human",
+        content: activeSubagent.instruction,
+        timestamp: new Date().toISOString(),
+        status: "completed",
+      })
+    }
+    if (activeSubagent.result) {
+      msgs.push({
+        id: `${activeSubagent.subagent_thread_id}-result`,
+        role: "ai",
+        content: activeSubagent.result,
+        timestamp: new Date().toISOString(),
+        status: "completed",
+      })
+    }
+    if (activeSubagent.error) {
+      msgs.push({
+        id: `${activeSubagent.subagent_thread_id}-error`,
+        role: "ai",
+        content: `❌ ${activeSubagent.error}`,
+        timestamp: new Date().toISOString(),
+        status: "failed",
+      })
+    }
+    return msgs
+  }, [activeSubagent])
+
+  const a2aDelegations = useAgentStore((s) => s.a2aDelegations)
+  const activeA2A = useMemo(
+    () => a2aDelegations.find((d) => d.task_id === activeA2ADetail),
+    [a2aDelegations, activeA2ADetail],
+  )
+  // Render the A2A delegation detail (instruction + remote result) in the main area.
+  const a2aMessages = useMemo<Message[]>(() => {
+    if (!activeA2A) return []
+    const msgs: Message[] = []
+    if (activeA2A.instruction) {
+      msgs.push({
+        id: `${activeA2A.task_id}-task`,
+        role: "human",
+        content: activeA2A.instruction,
+        timestamp: new Date().toISOString(),
+        status: "completed",
+      })
+    }
+    if (activeA2A.result) {
+      msgs.push({
+        id: `${activeA2A.task_id}-result`,
+        role: "ai",
+        content: activeA2A.result,
+        timestamp: new Date().toISOString(),
+        status: "completed",
+      })
+    }
+    if (activeA2A.error) {
+      msgs.push({
+        id: `${activeA2A.task_id}-error`,
+        role: "ai",
+        content: `❌ ${activeA2A.error}`,
+        timestamp: new Date().toISOString(),
+        status: "failed",
+      })
+    }
+    return msgs
+  }, [activeA2A])
 
   // --- UI State ---
   const [isRewindDialogOpen, setIsRewindDialogOpen] = useState(false)
@@ -182,9 +292,18 @@ export function ChatInterface() {
     queryClient.invalidateQueries({ queryKey: ["projectConversations"] })
   }, [queryClient])
 
-  const handleConversationUpdated = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ["projectConversations"] })
-  }, [queryClient])
+  const handleConversationUpdated = useCallback(
+    (event: SystemEvent) => {
+      queryClient.invalidateQueries({ queryKey: ["projectConversations"] })
+      // 会话已完成（后端带终态 status）且不是当前激活会话 → 打"已完成"未读点
+      const tid = event?.thread_id
+      const status = event?.data?.status
+      if (tid && TERMINAL_STATUSES.includes(status) && tid !== activeThreadId) {
+        useUnreadCompletionsStore.getState().markUnread(tid)
+      }
+    },
+    [queryClient, activeThreadId],
+  )
 
   useSystemEvent("conversation.created", handleConversationCreated)
   useSystemEvent("conversation.updated", handleConversationUpdated)
@@ -204,6 +323,10 @@ export function ChatInterface() {
     // Init Store - allow global mode (projectId can be 0)
     if (projectId !== undefined) {
       setThread(initId, projectId)
+      // 首次进入会话（URL 直达）也清除"已完成"未读点
+      if (initId) {
+        useUnreadCompletionsStore.getState().clearUnread(initId)
+      }
       // Small delay to ensure thread is set before sending
       if (pendingMessage) {
         // Clear URL params to prevent re-sending on refresh (Partial clear, wait for quote?)
@@ -597,6 +720,8 @@ export function ChatInterface() {
 
   const handleSetActiveThreadId = useCallback(
     (id: string) => {
+      // 切进会话即清除"已完成"未读点
+      useUnreadCompletionsStore.getState().clearUnread(id)
       if (projectId !== undefined) setThread(id, projectId)
     },
     [projectId, setThread],
@@ -667,7 +792,7 @@ export function ChatInterface() {
 
   // Auto-focus input when agent finishes
   useEffect(() => {
-    if (status === "idle" || status === "interrupted") {
+    if (status === HITL_STATUS.idle || status === HITL_STATUS.interrupted) {
       chatInputRef.current?.focus()
     }
   }, [status])
@@ -796,47 +921,130 @@ export function ChatInterface() {
             <QuotaExhaustedBanner />
 
             <div
-              className="flex-1 min-h-0 min-w-0 w-full"
+              className="flex-1 min-h-0 min-w-0 w-full flex flex-col"
               data-tour="chat-messages"
             >
               {isTerminalMode ? (
                 <TerminalCanvas />
               ) : (
-                <MessageList
-                  onAddToMemory={handleAddToMemory}
-                  onRewind={handleRewind}
-                  onRetry={handleRetry}
-                  onQuote={handleQuoteMessage}
-                  onViewChangeset={handleViewChangeset}
-                  footer={
-                    <>
-                      {status === "interrupted" && humanRequest && (
-                        <HumanRequestCard request={humanRequest} />
-                      )}
-                      {status === "quota_exhausted" && <QuotaExhaustedCard />}
-                    </>
-                  }
-                />
+                <>
+                  {activeSubagentDetail && (
+                    <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border bg-muted/20 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMainTab("chat")
+                          useAgentStore.getState()._closeSubagentDetail()
+                        }}
+                        className="flex items-center gap-1 text-[11px] px-2 py-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                      >
+                        <ArrowLeft className="h-3.5 w-3.5" />
+                        {t("chat.subagentDetailBack")}
+                      </button>
+                      <span className="text-[11px] font-semibold text-muted-foreground">
+                        {t("chat.tabSubagentDetail")}
+                      </span>
+                    </div>
+                  )}
+                  <div
+                    className={`flex-1 min-h-0 min-w-0 ${
+                      mainTab === "chat" ? "" : "hidden"
+                    }`}
+                  >
+                    <MessageList
+                      onAddToMemory={handleAddToMemory}
+                      onRewind={handleRewind}
+                      onRetry={handleRetry}
+                      onQuote={handleQuoteMessage}
+                      onViewChangeset={handleViewChangeset}
+                      footer={
+                        <>
+                          {status === HITL_STATUS.interrupted &&
+                            humanRequest && (
+                              <HumanRequestCard request={humanRequest} />
+                            )}
+                          {status === "quota_exhausted" && (
+                            <QuotaExhaustedCard />
+                          )}
+                        </>
+                      }
+                    />
+                  </div>
+                  <div
+                    className={`flex-1 min-h-0 min-w-0 ${
+                      mainTab === "subagent" ? "" : "hidden"
+                    }`}
+                  >
+                    <MessageList
+                      overrideMessages={subagentMessages}
+                      onAddToMemory={handleAddToMemory}
+                      onRewind={handleRewind}
+                      onRetry={handleRetry}
+                      onQuote={handleQuoteMessage}
+                      onViewChangeset={handleViewChangeset}
+                      footer={null}
+                    />
+                  </div>
+                  {activeA2ADetail && (
+                    <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border bg-muted/20 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMainTab("chat")
+                          useAgentStore.getState()._closeA2ADetail()
+                        }}
+                        className="flex items-center gap-1 text-[11px] px-2 py-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                      >
+                        <ArrowLeft className="h-3.5 w-3.5" />
+                        {t("chat.a2aDetailBack")}
+                      </button>
+                      <span className="text-[11px] font-semibold text-muted-foreground">
+                        {t("chat.tabA2ADetail")}
+                      </span>
+                    </div>
+                  )}
+                  <div
+                    className={`flex-1 min-h-0 min-w-0 ${
+                      mainTab === "a2a" ? "" : "hidden"
+                    }`}
+                  >
+                    <MessageList
+                      overrideMessages={a2aMessages}
+                      onAddToMemory={handleAddToMemory}
+                      onRewind={handleRewind}
+                      onRetry={handleRetry}
+                      onQuote={handleQuoteMessage}
+                      onViewChangeset={handleViewChangeset}
+                      footer={null}
+                    />
+                  </div>
+                </>
               )}
             </div>
 
             {/* Input Area */}
-            {status !== "interrupted" && status !== "quota_exhausted" && (
-              <ChatInputArea
-                ref={chatInputRef}
-                onSend={handleSendMessage}
-                onStop={stopAgent}
-                isAgentWorking={
-                  status === "running" || status === "summarizing"
-                }
-                isSending={false}
-                isStopPending={false}
-                currentProject={currentProject}
-                activeThreadId={activeThreadId || undefined}
-                disabled={status === "interrupted"}
-                isGlobalMode={isGlobalMode}
-              />
-            )}
+            {status !== HITL_STATUS.interrupted &&
+              status !== "quota_exhausted" &&
+              mainTab === "chat" && (
+                <>
+                  {/* 执行中的命令独立状态条（在工具条/输入框上方） */}
+                  <RunningTasksDock />
+                  <ChatInputArea
+                    ref={chatInputRef}
+                    onSend={handleSendMessage}
+                    onStop={stopAgent}
+                    isAgentWorking={
+                      status === "running" || status === "summarizing"
+                    }
+                    isSending={false}
+                    isStopPending={false}
+                    currentProject={currentProject}
+                    activeThreadId={activeThreadId || undefined}
+                    disabled={status === HITL_STATUS.interrupted}
+                    isGlobalMode={isGlobalMode}
+                  />
+                </>
+              )}
           </div>
         </ResizablePanel>
 

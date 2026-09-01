@@ -23,8 +23,14 @@ import { useChatStore } from "@/stores/chatStore"
 export function AgentStopManager() {
   const { t } = useTranslation()
 
+  // TEMP-DISABLED (2026-08-22): 暂时禁用"Esc×2 停止"触发（全局快捷键 + 窗口内键盘监听）。
+  // 原因：值守模式下双 Esc 会走无参 stopAllAgent → 后端 stop_global，误触即关停整个值守。
+  // 恢复：把以下两处 `if (!ESC_STOP_ENABLED) return` 去掉即可重新启用。
+  const ESC_STOP_ENABLED = false
+
   // 窗口内 Esc ×2 检测（主界面有焦点时生效）
   useEffect(() => {
+    if (!ESC_STOP_ENABLED) return
     let lastEsc = 0
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return
@@ -67,7 +73,7 @@ export function AgentStopManager() {
 
   // 启动 Rust 全局监听 + 监听全局触发事件
   useEffect(() => {
-    if (!isTauri()) return
+    if (!ESC_STOP_ENABLED || !isTauri()) return
     let active = true
     let unlistenFn: (() => void) | undefined
 

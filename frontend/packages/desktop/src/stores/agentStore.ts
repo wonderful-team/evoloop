@@ -6,6 +6,11 @@ import {
   appendMacroStep,
   macroThoughtText,
 } from "@/components/Learning/macroRun"
+import {
+  AGENT_IDLE_STATUSES,
+  HITL_ENDED_STATUSES,
+  HITL_PENDING_STATUSES,
+} from "./agent/hitlConstants"
 import type { AgentState } from "./agent/types"
 import { useChatStore } from "./chatStore"
 
@@ -24,6 +29,13 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   _thinkingBuffer: "",
   _flushTimeout: null,
   streamingSteps: [],
+
+  // --- Live subagent panel (started / completed / failed / cancelled) ---
+  subagents: [],
+  activeSubagentDetail: null,
+  // --- Live A2A delegation panel (started / completed / failed / timeout / cancelled) ---
+  a2aDelegations: [],
+  activeA2ADetail: null,
   macroSteps: [],
 
   isConnected: false,
@@ -83,11 +95,9 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   _setActivitySnapshot: (data) => {
     const newStatus = data.status || "unknown"
     let normalized = newStatus
-    if (["done", "failed", "cancelled"].includes(newStatus)) normalized = "idle"
+    if (HITL_ENDED_STATUSES.includes(newStatus)) normalized = "idle"
     else if (newStatus === "stopping") normalized = "stopped"
-    else if (
-      ["waiting_human", "human_interrupt", "interrupted"].includes(newStatus)
-    )
+    else if (HITL_PENDING_STATUSES.includes(newStatus))
       normalized = "interrupted"
 
     let humanReq = data.human_request || null
@@ -99,7 +109,16 @@ export const useAgentStore = create<AgentState>((set, get) => ({
           type: reqData.request_type,
         }
       }
-      humanReq = reqData
+      // Phase D: A2A 回调等待由"A2A 委派"面板呈现，不作为交互式 human request 卡片。
+      if (
+        reqData &&
+        (reqData.type === "a2a_callback" ||
+          reqData.request_type === "a2a_callback")
+      ) {
+        humanReq = null
+      } else {
+        humanReq = reqData
+      }
     }
 
     set({
@@ -108,6 +127,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       finalOutcome: data.final_outcome || null,
       activeMemories: data.active_memories || [],
       agentState: data.agent_state || null,
+      subagents: data.subagents || [],
       humanRequest: humanReq,
     })
 
@@ -134,10 +154,9 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     if (raw === "quota_exhausted") return set({ status: "quota_exhausted" })
 
     let normalized = raw
-    if (["done", "failed", "cancelled"].includes(raw)) normalized = "idle"
+    if (HITL_ENDED_STATUSES.includes(raw)) normalized = "idle"
     else if (raw === "stopping") normalized = "stopped"
-    else if (["waiting_human", "human_interrupt", "interrupted"].includes(raw))
-      normalized = "interrupted"
+    else if (HITL_PENDING_STATUSES.includes(raw)) normalized = "interrupted"
 
     const state = get()
     const updates: Partial<AgentState> = {
@@ -146,7 +165,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       agentState: ev.agent_state || state.agentState,
     }
 
-    if (["idle", "stopped", "interrupted"].includes(normalized)) {
+    if (AGENT_IDLE_STATUSES.includes(normalized)) {
       updates.streamingThinking = ""
       updates._thinkingBuffer = ""
     }
@@ -179,6 +198,15 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         ...data,
         type: data.request_type,
       }
+    }
+    // Phase D: A2A 回调等待由"A2A 委派"面板呈现，仅保留 interrupted 状态，
+    // 不挂交互式 human request 卡片（避免双重视觉）。
+    if (
+      data &&
+      (data.type === "a2a_callback" || data.request_type === "a2a_callback")
+    ) {
+      set({ status: "interrupted" })
+      return
     }
     set({ humanRequest: data, status: "interrupted" })
     useChatStore.getState()._attachHumanRequestToLastMessage(data)
@@ -276,10 +304,63 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     )
   },
 
+  _handleSubagentLifecycle: (ev) => {
+    if (!ev || !ev.subagent_thread_id) return
+    const entry = {
+      subagent_id: ev.subagent_id,
+      subagent_thread_id: ev.subagent_thread_id,
+      instruction: ev.instruction || "",
+      status: ev.status,
+      result: ev.result || "",
+      error: ev.error || null,
+    }
+    set((state) => {
+      const idx = state.subagents.findIndex(
+        (s) => s.subagent_thread_id === ev.subagent_thread_id,
+      )
+      if (idx >= 0) {
+        const list = [...state.subagents]
+        list[idx] = { ...list[idx], ...entry }
+        return { subagents: list }
+      }
+      return { subagents: [...state.subagents, entry] }
+    })
+  },
+
+  _handleA2ALifecycle: (ev) => {
+    if (!ev || !ev.task_id) return
+    const entry = {
+      task_id: ev.task_id,
+      target_device_key: ev.target_device_key || "",
+      target_device_name: ev.target_device_name || "",
+      instruction: ev.instruction || "",
+      status: ev.status,
+      result: ev.result || "",
+      error: ev.error || null,
+    }
+    set((state) => {
+      const idx = state.a2aDelegations.findIndex(
+        (d) => d.task_id === ev.task_id,
+      )
+      if (idx >= 0) {
+        const list = [...state.a2aDelegations]
+        list[idx] = { ...list[idx], ...entry }
+        return { a2aDelegations: list }
+      }
+      return { a2aDelegations: [...state.a2aDelegations, entry] }
+    })
+  },
+
   _setError: (err) => {
     toast.error(i18n.t("chat.errors.connection", { error: err }))
     set({ status: "error" })
   },
+
+  _openSubagentDetail: (threadId) => set({ activeSubagentDetail: threadId }),
+  _closeSubagentDetail: () => set({ activeSubagentDetail: null }),
+
+  _openA2ADetail: (taskId) => set({ activeA2ADetail: taskId }),
+  _closeA2ADetail: () => set({ activeA2ADetail: null }),
 
   clearContent: () =>
     set({
@@ -290,6 +371,10 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       humanRequest: null,
       quotaExhaustedInfo: null,
       agentState: null,
+      subagents: [],
+      activeSubagentDetail: null,
+      a2aDelegations: [],
+      activeA2ADetail: null,
       streamingThinking: "",
       _thinkingBuffer: "",
       streamingSteps: [],
@@ -309,12 +394,16 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     }
   },
 
-  resumeAgent: async (userInput) => {
+  resumeAgent: async (userInput, grantMode) => {
     const threadId = useChatStore.getState().threadId
     if (!threadId) return
     try {
       await AgentService.resumeChat({
-        requestBody: { thread_id: threadId, user_input: userInput },
+        requestBody: {
+          thread_id: threadId,
+          user_input: userInput,
+          grant_mode: grantMode,
+        },
       })
       set({ status: "running", humanRequest: null })
     } catch (_e) {

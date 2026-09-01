@@ -13,7 +13,8 @@ import {
 import type React from "react"
 import { useTranslation } from "react-i18next"
 import { downloadFile } from "@/utils/fileLinkHandler"
-import { cleanFileUrl, isAbsolutePath } from "@/utils/fileUtils"
+import { cleanFileUrl, getRawFileUrl, isAbsolutePath } from "@/utils/fileUtils"
+import { OpenAPI } from "@/client"
 import { EChartsArtifact } from "./Artifacts/EChartsArtifact"
 import { HtmlArtifact } from "./Artifacts/HtmlArtifact"
 import { MapArtifact } from "./Artifacts/MapArtifact"
@@ -25,6 +26,7 @@ interface Reference {
   type:
     | "file"
     | "image"
+    | "video"
     | "audio"
     | "message"
     | "artifact"
@@ -56,12 +58,20 @@ export const MessageReferences: React.FC<MessageReferencesProps> = ({
     [
       "file",
       "image",
+      "video",
       "audio",
       "message",
       "skill",
       "changeset",
       "directory",
     ].includes(r.type),
+  )
+  // 内联媒体（图片/视频）单独渲染大图，不放进 chip 组
+  const mediaRefs = references.filter(
+    (r) => r.type === "image" || r.type === "video",
+  )
+  const chipRefs = resources.filter(
+    (r) => r.type !== "image" && r.type !== "video",
   )
 
   return (
@@ -144,10 +154,19 @@ export const MessageReferences: React.FC<MessageReferencesProps> = ({
         </div>
       )}
 
-      {/* 2. Resources Rendering (Chips/Cards) */}
-      {resources.length > 0 && (
+      {/* 2. Media Rendering (Inline image/video thumbnails) */}
+      {mediaRefs.length > 0 && (
+        <div className="flex flex-col gap-2">
+          {mediaRefs.map((ref) => (
+            <MediaReference key={ref.id} reference={ref} />
+          ))}
+        </div>
+      )}
+
+      {/* 3. Resources Rendering (Chips/Cards) */}
+      {chipRefs.length > 0 && (
         <div className="flex flex-wrap gap-2">
-          {resources.map((res) => (
+          {chipRefs.map((res) => (
             <ResourceChip
               key={res.id}
               reference={res}
@@ -157,6 +176,45 @@ export const MessageReferences: React.FC<MessageReferencesProps> = ({
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+// 内联渲染图片/视频引用（生成结果的大图展示）
+const MediaReference = ({
+  reference,
+}: {
+  reference: Reference
+}) => {
+  const { t } = useTranslation()
+  const target = reference.target_id
+  const url =
+    target.startsWith("http://") || target.startsWith("https://")
+      ? target
+      : getRawFileUrl(cleanFileUrl(target), undefined, OpenAPI.BASE)
+
+  if (reference.type === "video") {
+    return (
+      <div className="my-1 max-w-[320px]">
+        <video
+          controls
+          src={url}
+          className="w-full rounded-lg border bg-black"
+          preload="metadata"
+        >
+          {t("chat.messageList.videoNotSupported", "Video playback not supported")}
+        </video>
+      </div>
+    )
+  }
+
+  return (
+    <div className="my-1">
+      <img
+        src={url}
+        alt={reference.target_name || "generated image"}
+        className="max-w-[320px] max-h-[320px] rounded-lg border bg-muted object-contain"
+      />
     </div>
   )
 }

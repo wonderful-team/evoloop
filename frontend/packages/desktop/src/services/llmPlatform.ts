@@ -26,6 +26,8 @@ export interface LLMModel {
   supports_streaming?: boolean
   supports_vision?: boolean
   supports_functions?: boolean
+  supports_image_generation?: boolean
+  supports_video_generation?: boolean
   context_window?: number
 }
 

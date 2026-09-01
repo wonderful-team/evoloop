@@ -433,7 +433,7 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
           request_id: pendingCommand.id,
           thread_id: pendingCommand.threadId,
           action: 'confirm',
-          value: confirmed ? 'APPROVED' : 'REJECTED',
+          value: confirmed ? i18n.t('common.approve') : i18n.t('common.reject'),
         },
       };
       await api.post('/gateway/api/v1/message/send', {

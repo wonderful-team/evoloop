@@ -28,6 +28,7 @@ interface MessageListProps {
   onQuote?: (message: ChatMessage) => void;
   onForward?: (message: ChatMessage) => void;
   onAddToMemory?: (text: string, messageId?: string) => void;
+  onRemoveFromMemory?: (text: string, messageId?: string) => void;
   onResend?: (message: ChatMessage) => void;
   /** 是否显示 AI 思考中指示器 */
   isTyping?: boolean;
@@ -67,6 +68,7 @@ const MessageItem = React.memo(function MessageItem({
   onQuote,
   onForward,
   onAddToMemory,
+  onRemoveFromMemory,
   onResend,
 }: {
   message: ChatMessage;
@@ -78,6 +80,7 @@ const MessageItem = React.memo(function MessageItem({
   onQuote?: (msg: ChatMessage) => void;
   onForward?: (msg: ChatMessage) => void;
   onAddToMemory?: (text: string, messageId?: string) => void;
+  onRemoveFromMemory?: (text: string, messageId?: string) => void;
   onResend?: (msg: ChatMessage) => void;
 }) {
   const isStreaming = message.status === 'streaming' || message.status === 'running';
@@ -139,6 +142,21 @@ const MessageItem = React.memo(function MessageItem({
     onAddToMemory?.(message.content, message.id);
     setMenuVisible(false);
   }, [message.content, message.id, onAddToMemory]);
+
+  const handleRemoveFromMemory = useCallback(() => {
+    onRemoveFromMemory?.(message.content, message.id);
+    setMenuVisible(false);
+  }, [message.content, message.id, onRemoveFromMemory]);
+
+  const isRemembered = message.is_remembered;
+
+  const handleMemoryAction = useCallback(() => {
+    if (isRemembered) {
+      handleRemoveFromMemory();
+    } else {
+      handleAddToMemory();
+    }
+  }, [isRemembered, handleAddToMemory, handleRemoveFromMemory]);
 
   const handleForward = useCallback(() => {
     onForward?.(message);
@@ -397,11 +415,11 @@ const MessageItem = React.memo(function MessageItem({
         title={t('chat.messageActions.share')}
         leadingIcon={props => <MaterialIcons {...props} name="ios-share" />}
       />
-      {onAddToMemory && (
+      {onAddToMemory && onRemoveFromMemory && (
         <Menu.Item
-          onPress={handleAddToMemory}
-          title={message.is_remembered ? t('chat.messageActions.removeFromMemory') : t('chat.messageActions.addToMemory')}
-          leadingIcon={props => <MaterialIcons {...props} name={message.is_remembered ? 'psychology' : 'psychology-alt'} />}
+          onPress={handleMemoryAction}
+          title={isRemembered ? t('chat.messageActions.removeFromMemory') : t('chat.messageActions.addToMemory')}
+          leadingIcon={props => <MaterialIcons {...props} name={isRemembered ? 'psychology' : 'psychology-alt'} />}
         />
       )}
     </Menu>
@@ -681,6 +699,7 @@ const TurnStepsGroupView = React.memo(function TurnStepsGroupView({
   onQuote,
   onForward,
   onAddToMemory,
+  onRemoveFromMemory,
   onResend,
 }: {
   steps: ChatMessage[];
@@ -691,6 +710,7 @@ const TurnStepsGroupView = React.memo(function TurnStepsGroupView({
   onQuote?: (msg: ChatMessage) => void;
   onForward?: (msg: ChatMessage) => void;
   onAddToMemory?: (text: string, messageId?: string) => void;
+  onRemoveFromMemory?: (text: string, messageId?: string) => void;
   onResend?: (msg: ChatMessage) => void;
 }) {
   const [expanded, setExpanded] = useState(isTurnActive || false);
@@ -735,6 +755,7 @@ const TurnStepsGroupView = React.memo(function TurnStepsGroupView({
                 onQuote={onQuote}
                 onForward={onForward}
                 onAddToMemory={onAddToMemory}
+                onRemoveFromMemory={onRemoveFromMemory}
                 onResend={onResend}
               />
             );
@@ -751,6 +772,7 @@ export interface MessageListProps {
   onQuote?: (msg: ChatMessage) => void;
   onForward?: (msg: ChatMessage) => void;
   onAddToMemory?: (text: string, messageId?: string) => void;
+  onRemoveFromMemory?: (text: string, messageId?: string) => void;
   onResend?: (msg: ChatMessage) => void;
   isTyping: boolean;
   hasMoreMessages: boolean;
@@ -758,7 +780,7 @@ export interface MessageListProps {
 }
 
 export const MessageList = React.memo(function MessageList({
-  onRewind, onRetry, onQuote, onForward, onAddToMemory, onResend, isTyping, hasMoreMessages, isLoadingMessages
+  onRewind, onRetry, onQuote, onForward, onAddToMemory, onRemoveFromMemory, onResend, isTyping, hasMoreMessages, isLoadingMessages
 }: MessageListProps) {
   const messages = useConversationStore((state) => state.messages);
   const { colors } = useTheme();
@@ -876,6 +898,7 @@ export const MessageList = React.memo(function MessageList({
           onQuote={onQuote}
           onForward={onForward}
           onAddToMemory={onAddToMemory}
+          onRemoveFromMemory={onRemoveFromMemory}
           onResend={onResend}
         />
       );
@@ -890,11 +913,12 @@ export const MessageList = React.memo(function MessageList({
           onQuote={onQuote}
           onForward={onForward}
           onAddToMemory={onAddToMemory}
+          onRemoveFromMemory={onRemoveFromMemory}
           onResend={onResend}
         />
       );
     }
-  }, [colors, onRewind, onRetry, onQuote, onForward, onAddToMemory, onResend]);
+  }, [colors, onRewind, onRetry, onQuote, onForward, onAddToMemory, onRemoveFromMemory, onResend]);
 
   return (
     <FlatList
@@ -944,6 +968,7 @@ export const MessageList = React.memo(function MessageList({
     prev.onQuote === next.onQuote &&
     prev.onForward === next.onForward &&
     prev.onAddToMemory === next.onAddToMemory &&
+    prev.onRemoveFromMemory === next.onRemoveFromMemory &&
     prev.onResend === next.onResend &&
     prev.isTyping === next.isTyping &&
     prev.hasMoreMessages === next.hasMoreMessages &&

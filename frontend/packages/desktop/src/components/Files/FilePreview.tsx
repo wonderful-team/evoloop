@@ -41,6 +41,8 @@ export function FilePreview({ projectId, file }: FilePreviewProps) {
     if (["md", "markdown"].includes(ext || "")) return "markdown"
     if (["mp3", "wav", "ogg", "m4a", "flac", "aac"].includes(ext || ""))
       return "audio"
+    if (["mp4", "webm", "mov", "mkv", "avi", "m4v"].includes(ext || ""))
+      return "video"
     return "text"
   }
 
@@ -262,6 +264,21 @@ export function FilePreview({ projectId, file }: FilePreviewProps) {
                 "Your browser does not support audio playback",
               )}
             </audio>
+          </div>
+        ) : fileType === "video" ? (
+          <div className="flex items-center justify-center p-4 min-h-full">
+            {/* biome-ignore lint/a11y/useMediaCaption: 通用视频预览，无预生成字幕轨道 */}
+            <video
+              controls
+              src={rawUrl}
+              className="max-w-full max-h-full rounded border bg-black"
+              preload="metadata"
+            >
+              {t(
+                "chat.messageList.videoNotSupported",
+                "Your browser does not support video playback",
+              )}
+            </video>
           </div>
         ) : isContentLoading ? (
           <div

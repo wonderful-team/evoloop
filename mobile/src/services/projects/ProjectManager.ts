@@ -94,4 +94,27 @@ export class ProjectManager {
     const store = useProjectStore.getState();
     store.setCurrentProject(project);
   }
+
+  /**
+   * 应用后端推送的当前项目（后端 SharedState 是 SSOT，经 Gateway WS 推送）。
+   * 后端连接时推送 project_id；移动端据此对齐当前项目，不各自本地存真数据源。
+   */
+  static applyProjectFromBackend(projectId: number | string | null | undefined): void {
+    if (projectId == null || projectId === '') return;
+    const pid = Number(projectId);
+    if (Number.isNaN(pid) || pid <= 0) return;
+
+    const store = useProjectStore.getState();
+    if (store.currentProject?.id === pid) return;
+
+    const target = (store.projects || []).find((p) => p.id === pid);
+    if (target) {
+      store.setCurrentProject(target);
+      // 同步会话 store，保持会话列表与当前项目一致
+      useConversationStore.getState().switchProject(pid);
+    } else {
+      // 项目列表尚未加载：记录待应用，fetchProjects 后处理
+      console.log('[ProjectManager] Backend project_id not in list yet:', pid);
+    }
+  }
 }

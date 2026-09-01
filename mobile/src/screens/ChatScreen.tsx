@@ -106,6 +106,8 @@ export default function ChatScreen() {
   const rewindConversation = useConversationStore((state) => state.rewindConversation);
   const retryConversation = useConversationStore((state) => state.retryConversation);
   const addToMemory = useConversationStore((state) => state.addToMemory);
+  const deleteMemory = useConversationStore((state) => state.deleteMemory);
+  const updateMessageRemembered = useConversationStore((state) => state.updateMessageRemembered);
   const replaceMessageId = useConversationStore((state) => state.replaceMessageId);
 
   // 连续对话与打断设置
@@ -814,11 +816,32 @@ export default function ChatScreen() {
         name: text,
         description: text,
       }, messageId, currentConversationId);
+      if (messageId) {
+        updateMessageRemembered(messageId, true);
+      }
       showSnackbar(t('chat.addedToMemory'));
     } catch (error: unknown) {
       showSnackbar(t('chat.addMemoryFailed') + getErrorMessage(error));
     }
-  }, [currentConversationId, currentProject, activeDeviceKey, addToMemory]);
+  }, [currentConversationId, currentProject, activeDeviceKey, addToMemory, updateMessageRemembered, showSnackbar, t]);
+
+  // 从记忆中移除
+  const handleRemoveFromMemory = useCallback(async (text: string, messageId?: string) => {
+    if (!currentProject || !activeDeviceKey) {
+      showSnackbar(t('chat.input.noProject'));
+      return;
+    }
+
+    try {
+      await deleteMemory(currentProject.id, activeDeviceKey, text, messageId);
+      if (messageId) {
+        updateMessageRemembered(messageId, false);
+      }
+      showSnackbar(t('chat.removedFromMemory'));
+    } catch (error: unknown) {
+      showSnackbar(t('chat.removeMemoryFailed') + getErrorMessage(error));
+    }
+  }, [currentProject, activeDeviceKey, deleteMemory, updateMessageRemembered, showSnackbar, t]);
 
   // 引用消息：长按消息后，将消息添加到 VoiceInput 的引用列表
   // voiceInputRef 已在组件顶部与 handleBeforeStartRecordingRef 一同声明（:115）
@@ -1054,6 +1077,7 @@ export default function ChatScreen() {
               onQuote={handleQuote}
               onForward={handleForward}
               onAddToMemory={handleAddToMemory}
+              onRemoveFromMemory={handleRemoveFromMemory}
               onResend={handleResend}
               isTyping={isAgentProcessing}
               hasMoreMessages={hasMoreMessages}

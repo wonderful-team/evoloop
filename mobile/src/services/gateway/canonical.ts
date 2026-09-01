@@ -32,6 +32,7 @@ export enum CanonicalMessageType {
   AgentStatus = 'agent.status',
   SystemInit = 'system.init',
   SystemError = 'system.error',
+  SystemStateChanged = 'system.state_changed',
 }
 
 /** 端点类型枚举 */

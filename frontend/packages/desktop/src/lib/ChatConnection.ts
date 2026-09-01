@@ -13,6 +13,10 @@ export interface ChatConnectionCallbacks {
   onThinking: (event: any) => void
   onProgress: (event: any) => void
   onAgentState: (event: any) => void
+  /** Subagent lifecycle (started / completed / failed / cancelled) for the live panel */
+  onSubagent?: (event: any) => void
+  /** A2A delegation lifecycle (started / completed / failed / timeout / cancelled) */
+  onA2A?: (event: any) => void
   onQuotaExhausted: (event: any) => void
   onLLMAuthError: (event: any) => void
   onAuthExpired: (event: any) => void
@@ -273,6 +277,24 @@ export class ChatConnection {
         this.callbacks?.onAgentState(data)
       } catch (err) {
         console.error("[ChatConnection] Failed to parse agent_state event", err)
+      }
+    })
+
+    sse.addEventListener("subagent", (e) => {
+      try {
+        const data = JSON.parse(e.data)
+        this.callbacks?.onSubagent?.(data)
+      } catch (err) {
+        console.error("[ChatConnection] Failed to parse subagent event", err)
+      }
+    })
+
+    sse.addEventListener("a2a", (e) => {
+      try {
+        const data = JSON.parse(e.data)
+        this.callbacks?.onA2A?.(data)
+      } catch (err) {
+        console.error("[ChatConnection] Failed to parse a2a event", err)
       }
     })
 

@@ -1,12 +1,12 @@
 /**
- * RunningTasksDock – Floating status bar shown above the input area.
+ * RunningTasksDock – 输入框上方的"执行中的命令"状态条。
  *
- * Displays all actively running BackgroundTasks for the current thread.
- * Clicking a task card switches the view to Terminal Mode so the user can
- * see the live output.
+ * 显示当前线程所有正在执行的后台命令（BackgroundTask）TaskPill，
+ * 让执行中的命令与输入工具条（模型选择器等）分离。
+ * 点击某个 task 卡片切换到 Terminal Mode 以便查看实时输出。
  */
 
-import { Clock, Loader2, Terminal, X } from "lucide-react"
+import { Clock, Loader2 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import type { ActiveTaskInfo } from "@/stores/chat/types"
 import { useChatStore } from "@/stores/chatStore"
@@ -21,14 +21,15 @@ function TaskPill({
   const { t } = useTranslation()
   const isRunning = task.status === "running"
   const label =
-    task.title.length > 40
-      ? `${task.title.slice(0, 37)}${t("common.ellipsis")}`
+    task.title.length > 80
+      ? `${task.title.slice(0, 77)}${t("common.ellipsis")}`
       : task.title
 
   return (
     <button
       onClick={onClick}
-      className="group flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono transition-all
+      type="button"
+      className="group flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-mono transition-all w-full text-left
                  bg-background border border-border text-foreground
                  hover:border-primary hover:bg-muted/50
                  focus:outline-none focus-visible:ring-1 focus-visible:ring-primary"
@@ -39,67 +40,27 @@ function TaskPill({
       ) : (
         <Clock className="h-3 w-3 text-amber-500 flex-shrink-0" />
       )}
-      <span className="max-w-[160px] truncate">{label}</span>
+      <span className="min-w-0 truncate">{label}</span>
     </button>
   )
 }
 
 export function RunningTasksDock() {
-  const { t } = useTranslation()
   const activeTasks = useChatStore((s) => s.activeTasks)
-  const isTerminalMode = useChatStore((s) => s.isTerminalMode)
   const setTerminalMode = useChatStore((s) => s.setTerminalMode)
 
   const tasks = Object.values(activeTasks)
-  if (tasks.length === 0 && !isTerminalMode) return null
+  if (tasks.length === 0) return null
 
   return (
-    <div className="flex items-center gap-2 px-4 py-1.5 border-t border-border bg-muted/80 backdrop-blur-sm">
-      <Terminal className="h-3.5 w-3.5 text-primary flex-shrink-0" />
-
-      <div className="flex items-center gap-1.5 flex-1 min-w-0 overflow-x-auto hide-scrollbar">
-        {tasks.length === 0 && (
-          <span className="text-xs text-muted-foreground font-mono">
-            {t("chat.runningTasks.terminalModeActive")}
-          </span>
-        )}
-        {tasks.map((task) => (
-          <TaskPill
-            key={task.task_id}
-            task={task}
-            onClick={() => setTerminalMode(true)}
-          />
-        ))}
-      </div>
-
-      {/* Terminal mode toggle button */}
-      <button
-        onClick={() => setTerminalMode(!isTerminalMode)}
-        className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-mono transition-all border
-                    focus:outline-none focus-visible:ring-1 focus-visible:ring-primary
-                    ${
-                      isTerminalMode
-                        ? "bg-primary/10 text-primary border-primary/30"
-                        : "text-muted-foreground border-transparent hover:text-primary hover:border-border"
-                    }`}
-        title={
-          isTerminalMode
-            ? t("chat.runningTasks.switchToChat")
-            : t("chat.runningTasks.switchToTerminal")
-        }
-      >
-        {isTerminalMode ? (
-          <>
-            <X className="h-3 w-3" />
-            <span>{t("chat.runningTasks.exit")}</span>
-          </>
-        ) : (
-          <>
-            <Terminal className="h-3 w-3" />
-            <span>{t("chat.runningTasks.terminalIcon")}</span>
-          </>
-        )}
-      </button>
+    <div className="flex flex-col gap-1 px-2 py-1.5 border-t border-border bg-muted/80 backdrop-blur-sm">
+      {tasks.map((task) => (
+        <TaskPill
+          key={task.task_id}
+          task={task}
+          onClick={() => setTerminalMode(true)}
+        />
+      ))}
     </div>
   )
 }

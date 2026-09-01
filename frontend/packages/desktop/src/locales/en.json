@@ -366,6 +366,7 @@
     "llmAuthErrorDesc": "API key is invalid or expired, please check LLM settings",
     "messageList": {
       "audioNotSupported": "Audio playback not supported",
+      "videoNotSupported": "Video playback not supported",
       "clickToOpen": "Click to open",
       "copy": "Copy",
       "preview": "Preview",
@@ -499,12 +500,7 @@
       "working": "Working..."
     },
     "runningTasks": {
-      "openTerminalTitle": "Open terminal – {{title}}",
-      "terminalModeActive": "Terminal Mode active",
-      "switchToChat": "Switch to Chat view",
-      "switchToTerminal": "Switch to Terminal view",
-      "exit": "Exit",
-      "terminalIcon": ">_"
+      "openTerminalTitle": "Open terminal – {{title}}"
     },
     "stepGroupsCount": "{{count}} turns",
     "steps": {
@@ -589,7 +585,39 @@
     },
     "toolMessage": {
       "fallbackName": "TOOL"
-    }
+    },
+    "subagentsTitle": "Parallel Subagents",
+    "noSubagents": "No active subagents",
+    "subagentRunning": "Running",
+    "subagentCompleted": "Completed",
+    "subagentFailed": "Failed",
+    "subagentCancelled": "Cancelled",
+    "subagentActive": "Running in parallel",
+    "tabChat": "Chat",
+    "tabSubagentDetail": "Subagent Detail",
+    "subagentDetailTask": "Task Description",
+    "subagentDetailResult": "Result",
+    "subagentDetailError": "Error",
+    "subagentDetailMeta": "Identifier",
+    "subagentDetailEmpty": "Subagent detail not found",
+    "subagentDetailClose": "Close",
+    "subagentDetailBack": "Back",
+    "a2aTitle": "A2A Delegation",
+    "noA2ADelegations": "No remote delegations",
+    "a2aWaitingCallback": "Waiting for callback",
+    "a2aCompleted": "Completed",
+    "a2aFailed": "Failed",
+    "a2aTimeout": "Timeout",
+    "a2aCancelled": "Cancelled",
+    "a2aActive": "Delegating",
+    "tabA2ADetail": "A2A Delegation Detail",
+    "a2aDetailTask": "Delegation Instruction",
+    "a2aDetailResult": "Callback Result",
+    "a2aDetailError": "Error",
+    "a2aDetailDevice": "Target Device",
+    "a2aDetailEmpty": "Delegation detail not found",
+    "a2aDetailClose": "Close",
+    "a2aDetailBack": "Back"
   },
   "common": {
     "actions": "Actions",
@@ -2545,7 +2573,8 @@
       "custom": "Custom Key-Value Dictionary",
       "env": "Environment Variable (.env)",
       "password": "Username & Password",
-      "ssh": "SSH Server (Host, Port, User, Key/Password)"
+      "ssh": "SSH Server (Host, Port, User, Key/Password)",
+      "website": "Website Account"
     },
     "view": {
       "title": "View Credential",
@@ -2585,6 +2614,8 @@
     "localInjection": "Local Component Injection",
     "hitl": {
       "approval": "Approve",
+      "approveOnce": "Once",
+      "approveAlways": "Always allow",
       "confirmation": "Confirm",
       "choice": "Choice",
       "text": "Input",
@@ -2617,5 +2648,9 @@
   "agentStop": {
     "stopped": "All agent activities stopped",
     "failed": "Failed to stop, please retry"
+  },
+  "hitl": {
+    "approveOnce": "Once",
+    "approveAlways": "Always allow"
   }
 }

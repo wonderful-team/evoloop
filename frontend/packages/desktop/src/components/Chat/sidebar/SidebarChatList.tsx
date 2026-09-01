@@ -15,6 +15,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { ConversationsService } from "@/client"
+import { useUnreadCompletionsStore } from "@/stores/unreadCompletionsStore"
 
 export interface Thread {
   thread_id: string
@@ -130,6 +131,7 @@ export function SidebarChatList({
 }: SidebarChatListProps) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
+  const unreadCompletions = useUnreadCompletionsStore((s) => s.unread)
 
   // Search state
   const [searchQuery, setSearchQuery] = useState("")
@@ -327,6 +329,9 @@ export function SidebarChatList({
                       <span className="truncate">
                         {thread.title || t("chat.sidebar.untitled")}
                       </span>
+                      {unreadCompletions[thread.thread_id] && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0 ml-0.5" />
+                      )}
                     </span>
                     {thread.goal && (
                       <span

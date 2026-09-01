@@ -174,6 +174,8 @@ export const useChatStore = create<ChatState>((set, get) => {
           },
           onProgress: (ev) => agentStore._updateProgress(ev),
           onAgentState: (ev) => agentStore._setAgentState(ev),
+          onSubagent: (ev) => agentStore._handleSubagentLifecycle(ev),
+          onA2A: (ev) => agentStore._handleA2ALifecycle(ev),
           onQuotaExhausted: agentStore._setQuotaExhausted,
           onLLMAuthError: agentStore._setLLMAuthError,
           onRunStart: agentStore._handleRunStart,

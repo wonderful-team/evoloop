@@ -1,13 +1,9 @@
 // 技能系统 API
-// 混合架构：
-// - 查询类 (列表、详情): Mobile → MC
-// - 执行类 (执行技能): Mobile → Gateway → Desktop
+// 混合架构：查询类 (列表、详情) 走 Mobile → MC
 
 import { api } from './client';
 import {
   Skill,
-  SkillExecutionRequest,
-  SkillExecutionResponse,
   SkillExecutionStatus,
   McpServer,
   SkillMatch,
@@ -31,33 +27,6 @@ export async function getSkills(type?: 'builtin' | 'custom' | 'mcp'): Promise<Sk
  */
 export async function getSkill(skillId: string): Promise<Skill> {
   const response = await api.get(`/member/api/skills/${skillId}`);
-  return response.data;
-}
-
-/**
- * 执行技能
- */
-export async function executeSkill(
-  request: SkillExecutionRequest
-): Promise<SkillExecutionResponse> {
-  const envelope = {
-    version: '2.0',
-    type: 'command.relay',
-    timestamp: Math.floor(Date.now() / 1000),
-    source: { kind: 'mobile' },
-    target: { kind: 'agent', device_key: request.deviceKey },
-    body: {
-      action: 'skill',
-      content: {
-        skill_id: request.skillId,
-        params: request.params,
-      },
-    },
-  };
-  const response = await api.post(`/gateway/api/v1/message/send`, {
-    target_device_key: request.deviceKey,
-    envelope,
-  });
   return response.data;
 }
 
@@ -119,35 +88,6 @@ export async function updateMcpServer(
  */
 export async function deleteMcpServer(serverId: string): Promise<void> {
   await api.delete(`/member/mcp/servers/${serverId}`);
-}
-
-/**
- * 测试 MCP 连接（需提供 deviceKey，否则返回 400）
- */
-export async function testMcpConnection(
-  serverId: string,
-  deviceKey?: string,
-): Promise<{
-  success: boolean;
-  message: string;
-  tools_count?: number;
-}> {
-  const envelope = {
-    version: '2.0',
-    type: 'command.relay',
-    timestamp: Math.floor(Date.now() / 1000),
-    source: { kind: 'mobile' },
-    target: { kind: 'agent', device_key: deviceKey },
-    body: {
-      action: 'mcp_test',
-      content: { server_id: serverId },
-    },
-  };
-  const response = await api.post(`/gateway/api/v1/message/send`, {
-    target_device_key: deviceKey || '',
-    envelope,
-  });
-  return response.data;
 }
 
 /**

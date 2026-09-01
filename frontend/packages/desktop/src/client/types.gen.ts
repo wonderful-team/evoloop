@@ -1531,6 +1531,7 @@ export type ResumeRequest = {
     user_input?: (string | null);
     command_id?: (number | null);
     model?: (string | null);
+    grant_mode?: ('once' | 'always' | 'default' | null);
 };
 
 export type RewindRequest = {

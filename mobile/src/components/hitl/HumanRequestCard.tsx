@@ -176,7 +176,7 @@ export function HumanRequestCard({
     <View style={styles.buttonRow}>
       <Button
         mode="outlined"
-        onPress={() => handleSubmit('no')}
+        onPress={() => handleSubmit(t('common.no'))}
         style={[styles.button, styles.cancelButton]}
         textColor={colors.onSurfaceVariant}
         disabled={isSubmitting}
@@ -185,7 +185,7 @@ export function HumanRequestCard({
       </Button>
       <Button
         mode="contained"
-        onPress={() => handleSubmit('yes')}
+        onPress={() => handleSubmit(t('common.yes'))}
         style={styles.button}
         buttonColor={colors.primary}
         disabled={isSubmitting}
@@ -203,7 +203,7 @@ export function HumanRequestCard({
     <View style={styles.buttonRow}>
       <Button
         mode="outlined"
-        onPress={() => handleSubmit('REJECTED')}
+        onPress={() => handleSubmit(t('hitl.reject'))}
         style={[styles.button, styles.rejectButton]}
         textColor={colors.error}
         disabled={isSubmitting}
@@ -212,7 +212,7 @@ export function HumanRequestCard({
       </Button>
       <Button
         mode="contained"
-        onPress={() => handleSubmit('APPROVED')}
+        onPress={() => handleSubmit(t('hitl.approve'))}
         style={styles.button}
         buttonColor={isHighRisk ? colors.error : colors.primary}
         disabled={isSubmitting}
