@@ -339,7 +339,6 @@ class TwoTierMemoryManager:
 
             # Tier weight (Strategic = 2.0x boost)
             tier_multiplier = 2.0 if entry.tier == MemoryTier.STRATEGIC else 1.0
-            utility_score = entry.utility_score
 
             # Combined score: utility and strategic tier are the primary drivers
             score = (

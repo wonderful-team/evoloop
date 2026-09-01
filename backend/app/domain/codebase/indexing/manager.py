@@ -497,7 +497,6 @@ class IndexingManager:
 
             # Collect source file IDs by type via path conventions
             file_ids_by_type: dict[str, list[int]] = {"controller": [], "model": []}
-            source_files_map: dict[str, SourceFile] = {}
 
             for full_path in file_paths:
                 ext = os.path.splitext(full_path)[1].lower()

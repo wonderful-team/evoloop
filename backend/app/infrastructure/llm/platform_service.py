@@ -149,8 +149,10 @@ class LLMPlatformService:
                         supports_streaming=m.get("supports_streaming", True),
                         supports_vision=m.get("supports_vision", False),
                         supports_functions=m.get("supports_functions", True),
-                        description=m.get("description", ""),
-                        icon=m.get("icon", "default"),
+                        supports_image_generation=m.get("supports_image_generation", False),
+                        supports_video_generation=m.get("supports_video_generation", False),
+                        description=(m.get("description") or ""),
+                        icon=(m.get("icon") or "default"),
                         available=m.get("available", True),
                         quota_required=m.get("quota_required", True),
                         sort_order=m.get("sort_order", 0),
@@ -184,6 +186,20 @@ class LLMPlatformService:
     def get_model_by_id(self, model_id: str) -> PlatformModel | None:
         """根据 ID 获取模型配置"""
         return self._models_cache.get(model_id)
+
+    def get_image_models(self) -> list[PlatformModel]:
+        """获取可用的图像生成模型（model_type=image 或 supports_image_generation）。"""
+        return [
+            m for m in self._models_cache.values()
+            if m.model_type == "image" or m.supports_image_generation
+        ]
+
+    def get_video_models(self) -> list[PlatformModel]:
+        """获取可用的视频生成模型（model_type=video 或 supports_video_generation）。"""
+        return [
+            m for m in self._models_cache.values()
+            if m.model_type == "video" or m.supports_video_generation
+        ]
 
     def clear_cache(self):
         """清除缓存"""

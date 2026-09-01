@@ -96,26 +96,34 @@ class FrameExtractor:
                 "ocr_elements": [],
             }
             try:
-                from app.infrastructure.vision.engine import vision_engine
+                from app.infrastructure.vision.router import get_vision_router
                 from app.infrastructure.vision.types import VisionTask
 
-                vision_result = await vision_engine.process(
-                    task=VisionTask.OCR, image_source=frame_path, on_android=on_android
+                provider = await get_vision_router().get_provider(
+                    VisionTask.OCR, on_android=on_android
                 )
-                if vision_result.success:
-                    result["ocr_elements"] = [
-                        {
-                            "text": el.text,
-                            "bounds": [
-                                el.x - el.width // 2,
-                                el.y - el.height // 2,
-                                el.width,
-                                el.height,
-                            ],
-                            "center": [el.x, el.y],
-                        }
-                        for el in vision_result.elements
-                    ]
+                if provider:
+                    vision_result = await provider.process(
+                        VisionTask.OCR, frame_path, on_android=on_android
+                    )
+                    if vision_result.success:
+                        result["ocr_elements"] = [
+                            {
+                                "text": el.text,
+                                "bounds": [
+                                    el.x - el.width // 2,
+                                    el.y - el.height // 2,
+                                    el.width,
+                                    el.height,
+                                ],
+                                "center": [el.x, el.y],
+                            }
+                            for el in vision_result.elements
+                        ]
+                else:
+                    logger.warning(
+                        f"Vision OCR provider unavailable for {frame_path}"
+                    )
             except (OSError, RuntimeError, ValueError, TypeError) as e:
                 logger.warning(f"Vision analysis skipped for {frame_path}: {e}", exc_info=True)
             results.append(result)

@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 #: 实际由子代理工具面不含 task 保证；此上限作为兜底护栏。
 MAX_SUBAGENT_DEPTH = 1
 
+
 @evoloop_tool(is_hidden=False)
 async def task(
     action: Literal["run", "complete", "list_agents"] = "run",

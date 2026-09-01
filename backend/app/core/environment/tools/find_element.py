@@ -11,9 +11,10 @@ from typing import Literal
 
 from app.core.environment import get_current_app_context
 from app.core.tools import evoloop_tool
+from app.core.vision import vision_engine
 from app.infrastructure.drivers.adb import ADBError, adb_driver
 from app.infrastructure.drivers.macos import macos_driver
-from app.infrastructure.vision import VisionTask, vision_engine
+from app.infrastructure.vision import VisionTask
 from app.infrastructure.vision.pipeline.manager import pipeline_manager
 
 logger = logging.getLogger(__name__)

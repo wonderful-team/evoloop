@@ -207,3 +207,48 @@ LOOP_PHASE_COMPLETED = "completed"
 VERIFY_STATUS_SUCCESS = "success"
 VERIFY_STATUS_FAILED = "failed"
 VERIFY_STATUS_ERROR = "error"
+
+# ---- Macro Creation Eligibility ----
+# Event types excluded from macro creation (LLM internals, queries, memory ops)
+EXCLUDED_EVENT_TYPES = frozenset(
+    {
+        "llm_output",
+        "tool_result",
+        "node_start",
+        "macro_thought",
+        "list_macros",
+        "list_skills",
+        "search_history",
+        "recall",
+        "read",
+        "list_dir",
+        "grep",
+        "glob",
+        "question",
+        "ask_confirm",
+        "think",
+    }
+)
+
+# Raw mobile mirror events normalized into macro actions
+RAW_MOBILE_EVENT_TYPES = frozenset(
+    {
+        TOUCH_DOWN,
+        TOUCH_UP,
+        MOUSE_CLICK,
+        SWIPE,
+        KEY,
+    }
+)
+
+# Event types that can be turned into deterministic macro steps
+REPLAYABLE_EVENT_TYPES = ALLOWED_UI_ACTIONS | RAW_MOBILE_EVENT_TYPES
+
+# ---- Action Family & Risk Model (migrated from macro/schemas.py) ----
+# Risk tiers ordered from lowest to highest
+RISK_TIERS: list[str] = ["observe", "act", "data", "money", "escape"]
+RISK_TIER_ORDER: dict[str, int] = {t: i for i, t in enumerate(RISK_TIERS)}
+
+# Families allowed for Agent-authored macro scripts
+# escape (bash/native/applescript) temporarily allowed for local JSON data processing
+DEFAULT_ALLOWED_FAMILIES: set[str] = {"observe", "act", "control", "data", "escape"}

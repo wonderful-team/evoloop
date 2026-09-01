@@ -50,7 +50,6 @@ class UniversalBridgeSubscriber:
 
         try:
             # Resolve channels via OutputChannelPolicy — no more hardcoded {"sse", "voice"}.
-            # node_source is not meaningful for system events (they aren't node outputs).
             session_src = current_session_source.get()
             channels = OutputChannelPolicy.resolve(event, session_src)
             selected = channel_registry.select(channels, payload_is_block=False)
@@ -58,7 +57,4 @@ class UniversalBridgeSubscriber:
                 await ch.send(event, ctx)
 
         except Exception as e:
-            logger.warning(
-                f"[UniversalBridge] Failed to bridge event {event_type}: {e}",
-                exc_info=True,
-            )
+            logger.warning(f"[UniversalBridge] Failed to bridge event {event_type}: {e}")

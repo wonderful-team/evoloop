@@ -279,10 +279,6 @@ class VoiceChannel(Channel):
             await voice_state_machine.set(thread_id, VoiceSessionState.IDLE)
 
     @classmethod
-    def reset_tts_started(cls, thread_id: str) -> None:
-        cls._tts_started.pop(thread_id, None)
-
-    @classmethod
     def reset_thread(cls, thread_id: str) -> None:
         """Clear per-thread streaming TTS state for a new turn."""
         cls._cancelled_threads.discard(thread_id)

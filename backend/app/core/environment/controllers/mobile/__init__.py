@@ -23,9 +23,10 @@ from app.core.environment.controllers.utils import (
 )
 from app.core.environment.schemas import AppInfo
 from app.core.learning.trace.recorder import get_recorder
+from app.core.vision import vision_engine
 from app.infrastructure.constants import is_system_package
 from app.infrastructure.drivers.adb import ADBError, adb_driver
-from app.infrastructure.vision import VisionTask, vision_engine
+from app.infrastructure.vision import VisionTask
 from app.infrastructure.vision.providers.native.android_a11y import (
     android_a11y_provider,
 )

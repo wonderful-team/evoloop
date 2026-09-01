@@ -31,6 +31,8 @@ class AutonomousTask(Base):
     # skill_ids：任务可关联多个 skill（列表）；默认 [] = 无 skill 依赖
     # （值守任务 duty_channel 标记不依赖 skill，走独立轮巡路径）
     skill_ids: Mapped[list[int]] = mapped_column(JSON, default=list)
+    # macro_id：任务可关联一个宏（非空时执行宏，优先于 skill_ids）
+    macro_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     params_template: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)  # Template with placeholders
 
     # Trigger Configuration

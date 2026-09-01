@@ -143,7 +143,6 @@ show_help() {
 ║    evo brain letta      运行 Brain Letta 测试                ║
 ║                                                              ║
 ║  【验证】                                                     ║
-║    evo verify skill     验证技能执行                         ║
 ║    evo verify storage   验证存储系统                         ║
 ║    evo verify vector    验证向量维度                         ║
 ║    evo verify peekaboo  验证 Peekaboo                        ║
@@ -851,9 +850,6 @@ case "${1:-help}" in
     # ==================== 验证 ====================
     verify)
         case "${2:-}" in
-            skill)
-                .venv/bin/python bin/scripts/verification/verify_skill_execution.py
-                ;;
             storage)
                 .venv/bin/python bin/scripts/verify_storage.py
                 ;;
@@ -865,7 +861,7 @@ case "${1:-help}" in
                 ;;
             *)
                 error "未知验证命令: ${2:-}"
-                echo "可用命令: skill, storage, vector, peekaboo"
+                echo "可用命令: storage, vector, peekaboo"
                 exit 1
                 ;;
         esac
@@ -889,12 +885,6 @@ case "${1:-help}" in
                 exit 1
                 ;;
         esac
-        ;;
-
-    # ==================== 运行（生产模式）====================
-    run)
-        error "后端 'run' 命令已弃用。生产环境侧边栏请在 'client' 目录下使用 'evoloop-client.spec' 打包运行。"
-        exit 1
         ;;
 
     # ==================== 模型下载 ====================

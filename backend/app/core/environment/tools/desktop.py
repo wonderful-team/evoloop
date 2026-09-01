@@ -230,9 +230,9 @@ async def quick_check_screen(
     timeout_seconds: int = 5,
 ) -> str:
     """
-    用 AX Tree 快速检查屏幕状态（无 LLM，~500ms 对比 analyze_image 的 ~12s）。
+    用 AX Tree 快速检查屏幕状态（无 LLM，~500ms 对比 image(analyze) 的 ~12s）。
 
-    简单的检查用本工具而非 analyze_image，如：
+    简单的检查用本工具而非 image(analyze)，如：
     - "页面加载了吗？" -> quick_check_screen("is_loaded")
     - "显示了 'AI news' 吗？" -> quick_check_screen("has_text", "AI news")
     - "有 Search 按钮吗？" -> quick_check_screen("has_element", "Search")
@@ -246,6 +246,6 @@ async def quick_check_screen(
         timeout_seconds: 轮询超时（每 500ms 检查一次直到超时）
 
     Returns:
-        快速检查结果（比 analyze_image 快得多）
+        快速检查结果（比 image(analyze) 快得多）
     """
     return await DesktopController.quick_check_screen(**locals())

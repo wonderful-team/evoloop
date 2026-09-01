@@ -77,9 +77,7 @@ async def create_skill_from_session(reason: str, thread_id: str | None = None) -
     if not target_thread:
         return "Error: Could not determine thread_id for synthesis."
 
-    logger.info(
-        f"[Tool] Agent triggered manual skill synthesis for thread {target_thread}. Reason: {reason}"
-    )
+    logger.info(f"[Tool] Agent triggered manual skill synthesis for thread {target_thread}. Reason: {reason}")
 
     try:
         from app.infrastructure.queue.factory import get_scheduler

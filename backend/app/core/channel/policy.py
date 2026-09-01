@@ -189,7 +189,7 @@ class OutputChannelPolicy:
                 return {"sse", "mobile", "voice"}
             if _is_duty_session(session_source):
                 # 值守场景：仅「主 Agent 派活前的安抚文本」（AI + 带委派工具
-                # 调用 task/历史 route_to）路由到值守渠道发送给客户；直接回复/
+                # 调用 task 路由到值守渠道发送给客户；直接回复/
                 # 最终回复走 SessionCompletedEvent 订阅，避免重复。其余中间文本
                 # 不路由，防止内部过程泄漏给客户。
                 # 用场景标识 "duty" 路由，publisher 端按渠道声明的 scenes

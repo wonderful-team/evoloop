@@ -9,15 +9,8 @@ the frontend can render a live "active subagents" panel without exposing any
 subagent-internal tool calls or text (R3 keeps those invisible to user channels).
 """
 
-from typing import Any
-
-from app.core.engine.state.subagent_schemas import SubagentNeedInput
 from app.core.events.base import BaseEvent
-from app.core.events.constants import (
-    SUBAGENT_COMPLETED,
-    SUBAGENT_HITL_REQUEST,
-    SUBAGENT_LIFECYCLE,
-)
+from app.core.events.constants import SUBAGENT_LIFECYCLE
 
 
 class SubagentLifecycleEvent(BaseEvent):
@@ -37,53 +30,3 @@ class SubagentLifecycleEvent(BaseEvent):
     error: str | None = None
     is_public: bool = True
     broadcast_channel: str = "chat"
-
-
-class SubagentCompletedEvent(BaseEvent):
-    """Published by the subagent done_callback when a subagent reaches a terminal state."""
-
-    event_type: str = SUBAGENT_COMPLETED
-    thread_id: str  # parent thread_id
-    subagent_id: str
-    subagent_thread_id: str  # sub_tid
-    status: str  # completed | failed | cancelled
-    result: str = ""
-    error: str | None = None
-    tools_used: list[str] = []
-    need_input: SubagentNeedInput | None = None  # Phase B
-    is_public: bool = False
-
-
-class SubagentHITLRequestEvent(BaseEvent):
-    """subagent triggered a HITL request; transparently forward to the parent session.
-
-    Design: docs/subagent-design.md §5.5. The parent Agent asks the user in the
-    main session, then routes the answer back via ``respond_subagent_hitl``.
-    """
-
-    event_type: str = SUBAGENT_HITL_REQUEST
-    thread_id: str  # parent thread_id (routing key)
-    subagent_thread_id: str
-    subagent_id: str
-    request_type: str  # ask_human | ask_confirm | approval | secure_credential
-    prompt: str
-    options: list[str] = []
-    context: str = ""
-    tool_call_id: str
-    risk_level: str | None = None
-    resource_path: str | None = None
-    is_public: bool = False
-
-    def model_dump_hitl(self) -> dict[str, Any]:
-        """Serialize to the payload stored in the parent's pending_subagent_hitl_requests."""
-        return {
-            "subagent_thread_id": self.subagent_thread_id,
-            "subagent_id": self.subagent_id,
-            "request_type": self.request_type,
-            "prompt": self.prompt,
-            "options": self.options,
-            "context": self.context,
-            "tool_call_id": self.tool_call_id,
-            "risk_level": self.risk_level,
-            "resource_path": self.resource_path,
-        }

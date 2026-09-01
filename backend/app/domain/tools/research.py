@@ -62,13 +62,8 @@ async def _search_baidu(query: str) -> list[str] | None:
     from bs4 import BeautifulSoup
 
     headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-            "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        ),
-        "Accept": (
-            "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
-        ),
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
         "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
     }
 
@@ -109,9 +104,7 @@ async def _search_baidu(query: str) -> list[str] | None:
             description = desc_elem.get_text(strip=True) if desc_elem else ""
 
             if title and result_url:
-                results.append(
-                    f"Title: {title}\nURL: {result_url}\nDescription: {description}\n"
-                )
+                results.append(f"Title: {title}\nURL: {result_url}\nDescription: {description}\n")
         except Exception:
             continue
 
@@ -138,9 +131,7 @@ async def _search_wikipedia(query: str) -> list[str] | None:
 
     try:
         loop = asyncio.get_running_loop()
-        response = await loop.run_in_executor(
-            None, lambda: requests.get(api_url, params=params, timeout=15)
-        )
+        response = await loop.run_in_executor(None, lambda: requests.get(api_url, params=params, timeout=15))
         response.raise_for_status()
         data = response.json()
 
@@ -154,13 +145,9 @@ async def _search_wikipedia(query: str) -> list[str] | None:
             snippet = item.get("snippet", "")
             # 清理 HTML 标签
             snippet_clean = re.sub(r"<[^>]+>", "", snippet)
-            page_url = (
-                f"https://{lang}.wikipedia.org/wiki/{quote(title.replace(' ', '_'))}"
-            )
+            page_url = f"https://{lang}.wikipedia.org/wiki/{quote(title.replace(' ', '_'))}"
 
-            results.append(
-                f"Title: {title}\nURL: {page_url}\nDescription: {snippet_clean}\n"
-            )
+            results.append(f"Title: {title}\nURL: {page_url}\nDescription: {snippet_clean}\n")
 
         return results if results else None
 
@@ -179,15 +166,11 @@ async def _search_parallel(query: str) -> list[str] | None:
     整体硬上限 8s：即使所有引擎都慢/被限流，也不阻塞 Agent 超过 8s。
     """
     try:
-        return await asyncio.wait_for(
-            _search_parallel_inner(query), timeout=_SEARCH_PARALLEL_TIMEOUT
-        )
+        return await asyncio.wait_for(_search_parallel_inner(query), timeout=_SEARCH_PARALLEL_TIMEOUT)
     except asyncio.TimeoutError:
         # 预期降级：整体 8s 硬上限到点即返回 None（不阻塞 Agent），
         # 非错误，不应打印 Traceback。
-        logger.debug(
-            "Web search overall timed out (%ss) for %r", _SEARCH_PARALLEL_TIMEOUT, query
-        )
+        logger.debug("Web search overall timed out (%ss) for %r", _SEARCH_PARALLEL_TIMEOUT, query)
         return None
 
 
@@ -200,9 +183,7 @@ async def _search_parallel_inner(query: str) -> list[str] | None:
     pending = set(tasks)
     try:
         while pending:
-            done, pending = await asyncio.wait(
-                pending, return_when=asyncio.FIRST_COMPLETED
-            )
+            done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
             for t in done:
                 try:
                     results = t.result()

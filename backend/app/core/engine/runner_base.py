@@ -82,6 +82,7 @@ def build_callbacks(
     project_id: int,
     run_id: str,
     member_id: int = 0,
+    skip_persistence: bool = False,
 ) -> list[Any]:
     """组装标准 callbacks（transparent + database_logger）。"""
     callback = TransparentCallbackHandler(thread_id=thread_id)
@@ -90,6 +91,7 @@ def build_callbacks(
         project_id=project_id,
         run_id=run_id,
         member_id=member_id,
+        skip_persistence=skip_persistence,
     )
     return [callback, db_callback]
 
@@ -139,7 +141,16 @@ def build_execution_config(
             )
             config["configurable"]["lightning_ctx"] = lightning_ctx
 
-    callbacks = build_callbacks(thread_id, project_id, run_id, ctx.member_id or 0)
+    callbacks = build_callbacks(
+        thread_id,
+        project_id,
+        run_id,
+        ctx.member_id or 0,
+        skip_persistence=bool(
+            inputs.metadata.get("skip_persistence")
+            or inputs.metadata.get("skip_message_persistence")
+        ),
+    )
     config["configurable"]["message_handler"] = callbacks[1]._handler
     config["callbacks"] = callbacks
     return config

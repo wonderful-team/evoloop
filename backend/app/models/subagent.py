@@ -13,6 +13,7 @@ Design (docs/subagent-design.md §3.1, §D4):
 from datetime import datetime, timezone
 from enum import Enum
 
+import sqlalchemy as sa
 from sqlmodel import Field, SQLModel
 
 
@@ -27,6 +28,17 @@ class SubagentStatus(str, Enum):
     AWAITING_A2A = "awaiting_a2a"
 
 
+def _enum_values(enum_cls) -> list[str]:
+    """Map a str-Enum to its lowercase *values* for the DB column.
+
+    SQLAlchemy's ``sa.Enum`` defaults to using the enum *member names*
+    (uppercase ``COMPLETED``), but SubagentRun rows are written with the
+    lowercase *values* (``"completed"``). Without this the ORM raises
+    ``LookupError: 'completed' is not among the defined enum values`` on read.
+    """
+    return [m.value for m in enum_cls]
+
+
 class SubagentRun(SQLModel, table=True):
     __tablename__ = "subagent_runs"
 
@@ -39,7 +51,13 @@ class SubagentRun(SQLModel, table=True):
     focus_paths: str | None = None  # JSON list
     acceptance_criteria: str | None = None  # JSON list
 
-    status: SubagentStatus = Field(default=SubagentStatus.RUNNING)
+    status: SubagentStatus = Field(
+        default=SubagentStatus.RUNNING,
+        sa_column=sa.Column(
+            sa.Enum(SubagentStatus, values_callable=_enum_values),
+            nullable=False,
+        ),
+    )
     result: str | None = None
     error: str | None = None
     tools_used: str | None = None  # JSON list of tool names

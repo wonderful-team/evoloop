@@ -11,7 +11,12 @@ import xml.etree.ElementTree as ET
 
 from app.infrastructure.drivers.adb import ADBError, adb_driver
 from app.infrastructure.vision.providers.base import VisionProvider
-from app.infrastructure.vision.types import ElementType, UIElement, VisionResult, VisionTask
+from app.infrastructure.vision.types import (
+    ElementType,
+    UIElement,
+    VisionResult,
+    VisionTask,
+)
 from app.utils.geometry import parse_bounds
 from app.utils.time import elapsed_ms
 

@@ -12,12 +12,8 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any
 
-from app.core.learning.macro.schemas import (
-    DEFAULT_ALLOWED_FAMILIES,
-    MacroScript,
-    compute_max_risk,
-    scan_step_families,
-)
+from app.core.learning.constants import DEFAULT_ALLOWED_FAMILIES
+from app.core.learning.macro.schemas import MacroScript, compute_max_risk, scan_step_families
 from app.core.learning.macro.utils import cleanup_macro_steps, verify_macro_script
 
 logger = logging.getLogger(__name__)

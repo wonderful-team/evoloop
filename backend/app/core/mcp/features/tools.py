@@ -85,8 +85,6 @@ class McpToolsFeature(McpFeature):
             return []
 
         native_tools = []
-        session = self._session
-        server_name = self._server_name
 
         for tool in self._tools:
             feature = self
@@ -111,13 +109,13 @@ class McpToolsFeature(McpFeature):
                     raise
 
             args_schema = self._create_args_schema(tool.name, tool.inputSchema)
-            formatted_name = format_mcp_tool_name(server_name, tool.name)
+            formatted_name = format_mcp_tool_name(self._server_name, tool.name)
 
             native_tool = EvoLoopTool(
                 func=_tool_func,
                 name=formatted_name,
                 description=tool.description
-                or f"MCP tool '{tool.name}' from server '{server_name}'",
+                or f"MCP tool '{tool.name}' from server '{self._server_name}'",
                 args_schema=args_schema,
             )
             native_tools.append(native_tool)

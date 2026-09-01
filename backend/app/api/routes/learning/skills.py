@@ -515,6 +515,8 @@ async def create_skill_from_yaml(
         )
     except YAMLError as e:
         raise HTTPException(status_code=400, detail=f"YAML error: {str(e)}")
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception(f"Failed to create skill from YAML: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to create skill: {str(e)}")
@@ -533,9 +535,7 @@ async def validate_skill_yaml(
             steps = macro_from_yaml(body.yaml_content)
             step_count = len(steps)
 
-        return ValidateYamlResponse(
-            valid=is_valid, errors=errors, step_count=step_count
-        )
+        return ValidateYamlResponse(valid=is_valid, errors=errors, step_count=step_count)
     except Exception as e:
         return ValidateYamlResponse(valid=False, errors=[str(e)], step_count=0)
 
@@ -583,7 +583,7 @@ async def update_skill_yaml(
             if not skill:
                 raise HTTPException(status_code=404, detail="Skill not found")
 
-            macro_id = await MacroService.reconcile_for_skill(
+            await MacroService.reconcile_for_skill(
                 db, skill, yaml_content, source_thread_id=skill.source_thread_id
             )
 
@@ -599,6 +599,8 @@ async def update_skill_yaml(
         )
     except YAMLError as e:
         raise HTTPException(status_code=400, detail=f"YAML parse error: {str(e)}")
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception(f"Failed to update skill from YAML: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to update: {str(e)}")

@@ -43,12 +43,18 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
     """
 
     def __init__(
-        self, thread_id: str, project_id: int, run_id: str = "", member_id: int = 0
+        self,
+        thread_id: str,
+        project_id: int,
+        run_id: str = "",
+        member_id: int = 0,
+        skip_persistence: bool = False,
     ):
         self.thread_id = thread_id
         self.project_id = project_id
         self.run_id = run_id
         self.member_id = member_id
+        self.skip_persistence = skip_persistence
 
         # 统一消息处理器
         self._handler = MessageHandler(
@@ -137,6 +143,10 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         # Censor raw secrets before writing to the database log
         output = censor_secrets(output)
 
+        if self.skip_persistence:
+            logger.debug(f"[DatabaseCallback] Tool output skipped (skip_persistence): {tool_name}")
+            return
+
         # 委托给统一处理器，传入 sequence_number 以 UPDATE 记录
         result = await self._handler.handle_tool_output(
             tool_name=tool_name,
@@ -183,12 +193,15 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         input_data = censor_secrets(input_data)
 
         # Pre-insert running record via MessageHandler
-        result = await self._handler.handle_tool_start(
-            tool_name=tool_name,
-            tool_call_id=tool_call_id,
-            input_data=input_data,
-            parent_id=self._last_ai_message_id,
-        )
+        if self.skip_persistence:
+            result = None
+        else:
+            result = await self._handler.handle_tool_start(
+                tool_name=tool_name,
+                tool_call_id=tool_call_id,
+                input_data=input_data,
+                parent_id=self._last_ai_message_id,
+            )
 
         # Store in context for HITL tools to access
         from app.core.context.manager import ContextManager
@@ -200,10 +213,11 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         self._tool_info_by_run_id[run_id_str] = {
             "name": tool_name,
             "tool_call_id": tool_call_id,
-            "seq": result.sequence_number,
+            "seq": result.sequence_number if result is not None else None,
         }
         logger.info(
-            f"[DatabaseCallback] Tool started: {tool_name} (run_id={run_id_str}, tool_call_id={tool_call_id}, seq={result.sequence_number})"
+            f"[DatabaseCallback] Tool started: {tool_name} (run_id={run_id_str}, tool_call_id={tool_call_id}, "
+            f"seq={result.sequence_number if result is not None else None}, skip_persistence={self.skip_persistence})"
         )
 
     async def on_tool_error(
@@ -226,6 +240,10 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         censored_message = censor_secrets(str(error))
         if censored_message != str(error):
             error = Exception(censored_message)
+
+        if self.skip_persistence:
+            logger.debug(f"[DatabaseCallback] Tool error skipped (skip_persistence): {tool_name}")
+            return
 
         await self._handler.handle_tool_error(
             tool_name=tool_name,

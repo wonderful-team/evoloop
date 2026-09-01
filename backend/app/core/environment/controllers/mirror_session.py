@@ -327,14 +327,12 @@ class MirrorSession:
         # Stop event recording first
         captured_events: list[AndroidTraceEvent] = []
         if self.event_recorder and self._recording_started:
-            android_events = self.event_recorder.stop_recording()
+            self.event_recorder.stop_recording()
             captured_events = self.event_recorder.to_trace_events(
                 session_id=self.session_id, thread_id="global"
             )
             self.captured_events = captured_events
-            logger.info(
-                f"Stopped event recording. Captured {len(captured_events)} events"
-            )
+            logger.info(f"Stopped event recording. Captured {len(captured_events)} events")
 
         # Stop scrcpy
         if self.process:

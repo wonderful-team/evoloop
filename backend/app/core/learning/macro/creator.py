@@ -15,7 +15,7 @@ from sqlalchemy import select
 
 import app.core.learning.constants as _mc
 from app.core.config import settings
-from app.core.learning.constants import ALLOWED_UI_ACTIONS
+from app.core.learning.constants import ALLOWED_UI_ACTIONS, EXCLUDED_EVENT_TYPES, RAW_MOBILE_EVENT_TYPES
 from app.infrastructure.database import session_scope
 from app.models import AgentActivity, Message, TraceEvent
 
@@ -24,41 +24,10 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Raw mobile mirror events that MacroScriptCompiler normalizes into macro actions.
-_RAW_MOBILE_EVENT_TYPES = frozenset(
-    {
-        _mc.TOUCH_DOWN,
-        _mc.TOUCH_UP,
-        _mc.MOUSE_CLICK,
-        _mc.SWIPE,
-        _mc.KEY,
-    }
-)
-
 # Event types that can be turned into deterministic macro steps. Kept in sync
 # with the compiler's ALLOWED_UI_ACTIONS so eligibility checks do not promise a
 # macro that the compiler cannot produce.
-_REPLAYABLE_EVENT_TYPES = ALLOWED_UI_ACTIONS | _RAW_MOBILE_EVENT_TYPES
-
-_EXCLUDED_EVENT_TYPES = frozenset(
-    {
-        "llm_output",
-        "tool_result",
-        "node_start",
-        "macro_thought",
-        "list_macros",
-        "list_skills",
-        "search_history",
-        "recall",
-        "read",
-        "list_dir",
-        "grep",
-        "glob",
-        "question",
-        "ask_confirm",
-        "think",
-    }
-)
+_REPLAYABLE_EVENT_TYPES = ALLOWED_UI_ACTIONS | RAW_MOBILE_EVENT_TYPES
 
 
 class MacroCreatorService:
@@ -102,7 +71,7 @@ class MacroCreatorService:
             return False
 
         event_type = event.event_type
-        if event_type is None or event_type in _EXCLUDED_EVENT_TYPES:
+        if event_type is None or event_type in EXCLUDED_EVENT_TYPES:
             return False
 
         payload = event.payload or {}

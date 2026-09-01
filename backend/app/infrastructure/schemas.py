@@ -44,13 +44,15 @@ class PlatformModel(DynamicBaseModel):
     display_name: str
     provider_name: str
     provider_type: str = "openai"  # openai | anthropic
-    model_type: str = "llm"  # llm, embedding, vision
+    model_type: str = "llm"  # llm, embedding, vision, image, video
     config_type: str = "evoloop"  # evoloop, custom
     context_window: int = 128000  # Default to 128k as requested
     max_tokens: int = 4096
     supports_streaming: bool = True
     supports_vision: bool = False
     supports_functions: bool = True
+    supports_image_generation: bool = False
+    supports_video_generation: bool = False
     description: str = ""
     icon: str = "default"
     available: bool = True

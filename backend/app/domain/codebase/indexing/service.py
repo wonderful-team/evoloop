@@ -201,65 +201,53 @@ class IndexingService:
                     prepared, session
                 )
                 await self.sql_persister.clear_old_data(source_file, session)
-                name_to_id = await self.sql_persister.persist(
-                    indexed, source_file, session
-                )
+                await self.sql_persister.persist(indexed, source_file, session)
 
                 if indexed.embeddings:
                     if skip_vector_upsert and _vector_collector is not None:
                         chunks_for_vec = []
                         for doc in indexed.documents:
-                            chunks_for_vec.append(
-                                {
-                                    "content": doc.content,
-                                    "file_path": prepared.rel_path,
-                                    "repository_id": str(repo_id),
-                                    "chunk_type": doc.metadata.get("type", "unknown"),
-                                    "identifier": doc.metadata.get("name", "unknown"),
-                                    "start_line": doc.metadata.get("start_line", 0),
-                                    "end_line": doc.metadata.get("end_line", 0),
-                                    "language": get_file_ext(prepared.file_path),
-                                }
-                            )
+                            chunks_for_vec.append({
+                                "content": doc.content,
+                                "file_path": prepared.rel_path,
+                                "repository_id": str(repo_id),
+                                "chunk_type": doc.metadata.get("type", "unknown"),
+                                "identifier": doc.metadata.get("name", "unknown"),
+                                "start_line": doc.metadata.get("start_line", 0),
+                                "end_line": doc.metadata.get("end_line", 0),
+                                "language": get_file_ext(prepared.file_path),
+                            })
                         _vector_collector.append((chunks_for_vec, indexed.embeddings))
                     else:
                         vector_store = get_vector_store(project_path=repo_path)
                         chunks_for_vec = []
                         for doc in indexed.documents:
-                            chunks_for_vec.append(
-                                {
-                                    "content": doc.content,
-                                    "file_path": prepared.rel_path,
-                                    "repository_id": str(repo_id),
-                                    "chunk_type": doc.metadata.get("type", "unknown"),
-                                    "identifier": doc.metadata.get("name", "unknown"),
-                                    "start_line": doc.metadata.get("start_line", 0),
-                                    "end_line": doc.metadata.get("end_line", 0),
-                                    "language": get_file_ext(prepared.file_path),
-                                }
-                            )
+                            chunks_for_vec.append({
+                                "content": doc.content,
+                                "file_path": prepared.rel_path,
+                                "repository_id": str(repo_id),
+                                "chunk_type": doc.metadata.get("type", "unknown"),
+                                "identifier": doc.metadata.get("name", "unknown"),
+                                "start_line": doc.metadata.get("start_line", 0),
+                                "end_line": doc.metadata.get("end_line", 0),
+                                "language": get_file_ext(prepared.file_path),
+                            })
                         await asyncio.to_thread(
                             vector_store.upsert_code_chunks,
                             chunks_for_vec,
                             indexed.embeddings,
                         )
                 else:
-                    logger.debug(
-                        f"Skipping vector upsert for {prepared.rel_path}: embeddings disabled or not generated."
-                    )
+                    logger.debug(f"Skipping vector upsert for {prepared.rel_path}: embeddings disabled or not generated.")
 
             except Exception as e:
                 logger.exception(f"Error indexing file {file_path}: {e}")
                 if prepared is not None:
                     try:
-                        await self.file_preparer.mark_source_file_failed(
-                            prepared.source_file, session
-                        )
+                        await self.file_preparer.mark_source_file_failed(prepared.source_file, session)
                         await session.commit()
                     except Exception as mark_err:
-                        logger.exception(
-                            f"Failed to mark source_file as failed: {mark_err}"
-                        )
+                        logger.exception(f"Failed to mark source_file as failed: {mark_err}")
                         await session.rollback()
                 else:
                     await session.rollback()
@@ -289,9 +277,7 @@ class IndexingService:
                 if not prepared:
                     return None
 
-                extracted = await content_indexer.extract(
-                    file_path, prepared.content, prepared.rel_path
-                )
+                extracted = await content_indexer.extract(file_path, prepared.content, prepared.rel_path)
                 if extracted is None:
                     return None
 
@@ -339,9 +325,7 @@ class IndexingService:
         if not texts:
             return
 
-        logger.info(
-            f"[_embed_all] Embedding {len(texts)} texts across {len(items)} files"
-        )
+        logger.info(f"Embedding {len(texts)} texts across {len(items)} files")
 
         # Determine a safe chunk size.  The BatchedEmbedder already caps batches,
         # but splitting here keeps memory bounded and yields regular progress.
@@ -349,19 +333,13 @@ class IndexingService:
         all_embeddings: list[list[float]] = []
         for i in range(0, len(texts), chunk_size):
             chunk = texts[i : i + chunk_size]
-            logger.info(
-                f"[_embed_all] Embedding chunk {i // chunk_size + 1}/{(len(texts) - 1) // chunk_size + 1} ({len(chunk)} texts)"
-            )
+            logger.info(f"Embedding chunk {i // chunk_size + 1}/{(len(texts) - 1) // chunk_size + 1} ({len(chunk)} texts)")
             chunk_embeddings = await batched_embedder.embed_documents(chunk)
             if len(chunk_embeddings) != len(chunk):
-                raise RuntimeError(
-                    f"Expected {len(chunk)} embeddings, got {len(chunk_embeddings)}"
-                )
+                raise RuntimeError(f"Expected {len(chunk)} embeddings, got {len(chunk_embeddings)}")
             all_embeddings.extend(chunk_embeddings)
 
-        for (item_idx, _doc_idx), embedding in zip(
-            text_map, all_embeddings, strict=False
-        ):
+        for (item_idx, _doc_idx), embedding in zip(text_map, all_embeddings, strict=False):
             items[item_idx][1].embeddings.append(embedding)
 
     async def remove_file(self, file_path: str, repo_id: int):
@@ -374,9 +352,7 @@ class IndexingService:
 
                 repo_path = await self._resolve_project_path(repo)
                 if not repo_path:
-                    logger.warning(
-                        f"[remove_file] No resolvable project path for repo {repo_id}. Skipping {file_path}."
-                    )
+                    logger.warning(f"[remove_file] No resolvable project path for repo {repo_id}. Skipping {file_path}.")
                     return
 
                 rel_path = os.path.relpath(file_path, repo_path)
@@ -407,22 +383,16 @@ class IndexingService:
         if os.path.exists(dest_path):
             await self.index_file(dest_path, repo_id)
             logger.info(f"Moved (Re-indexed) {src_path} -> {dest_path}")
-        else:
-            logger.warning(f"Move Error: Dest {dest_path} not found.")
 
     async def index_repository(self, repo_path: str, repo_id: int, force: bool = False):
         """
         Main entry point to index a repository on disk.
         """
         if not repo_path or not os.path.isdir(repo_path):
-            logger.warning(
-                f"[index_repository] Skipping repo {repo_id}: invalid path {repo_path}"
-            )
+            logger.warning(f"[index_repository] Skipping repo {repo_id}: invalid path {repo_path}")
             return
 
-        logger.info(
-            f"Starting full indexing for repo {repo_id} at {repo_path} (Force={force})"
-        )
+        logger.info(f"Starting full indexing for repo {repo_id} at {repo_path} (Force={force})")
 
         from app.constants import BLACKLIST_DIRS
         from app.core.file.service import walk_tree
@@ -440,9 +410,7 @@ class IndexingService:
             )
         )
 
-        logger.info(
-            f"Found {len(filtered_files)} valid files to index (Applied .gitignore)."
-        )
+        logger.info(f"Found {len(filtered_files)} valid files to index (Applied .gitignore).")
 
         total_files = len(filtered_files)
 
@@ -466,13 +434,9 @@ class IndexingService:
         )
         batched_content_indexer = ContentIndexer(self.extractor, batched_embedder)
 
-        async def _extract_one(
-            file_path: str,
-        ) -> tuple[PreparedFile, IndexedContent] | None:
+        async def _extract_one(file_path: str) -> tuple[PreparedFile, IndexedContent] | None:
             async with extract_semaphore:
-                return await self._prepare_and_extract(
-                    file_path, repo_id, force, batched_content_indexer
-                )
+                return await self._prepare_and_extract(file_path, repo_id, force, batched_content_indexer)
 
         # Phase 1: prepare + extract all files concurrently.
         logger.info(f"Phase 1/3: extracting up to {total_files} files")
@@ -545,8 +509,6 @@ class IndexingService:
 
             # Batch-persist all files in a single DB session,
             # then batch upsert vectors across the window.
-            window_ok = False
-            repo_path: str | None = None
             try:
                 async with self.session_factory() as session:
                     repo = await session.get(Repository, repo_id)
@@ -595,9 +557,7 @@ class IndexingService:
                                 }
                                 for doc in indexed.documents
                             ]
-                            vector_collector.append(
-                                (chunks_for_vec, indexed.embeddings)
-                            )
+                            vector_collector.append((chunks_for_vec, indexed.embeddings))
 
                     window_ok = True
 
@@ -653,6 +613,4 @@ class IndexingService:
                 logger.exception(f"Final vector upsert failed: {e}")
 
         error_count = extract_error_count + persist_error_count
-        logger.info(
-            f"Full indexing complete. Indexed: {indexed_count}, Errors: {error_count}"
-        )
+        logger.info(f"Full indexing complete. Indexed: {indexed_count}, Errors: {error_count}")

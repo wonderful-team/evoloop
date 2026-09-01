@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 @router.post("/webhook")
 async def webhook_endpoint(req: WebhookRequest, bg_tasks: BackgroundTasks):
-    messages = EventAdapter.adapt(req.source, req.event_type, req.payload.model_dump())
+    messages = EventAdapter.adapt(req.source, req.event_type, req.payload)
     if not messages:
         raise HTTPException(status_code=400, detail="Could not adapt event")
 

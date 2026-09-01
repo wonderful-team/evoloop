@@ -1,4 +1,3 @@
-from app.infrastructure.vision.engine import vision_engine
 from app.infrastructure.vision.router import VisionRouter, get_vision_router
 from app.infrastructure.vision.storage import (
     ScreenRecordingStorage,
@@ -11,10 +10,14 @@ from app.infrastructure.vision.storage import (
     screen_recording_storage,
     screenshot_storage,
 )
-from app.infrastructure.vision.types import ElementType, UIElement, VisionResult, VisionTask
+from app.infrastructure.vision.types import (
+    ElementType,
+    UIElement,
+    VisionResult,
+    VisionTask,
+)
 
 __all__ = [
-    "vision_engine",
     "get_vision_router",
     "VisionRouter",
     "VisionTask",

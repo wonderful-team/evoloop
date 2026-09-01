@@ -47,13 +47,13 @@ from app.core.learning.synthesizer_utils import (
 from app.core.learning.workflow_synthesizer import SynthesizedSkill
 from app.infrastructure.config.service import SystemConfigService
 from app.infrastructure.drivers.adb import adb_driver
-from app.infrastructure.llm.vision import VisionLLMFactory
-from app.infrastructure.video.compressor import (
+from app.infrastructure.vision.llm import VisionLLMFactory
+from app.infrastructure.vision.video.compressor import (
     CoordinateNormalizer,
     FrameCompressor,
     KeyframeSelector,
 )
-from app.infrastructure.video.schemas import (
+from app.infrastructure.vision.video.schemas import (
     CompressedFrame,
     KeyframeCandidate,
     VideoInfo,

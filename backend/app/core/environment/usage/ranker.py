@@ -100,7 +100,6 @@ class UsageRanker:
             logger.debug(f"[UsageRanker] Bulk macOS probe failed: {e}", exc_info=True)
 
         # 2. Ensure all running apps and provided app_names are considered
-        existing_bundle_ids = {r.bundle_id for r in records}
         existing_names = {r.app_name for r in records}
 
         # Candidates for individual probing if we have very little data
@@ -145,9 +144,7 @@ class UsageRanker:
             if output:
                 return {name.strip() for name in output.split(",")}
         except Exception as e:
-            logger.debug(
-                f"[UsageRanker] Failed to get running apps: {e}", exc_info=True
-            )
+            logger.debug(f"[UsageRanker] Failed to get running apps: {e}", exc_info=True)
         return set()
 
     @classmethod
@@ -159,13 +156,8 @@ class UsageRanker:
 
         last_used_at = None
         if last_used_str and last_used_str != "(null)":
-            try:
-                # mdls returns: "2026-02-19 13:11:06 +0000"
-                last_used_at = datetime.strptime(
-                    last_used_str.strip(), "%Y-%m-%d %H:%M:%S %z"
-                )
-            except Exception as e:
-                logger.debug("Suppressed error: %s", e, exc_info=True)
+            # mdls returns: "2026-02-19 13:11:06 +0000"
+            last_used_at = datetime.strptime(last_used_str.strip(), "%Y-%m-%d %H:%M:%S %z")
 
         return AppUsageRecord(
             app_name=app_name,

@@ -84,6 +84,12 @@ class SchedulerService:
                 logger.info(f"[Scheduler] Ran duty task {task.id} (next run: {task.next_run_at})")
                 return
 
+            # 宏任务：关联了 macro_id → 直接执行宏（不经 agent、不强制设备池）。
+            # 宏内部按 source 处理 web/desktop/mobile 执行器；device 由执行器解析。
+            if task.macro_id is not None:
+                await SchedulerService.dispatch_macro_task(task)
+                return
+
             # Prepare payload for background agent
             # Instead of just running the macro, we start an agent session
             # so it can use 'agentic' adaptive logic if the macro fails.
@@ -93,6 +99,75 @@ class SchedulerService:
             run_autonomous_task_execution.delay(task_id=task.id, project_id=task.project_id)
 
             logger.info(f"[Scheduler] Dispatched task {task.id} (next run: {task.next_run_at})")
+
+    @staticmethod
+    async def dispatch_macro_task(task: AutonomousTask):
+        """Execute a macro-linked autonomous task directly (no agent session).
+
+        Loads the macro by id (scoped to the task's project) and runs it via
+        MacroEngine with the task's params template. Logs the outcome and tracks
+        consecutive failures / dead-letter state.
+        """
+        try:
+            from app.core.learning.macro import load_macro
+            from app.core.learning.macro.engine import MacroEngine
+            from app.utils.id import unique_id
+
+            macro = await load_macro(
+                int(task.macro_id), project_id=task.project_id
+            )
+            if macro is None:
+                raise ValueError(f"Macro {task.macro_id} not found for task {task.id}")
+
+            thread_id = unique_id("sched", task.id)
+            result = await MacroEngine.run(
+                thread_id=thread_id,
+                macro=macro,
+                params=dict(task.params_template or {}),
+                project_id=task.project_id or 0,
+            )
+
+            logger.info(
+                "[Scheduler] Macro task %s executed macro %s: success=%s status=%s",
+                task.id,
+                task.macro_id,
+                result.success,
+                result.status,
+            )
+            if not result.success:
+                raise RuntimeError(
+                    result.message or f"Macro {task.macro_id} failed (status={result.status})"
+                )
+        except Exception as e:
+            logger.exception("[Scheduler] Macro task %s failed: %s", task.id, e)
+            # 失败计数 + dead-letter 兜底，与 agent 路径对齐
+            await SchedulerService._record_task_failure(task.id, str(e))
+            return
+
+        await SchedulerService._clear_task_failures(task.id)
+
+    @staticmethod
+    async def _record_task_failure(task_id: int, reason: str):
+        """Increment consecutive failures; dead-letter the task when exhausted."""
+        async with session_scope() as session:
+            task = await session.get(AutonomousTask, task_id)
+            if not task:
+                return
+            task.consecutive_failures += 1
+            task.last_failure_reason = reason
+            if task.consecutive_failures >= (task.max_retries or 3):
+                task.is_active = False
+                task.is_dead_letter = True
+
+    @staticmethod
+    async def _clear_task_failures(task_id: int):
+        """Reset consecutive failure counter after a successful run."""
+        async with session_scope() as session:
+            task = await session.get(AutonomousTask, task_id)
+            if not task:
+                return
+            task.consecutive_failures = 0
+            task.last_failure_reason = None
 
     @staticmethod
     def calculate_next_run(trigger_spec: str, base_time: datetime) -> datetime:
@@ -119,6 +194,7 @@ class SchedulerService:
     async def register_task(
         intent_description: str,
         skill_ids: list[int] | None = None,
+        macro_id: int | None = None,
         trigger_spec: str = "interval:3600",
         params: dict[str, Any] | None = None,
         project_id: int | None = None,
@@ -136,10 +212,19 @@ class SchedulerService:
                 if missing:
                     raise ValueError(f"Skill IDs {sorted(missing)} not found.")
 
+            # Validate macro (if any)
+            if macro_id is not None:
+                from app.core.learning.macro import load_macro
+
+                macro = await load_macro(int(macro_id), project_id=project_id)
+                if macro is None:
+                    raise ValueError(f"Macro {macro_id} not found (project={project_id}).")
+
             task = AutonomousTask(
                 member_id=0,
                 intent_description=intent_description,
                 skill_ids=skill_ids,
+                macro_id=macro_id,
                 trigger_spec=trigger_spec,
                 params_template=params,
                 project_id=project_id,

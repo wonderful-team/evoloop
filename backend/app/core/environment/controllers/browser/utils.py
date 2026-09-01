@@ -4,7 +4,8 @@ Browser controller shared utilities.
 
 import logging
 
-from app.infrastructure.vision import VisionTask, vision_engine
+from app.core.vision import vision_engine
+from app.infrastructure.vision import VisionTask
 from app.utils.controller_response import ControllerResponse
 
 logger = logging.getLogger(__name__)

@@ -11,6 +11,7 @@ from typing import Any
 from app.core.engine.message.native_classes import HumanMessage
 from app.infrastructure.llm.factory import LLMFactory
 from app.infrastructure.schemas import LLMConfig
+from app.utils.http import is_http_url
 
 logger = logging.getLogger(__name__)
 
@@ -176,7 +177,7 @@ class VisionLLMFactory:
         Returns:
             HumanMessage with multimodal content
         """
-        if image_path.startswith("http://") or image_path.startswith("https://"):
+        if is_http_url(image_path):
             image_url = image_path
         else:
             base64_image = VisionLLMFactory.encode_image(image_path)

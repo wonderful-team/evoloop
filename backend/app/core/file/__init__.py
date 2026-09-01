@@ -36,6 +36,7 @@ from app.utils.path import (
 )
 
 from . import editor
+from .constants import DEFAULT_PAGE_SIZE, LARGE_FILE_THRESHOLD
 
 # Directory Operations
 from .directory import (
@@ -65,8 +66,6 @@ from .filter import (
     is_encrypted_path,
     is_ignored_path,
 )
-
-from .constants import DEFAULT_PAGE_SIZE, LARGE_FILE_THRESHOLD
 
 # I/O Operations
 from .io import (
@@ -192,6 +191,7 @@ __all__ = [
     "compute_version_hash",
     "compute_state_id",
     "compute_content_hash",
+    "sha256_digest",
     # File Utility
     "file_exists",
     "ensure_dir",

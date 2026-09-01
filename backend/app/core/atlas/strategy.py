@@ -112,23 +112,10 @@ class AtlasStrategyStore:
         """Save strategy for an app."""
         key = cls._get_key(strategy.bundle_id, strategy.platform)
         try:
-            await cache.set(
-                key, json.dumps(strategy.model_dump()), ex=86400 * 7
-            )  # 7 days
+            await cache.set(key, json.dumps(strategy.model_dump()), ex=86400 * 7)  # 7 days
             return True
         except Exception as e:
             logger.exception(f"Failed to save strategy for {strategy.bundle_id}: {e}")
-            return False
-
-    @classmethod
-    async def delete_strategy(cls, bundle_id: str, platform: str = "android") -> bool:
-        """Delete strategy for an app."""
-        key = cls._get_key(bundle_id, platform)
-        try:
-            await cache.delete(key)
-            return True
-        except Exception as e:
-            logger.exception(f"Failed to delete strategy for {bundle_id}: {e}")
             return False
 
     @classmethod

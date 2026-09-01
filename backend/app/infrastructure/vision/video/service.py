@@ -5,7 +5,7 @@ Combines FrameExtractor + FrameCompressor for use by ReferenceService
 and other consumers that need to extract frames from videos.
 
 Usage:
-    from app.infrastructure.video.service import VideoService
+    from app.infrastructure.vision.video.service import VideoService
 
     frames = await VideoService.extract_keyframes("https://.../video.mp4", count=5)
     info = await VideoService.get_metadata("https://.../video.mp4")
@@ -21,9 +21,10 @@ from pathlib import Path
 
 import httpx
 
-from app.infrastructure.video.compressor import FrameCompressor
-from app.infrastructure.video.extractor import FrameExtractor
-from app.infrastructure.video.schemas import CompressedFrame, VideoInfo
+from app.infrastructure.vision.video.compressor import FrameCompressor
+from app.infrastructure.vision.video.extractor import FrameExtractor
+from app.infrastructure.vision.video.schemas import CompressedFrame, VideoInfo
+from app.utils.http import is_http_url
 
 logger = logging.getLogger(__name__)
 
@@ -49,9 +50,7 @@ class VideoService:
                 "-of", "json",
                 local_path,
             ]
-            result = await asyncio.create_subprocess_exec(
-                *cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-            )
+            result = await asyncio.create_subprocess_exec(*cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             stdout, _ = await result.communicate()
 
             data = json.loads(stdout.decode())
@@ -102,7 +101,6 @@ class VideoService:
         # Compress frames
         compressor = FrameCompressor()
         result: list[CompressedFrame] = []
-        width = max_width or VideoService.DEFAULT_MAX_WIDTH
         for frame_path in frame_paths:
             try:
                 compressed = compressor.compress(frame_path)
@@ -116,7 +114,7 @@ class VideoService:
     @staticmethod
     async def _ensure_local(video_url_or_path: str) -> str:
         """If the input is a URL, download it to a temp file. Otherwise return as-is."""
-        if video_url_or_path.startswith(("http://", "https://")):
+        if is_http_url(video_url_or_path):
             suffix = Path(video_url_or_path).suffix or ".mp4"
             tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
             tmp_path = tmp.name

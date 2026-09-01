@@ -175,8 +175,3 @@ class MessageCategory(str, Enum):
             MessageCategory.INTERNAL_TOOL_CALL,
             MessageCategory.INTERNAL_REASONING,
         }
-
-    @classmethod
-    def get_persisted_categories(cls) -> set:
-        """获取所有入库的类别集合"""
-        return {cat for cat in cls if cat.should_persist_to_db}

@@ -1,6 +1,16 @@
 import httpx
 
 
+def is_http_url(url: str) -> bool:
+    """Whether ``url`` points at a remote HTTP(S) resource.
+
+    Single source of truth for the repeated ``startswith(("http://", "https://"))``
+    check used across file/document/video/media tooling to distinguish remote
+    URLs from local paths.
+    """
+    return url.startswith(("http://", "https://"))
+
+
 def create_client(timeout: float = 30.0, headers: dict[str, str] | None = None) -> httpx.AsyncClient:
     """
     Create a unified httpx.AsyncClient.

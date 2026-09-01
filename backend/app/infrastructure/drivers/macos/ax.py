@@ -78,8 +78,6 @@ class AXMixin:
             if error != 0 or not windows:
                 return "[]"
 
-            front_window = windows[0]
-
             def get_element_data(element, depth=0, max_depth=20):
                 if depth > max_depth:
                     return None

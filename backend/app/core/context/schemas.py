@@ -20,7 +20,6 @@ class ContextMetadata(DynamicBaseModel):
     operation_map: str | None = None
     shared_context: dict[str, Any] = Field(default_factory=dict)
     tool_memory: dict | None = None
-    execution_ticket: Any | None = None
     iteration_count: int | None = None
     active_plan_context: str | None = None
     prompt: str | None = None

@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException
 
 from app.api.deps import CurrentUserOptional
 from app.core.events.publishers import publish_macro_mutated, publish_skill_mutated
+from app.core.learning.macro.service import MacroService
 from app.core.learning.multimodal_synthesizer import (
     MultimodalSkillSynthesizer,
     RecordingSession,
@@ -169,7 +170,7 @@ async def preview_recording_data(
     session_id: str, video_path: str, current_user: CurrentUserOptional = None
 ):
     """Preview recording data (debug) — returns keyframe plan without calling LLM."""
-    from app.infrastructure.video.compressor import KeyframeSelector
+    from app.infrastructure.vision.video.compressor import KeyframeSelector
 
     try:
         synthesizer = MultimodalSkillSynthesizer()

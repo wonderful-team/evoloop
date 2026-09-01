@@ -7,13 +7,14 @@ state_schema: "app.core.engine.state.AgentState"
 
 # =====================================================================
 # 🎯 REACT 主 Agent 工具面（单 Agent ReAct 主循环，重构目标架构）
-# 默认工具面 19 个：核心 12（OpenCode 对齐名）+ 特有 2（macro/remember）+ 具身 4 + 密码箱 1
+# 默认工具面 20 个：核心 12（OpenCode 对齐名）+ 特有 2（macro/remember）+ 具身 4 + 密码箱 1 + 定时 1
 #   核心 12：bash/read/glob/grep/edit/write/task/webfetch/websearch/todo/skill/question
 #   特有 2：macro（一体式宏入口，list/read/run/create/update/delete/debug）/ remember
-#   具身 4：browser（网页探索）/ analyze_image（截图视觉分析，VISION_MODEL 未配时自动过滤）
-#          / mobile（Android 设备控制）/ desktop（桌面控制）——mobile/desktop 由 required_benefit
-#          门控，无对应权益的成员调用时被拒（调用时过滤，工具仍常驻 face）
+#   具身 4：browser（网页探索）/ image（图像 facade：analyze+generate，VISION_MODEL 未配时 analyze 自动过滤）
+#          / video（视频 facade：analyze+generate）/ mobile（Android 设备控制）/ desktop（桌面控制）
+#          ——mobile/desktop 由 required_benefit 门控，无对应权益的成员调用时被拒（调用时过滤，工具仍常驻 face）
 #   密码箱 1：vault（一体式密码箱入口，action=list 列凭据 / action=request 请求录入）
+#   定时 1：schedule（统一调度入口，action=create 创建周期任务 / action=list 查看自主任务）
 # 其余低频/垂直能力（Atlas/Wiki/Codebase/MCP）走 skill/macro/task 索引+按需加载。
 # =====================================================================
 agents:
@@ -38,13 +39,16 @@ agents:
       - "skill"
       # 交互
       - "question"
-      # 具身探索（web 界面 / 截图视觉分析；mobile/desktop 由 required_benefit 调用时门控）
+      # 具身探索（web 界面 / 图像&视频 facade；mobile/desktop 由 required_benefit 调用时门控）
       - "browser"
-      - "analyze_image"
+      - "image"
+      - "video"
       - "mobile"
       - "desktop"
       # 密码箱（Secure Vault facade：list 列凭据 / request 请求录入；占位符 {{vault.id.key}} 由安全钩子解密）
       - "vault"
+      # 定时任务（统一 schedule facade：action=create 创建周期任务 / action=list 查看自主任务）
+      - "schedule"
       # 一等公民：宏（单一 macro 工具，list/read/run/create/update/delete 一体，§5.7）
       - "macro"
       # 记忆（特有）

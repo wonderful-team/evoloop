@@ -25,6 +25,7 @@ from app.core.tools.base import InjectedToolArg
 
 logger = logging.getLogger(__name__)
 
+
 @evoloop_tool(
     is_hidden=False,
     is_state_mutating=True,
@@ -348,12 +349,8 @@ async def _macro_debug(
     直接执行并返回逐步成败与提取数据，方便 agent 定位哪一步失败。等同
     于 create 的校验门，但不创建任何宏记录。
     """
-    from app.core.learning.macro.schemas import (
-        DEFAULT_ALLOWED_FAMILIES,
-        MacroScript,
-        compute_max_risk,
-        scan_step_families,
-    )
+    from app.core.learning.constants import DEFAULT_ALLOWED_FAMILIES  # noqa: E402
+    from app.core.learning.macro.schemas import MacroScript, compute_max_risk, scan_step_families
     from app.core.learning.macro.service import MacroService
     from app.core.learning.macro.utils import cleanup_macro_steps
     from app.utils.yaml import macro_from_yaml
@@ -376,9 +373,7 @@ async def _macro_debug(
     if reason:
         return f"Error: Risk gate rejected: {reason}"
 
-    result = await MacroService.run(
-        thread_id=thread_id, script_input=script, params=params or {}
-    )
+    result = await MacroService.run(thread_id=thread_id, script_input=script, params=params or {})
 
     max_risk = compute_max_risk(script.steps)
     lines = [f"# Debug run: risk_tier={max_risk} status={result.status or ('ok' if result.success else 'fail')}"]
@@ -393,9 +388,7 @@ async def _macro_debug(
         ))
         fails = [s for s in step_log if not s.get("ok")]
         if fails:
-            errs = "; ".join(
-                f"第{f['step']}步: {f.get('error', '未生效')}" for f in fails
-            )
+            errs = "; ".join(f"第{f['step']}步: {f.get('error', '未生效')}" for f in fails)
             lines.append(f"未生效步骤: {errs}")
     if result.extracted_data:
         import json
@@ -422,9 +415,7 @@ async def _macro_update(
         downgrade_macro,
         load_macro,
     )
-    from app.core.learning.macro import (
-        update_macro as lifecycle_update_macro,
-    )
+    from app.core.learning.macro import update_macro as lifecycle_update_macro
     from app.utils.parameters import finalize_macro_parameters
 
     fields: dict = {}
@@ -494,9 +485,7 @@ async def _macro_update(
 async def _verify_new_script(macro_id: int, project_id: int, macro_script: str):
     from app.core.learning.macro.authoring import validate_script
 
-    return await validate_script(
-        macro_script, thread_id=f"rewrite-{macro_id}", project_id=project_id
-    )
+    return await validate_script(macro_script, thread_id=f"rewrite-{macro_id}", project_id=project_id)
 
 
 async def _macro_delete(*, macro_id: int, rationale: str, project_id: int | None) -> str:

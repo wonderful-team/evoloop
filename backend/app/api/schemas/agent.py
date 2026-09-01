@@ -4,7 +4,6 @@ from typing import Any, Literal
 
 from app.api.schemas.responses import BaseAPIResponse
 from app.constants import DEFAULT_PROJECT_ID
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models.schemas.base import ScopedRequest
 
 
@@ -26,7 +25,7 @@ class ChatRequest(ScopedRequest):
 class WebhookRequest(ScopedRequest):
     source: str
     event_type: str
-    payload: "WebhookPayload"
+    payload: dict
     thread_id: str | None = None
 
 
@@ -43,10 +42,6 @@ class CancelHITLRequest(ScopedRequest):
     thread_id: str
     reason: str | None = None
     model: str | None = None
-
-
-class WebhookPayload(DynamicBaseModel):
-    """External webhook payload. Extra fields are allowed per source/event_type."""
 
 
 class StopChatResponse(BaseAPIResponse):

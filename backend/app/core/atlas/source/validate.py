@@ -16,6 +16,7 @@ from app.core.atlas.source.schemas import AppMapPayload
 from app.core.file import FileStatus, read_file
 from app.infrastructure.database import session_scope
 from app.models import CodeEntity, CodeRelation, Repository, SourceFile
+from app.utils.http import is_http_url
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +56,7 @@ def _validate_schema(payload: AppMapPayload) -> list[str]:
     for r in payload.routes:
         if not r.url:
             problems.append(f"route '{r.name}' 缺少 url")
-        elif not (r.url.startswith("/") or r.url.startswith(("http://", "https://"))):
+        elif not (r.url.startswith("/") or is_http_url(r.url)):
             problems.append(
                 f"route '{r.name}' url '{r.url}' 须以 '/' 开头（站点相对路径）"
             )

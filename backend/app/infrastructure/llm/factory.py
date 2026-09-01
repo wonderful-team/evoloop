@@ -60,7 +60,7 @@ try:
     if _original_openai_del:
 
         def _safe_openai_del(_self):
-            # Do nothing! We manage the httpx client via _HTTP_CLIENT_POOL explicitly
+            # Do nothing! We manage the httpx client via HTTP_CLIENT_POOL explicitly
             # so we don't need the SDK to asynchronously close it during GC.
             pass
 
@@ -122,7 +122,7 @@ class EvoCloudPlatformAuth(httpx.Auth):
                 yield request
 
 
-_HTTP_CLIENT_POOL = LoopBoundResource(
+HTTP_CLIENT_POOL = LoopBoundResource(
     factory=lambda: httpx.AsyncClient(
         auth=EvoCloudPlatformAuth(),
         http2=True,
@@ -336,7 +336,7 @@ class LLMFactory:
             temperature=config.temperature,
             streaming=config.streaming,
             max_tokens=effective_max_tokens,
-            http_async_client=_HTTP_CLIENT_POOL.get(),
+            http_async_client=HTTP_CLIENT_POOL.get(),
             extra_body=extra_body,
         )
 
@@ -428,7 +428,7 @@ class LLMFactory:
                 temperature=temperature,
                 streaming=streaming,
                 model_kwargs=thinking_kwargs or {},
-                http_async_client=_HTTP_CLIENT_POOL.get(),
+                http_async_client=HTTP_CLIENT_POOL.get(),
             )
 
         # --- OpenAI-compatible branch: one path, thinking-extra dispatched by family ---
@@ -449,7 +449,7 @@ class LLMFactory:
             temperature=temperature,
             streaming=streaming,
             max_tokens=effective_max_tokens,
-            http_async_client=_HTTP_CLIENT_POOL.get(),
+            http_async_client=HTTP_CLIENT_POOL.get(),
             extra_body=merged_extra,
             default_headers=final_headers if final_headers else None,
         )
@@ -524,8 +524,8 @@ async def shutdown_http_pool():
     """
     logger.info("[LLMFactory] Shutting down HTTP client pool...")
     count = 0
-    for _loop, client in list(_HTTP_CLIENT_POOL._resources.items()):
+    for _loop, client in list(HTTP_CLIENT_POOL._resources.items()):
         await client.aclose()
         count += 1
-    _HTTP_CLIENT_POOL._resources.clear()
+    HTTP_CLIENT_POOL._resources.clear()
     logger.info(f"[LLMFactory] HTTP client pool closed ({count} client(s))")

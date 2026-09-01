@@ -182,6 +182,7 @@ def _ensure_scanned():
         REGISTRY.scan("app.core.mcp.tools")
         REGISTRY.scan("app.core.memory.tools")
         REGISTRY.scan("app.core.project.tools")
+        REGISTRY.scan("app.core.vision.tools")
 
         # Validate critical tools are present; retry if necessary
         _validate_critical_tools()

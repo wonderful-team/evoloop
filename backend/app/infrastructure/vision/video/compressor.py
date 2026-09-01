@@ -16,7 +16,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from app.infrastructure.video.schemas import (
+from app.infrastructure.vision.video.schemas import (
     CompressedFrame,
     CompressionConfig,
     KeyframeCandidate,

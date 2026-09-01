@@ -53,3 +53,20 @@ OP_STATUS_ERROR = "error"
 MAINTENANCE_STATUS_SKIPPED = "skipped"
 #: Maintenance governance cycle completed.
 MAINTENANCE_STATUS_COMPLETED = "completed"
+
+
+# Memory tools tuple - gated by settings.ENABLE_MEMORY
+# Imported here to avoid circular imports; actual tools defined in tools.py
+_MEMORY_TOOLS: tuple = ()
+
+
+# Will be populated by tools.py after tool definitions
+def register_memory_tools(*tools):
+    """Called by tools.py to register the memory tool functions."""
+    global _MEMORY_TOOLS
+    _MEMORY_TOOLS = tools
+
+
+def get_memory_tools():
+    """Get the registered memory tools."""
+    return _MEMORY_TOOLS

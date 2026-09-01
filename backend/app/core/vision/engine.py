@@ -26,7 +26,7 @@ class VisionEngine:
         start_time = time.time()
 
         # 1. Publish Start Event
-        from app.infrastructure.vision.event.publishers import (
+        from app.core.vision.event.publishers import (
             publish_vision_process_started,
         )
         await publish_vision_process_started(task.value, image_source)
@@ -110,7 +110,7 @@ class VisionEngine:
 
         # 6. Publish Completion Event
         provider_name = provider.name if task != VisionTask.DETECT else "pipeline_manager"
-        from app.infrastructure.vision.event.publishers import (
+        from app.core.vision.event.publishers import (
             publish_vision_process_completed,
         )
         await publish_vision_process_completed(result, task.value, provider_name)

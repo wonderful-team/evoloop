@@ -28,6 +28,7 @@ from sqlmodel import SQLModel
 from sqlmodel import create_engine as create_sync_engine
 
 from app.core.config import settings
+from app.infrastructure.constants import AGENT_ACTIVITY_EXTRA_COLUMNS
 
 logger = logging.getLogger(__name__)
 
@@ -218,13 +219,6 @@ class DatabaseResourceManager:
         # create_all 对已存在的表不加新列。旧库按需 ALTER 补列（幂等）：
         # run_id（run_id 隔离修复）+ react 度量埋点列（llm_calls 等，§10.2.1 阶段 D）。
         # 新库 create_all 已含这些列，此处仅在旧库缺列时触发。
-        _AGENT_ACTIVITY_EXTRA_COLUMNS = [
-            ("run_id", "VARCHAR(100)"),
-            ("llm_calls", "INTEGER"),
-            ("input_tokens", "INTEGER"),
-            ("output_tokens", "INTEGER"),
-            ("tool_errors", "INTEGER"),
-        ]
         try:
             async with engine.connect() as conn:
                 cols = await conn.run_sync(
@@ -232,7 +226,7 @@ class DatabaseResourceManager:
                 )
                 missing = [
                     (name, ctype)
-                    for name, ctype in _AGENT_ACTIVITY_EXTRA_COLUMNS
+                    for name, ctype in AGENT_ACTIVITY_EXTRA_COLUMNS
                     if name not in cols
                 ]
                 for name, ctype in missing:

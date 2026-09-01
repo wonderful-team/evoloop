@@ -196,7 +196,6 @@ class ClientWebSocketManager:
         elif msg_type == "client_identify":
             # Client identification
             self._client_id = data.get("client_id")
-            token = data.get("token")
             logger.info(f"[WebSocket] Client identified: {self._client_id}")
 
             # Send acknowledgment

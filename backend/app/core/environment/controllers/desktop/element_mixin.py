@@ -10,8 +10,9 @@ from app.core.atlas import atlas_engine
 from app.core.environment import get_current_app_context
 from app.core.environment.schemas import ElementResolutionResult
 from app.core.file import cleanup_file
+from app.core.vision import vision_engine
 from app.infrastructure.drivers.macos import macos_driver
-from app.infrastructure.vision import VisionTask, vision_engine
+from app.infrastructure.vision import VisionTask
 from app.utils.controller_response import ControllerResponse
 from app.utils.text import normalize_text
 

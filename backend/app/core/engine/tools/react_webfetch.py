@@ -7,8 +7,10 @@
 from __future__ import annotations
 
 import logging
+import re
 
 from app.core.tools import evoloop_tool
+from app.utils.http import is_http_url
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +31,7 @@ async def webfetch(
         format: 输出格式——'markdown'（默认）、'text' 或 'html'。
         timeout: 请求超时秒数（默认 30）。
     """
-    if not url or not url.startswith(("http://", "https://")):
+    if not url or not is_http_url(url):
         return f"Error: invalid URL: {url!r}. Must start with http:// or https://"
 
     from app.utils.http import create_client
@@ -54,8 +56,6 @@ async def webfetch(
 
     try:
         if format == "text":
-            import re
-
             stripped = re.sub(r"<script.*?</script>|<style.*?</style>", "", html, flags=re.S)
             stripped = re.sub(r"<[^>]+>", " ", stripped)
             out = re.sub(r"\s+", " ", stripped).strip()

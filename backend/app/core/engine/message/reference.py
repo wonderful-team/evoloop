@@ -9,6 +9,7 @@ from app.constants import BINARY_EXTENSIONS, DEFAULT_PROJECT_ID
 from app.core.engine.message.schemas import ReferenceContext
 from app.core.file.document_reader import document_reader_service
 from app.models.conversation import Message
+from app.utils.http import is_http_url
 from app.utils.id import gen_uuid
 from app.utils.template import render_template
 
@@ -183,7 +184,7 @@ class ReferenceService:
             elif att_type == "video":
                 # Extract keyframes as image_url blocks for LLM vision support
                 try:
-                    from app.infrastructure.video.service import VideoService
+                    from app.infrastructure.vision.video.service import VideoService
 
                     frames = await VideoService.extract_keyframes(att_id, count=3)
                     for frame in frames:
@@ -391,7 +392,7 @@ class ReferenceService:
             resolved_path = file_path[len("file://") :]
 
         # 3. http/https URL
-        elif file_path.lower().startswith(("http://", "https://")):
+        elif is_http_url(file_path.lower()):
             return file_path
 
         # 4. Local relative path

@@ -10,7 +10,6 @@ from app.core.learning.schemas.events import (
 )
 from app.core.learning.schemas.migrated import (
     ActionCategory,
-    ActionRegistryItem,
     ActionSource,
     ActionTrace,
     RecordingSession,

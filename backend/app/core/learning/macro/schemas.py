@@ -9,6 +9,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.core.learning import constants as _mc
+from app.core.learning.constants import DEFAULT_ALLOWED_FAMILIES, RISK_TIER_ORDER, RISK_TIERS
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils.yaml import macro_from_yaml, macro_to_yaml
 
@@ -103,25 +104,7 @@ class MacroActionType(str, Enum):
     CGCLICK = _mc.CGCLICK
 
 
-# ---- P0: Action Family & Risk Model (§7.2, §10.1) ----
-
-# Risk tiers ordered from lowest to highest.
-RISK_TIERS: list[str] = ["observe", "act", "data", "money", "escape"]
-RISK_TIER_ORDER: dict[str, int] = {t: i for i, t in enumerate(RISK_TIERS)}
-
-
-# Families allowed for Agent-authored macro scripts (create_macro / update_macro
-# rewrite path). escape (bash/native/applescript) and money are excluded because
-# Agent-written macros must not silently gain arbitrary code-execution or
-# money-movement capability without human review.
-# 当前迭代临时放开 escape 族（bash/native/applescript/ACTION-run_js），
-# 以便宏内可以进行本地 JSON 数据处理。后续应引入受控的只读/数据加工通道。
-DEFAULT_ALLOWED_FAMILIES: set[str] = {"observe", "act", "control", "data", "escape"}
-
-
-def action_family(
-    step_type: MacroStepType, event_type: MacroActionType | str | None
-) -> str:
+def action_family(step_type: MacroStepType, event_type: MacroActionType | str | None) -> str:
     """Derive action family from a macro step using priority:
     1. escape  — type==NATIVE or type==BASH (system-level execution)
     2. observe — type in (EXTRACT, DUMP), including run_js extraction

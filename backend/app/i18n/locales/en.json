@@ -157,6 +157,8 @@
       "list_forgotten_outputs": "List forgotten outputs",
       "route_to": "Route to '{target}'",
       "analyze_image": "Analyze image '{image_source}'",
+      "image": "Image: {action}[[ '{prompt}' ]]",
+      "video": "Video: {action}[[ '{prompt}' ]]",
       "search_web": "Search web '{query}'",
       "search_result": "Search completed[[, {count} results found]][[ ({pattern}) ]]",
       "list_wiki_pages": "List wiki pages",
@@ -217,7 +219,6 @@
       "delete_file": "Delete file '{path}'",
       "generate_macros": "Generate macros",
       "list_app_maps": "List app maps",
-      "list_scheduled_tasks": "List scheduled tasks",
       "vault": "Vault: {action}[[ {identifier} ]]",
       "move_file": "Move file '{path}'",
       "query_code_chunks": "Query code chunks[[ (query: {query}) ]]",
@@ -225,7 +226,6 @@
       "query_security_findings": "Query security findings[[ (query: {query}) ]]",
       "query_source_files": "Query source files[[ (query: {query}) ]]",
       "read_app_map": "Read app atlas '{app_name}'",
-      "schedule_periodic_task": "Schedule periodic task '{task_name}'",
       "update_blackboard": "Update blackboard",
       "write_app_map": "Write app atlas '{app_name}'",
       "get_skill": "Read skill[[ (id: {skill_id}) ]][[ (name: {skill_name}) ]]",
@@ -240,7 +240,8 @@
       "read_result": "Read {lines} lines.",
       "write": "Write file '{path}'",
       "edit": "Edit file '{path}'",
-      "websearch": "Search completed[[, {count} results found]][[ ({pattern}) ]]"
+      "websearch": "Search completed[[, {count} results found]][[ ({pattern}) ]]",
+      "schedule": "Schedule: {action}[[ {intent}]]"
     }
   },
   "database_logger": {

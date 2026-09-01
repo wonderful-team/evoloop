@@ -59,15 +59,6 @@ class RecordingSession(DynamicBaseModel):
     thread_id: str | None = None
 
 
-class ActionRegistryItem(DynamicBaseModel):
-    """Action metadata injected into prompt templates."""
-
-    id: str
-    description: str
-    params: list[str] = Field(default_factory=list)
-    platforms: list[str] = Field(default_factory=list)
-
-
 class SkillImportResult(DynamicBaseModel):
     """Result of a bulk skill import operation."""
 

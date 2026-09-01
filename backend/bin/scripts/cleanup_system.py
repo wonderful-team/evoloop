@@ -286,8 +286,7 @@ class CleanupManager:
                         logger.warning(f"  清理 {table} 失败：{e}")
 
                 if not self.dry_run:
-
-                self.stats.postgres_rows_deleted += total_rows
+                    self.stats.postgres_rows_deleted += total_rows
 
             action = "将删除" if self.dry_run else "已删除"
             print(f"  ✅ {action} {total_rows} 行技能表数据")
@@ -399,8 +398,7 @@ class CleanupManager:
                         logger.warning(f"  清理 {table} 失败：{e}")
 
                 if not self.dry_run:
-
-                self.stats.postgres_rows_deleted += total_rows
+                    self.stats.postgres_rows_deleted += total_rows
 
             action = "将删除" if self.dry_run else "已删除"
             print(f"  ✅ {action} {total_rows} 行索引表数据")
@@ -448,8 +446,7 @@ class CleanupManager:
                         logger.warning(f"  清理 {table} 失败：{e}")
 
                 if not self.dry_run:
-
-                self.stats.postgres_rows_deleted += total_rows
+                    self.stats.postgres_rows_deleted += total_rows
 
             action = "将删除" if self.dry_run else "已删除"
             print(f"  ✅ {action} {total_rows} 行消息表数据")
@@ -558,8 +555,7 @@ class CleanupManager:
                         logger.debug(f"  表 {table_name} 不存在或无法访问: {e}")
 
                 if not self.dry_run:
-
-                self.stats.sqlite_rows_deleted += total_rows
+                    self.stats.sqlite_rows_deleted += total_rows
 
                 action = "将删除" if self.dry_run else "已删除"
                 print(f"  ✅ {action} {total_rows} 行 SQLite 数据")

@@ -39,15 +39,9 @@ def get_db() -> Generator[Session, None, None]:
         yield session
 
 
-SessionDep = Annotated[Session, Depends(get_db)]
-
 # Global OAuth2 Scheme
-oauth2_scheme = OAuth2PasswordBearer(
-    tokenUrl=f"{settings.API_V1_STR}/login/access-token"
-)
-oauth2_scheme_optional = OAuth2PasswordBearer(
-    tokenUrl=f"{settings.API_V1_STR}/login/access-token", auto_error=False
-)
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/login/access-token")
+oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/login/access-token", auto_error=False)
 
 TokenDep = Annotated[str, Depends(oauth2_scheme)]
 TokenDepOptional = Annotated[str | None, Depends(oauth2_scheme_optional)]

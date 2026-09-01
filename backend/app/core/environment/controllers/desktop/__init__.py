@@ -21,9 +21,10 @@ from app.core.environment.controllers.utils import (
     resolve_element_alias,
 )
 from app.core.learning.trace.recorder import get_recorder
+from app.core.vision import vision_engine
 from app.core.vision.perceptions_formatter import PerceptionsFormatter
 from app.infrastructure.drivers.macos import macos_driver
-from app.infrastructure.vision import VisionTask, get_vision_router, vision_engine
+from app.infrastructure.vision import VisionTask, get_vision_router
 from app.utils.controller_response import ControllerResponse
 
 from .app_mixin import DesktopAppMixin

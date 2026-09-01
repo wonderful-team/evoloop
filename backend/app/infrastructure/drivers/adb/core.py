@@ -78,9 +78,6 @@ class CoreMixin:
         except Exception:
             logger.debug("[ADB] u2 connect failed, using python3 init", exc_info=True)
         try:
-            from app.core.context.manager import ContextManager
-
-            device_id_val = device_id or ContextManager.get_var("device_id")
             stdout, stderr = subprocess.Popen(
                 ["python3", "-m", "uiautomator2", "init"],
                 stdout=subprocess.PIPE,

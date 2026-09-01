@@ -34,3 +34,16 @@ def is_system_package(pkg: str | None) -> bool:
     if pkg in SYSTEM_PACKAGE_EXACT:
         return True
     return pkg.startswith(SYSTEM_PACKAGE_PREFIXES)
+
+
+# ====================== Database Infrastructure Constants ======================
+
+# Extra columns for agent_activities table (schema fallback for existing DBs)
+# Added via ALTER TABLE in resource_manager.py during initialization
+AGENT_ACTIVITY_EXTRA_COLUMNS = [
+    ("run_id", "VARCHAR(100)"),
+    ("llm_calls", "INTEGER"),
+    ("input_tokens", "INTEGER"),
+    ("output_tokens", "INTEGER"),
+    ("tool_errors", "INTEGER"),
+]

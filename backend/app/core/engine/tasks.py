@@ -18,7 +18,7 @@ from app.core.learning.macro import MacroScriptCompiler
 from app.core.learning.macro.service import MacroService
 from app.core.learning.trace.recorder import sync_thread_to_graph
 from app.infrastructure.database import session_scope
-from app.infrastructure.queue.factory import periodic_task, shared_task
+from app.infrastructure.queue.factory import shared_task
 from app.models import FileOperation, Message, TraceEvent
 from app.utils.id import unique_id
 from app.utils.pydantic_helpers import clean_none_values

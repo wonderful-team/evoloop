@@ -117,10 +117,6 @@ class AgentRunRegistry:
                 record.status = SubagentStatus.COMPLETED
             return record
 
-    async def has_running_run(self, thread_id: str) -> bool:
-        record = await self.get_run(thread_id)
-        return record is not None and record.status == SubagentStatus.RUNNING
-
 
 # Module singleton
 agent_run_registry = AgentRunRegistry()

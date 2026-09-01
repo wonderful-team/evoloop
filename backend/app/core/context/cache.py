@@ -82,6 +82,7 @@ class LayeredContextCache:
         project_id: int | None,
         loader_fn: callable,
         intent: str | None = None,
+        explicit_key: str | None = None,
     ) -> StaticContextLayer:
         """
         Get static context layer with caching.
@@ -90,10 +91,13 @@ class LayeredContextCache:
             session_id: Unique session identifier
             project_id: Project ID for cache scoping (None defaults to global)
             loader_fn: Async function to load static data
+            intent: Intent hint for telescopic gating
+            explicit_key: Signature of explicitly requested skills (skill_ids), so
+                different explicit-skill selections don't collide in the cache.
         """
         project_id = project_id if project_id is not None else DEFAULT_PROJECT_ID
         intent_key = intent or "none"
-        cache_key = f"{session_id}:{project_id}:{intent_key}"
+        cache_key = f"{session_id}:{project_id}:{intent_key}:{explicit_key or ''}"
 
         # Check cache
         if cache_key in cls._static_cache:

@@ -3,6 +3,7 @@ File Type Configuration Module - Defines file types and document type configurat
 Ported from evoloop-engineer.
 """
 
+import os
 from enum import Enum
 
 # ====================== Engine Constants ======================
@@ -614,3 +615,10 @@ LANGUAGE_MAP = {
     "en": "English",
     "zh": "Mandarin Chinese (中文)",
 }
+
+# ====================== Config / Template Constants ======================
+# Absolute path to the prompt templates directory (app/config/templates)
+CONFIG_TEMPLATE_DIR = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "config", "templates")
+)
+

@@ -10,9 +10,10 @@ import os
 import time
 
 from app.core.file import cleanup_file
+from app.core.vision import vision_engine
 from app.core.vision.perceptions_formatter import PerceptionsFormatter
 from app.infrastructure.drivers.adb import adb_driver
-from app.infrastructure.vision import VisionTask, get_vision_router, vision_engine
+from app.infrastructure.vision import VisionTask, get_vision_router
 from app.utils.controller_response import ControllerResponse
 
 logger = logging.getLogger(__name__)

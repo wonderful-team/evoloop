@@ -6,11 +6,12 @@ from typing import Any
 from pydantic import Field
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.utils.http import is_http_url
 
 
 def is_sse_url(command: str | None) -> bool:
     """Check if a command string represents an SSE transport URL."""
-    return bool(command and command.startswith(("http://", "https://")))
+    return bool(command and is_http_url(command))
 
 
 class ServerCapabilities(DynamicBaseModel):

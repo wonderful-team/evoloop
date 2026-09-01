@@ -116,7 +116,6 @@ class MessageBlockFactory:
                 or meta_data.get("input")
                 or {}
             )
-            output = meta_data.get("output", content)
 
             # ... (Existing tool_meta logic) ...
             metadata_registry = get_tool_metadata(tool_name) if tool_name else None

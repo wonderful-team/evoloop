@@ -24,9 +24,6 @@ def strip_markdown(text: str) -> str:
     if not text:
         return ""
 
-    # 保存原始文本用于调试
-    original = text
-
     # 1. 移除代码块 ```code```
     text = re.sub(r"```[\s\S]*?```", " ", text)
 

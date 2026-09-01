@@ -21,6 +21,7 @@ from app.domain.tools.schemas import (
 )
 from app.utils.controller_response import ControllerResponse
 from app.utils.detect import detect_language
+from app.utils.http import is_http_url
 from app.utils.template import render_template
 
 try:
@@ -41,7 +42,7 @@ logger = logging.getLogger(__name__)
 
 def _resolve_project_path(file_path: str) -> str:
     """Wrapper for utils.resolve_path to inject project context default"""
-    if file_path.startswith(("http://", "https://")):
+    if is_http_url(file_path):
         return file_path
 
     ctx = ContextManager.current()

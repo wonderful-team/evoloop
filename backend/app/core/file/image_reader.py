@@ -1,7 +1,8 @@
 import logging
 import os
 
-from app.infrastructure.vision import VisionTask, vision_engine
+from app.core.vision import vision_engine
+from app.infrastructure.vision import VisionTask
 
 logger = logging.getLogger(__name__)
 

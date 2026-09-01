@@ -1,11 +1,6 @@
 import os
 
-from app.constants import (
-    EXTENSION_MAP,
-    FILE_EXTENSION_TO_TYPE,
-    SHEBANG_MAP,
-    DocumentType,
-)
+from app.constants import EXTENSION_MAP, SHEBANG_MAP
 
 # If EXTENSION_MAP is missing in constants, I should probably define a comprehensive one here or rely on CODE_EXTENSION_MAP.
 # The `document_reader` had a very rich EXTENSION_MAP.
@@ -33,22 +28,6 @@ def detect_language(file_path: str, content: str | None = None) -> str:
                 return lang
 
     return "text"
-
-
-def detect_document_type(file_path: str) -> str:
-    """
-    Detect high-level document type (code, text, pdf, image, etc.)
-    Returns str value of DocumentType enum.
-    """
-    _, ext = os.path.splitext(file_path)
-    ext_key = ext.lower().lstrip(".")
-
-    if ext_key in FILE_EXTENSION_TO_TYPE:
-        # If it's an enum member, get value
-        val = FILE_EXTENSION_TO_TYPE[ext_key]
-        return str(val.value) if hasattr(val, "value") else str(val)
-
-    return DocumentType.UNKNOWN.value
 
 
 def is_code_file(file_path: str, _content: str | None = None) -> bool:

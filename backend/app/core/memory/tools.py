@@ -7,7 +7,7 @@ import logging
 
 from app.core.config import settings
 from app.core.context.manager import ContextManager
-from app.core.memory.constants import DEFAULT_SEARCH_LIMIT
+from app.core.memory.constants import DEFAULT_SEARCH_LIMIT, get_memory_tools, register_memory_tools, SHORT_TERM_MAX_MESSAGES
 from app.core.memory.models import MemoryEntry, MemoryType, PrivacyLevel
 from app.core.memory.short_term import SqlShortTermMemory
 from app.core.tools import evoloop_tool
@@ -281,16 +281,17 @@ async def search_history(
 # Agent 工具暴露（§6）。
 
 
-# 门控：ENABLE_MEMORY 关闭时禁用全部记忆工具（不读取、不写入、不暴露）。
-_MEMORY_TOOLS = (
+# Register memory tools for gating by ENABLE_MEMORY setting
+register_memory_tools(
     write_handover_notes,
     remember,
     recall,
     forget_memory,
     search_history,
 )
-if not settings.ENABLE_MEMORY:
-    for _tool in _MEMORY_TOOLS:
-        _wrapped = getattr(_tool, "func", None)
-        if _wrapped is not None:
-            _wrapped.is_evoloop_active = False
+
+# 门控：ENABLE_MEMORY 关闭时禁用全部记忆工具（不读取、不写入、不暴露）。
+for _tool in get_memory_tools():
+    _wrapped = getattr(_tool, "func", None)
+    if _wrapped is not None:
+        _wrapped.is_evoloop_active = settings.ENABLE_MEMORY

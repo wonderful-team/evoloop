@@ -14,6 +14,8 @@ import urllib.request
 from collections.abc import Callable, Iterator
 from urllib.parse import urlparse
 
+from app.utils.http import is_http_url
+
 from .traverser import FileTraverser, TraverseOptions
 from .types import (
     is_text as is_text_file,
@@ -59,7 +61,7 @@ def resolve_path(file_path: str, base_path: str | None = None) -> str | None:
         return base_path or os.getcwd()
 
     # 1. Handle URLs
-    if file_path.startswith(("http://", "https://")):
+    if is_http_url(file_path):
         try:
             return ensure_local_path(file_path)
         except Exception as e:
@@ -96,7 +98,7 @@ def ensure_local_path(file_path: str) -> str:
     """
     Downloads remote file to a temporary location if needed.
     """
-    if not file_path.startswith(("http://", "https://")):
+    if not is_http_url(file_path):
         return file_path
 
     try:

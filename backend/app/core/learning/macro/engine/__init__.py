@@ -19,6 +19,7 @@ from app.core.learning.macro.schemas import (
     MacroStepType,
 )
 from app.core.monitoring.activity import activity_monitor
+from app.utils.http import is_http_url
 from app.utils.id import gen_uuid
 
 logger = logging.getLogger(__name__)
@@ -443,7 +444,7 @@ class MacroEngine(
                             "event_type": event_type,
                             "step_log": step_log,
                         }
-                    elif isinstance(nav_url, str) and not nav_url.startswith(("http://", "https://")):
+                    elif isinstance(nav_url, str) and not is_http_url(nav_url):
                         # 相对路径直接进 page.goto 会报 "Cannot navigate to
                         # invalid URL"（无细节）；在这里给出可行动的报错。
                         unresolved = (
