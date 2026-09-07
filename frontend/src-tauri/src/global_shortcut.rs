@@ -129,6 +129,9 @@ impl GlobalShortcutManager {
         }
 
         // 3. Agent stop shortcut (Esc x2) — 统一停止所有活跃 Agent（Web/值守/语音/移动端）
+        // TEMP-DISABLED (2026-08-22): 暂时注释，避免"值守模式 Esc×2"误停整个值守。
+        // 恢复：去掉注释即可重新注册全局 Esc×2 停止热键。
+        /*
         let stop_key_str = self.stop_key.lock().unwrap().clone();
         match Shortcut::from_str(&stop_key_str) {
             Ok(stop_shortcut) => {
@@ -164,6 +167,7 @@ impl GlobalShortcutManager {
             }
             Err(e) => log::warn!("[shortcut] failed to parse agent-stop shortcut key {stop_key_str:?}: {e}"),
         }
+        */
 
         self.is_registered.store(true, Ordering::SeqCst);
         log::info!("[shortcut] global shortcuts registered");
