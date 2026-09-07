@@ -14,6 +14,18 @@ def is_sse_url(command: str | None) -> bool:
     return bool(command and is_http_url(command))
 
 
+def is_streamable_http_url(command: str | None) -> bool:
+    """Check if a command string represents a Streamable HTTP transport URL.
+
+    约定：以 ``/mcp`` 结尾（或路径 basename 为 mcp）的 http URL 视为
+    Streamable HTTP 端点；否则回退为 SSE（向后兼容）。
+    """
+    if not command or not is_http_url(command):
+        return False
+    path = command.split("?", 1)[0].rstrip("/")
+    return path.endswith("/mcp")
+
+
 class ServerCapabilities(DynamicBaseModel):
     """Capabilities reported by an MCP server."""
 
@@ -23,6 +35,7 @@ class TransportType(str, Enum):
 
     STDIO = "stdio"
     SSE = "sse"
+    STREAMABLE_HTTP = "streamable_http"
 
 
 class AuthType(str, Enum):
@@ -74,6 +87,14 @@ class McpServerConfig(DynamicBaseModel):
             except (json.JSONDecodeError, TypeError, ValueError):
                 env = {}
 
+        # Parse headers
+        headers = {}
+        if hasattr(server, "headers") and server.headers:
+            try:
+                headers = json.loads(server.headers) if isinstance(server.headers, str) else server.headers
+            except (json.JSONDecodeError, TypeError, ValueError):
+                headers = {}
+
         # Parse auth config if stored
         auth_config_data = {}
         auth_type = AuthType.NONE
@@ -89,17 +110,21 @@ class McpServerConfig(DynamicBaseModel):
                 pass
 
         # Determine transport
-        transport = (
-            TransportType.SSE if is_sse_url(server.command) else TransportType.STDIO
-        )
+        if is_streamable_http_url(server.command):
+            transport = TransportType.STREAMABLE_HTTP
+        elif is_sse_url(server.command):
+            transport = TransportType.SSE
+        else:
+            transport = TransportType.STDIO
 
         return cls(
             name=server.name,
             transport=transport,
             command=server.command,
-            url=server.command if transport == TransportType.SSE else None,
+            url=server.command if transport != TransportType.STDIO else None,
             args=args or [],
             env=env or {},
+            headers=headers,
             enabled=server.enabled,
             auth_type=auth_type,
             auth_config=auth_config_data,
@@ -112,10 +137,10 @@ class McpServerConfig(DynamicBaseModel):
                 raise ValueError(
                     f"MCP server '{self.name}': command is required for stdio transport"
                 )
-        elif self.transport == TransportType.SSE:
+        elif self.transport in (TransportType.SSE, TransportType.STREAMABLE_HTTP):
             if not self.url:
                 raise ValueError(
-                    f"MCP server '{self.name}': url is required for sse transport"
+                    f"MCP server '{self.name}': url is required for {self.transport} transport"
                 )
 
 

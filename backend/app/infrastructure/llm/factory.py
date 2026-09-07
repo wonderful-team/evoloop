@@ -246,7 +246,11 @@ class LLMFactory:
                     logger.info(f"[LLMFactory] Lightning model auto-detected: model={config.model_name}, mode={lightning_mode}")
 
             # Fallback: check if custom LLM is configured in the database.
-            if not config.base_url:
+            # Only applies in custom mode. In platform mode the request goes to
+            # the EvoLoop Gateway which assigns a default model when none is
+            # passed; falling back to a stale LLM_BASE_URL here would hijack
+            # platform traffic to an old custom endpoint.
+            if not config.base_url and SystemConfigService.get_value("LLM_CONFIG_TYPE", "platform") == "custom":
                 db_base_url = SystemConfigService.get_value("LLM_BASE_URL")
                 db_api_key = SystemConfigService.get_value("LLM_API_KEY")
                 if db_base_url:

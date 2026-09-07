@@ -21,6 +21,7 @@ from app.core.mcp.config import (
     McpServerConfig,
     TransportType,
     is_sse_url,
+    is_streamable_http_url,
 )
 from app.core.mcp.features.prompts import McpPromptsFeature
 from app.core.mcp.features.resources import McpResourcesFeature
@@ -342,19 +343,26 @@ class McpClientManager:
             # Parse args and env
             args = self._parse_json_field(server.args, [])
             env = self._parse_json_field(server.env, {})
+            headers = self._parse_json_field(
+                getattr(server, "headers", None), {}
+            )
 
             # Determine transport type
-            transport = (
-                TransportType.SSE if is_sse_url(server.command) else TransportType.STDIO
-            )
+            if is_streamable_http_url(server.command):
+                transport = TransportType.STREAMABLE_HTTP
+            elif is_sse_url(server.command):
+                transport = TransportType.SSE
+            else:
+                transport = TransportType.STDIO
 
             config = McpServerConfig(
                 name=server.name,
                 transport=transport,
                 command=server.command,
-                url=server.command if transport == TransportType.SSE else None,
+                url=server.command if transport != TransportType.STDIO else None,
                 args=args,
                 env=env,
+                headers=headers,
                 enabled=server.enabled,
             )
 
@@ -744,11 +752,13 @@ class McpClientManager:
 
             args_json = json.dumps(details.get("args", []))
             env_json = json.dumps(details.get("env", {}))
+            headers_json = json.dumps(details.get("headers", {}))
 
             if db_server:
                 db_server.command = details.get("command")
                 db_server.args = args_json
                 db_server.env = env_json
+                db_server.headers = headers_json
                 db_server.enabled = enabled
             else:
                 db_server = McpServer(
@@ -756,6 +766,7 @@ class McpClientManager:
                     command=details.get("command"),
                     args=args_json,
                     env=env_json,
+                    headers=headers_json,
                     enabled=enabled,
                 )
                 session.add(db_server)
@@ -771,19 +782,21 @@ class McpClientManager:
             )
 
         # Connect
-        transport = (
-            TransportType.SSE
-            if is_sse_url(details.get("command"))
-            else TransportType.STDIO
-        )
+        if is_streamable_http_url(details.get("command")):
+            transport = TransportType.STREAMABLE_HTTP
+        elif is_sse_url(details.get("command")):
+            transport = TransportType.SSE
+        else:
+            transport = TransportType.STDIO
 
         config = McpServerConfig(
             name=name,
             transport=transport,
             command=details.get("command"),
-            url=details.get("command") if transport == TransportType.SSE else None,
+            url=details.get("command") if transport != TransportType.STDIO else None,
             args=details.get("args", []),
             env=details.get("env", {}),
+            headers=details.get("headers", {}),
             enabled=True,
         )
 

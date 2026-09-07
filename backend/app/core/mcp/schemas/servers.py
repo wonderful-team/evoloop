@@ -15,6 +15,7 @@ class McpServerBase(DynamicBaseModel):
     command: str
     args: list[str] | None = []
     env: dict[str, str] | None = {}
+    headers: dict[str, str] | None = {}
     enabled: bool = True
 
 

@@ -347,13 +347,9 @@ async def apply_embedding_config(req: EmbeddingConfigRequest) -> EmbeddingApplyR
     # Save Custom Model Name (always save the model name provided in the config card)
     SystemConfigService.set_value("CUSTOM_EMBEDDING_MODEL", req.model)
 
-    # Save Default Model ID for Embedding
-    default_id = req.default_model_id or req.model
-    if not default_id.startswith("embedding-"):
-        # Auto-prefix platform models if needed, but usually frontend sends the ID
-        pass
-
-    SystemConfigService.set_value("EMBEDDING_MODEL", default_id)
+    # Save the default embedding model (kept as a legacy fallback for
+    # CUSTOM_EMBEDDING_MODEL; the effective model lives in the custom key).
+    SystemConfigService.set_value("EMBEDDING_MODEL", req.model)
     return EmbeddingApplyResponse(
         status="applied",
         message="Embedding model switched. Re-indexing triggered.",
@@ -382,6 +378,12 @@ async def test_llm_connection(req: LLMConfigRequest) -> LLMTestResponse:
 async def apply_llm_config(req: LLMConfigRequest) -> LLMApplyResponse:
     """
     Apply new LLM config.
+
+    Platform mode (no base_url): the EvoLoop Gateway assigns a default model
+    on the remote side, so no local "default LLM" is stored. Any stale custom
+    base_url / model keys are cleared to keep the platform route clean.
+    Custom mode (base_url provided): provider/base_url/model are persisted so
+    calls bypass the gateway and go straight to the user's endpoint.
     """
     # Determine config type based on whether a custom base URL is provided
     config_type = "custom" if req.base_url else "platform"
@@ -392,9 +394,18 @@ async def apply_llm_config(req: LLMConfigRequest) -> LLMApplyResponse:
     SystemConfigService.set_value("LLM_PROVIDER_TYPE", req.provider_type)
     SystemConfigService.set_value("LLM_BASE_URL", req.base_url or "")
 
-    # Save the Default Model ID
-    default_id = req.default_model_id or req.model
-    SystemConfigService.set_value("LLM_MODEL", default_id)
+    if config_type == "custom":
+        # Only custom mode persists a local model — model routing is decided
+        # locally via base_url when the user brings their own endpoint.
+        SystemConfigService.set_value("LLM_MODEL", req.model)
+        # Save Custom Model Name (always save the model name provided in the config card)
+        SystemConfigService.set_value("CUSTOM_LLM_MODEL", req.model)
+    else:
+        # Platform mode: no local default model; the gateway assigns one.
+        # Clear stale values so a previous custom config cannot bleed into
+        # platform requests (also aligns with factory.py's custom-only fallback).
+        SystemConfigService.set_value("LLM_MODEL", "")
+        SystemConfigService.set_value("CUSTOM_LLM_MODEL", "")
 
     if req.vision_model:
         SystemConfigService.set_value("VISION_MODEL", req.vision_model)
@@ -406,9 +417,6 @@ async def apply_llm_config(req: LLMConfigRequest) -> LLMApplyResponse:
         SystemConfigService.set_value("VISION_PROVIDER_TYPE", req.vision_provider_type)
     if req.api_key:
         SystemConfigService.set_value("LLM_API_KEY", req.api_key)
-
-    # Save Custom Model Name (always save the model name provided in the config card)
-    SystemConfigService.set_value("CUSTOM_LLM_MODEL", req.model)
 
     # Save Custom HTTP Headers
     headers_str = json.dumps(req.headers) if req.headers else "{}"

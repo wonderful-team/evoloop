@@ -29,6 +29,11 @@ class TerminalInputRequest(BaseModel):
     project_id: int | None = None
 
 
+class TerminalCancelRequest(BaseModel):
+    task_id: str
+    project_id: int | None = None
+
+
 async def _hydrate_thread_working_directory(thread_id: str, project_id: int | None = None):
     from app.core.context.thread_store import thread_context_store
     from app.core.project.utils import get_project_path
@@ -120,6 +125,37 @@ async def send_terminal_input(thread_id: str, req: TerminalInputRequest):
         raise HTTPException(status_code=500, detail=f"PTY write failed: {exc}") from exc
 
     return {"status": "ok"}
+
+
+@router.post("/{thread_id}/terminal/cancel")
+async def cancel_terminal_command(thread_id: str, req: TerminalCancelRequest):
+    """取消一个正在执行的终端后台命令。
+
+    终端指令通过 PTY 在常驻 shell 中以前台任务方式运行，
+    无法直接 terminate 子进程，因此写入 Ctrl+C (\\x03) 中断前台命令，
+    再将其标记为 cancelled。
+    """
+    await _hydrate_thread_working_directory(thread_id, req.project_id)
+
+    cancelled = await task_manager.cancel_task(req.task_id)
+
+    session = terminal_manager.get_session_for_thread(thread_id)
+    pty_inst = session.pty if session is not None else None
+    if pty_inst is not None and pty_inst._master_fd != -1:
+        try:
+            pty_inst.write_raw(b"\x03")
+        except OSError as exc:
+            logger.warning(
+                f"[Terminal][{thread_id}] PTY cancel write failed: {exc}", exc_info=True
+            )
+
+    if not cancelled:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Task {req.task_id} not found or already completed",
+        )
+
+    return {"status": "cancelled"}
 
 
 @router.get("/{thread_id}/tasks/active")

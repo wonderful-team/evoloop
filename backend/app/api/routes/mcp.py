@@ -31,6 +31,7 @@ async def add_mcp_server(server: McpServerCreate):
             "command": server.command,
             "args": server.args or [],
             "env": server.env or {},
+            "headers": server.headers or {},
             "enabled": server.enabled,
         }
         result = await mcp_client_manager.add_server(server.name, details)

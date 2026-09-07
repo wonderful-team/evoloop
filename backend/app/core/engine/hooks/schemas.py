@@ -33,11 +33,17 @@ class HookMetadata(DynamicBaseModel):
 
 
 class ToolInput(DynamicBaseModel):
-    """Typed wrapper for tool input arguments."""
+    """Typed wrapper for tool input arguments.
+
+    注意：``content`` 声明为 ``Any``——MCP/外部工具的任意 JSON 参数（如
+    ``createChannelPublishFlow`` 的 ``content`` 是 dict）必须能通过校验，
+    不能限定为字符串。``touches_project_metadata`` 内部已用 ``isinstance``
+    对 path/args 做类型守卫。
+    """
 
     command: str | None = None
     path: str | None = None
-    content: str | None = None
+    content: Any | None = None
     query: str | None = None
     args: dict[str, Any] | None = None
 

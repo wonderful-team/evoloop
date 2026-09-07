@@ -330,7 +330,6 @@ class EntityGrouper:
         self, node: dict[str, Any], current_path: str, parent_category: str | None
     ) -> ClassifiedFile:
         name = node.get("name", "")
-        node_type = node.get("type", "directory")
         node_path = current_path if not name else f"{current_path}/{name}".strip("/")
 
         dir_category = self._category_from_path(name)

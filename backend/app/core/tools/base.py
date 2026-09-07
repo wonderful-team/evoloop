@@ -116,13 +116,19 @@ class EvoLoopTool(StructuredTool):
     """
 
     def __init__(
-        self, func, name: str = None, description: str = None, args_schema: Any = None
+        self,
+        func,
+        name: str = None,
+        description: str = None,
+        args_schema: Any = None,
+        raw_args_schema: dict | None = None,
     ):
         self.func = func
         self.coroutine = func if inspect.iscoroutinefunction(func) else None
         self.name = name or func.__name__
         self.description = description or func.__doc__ or ""
         self.args_schema = args_schema
+        self.raw_args_schema = raw_args_schema
         self.metadata = {}
         self.handle_tool_error = True
         self.affected_path_extractor = None

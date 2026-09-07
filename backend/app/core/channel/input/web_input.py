@@ -60,6 +60,12 @@ class WebInputChannel(InputChannel):
                 logger.warning("Failed to fetch skills %s: %s", skill_ids, e)
 
         meta: dict[str, Any] = {}
+        if raw.get("task_id"):
+            meta["task_id"] = raw.get("task_id")
+        if raw.get("secret"):
+            meta["secret"] = raw.get("secret")
+        if raw.get("callback_url"):
+            meta["callback_url"] = raw.get("callback_url")
         try:
             from app.core.engine.session.manager import session_manager
 

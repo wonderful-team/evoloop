@@ -20,6 +20,10 @@ class ChatRequest(ScopedRequest):
     revert_files: bool = True
     scenario: str | None = None
     working_directory: str | None = None
+    # AI 创作跨系统回传元数据（由 deep link 携带，透传到收尾管线）
+    task_id: str | None = None
+    secret: str | None = None
+    callback_url: str | None = None
 
 
 class WebhookRequest(ScopedRequest):

@@ -10,12 +10,43 @@ from typing import Any
 
 from mcp import ClientSession
 from mcp.client.sse import sse_client
+from mcp.client.streamable_http import streamablehttp_client
 from mcp.client.stdio import StdioServerParameters, stdio_client
+from httpx import AsyncClient, Timeout
 from pydantic import RootModel
 
-from app.core.mcp.config import McpServerConfig, TransportType, is_sse_url
+from app.core.mcp.config import (
+    McpServerConfig,
+    TransportType,
+    is_sse_url,
+    is_streamable_http_url,
+)
 
 logger = logging.getLogger(__name__)
+
+
+def _create_mcp_http2_client(
+    headers: dict[str, str] | None = None,
+    timeout: Timeout | None = None,
+    auth: Any | None = None,
+) -> AsyncClient:
+    """创建启用 HTTP/2 的 httpx client。
+
+    部分 MCP 服务端（如经 nginx 的 SSE）只对 HTTP/2 客户端正常流式推送，
+    HTTP/1.1 下能拿到响应头但收不到事件流（ReadTimeout）。HTTP/2 通过 ALPN
+    协商，服务端不支持时自动回退 HTTP/1.1，因此对本地/线上均安全。
+    """
+    kwargs: dict[str, Any] = {
+        "follow_redirects": True,
+        "http2": True,
+    }
+    if timeout is not None:
+        kwargs["timeout"] = timeout
+    if headers is not None:
+        kwargs["headers"] = headers
+    if auth is not None:
+        kwargs["auth"] = auth
+    return AsyncClient(**kwargs)
 
 _PATCHED_NOTIFICATION_TYPE = False
 
@@ -95,12 +126,33 @@ class TransportContext:
         self._cm: Any = None
 
     async def __aenter__(self) -> tuple[Any, Any]:
-        if self._config.transport == TransportType.SSE or is_sse_url(
+        streamable = (
+            self._config.transport == TransportType.STREAMABLE_HTTP
+            or is_streamable_http_url(self._config.command or self._config.url)
+        )
+        if streamable:
+            url = self._config.url or self._config.command
+            logger.info(f"Connecting via Streamable HTTP to {url}")
+            self._cm = streamablehttp_client(
+                url,
+                headers=self._config.headers,
+                httpx_client_factory=_create_mcp_http2_client,
+            )
+            entered = await self._cm.__aenter__()
+            # streamablehttp_client 产出 3 元组 (read, write, get_session_id)，
+            # 上层 manager 只消费 (read, write)，归一化后返回。
+            read, write, _session_cb = entered
+            return read, write
+        elif self._config.transport == TransportType.SSE or is_sse_url(
             self._config.command
         ):
             url = self._config.url or self._config.command
             logger.info(f"Connecting via SSE to {url}")
-            self._cm = sse_client(url, headers=self._config.headers)
+            self._cm = sse_client(
+                url,
+                headers=self._config.headers,
+                httpx_client_factory=_create_mcp_http2_client,
+            )
         else:
             full_env = os.environ.copy()
             full_env.update(self._config.env)

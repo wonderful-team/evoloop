@@ -16,7 +16,6 @@ class EmbeddingConfigRequest(ScopedRequest):
     dimensions: int | None = None
     api_key: str | None = None
     project_id: int | None = None
-    default_model_id: str | None = Field(None, description="Selected Default Embedding Model ID")
 
 
 class SystemStatusResponse(BaseAPIResponse):
@@ -72,7 +71,6 @@ class LLMConfigRequest(DynamicBaseModel):
     vision_api_key: str | None = Field(None, description="独立 Vision API Key")
     vision_provider_type: str | None = Field(None, description="独立 Vision 协议类型: openai | anthropic")
     api_key: str | None = None
-    default_model_id: str | None = Field(None, description="Selected Default Model ID")
     headers: dict[str, str] | None = Field(None, description="自定义请求头 (JSON 字典)")
 
 

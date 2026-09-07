@@ -117,6 +117,7 @@ class McpToolsFeature(McpFeature):
                 description=tool.description
                 or f"MCP tool '{tool.name}' from server '{self._server_name}'",
                 args_schema=args_schema,
+                raw_args_schema=tool.inputSchema,
             )
             native_tools.append(native_tool)
 

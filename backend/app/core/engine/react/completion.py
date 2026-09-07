@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -33,8 +34,92 @@ async def run_completion_pipeline(
         _maybe_auto_macro(thread_id, project_id, config, state),
         _maybe_skill_candidate(thread_id, project_id, state),
         _record_metrics(thread_id, state, config),
+        notify_create_task(thread_id, config, state, summary),
     ]
     await asyncio.gather(*tasks, return_exceptions=True)
+
+
+def _extract_final_content(messages: list[Any]) -> str:
+    """提取最后一条 assistant 文本（完整，非截断）。"""
+    for msg in reversed(messages or []):
+        role = getattr(msg, "role", None)
+        content = getattr(msg, "content", "")
+        if role in ("ai", "assistant") and content and not getattr(msg, "tool_calls", None):
+            return str(content)
+    return ""
+
+
+def _split_article(content: str) -> tuple[str, str, list[str]]:
+    """从最终 assistant 文本启发式切分 title / body / topics。
+
+    约定：markdown 一级标题 `# xxx` 作为标题，其余 `#xxx` 作为话题，
+    正文为整篇内容（不含仅用于标记的标题行重复）。
+    """
+    text = content.strip() or ""
+    title = ""
+    body = text
+    if text.startswith("# "):
+        line_end = text.find("\n")
+        first = text[2:line_end].strip() if line_end != -1 else text[2:].strip()
+        if first:
+            title = first
+    if not title:
+        first_line = text.split("\n", 1)[0].strip()
+        if first_line and not first_line.startswith("#") and len(first_line) <= 60:
+            title = first_line
+    topic_matches = list(
+        dict.fromkeys(re.findall(r"#([^\s#，#，]+)", text))
+    )
+    return title, body, topic_matches
+
+
+async def notify_create_task(
+    thread_id: str,
+    config: dict[str, Any],
+    state: Any,
+    summary: str,
+) -> None:
+    """AI 创作任务收尾回传：deep link 发起的创作完成后，把结构化结果
+    POST 回线上 backend（channel_ai_task 接口），带 HMAC 签名。
+
+    触发条件：config.metadata 携带 task_id + callback_url + secret。
+    失败仅告警，不阻塞收尾。
+    """
+    meta = config.get("metadata", {}) or {}
+    task_id = meta.get("task_id")
+    callback_url = meta.get("callback_url")
+    secret = meta.get("secret")
+    if not task_id or not callback_url or not secret:
+        return
+
+    content = _extract_final_content(getattr(state, "messages", None)) or summary or ""
+    if not content:
+        return
+
+    title, body, topics = _split_article(content)
+    topics_str = "\n".join(topics)
+    try:
+        from app.core.security.crypto import generate_hmac_signature
+        from app.utils.http import create_client
+
+        sign = generate_hmac_signature(secret, task_id + title + body + topics_str)
+        payload = {
+            "task_id": task_id,
+            "sign": sign,
+            "title": title,
+            "body": body,
+            "topics": topics,
+        }
+        async with create_client(timeout=30.0) as client:
+            resp = await client.post(callback_url, json=payload)
+        if resp.status_code >= 300:
+            logger.warning(
+                f"[ReactCompletion] create-task callback failed {resp.status_code}: {resp.text[:200]}"
+            )
+        else:
+            logger.info(f"[ReactCompletion] create-task callback sent for {task_id}")
+    except Exception as e:
+        logger.warning(f"[ReactCompletion] create-task callback error: {e}", exc_info=True)
 
 
 async def _record_metrics(thread_id: str, state: Any, _config: dict[str, Any]) -> None:
