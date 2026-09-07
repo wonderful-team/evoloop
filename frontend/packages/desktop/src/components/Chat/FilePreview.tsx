@@ -57,18 +57,18 @@ export function FilePreview({
             "relative group flex items-center gap-2 pr-7 pl-2 py-1.5 rounded-md border border-border text-xs font-medium transition-all animate-in fade-in zoom-in-95",
             onClick && "cursor-pointer hover:ring-1 hover:ring-border",
             file.status === "error"
-              ? "bg-red-500/10 border-red-500/20 text-red-700 dark:text-red-400"
+              ? "bg-destructive/10 border-destructive/20 text-destructive"
               : file.type === "message"
-                ? "bg-green-500/10 border-green-500/20 text-green-700 dark:text-green-400"
+                ? "bg-success/10 border-success/20 text-success"
                 : file.type === "image"
-                  ? "bg-purple-500/10 border-purple-500/20 text-purple-700 dark:text-purple-400"
+                  ? "bg-signal-purple/10 border-signal-purple/20 text-signal-purple"
                   : file.type === "audio"
-                    ? "bg-amber-500/10 border-amber-500/20 text-amber-700 dark:text-amber-400"
+                    ? "bg-warning/10 border-warning/20 text-warning"
                     : file.type === "directory"
-                      ? "bg-amber-500/10 border-amber-500/20 text-amber-700 dark:text-amber-400"
+                      ? "bg-warning/10 border-warning/20 text-warning"
                       : file.type === "skill"
-                        ? "bg-indigo-500/10 border-indigo-500/20 text-indigo-700 dark:text-indigo-400"
-                        : "bg-blue-500/10 border-blue-500/20 text-blue-700 dark:text-blue-400",
+                        ? "bg-signal-purple/10 border-signal-purple/20 text-signal-purple"
+                        : "bg-info/10 border-info/20 text-info",
             file.status === "uploading" && "opacity-70",
           )}
           title={file.name}
@@ -76,7 +76,7 @@ export function FilePreview({
           {file.status === "uploading" ? (
             <Loader2 className="w-3.5 h-3.5 shrink-0 animate-spin opacity-70" />
           ) : file.status === "error" ? (
-            <AlertCircle className="w-3.5 h-3.5 shrink-0 text-red-500" />
+            <AlertCircle className="w-3.5 h-3.5 shrink-0 text-destructive" />
           ) : file.type === "image" ? (
             <div className="relative w-4 h-4 overflow-hidden rounded-sm shrink-0">
               <img
@@ -88,11 +88,11 @@ export function FilePreview({
           ) : file.type === "message" ? (
             <MessageSquare className="w-3.5 h-3.5 shrink-0 opacity-70" />
           ) : file.type === "audio" ? (
-            <Music className="w-3.5 h-3.5 shrink-0 text-amber-500" />
+            <Music className="w-3.5 h-3.5 shrink-0 text-warning" />
           ) : file.type === "directory" ? (
-            <Folder className="w-3.5 h-3.5 shrink-0 text-amber-500" />
+            <Folder className="w-3.5 h-3.5 shrink-0 text-warning" />
           ) : file.type === "skill" ? (
-            <span className="w-3.5 h-3.5 shrink-0 text-purple-500 font-bold text-[10px]">
+            <span className="w-3.5 h-3.5 shrink-0 text-signal-purple font-bold text-[10px]">
               S
             </span>
           ) : (
@@ -107,7 +107,7 @@ export function FilePreview({
               </span>
             )}
             {file.status === "error" && (
-              <span className="text-[9px] text-red-500 mt-0.5">
+              <span className="text-[9px] text-destructive mt-0.5">
                 {t("chat.interface.uploadFailed")}
               </span>
             )}

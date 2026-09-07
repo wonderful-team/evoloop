@@ -11,7 +11,6 @@ import {
 // =====================
 export interface WizardData {
   // LLM Configuration
-  defaultModelId: string // preset model id or "custom"
   selectedModelId: string // for provider config template
   llmProvider: string
   llmBaseUrl: string
@@ -59,7 +58,6 @@ interface WizardProviderProps {
 }
 
 const defaultData: WizardData = {
-  defaultModelId: "",
   selectedModelId: "",
   llmProvider: "openai",
   llmBaseUrl: "",

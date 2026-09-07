@@ -10,8 +10,8 @@ import { Ban, CheckCircle2, FolderGit2, Play, XCircle } from "lucide-react"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { ProjectSwitcher } from "@/components/Sidebar/ProjectSwitcher"
-import { useAgentStore } from "@/stores/agentStore"
 import { HITL_STATUS } from "@/stores/agent/hitlConstants"
+import { useAgentStore } from "@/stores/agentStore"
 import { type Project, useProjectStore } from "@/stores/projectStore"
 import { MessageContent } from "./MessageContent"
 
@@ -441,7 +441,7 @@ export function HumanRequestCard({ request }: HumanRequestCardProps) {
               <div
                 className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest ${
                   request.status === "completed"
-                    ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
+                    ? "bg-success/10 text-success border border-success/20"
                     : "bg-destructive/10 text-destructive border border-destructive/20"
                 }`}
               >

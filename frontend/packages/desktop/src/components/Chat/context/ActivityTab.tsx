@@ -51,11 +51,11 @@ interface ActivityTabProps {
 const SUBAGENT_STATUS_STYLE: Record<string, { dot: string; labelKey: string }> =
   {
     started: {
-      dot: "bg-yellow-500 animate-pulse",
+      dot: "bg-warning animate-pulse",
       labelKey: "chat.subagentRunning",
     },
-    completed: { dot: "bg-green-500", labelKey: "chat.subagentCompleted" },
-    failed: { dot: "bg-red-500", labelKey: "chat.subagentFailed" },
+    completed: { dot: "bg-success", labelKey: "chat.subagentCompleted" },
+    failed: { dot: "bg-destructive", labelKey: "chat.subagentFailed" },
     cancelled: {
       dot: "bg-muted-foreground",
       labelKey: "chat.subagentCancelled",
@@ -64,12 +64,12 @@ const SUBAGENT_STATUS_STYLE: Record<string, { dot: string; labelKey: string }> =
 
 const A2A_STATUS_STYLE: Record<string, { dot: string; labelKey: string }> = {
   started: {
-    dot: "bg-yellow-500 animate-pulse",
+    dot: "bg-warning animate-pulse",
     labelKey: "chat.a2aWaitingCallback",
   },
-  completed: { dot: "bg-green-500", labelKey: "chat.a2aCompleted" },
-  failed: { dot: "bg-red-500", labelKey: "chat.a2aFailed" },
-  timeout: { dot: "bg-orange-500", labelKey: "chat.a2aTimeout" },
+  completed: { dot: "bg-success", labelKey: "chat.a2aCompleted" },
+  failed: { dot: "bg-destructive", labelKey: "chat.a2aFailed" },
+  timeout: { dot: "bg-warning", labelKey: "chat.a2aTimeout" },
   cancelled: {
     dot: "bg-muted-foreground",
     labelKey: "chat.a2aCancelled",
@@ -298,7 +298,7 @@ export function ActivityTab({ activeThreadId }: ActivityTabProps) {
                           step.status === "completed"
                             ? "border-primary"
                             : step.status === "in_progress"
-                              ? "border-yellow-500"
+                              ? "border-warning"
                               : "border-muted"
                         } ${step.execution_run_id ? "cursor-pointer hover:bg-muted/10 pr-2 rounded-r" : ""}`}
                       >
@@ -308,7 +308,7 @@ export function ActivityTab({ activeThreadId }: ActivityTabProps) {
                               step.status === "completed"
                                 ? "bg-primary text-primary-foreground"
                                 : step.status === "in_progress"
-                                  ? "bg-yellow-500 text-white"
+                                  ? "bg-warning text-white"
                                   : "bg-muted text-muted-foreground"
                             }`}
                           >

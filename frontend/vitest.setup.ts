@@ -43,6 +43,12 @@ Object.defineProperty(window, "ResizeObserver", {
 // Mock scrollTo
 window.scrollTo = vi.fn()
 
+// jsdom does not implement PointerEvent capture helpers that Radix UI relies on.
+Element.prototype.hasPointerCapture ??= () => false
+Element.prototype.setPointerCapture ??= () => {}
+Element.prototype.releasePointerCapture ??= () => {}
+Element.prototype.scrollIntoView ??= () => {}
+
 // Mock localStorage
 const localStorageMock = {
   getItem: vi.fn(),

@@ -118,8 +118,8 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-[800px] sm:w-[800px] sm:max-w-[800px] flex flex-col p-0">
-        <SheetHeader className="p-6 border-b">
+      <SheetContent className="w-full sm:w-[800px] sm:max-w-[800px] flex flex-col p-0">
+        <SheetHeader className="p-6 pb-4">
           <div className="flex items-center justify-between mb-2">
             <div className="flex gap-2">
               <Badge variant={task?.status === 2 ? "default" : "secondary"}>

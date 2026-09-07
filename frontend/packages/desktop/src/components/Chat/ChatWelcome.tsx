@@ -1,10 +1,9 @@
 // 3D 木头机器人组件 - 精确移植自移动端 WoodenRobot.tsx
 // React Native StyleSheet → CSS 内联样式，数值 1:1 对应
 
-import { cn } from "@evoloop/shared/lib/utils"
 import { useNavigate } from "@tanstack/react-router"
 import { motion } from "framer-motion"
-import { ArrowRight, LayoutGrid, ListTodo, Wand2 } from "lucide-react"
+import { LayoutGrid, ListTodo, Wand2 } from "lucide-react"
 import type React from "react"
 import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
@@ -292,24 +291,26 @@ export function WoodenRobot({
           animation: "robot-float 4s ease-in-out infinite",
         }}
       >
-        {/* robotGlow: position:absolute w:140 h:140 borderRadius:70 top:10 */}
+        {/* robotGlow: position:absolute w:148 h:148 borderRadius:74 居中于容器 */}
         <div
           style={{
             position: "absolute",
-            width: 140,
-            height: 140,
-            borderRadius: 70,
-            top: 10,
+            width: 148,
+            height: 148,
+            borderRadius: 74,
+            top: 20,
+            left: 6,
             backgroundColor: `${primaryColor}1A`,
           }}
         />
 
-        {/* robotBody: alignItems:center */}
+        {/* robotBody: alignItems:center — marginTop 下移补偿天线向上伸出造成的视觉偏上 */}
         <div
           style={{
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
+            marginTop: 20,
           }}
         >
           {/* robotHead: w:80 h:70 bg:#C4A574 borderRadius:12
@@ -676,115 +677,124 @@ export function WoodenRobot({
 }
 
 // ─────────────────────────────────────────────
-// ChatWelcome Page
+// ChatWelcome Page — Engineering Premium
+// 近黑画布 · 发丝线 · mono 眉标 · 吉祥物降级为头像
 // ─────────────────────────────────────────────
+
+const WELCOME_NAVS = [
+  {
+    to: "/projects",
+    icon: LayoutGrid,
+    labelKey: "chat.welcome.nav.projects",
+    descKey: "chat.welcome.nav.projectsDesc",
+  },
+  {
+    to: "/todos",
+    icon: ListTodo,
+    labelKey: "chat.welcome.nav.todos",
+    descKey: "chat.welcome.nav.todosDesc",
+  },
+  {
+    to: "/learning",
+    icon: Wand2,
+    labelKey: "chat.welcome.nav.skills",
+    descKey: "chat.welcome.nav.skillsDesc",
+  },
+]
 
 export const ChatWelcome: React.FC = () => {
   const { t } = useTranslation()
   const navigate = useNavigate()
 
+  const greetingKey = () => {
+    const hour = new Date().getHours()
+    if (hour >= 6 && hour < 12) return "morning"
+    if (hour >= 12 && hour < 18) return "afternoon"
+    if (hour >= 18 && hour < 23) return "evening"
+    return "night"
+  }
+
   return (
-    <div className="flex flex-col items-center justify-between min-h-[600px] py-20 px-4 max-w-4xl mx-auto text-center h-full">
-      {/* Top: Title & Subtitle */}
-      <div>
-        {/* Title */}
-        <h1
-          style={{
-            fontSize: 24,
-            fontWeight: "bold",
-            marginTop: 16,
-            lineHeight: "32px",
-          }}
-          className="text-primary text-center"
+    <div className="relative flex h-full min-h-[520px] flex-col items-center justify-center overflow-hidden px-4 py-12">
+      {/* Hero 装饰层：Vercel 式网格 + teal 辉光 */}
+      <div className="hero-grid-bg" aria-hidden="true" />
+      <div className="hero-glow-soft" aria-hidden="true" />
+
+      <div className="relative z-10 flex flex-col items-center text-center">
+        {/* Agent 头像 — 吉祥物降级为圆形徽标 */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.85 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+          className="mb-9 flex h-28 w-28 items-center justify-center overflow-hidden rounded-full border border-border bg-card shadow-[0_0_60px_rgba(45,212,191,0.14)]"
         >
-          EvoLoop AI
-        </h1>
-        {/* Subtitle */}
-        <p
-          style={{ fontSize: 16, fontWeight: 250, marginTop: 16 }}
-          className="text-muted-foreground text-center"
+          <div style={{ transform: "scale(0.68)" }}>
+            <WoodenRobot />
+          </div>
+        </motion.div>
+
+        {/* 状态徽章 — mono 胶囊 + 呼吸点 */}
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+          className="mb-6 inline-flex items-center gap-2.5 rounded-full border border-border bg-card px-3.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground"
         >
-          {t("chat.welcome.mobileSubtitle")}
-        </p>
-        {/* Hint — bodySmall(12px) + marginTop:4 + opacity:0.6 + onSurfaceVariant */}
-        <p
-          style={{ fontSize: 12, marginTop: 12, opacity: 0.6 }}
-          className="text-muted-foreground text-center"
+          <span className="relative flex h-1.5 w-1.5">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
+            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_8px_var(--primary)]" />
+          </span>
+          {t("chat.welcome.statusStandby")}
+        </motion.div>
+
+        {/* 标题区 */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.18, duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
         >
-          {t("chat.welcome.mobileHint")}
-        </p>
+          <h1 className="hidden text-[32px] font-semibold leading-[1.05] tracking-[-0.035em] text-foreground">
+            EvoLoop AI
+          </h1>
+          <p className="mx-auto mt-4 max-w-md text-[15px] leading-relaxed text-muted-foreground">
+            {t(`chat.welcome.subtitle.${greetingKey()}`)}
+          </p>
+          <p className="mt-2.5 font-mono text-[11px] tracking-[0.04em] text-muted-foreground/50">
+            {t("chat.welcome.mobileHint")}
+          </p>
+        </motion.div>
       </div>
 
-      {/* Middle: Robot */}
+      {/* 导航卡片 — 发丝线 ghost 卡 */}
       <motion.div
-        initial={{ opacity: 0, scale: 0.85 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: 0.2, duration: 0.5 }}
-        className="flex-1 flex items-center justify-center py-20"
-      >
-        <WoodenRobot />
-      </motion.div>
-
-      {/* Bottom: Navigation Cards */}
-      <motion.div
-        className="w-full pt-12"
-        initial={{ opacity: 0, y: 20 }}
+        className="relative z-10 mt-14 w-full max-w-3xl"
+        initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4 }}
+        transition={{ delay: 0.3, duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
       >
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full max-w-3xl mx-auto">
-          {[
-            {
-              to: "/projects",
-              icon: <LayoutGrid size={16} />,
-              label: t("chat.welcome.nav.projects"),
-              desc: t("chat.welcome.nav.projectsDesc"),
-              color: "text-primary",
-            },
-            {
-              to: "/todos",
-              icon: <ListTodo size={16} />,
-              label: t("chat.welcome.nav.todos"),
-              desc: t("chat.welcome.nav.todosDesc"),
-              color: "text-emerald-500",
-            },
-            {
-              to: "/learning",
-              icon: <Wand2 size={16} />,
-              label: t("chat.welcome.nav.skills"),
-              desc: t("chat.welcome.nav.skillsDesc"),
-              color: "text-purple-500",
-            },
-          ].map((nav, idx) => (
-            <motion.div
-              key={idx}
-              whileHover={{ scale: 1.02, y: -2 }}
-              whileTap={{ scale: 0.98 }}
+        <div className="grid w-full grid-cols-1 gap-3.5 sm:grid-cols-3">
+          {WELCOME_NAVS.map((nav, idx) => (
+            <button
+              key={nav.to}
+              type="button"
               onClick={() => navigate({ to: nav.to as any })}
-              className="group cursor-pointer p-3 rounded-xl bg-background border border-border hover:border-primary/20 hover:bg-muted/5 transition-all flex flex-col gap-1.5 text-left"
+              className="group flex flex-col items-start rounded-xl border border-border bg-card p-4 text-left transition-all duration-300 hover:-translate-y-0.5 hover:border-foreground/20 hover:bg-accent/40"
             >
-              <div className="flex items-center gap-2 mb-0.5">
-                <div
-                  className={cn(
-                    "w-7 h-7 rounded-lg bg-muted flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0",
-                    nav.color,
-                  )}
-                >
-                  {nav.icon}
+              <div className="flex w-full items-center justify-between">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-muted text-muted-foreground transition-colors group-hover:border-primary/30 group-hover:text-primary">
+                  <nav.icon size={15} />
                 </div>
-                <h3 className="text-[13px] font-medium uppercase tracking-tight line-clamp-1">
-                  {nav.label}
-                </h3>
+                <span className="font-mono text-[10px] tracking-[0.14em] text-muted-foreground/40">
+                  {`0${idx + 1}`}
+                </span>
               </div>
-              <p className="text-[11px] text-muted-foreground/60 leading-relaxed line-clamp-2">
-                {nav.desc}
+              <h3 className="mt-3.5 text-[13px] font-medium tracking-tight text-foreground">
+                {t(nav.labelKey)}
+              </h3>
+              <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                {t(nav.descKey)}
               </p>
-              <div className="flex items-center justify-end mt-auto pt-1">
-                <div className="w-5 h-5 rounded-full bg-muted/50 flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-all">
-                  <ArrowRight size={10} />
-                </div>
-              </div>
-            </motion.div>
+            </button>
           ))}
         </div>
       </motion.div>

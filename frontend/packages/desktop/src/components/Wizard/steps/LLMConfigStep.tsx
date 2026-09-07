@@ -59,7 +59,6 @@ export function LLMConfigStep() {
       const isPlatform = firstPreset.type === "platform"
       setData({
         selectedModelId: firstPreset.id,
-        defaultModelId: firstPreset.id,
         llmProvider: firstPreset.provider,
         llmBaseUrl: firstPreset.base_url,
         llmModel: firstPreset.model,
@@ -79,27 +78,12 @@ export function LLMConfigStep() {
     }
   }, [data.llmTested, testResult, setCanProceed, selectedPreset])
 
-  // Sync defaultModelId for custom mode when fields change
-  useEffect(() => {
-    if (selectedModelId === "custom") {
-      const newCustomId = `custom-${data.llmProvider}-${data.llmModel}`
-      if (
-        data.defaultModelId !== newCustomId &&
-        data.llmProvider &&
-        data.llmModel
-      ) {
-        setData({ defaultModelId: newCustomId })
-      }
-    }
-  }, [data.llmProvider, data.llmModel, data.defaultModelId, setData])
-
   const handleModelSelect = (value: string) => {
     setTestResult(null)
 
     if (value === "custom") {
       setData({
         selectedModelId: "custom",
-        defaultModelId: "", // Will be set on test success or next
         llmProvider: "openai",
         llmBaseUrl: "",
         llmModel: "",
@@ -115,7 +99,6 @@ export function LLMConfigStep() {
       const isPlatform = preset.type === "platform"
       setData({
         selectedModelId: value,
-        defaultModelId: value,
         llmProvider: preset.provider,
         llmBaseUrl: preset.base_url,
         llmModel: preset.model,
@@ -143,15 +126,7 @@ export function LLMConfigStep() {
           msg: t("wizard.llm.testSuccess"),
         })
 
-        let finalDefaultId = data.selectedModelId
-        if (data.selectedModelId === "custom") {
-          finalDefaultId = `custom-${data.llmProvider}-${data.llmModel}`
-        }
-
-        setData({
-          llmTested: true,
-          defaultModelId: finalDefaultId,
-        })
+        setData({ llmTested: true })
       } else {
         setTestResult({
           success: false,

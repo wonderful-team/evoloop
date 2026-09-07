@@ -43,20 +43,20 @@ export const ChangesetSnapshot = memo(
       switch (op) {
         case "added":
           return {
-            color: "text-green-500",
-            bg: "bg-green-500/10",
+            color: "text-success",
+            bg: "bg-success/10",
             icon: <Plus className="h-2.5 w-2.5" />,
           }
         case "deleted":
           return {
-            color: "text-red-500",
-            bg: "bg-red-500/10",
+            color: "text-destructive",
+            bg: "bg-destructive/10",
             icon: <Minus className="h-2.5 w-2.5" />,
           }
         default:
           return {
-            color: "text-blue-500",
-            bg: "bg-blue-500/10",
+            color: "text-info",
+            bg: "bg-info/10",
             icon: <Edit2 className="h-2.5 w-2.5" />,
           }
       }

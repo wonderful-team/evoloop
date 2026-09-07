@@ -1,9 +1,26 @@
+/* ============================================================
+   EvoLoop Design System — "Engineering Premium"
+   Near-black canvas · hairline borders · tight typography
+   White primary actions · restrained teal signal · mono details
+   ============================================================ */
+
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/jetbrains-mono";
 @source "../../shared";
 @plugin "@tailwindcss/typography";
-@import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
+
+@theme {
+  --font-sans:
+    "Inter Variable", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+  --font-mono:
+    "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, SFMono-Regular,
+    Menlo, Consolas, monospace;
+}
 
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
@@ -11,6 +28,7 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
   --color-background: var(--background);
+  --color-background-soft: var(--background-soft);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
@@ -41,11 +59,21 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  /* Engineering Premium signals */
+  --color-cta: var(--cta);
+  --color-cta-foreground: var(--cta-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  --color-signal-blue: var(--signal-blue);
+  --color-signal-purple: var(--signal-purple);
 }
 
 :root {
-  --radius: 0.625rem;
+  color-scheme: light;
+  --radius: 0.75rem;
   --background: oklch(1 0 0);
+  --background-soft: oklch(0.968 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
@@ -81,9 +109,22 @@
   --scrollbar-thumb: oklch(0.7 0 0 / 0.4);
   --scrollbar-thumb-hover: oklch(0.6 0 0 / 0.6);
 
+  /* Engineering Premium signals - 亮色（light 同步阶段再精调） */
+  --cta: var(--primary);
+  --cta-foreground: var(--primary-foreground);
+  --cta-glow: 0 8px 24px oklch(0.5982 0.10687 182.4689 / 0.25);
+  --success: oklch(0.55 0.15 152);
+  --warning: oklch(0.68 0.15 70);
+  --info: oklch(0.52 0.16 255);
+  --signal-blue: oklch(0.52 0.18 255);
+  --signal-purple: oklch(0.5 0.2 300);
+
   /* Chat Refinement Tokens */
   --chat-timeline-line: oklch(0.85 0 0 / 0.5);
   --chat-action-stream-bg: oklch(0.97 0 0 / 0.8);
+  --chat-user-bg: oklch(0.5982 0.10687 182.4689 / 0.07);
+  --chat-user-border: oklch(0.5982 0.10687 182.4689 / 0.22);
+  --chat-user-fg: var(--foreground);
 
   /* Document Layout Tokens */
   --doc-spine: var(--primary);
@@ -93,51 +134,67 @@
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.65 0.10687 182.4689);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.65 0.10687 182.4689);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  color-scheme: dark;
+  /* Canvas — 近黑画布，非纯黑 */
+  --background: #050507;
+  --background-soft: #0a0a0d;
+  --foreground: #ededef;
+  --card: rgba(255, 255, 255, 0.024);
+  --card-foreground: #ededef;
+  --popover: #0b0b0e;
+  --popover-foreground: #ededef;
+  --primary: #2dd4bf;
+  --primary-foreground: #050507;
+  --secondary: rgba(255, 255, 255, 0.06);
+  --secondary-foreground: #ededef;
+  --muted: rgba(255, 255, 255, 0.04);
+  --muted-foreground: #a1a1aa;
+  --accent: rgba(255, 255, 255, 0.06);
+  --accent-foreground: #ededef;
+  --destructive: #f87171;
+  --border: rgba(255, 255, 255, 0.08);
+  --input: rgba(255, 255, 255, 0.1);
+  --ring: rgba(45, 212, 191, 0.5);
+  --chart-1: #2dd4bf;
+  --chart-2: #3b82f6;
+  --chart-3: #a78bfa;
+  --chart-4: #fbbf24;
+  --chart-5: #4ade80;
+  --sidebar: #0a0a0d;
+  --sidebar-foreground: #ededef;
+  --sidebar-primary: #2dd4bf;
+  --sidebar-primary-foreground: #050507;
+  --sidebar-accent: rgba(255, 255, 255, 0.06);
+  --sidebar-accent-foreground: #ededef;
+  --sidebar-border: rgba(255, 255, 255, 0.06);
+  --sidebar-ring: rgba(45, 212, 191, 0.5);
 
   /* 滚动条颜色 - 暗色模式 */
-  --scrollbar-thumb: oklch(0.6 0 0 / 0.4);
-  --scrollbar-thumb-hover: oklch(0.7 0 0 / 0.6);
+  --scrollbar-thumb: rgba(255, 255, 255, 0.12);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.22);
+
+  /* Engineering Premium signals */
+  --cta: #ededef;
+  --cta-foreground: #050507;
+  --cta-glow: 0 8px 30px rgba(255, 255, 255, 0.12);
+  --success: #4ade80;
+  --warning: #fbbf24;
+  --info: #3b82f6;
+  --signal-blue: #3b82f6;
+  --signal-purple: #a78bfa;
 
   /* Chat Refinement Tokens */
-  --chat-timeline-line: oklch(0.4 0 0 / 0.5);
-  --chat-action-stream-bg: oklch(0.18 0 0 / 0.5);
+  --chat-timeline-line: rgba(255, 255, 255, 0.06);
+  --chat-action-stream-bg: rgba(255, 255, 255, 0.02);
+  --chat-user-bg: rgba(255, 255, 255, 0.035);
+  --chat-user-border: rgba(255, 255, 255, 0.09);
+  --chat-user-fg: #ededef;
 
   /* Document Layout Tokens */
-  --doc-spine: var(--primary);
-  --doc-header-user: oklch(1 0 0 / 0.05);
-  --doc-header-ai: oklch(0.6 0.1 180 / 0.1);
-  --doc-border: oklch(1 0 0 / 10%);
+  --doc-spine: rgba(45, 212, 191, 0.5);
+  --doc-header-user: rgba(255, 255, 255, 0.03);
+  --doc-header-ai: rgba(45, 212, 191, 0.045);
+  --doc-border: rgba(255, 255, 255, 0.07);
 }
 
 @layer components {
@@ -156,6 +213,71 @@
 
   .chat-action-stream {
     @apply rounded-lg bg-[var(--chat-action-stream-bg)] p-3 border border-[var(--doc-border)] mb-4 overflow-hidden;
+  }
+
+  /* 用户消息气泡 — Engineering Premium：低调面板 + 发丝线，不用主色铺底 */
+  .chat-bubble-user {
+    background: var(--chat-user-bg);
+    border: 1px solid var(--chat-user-border);
+    color: var(--chat-user-fg);
+  }
+
+  /* Welcome hero 装饰 — Vercel 式网格背景（仅欢迎页使用） */
+  .hero-grid-bg {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(
+        color-mix(in oklab, var(--foreground) 3.5%, transparent) 1px,
+        transparent 1px
+      ),
+      linear-gradient(
+        90deg,
+        color-mix(in oklab, var(--foreground) 3.5%, transparent) 1px,
+        transparent 1px
+      );
+    background-size: 56px 56px;
+    -webkit-mask-image: radial-gradient(
+      ellipse 85% 70% at 50% 18%,
+      #000 20%,
+      transparent 75%
+    );
+    mask-image: radial-gradient(
+      ellipse 85% 70% at 50% 18%,
+      #000 20%,
+      transparent 75%
+    );
+  }
+
+  .hero-glow-soft {
+    position: absolute;
+    top: -140px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 620px;
+    height: 400px;
+    pointer-events: none;
+    filter: blur(40px);
+    background: radial-gradient(
+      ellipse,
+      color-mix(in oklab, var(--primary) 13%, transparent) 0%,
+      color-mix(in oklab, var(--signal-blue) 6%, transparent) 42%,
+      transparent 70%
+    );
+  }
+
+  /* 眉标 — mono 大写 + 正字距 + teal 信号 */
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    font-weight: 500;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--primary);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6em;
   }
 
   .doc-section-header {
@@ -199,6 +321,22 @@
 
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+    letter-spacing: -0.011em;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    letter-spacing: -0.025em;
+    text-wrap: balance;
+  }
+
+  ::selection {
+    background: rgba(45, 212, 191, 0.25);
   }
 
   button,
@@ -207,7 +345,10 @@
   }
 }
 
-/* 全局滚动条样式 - 放在 @layer 外面确保生效 */
+/* 全局滚动条样式 - 放在 @layer 外面确保生效
+   注意：不要使用 scrollbar-width/scrollbar-color 标准属性（Firefox 规则），
+   Chromium 121+ / Safari 18.2+ 中它会覆盖 ::-webkit-scrollbar 样式，
+   导致全 app 出现常驻白色经典滚动条。 */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -232,16 +373,6 @@
 /* 拖动时更明显 */
 ::-webkit-scrollbar-thumb:hover {
   background-color: var(--scrollbar-thumb-hover);
-}
-
-/* Firefox 支持 */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
-}
-
-*:hover {
-  scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 
 /* Utilities */

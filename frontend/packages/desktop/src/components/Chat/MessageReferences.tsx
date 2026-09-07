@@ -12,9 +12,9 @@ import {
 } from "lucide-react"
 import type React from "react"
 import { useTranslation } from "react-i18next"
+import { OpenAPI } from "@/client"
 import { downloadFile } from "@/utils/fileLinkHandler"
 import { cleanFileUrl, getRawFileUrl, isAbsolutePath } from "@/utils/fileUtils"
-import { OpenAPI } from "@/client"
 import { EChartsArtifact } from "./Artifacts/EChartsArtifact"
 import { HtmlArtifact } from "./Artifacts/HtmlArtifact"
 import { MapArtifact } from "./Artifacts/MapArtifact"
@@ -181,11 +181,7 @@ export const MessageReferences: React.FC<MessageReferencesProps> = ({
 }
 
 // 内联渲染图片/视频引用（生成结果的大图展示）
-const MediaReference = ({
-  reference,
-}: {
-  reference: Reference
-}) => {
+const MediaReference = ({ reference }: { reference: Reference }) => {
   const { t } = useTranslation()
   const target = reference.target_id
   const url =
@@ -202,7 +198,10 @@ const MediaReference = ({
           className="w-full rounded-lg border bg-black"
           preload="metadata"
         >
-          {t("chat.messageList.videoNotSupported", "Video playback not supported")}
+          {t(
+            "chat.messageList.videoNotSupported",
+            "Video playback not supported",
+          )}
         </video>
       </div>
     )
@@ -241,9 +240,9 @@ const ResourceChip = ({
       case "message":
         return <MessageSquare className="w-3.5 h-3.5" />
       case "skill":
-        return <Zap className="w-3.5 h-3.5 text-amber-500" />
+        return <Zap className="w-3.5 h-3.5 text-warning" />
       case "changeset":
-        return <Code2 className="w-3.5 h-3.5 text-purple-500" />
+        return <Code2 className="w-3.5 h-3.5 text-signal-purple" />
       default:
         return <ExternalLink className="w-3.5 h-3.5" />
     }
@@ -255,13 +254,13 @@ const ResourceChip = ({
     }
     switch (reference.type) {
       case "skill":
-        return "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200/50 dark:border-amber-800/50"
+        return "bg-warning/10 text-warning border-warning/20"
       case "message":
-        return "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200/50 dark:border-blue-800/50"
+        return "bg-info/10 text-info border-info/20"
       case "changeset":
-        return "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-200/50 dark:border-purple-800/50"
+        return "bg-signal-purple/10 text-signal-purple border-signal-purple/20"
       case "directory":
-        return "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200/50 dark:border-amber-800/50"
+        return "bg-warning/10 text-warning border-warning/20"
       default:
         return "bg-muted/30 text-muted-foreground border-border/40 hover:bg-muted/50 hover:border-border/80"
     }

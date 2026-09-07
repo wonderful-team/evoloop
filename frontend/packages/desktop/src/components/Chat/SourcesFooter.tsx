@@ -82,14 +82,14 @@ function ImagePreview({ ref, index }: { ref: Reference; index: number }) {
         onClick={() => setIsOpen(true)}
         className={cn(
           "group relative inline-flex items-center gap-1.5 px-2 py-1 rounded-md",
-          "bg-purple-500/10 hover:bg-purple-500/20",
-          "border border-purple-500/20 hover:border-purple-500/40",
+          "bg-signal-purple/10 hover:bg-signal-purple/20",
+          "border border-signal-purple/20 hover:border-signal-purple/40",
           "transition-all cursor-zoom-in",
         )}
         title={ref.name}
       >
-        <ImageIcon size={14} className="text-purple-500 shrink-0" />
-        <span className="text-xs text-purple-700 dark:text-purple-300 max-w-[80px] truncate">
+        <ImageIcon size={14} className="text-signal-purple shrink-0" />
+        <span className="text-xs text-signal-purple max-w-[80px] truncate">
           {ref.name}
         </span>
         {/* 缩略图预览（悬停时显示） */}
@@ -158,18 +158,18 @@ export const SourcesFooter = memo(
     const getIcon = (type: string) => {
       switch (type) {
         case "memory":
-          return <Brain size={14} className="text-amber-500" />
+          return <Brain size={14} className="text-warning" />
         case "file":
-          return <FileText size={14} className="text-blue-500" />
+          return <FileText size={14} className="text-info" />
         case "search":
-          return <Search size={14} className="text-purple-500" />
+          return <Search size={14} className="text-signal-purple" />
         case "tool":
-          return <Terminal size={14} className="text-slate-500" />
+          return <Terminal size={14} className="text-muted-foreground" />
         case "image":
         case "file_image":
-          return <ImageIcon size={14} className="text-purple-500" />
+          return <ImageIcon size={14} className="text-signal-purple" />
         case "audio":
-          return <Music size={14} className="text-amber-500" />
+          return <Music size={14} className="text-warning" />
         default:
           return <BookOpen size={14} className="text-muted-foreground" />
       }
@@ -200,13 +200,13 @@ export const SourcesFooter = memo(
                   key={`${ref.type}-${ref.name}-${idx}`}
                   className={cn(
                     "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md",
-                    "bg-amber-500/10 text-xs text-amber-700 dark:text-amber-400",
-                    "border border-amber-500/20",
-                    "hover:bg-amber-500/20 transition-colors cursor-default",
+                    "bg-warning/10 text-xs text-warning",
+                    "border border-warning/20",
+                    "hover:bg-warning/20 transition-colors cursor-default",
                   )}
                   title={ref.path || ref.target_id || ref.name}
                 >
-                  <Music size={14} className="text-amber-500" />
+                  <Music size={14} className="text-warning" />
                   <span className="max-w-[100px] truncate">{ref.name}</span>
                 </span>
               )

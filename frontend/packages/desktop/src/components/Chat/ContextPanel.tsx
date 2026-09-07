@@ -63,9 +63,9 @@ export const ContextPanel = memo(
     }, [status])
 
     return (
-      <div className="flex flex-col h-full w-full bg-background min-w-0 overflow-hidden">
+      <div className="flex flex-col h-full w-full bg-background-soft min-w-0 overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between p-3 border-b border-border h-14 shrink-0 w-full overflow-hidden">
+        <div className="flex items-center justify-between p-3 h-14 shrink-0 w-full overflow-hidden">
           <span className="font-semibold text-sm flex items-center gap-2 truncate min-w-0">
             {isAgentActive ? (
               <Loader2 className="h-4 w-4 text-primary animate-spin shrink-0" />
@@ -92,7 +92,7 @@ export const ContextPanel = memo(
           onValueChange={setActiveTab}
           className="flex-1 flex flex-col min-h-0 min-w-0 w-full overflow-hidden"
         >
-          <div className="p-2 border-b border-border bg-muted/10 shrink-0 w-full">
+          <div className="p-2 shrink-0 w-full">
             <TabsList className="w-full grid grid-cols-2">
               <TabsTrigger value="activity" className="text-xs truncate">
                 <Activity className="h-3.5 w-3.5 mr-1.5 shrink-0" />

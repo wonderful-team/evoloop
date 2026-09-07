@@ -29,6 +29,7 @@ export interface LLMModel {
   supports_image_generation?: boolean
   supports_video_generation?: boolean
   context_window?: number
+  capabilities?: string[]
 }
 
 const STORAGE_KEY = "evoloop_selected_model"
@@ -82,6 +83,7 @@ class LLMPlatformService {
             source: string
             status: string
             context_window?: number
+            capabilities?: string[]
           }>
           for (const dm of discovered) {
             if (!this.models.some((e) => e.id === dm.id)) {
@@ -94,6 +96,7 @@ class LLMPlatformService {
                 description: "",
                 available: dm.status === "available",
                 context_window: dm.context_window,
+                capabilities: dm.capabilities,
               })
             }
           }

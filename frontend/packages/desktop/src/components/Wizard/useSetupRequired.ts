@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query"
 import { useMemo } from "react"
 import { type SystemConfig, SystemService } from "@/client"
 import useAuth from "@/hooks/useAuth"
+import { needsLlmStepForConfig } from "./llmConfig"
 
 interface SetupStatus {
   /** Whether setup wizard is required */
@@ -46,11 +47,11 @@ export function useSetupRequired(): SetupStatus {
     }
 
     // Check P0 required configurations
-    const missingLLM =
-      !configMap.LLM_MODEL ||
-      !configMap.LLM_BASE_URL ||
-      configMap.LLM_MODEL === "" ||
-      configMap.LLM_BASE_URL === ""
+    // Platform mode routes through the EvoLoop Gateway which assigns a default
+    // model remotely, so there is no local LLM config to require (LLM_MODEL is
+    // intentionally cleared on platform apply). Only custom mode needs a model
+    // and a user-provided base URL to be present.
+    const missingLLM = needsLlmStepForConfig(configMap)
 
     const missingWorkspaceRoot =
       !configMap.WORKSPACE_ROOT || configMap.WORKSPACE_ROOT === ""

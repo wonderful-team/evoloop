@@ -105,7 +105,7 @@ export function SidebarFilesTab({
   }
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 bg-muted/5">
+    <div className="flex-1 flex flex-col min-h-0 bg-background-soft">
       {/* Project Files Section - Flexible to fill space */}
       <Collapsible
         open={isProjectOpen}
@@ -113,18 +113,18 @@ export function SidebarFilesTab({
         className="flex-1 flex flex-col min-h-0 overflow-hidden"
       >
         <CollapsibleTrigger asChild>
-          <div className="flex items-center gap-2 p-2 cursor-pointer hover:bg-muted/50 transition-colors border-b border-border bg-muted/20">
+          <div className="flex items-center gap-2 p-2 cursor-pointer hover:bg-muted/50 transition-colors">
             {isProjectOpen ? (
               <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
             ) : (
               <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
             )}
             {isGlobal ? (
-              <Globe className="h-3.5 w-3.5 text-blue-500" />
+              <Globe className="h-3.5 w-3.5 text-info" />
             ) : (
               <Files className="h-3.5 w-3.5 text-primary/70" />
             )}
-            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex-1">
+            <span className="flex-1 truncate font-mono text-[10px] font-medium text-muted-foreground uppercase tracking-[0.14em] whitespace-nowrap">
               {isGlobal
                 ? t("chat.sidebar.workspaceFiles")
                 : t("chat.sidebar.projectFiles")}
@@ -229,7 +229,7 @@ export function SidebarFilesTab({
                   className="w-56"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <DropdownMenuLabel className="text-[11px] font-bold uppercase tracking-tight text-muted-foreground/80">
+                  <DropdownMenuLabel className="font-mono text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground/80">
                     {t("chat.sidebar.actions")}
                     {isGlobal && (
                       <span className="ml-2 text-[10px] font-normal lowercase opacity-60">
@@ -246,7 +246,7 @@ export function SidebarFilesTab({
                     onClick={handleGenerateWiki}
                     className="gap-2 text-xs py-2 cursor-pointer"
                   >
-                    <BookOpen className="h-3.5 w-3.5 text-green-500" />
+                    <BookOpen className="h-3.5 w-3.5 text-success" />
                     <span>
                       {currentProject?.has_wiki
                         ? t("wiki.regenerate_action")
@@ -382,24 +382,24 @@ export function SidebarFilesTab({
           open={isChangesOpen}
           onOpenChange={setIsChangesOpen}
           className={cn(
-            "flex flex-col min-h-0 border-t border-border transition-all duration-200 bg-background/50",
+            "flex flex-col min-h-0 transition-all duration-200",
             isChangesOpen ? "h-[40%] shrink-0" : "flex-none",
           )}
         >
           <CollapsibleTrigger asChild>
-            <div className="flex items-center gap-2 p-2 cursor-pointer hover:bg-muted/50 transition-colors border-b border-border bg-muted/20">
+            <div className="flex items-center gap-2 p-2 cursor-pointer hover:bg-muted/50 transition-colors">
               {isChangesOpen ? (
                 <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
               ) : (
                 <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
               )}
-              <History className="h-3.5 w-3.5 text-amber-500/70" />
-              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex-1">
+              <History className="h-3.5 w-3.5 text-warning/70" />
+              <span className="flex-1 truncate font-mono text-[10px] font-medium text-muted-foreground uppercase tracking-[0.14em] whitespace-nowrap">
                 {t("chat.sidebar.agentChanges")}
               </span>
             </div>
           </CollapsibleTrigger>
-          <CollapsibleContent className="flex-1 overflow-y-auto bg-background/30">
+          <CollapsibleContent className="flex-1 overflow-y-auto">
             <ChangesetTreeSection
               activeThreadId={activeThreadId}
               onSelectFile={onSelectDiff || (() => {})}

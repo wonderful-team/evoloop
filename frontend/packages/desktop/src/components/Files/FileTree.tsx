@@ -144,8 +144,11 @@ export function FileTree({
 
   if (isLoading) {
     return (
-      <div className="pl-4 py-1 text-xs text-muted-foreground flex items-center">
-        <Loader2 className="h-3 w-3 animate-spin mr-1" /> {t("files.loading")}
+      <div
+        className="py-1 text-xs text-muted-foreground/60 flex items-center"
+        style={{ paddingLeft: `${level * 16 + 12}px` }}
+      >
+        <Loader2 className="h-3 w-3 animate-spin mr-1.5" /> {t("files.loading")}
       </div>
     )
   }
@@ -155,7 +158,10 @@ export function FileTree({
       projectId === 0 && (error as any).status === 404
 
     return (
-      <div className="pl-4 py-2 text-xs text-destructive flex flex-col items-start gap-2">
+      <div
+        className="py-2 text-xs text-destructive flex flex-col items-start gap-2"
+        style={{ paddingLeft: `${level * 16 + 12}px` }}
+      >
         <span>
           {isGlobalNotConfigured
             ? t("files.workspaceNotConfigured")
@@ -179,23 +185,24 @@ export function FileTree({
     return (
       <div
         className={cn(
-          "pl-4 py-4 text-xs text-muted-foreground italic rounded-md transition-colors",
+          "py-4 text-xs text-muted-foreground/60 rounded-md transition-colors",
           isDragOver && "bg-primary/10 border-dashed border border-primary/50",
         )}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
+        style={{ paddingLeft: `${level * 16 + 12}px` }}
       >
         {level === 0 && isCreatingRootFolder && (
           <div
             className="flex items-center gap-1.5 py-1 px-3 rounded-sm whitespace-nowrap mb-2"
-            style={{ paddingLeft: `12px` }}
+            style={{ paddingLeft: 0 }}
           >
             <span className="w-4 shrink-0" />
-            <Folder size={14} className="text-blue-400/80 shrink-0" />
+            <Folder size={14} className="text-muted-foreground shrink-0" />
             <Input
               autoFocus
-              className="h-6 text-xs px-1.5 py-0 border-primary/50 focus-visible:ring-1 focus-visible:ring-offset-0 w-full max-w-[200px]"
+              className="h-6 text-xs px-1.5 py-0 border-border focus-visible:ring-1 focus-visible:ring-primary/40 focus-visible:ring-offset-0 w-full max-w-[200px]"
               value={rootFolderInput}
               onChange={(e) => setRootFolderInput(e.target.value)}
               onKeyDown={(e) => {
@@ -243,10 +250,10 @@ export function FileTree({
           style={{ paddingLeft: `12px` }}
         >
           <span className="w-4 shrink-0" />
-          <Folder size={14} className="text-blue-400/80 shrink-0" />
+          <Folder size={14} className="text-muted-foreground shrink-0" />
           <Input
             autoFocus
-            className="h-6 text-xs px-1.5 py-0 border-primary/50 focus-visible:ring-1 focus-visible:ring-offset-0 w-full max-w-[200px]"
+            className="h-6 text-xs px-1.5 py-0 border-border focus-visible:ring-1 focus-visible:ring-primary/40 focus-visible:ring-offset-0 w-full max-w-[200px]"
             value={rootFolderInput}
             onChange={(e) => setRootFolderInput(e.target.value)}
             onKeyDown={(e) => {
@@ -452,9 +459,9 @@ function FileTreeNode({
   const content = (
     <div
       className={cn(
-        "flex items-center gap-1.5 py-1.5 px-3 hover:bg-primary/5 cursor-pointer rounded-lg select-none whitespace-nowrap transition-all group relative",
-        isDragOver && isFolder && "bg-primary/20 ring-1 ring-primary",
-        isActive && "bg-primary/10 text-primary font-medium",
+        "flex items-center gap-1.5 py-1.5 px-3 cursor-pointer rounded-md select-none whitespace-nowrap transition-colors group relative",
+        isActive ? "bg-foreground/[0.08] text-foreground" : "hover:bg-muted/50",
+        isDragOver && isFolder && "bg-primary/10 ring-1 ring-primary/40",
       )}
       style={{ paddingLeft: `${level * 16 + 12}px` }}
       onClick={handleClick}
@@ -464,8 +471,11 @@ function FileTreeNode({
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
+      {isActive && (
+        <span className="absolute left-1 top-1/2 -translate-y-1/2 h-3.5 w-[2px] rounded-full bg-primary" />
+      )}
       {isFolder ? (
-        <span className="text-muted-foreground mr-0.5 shrink-0 transition-transform hover:scale-110">
+        <span className="text-muted-foreground mr-0.5 shrink-0 transition-colors group-hover:text-foreground/80">
           {isOpen ? (
             <ChevronDown size={14} className="opacity-60" />
           ) : (
@@ -477,15 +487,15 @@ function FileTreeNode({
       )}
 
       {isFolder ? (
-        <Folder size={14} className="text-blue-400/80 shrink-0" />
+        <Folder size={14} className="text-muted-foreground shrink-0" />
       ) : (
-        <FileCode size={14} className="text-muted-foreground shrink-0" />
+        <FileCode size={14} className="text-muted-foreground/70 shrink-0" />
       )}
 
       {isRenaming ? (
         <Input
           autoFocus
-          className="h-5 text-xs px-1 py-0 border-primary/50 focus-visible:ring-1 focus-visible:ring-offset-0 w-full max-w-[200px]"
+          className="h-5 text-xs px-1 py-0 border-border focus-visible:ring-1 focus-visible:ring-primary/40 focus-visible:ring-offset-0 w-full max-w-[200px]"
           value={renameInput}
           onChange={(e) => setRenameInput(e.target.value)}
           onKeyDown={(e) => {
@@ -502,7 +512,12 @@ function FileTreeNode({
           onDoubleClick={(e) => e.stopPropagation()}
         />
       ) : (
-        <span className="truncate flex-1 text-[13px] opacity-90">
+        <span
+          className={cn(
+            "truncate flex-1 text-[13px]",
+            isActive ? "text-foreground" : "text-foreground/70",
+          )}
+        >
           {node.name}
         </span>
       )}
@@ -605,14 +620,14 @@ function FileTreeNode({
           />
           {isCreatingChild && (
             <div
-              className="flex items-center gap-1.5 py-1.5 px-3 rounded-lg whitespace-nowrap"
+              className="flex items-center gap-1.5 py-1.5 px-3 rounded-md whitespace-nowrap"
               style={{ paddingLeft: `${(level + 1) * 16 + 12}px` }}
             >
               <span className="w-4 shrink-0" />
-              <Folder size={14} className="text-blue-400/80 shrink-0" />
+              <Folder size={14} className="text-muted-foreground shrink-0" />
               <Input
                 autoFocus
-                className="h-6 text-xs px-1.5 py-0 border-primary/50 focus-visible:ring-1 focus-visible:ring-offset-0 w-full max-w-[200px]"
+                className="h-6 text-xs px-1.5 py-0 border-border focus-visible:ring-1 focus-visible:ring-primary/40 focus-visible:ring-offset-0 w-full max-w-[200px]"
                 value={childFolderInput}
                 onChange={(e) => setChildFolderInput(e.target.value)}
                 onKeyDown={(e) => {

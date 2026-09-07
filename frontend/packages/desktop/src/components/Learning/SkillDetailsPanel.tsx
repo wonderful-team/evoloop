@@ -117,14 +117,16 @@ export function SkillDetailsPanel({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="sm:max-w-[800px] w-[90vw] p-0 flex flex-col">
-        <SheetHeader className="p-6 pb-2 border-b border-border">
-          <div className="flex items-center gap-2 text-primary mb-1">
+        <SheetHeader className="p-6 pb-2">
+          <div className="mb-1 flex items-center gap-2 text-primary">
             <Terminal className="h-5 w-5" />
-            <span className="text-xs font-bold uppercase tracking-wider">
+            <span className="font-mono text-xs font-medium uppercase tracking-[0.14em]">
               {t("learning.skillDetails")}
             </span>
           </div>
-          <SheetTitle className="text-2xl font-bold">{skill.name}</SheetTitle>
+          <SheetTitle className="text-2xl font-semibold tracking-[-0.02em]">
+            {skill.name}
+          </SheetTitle>
           <SheetDescription className="mt-2 text-sm leading-relaxed">
             {skill.description}
           </SheetDescription>

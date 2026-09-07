@@ -490,12 +490,12 @@ export const ChatInputArea = memo(
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
             className={cn(
-              "bg-background rounded-2xl border transition-all ring-offset-0 overflow-hidden relative z-50",
+              "bg-card rounded-xl border transition-all ring-offset-0 overflow-hidden relative z-50",
               isDragging
-                ? "border-primary border-2 border-dashed bg-primary/5 scale-[1.01]"
+                ? "border-primary border-dashed bg-primary/5 scale-[1.01]"
                 : isTerminalMode
-                  ? "border-[#7aa2f7]/30 focus-within:border-[#7aa2f7]/60 focus-within:ring-4 focus-within:ring-[#7aa2f7]/5"
-                  : "border-input focus-within:border-primary/50 focus-within:ring-4 focus-within:ring-primary/5",
+                  ? "border-signal-blue/30 focus-within:border-signal-blue/60 focus-within:ring-4 focus-within:ring-signal-blue/10"
+                  : "border-border focus-within:border-primary/40 focus-within:ring-4 focus-within:ring-primary/10",
             )}
           >
             {isDragging && (
@@ -527,9 +527,9 @@ export const ChatInputArea = memo(
 
             {/* Wake Word Indicator */}
             {showWakeWordIndicator && (
-              <div className="px-4 py-2 bg-green-500/10 border-b border-green-500/20 flex items-center gap-2">
-                <Ear className="h-4 w-4 text-green-600 animate-pulse" />
-                <span className="text-sm text-green-700 dark:text-green-400">
+              <div className="px-4 py-2 bg-success/10 border-b border-success/20 flex items-center gap-2">
+                <Ear className="h-4 w-4 text-success animate-pulse" />
+                <span className="text-sm text-success">
                   {t("chat.voice.wakeWordActive")}
                 </span>
               </div>
@@ -538,7 +538,7 @@ export const ChatInputArea = memo(
             {/* Middle: Text Area */}
             <div className="px-2 py-2 flex items-center gap-2">
               {isTerminalMode && (
-                <span className="text-[#7aa2f7] font-mono font-bold select-none self-start">
+                <span className="text-signal-blue font-mono font-bold select-none self-start">
                   {t("chat.terminal.promptSymbol")}
                 </span>
               )}
@@ -575,14 +575,14 @@ export const ChatInputArea = memo(
             </div>
 
             {/* Bottom: Toolbar */}
-            <div className="flex items-center justify-between border-t border-border/40 bg-muted/20 px-2 py-1 gap-2 overflow-hidden">
+            <div className="flex items-center justify-between bg-muted/20 px-2 py-1 gap-2 overflow-hidden">
               {/* Left Group: Tools */}
               <div className="flex items-center gap-1.5 flex-1 min-w-0 overflow-x-auto hide-scrollbar">
                 {isTerminalMode ? (
                   <div className="flex items-center gap-1.5">
                     <button
                       onClick={() => setTerminalMode(false)}
-                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-mono text-[#7aa2f7] bg-[#7aa2f7]/15 hover:bg-[#7aa2f7]/25 border border-[#7aa2f7]/30 font-bold transition-all select-none shrink-0 shadow-xs cursor-pointer group"
+                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-mono text-signal-blue bg-signal-blue/15 hover:bg-signal-blue/25 border border-signal-blue/30 font-bold transition-all select-none shrink-0 shadow-xs cursor-pointer group"
                       title={t("chat.interface.exitTerminal")}
                     >
                       <Terminal className="h-3.5 w-3.5" />
@@ -699,10 +699,9 @@ export const ChatInputArea = memo(
                           disabled={isSending}
                           className={cn(
                             "h-8 w-8",
-                            voiceMode === "dictation" &&
-                              "text-blue-500 bg-blue-500/10",
+                            voiceMode === "dictation" && "text-info bg-info/10",
                             voiceMode === "dialogue" &&
-                              "text-emerald-500 bg-emerald-500/10",
+                              "text-success bg-success/10",
                             voiceState !== "idle" && "animate-pulse",
                           )}
                         >
@@ -716,9 +715,7 @@ export const ChatInputArea = memo(
                               <DropdownMenuItem
                                 onClick={() => setVoiceMode("dictation")}
                                 className={
-                                  voiceMode === "dictation"
-                                    ? "text-blue-500"
-                                    : ""
+                                  voiceMode === "dictation" ? "text-info" : ""
                                 }
                               >
                                 <FileText className="h-4 w-4" />
@@ -735,9 +732,7 @@ export const ChatInputArea = memo(
                               <DropdownMenuItem
                                 onClick={() => setVoiceMode("dialogue")}
                                 className={
-                                  voiceMode === "dialogue"
-                                    ? "text-emerald-500"
-                                    : ""
+                                  voiceMode === "dialogue" ? "text-success" : ""
                                 }
                               >
                                 <MessageCircle className="h-4 w-4" />
@@ -809,7 +804,7 @@ export const ChatInputArea = memo(
                     isUploading
                   }
                   size="sm"
-                  className={`h-8 px-3 transition-all ${isAgentWorking ? "bg-red-500 hover:bg-red-600 text-white shadow-red-500/20 animate-pulse" : "shadow-primary/20"}`}
+                  className={`h-8 px-3 transition-all ${isAgentWorking ? "bg-destructive hover:bg-destructive/90 text-white" : ""}`}
                 >
                   {isAgentWorking || isStopPending ? (
                     <span className="flex items-center gap-2">

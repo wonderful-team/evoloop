@@ -23,15 +23,12 @@ export const HITLBanner = memo(() => {
     <div
       className={cn(
         "flex items-center justify-center gap-2 px-4 py-2",
-        "bg-amber-500/10 border-b border-amber-500/20",
+        "bg-warning/10 border-b border-warning/20",
         "animate-pulse",
       )}
     >
-      <AlertCircle
-        size={16}
-        className="text-amber-600 dark:text-amber-400 shrink-0"
-      />
-      <span className="text-sm font-medium text-amber-700 dark:text-amber-400">
+      <AlertCircle size={16} className="text-warning shrink-0" />
+      <span className="text-sm font-medium text-warning">
         {t("chat.hitl.waiting")}
       </span>
     </div>

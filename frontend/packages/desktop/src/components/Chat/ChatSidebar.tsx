@@ -10,8 +10,8 @@ import { ProjectSwitcher } from "@/components/Sidebar/ProjectSwitcher"
 import { SidebarChatList, type Thread } from "./sidebar/SidebarChatList"
 export type { Thread }
 
-import { useProjectStore } from "@/stores/projectStore"
 import { useChangesetStore } from "@/stores/changesetStore"
+import { useProjectStore } from "@/stores/projectStore"
 import { SidebarFilesTab } from "./sidebar/SidebarFilesTab"
 
 interface ChatSidebarProps {
@@ -63,10 +63,10 @@ export const ChatSidebar = memo(
 
     return (
       <div
-        className="flex flex-col h-full w-full min-w-0 bg-muted/5 overflow-hidden"
+        className="flex flex-col h-full w-full min-w-0 bg-background-soft overflow-hidden"
         data-tour="chat-sidebar"
       >
-        <div className="p-2 border-b border-border bg-background shrink-0 w-full min-w-0 overflow-hidden">
+        <div className="p-2 shrink-0 w-full min-w-0 overflow-hidden">
           <ProjectSwitcher
             open={useProjectStore((s) => s.projectSwitcherOpen || undefined)}
             onOpenChange={(v) => {
@@ -80,7 +80,7 @@ export const ChatSidebar = memo(
           onValueChange={onTabChange}
           className="flex flex-col flex-1 min-h-0 min-w-0 w-full overflow-hidden"
         >
-          <div className="p-2 border-b border-border bg-muted/10 shrink-0 w-full">
+          <div className="p-2 shrink-0 w-full">
             <TabsList className="w-full grid grid-cols-2">
               <TabsTrigger value="chats">
                 {t("chat.sidebar.tabChats")}
@@ -90,7 +90,7 @@ export const ChatSidebar = memo(
                 {unviewedCount > 0 && (
                   <span
                     className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center 
-                                   rounded-full bg-red-500 px-1 text-[10px] font-medium text-white 
+                                   rounded-full bg-destructive px-1 text-[10px] font-medium text-white 
                                    animate-in zoom-in duration-200"
                   >
                     {unviewedCount > 99 ? "99+" : unviewedCount}

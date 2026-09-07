@@ -6,14 +6,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@evoloop/shared/components/ui/dialog"
-import { useQueryClient } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { AnimatePresence } from "framer-motion"
 import { ChevronLeft, ChevronRight } from "lucide-react"
-import { useCallback } from "react"
+import { useCallback, useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { SystemService } from "@/client"
 import { useTour } from "@/components/Common/SpotlightTour"
+import { needsLlmStepForConfig } from "./llmConfig"
 import { CompletionStep } from "./steps/CompletionStep"
 import { LLMConfigStep } from "./steps/LLMConfigStep"
 import { ProjectsStep } from "./steps/ProjectsStep"
@@ -24,17 +25,19 @@ import { useWizard, type WizardData, WizardProvider } from "./WizardContext"
 // =====================
 // Step Components Map
 // =====================
-const STEPS = [
+const ALL_STEPS = [
   { key: "welcome", component: WelcomeStep },
   { key: "llm", component: LLMConfigStep },
   { key: "projects", component: ProjectsStep },
   { key: "completion", component: CompletionStep },
 ]
 
+const PLATFORM_STEPS = ALL_STEPS.filter((step) => step.key !== "llm")
+
 // =====================
 // Wizard Content
 // =====================
-function WizardContent() {
+function WizardContent({ currentSteps }: { currentSteps: typeof ALL_STEPS }) {
   const { t } = useTranslation()
   const {
     currentStep,
@@ -46,14 +49,14 @@ function WizardContent() {
     canProceed,
   } = useWizard()
 
-  const CurrentStepComponent = STEPS[currentStep]?.component
+  const CurrentStepComponent = currentSteps[currentStep]?.component
 
   return (
     <div className="flex flex-col h-full">
       {/* Progress Bar */}
       <div className="px-6 pt-4">
         <div className="flex items-center gap-2">
-          {STEPS.map((step, i) => (
+          {currentSteps.map((step, i) => (
             <div
               key={step.key}
               className={`h-1.5 flex-1 rounded-full transition-colors ${
@@ -71,7 +74,7 @@ function WizardContent() {
       <div className="flex-1 overflow-auto">
         <AnimatePresence mode="wait">
           {CurrentStepComponent && (
-            <CurrentStepComponent key={STEPS[currentStep].key} />
+            <CurrentStepComponent key={currentSteps[currentStep].key} />
           )}
         </AnimatePresence>
       </div>
@@ -107,20 +110,49 @@ export function SetupWizard({ open, onOpenChange }: SetupWizardProps) {
   const queryClient = useQueryClient()
   const { startTour } = useTour()
 
+  // Determine whether the LLM step is required: platform mode routes through
+  // the EvoLoop Gateway and has no default-model choice to make.
+  const { data: config } = useQuery({
+    queryKey: ["systemConfig"],
+    queryFn: () => SystemService.getSystemConfig(),
+    enabled: open,
+    staleTime: 1000 * 60 * 5,
+  })
+
+  const configMap: Record<string, string> = useMemo(() => {
+    const map: Record<string, string> = {}
+    if (Array.isArray(config)) {
+      ;(config as unknown as Array<{ key: string; value: string }>).forEach(
+        (item) => {
+          map[item.key] = item.value
+        },
+      )
+    }
+    return map
+  }, [config])
+
+  const needsLlmStep = useMemo(
+    () => needsLlmStepForConfig(configMap),
+    [configMap],
+  )
+
+  const currentSteps = needsLlmStep ? ALL_STEPS : PLATFORM_STEPS
+
   const handleComplete = useCallback(
     async (data: WizardData) => {
       try {
-        // Save LLM Configuration
-        await SystemService.applyLlmConfig({
-          requestBody: {
-            provider: data.llmProvider,
-            base_url: data.llmBaseUrl,
-            model: data.llmModel,
-            vision_model: data.llmVisionModel || data.llmModel,
-            api_key: data.llmApiKey,
-            default_model_id: data.defaultModelId,
-          },
-        })
+        // Save LLM Configuration (only when the LLM step was shown)
+        if (needsLlmStep) {
+          await SystemService.applyLlmConfig({
+            requestBody: {
+              provider: data.llmProvider,
+              base_url: data.llmBaseUrl,
+              model: data.llmModel,
+              vision_model: data.llmVisionModel || data.llmModel,
+              api_key: data.llmApiKey,
+            },
+          })
+        }
 
         // Save Workspace Root
         await SystemService.updateSystemConfig({
@@ -151,10 +183,10 @@ export function SetupWizard({ open, onOpenChange }: SetupWizardProps) {
         )
       }
     },
-    [queryClient, onOpenChange, startTour, t],
+    [queryClient, onOpenChange, startTour, t, needsLlmStep],
   )
 
-  const totalSteps = STEPS.length
+  const totalSteps = currentSteps.length
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -168,7 +200,7 @@ export function SetupWizard({ open, onOpenChange }: SetupWizardProps) {
         </DialogHeader>
 
         <WizardProvider totalSteps={totalSteps} onComplete={handleComplete}>
-          <WizardContent />
+          <WizardContent currentSteps={currentSteps} />
         </WizardProvider>
       </DialogContent>
     </Dialog>

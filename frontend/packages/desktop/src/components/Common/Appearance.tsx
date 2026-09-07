@@ -35,6 +35,7 @@ export const SidebarAppearance = () => {
           <SidebarMenuButton
             tooltip={t("common.themes.appearance")}
             data-testid="theme-button"
+            className="text-sidebar-foreground/50 hover:text-sidebar-foreground/90"
           >
             <Icon className="size-4 text-muted-foreground" />
             <span>{t("common.themes.appearance")}</span>

@@ -1096,6 +1096,55 @@ async fn update_android_marker_position(
 
 // ===== Application Entry Point =====
 
+/// Percent-decode a single component (values are URL-encoded via encodeURIComponent).
+fn percent_decode(s: &str) -> String {
+    let bytes = s.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            let hex = std::str::from_utf8(&bytes[i + 1..i + 3]).unwrap_or("");
+            if let Ok(v) = u8::from_str_radix(hex, 16) {
+                out.push(v);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(bytes[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+/// Handle incoming deep link `evoloop://create-task?...`, show main window and
+/// forward a `evoloop:create-task` event to the webview with the parsed fields.
+fn handle_deep_link(app: &tauri::AppHandle, url: &str) {
+    let mut params = std::collections::HashMap::new();
+    if let Some(q_pos) = url.find('?') {
+        let query = &url[q_pos + 1..];
+        for pair in query.split('&') {
+            let mut it = pair.splitn(2, '=');
+            if let (Some(k), Some(v)) = (it.next(), it.next()) {
+                params.insert(k.to_string(), percent_decode(v));
+            }
+        }
+    }
+    let payload = serde_json::json!({
+        "taskId": params.get("taskId").cloned().unwrap_or_default(),
+        "secret": params.get("secret").cloned().unwrap_or_default(),
+        "callbackUrl": params.get("callbackUrl").cloned().unwrap_or_default(),
+        "prompt": params.get("prompt").cloned().unwrap_or_default(),
+    });
+    // Bring the main window to the foreground.
+    if let Some(window) = app.get_webview_window("main") {
+        #[cfg(target_os = "macos")]
+        let _ = app.set_activation_policy(tauri::ActivationPolicy::Regular);
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+    let _ = app.emit("evoloop:create-task", payload);
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let _ = rustls::crypto::ring::default_provider().install_default();
@@ -1116,6 +1165,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build());
 
     let builder = builder.setup(|_app| {
@@ -1290,6 +1340,12 @@ pub fn run() {
         .expect("error while building tauri application");
 
     app.run(|app_handle, event| match event {
+        #[cfg(desktop)]
+        tauri::RunEvent::Opened { urls } => {
+            for u in urls {
+                handle_deep_link(app_handle, u.as_str());
+            }
+        }
         #[cfg(desktop)]
         tauri::RunEvent::Reopen { .. } => {
             if let Some(window) = app_handle.get_webview_window("main") {

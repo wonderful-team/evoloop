@@ -4,13 +4,7 @@ import {
   DialogContent,
   DialogTitle,
 } from "@evoloop/shared/components/ui/dialog"
-import {
-  Clapperboard,
-  FileText,
-  Loader2,
-  Music,
-  X,
-} from "lucide-react"
+import { Clapperboard, FileText, Loader2, Music, X } from "lucide-react"
 import { memo, useCallback, useDeferredValue, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown"
@@ -213,12 +207,12 @@ export const MessageContent = memo(
                   const url = audioMatch[2] || audioMatch[1]
                   return (
                     <div key={index} className="my-2">
-                      <div className="inline-flex items-center gap-3 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg max-w-full">
-                        <div className="bg-amber-500/20 p-2 rounded-md shrink-0">
-                          <Music className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                      <div className="inline-flex items-center gap-3 p-3 bg-warning/10 border border-warning/20 rounded-lg max-w-full">
+                        <div className="bg-warning/20 p-2 rounded-md shrink-0">
+                          <Music className="w-5 h-5 text-warning" />
                         </div>
                         <div className="flex flex-col min-w-0">
-                          <span className="text-sm font-medium text-amber-800 dark:text-amber-200 truncate">
+                          <span className="text-sm font-medium text-warning truncate">
                             {name}
                           </span>
                           <audio
@@ -240,12 +234,12 @@ export const MessageContent = memo(
                   const url = videoMatch[2] || videoMatch[1]
                   return (
                     <div key={index} className="my-2">
-                      <div className="inline-flex items-center gap-3 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg max-w-full">
-                        <div className="bg-blue-500/20 p-2 rounded-md shrink-0">
-                          <Clapperboard className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                      <div className="inline-flex items-center gap-3 p-3 bg-info/10 border border-info/20 rounded-lg max-w-full">
+                        <div className="bg-info/20 p-2 rounded-md shrink-0">
+                          <Clapperboard className="w-5 h-5 text-info" />
                         </div>
                         <div className="flex flex-col min-w-0 flex-1">
-                          <span className="text-sm font-medium text-blue-800 dark:text-blue-200 truncate">
+                          <span className="text-sm font-medium text-info truncate">
                             {name}
                           </span>
                           <video

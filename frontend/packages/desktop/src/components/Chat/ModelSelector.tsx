@@ -55,12 +55,21 @@ export function ModelSelector({
     }
   }
 
-  // 分组模型
-  const platformModels = models.filter((m) => m.type === "platform")
-  const customModels = models.filter((m) => m.type === "custom")
+  // 分组模型（只保留支持 chat 的模型，排除纯 embedding 模型）
+  const supportsChat = (m: LLMModel) =>
+    !m.capabilities || m.capabilities.includes("chat")
+
+  const platformModels = models.filter(
+    (m) => m.type === "platform" && supportsChat(m),
+  )
+  const customModels = models.filter(
+    (m) => m.type === "custom" && supportsChat(m),
+  )
   // Local models are those discovered from lm-studio/ollama/gguf
   const localProviders = new Set(["lm-studio", "ollama", "gguf", "local"])
-  const localModels = models.filter((m) => localProviders.has(m.provider || ""))
+  const localModels = models.filter(
+    (m) => localProviders.has(m.provider || "") && supportsChat(m),
+  )
 
   const sourceIcons: Record<string, typeof Cpu> = {
     "lm-studio": Server,
@@ -184,11 +193,11 @@ export function ModelSelector({
                       const SrcIcon = sourceIcons[model.provider || ""] || Cpu
                       const color =
                         model.provider === "lm-studio"
-                          ? "text-amber-500"
+                          ? "text-warning"
                           : model.provider === "ollama"
-                            ? "text-green-500"
+                            ? "text-success"
                             : model.provider === "gguf"
-                              ? "text-purple-500"
+                              ? "text-signal-purple"
                               : "text-muted-foreground"
                       return (
                         <SelectItem
@@ -197,8 +206,12 @@ export function ModelSelector({
                           className="text-xs py-2"
                         >
                           <span className="flex items-center gap-2 w-full min-w-0">
-                            <SrcIcon className={`h-3.5 w-3.5 ${color} shrink-0`} />
-                            <span className="flex-1 truncate">{model.name}</span>
+                            <SrcIcon
+                              className={`h-3.5 w-3.5 ${color} shrink-0`}
+                            />
+                            <span className="flex-1 truncate">
+                              {model.name}
+                            </span>
                             <span className="text-[10px] text-muted-foreground flex-shrink-0">
                               {model.provider}
                             </span>

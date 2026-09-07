@@ -14,6 +14,7 @@ import {
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query"
+import { useLocation } from "@tanstack/react-router"
 import { ArrowLeft } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
@@ -22,6 +23,7 @@ import { AgentService, ConversationsService, MemoryService } from "@/client"
 import { isLoggedIn } from "@/hooks/useAuth"
 import { useSystemEvent } from "@/hooks/useSystemEvent"
 import type { SystemEvent } from "@/lib/SystemSSEClient"
+import { safeListen } from "@/lib/tauri"
 import { HITL_STATUS } from "@/stores/agent/hitlConstants"
 import { useAgentStore } from "@/stores/agentStore"
 import { useChangesetStore } from "@/stores/changesetStore"
@@ -29,7 +31,6 @@ import { useChatStore } from "@/stores/chatStore"
 import { useProjectStore } from "@/stores/projectStore"
 import { useUIStore } from "@/stores/uiStore"
 import { useUnreadCompletionsStore } from "@/stores/unreadCompletionsStore"
-import { BreadcrumbStatus } from "./BreadcrumbStatus"
 import { ChatInputArea, type ChatInputAreaHandle } from "./ChatInputArea"
 import type { Message } from "./ChatMessageItem"
 import { ChatSidebar, type Thread } from "./ChatSidebar"
@@ -53,15 +54,48 @@ const TERMINAL_STATUSES = [
   HITL_STATUS.completed,
 ]
 
+// 深链参数（thread_id/message/autoSend/quoteId）——本应用使用 createHashHistory，
+// 路由参数会写在 hash（`#/chat?thread_id=x`）里，`window.location.search` 读不到。
+// 这里把真实 query 与 hash 内 query 合并，二者皆可取。
+const CHAT_LINK_PARAMS = ["quoteId", "message", "autoSend"] as const
+
+function getChatSearchParams(): URLSearchParams {
+  const merged = new URLSearchParams(window.location.search)
+  const hash = window.location.hash
+  const queryAt = hash.indexOf("?")
+  if (queryAt !== -1) {
+    new URLSearchParams(hash.slice(queryAt + 1)).forEach((value, key) => {
+      merged.set(key, value)
+    })
+  }
+  return merged
+}
+
+// 清理地址栏中的深链参数，保留路由与其余参数（replaceState 时不要弄丢 hash，
+// 否则会直接离开 /chat 页面）。
+function stripChatLinkParams() {
+  const url = new URL(window.location.href)
+  for (const key of CHAT_LINK_PARAMS) url.searchParams.delete(key)
+  let newHash = url.hash
+  const queryAt = newHash.indexOf("?")
+  if (queryAt !== -1) {
+    const params = new URLSearchParams(newHash.slice(queryAt + 1))
+    for (const key of CHAT_LINK_PARAMS) params.delete(key)
+    const remaining = params.toString()
+    newHash = remaining
+      ? newHash.slice(0, queryAt + 1) + remaining
+      : newHash.slice(0, queryAt)
+  }
+  window.history.replaceState({}, "", `${url.pathname}${url.search}${newHash}`)
+}
+
 export function ChatInterface() {
   // --- Store State (selective subscriptions to avoid unnecessary re-renders) ---
   const activeThreadId = useChatStore((s) => s.threadId)
   const storeProjectId = useChatStore((s) => s.projectId)
   const setThread = useChatStore((s) => s.setThread)
   const sendMessage = useChatStore((s) => s.sendMessage)
-  const _truncateMessages = useChatStore((s) => s._truncateMessages)
   const isTerminalMode = useChatStore((s) => s.isTerminalMode)
-  const _setTerminalMode = useChatStore((s) => s.setTerminalMode)
   const sendTerminalCommand = useChatStore((s) => s.sendTerminalCommand)
   const status = useAgentStore((s) => s.status)
   const humanRequest = useAgentStore((s) => s.humanRequest)
@@ -72,7 +106,6 @@ export function ChatInterface() {
   const markAllChangesAsViewed = useChangesetStore(
     (s) => s.markAllChangesAsViewed,
   )
-  const _selectedModel = useChatStore((s) => s.selectedModel)
 
   const { t } = useTranslation()
   const currentProject = useProjectStore((s) => s.currentProject)
@@ -198,38 +231,15 @@ export function ChatInterface() {
 
   const [sidebarActiveTab, setSidebarActiveTab] = useState<string>("chats")
   const [expandAgentChanges, setExpandAgentChanges] = useState<boolean>(false)
-  const [showChatListSheet, setShowChatListSheet] = useState(false)
-
   const projectId = currentProject?.id ?? storeProjectId ?? undefined
 
-  // We maintain 'showContextPanel' locally as it involves UI preference
-  // Global mode: hidden by default; Project mode: show by default
-  // But respect user's manual preference stored in localStorage
-  // In compact window (<1024px) it's a Sheet overlay, so keep it closed by default
-  const [showContextPanel, setShowContextPanel] = useState(() => {
-    const saved = localStorage.getItem("chat.contextPanel.hidden")
-    if (saved === "true") return false
-    if (typeof window !== "undefined" && window.innerWidth < 1024) return false
-    return true
-  })
-  // Compact window detection (< 1024px, matching lg breakpoint of left sidebar)
-  const [isCompactWindow, setIsCompactWindow] = useState(() => {
-    if (typeof window !== "undefined") {
-      return window.innerWidth < 1024
-    }
-    return false
-  })
-
-  useEffect(() => {
-    const mql = window.matchMedia("(max-width: 1023px)")
-    const handler = (e: MediaQueryListEvent) => {
-      setIsCompactWindow(e.matches)
-      // Closing the context sheet on shrink, otherwise it overlays the chat area
-      if (e.matches) setShowContextPanel(false)
-    }
-    mql.addEventListener("change", handler)
-    return () => mql.removeEventListener("change", handler)
-  }, [])
+  // Chat layout state lives in uiStore (shared with the AppTitleBar slot)
+  const showChatListSheet = useUIStore((s) => s.showChatListSheet)
+  const setShowChatListSheet = useUIStore((s) => s.setShowChatListSheet)
+  const showContextPanel = useUIStore((s) => s.showContextPanel)
+  const setShowContextPanel = useUIStore((s) => s.setShowContextPanel)
+  const isCompactWindow = useUIStore((s) => s.isCompactWindow)
+  const showChatList = useUIStore((s) => s.showChatList)
 
   // Auto-show context panel when switching from global to project mode
   // But only if user hasn't manually closed it (skipped in compact window)
@@ -247,6 +257,10 @@ export function ChatInterface() {
 
   // Track if user manually closed context panel during the CURRENT run
   const hasManuallyClosedInCurrentRun = useRef(false)
+  // 初始化 effect 只真正跑一次（防止 projectId 解析/切换重复 re-run 拆掉 SSE）
+  const initRanRef = useRef(false)
+  // 记录最近一次由深链 thread_id 参数选中的会话，用于监听已挂载后的深链跳转
+  const lastHandledDeepThreadRef = useRef<string | null>(null)
 
   // Reset the manual close flag when agent finishes or starts a fresh run
   useEffect(() => {
@@ -274,17 +288,7 @@ export function ChatInterface() {
     localStorage.setItem("chat.contextPanel.hidden", "true")
     hasManuallyClosedInCurrentRun.current = true // Mark as manually closed for this run
     setShowContextPanel(false)
-  }, [])
-
-  // Persist manual open action
-  const handleOpenContextPanel = useCallback(() => {
-    localStorage.removeItem("chat.contextPanel.hidden")
-    setShowContextPanel(true)
-  }, [])
-
-  const handleOpenChatList = useCallback(() => {
-    setShowChatListSheet(true)
-  }, [])
+  }, [setShowContextPanel])
 
   // Refresh conversation list when a new conversation is created or an existing
   // one is updated from another device/channel (voice link, mobile, wecom, etc.)
@@ -310,8 +314,14 @@ export function ChatInterface() {
 
   // --- Initialization ---
   useEffect(() => {
+    if (projectId === undefined) return
+    // 只真正的初始化一次：projectId 解析（或后续切换项目）导致的 re-run 不应
+    // 再次以 initId 重选会话——那会把正在进行的会话 SSE 流直接 disconnect。
+    if (initRanRef.current) return
+    initRanRef.current = true
+
     // Get initial thread ID from URL if present, or create new
-    const params = new URLSearchParams(window.location.search)
+    const params = getChatSearchParams()
     const tid = params.get("thread_id")
     const initId = tid && tid.trim() !== "" ? tid : null
 
@@ -321,50 +331,39 @@ export function ChatInterface() {
     const quoteId = params.get("quoteId")
 
     // Init Store - allow global mode (projectId can be 0)
-    if (projectId !== undefined) {
-      setThread(initId, projectId)
-      // 首次进入会话（URL 直达）也清除"已完成"未读点
-      if (initId) {
-        useUnreadCompletionsStore.getState().clearUnread(initId)
-      }
-      // Small delay to ensure thread is set before sending
-      if (pendingMessage) {
-        // Clear URL params to prevent re-sending on refresh (Partial clear, wait for quote?)
-        // actually we can clear 'message' and 'autoSend' but keep 'quoteId' if we handle it separately?
-        // Or just clear all and manage state locally?
-        // Let's clear ALL after handling everything.
+    setThread(initId, projectId)
+    // 首次进入会话（URL 直达）也清除"已完成"未读点
+    if (initId) {
+      useUnreadCompletionsStore.getState().clearUnread(initId)
+    }
+    // Small delay to ensure thread is set before sending
+    if (pendingMessage) {
+      // Clear URL params to prevent re-sending on refresh (Partial clear, wait for quote?)
+      // actually we can clear 'message' and 'autoSend' but keep 'quoteId' if we handle it separately?
+      // Or just clear all and manage state locally?
+      // Let's clear ALL after handling everything.
 
-        // But quote handling depends on messages loading...
+      // But quote handling depends on messages loading...
 
-        if (shouldAutoSend && !quoteId) {
-          // If we have a quoteId, standard autoSend might be too fast before reference is added?
-          // Actually, if we just want to PRE-FILL, we shouldn't auto-send immediately if we also want to attach a reference?
-          // But the user request said "Jump to conversation... and quote...".
-          // If we auto-send, the reference needs to be attached to the message being sent.
-          setTimeout(() => sendMessage(pendingMessage), 500)
-          window.history.replaceState(
-            {},
-            "",
-            window.location.pathname + (tid ? `?thread_id=${tid}` : ""),
-          )
-        } else if (!shouldAutoSend && !quoteId) {
-          // Just plain fill? (Need store support)
-          window.history.replaceState(
-            {},
-            "",
-            window.location.pathname + (tid ? `?thread_id=${tid}` : ""),
-          )
-        }
+      if (shouldAutoSend && !quoteId) {
+        // If we have a quoteId, standard autoSend might be too fast before reference is added?
+        // Actually, if we just want to PRE-FILL, we shouldn't auto-send immediately if we also want to attach a reference?
+        // But the user request said "Jump to conversation... and quote...".
+        // If we auto-send, the reference needs to be attached to the message being sent.
+        setTimeout(() => sendMessage(pendingMessage), 500)
+        stripChatLinkParams()
+      } else if (!shouldAutoSend && !quoteId) {
+        // Just plain fill? (Need store support)
+        stripChatLinkParams()
       }
     }
   }, [projectId, setThread, sendMessage]) // Run once when project loads
 
   // Handle Quote Deep Link - Dependent on Messages Loading
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
+    const params = getChatSearchParams()
     const quoteId = params.get("quoteId")
     const pendingMessage = params.get("message")
-    const _shouldAutoSend = params.get("autoSend") === "true"
 
     if (!quoteId) return
 
@@ -390,15 +389,7 @@ export function ChatInterface() {
           })
 
           // Clear URL
-          window.history.replaceState(
-            {},
-            "",
-            window.location.pathname +
-              window.location.search
-                .replace(/quoteId=[^&]*&?/, "")
-                .replace(/message=[^&]*&?/, "")
-                .replace(/autoSend=[^&]*&?/, ""),
-          )
+          stripChatLinkParams()
           return true // Handled
         }
       }
@@ -547,6 +538,35 @@ export function ChatInterface() {
     [sendMessage, sendTerminalCommand, isTerminalMode, projectId, queryClient],
   )
 
+  // Handle Evoloop deep link `evoloop://create-task` → fill prompt and auto-send
+  useEffect(() => {
+    let unlisten: (() => void) | undefined
+    safeListen<{
+      taskId?: string
+      secret?: string
+      callbackUrl?: string
+      prompt?: string
+    }>("evoloop:create-task", (ev) => {
+      const prompt = ev.payload?.prompt || ""
+      if (!prompt) return
+      const meta = {
+        taskId: ev.payload?.taskId || "",
+        secret: ev.payload?.secret || "",
+        callbackUrl: ev.payload?.callbackUrl || "",
+      }
+      if (meta.taskId) {
+        useChatStore.getState().setPendingCreateTask(meta)
+      }
+      chatInputRef.current?.setInput(prompt)
+      setTimeout(() => {
+        handleSendMessage(prompt)
+      }, 120)
+    }).then((fn) => (unlisten = fn))
+    return () => {
+      if (unlisten) unlisten()
+    }
+  }, [handleSendMessage])
+
   const handleDeleteThread = useCallback(
     async (id: string) => {
       try {
@@ -599,7 +619,6 @@ export function ChatInterface() {
     mutationFn: async ({
       text,
       messageId,
-      isRemembered,
     }: {
       text: string
       messageId: string | number
@@ -637,7 +656,7 @@ export function ChatInterface() {
       })
       return { previousMessages }
     },
-    onError: (_err, { messageId, isRemembered }, context) => {
+    onError: (_err, _variables, context) => {
       if (context?.previousMessages) {
         queryClient.setQueryData(
           ["messages", activeThreadId],
@@ -726,6 +745,24 @@ export function ChatInterface() {
     },
     [projectId, setThread],
   )
+
+  // 深链跳转（已挂载状态下 thread_id 参数变化，如 TaskDetail → /chat?thread_id=…）
+  // 依赖 router location.search：hash 路由下 TanStack 会把 hash 内的 query 解析进来，
+  // 参数变化才会触发本 effect；参数被清理/不变时不重置，避免覆盖侧栏手动选择。
+  const chatLocation = useLocation()
+  const threadIdFromLocation = (() => {
+    const p = new URLSearchParams(chatLocation.search)
+    const v = p.get("thread_id")
+    return v && v.trim() !== "" ? v : null
+  })()
+
+  useEffect(() => {
+    if (threadIdFromLocation === lastHandledDeepThreadRef.current) return
+    lastHandledDeepThreadRef.current = threadIdFromLocation
+    if (threadIdFromLocation && projectId !== undefined) {
+      handleSetActiveThreadId(threadIdFromLocation)
+    }
+  }, [threadIdFromLocation, handleSetActiveThreadId, projectId])
 
   const handleSelectDiff = useCallback((path: string, diff: string) => {
     useUIStore.getState().setPreviewDiff({ path, diff })
@@ -863,45 +900,56 @@ export function ChatInterface() {
         className="h-full w-full min-w-0 overflow-hidden"
       >
         {/* Left Sidebar Panel */}
-        <ResizablePanel
-          defaultSize={16}
-          minSize={15}
-          maxSize={40}
-          className="hidden lg:block min-w-[100px] overflow-hidden"
-        >
-          <div
-            style={{
-              contain: "content",
-              height: "100%",
-              width: "100%",
-              minWidth: 0,
-            }}
+        {showChatList && (
+          <ResizablePanel
+            id="chat-list"
+            order={1}
+            defaultSize={16}
+            minSize={15}
+            maxSize={40}
+            className="hidden lg:block min-w-[100px] overflow-hidden"
           >
-            <ChatSidebar
-              threads={mappedThreads}
-              activeThreadId={activeThreadId || ""}
-              setActiveThreadId={handleSetActiveThreadId}
-              projectId={projectId}
-              onDeleteThread={handleDeleteThread}
-              onStopThread={handleStopThread}
-              onNewChat={handleNewChat}
-              onSelectDiff={handleSelectDiff}
-              onQuoteFile={handleQuoteFile}
-              activeTab={sidebarActiveTab}
-              onTabChange={setSidebarActiveTab}
-              expandAgentChanges={expandAgentChanges}
-              fetchNextPage={fetchNextPage}
-              hasNextPage={hasNextPage}
-              isFetchingNextPage={isFetchingNextPage}
-              onTogglePin={handleTogglePin}
-            />
-          </div>
-        </ResizablePanel>
+            <div
+              style={{
+                contain: "content",
+                height: "100%",
+                width: "100%",
+                minWidth: 0,
+              }}
+            >
+              <ChatSidebar
+                threads={mappedThreads}
+                activeThreadId={activeThreadId || ""}
+                setActiveThreadId={handleSetActiveThreadId}
+                projectId={projectId}
+                onDeleteThread={handleDeleteThread}
+                onStopThread={handleStopThread}
+                onNewChat={handleNewChat}
+                onSelectDiff={handleSelectDiff}
+                onQuoteFile={handleQuoteFile}
+                activeTab={sidebarActiveTab}
+                onTabChange={setSidebarActiveTab}
+                expandAgentChanges={expandAgentChanges}
+                fetchNextPage={fetchNextPage}
+                hasNextPage={hasNextPage}
+                isFetchingNextPage={isFetchingNextPage}
+                onTogglePin={handleTogglePin}
+              />
+            </div>
+          </ResizablePanel>
+        )}
 
-        <ResizableHandle withHandle />
+        {showChatList && (
+          <ResizableHandle
+            withHandle
+            className="w-px bg-transparent data-[resize-handle-active]:bg-transparent after:bg-transparent hover:after:bg-muted/60 [&>div]:border-transparent [&>div]:bg-muted/50 [&>div]:opacity-0 [&>div]:transition-opacity hover:[&>div]:opacity-100 hover:[&>div]:bg-muted/70"
+          />
+        )}
 
         {/* Center Chat Panel */}
         <ResizablePanel
+          id="chat-main"
+          order={2}
           defaultSize={showContextPanel ? 64 : 84}
           minSize={20}
           className="min-w-0 overflow-hidden"
@@ -910,13 +958,6 @@ export function ChatInterface() {
             className="flex flex-col h-full relative min-h-0 min-w-0 w-full overflow-hidden"
             style={{ contain: "content" }}
           >
-            {/* Breadcrumb Status */}
-            <BreadcrumbStatus
-              isCompactWindow={isCompactWindow}
-              showContextPanel={showContextPanel}
-              onOpenContextPanel={handleOpenContextPanel}
-              onOpenChatList={handleOpenChatList}
-            />
             <HITLBanner />
             <QuotaExhaustedBanner />
 
@@ -929,7 +970,7 @@ export function ChatInterface() {
               ) : (
                 <>
                   {activeSubagentDetail && (
-                    <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border bg-muted/20 shrink-0">
+                    <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/20 shrink-0">
                       <button
                         type="button"
                         onClick={() => {
@@ -986,7 +1027,7 @@ export function ChatInterface() {
                     />
                   </div>
                   {activeA2ADetail && (
-                    <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border bg-muted/20 shrink-0">
+                    <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/20 shrink-0">
                       <button
                         type="button"
                         onClick={() => {
@@ -1040,7 +1081,6 @@ export function ChatInterface() {
                     isStopPending={false}
                     currentProject={currentProject}
                     activeThreadId={activeThreadId || undefined}
-                    disabled={status === HITL_STATUS.interrupted}
                     isGlobalMode={isGlobalMode}
                   />
                 </>
@@ -1050,8 +1090,13 @@ export function ChatInterface() {
 
         {!isCompactWindow && showContextPanel && (
           <>
-            <ResizableHandle withHandle />
+            <ResizableHandle
+              withHandle
+              className="w-px bg-transparent data-[resize-handle-active]:bg-transparent after:bg-transparent hover:after:bg-muted/60 [&>div]:border-transparent [&>div]:bg-muted/50 [&>div]:opacity-0 [&>div]:transition-opacity hover:[&>div]:opacity-100 hover:[&>div]:bg-muted/70"
+            />
             <ResizablePanel
+              id="chat-context"
+              order={3}
               defaultSize={20}
               minSize={15}
               maxSize={40}
@@ -1080,7 +1125,7 @@ export function ChatInterface() {
         <Sheet open={showChatListSheet} onOpenChange={setShowChatListSheet}>
           <SheetContent
             side="left"
-            className="w-[320px] sm:w-[400px] max-w-[85vw] p-0 border-r border-border bg-background [&>button]:hidden shadow-2xl flex flex-col min-w-0 overflow-hidden"
+            className="w-[320px] sm:w-[400px] max-w-[85vw] p-0 bg-background-soft [&>button]:hidden shadow-2xl flex flex-col min-w-0 overflow-hidden"
           >
             <SheetHeader className="sr-only">
               <SheetTitle>{t("chat.sidebar.tabChats")}</SheetTitle>
@@ -1118,7 +1163,7 @@ export function ChatInterface() {
         <Sheet open={showContextPanel} onOpenChange={setShowContextPanel}>
           <SheetContent
             side="right"
-            className="w-[320px] sm:w-[400px] max-w-[85vw] p-0 border-l border-border bg-background [&>button]:hidden shadow-2xl flex flex-col min-w-0 overflow-hidden"
+            className="w-[320px] sm:w-[400px] max-w-[85vw] p-0 bg-background-soft [&>button]:hidden shadow-2xl flex flex-col min-w-0 overflow-hidden"
           >
             <SheetHeader className="sr-only">
               <SheetTitle>{t("chat.context.title")}</SheetTitle>
@@ -1144,11 +1189,14 @@ export function ChatInterface() {
           if (confirmMode === "rewind") {
             rewindMutation.mutate({
               revertFiles,
-              messageId: selectedMessageId,
-              content: rewindContent,
+              messageId: selectedMessageId ?? undefined,
+              content: _rewindContent,
             })
           } else {
-            retryMutation.mutate({ revertFiles, messageId: selectedMessageId })
+            retryMutation.mutate({
+              revertFiles,
+              messageId: selectedMessageId ?? undefined,
+            })
           }
         }}
       />

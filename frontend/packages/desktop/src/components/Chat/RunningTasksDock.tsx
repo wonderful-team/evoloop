@@ -6,7 +6,7 @@
  * 点击某个 task 卡片切换到 Terminal Mode 以便查看实时输出。
  */
 
-import { Clock, Loader2 } from "lucide-react"
+import { Clock, Loader2, Square } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import type { ActiveTaskInfo } from "@/stores/chat/types"
 import { useChatStore } from "@/stores/chatStore"
@@ -14,9 +14,11 @@ import { useChatStore } from "@/stores/chatStore"
 function TaskPill({
   task,
   onClick,
+  onStop,
 }: {
   task: ActiveTaskInfo
   onClick: () => void
+  onStop: () => void
 }) {
   const { t } = useTranslation()
   const isRunning = task.status === "running"
@@ -26,28 +28,45 @@ function TaskPill({
       : task.title
 
   return (
-    <button
-      onClick={onClick}
-      type="button"
-      className="group flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-mono transition-all w-full text-left
-                 bg-background border border-border text-foreground
-                 hover:border-primary hover:bg-muted/50
-                 focus:outline-none focus-visible:ring-1 focus-visible:ring-primary"
-      title={t("chat.runningTasks.openTerminalTitle", { title: task.title })}
+    <div
+      className="group flex items-center gap-1 rounded-md text-xs font-mono transition-all w-full
+                    bg-background border border-border text-foreground
+                    hover:border-primary/60"
     >
-      {isRunning ? (
-        <Loader2 className="h-3 w-3 animate-spin text-green-500 flex-shrink-0" />
-      ) : (
-        <Clock className="h-3 w-3 text-amber-500 flex-shrink-0" />
+      <button
+        onClick={onClick}
+        type="button"
+        className="flex items-center gap-1.5 px-2.5 py-1.5 min-w-0 flex-1 text-left
+                   focus:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+        title={t("chat.runningTasks.openTerminalTitle", { title: task.title })}
+      >
+        {isRunning ? (
+          <Loader2 className="h-3 w-3 animate-spin text-success flex-shrink-0" />
+        ) : (
+          <Clock className="h-3 w-3 text-warning flex-shrink-0" />
+        )}
+        <span className="min-w-0 truncate">{label}</span>
+      </button>
+      {isRunning && (
+        <button
+          onClick={onStop}
+          type="button"
+          className="hover:bg-background text-muted-foreground hover:text-destructive transition-colors
+                     w-7 h-full flex items-center justify-center self-stretch
+                     focus:outline-none focus-visible:ring-1 focus-visible:ring-primary rounded-r-md"
+          title={t("chat.runningTasks.stop")}
+        >
+          <Square size={12} className="fill-current" />
+        </button>
       )}
-      <span className="min-w-0 truncate">{label}</span>
-    </button>
+    </div>
   )
 }
 
 export function RunningTasksDock() {
   const activeTasks = useChatStore((s) => s.activeTasks)
   const setTerminalMode = useChatStore((s) => s.setTerminalMode)
+  const cancelTask = useChatStore((s) => s.cancelTask)
 
   const tasks = Object.values(activeTasks)
   if (tasks.length === 0) return null
@@ -59,6 +78,7 @@ export function RunningTasksDock() {
           key={task.task_id}
           task={task}
           onClick={() => setTerminalMode(true)}
+          onStop={() => cancelTask(task.task_id)}
         />
       ))}
     </div>

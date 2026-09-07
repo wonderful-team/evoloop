@@ -45,7 +45,7 @@ function getIndexingStatusDisplay(
     return {
       icon: <RefreshCw className="h-3 w-3 animate-spin" />,
       text: t("projectSwitcher.indexing"),
-      className: "bg-blue-100 text-blue-700",
+      className: "bg-info/10 text-info",
     }
   }
 
@@ -56,25 +56,25 @@ function getIndexingStatusDisplay(
       return {
         icon: <RefreshCw className="h-3 w-3 animate-spin" />,
         text: t("projectSwitcher.indexing"),
-        className: "bg-blue-100 text-blue-700",
+        className: "bg-info/10 text-info",
       }
     case "completed":
       return {
         icon: <CheckCircle2 className="h-3 w-3" />,
         text: t("projectSwitcher.indexed"),
-        className: "bg-green-100 text-green-700",
+        className: "bg-success/10 text-success",
       }
     case "failed":
       return {
         icon: <XCircle className="h-3 w-3" />,
         text: t("projectSwitcher.indexFailed"),
-        className: "bg-red-100 text-red-700",
+        className: "bg-destructive/10 text-destructive",
       }
     case "pending":
       return {
         icon: <Clock className="h-3 w-3" />,
         text: t("projectSwitcher.indexPending"),
-        className: "bg-yellow-100 text-yellow-700",
+        className: "bg-warning/10 text-warning",
       }
     default:
       return null
@@ -220,17 +220,17 @@ export function ProjectSwitcher({
             variant="outline"
             role="combobox"
             aria-expanded={open}
-            className="w-full justify-between h-10 px-3 bg-background"
+            className="w-full justify-between h-10 px-3 bg-transparent border-transparent hover:bg-muted/60 hover:border-transparent"
           >
             <div className="flex items-center gap-2 overflow-hidden">
-              <div className="flex aspect-square size-5 items-center justify-center rounded bg-primary/10 text-primary">
+              <div className="flex aspect-square size-5 items-center justify-center rounded bg-muted text-muted-foreground">
                 {isGlobalMode ? (
                   <Globe className="size-3.5" />
                 ) : (
                   <Folder className="size-3.5" />
                 )}
               </div>
-              <span className="truncate font-medium">
+              <span className="truncate font-normal text-foreground/80">
                 {isGlobalMode
                   ? t("projectSwitcher.global")
                   : currentProject?.name || t("projectSwitcher.select")}
@@ -276,7 +276,7 @@ export function ProjectSwitcher({
                   return (
                     <Badge
                       variant="secondary"
-                      className="ml-2 h-5 text-[10px] px-1.5 font-normal bg-purple-100 text-purple-700 hidden sm:inline-flex gap-1"
+                      className="ml-2 h-5 text-[10px] px-1.5 font-normal bg-signal-purple/10 text-signal-purple hidden sm:inline-flex gap-1"
                     >
                       <ListTodo className="h-3 w-3 animate-pulse" />{" "}
                       {t("projectSwitcher.analyzing")}
@@ -383,7 +383,7 @@ export function ProjectSwitcher({
                             className={cn(
                               "shrink-0 capitalize text-[10px] px-1.5 py-0 h-5",
                               project.status === 1
-                                ? "bg-green-500/15 text-green-700 hover:bg-green-500/25 dark:text-green-400"
+                                ? "bg-success/15 text-success hover:bg-success/25"
                                 : "",
                             )}
                           >
@@ -448,7 +448,7 @@ export function ProjectSwitcher({
                             className={cn(
                               "h-7 gap-1 px-2 text-xs",
                               project.duty_enabled &&
-                                "bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border-emerald-200",
+                                "bg-success/10 text-success hover:bg-success/20 border-success/20",
                             )}
                             disabled={
                               !project.duty_enabled &&

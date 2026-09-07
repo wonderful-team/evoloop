@@ -12,7 +12,7 @@ import {
   normalizeMessage,
   tryParseHumanRequest,
 } from "./chat/helpers"
-import type { ActivitySnapshot, ChatState } from "./chat/types"
+import type { ActiveTaskInfo, ActivitySnapshot, ChatState } from "./chat/types"
 import { useProjectStore } from "./projectStore"
 
 // ---------------------------------------------------------------------------
@@ -116,6 +116,7 @@ export const useChatStore = create<ChatState>((set, get) => {
     skillIds: [],
     sessionGoal: null,
     messages: [],
+    pendingCreateTask: null,
     hasMoreHistory: false,
     isLoadingHistory: false,
     firstMessageId: null,
@@ -389,6 +390,10 @@ export const useChatStore = create<ChatState>((set, get) => {
       set({ messages: snapshot })
     },
 
+    setPendingCreateTask: (data) => {
+      set({ pendingCreateTask: data })
+    },
+
     sendMessage: async (content, pickedFiles, skillIds) => {
       const {
         threadId,
@@ -460,6 +465,7 @@ export const useChatStore = create<ChatState>((set, get) => {
           ChatConnection.getInstance().connect(threadId)
         }
 
+        const createTask = get().pendingCreateTask
         const res: any = await AgentService.chatEndpoint({
           requestBody: {
             thread_id: threadId || undefined,
@@ -469,8 +475,14 @@ export const useChatStore = create<ChatState>((set, get) => {
             model: get().selectedModel || undefined,
             references:
               mappedReferences.length > 0 ? mappedReferences : undefined,
+            task_id: createTask?.taskId || undefined,
+            secret: createTask?.secret || undefined,
+            callback_url: createTask?.callbackUrl || undefined,
           },
         })
+        if (createTask) {
+          set({ pendingCreateTask: null })
+        }
 
         if (res) {
           if (res.thread_id && !threadId) {
@@ -599,9 +611,39 @@ export const useChatStore = create<ChatState>((set, get) => {
             "[ChatStore] sendTerminalCommand failed",
             await res.text(),
           )
+          return
         }
+        const data = (await res.json()) as { task_id?: string }
+        if (!data.task_id) return
+        // Optimistic registration so the pill shows up before the SSE event
+        const meta: ActiveTaskInfo["metadata"] = {
+          enable_streaming_output: true,
+        }
+        get().updateActiveTask({
+          task_id: data.task_id,
+          task_type: "command",
+          title: command,
+          status: "running",
+          created_at: new Date().toISOString(),
+          output: "",
+          metadata: meta,
+        })
       } catch (e) {
         console.error("[ChatStore] sendTerminalCommand error", e)
+      }
+    },
+
+    cancelTask: async (taskId) => {
+      const { threadId } = get()
+      if (!threadId) return
+      try {
+        await fetch(`/api/v1/conversations/${threadId}/terminal/cancel`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ task_id: taskId }),
+        })
+      } catch (e) {
+        console.error("[ChatStore] cancelTask error", e)
       }
     },
 

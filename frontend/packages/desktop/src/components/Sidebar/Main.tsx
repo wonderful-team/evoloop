@@ -45,6 +45,7 @@ export function Main({ items }: MainProps) {
                   tooltip={item.title}
                   isActive={isActive}
                   asChild
+                  className="text-sidebar-foreground/50 hover:text-sidebar-foreground/90 data-[active=true]:text-sidebar-foreground/90 data-[active=true]:bg-sidebar-accent/60"
                 >
                   <RouterLink to={item.path} onClick={handleMenuClick}>
                     <item.icon />

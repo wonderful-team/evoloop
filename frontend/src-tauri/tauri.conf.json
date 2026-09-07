@@ -56,6 +56,13 @@
       }
     }
   },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["evoloop"]
+      }
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",

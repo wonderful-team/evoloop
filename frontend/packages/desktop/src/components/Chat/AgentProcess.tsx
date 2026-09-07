@@ -51,7 +51,10 @@ function formatToolInput(
   // 1. 优先用后端解析出的实际受影响路径（覆盖 affected_path_keys 与
   //    execute_command 的 affected_path_extractor），前端不依赖原始 keys 契约。
   if (toolMeta?.affected_paths?.length > 0) {
-    return { label: t("chat.process.path"), value: String(toolMeta.affected_paths[0]) }
+    return {
+      label: t("chat.process.path"),
+      value: String(toolMeta.affected_paths[0]),
+    }
   }
 
   // 2. Backward compat: backend-provided affected_path_keys
@@ -238,7 +241,7 @@ function StepRow({ step }: { step: ToolStep }) {
         {isRunning ? (
           <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
         ) : isFailed ? (
-          <div className="h-3.5 w-3.5 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold">
+          <div className="h-3.5 w-3.5 flex items-center justify-center rounded-full bg-destructive text-white text-[10px] font-bold">
             {t("chat.process.failedIndicator")}
           </div>
         ) : (
@@ -275,7 +278,7 @@ function StepRow({ step }: { step: ToolStep }) {
               title={outputSummary.title}
             >
               {isFailed && (
-                <span className="text-red-500 mr-1">
+                <span className="text-destructive mr-1">
                   {t("chat.steps.failed")}:
                 </span>
               )}

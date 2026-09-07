@@ -247,7 +247,7 @@ export function ContextGroupTab({ projectId }: ContextGroupTabProps) {
                           key={res.id}
                           className="flex items-center gap-2 text-xs p-1.5 bg-muted/30 rounded group relative"
                         >
-                          <FileText className="h-3 w-3 text-blue-500 shrink-0" />
+                          <FileText className="h-3 w-3 text-info shrink-0" />
                           <span
                             className="truncate flex-1 font-mono"
                             title={res.content}
@@ -287,7 +287,7 @@ export function ContextGroupTab({ projectId }: ContextGroupTabProps) {
                         key={res.id}
                         className="flex items-center gap-2 text-xs p-1.5 bg-muted/30 rounded group relative"
                       >
-                        <ExternalLink className="h-3 w-3 text-green-500 shrink-0" />
+                        <ExternalLink className="h-3 w-3 text-success shrink-0" />
                         <a
                           href={res.content}
                           target="_blank"
@@ -509,8 +509,8 @@ export function ContextGroupTab({ projectId }: ContextGroupTabProps) {
                           <div
                             className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold border ${
                               ep.error
-                                ? "bg-red-500/10 text-red-600 border-red-500/20"
-                                : "bg-green-500/10 text-green-600 border-green-500/20"
+                                ? "bg-destructive/10 text-destructive border-destructive/20"
+                                : "bg-success/10 text-success border-success/20"
                             }`}
                           >
                             {ep.error ? (

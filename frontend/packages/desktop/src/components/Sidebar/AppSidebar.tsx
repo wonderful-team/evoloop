@@ -109,7 +109,7 @@ export function AppSidebar() {
                   <SidebarMenuButton
                     tooltip={t("sidebar.debugTooltip")}
                     isActive={debugOpen}
-                    className="text-amber-500/70 hover:text-amber-400 hover:bg-amber-500/10 data-[active=true]:bg-amber-500/10 data-[active=true]:text-amber-400"
+                    className="text-warning/70 hover:text-warning hover:bg-warning/10 data-[active=true]:bg-warning/10 data-[active=true]:text-warning"
                   >
                     <Bug className="h-4 w-4 shrink-0" />
                     <span>{t("sidebar.debug")}</span>

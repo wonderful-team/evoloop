@@ -22,7 +22,11 @@ import { type Message, SmartChatMessageItem } from "./ChatMessageItem"
 import { ChatWelcome } from "./ChatWelcome"
 
 interface MessageListProps {
-  onAddToMemory?: (text: string) => void
+  onAddToMemory?: (
+    text: string,
+    messageId: string | number,
+    isRemembered?: boolean,
+  ) => void
   onRewind?: (msg: Message) => void
   onRetry?: (msg: Message) => void
   onQuote?: (msg: Message) => void
@@ -94,7 +98,11 @@ const TurnStepsGroupView = memo(function TurnStepsGroupView({
 }: {
   steps: (Message & { showDate?: boolean })[]
   isTurnActive?: boolean
-  onAddToMemory?: (text: string) => void
+  onAddToMemory?: (
+    text: string,
+    messageId: string | number,
+    isRemembered?: boolean,
+  ) => void
   onRewind?: (msg: Message) => void
   onRetry?: (msg: Message) => void
   onQuote?: (msg: Message) => void

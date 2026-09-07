@@ -1,17 +1,11 @@
 import { Button } from "@evoloop/shared/components/ui/button"
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@evoloop/shared/components/ui/sheet"
 import { Textarea } from "@evoloop/shared/components/ui/textarea"
 import { AlertCircle, Edit, FileText, Loader2, Save, X } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { ProjectProfilesService } from "@/client/sdk.gen"
+import { AppSheet } from "@/components/Common/AppSheet"
 import { MarkdownRenderer } from "@/components/Common/MarkdownRenderer"
 
 interface ProfileData {
@@ -96,82 +90,70 @@ export function ProjectProfileDrawer({
   const hasProfile = profile?.exists && profile?.content
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        className="!max-w-[calc(100vw-360px)] w-full p-0 flex flex-col h-full bg-background border-l"
-      >
-        <SheetHeader className="px-6 py-4 border-b flex-row justify-between items-center m-0 shrink-0">
-          <div className="flex items-center gap-3">
-            <FileText className="h-5 w-5 text-primary" />
-            <SheetTitle>{t("projects.profile.title")}</SheetTitle>
-            <SheetDescription className="sr-only">
-              {t("projects.profile.description")}
-            </SheetDescription>
+    <AppSheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title={t("projects.profile.title")}
+      icon={<FileText />}
+      actions={
+        !isEditing && hasProfile ? (
+          <Button variant="outline" size="sm" onClick={startEditing}>
+            <Edit className="h-4 w-4 mr-1" />
+            {t("common.edit")}
+          </Button>
+        ) : isEditing ? (
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsEditing(false)}
+              disabled={isSaving}
+            >
+              <X className="h-4 w-4 mr-1" />
+              {t("common.cancel")}
+            </Button>
+            <Button size="sm" onClick={handleSave} disabled={isSaving}>
+              {isSaving ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4 mr-1" />
+              )}
+              {t("common.save")}
+            </Button>
+          </>
+        ) : undefined
+      }
+    >
+      <div className="flex-1 overflow-auto px-6 relative">
+        {loading ? (
+          <div className="flex items-center justify-center h-full">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
-
-          <div className="flex items-center gap-2 pr-8">
-            {!isEditing && hasProfile && (
-              <Button variant="outline" size="sm" onClick={startEditing}>
-                <Edit className="h-4 w-4 mr-1" />
-                {t("common.edit")}
-              </Button>
-            )}
-            {isEditing && (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsEditing(false)}
-                  disabled={isSaving}
-                >
-                  <X className="h-4 w-4 mr-1" />
-                  {t("common.cancel")}
-                </Button>
-                <Button size="sm" onClick={handleSave} disabled={isSaving}>
-                  {isSaving ? (
-                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                  ) : (
-                    <Save className="h-4 w-4 mr-1" />
-                  )}
-                  {t("common.save")}
-                </Button>
-              </>
-            )}
-          </div>
-        </SheetHeader>
-
-        <div className="flex-1 overflow-auto px-6 relative">
-          {loading ? (
-            <div className="flex items-center justify-center h-full">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : hasProfile ? (
-            isEditing ? (
-              <Textarea
-                className="min-h-full font-mono text-sm resize-none h-full"
-                value={editContent}
-                onChange={(e) => setEditContent(e.target.value)}
-                placeholder={t("projects.profile.editPlaceholder")}
-              />
-            ) : (
-              <div className="pb-6">
-                <MarkdownRenderer content={profile.content!} />
-              </div>
-            )
+        ) : hasProfile ? (
+          isEditing ? (
+            <Textarea
+              className="min-h-full font-mono text-sm resize-none h-full"
+              value={editContent}
+              onChange={(e) => setEditContent(e.target.value)}
+              placeholder={t("projects.profile.editPlaceholder")}
+            />
           ) : (
-            <div className="flex flex-col items-center justify-center py-20 text-muted-foreground h-full">
-              <AlertCircle className="h-12 w-12 mb-4 opacity-20" />
-              <h3 className="text-lg font-medium">
-                {t("projects.profile.notFound")}
-              </h3>
-              <p className="text-sm max-w-md text-center mt-2">
-                {t("projects.profile.notFoundDescription")}
-              </p>
+            <div className="pb-6 pt-4">
+              <MarkdownRenderer content={profile.content!} />
             </div>
-          )}
-        </div>
-      </SheetContent>
-    </Sheet>
+          )
+        ) : (
+          <div className="flex flex-col items-center justify-center py-20 text-muted-foreground h-full">
+            <AlertCircle className="h-12 w-12 mb-4 opacity-20" />
+            <h3 className="text-lg font-medium">
+              {t("projects.profile.notFound")}
+            </h3>
+            <p className="text-sm max-w-md text-center mt-2">
+              {t("projects.profile.notFoundDescription")}
+            </p>
+          </div>
+        )}
+      </div>
+    </AppSheet>
   )
 }

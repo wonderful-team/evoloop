@@ -500,7 +500,8 @@
       "working": "Working..."
     },
     "runningTasks": {
-      "openTerminalTitle": "Open terminal – {{title}}"
+      "openTerminalTitle": "Open terminal – {{title}}",
+      "stop": "Stop task"
     },
     "stepGroupsCount": "{{count}} turns",
     "steps": {
@@ -563,8 +564,15 @@
     },
     "waitingForSteps": "Waiting for agent to start...",
     "welcome": {
+      "statusStandby": "Agent Standby",
       "mobileHint": "Click the input box below to start a conversation",
-      "mobileSubtitle": "Hello! I am your Wooden Robot assistant",
+      "mobileSubtitle": "Hey, you made it. What are we building today?",
+      "subtitle": {
+        "morning": "Morning! What are we building today?",
+        "afternoon": "Good afternoon! What are we working on?",
+        "evening": "Good evening! What are we building tonight?",
+        "night": "Still up this late? What are we working on?"
+      },
       "nav": {
         "projects": "Project Management",
         "projectsDesc": "Manage all development projects",
@@ -656,6 +664,7 @@
     "ok": "OK",
     "openContextPanel": "Open Context Panel",
     "openChatList": "Open conversations",
+    "miniMode": "Mini Mode",
     "openMenu": "Open menu",
     "preview": "Preview",
     "previous": "Previous",
@@ -1280,6 +1289,8 @@
   },
   "mcp": {
     "add": "Add Tool",
+    "addDesc": "Configure an external tool that your AI assistant can call.",
+    "addTitle": "Add External Tool",
     "argsHelp": "Additional information passed to the tool, such as a folder path to work with",
     "argsLabel": "Extra Parameters",
     "argsPlaceholder": "e.g. /Users/my-folder",
@@ -1290,12 +1301,15 @@
     "delete": "Remove",
     "deleteSuccess": "Tool removed successfully",
     "description": "Enable your AI assistant to use more external tools like web search, file operations, database queries, and more. Think of it like installing 'Apps' for your AI to make it more powerful.",
+    "editDesc": "Modify the configuration of this external tool.",
+    "editTitle": "Edit External Tool",
     "help": {
       "content": "External tools let your AI assistant perform more tasks, such as:\n\n• Search the web\n• Read and write local files\n• Query databases\n• Send emails\n• Manage calendars\n\nEach tool is like an 'App' - once installed, your AI can use them when needed."
     },
     "nameLabel": "Tool Name",
     "namePlaceholder": "e.g. File Assistant",
     "nameRequired": "Please give the tool a name",
+    "save": "Save",
     "status": {
       "connected": "Ready",
       "disconnected": "Not Connected",
@@ -1312,7 +1326,9 @@
     },
     "title": "External Tools",
     "enabledLabel": "Enabled",
-    "enabledHelp": "When disabled, config is saved but not connected; Agent cannot call this server."
+    "enabledHelp": "When disabled, config is saved but not connected; Agent cannot call this server.",
+    "successAdd": "Tool added successfully",
+    "successEdit": "Tool updated successfully"
   },
   "mermaid": {
     "renderingPartial": "Rendering Partial",

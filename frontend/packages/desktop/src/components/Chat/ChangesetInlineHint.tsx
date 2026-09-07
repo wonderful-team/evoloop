@@ -54,12 +54,12 @@ export function ChangesetInlineHint({
       </div>
 
       <div className="flex flex-col">
-        <span className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-50">
+        <span className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] opacity-60">
           {isViewed
             ? t("chat.changeset.viewed")
             : t("chat.changeset.fileChangeset")}
         </span>
-        <span className="text-xs font-semibold">
+        <span className="text-xs font-medium">
           {isViewed
             ? t("chat.changeset.viewed", { count: fileCount })
             : t("chat.changeset.newChanges", { count: fileCount })}

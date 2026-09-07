@@ -74,11 +74,17 @@ export function ModelSettings() {
   const saveModel = async (modelId: string) => {
     const model = models.find((m) => m.id === modelId)
     if (!model) return
-    // Save the selected model as the default LLM model
+    // Platform (evocloud) models are routed through the EvoLoop Gateway, which
+    // assigns a default model on the remote side. Nothing needs to be persisted
+    // locally for them — only custom / local endpoints carry their own base URL.
+    if (model.source === "evocloud") {
+      return
+    }
+    // Save the selected model as the configured LLM model
     try {
       await SystemService.applyLlmConfig({
         requestBody: {
-          provider: model.source,
+          provider: model.source === "ollama" ? "ollama" : model.source,
           provider_type: "openai",
           base_url: model.base_url || null,
           model: model.model_name,

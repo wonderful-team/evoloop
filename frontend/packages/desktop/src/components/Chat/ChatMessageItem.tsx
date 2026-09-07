@@ -241,7 +241,7 @@ const ChatMessageItem = memo(
     if (isUser) {
       return (
         <motion.div
-          className="group relative flex flex-col w-full my-2.5 px-4 py-3.5 rounded-xl bg-primary text-primary-foreground text-[15px] font-medium leading-relaxed transition-all shadow-sm"
+          className="chat-bubble-user group relative flex flex-col w-full my-2.5 px-4 py-3.5 rounded-xl text-[15px] font-medium leading-relaxed transition-all"
           data-run-id={msg.run_id}
         >
           <MessageContent content={msg.content} isUser={isUser} />
@@ -305,7 +305,7 @@ const ChatMessageItem = memo(
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-6 w-6 rounded hover:bg-orange-500/10 text-muted-foreground/80 hover:text-orange-500"
+                className="h-6 w-6 rounded hover:bg-warning/10 text-muted-foreground/80 hover:text-warning"
                 onClick={() => onRewind(msg)}
                 title={t("chat.interface.rewind")}
               >

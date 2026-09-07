@@ -3,6 +3,11 @@ import { Toaster } from "@evoloop/shared/components/ui/sonner"
 import i18n from "@evoloop/shared/i18n"
 import "@xterm/xterm/css/xterm.css"
 
+// Tell @monaco-editor/react to use local monaco-editor instead of jsdelivr CDN
+import { loader } from "@monaco-editor/react"
+import * as monaco from "monaco-editor"
+loader.config({ monaco })
+
 // Configure Monaco Editor Web Workers globally for Vite/Tauri ESM compatibility.
 // Resolves warning and prevents UI freezes by executing editors syntax tree parsers inside workers.
 import editorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker"

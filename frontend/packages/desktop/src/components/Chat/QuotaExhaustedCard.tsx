@@ -40,9 +40,9 @@ export function QuotaExhaustedCard() {
   }
 
   return (
-    <Card className="w-full my-2 border-red-500/30 bg-red-500/5 shadow-sm animate-in fade-in slide-in-from-bottom-2">
+    <Card className="w-full my-2 border-destructive/30 bg-destructive/5 shadow-sm animate-in fade-in slide-in-from-bottom-2">
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium flex items-center gap-2 text-red-600 dark:text-red-500">
+        <CardTitle className="text-sm font-medium flex items-center gap-2 text-destructive">
           <AlertTriangle className="h-4 w-4" />
           {quotaInfo?.title || t("chat.quota.card.title")}
         </CardTitle>
@@ -75,7 +75,7 @@ export function QuotaExhaustedCard() {
         <Button
           variant="outline"
           size="sm"
-          className="flex-1 border-red-500/30 hover:bg-red-500/10"
+          className="flex-1 border-destructive/30 hover:bg-destructive/10"
           onClick={handleCheckQuota}
         >
           <ExternalLink className="h-4 w-4 mr-2" />
@@ -84,7 +84,7 @@ export function QuotaExhaustedCard() {
         <Button
           variant="default"
           size="sm"
-          className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+          className="flex-1 bg-destructive hover:bg-destructive/90 text-white"
           onClick={handleContinue}
         >
           <RefreshCw className="h-4 w-4 mr-2" />

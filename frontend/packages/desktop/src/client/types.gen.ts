@@ -216,6 +216,9 @@ export type ChatRequest = {
     skill_ids?: (Array<(number)> | null);
     revert_files?: boolean;
     scenario?: (string | null);
+    task_id?: (string | null);
+    secret?: (string | null);
+    callback_url?: (string | null);
 };
 
 export type CheckMobileRequest = {
@@ -535,10 +538,6 @@ export type EmbeddingConfigRequest = {
     model: string;
     dimensions?: (number | null);
     api_key?: (string | null);
-    /**
-     * Selected Default Embedding Model ID
-     */
-    default_model_id?: (string | null);
 };
 
 export type EmbeddingTestResponse = {
@@ -941,10 +940,6 @@ export type LLMConfigRequest = {
      */
     vision_provider_type?: (string | null);
     api_key?: (string | null);
-    /**
-     * Selected Default Model ID
-     */
-    default_model_id?: (string | null);
     /**
      * 自定义请求头 (JSON 字典)
      */

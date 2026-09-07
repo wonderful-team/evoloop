@@ -68,21 +68,23 @@ function UserInfo({
             className="h-full w-full object-cover"
           />
         ) : (
-          <AvatarFallback className="bg-zinc-600 text-white">
+          <AvatarFallback className="bg-secondary text-secondary-foreground">
             {getInitials(fullName || t("user.defaultName"))}
           </AvatarFallback>
         )}
       </Avatar>
       <div className="flex flex-col items-start min-w-0">
-        <p className="text-sm font-medium truncate w-full flex items-center gap-1">
+        <p className="text-[13px] font-normal text-foreground/75 truncate w-full flex items-center gap-1">
           {fullName}
           {isMember && (
-            <span className="text-[10px] bg-yellow-500/10 text-yellow-600 px-1.5 py-0.5 rounded border border-yellow-500/20 font-bold leading-none">
+            <span className="text-[10px] bg-warning/10 text-warning px-1.5 py-0.5 rounded border border-warning/20 font-bold leading-none">
               {levelName}
             </span>
           )}
         </p>
-        <p className="text-xs text-muted-foreground truncate w-full">{email}</p>
+        <p className="text-xs text-muted-foreground/60 truncate w-full">
+          {email}
+        </p>
         {isMember && levelExpireTime && levelExpireTime > 0 && (
           <p className="text-[10px] text-muted-foreground/80 truncate w-full mt-0.5">
             {t("user.expireTime")}
@@ -131,7 +133,7 @@ export function User({ user }: { user: any }) {
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton
               size="lg"
-              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+              className="text-sidebar-foreground/75 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
               data-testid="user-menu"
             >
               <UserInfo
@@ -162,7 +164,7 @@ export function User({ user }: { user: any }) {
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
               <RouterLink to="/subscription" onClick={handleMenuClick}>
-                <Crown className="text-yellow-500" />
+                <Crown className="text-warning" />
                 <span>
                   {user?.member_level_name
                     ? t("user.manageSubscription")

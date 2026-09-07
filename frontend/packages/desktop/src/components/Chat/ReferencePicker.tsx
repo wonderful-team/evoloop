@@ -162,7 +162,7 @@ export const ReferencePicker = forwardRef<
             regex.test(part) ? (
               <span
                 key={i}
-                className="font-extrabold text-amber-300 underline underline-offset-2"
+                className="font-extrabold text-warning underline underline-offset-2"
               >
                 {part}
               </span>
@@ -244,7 +244,7 @@ export const ReferencePicker = forwardRef<
                           "h-3.5 w-3.5 shrink-0",
                           isHighlighted
                             ? "text-primary-foreground"
-                            : "text-blue-500",
+                            : "text-info",
                         )}
                       />
                     ) : item.type === "directory" ? (
@@ -253,7 +253,7 @@ export const ReferencePicker = forwardRef<
                           "h-3.5 w-3.5 shrink-0",
                           isHighlighted
                             ? "text-primary-foreground"
-                            : "text-amber-500",
+                            : "text-warning",
                         )}
                       />
                     ) : (
@@ -262,7 +262,7 @@ export const ReferencePicker = forwardRef<
                           "h-3.5 w-3.5 shrink-0",
                           isHighlighted
                             ? "text-primary-foreground"
-                            : "text-green-500",
+                            : "text-success",
                         )}
                       />
                     )}

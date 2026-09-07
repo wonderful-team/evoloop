@@ -98,6 +98,7 @@ export function TerminalCanvas() {
         lineHeight: 1.4,
         cursorBlink: true,
         allowTransparency: false,
+        convertEol: true,
       })
 
       const fitAddon = new FitAddon()
@@ -108,6 +109,9 @@ export function TerminalCanvas() {
 
       termRef.current = term
       fitAddonRef.current = fitAddon
+      if (import.meta.env.DEV) {
+        ;(window as any).__terminal = term
+      }
 
       // Write any buffered history that arrived before mount
       const currentBuffer = useChatStore.getState().terminalHistoryBuffer

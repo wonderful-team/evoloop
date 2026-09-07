@@ -162,7 +162,7 @@ export function RecordingButton({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 text-amber-500 hover:text-amber-600"
+                className="h-8 w-8 text-warning hover:text-warning/80"
                 onClick={requestAxPermission}
               >
                 <ShieldAlert className="h-4 w-4" />

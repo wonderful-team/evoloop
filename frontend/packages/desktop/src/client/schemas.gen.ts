@@ -2194,18 +2194,6 @@ export const EmbeddingConfigRequestSchema = {
                 }
             ],
             title: 'Api Key'
-        },
-        default_model_id: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Default Model Id',
-            description: 'Selected Default Embedding Model ID'
         }
     },
     type: 'object',
@@ -3466,18 +3454,6 @@ export const LLMConfigRequestSchema = {
                 }
             ],
             title: 'Api Key'
-        },
-        default_model_id: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Default Model Id',
-            description: 'Selected Default Model ID'
         },
         headers: {
             anyOf: [

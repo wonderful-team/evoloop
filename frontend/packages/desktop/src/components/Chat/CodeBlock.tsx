@@ -59,8 +59,8 @@ export const CodeBlock = memo(
     }, [codeString, lang])
 
     return (
-      <div className="not-prose my-2 rounded-md overflow-hidden bg-zinc-50 dark:bg-[#1e1e1e] border border-zinc-200 dark:border-[#3e3e3e] max-w-full flex flex-col">
-        <div className="flex items-center justify-between px-3 py-1 bg-zinc-100 dark:bg-[#252526] text-[10px] text-zinc-500 dark:text-gray-400 border-b border-zinc-200 dark:border-[#3e3e3e] w-full shrink-0">
+      <div className="not-prose my-2 rounded-md overflow-hidden bg-background-soft border border-border max-w-full flex flex-col">
+        <div className="flex items-center justify-between px-3 py-1 bg-muted/40 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground border-b border-border/60 w-full shrink-0">
           <span>
             {language}{" "}
             {isLong && t("chat.artifact.lineCount", { count: lineCount })}
@@ -70,7 +70,7 @@ export const CodeBlock = memo(
               <button
                 type="button"
                 onClick={() => onPreview(codeString)}
-                className="hover:text-zinc-900 dark:hover:text-white transition-colors"
+                className="transition-colors hover:text-foreground"
               >
                 {t("chat.messageList.preview")}
               </button>
@@ -78,14 +78,14 @@ export const CodeBlock = memo(
             <button
               type="button"
               onClick={() => navigator.clipboard.writeText(codeString)}
-              className="hover:text-zinc-900 dark:hover:text-white transition-colors"
+              className="transition-colors hover:text-foreground"
             >
               {t("chat.messageList.copy")}
             </button>
           </div>
         </div>
         <div
-          className="overflow-auto relative bg-zinc-50 dark:bg-[#1e1e1e] text-zinc-900 dark:text-[#d4d4d4]"
+          className="overflow-auto relative bg-background-soft text-foreground/90"
           style={{
             maxHeight: isLong ? "600px" : "none",
           }}
@@ -94,11 +94,11 @@ export const CodeBlock = memo(
           <div className="min-w-fit text-xs font-mono py-3">
             {lineHtmlContents.map((html, i) => (
               <div key={i} className="flex leading-5">
-                <div className="select-none text-zinc-400 dark:text-[#6e7681] text-right pr-3 pl-3 border-r border-zinc-200 dark:border-[#3e3e3e]/30 bg-zinc-50 dark:bg-[#1e1e1e] sticky left-0 min-w-[3rem]">
+                <div className="sticky left-0 min-w-[3rem] select-none border-r border-border/50 bg-background-soft pl-3 pr-3 text-right text-muted-foreground/40">
                   {i + 1}
                 </div>
-                <div className="pl-3 pr-3 flex-1 min-w-0">
-                  <pre className="m-0 p-0 bg-transparent whitespace-pre">
+                <div className="min-w-0 flex-1 pl-3 pr-3">
+                  <pre className="m-0 bg-transparent p-0 whitespace-pre">
                     {html ? (
                       <code
                         className={`language-${lang}`}

@@ -171,7 +171,7 @@ export function ChangesetTreeSection({
                 {fileName}
               </span>
               {dirPath && (
-                <span className="truncate text-[10px] text-muted-foreground/60">
+                <span className="truncate font-mono text-[10px] text-muted-foreground/60">
                   {dirPath}
                 </span>
               )}
@@ -179,17 +179,17 @@ export function ChangesetTreeSection({
 
             <div className="flex items-center gap-1.5 shrink-0">
               {file.operation === "ADD" && (
-                <span className="px-1.5 py-0.5 rounded-[4px] bg-emerald-500/10 text-emerald-600 text-[9px] font-black uppercase tracking-tighter border border-emerald-500/20">
+                <span className="px-1.5 py-0.5 rounded-[4px] bg-success/10 text-success font-mono text-[9px] font-medium uppercase tracking-[0.08em] border border-success/20">
                   {t("chat.changeset.opAdd")}
                 </span>
               )}
               {file.operation === "EDIT" && (
-                <span className="px-1.5 py-0.5 rounded-[4px] bg-amber-500/10 text-amber-600 text-[9px] font-black uppercase tracking-tighter border border-amber-500/20">
+                <span className="px-1.5 py-0.5 rounded-[4px] bg-warning/10 text-warning font-mono text-[9px] font-medium uppercase tracking-[0.08em] border border-warning/20">
                   {t("chat.changeset.opMod")}
                 </span>
               )}
               {file.operation === "DELETE" && (
-                <span className="px-1.5 py-0.5 rounded-[4px] bg-red-500/10 text-red-600 text-[9px] font-black uppercase tracking-tighter border border-red-500/20">
+                <span className="px-1.5 py-0.5 rounded-[4px] bg-destructive/10 text-destructive font-mono text-[9px] font-medium uppercase tracking-[0.08em] border border-destructive/20">
                   {t("chat.changeset.opDel")}
                 </span>
               )}

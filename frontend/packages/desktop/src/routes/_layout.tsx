@@ -6,18 +6,23 @@ import { createFileRoute, Outlet, useRouterState } from "@tanstack/react-router"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import { AppTitleBar } from "@/components/Common/AppTitleBar"
-import { SpotlightTourProvider, useTour } from "@/components/Common/SpotlightTour"
-import { desktopTourSteps } from "@/components/Common/tourSteps"
-import { GlobalRecorderManager } from "@/components/Learning/GlobalRecorderManager"
-import { CustomerServiceDutyManager } from "@/components/Duty/CustomerServiceDutyManager"
 import { AgentStopManager } from "@/components/Common/AgentStopManager"
+import { AppTitleBar } from "@/components/Common/AppTitleBar"
+import {
+  SpotlightTourProvider,
+  useTour,
+} from "@/components/Common/SpotlightTour"
+import { desktopTourSteps } from "@/components/Common/tourSteps"
+import { CustomerServiceDutyManager } from "@/components/Duty/CustomerServiceDutyManager"
+import { GlobalRecorderManager } from "@/components/Learning/GlobalRecorderManager"
 import AppSidebar from "@/components/Sidebar/AppSidebar"
 import { SetupWizard, useSetupRequired } from "@/components/Wizard"
 import { useSetupWizard } from "@/components/Wizard/SetupWizardContext"
 import useAuth from "@/hooks/useAuth"
 import { useSystemEvent } from "@/hooks/useSystemEvent"
 import { useVoiceEvents } from "@/hooks/useVoiceEvents"
+import { isTauri } from "@/lib/tauri"
+import { useUIStore } from "@/stores/uiStore"
 
 export const Route = createFileRoute("/_layout")({
   component: Layout,
@@ -43,6 +48,12 @@ function Layout() {
     pathname.includes("/todos") ||
     pathname.startsWith("/learning/skills") ||
     pathname.startsWith("/learning/macros")
+
+  // 迷你模式：聊天页隐藏全局图标栏，只留标题栏 + 纯聊天画布。
+  // Tauri 下窗口本身收缩（lib/miniWindow），Web 预览降级为居中迷你卡片。
+  const isChatMini =
+    useUIStore((s) => s.miniMode) && pathname.startsWith("/chat")
+  const isTauriApp = isTauri()
 
   // Sync wizard state with context
   useEffect(() => {
@@ -124,10 +135,22 @@ function Layout() {
 
       <SidebarProvider
         defaultOpen={false}
-        className={isFullWidth ? "h-svh overflow-hidden" : ""}
+        className={
+          isFullWidth
+            ? isChatMini && !isTauriApp
+              ? "h-svh overflow-hidden items-center justify-center"
+              : "h-svh overflow-hidden"
+            : ""
+        }
       >
         <AppSidebar />
-        <SidebarInset className="min-w-0 overflow-hidden flex flex-col h-full">
+        <SidebarInset
+          className={
+            isChatMini && !isTauriApp
+              ? "h-full w-[400px] flex-none flex flex-col overflow-hidden rounded-2xl border border-border shadow-2xl"
+              : "flex h-full min-w-0 flex-1 flex-col overflow-hidden"
+          }
+        >
           <AppTitleBar />
           <main
             className={`flex-1 min-w-0 ${isFullWidth ? "overflow-hidden" : "p-6 md:p-8 overflow-auto"}`}

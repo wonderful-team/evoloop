@@ -195,9 +195,9 @@ export function SidebarChatList({
   )
 
   return (
-    <div className="flex flex-col h-full bg-background">
+    <div className="flex flex-col h-full bg-background-soft">
       {/* Search Input */}
-      <div className="pl-3 pr-3 pb-2 sticky top-0 bg-background/95 backdrop-blur z-10 border-b border-border">
+      <div className="pl-3 pr-3 pb-2 sticky top-0 bg-background-soft/95 backdrop-blur z-10">
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -255,7 +255,7 @@ export function SidebarChatList({
               key={thread.thread_id}
               role="button"
               tabIndex={0}
-              className={`group flex items-center justify-between text-sm p-2 rounded-md cursor-pointer hover:bg-muted relative ${activeThreadId === thread.thread_id ? "bg-muted font-medium" : ""}`}
+              className={`group flex items-center justify-between text-sm p-2 rounded-md cursor-pointer hover:bg-muted relative ${activeThreadId === thread.thread_id ? "bg-muted/70 font-medium text-foreground/85" : "text-foreground/60"}`}
               onClick={() => setActiveThreadId(thread.thread_id)}
               onKeyDown={(e: any) => {
                 if (e.key === "Enter" || e.key === " ") {
@@ -303,7 +303,7 @@ export function SidebarChatList({
                         })
                       }
                     >
-                      <Check size={12} className="text-green-500" />
+                      <Check size={12} className="text-success" />
                     </Button>
                     <Button
                       variant="ghost"
@@ -317,13 +317,13 @@ export function SidebarChatList({
                 ) : (
                   <div className="flex flex-col min-w-0 flex-1 pr-8">
                     <span
-                      className="truncate flex items-center gap-1.5 font-medium text-foreground"
+                      className="truncate flex items-center gap-1.5"
                       title={thread.title || t("chat.sidebar.untitled")}
                     >
                       {thread.is_pinned && (
                         <Pin
                           size={10}
-                          className="shrink-0 text-amber-500 fill-amber-500/25"
+                          className="shrink-0 text-warning fill-warning/25"
                         />
                       )}
                       <span className="truncate">
@@ -335,7 +335,7 @@ export function SidebarChatList({
                     </span>
                     {thread.goal && (
                       <span
-                        className="text-[11px] text-muted-foreground/80 truncate mt-0.5 block"
+                        className="text-[11px] text-muted-foreground/50 truncate mt-0.5 block"
                         title={thread.goal}
                       >
                         {thread.goal}
@@ -347,7 +347,7 @@ export function SidebarChatList({
 
               {/* Absolute positioned Relative Time label in bottom right corner */}
               {thread.status !== "running" && (
-                <span className="text-[9px] text-muted-foreground absolute right-2 bottom-1.5 whitespace-nowrap group-hover:opacity-0 transition-opacity duration-150 pointer-events-none z-10">
+                <span className="font-mono text-[9px] text-muted-foreground/45 absolute right-2 bottom-1.5 whitespace-nowrap group-hover:opacity-0 transition-opacity duration-150 pointer-events-none z-10">
                   {formatRelativeTime(thread.updated_at)}
                 </span>
               )}
@@ -375,7 +375,7 @@ export function SidebarChatList({
                       {thread.is_pinned ? (
                         <PinOff
                           size={12}
-                          className="text-amber-500 fill-amber-500/25"
+                          className="text-warning fill-warning/25"
                         />
                       ) : (
                         <Pin
@@ -467,7 +467,7 @@ export function SidebarChatList({
                 (section) =>
                   section.items.length > 0 && (
                     <div key={section.key} className="space-y-1">
-                      <div className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider px-2 py-1 select-none">
+                      <div className="px-2 py-1 font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground/60 select-none">
                         {section.label}
                       </div>
                       <div className="space-y-1">
@@ -499,7 +499,7 @@ export function SidebarChatList({
       </div>
 
       {/* Bottom Action */}
-      <div className="p-4 border-t border-border mt-auto shrink-0">
+      <div className="p-4 mt-auto shrink-0">
         <Button
           onClick={onNewChat}
           className="w-full justify-start gap-2"

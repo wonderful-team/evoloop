@@ -30,6 +30,13 @@ export interface ChatState {
   sessionGoal: string | null
   messages: Message[]
 
+  // AI 创作 deep link 回传元数据（临时，发送后即清空）
+  pendingCreateTask: {
+    taskId: string
+    secret: string
+    callbackUrl: string
+  } | null
+
   // Pagination State
   hasMoreHistory: boolean
   isLoadingHistory: boolean
@@ -57,6 +64,9 @@ export interface ChatState {
     projectId: number | null,
     skillIds?: number[],
   ) => Promise<void>
+  setPendingCreateTask: (
+    data: { taskId: string; secret: string; callbackUrl: string } | null,
+  ) => void
   fetchHistory: (threadId: string) => Promise<void>
   fetchActivity: (threadId: string) => Promise<void>
   loadMoreHistory: () => Promise<void>
@@ -78,6 +88,8 @@ export interface ChatState {
   setTerminalMode: (enabled: boolean) => void
   /** Send a shell command via /terminal/execute (creates a BackgroundTask) */
   sendTerminalCommand: (command: string) => Promise<void>
+  /** Cancel a running terminal background task via /terminal/cancel */
+  cancelTask: (taskId: string) => Promise<void>
   /** Write raw bytes to PTY — debounced (16 ms) so bursts/pastes send a single POST */
   sendRawTerminalInput: (text: string) => void
   /** Append incremental PTY output to the history buffer */
