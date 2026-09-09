@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query"
 import { useMemo } from "react"
 import { type SystemConfig, SystemService } from "@/client"
 import useAuth from "@/hooks/useAuth"
+import { useIsMultiTenant } from "@/hooks/useIsMultiTenant"
 import { needsLlmStepForConfig } from "./llmConfig"
 
 interface SetupStatus {
@@ -21,6 +22,7 @@ interface SetupStatus {
  */
 export function useSetupRequired(): SetupStatus {
   const { user } = useAuth()
+  const isMultiTenant = useIsMultiTenant()
 
   const { data: config, isLoading } = useQuery({
     queryKey: ["systemConfig"],
@@ -62,7 +64,7 @@ export function useSetupRequired(): SetupStatus {
       localStorage.getItem("evoloop_setup_completed") === "true"
 
     return {
-      required: !setupCompleted && (missingLLM || missingWorkspaceRoot),
+      required: !isMultiTenant && !setupCompleted && (missingLLM || missingWorkspaceRoot),
       loading: false,
       missingItems: {
         llm: missingLLM,

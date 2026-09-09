@@ -27,6 +27,7 @@ import { toast } from "sonner"
 import { z } from "zod"
 import { type SystemConfig, SystemService } from "@/client"
 import { useTour } from "@/components/Common/SpotlightTour"
+import { useIsMultiTenant } from "@/hooks/useIsMultiTenant"
 import { isTauri } from "@/lib/tauri"
 import CustomerServiceDutySettings from "./CustomerServiceDutySettings"
 import { SettingsCard } from "./SettingsCard"
@@ -45,6 +46,7 @@ export default function GeneralSettings() {
   const { t, i18n } = useTranslation()
   const [loading, setLoading] = useState(false)
   const { startTour } = useTour()
+  const isMultiTenant = useIsMultiTenant()
   const {
     setComponentDirty,
     registerSaveHandler,
@@ -313,17 +315,19 @@ export default function GeneralSettings() {
       {/* 客服值守（全局机制） */}
       <CustomerServiceDutySettings />
 
-      <SettingsCard
-        icon={PlayCircle}
-        title={t("tour.replayTitle")}
-        description={t("tour.replayDesc")}
-        iconClassName="text-blue-500 bg-blue-500/10"
-      >
-        <Button variant="outline" onClick={handleReplayTour} className="gap-2">
-          <PlayCircle className="h-4 w-4" />
-          {t("tour.replayTitle")}
-        </Button>
-      </SettingsCard>
+      {!isMultiTenant && (
+        <SettingsCard
+          icon={PlayCircle}
+          title={t("tour.replayTitle")}
+          description={t("tour.replayDesc")}
+          iconClassName="text-blue-500 bg-blue-500/10"
+        >
+          <Button variant="outline" onClick={handleReplayTour} className="gap-2">
+            <PlayCircle className="h-4 w-4" />
+            {t("tour.replayTitle")}
+          </Button>
+        </SettingsCard>
+      )}
     </div>
   )
 }

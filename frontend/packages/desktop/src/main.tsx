@@ -66,6 +66,36 @@ OpenAPI.TOKEN = async () => {
 // 初始化 API 拦截器（处理权限错误）
 initApiInterceptors()
 
+// SSO：Member Center 后台免登（AI 搭子 iframe 链路）
+// 检测 URL 上的 evosso 一次性 code → 兑换 member token → 存储 → 刷新进入已登录界面
+;(function handleSsoCode() {
+  const evosso = new URLSearchParams(window.location.search).get("evosso")
+  if (!evosso) return
+  // 先清参数（保留 hash 路由），防刷新重复兑换
+  const cleanUrl =
+    window.location.origin +
+    window.location.pathname +
+    window.location.hash
+  window.history.replaceState({}, "", cleanUrl)
+  fetch("/api/v1/sso/accept-token", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sso_code: evosso }),
+  })
+    .then((res) => res.json())
+    .then((res) => {
+      const data = res?.data || {}
+      if (res?.success !== false && data.access_token) {
+        localStorage.setItem("access_token", data.access_token)
+        if (data.member_id) {
+          localStorage.setItem("evoloop_member_id", String(data.member_id))
+        }
+        window.location.reload()
+      }
+    })
+    .catch(() => {})
+})()
+
 // 全局标志，防止重复显示401提示
 let isHandling401 = false
 

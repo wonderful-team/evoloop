@@ -19,6 +19,7 @@ import AppSidebar from "@/components/Sidebar/AppSidebar"
 import { SetupWizard, useSetupRequired } from "@/components/Wizard"
 import { useSetupWizard } from "@/components/Wizard/SetupWizardContext"
 import useAuth from "@/hooks/useAuth"
+import { useIsMultiTenant } from "@/hooks/useIsMultiTenant"
 import { useSystemEvent } from "@/hooks/useSystemEvent"
 import { useVoiceEvents } from "@/hooks/useVoiceEvents"
 import { isTauri } from "@/lib/tauri"
@@ -36,6 +37,7 @@ function Layout() {
   const { user } = useAuth()
   const { required: setupRequired, loading: setupLoading } = useSetupRequired()
   const { setIsWizardOpen } = useSetupWizard()
+  const isMultiTenant = useIsMultiTenant()
   const [showWizard, setShowWizard] = useState(false)
   const [hasShownWizard, setHasShownWizard] = useState(false)
 
@@ -127,7 +129,7 @@ function Layout() {
   return (
     <SpotlightTourProvider
       steps={desktopTourSteps}
-      preventAutoStart={setupLoading || setupRequired}
+      preventAutoStart={setupLoading || setupRequired || isMultiTenant}
     >
       <GlobalRecorderManager />
       <CustomerServiceDutyManager />
