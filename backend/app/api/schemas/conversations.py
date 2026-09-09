@@ -16,7 +16,7 @@ class MessageChangesetFile(DynamicBaseModel):
 class MessageItem(MessageBlock):
     run_id: str | None = None
     parent_id: str | None = None
-    references: list["ReferenceItem"] = []
+    references: list[dict] = []
     has_file_operations: bool = False
     changeset_count: int = 0
     changeset_files: list[MessageChangesetFile] | None = None
@@ -56,24 +56,6 @@ class ConversationListItem(DynamicBaseModel):
     caller_device_key: str | None = None
     executor_device_key: str | None = None
     executor_device_name: str | None = None
-
-
-class ReferenceItemMetadata(DynamicBaseModel):
-    """Metadata for a message reference. Extra fields allowed per reference type."""
-
-    duration: float | None = None
-    transcript: str | None = None
-    waveform: list[float] | None = None
-    url: str | None = None
-    mime_type: str | None = None
-
-
-class ReferenceItem(DynamicBaseModel):
-    id: str
-    type: str
-    target_id: str
-    target_name: str
-    metadata: ReferenceItemMetadata | None = None
 
 
 class ChangesetNode(DynamicBaseModel):

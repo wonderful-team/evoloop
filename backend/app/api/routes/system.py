@@ -62,7 +62,14 @@ def get_system_status() -> SystemStatusResponse:
 
 @router.get("/config", dependencies=[Depends(get_current_user)])
 def get_system_config() -> list[SystemConfig]:
-    return SystemConfigService.get_all()
+    configs = SystemConfigService.get_all()
+    # Expose deployment mode so the frontend can gate onboarding/wizard UI.
+    configs.append(
+        SystemConfig(
+            key="MULTI_TENANT_MODE", value=str(settings.MULTI_TENANT_MODE).lower()
+        )
+    )
+    return configs
 
 
 # --- Lightning Channel Config ---

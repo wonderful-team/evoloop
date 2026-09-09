@@ -18,6 +18,7 @@ from app.api.routes import (
     projects,
     resources,
     route,
+    sso,
     stream,
     subscription,
     subtasks,
@@ -44,6 +45,7 @@ api_router.include_router(mcp.router, prefix="/mcp", tags=["mcp"])
 api_router.include_router(files.router, prefix="/files", tags=["files"])
 api_router.include_router(conversations.router, prefix="/conversations", tags=["conversations"])
 api_router.include_router(member.router, prefix="/member", tags=["member"])
+api_router.include_router(sso.router, prefix="/sso", tags=["sso"])
 api_router.include_router(subscription.router, prefix="/member")
 api_router.include_router(memory.router, prefix="/memory", tags=["memory"])
 api_router.include_router(planning.router, prefix="/planning", tags=["planning"])

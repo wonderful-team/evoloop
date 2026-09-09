@@ -94,6 +94,16 @@ class EvoCloudHTTPClient(
                 logger.warning(f"Token change callback error: {e}", exc_info=True)
 
     async def get_token(self) -> str | None:
+        # Multi-tenant mode resolves the token from the request context only
+        # (no global session cache); fall back to the identity store in
+        # single-tenant mode. Mirrors evocloud_manager.get_token().
+        from app.core.context import ContextManager
+
+        ctx_token = ContextManager.get_var("token")
+        if ctx_token:
+            return ctx_token
+        if settings.MULTI_TENANT_MODE:
+            return None
         return await identity_service.get_access_token()
 
     async def refresh_access_token(self, failed_token: str | None = None) -> str | None:

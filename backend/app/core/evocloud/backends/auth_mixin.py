@@ -119,6 +119,18 @@ class AuthMixin:
             await self.request("GET", "/api/member/info", token=token)
         )
 
+    async def redeem_sso_code(self, sso_code: str, gateway_key: str) -> EvoCloudProxyResponse:
+        """凭一次性 sso_code 向 Member Center 换取 member token（S2S，X-Gateway-Key 鉴权）。"""
+        return EvoCloudProxyResponse.model_validate(
+            await self.request(
+                "POST",
+                "/api/sso/redeem",
+                data={"sso_code": sso_code},
+                token="",
+                headers={"X-SSO-Key": gateway_key},
+            )
+        )
+
     async def get_captcha_config(
         self, token: str | None = None
     ) -> EvoCloudProxyResponse:

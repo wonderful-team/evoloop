@@ -287,19 +287,17 @@ class ContextManager:
                         v = v.decode("utf-8")
 
                     if k in list_fields or k in flexible_fields or k in dict_fields:
-                        reconstructed[k] = (
-                            json.loads(v)
-                            if v
-                            else (
-                                []
-                                if k in list_fields
-                                else (
-                                    {}
-                                    if k in dict_fields or k in flexible_fields
-                                    else []
-                                )
-                            )
-                        )
+                        # Cache layer may auto-decode JSON values (returns
+                        # dict/list instead of str) — use them as-is.
+                        if isinstance(v, (dict, list)):
+                            reconstructed[k] = v
+                        elif v:
+                            try:
+                                reconstructed[k] = json.loads(v)
+                            except (json.JSONDecodeError, TypeError):
+                                reconstructed[k] = [] if k in list_fields else {}
+                        else:
+                            reconstructed[k] = [] if k in list_fields else {}
                     elif k == "timestamp":
                         reconstructed[k] = float(v) if v else 0.0
                     elif k == "is_dry_run":

@@ -164,12 +164,21 @@ class AdaptiveChatOpenAI:
             if args_schema is None:
                 args_schema = _generate_args_schema_from_signature(t.func)
 
+            # 优先使用工具自带的原始 JSON Schema（保留嵌套/enum/oneOf 结构），
+            # 避免 Pydantic 拍平后模型看不到嵌套字段。
+            raw_schema = getattr(t, "raw_args_schema", None)
+            if isinstance(raw_schema, dict):
+                from app.core.tools.schema_utils import clean_tool_schema
+                parameters: dict[str, Any] = clean_tool_schema(raw_schema)
+            else:
+                parameters = args_schema.model_json_schema() if args_schema else {"type": "object", "properties": {}}
+
             t_schema = {
                 "type": "function",
                 "function": {
                     "name": t.name,
                     "description": t.description or "",
-                    "parameters": args_schema.model_json_schema() if args_schema else {"type": "object", "properties": {}}
+                    "parameters": parameters,
                 }
             }
             # Remove Pydantic v2 internal noise fields, but keep $defs

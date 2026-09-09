@@ -75,10 +75,19 @@ class CompatibleChatAnthropic:
     def bind_tools(self, tools: list[Any]) -> "CompatibleChatAnthropic":
         self._tools = []
         for t in tools:
+            # 优先使用工具自带的原始 JSON Schema（保留嵌套/enum/oneOf 结构），
+            # 并按 Anthropic input_schema 约束清洗（内联 $ref、去 $defs/default）。
+            raw_schema = getattr(t, "raw_args_schema", None)
+            if isinstance(raw_schema, dict):
+                from app.core.tools.schema_utils import clean_tool_schema_for_anthropic
+                input_schema = clean_tool_schema_for_anthropic(raw_schema)
+            else:
+                input_schema = t.args_schema.model_json_schema() if getattr(t, "args_schema", None) else {"type": "object", "properties": {}}
+
             t_schema = {
                 "name": t.name,
                 "description": t.description or "",
-                "input_schema": t.args_schema.model_json_schema() if getattr(t, "args_schema", None) else {"type": "object", "properties": {}}
+                "input_schema": input_schema,
             }
             if "input_schema" in t_schema:
                 params = t_schema["input_schema"]

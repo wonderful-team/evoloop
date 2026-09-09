@@ -33,7 +33,14 @@ class _GraphEngine:
     async def search(self, query: str, **kwargs) -> list:
         return []
 
-    async def list_all(self, **kwargs) -> list:
+    async def list_all(
+        self,
+        type_filter=None,
+        privacy_filter=None,
+        project_id=None,
+        limit=None,
+        member_id=0,
+    ) -> list:
         return []
 
     async def get_recent(self, count: int = 5, project_id=None) -> list:

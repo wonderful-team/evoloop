@@ -116,9 +116,14 @@ async def dispatch_agent_run(
             # Project mode but path cannot be resolved: do NOT fall back to
             # WORKSPACE_ROOT or default_root. This prevents the agent from
             # operating on the wrong directory.
-            logger.error(
-                f"[Dispatch] Failed to resolve local path for project_id={project_id}; "
-                "refusing to fall back to WORKSPACE_ROOT"
+            # 多租户（云）项目的元数据不在本机，无本地路径是常态而非异常，
+            # 降级为 info，避免每个 run 刷 ERROR 噪音。
+            from app.core.config import settings
+
+            log_fn = logger.info if settings.MULTI_TENANT_MODE else logger.error
+            log_fn(
+                f"[Dispatch] No local path for project_id={project_id}"
+                + (" (multi-tenant cloud project, expected)" if settings.MULTI_TENANT_MODE else "; refusing to fall back to WORKSPACE_ROOT")
             )
     if not working_directory:
         working_directory = thread_context_store.get_working_directory(thread_id)

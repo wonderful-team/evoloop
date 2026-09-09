@@ -101,6 +101,14 @@ class RedisPipelineAdapter(CachePipeline):
         self._pipeline.srem(name, *values)
         return self
 
+    def lpush(self, name: str, *values: Any) -> "RedisPipelineAdapter":
+        self._pipeline.lpush(name, *values)
+        return self
+
+    def ltrim(self, name: str, start: int, end: int) -> "RedisPipelineAdapter":
+        self._pipeline.ltrim(name, start, end)
+        return self
+
     async def execute(self) -> list[Any]:
         return await self._pipeline.execute()
 

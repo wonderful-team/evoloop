@@ -111,9 +111,13 @@ async def read_user_me(current_user: CurrentUser, token: TokenDepOptional = None
         cached_profile_str = await cache.get(profile_key)
         if cached_profile_str:
             try:
-                data = json.loads(cached_profile_str)
+                data = (
+                    cached_profile_str
+                    if isinstance(cached_profile_str, dict)
+                    else json.loads(cached_profile_str)
+                )
                 return _map_mc_user_to_user(data)
-            except json.JSONDecodeError:
+            except (json.JSONDecodeError, TypeError):
                 pass  # fall through to live call
 
     # Cold path: live call to Member Center (cache miss or no token)

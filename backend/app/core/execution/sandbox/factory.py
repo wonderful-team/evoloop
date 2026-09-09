@@ -39,7 +39,26 @@ class SandboxFactory:
                 try:
                     from app.core.execution.sandbox.docker import DockerSandbox
 
-                    cls._instance = await asyncio.to_thread(DockerSandbox, image)
+                    def _init_docker_sandbox():
+                        # 预检查本地镜像：多租户主机常无 sandbox 镜像，
+                        # 避免每次 docker pull 404 报错 + 2s 延迟。
+                        import docker as docker_sdk
+
+                        client = docker_sdk.from_env()
+                        refs = client.images.list(filters={"reference": image})
+                        if not refs:
+                            refs = client.images.list(
+                                filters={"reference": f"{image}:latest"}
+                            )
+                        if not refs:
+                            logger.info(
+                                f"[SandboxFactory] Docker image '{image}' not found "
+                                "locally; using LocalSandbox (pull skipped)"
+                            )
+                            return LocalSandbox()
+                        return DockerSandbox(image)
+
+                    cls._instance = await asyncio.to_thread(_init_docker_sandbox)
                 except Exception as e:
                     logger.exception(
                         f"Failed to initialize Docker Sandbox, falling back to Local: {e}"

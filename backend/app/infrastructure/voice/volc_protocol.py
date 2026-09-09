@@ -67,14 +67,11 @@ def parse_response(res):
         return {}
     if len(res) < 4:
         return {}
-    protocol_version = res[0] >> 4
     header_size = res[0] & 0x0F
     message_type = res[1] >> 4
     message_type_specific_flags = res[1] & 0x0F
     serialization_method = res[2] >> 4
     message_compression = res[2] & 0x0F
-    reserved = res[3]
-    header_extensions = res[4 : header_size * 4]
     payload = res[header_size * 4 :]
     result = {}
     payload_msg = None

@@ -104,10 +104,7 @@ class MessageRepository:
 
             seq = await SequenceService.next_sequence(self.thread_id)
 
-            # Resolve parent_id if not provided
-            effective_parent_id = parent_id
-            if not effective_parent_id:
-                effective_parent_id = await self.get_last_message_id()
+            effective_parent_id = await self._resolve_parent_id(parent_id)
 
             async with session_scope() as session:
                 log = Message(
@@ -206,9 +203,7 @@ class MessageRepository:
     ) -> tuple[str | None, int]:
         seq = await SequenceService.next_sequence(self.thread_id, session=session)
 
-        effective_parent_id = parent_id
-        if not effective_parent_id:
-            effective_parent_id = await self.get_last_message_id(session=session)
+        effective_parent_id = await self._resolve_parent_id(parent_id, session=session)
 
         log = Message(
             id=message_id or gen_uuid(),
@@ -606,6 +601,35 @@ class MessageRepository:
         except Exception as e:
             logger.exception(f"[MessageRepository] Failed to get last message id: {e}")
             return None
+
+    async def _resolve_parent_id(self, parent_id: str | None, session=None) -> str | None:
+        """Resolve parent_id, guarding against dangling references.
+
+        若 parent 为空 → 取最后一条消息；若 parent 指向的消息不存在（如 AI 消息
+        因去重/策略未落库）→ 回退最后一条消息，避免 tool_output 外键冲突导致
+        整个工具调用被记为失败。
+        """
+        if not parent_id:
+            return await self.get_last_message_id(session=session)
+        if await self._message_exists(parent_id, session=session):
+            return parent_id
+        logger.warning(
+            f"[MessageRepository] parent_id {parent_id} not found in thread "
+            f"{self.thread_id}, falling back to last message id"
+        )
+        return await self.get_last_message_id(session=session)
+
+    async def _message_exists(self, message_id: str, session=None) -> bool:
+        stmt = select(Message.id).where(
+            Message.id == message_id,
+            Message.thread_id == self.thread_id,
+        )
+        if session is None:
+            async with session_scope() as s:
+                result = await s.execute(stmt)
+        else:
+            result = await session.execute(stmt)
+        return result.scalar_one_or_none() is not None
 
     async def _get_last_message_id(self, session) -> str | None:
         stmt = (

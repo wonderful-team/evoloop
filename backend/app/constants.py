@@ -46,29 +46,6 @@ class DocumentType(Enum):
 
 # ====================== File Type Configuration ======================
 
-# Text file identification
-TEXT_EXTENSIONS = [
-    ".py",
-    ".js",
-    ".java",
-    ".c",
-    ".cpp",
-    ".h",
-    ".cs",
-    ".php",
-    ".rb",
-    ".go",
-    ".rs",
-    ".ts",
-    ".html",
-    ".css",
-    ".md",
-    ".json",
-    ".yml",
-    ".yaml",
-    ".xml",
-]
-
 # Image file extensions
 IMAGE_EXTENSIONS = [
     ".bmp",
@@ -193,9 +170,6 @@ CONFIG_EXTENSIONS = [
     ".yml",
 ]
 
-# YAML specific extensions
-YAML_EXTENSIONS = [".yaml", ".yml"]
-
 # Documentation and text files
 DOC_TEXT_EXTENSIONS = [
     ".md",
@@ -205,70 +179,6 @@ DOC_TEXT_EXTENSIONS = [
     ".sql",
     ".xsq",
 ]
-
-# Extensions allowed for documentation files (used by write_file for validation)
-ALLOWED_DOC_EXTENSIONS = [
-    ".md",
-    ".txt",
-    ".json",
-    ".yaml",
-    ".yml",
-    ".csv",
-    ".html",
-    ".htm",
-    ".css",
-    ".xml",
-    ".rst",
-    ".toml",
-    ".ini",
-    ".log",
-]
-
-# Project norm/guideline files scanned for memory context extraction
-PROJECT_NORM_FILES = [
-    ".cursorrules",
-    "CONTRIBUTING.md",
-    "styleguide.md",
-    "PROJECT.md",
-]
-
-# Mapping file extension to document type
-FILE_EXTENSION_TO_TYPE = {
-    # Text files
-    "txt": DocumentType.TEXT,
-    # Document files
-    "pdf": DocumentType.PDF,
-    "docx": DocumentType.DOCX,
-    "doc": DocumentType.DOCX,
-    # Code files
-    "py": DocumentType.CODE,
-    "js": DocumentType.CODE,
-    "java": DocumentType.CODE,
-    "c": DocumentType.CODE,
-    "cpp": DocumentType.CODE,
-    "cs": DocumentType.CODE,
-    "go": DocumentType.CODE,
-    "rs": DocumentType.CODE,
-    "php": DocumentType.CODE,
-    "rb": DocumentType.CODE,
-    "swift": DocumentType.CODE,
-    "kt": DocumentType.CODE,
-    "ts": DocumentType.CODE,
-    "sh": DocumentType.CODE,
-    # Markup languages
-    "md": DocumentType.MARKDOWN,
-    "markdown": DocumentType.MARKDOWN,
-    "html": DocumentType.HTML,
-    "htm": DocumentType.HTML,
-    "xml": DocumentType.XML,
-    "json": DocumentType.JSON,
-    # Spreadsheets
-    "xlsx": DocumentType.EXCEL,
-    "xls": DocumentType.EXCEL,
-    "csv": DocumentType.CSV,
-    # Jupyter notebooks
-    "ipynb": DocumentType.JUPYTER,
-}
 
 # Source map files
 SOURCE_MAP_EXTENSIONS = [".map", ".sourcemap"]
@@ -330,24 +240,6 @@ SPECIAL_PYTHON_FILES = [
 
 # All blacklisted files
 BLACKLIST_FILES = DEPENDENCY_FILES + SPECIAL_PYTHON_FILES
-
-# Excluded directory and file patterns
-EXCLUDED_PATTERNS = [
-    r"\.git/",
-    r"\.github/",
-    r"node_modules/",
-    r"vendor/",
-    r"venv/",
-    r"__pycache__/",
-    r"\.pyc",
-    r"\.DS_Store",
-    r"\.env",
-    r"\.lock",
-    r"package-lock\.json",
-    r"yarn\.lock",
-    r"composer\.lock",
-    r"poetry\.lock",
-]
 
 # All blacklisted file extensions
 BLACKLIST_FILE_EXTENSIONS = (

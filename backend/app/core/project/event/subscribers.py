@@ -345,7 +345,11 @@ class ProjectContextHydratorSubscriber:
         try:
             working_dir = await get_project_path(project_id)
             if not working_dir:
-                logger.warning(
+                # 多租户（云）项目无本地路径是常态，info 级避免每 run 刷警告
+                from app.core.config import settings
+
+                log_fn = logger.info if settings.MULTI_TENANT_MODE else logger.warning
+                log_fn(
                     f"[ProjectHydrator] Could not resolve path for project {project_id}"
                 )
                 return

@@ -247,15 +247,20 @@ class InferenceEngine:
         # 必须在落库/下发前用 injected_secrets 统一打码。
         from app.core.context.manager import ContextManager
 
-        injected_secrets = ContextManager.current().injected_secrets or []
+        ctx = ContextManager.current()
+        injected_secrets = ctx.injected_secrets or []
         content = redact_secrets(response.content or "", injected_secrets)
         thinking = redact_secrets(thinking, injected_secrets) if thinking else thinking
 
+        # 沿用 on_llm_start 预分配的 message_id 落库，保证与 tool 消息的
+        # parent_id（database_logger._last_ai_message_id / ctx.last_ai_message_id）
+        # 一致，否则 tool_output 的外键会指向不存在的消息。
         await handler.handle_ai_message(
             content=content,
             tool_calls=response.tool_calls,
             thinking=thinking,
             metadata=metadata,
+            message_id=ctx.last_ai_message_id,
         )
 
     async def _execute_llm_call(

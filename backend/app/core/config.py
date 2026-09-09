@@ -331,6 +331,10 @@ class Settings(BaseSettings):
     EVOCLOUD_API_SECRET: str | None = Field(
         None, validation_alias="EVOCLOUD_API_SECRET"
     )
+    # SSO：Member Center S2S 桥接密钥（后台免登链路）
+    EVOCLOUD_SSO_KEY: str | None = Field(
+        None, validation_alias="EVOCLOUD_SSO_KEY"
+    )
 
     # Client / Device Info
     EVOCLOUD_ACCESS_TOKEN: str | None = Field(

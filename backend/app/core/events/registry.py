@@ -70,7 +70,6 @@ class SystemEventType(str, Enum):
     SUBSCRIPTION_CHANGED = "subscription.changed"
     SYSTEM_LOG_ENTRY = "system.log_entry"
     PLAN_UPDATED = "plan.updated"
-    CHANGESET_UPDATED = "changeset.updated"
     ARTIFACT_VALIDATION = "system.artifact_validation"
 
 
