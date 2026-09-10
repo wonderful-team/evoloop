@@ -281,6 +281,11 @@ class Settings(BaseSettings):
     # Agent 的写入/命令沙箱只允许当前项目工作目录；需要额外白名单时在此追加。
     ALLOWED_PATH_PREFIXES: list[str] = []
 
+    # --- Multi-tenant MCP access control (multi-tenant isolation) ---
+    # Allows member identities to call MCP servers in multi-tenant mode; servers outside this list
+    # (e.g. local-postgres / member-center-ops) are operations-managed, can read other members' data, and are only open to admin.
+    OPS_ENABLED_MCP_SERVERS: list[str] = []
+
     # --- Cognitive Brain Configuration ---
     # Memory Architecture Toggle (Phase 4 Autonomy)
 

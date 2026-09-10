@@ -56,10 +56,35 @@ class ThreadContextStore:
         return os.path.expanduser("~")
 
     def set_working_directory(self, thread_id: str, path: str):
-        """Set the working directory for a specific thread."""
+        """Set the working directory for a specific thread.
+
+        多租户守门：写入路径必须落在当前 member 的工作根内（按用户隔离的
+        数据面边界——防止 request/事件/HITL 等入口把其他用户路径或宿主
+        任意路径植入线程）。member 未知时拒绝落盘（fail-closed）。
+        """
         if not path:
             logger.warning(f"Attempted to set empty path for thread {thread_id}")
             return
+
+        from app.core.config import settings as _settings
+
+        if _settings.MULTI_TENANT_MODE:
+            from app.core.project.utils import current_member_id, resolve_member_workspace_root
+
+            member_root = resolve_member_workspace_root(current_member_id())
+            if not member_root:
+                logger.warning(
+                    f"[ThreadStore] refuse to set working directory for {thread_id}: "
+                    "member identity unknown in multi-tenant mode"
+                )
+                return
+            normalized = os.path.realpath(path)
+            if not normalized.startswith(os.path.realpath(member_root) + os.sep):
+                logger.warning(
+                    f"[ThreadStore] refuse working directory {path!r} for thread "
+                    f"{thread_id}: outside member workspace {member_root!r}"
+                )
+                return
 
         # With API-driven projects, the path might be on a remote server (conceptually)
         # But for EvoLoop to work, it must be mounted/present locally at 'path'.

@@ -43,6 +43,24 @@ def _build_allowed_roots(working_dir: str | None) -> list[str]:
     return get_allowed_roots(working_dir=working_dir)
 
 
+def _member_id_for(config: RunnableConfig | None) -> int:
+    """从当前执行上下文解析归属会员（沙箱按用户隔离需要）。
+
+    仅读 ctx.member_id（dispatch/build_ctx 链路已保证写入）；缺失返回 0，
+    工厂侧 fail-closed 拒绝——不在执行热路径里做 DB 回查。
+    """
+    from app.core.config import settings as _settings
+
+    if not _settings.MULTI_TENANT_MODE:
+        return 0
+    ctx = ContextManager.current()
+    mid = getattr(ctx, "member_id", None) or 0
+    try:
+        return int(mid) if mid else 0
+    except (TypeError, ValueError):
+        return 0
+
+
 def _resolve_working_dir(command: str, config: RunnableConfig | None) -> tuple[str | None, str | None]:
     """Resolve the working directory and run policy checks.
 
@@ -134,7 +152,7 @@ async def run_command_background(task, command: str, timeout: int, config: Runna
             await task_manager.fail_task(task.task_id, error=error_msg)
             return
 
-        sandbox = await SandboxFactory.get_sandbox()
+        sandbox = await SandboxFactory.get_sandbox(_member_id_for(config))
         process = await sandbox.spawn(
             command,
             working_dir=working_dir,
@@ -171,7 +189,7 @@ async def execute_smart(command: str, timeout: int, config: RunnableConfig | Non
 
     stdout_buf: list[str] = []
     stderr_buf: list[str] = []
-    sandbox = await SandboxFactory.get_sandbox()
+    sandbox = await SandboxFactory.get_sandbox(_member_id_for(config))
     process = await sandbox.spawn(
         command,
         working_dir=working_dir,

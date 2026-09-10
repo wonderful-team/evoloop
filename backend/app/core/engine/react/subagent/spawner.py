@@ -52,6 +52,9 @@ async def spawn_subagent(args: dict, config: dict) -> Any:
         metadata={
             "initial_node": "react",
             "source": ctx.metadata.source or "",
+            # 身份传递：子代理在 worker 侧 build_ctx 依赖 metadata["member_id"]
+            # 恢复归属会员（按用户 workspace/沙箱隔离的前提）。
+            "member_id": ctx.member_id or 0,
             "subagent_type": subagent_type,
             "is_subagent": True,
             "subagent_depth": parent_depth + 1,

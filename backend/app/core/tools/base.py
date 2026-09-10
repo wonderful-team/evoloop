@@ -73,9 +73,20 @@ def get_working_directory(config: dict | None = None) -> str:
             )
 
     try:
-        from app.core.project.utils import get_workspace_root
+        from app.core.project.utils import (
+            current_member_id,
+            resolve_member_workspace_root,
+        )
 
-        workspace_root = get_workspace_root()
+        # 多租户：兜底盘限定在"该 member 的工作根"；单用户：沿全局 WORKSPACE_ROOT。
+        from app.core.config import settings as _settings
+
+        member = current_member_id()
+        if _settings.MULTI_TENANT_MODE and not member:
+            # fail-closed：无身份不兜底，宁可拿不到 cwd 也不能落到全局根
+            # （否则 A 的工具会把 B 的工程目录当成 cwd）。
+            return os.getcwd()
+        workspace_root = resolve_member_workspace_root(member) if member else get_workspace_root()
         if workspace_root:
             return workspace_root
     except (OSError, RuntimeError, TypeError, ValueError) as e:

@@ -46,11 +46,25 @@ async def _available_agents_block() -> str:
 
 
 def _environment_block(ctx: Any, state: Any) -> str:
+    # 多租户：呈现容器视角（/workspace），不再泄露宿主真实路径
+    from app.core.config import settings as _settings
+
     wd = ctx.working_directory or ""
+    if _settings.MULTI_TENANT_MODE:
+        from app.core.engine.react.workspace_view import to_agent_view_path
+
+        wd = to_agent_view_path(wd) or ""
     lines = [
         f"工作目录: {wd}",
-        f"平台: {__import__('platform').platform()}",
     ]
+    if not _settings.MULTI_TENANT_MODE:
+        lines.append(f"平台: {__import__('platform').platform()}")
+    if _settings.MULTI_TENANT_MODE:
+        lines.append(
+            "运行环境: 隔离容器（仅 /workspace 可用，对应你的专属工作区）。"
+            "容器外的宿主机路径、其他用户的目录均不存在也访问不到；"
+            "越界命令会直接失败，无需尝试。"
+        )
     if ctx.project_id:
         lines.insert(0, f"项目 ID: {ctx.project_id}")
     # 计划状态（若有）

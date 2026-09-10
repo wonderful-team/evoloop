@@ -36,6 +36,7 @@ from app.core.file import (
 from app.core.file.traverser import TraverseOptions
 from app.core.project.utils import get_project_path, get_workspace_root
 from app.core.security.path import get_allowed_roots, is_under_allowed_root
+from app.api.deps import CurrentUserOptional
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["files"])
@@ -118,47 +119,97 @@ async def get_file_content(
         raise HTTPException(status_code=500, detail="Error reading file")
 
 
-def _resolve_upload_file(normalized: str) -> str | None:
-    """Resolve uploads/{filename} to a physical file in CHAT_UPLOAD_DIR."""
-    rel_path = normalized[len("uploads/") :]
-    target_file = os.path.join(settings.CHAT_UPLOAD_DIR, rel_path)
+async def _resolve_upload_file(normalized: str, member_id: int = 0) -> str | None:
+    """Resolve uploads/{rel} to a physical file（多租户按归属收权）。
 
-    # 如果根目录下没有，尝试在子目录中找（适配隔离后的路径）
+    - ``uploads/{thread_id}/file``：thread 必须归属该 member（查 Conversation.member_id）
+    - member 物理根（``<member workspace>/uploads``）下的文件：直接可用
+    - global/tmp/平铺 legacy 文件：多租户下一律拒绝越查其他用户目录（fail-closed）
+    - 单用户模式保持原目录搜索行为
+    """
+    from app.core.config import settings as _settings
+    from app.models import Conversation
+
+    rel_path = normalized[len("uploads/") :].lstrip("/")
+    filename = os.path.basename(rel_path)  # 归一化，拒绝 ../ 穿越
+
+    # 1) 线程隔离目录（uploads/{thread_id}/…）——归属校验
+    parts = rel_path.split("/", 1)
+    first = parts[0]
+    thread_like = first not in ("global",) and not first.startswith("tmp_")
+    if thread_like and ("/" in rel_path):
+        thread_path = os.path.join(settings.CHAT_UPLOAD_DIR, first, filename)
+        if os.path.isfile(thread_path):
+            if _settings.MULTI_TENANT_MODE:
+                async with session_scope() as session:
+                    conv = await session.get(Conversation, first)
+                    if not conv or int(conv.member_id or 0) != int(member_id or 0):
+                        return None
+            return thread_path
+
+    # 2) member 物理根 uploads（多租户新落位）
+    if _settings.MULTI_TENANT_MODE:
+        from app.core.project.utils import current_member_id, resolve_member_workspace_root
+
+        mid = int(member_id or 0) or current_member_id()
+        member_root = resolve_member_workspace_root(mid) if mid else ""
+        if not member_root:
+            return None
+        member_uploads = os.path.join(member_root, "uploads")
+        if os.path.isfile(os.path.join(member_uploads, filename)):
+            return os.path.join(member_uploads, filename)
+        for _root, _dirs, files in os.walk(member_uploads):
+            if filename in files:
+                return os.path.join(_root, filename)
+        return None
+
+    # 3) 单用户 legacy 行为：线程目录 + 全目录搜索
+    target_file = os.path.join(settings.CHAT_UPLOAD_DIR, rel_path)
     if not os.path.exists(target_file):
         for root, _dirs, files in os.walk(settings.CHAT_UPLOAD_DIR):
             if rel_path in files:
                 target_file = os.path.join(root, rel_path)
                 break
-
-    if target_file and os.path.exists(target_file) and os.path.isfile(target_file):
-        return target_file
-    return None
+    return target_file if target_file and os.path.isfile(target_file) else None
 
 
 @router.get("/raw")
 async def get_raw_file(
     path: str = Query(..., min_length=1),
     project_id: int | None = Query(None),
+    _current_user: CurrentUserOptional = None,
 ):
     """
     Get raw file content (for previewing images, PDFs, etc).
 
     两种模式：
     1. 带 project_id：项目内文件（相对路径）
-    2. 不带 project_id：外部绝对路径或 uploads/ 路径，受 ALLOWED_PATH_PREFIXES 限制
+    2. 不带 project_id：uploads/ 附件或外部绝对路径（受 ALLOWED_PATH_PREFIXES 限制）
+
+    多租户 fail-closed：必须携带有效 member 身份；uploads 仅解析归属自己
+    thread/member 物理根的文件；裸绝对路径模式（宿主白名单）对成员关闭。
     """
+    from app.core.config import settings as _settings
+
     normalized = path.lstrip("/")
 
-    # 聊天附件统一路由：uploads/ 路径都指向 CHAT_UPLOAD_DIR
+    if _settings.MULTI_TENANT_MODE and not _current_user:
+        raise HTTPException(401, "member authentication required")
+
+    # 聊天附件统一路由：uploads/ 路径都指向自己（或归属）目录
     if normalized.startswith("uploads/"):
-        target_file = _resolve_upload_file(normalized)
+        target_file = await _resolve_upload_file(
+            normalized, _current_user.id if _current_user else 0
+        )
         if target_file:
             return FileResponse(target_file)
         raise HTTPException(404, "File not found")
 
     # 带 project_id：项目内文件
     if project_id is not None:
-        root_path = await get_project_path(project_id)
+        root_path = await get_project_path(
+            project_id, _current_user.id if _current_user else 0
+        )
         if not root_path:
             raise HTTPException(status_code=404, detail="Project path not found")
 
@@ -172,7 +223,12 @@ async def get_raw_file(
             raise HTTPException(404, "File not found")
         return FileResponse(target_file)
 
-    # 不带 project_id：外部绝对路径
+    # 不带 project_id：外部绝对路径 —— 多租户下对成员关闭宿主白名单模式
+    from app.core.config import settings as _settings
+
+    if _settings.MULTI_TENANT_MODE:
+        raise HTTPException(403, "absolute path access disabled in multi-tenant mode")
+
     expanded = os.path.expanduser(path)
     target_file = resolve_path(expanded, base_path=None)
     if not target_file:
@@ -255,23 +311,52 @@ async def upload_file(
     file: UploadFile = File(...),
     thread_id: str | None = Form(None),
     session_id: str | None = Form(None),
+    _current_user: CurrentUserOptional = None,
 ):
     """
     聊天输入框附件上传。
 
     隔离策略：
-    1. 如果指定了 thread_id: 存入 uploads/{thread_id}/
-    2. 如果指定了 session_id: 存入 uploads/tmp_{session_id}/ (待转正)
-    3. 否则: 存入 uploads/global/ (兜底)
+    1. 多租户：物理落位 ``<member workspace>/uploads/``（member 级私有根），
+       thread 会话目录为 ``uploads/{thread_id}/``；无身份一律 401。
+       thread 归属他人时拒绝写入。
+    2. 单用户：沿用 uploads/{thread_id|tmp_$session|global}/（向后兼容）。
     """
-    # 确定物理子目录
-    sub_dir = "global"
-    if thread_id:
-        sub_dir = thread_id
-    elif session_id:
-        sub_dir = f"tmp_{session_id}"
+    from app.core.config import settings as _settings
 
-    upload_dir = os.path.join(settings.CHAT_UPLOAD_DIR, sub_dir)
+    member_id = _current_user.id if _current_user else 0
+    if _settings.MULTI_TENANT_MODE:
+        if not _current_user:
+            raise HTTPException(401, "member authentication required")
+
+    # 确定物理子目录
+    if _settings.MULTI_TENANT_MODE:
+        from app.core.project.utils import resolve_member_workspace_root
+
+        member_root = resolve_member_workspace_root(member_id)
+        if not member_root:
+            raise HTTPException(403, "member workspace unavailable")
+        base_upload_root = os.path.join(member_root, "uploads")
+        sub_dir = "global"
+        if thread_id:
+            from app.infrastructure.database import session_scope as _scope
+            from app.models import Conversation as _Conversation
+
+            async with _scope() as session:
+                conv = await session.get(_Conversation, thread_id)
+                if not conv or int(conv.member_id or 0) != member_id:
+                    raise HTTPException(403, "thread does not belong to current member")
+            sub_dir = thread_id
+        elif session_id:
+            sub_dir = f"tmp_{session_id}"
+        upload_dir = os.path.join(base_upload_root, sub_dir)
+    else:
+        sub_dir = "global"
+        if thread_id:
+            sub_dir = thread_id
+        elif session_id:
+            sub_dir = f"tmp_{session_id}"
+        upload_dir = os.path.join(settings.CHAT_UPLOAD_DIR, sub_dir)
     os.makedirs(upload_dir, exist_ok=True)
 
     filename = os.path.basename(file.filename or "uploaded_file")

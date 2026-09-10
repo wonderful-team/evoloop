@@ -196,13 +196,24 @@ def build_environment_summaries(
         include_full_apps: include the full installed-app list and detailed
             app usage stats (with priority scores). Default False keeps the
             context compact (count + top apps only).
+
+    多租户隔离：宿主机拓扑（本地端口、docker 容器、桌面应用、网络设备）
+    属于宿主运维信息，一律不进入多租户成员的 agent 环境面（模块 6）。
     """
+    from app.core.config import settings as _settings
+
     try:
         from app.core.environment import get_awakened_state
 
         state = get_awakened_state()
         if not state:
             return {}
+
+        if _settings.MULTI_TENANT_MODE:
+            # fail-closed：多租户成员的 agent 运行在隔离容器内，
+            # 不注入任何宿主机拓扑/端口/容器/应用信息；
+            # 仅保留 agent 自身的后台命令任务状态（会话私有数据，可留）。
+            return {"running_services": _get_active_background_tasks()}
 
         data = {"android_devices": [], "network": None}
 

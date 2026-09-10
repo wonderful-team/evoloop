@@ -94,6 +94,31 @@ async def dispatch_agent_run(
     # ------------------------------------------------------------------
     # 0. Ensure execution context
     # ------------------------------------------------------------------
+    # 多租户 fail-closed：member 身份是按用户隔离（workspace/沙箱/上传）的前提，
+    # 缺失先尝试从 thread 的归属会员回填（webhook/resume/宏/子代理等内部入口
+    # 只带 thread_id），仍无法确定则拒绝执行——绝不静默落到全局根。
+    from app.core.config import settings as _settings
+
+    if _settings.MULTI_TENANT_MODE:
+        try:
+            mid = int(member_id) if member_id else 0
+        except (TypeError, ValueError):
+            mid = 0
+        if mid <= 0:
+            mid = await _member_from_thread(thread_id)
+        if mid <= 0:
+            raise ValueError(
+                "[Dispatch] member identity required in multi-tenant mode "
+                f"(thread_id={thread_id}; per-user workspace isolation is mandatory)"
+            )
+        member_id = mid
+
+    # worker 进程侧恢复身份的唯一通道：BackgroundAgentInputs.metadata["member_id"]
+    # （runner_base.build_ctx 从此处读回 ctx.member_id，跨进程内存态丢失）。
+    try:
+        metadata["member_id"] = int(member_id) if member_id else 0
+    except (TypeError, ValueError):
+        metadata["member_id"] = 0
     # ------------------------------------------------------------------
     # 0. Resolve model (before creating context)
     # ------------------------------------------------------------------
@@ -180,9 +205,16 @@ async def dispatch_agent_run(
     # ------------------------------------------------------------------
     # 1.5 Handle Upload Session Promotion (Migration from tmp to thread)
     # ------------------------------------------------------------------
+    # 多租户：物理根 = member 工作区 uploads/（模块 5）；单用户沿用 CHAT_UPLOAD_DIR。
+    from app.core.project.utils import resolve_member_workspace_root
+
+    _upload_base = os.path.join(resolve_member_workspace_root(member_id), "uploads") if (
+        settings.MULTI_TENANT_MODE and resolve_member_workspace_root(member_id)
+    ) else settings.CHAT_UPLOAD_DIR
+
     if upload_session_id:
-        tmp_dir = os.path.join(settings.CHAT_UPLOAD_DIR, f"tmp_{upload_session_id}")
-        final_dir = os.path.join(settings.CHAT_UPLOAD_DIR, thread_id)
+        tmp_dir = os.path.join(_upload_base, f"tmp_{upload_session_id}")
+        final_dir = os.path.join(_upload_base, thread_id)
 
         if os.path.exists(tmp_dir) and os.path.isdir(tmp_dir):
             try:
@@ -206,9 +238,9 @@ async def dispatch_agent_run(
     # ------------------------------------------------------------------
     # 【重要】确保在 process_references 之前已经完成了目录转正
     # 这样 reference_service 看到的就是隔离后的最终路径
-    upload_root = os.path.join(settings.CHAT_UPLOAD_DIR, thread_id)
+    upload_root = os.path.join(_upload_base, thread_id)
     if not os.path.exists(upload_root):
-        upload_root = os.path.join(settings.CHAT_UPLOAD_DIR, "global")
+        upload_root = os.path.join(_upload_base, "global")
 
     combined_refs = references or []
     references_list = []
@@ -374,6 +406,23 @@ async def dispatch_agent_run(
 # =============================================================================
 # Shared helpers for /resume and /hitl/cancel
 # =============================================================================
+
+
+async def _member_from_thread(thread_id: str) -> int:
+    """按 thread 回填归属会员（multi-tenant 下 dispatch 的身份兜底）。"""
+    from app.models import Conversation
+
+    try:
+        async with session_scope() as session:
+            conversation = await session.get(Conversation, thread_id)
+            if conversation:
+                return int(conversation.member_id or 0)
+    except Exception as e:
+        logger.warning(
+            f"[Dispatch] member from thread {thread_id} lookup failed: {e}",
+            exc_info=True,
+        )
+    return 0
 
 
 async def persist_user_message(

@@ -126,8 +126,31 @@ async def find_files_internal(
     ) and (path == "." or path == "" or target_path == get_workspace_root())
 
     if is_global_root:
+        # 【多租户】uploads 搜索限定在当前 member 的工作根 uploads/ 内，
+        # 不扫其他 member 的 thread 目录/全局目录（按用户隔离）。
+        from app.core.config import settings as _settings
+        from app.core.project.utils import current_member_id, resolve_member_workspace_root
+
+        if _settings.MULTI_TENANT_MODE:
+            member_root = resolve_member_workspace_root(current_member_id())
+            member_uploads = os.path.join(member_root, "uploads") if member_root else ""
+            if member_uploads and res_meta.get("count", 0) < max_files:
+                upload_content, upload_meta = await _search_by_name(
+                    pattern,
+                    member_uploads,
+                    scope,
+                    case_insensitive,
+                    max_files - res_meta.get("count", 0),
+                )
+                if upload_meta.get("count", 0) > 0 and res_meta.get("count", 0) == 0:
+                    adjusted_content = upload_content.replace(
+                        "Found ", "Found in uploads/ "
+                    ).replace("matching files", "matching files (in uploads/)")
+                    return adjusted_content, upload_meta
+            return res_content, res_meta
+
+        # 【单用户】还有配额，去全局 uploads 搜（保持原行为）
         if res_meta.get("count", 0) < max_files:
-            # 还有配额，去 uploads 搜
             upload_content, upload_meta = await _search_by_name(
                 pattern,
                 settings.CHAT_UPLOAD_DIR,

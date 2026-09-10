@@ -33,12 +33,28 @@ def _normalize_path(path: str) -> str:
 def get_allowed_roots(
     working_dir: str | None = None,
     project_path: str | None = None,
+    member_id: int | None = None,
 ) -> list[str]:
     """Build the list of directories tools are allowed to access.
 
     Only directories that actually exist on disk are returned, so callers don't
     accidentally whitelist a non-existent path.
+
+    多租户（MULTI_TENANT_MODE=true）下按用户隔离：
+    - 工作根只允许 ``workspace/<member_id>``（A 用户看不到 B 的目录）；
+    - 不再放行全局 WORKSPACE_ROOT / 全局 APP_DATA_DIR / ALLOWED_PATH_PREFIXES
+      （宿主运维白名单是单用户运维模式语义，多租户下成员一律不具宿主权限）；
+    - 覆盖面：member 根、member 上传目录、（指定/解析出的）project path。
+    调用方传递 member_id 时优先，否则从执行上下文兜底；未知 member → 仅
+    project path 与 working_dir 白名单有效（保守降级，禁全局根）。
     """
+    from app.core.config import settings as _settings
+    from app.core.project.utils import (
+        current_member_id,
+        resolve_member_workspace_root,
+    )
+
+    multi_tenant = _settings.MULTI_TENANT_MODE
     roots: set[str] = set()
 
     if working_dir and working_dir != ".":
@@ -47,14 +63,24 @@ def get_allowed_roots(
     if project_path:
         roots.add(_normalize_path(project_path))
 
-    roots.add(_normalize_path(settings.APP_DATA_DIR))
+    if not multi_tenant:
+        roots.add(_normalize_path(settings.APP_DATA_DIR))
 
-    workspace_root = get_workspace_root()
-    if workspace_root:
-        roots.add(_normalize_path(workspace_root))
+        workspace_root = get_workspace_root()
+        if workspace_root:
+            roots.add(_normalize_path(workspace_root))
 
-    for prefix in settings.ALLOWED_PATH_PREFIXES:
-        roots.add(_normalize_path(prefix))
+        for prefix in settings.ALLOWED_PATH_PREFIXES:
+            roots.add(_normalize_path(prefix))
+    else:
+        member = member_id if member_id else current_member_id()
+        member_root = resolve_member_workspace_root(member) if member else ""
+        if member_root:
+            roots.add(_normalize_path(member_root))
+            # member 级上传目录（不存在则不加，返回值只含真实目录）
+            upload_dir = os.path.join(member_root, "uploads")
+            if os.path.isdir(upload_dir):
+                roots.add(_normalize_path(upload_dir))
 
     return sorted(r for r in roots if os.path.isdir(r))
 

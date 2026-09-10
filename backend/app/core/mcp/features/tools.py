@@ -90,6 +90,19 @@ class McpToolsFeature(McpFeature):
             feature = self
 
             async def _tool_func(*_args, tool_name: str = tool.name, **kwargs) -> Any:
+                # 多租户 MCP 收权（模块 5）：local DB / 运维类 MCP 是宿主级
+                # 共享连接，能跨用户读取 messages/conversations 等数据——
+                # 成员身份未知时一律拒绝（fail-closed），只有显式声明允许
+                # 的 MCP 服务器（OPS_ENABLED_MCP_SERVERS）才对成员放行。
+                from app.core.config import settings as _settings
+
+                if _settings.MULTI_TENANT_MODE:
+                    allowed = set(getattr(_settings, "OPS_ENABLED_MCP_SERVERS", []) or [])
+                    if feature._server_name not in allowed:
+                        raise PermissionError(
+                            f"MCP server '{feature._server_name}' is admin-only in "
+                            "multi-tenant mode"
+                        )
                 # 会话保活检查：失联自动重连，用活会话调用（防僵尸会话挂死）。
                 session = feature._session
                 if feature._ensure_alive is not None:

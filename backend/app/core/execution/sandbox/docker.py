@@ -5,7 +5,7 @@ import docker
 from docker.errors import NotFound
 
 from app.core.execution.sandbox.base import Sandbox, SandboxProcess
-from app.core.project.utils import get_workspace_root
+from app.core.project.utils import resolve_member_workspace_root
 
 logger = logging.getLogger(__name__)
 
@@ -84,27 +84,33 @@ class DockerSandboxProcess(SandboxProcess):
 
 class DockerSandbox(Sandbox):
     """
-    Executes commands inside a Docker container.
+    Executes commands inside a per-user Docker container.
+
+    多租户按用户隔离：每个 member 一个独立容器
+    ``evoloop-sandbox-runtime-<member_id>``，仅 bind 挂载该用户的
+    workspace 子目录（容器内看不到任何其他用户目录/宿主文件系统）。
     """
 
-    def __init__(self, image_name: str):
+    def __init__(self, image_name: str, member_id: int):
         self.image_name = image_name
         self.client = docker.from_env()
-        self.container_name = "evoloop-sandbox-runtime"
+        self.member_id = int(member_id)
+        self.container_name = f"evoloop-sandbox-runtime-{self.member_id}"
         self.container = None
         self._initialize_container()
 
     def _initialize_container(self):
         """Start or reuse the sandbox container."""
-        workspace_root = get_workspace_root()
-        if not workspace_root:
+        member_root = resolve_member_workspace_root(self.member_id)
+        if not member_root:
             raise RuntimeError(
-                "WORKSPACE_ROOT not configured. "
-                "Please configure it in settings before using Docker sandbox."
+                f"Member workspace root unavailable for member {self.member_id} "
+                "(WORKSPACE_ROOT not configured or member identity missing); "
+                "refusing to start an isolated sandbox without a per-user mount"
             )
         # Captured at container creation so spawn() translates host paths against
         # the exact mount this container was started with.
-        self.workspace_root = workspace_root.rstrip("/")
+        self.workspace_root = member_root.rstrip("/")
 
         try:
             # Check if exists
@@ -114,15 +120,18 @@ class DockerSandbox(Sandbox):
                     self.container.start()
             except NotFound:
                 # Create and start
-                # Mount WORKSPACE_ROOT to /workspace
+                # Mount the member workspace (ONLY this directory) to /workspace
                 mounts = {
-                    workspace_root: {
+                    member_root: {
                         "bind": "/workspace",
                         "mode": "rw",
                     }
                 }
 
-                logger.info(f"Starting Docker Sandbox with image {self.image_name}...")
+                logger.info(
+                    f"Starting Docker Sandbox for member {self.member_id} "
+                    f"with image {self.image_name} (mount {member_root})"
+                )
                 self.container = self.client.containers.run(
                     self.image_name,
                     command="tail -f /dev/null",  # Keep alive
@@ -130,6 +139,11 @@ class DockerSandbox(Sandbox):
                     name=self.container_name,
                     volumes=mounts,
                     working_dir="/workspace",
+                    security_opt=["no-new-privileges"],
+                    read_only=False,
+                    mem_limit="4g",
+                    nano_cpus=2_000_000_000,  # 2 CPU cores
+                    pids_limit=256,
                 )
 
         except Exception as e:

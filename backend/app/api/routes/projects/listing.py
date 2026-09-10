@@ -128,7 +128,14 @@ def _extract_projects(response: dict | list) -> tuple[list, dict | None]:
 
 
 def _scan_workspace_projects() -> dict[str, str]:
-    workspace_root = get_workspace_root()
+    # 多租户：只扫描当前 member 的工作根（当前登录用户的 workspace），不见他人目录
+    from app.core.config import settings as _settings
+    from app.core.project.utils import current_member_id, resolve_member_workspace_root
+
+    if _settings.MULTI_TENANT_MODE:
+        workspace_root = resolve_member_workspace_root(current_member_id())
+    else:
+        workspace_root = get_workspace_root()
     if not workspace_root or not os.path.isdir(workspace_root):
         return {}
 
@@ -194,7 +201,17 @@ async def get_projects(
             matched_count = 0
 
             if projects:
-                workspace_root = get_workspace_root()
+                from app.core.config import settings as _settings
+                from app.core.project.utils import (
+                    current_member_id,
+                    resolve_member_workspace_root,
+                )
+
+                if _settings.MULTI_TENANT_MODE:
+                    # 多租户：索引扫描锁定在当前 member 的工作根
+                    workspace_root = resolve_member_workspace_root(current_member_id())
+                else:
+                    workspace_root = get_workspace_root()
                 local_index = local_project_index.refresh(workspace_root) if workspace_root else {}
                 repo_by_project_id = {repo.project_id: repo for repo in repos if repo.project_id}
 
