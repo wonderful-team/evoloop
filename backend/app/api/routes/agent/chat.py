@@ -560,8 +560,10 @@ async def resume_chat(
 
         serialized_inputs = inputs.copy() if inputs else {}
         if "messages" in serialized_inputs:
-            serialized_inputs["messages"] = EvoMessageConverter.repair(
-                serialized_inputs["messages"]
+            # native → JSON-safe dict：Celery 传输不接受原生消息对象
+            # （EncodeError: HumanMessage is not JSON serializable）。
+            serialized_inputs["messages"] = EvoMessageConverter.to_transport(
+                EvoMessageConverter.repair(serialized_inputs["messages"])
             )
 
         from app.infrastructure.queue.factory import get_scheduler

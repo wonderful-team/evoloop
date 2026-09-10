@@ -166,16 +166,21 @@ class DockerSandbox(Sandbox):
         if working_dir:
             container_wd = _to_container_path(working_dir, self.workspace_root)
             if container_wd is None:
+                logger.warning(
+                    "[DockerSandbox] rejected working_dir outside member mount: %r",
+                    working_dir,
+                )
+                # 给 agent 的错误文本不回显宿主路径（多租户不泄露宿主目录结构）
                 raise RuntimeError(
-                    f"Working directory {working_dir!r} is outside WORKSPACE_ROOT "
-                    f"({self.workspace_root!r}) and not mounted in the sandbox"
+                    "Working directory is outside your workspace and not mounted "
+                    "in the sandbox; cd into /workspace instead"
                 )
 
-        wrapped = (
-            f"cd {container_wd} && {command}"
-            if container_wd != "/workspace"
-            else command
-        )
+            wrapped = (
+                f"cd {container_wd} && {command}"
+                if container_wd != "/workspace"
+                else command
+            )
 
         loop = asyncio.get_running_loop()
         exec_id = self.client.api.exec_create(

@@ -73,9 +73,28 @@ def _resolve_working_dir(command: str, config: RunnableConfig | None) -> tuple[s
     if ctx.project_id == DEFAULT_PROJECT_ID or (
         ctx.project_id is None and working_dir == "."
     ):
-        workspace_root = get_workspace_root()
-        if workspace_root:
-            working_dir = workspace_root
+        # 多租户：默认工作目录锁定为“该 member 的工作根”
+        # （全局 WORKSPACE_ROOT 在多租户下是所有用户目录的父目录，
+        #  绝不能用作成员的默认 cwd；也避免 wrapper cd 越界被误拦）。
+        from app.core.config import settings as _settings
+
+        if _settings.MULTI_TENANT_MODE:
+            from app.core.project.utils import (
+                current_member_id,
+                resolve_member_workspace_root,
+            )
+
+            member_root = resolve_member_workspace_root(current_member_id())
+            if member_root:
+                working_dir = member_root
+            else:
+                return None, (
+                    "Security Error: member workspace unavailable in multi-tenant mode"
+                )
+        else:
+            workspace_root = get_workspace_root()
+            if workspace_root:
+                working_dir = workspace_root
 
     is_dangerous, reason = is_dangerous_command(command)
     if is_dangerous:

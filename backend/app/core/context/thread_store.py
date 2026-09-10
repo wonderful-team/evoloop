@@ -42,14 +42,28 @@ class ThreadContextStore:
         """
         Get the default root directory.
         Lazily attempts to load from DB, falling back to settings or home dir.
+
+        多租户：默认根锁定为“当前 member 的工作根”（与 resolve_member_workspace_root
+        同源）——全局 WORKSPACE_ROOT 是所有用户目录的父级，绝不能作为兜底 cwd。
         """
         # 优先从数据库获取（通过 get_workspace_root）。
         # 惰性导入：app.core.project.tools 会触发 evocloud_manager，顶层导入会造成
         # app.core.evocloud 初始化期的循环导入，导致服务无法启动。
-        from app.core.project.utils import get_workspace_root
+        from app.core.config import settings as _settings
+        from app.core.project.utils import (
+            get_workspace_root,
+            current_member_id,
+            resolve_member_workspace_root,
+        )
 
         db_root = get_workspace_root()
         if db_root:
+            if _settings.MULTI_TENANT_MODE:
+                member_root = resolve_member_workspace_root(current_member_id())
+                if member_root:
+                    return os.path.abspath(member_root)
+                # member 未知：宁可拒绝也不能落到全局根（跨用户可见）
+                return ""
             return os.path.abspath(db_root)
 
         # 最终回退：用户主目录

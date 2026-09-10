@@ -53,6 +53,24 @@ def _normalize_to_native(messages: list[Any]) -> list[BaseMessage]:
 
 class EvoMessageConverter:
     @staticmethod
+    def to_transport(messages: list[Any]) -> list[dict]:
+        """Native → JSON-safe dict（跨进程/Celery 传输用）。
+
+        原生 BaseMessage 经 ``model_dump`` 展开（role 用 canonical 值保留construct），
+        供 worker 侧 ``repair()`` 还原；非原生项原样返回。
+        """
+        result: list[dict] = []
+        for m in messages:
+            if isinstance(m, BaseMessage):
+                payload = m.model_dump(exclude_none=True)
+                role_value = getattr(m.role, "value", m.role)
+                payload.pop("role", None)
+                result.append({"role": role_value, **payload})
+            elif isinstance(m, dict):
+                result.append(m)
+        return result
+
+    @staticmethod
     def repair(messages: list[Any]) -> list[BaseMessage]:
         """
         Ensure the message history is structurally valid for strict LLM APIs.
