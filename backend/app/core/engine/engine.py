@@ -93,6 +93,13 @@ class AgentEngine:
         _ctx = ContextManager.current()
         current_session_source.set(getattr(_ctx.metadata, "source", None))
 
+        async def _rebind() -> tuple:
+            """skill 激活包后重算工具面并重新绑定（同 run 内立即可用）。"""
+            from app.core.tools.manager import tool_manager as _tm
+
+            refreshed = await _tm.get_agent_tools("react", state)
+            return self._inference_engine.bind_tools(llm, refreshed)
+
         inference_result = await self._inference_engine.run_react_loop(
             llm_with_tools=llm_with_tools,
             messages=repaired_messages,
@@ -104,6 +111,7 @@ class AgentEngine:
             model=model,
             iteration_count=state.iteration_count,
             steer_provider=steer_provider,
+            rebind=_rebind,
         )
 
         outcome_status = RunOutcomeStatus.SUCCESS
@@ -156,6 +164,10 @@ class ToolExecutorAdapter:
             enable_diff_tracking=enable_diff_tracking,
         )
         self._parallel = parallel
+
+    def update_tool_map(self, tool_map: dict) -> None:
+        """Run 中途刷新工具面（skill 激活包后同 run 可用）。"""
+        self._executor.tool_map = tool_map
 
     async def execute_batch(self, tool_calls: list[dict], local_tool_history: list[str]) -> list[Any]:
         return await self._executor.execute_batch(

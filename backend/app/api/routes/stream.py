@@ -7,7 +7,7 @@ import asyncio
 import json
 import logging
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 
 from app.api.deps import verify_guest_access
@@ -19,7 +19,7 @@ router = APIRouter(prefix="/stream", tags=["stream"])
 
 
 @router.get("/chat/{thread_id}", dependencies=[Depends(verify_guest_access)])
-async def stream_chat(thread_id: str):
+async def stream_chat(thread_id: str, request: Request):
     """
     SSE endpoint to stream chat updates for a thread.
     Uses MessageBroker Pub/Sub for real-time event streaming.
@@ -40,10 +40,44 @@ async def stream_chat(thread_id: str):
         try:
             # 1. Subscribe to broker channel FIRST to prevent missing events
             broker = get_message_broker()
+            # 回放基线：订阅前取当前缓冲 seq——baseline 及之前的事件是
+            # 订阅前发布的（实时流必然收不到），只回放这段 → 与实时流
+            # 零重叠、无需去重；Last-Event-ID 断点续传也在此区间内裁剪。
+            from app.core.engine.message.broker import event_replay_buffer
+
+            baseline_seq = event_replay_buffer.current_seq(thread_id)
             pubsub = broker.pubsub()
             channel = f"chat:{thread_id}:events"
             await pubsub.subscribe(channel)
             logger.info(f"[SSE] Subscribed to Pub/Sub channel via MessageBroker: {channel}")
+
+            # 1.5 回放缓冲（审计修复：新线程竞态/断线重连丢事件）——
+            # SSE 原生 Last-Event-ID：EventSource 自动重连时浏览器带
+            # Last-Event-ID header（每条事件已带 id: seq）；首次连接无
+            # header → 回放整个订阅前窗口。区间 (last_seq, baseline_seq]。
+            try:
+                last_event_id = request.headers.get("last-event-id")
+                floor_seq = (
+                    int(last_event_id)
+                    if last_event_id and last_event_id.isdigit()
+                    else 0
+                )
+                replay_count = 0
+                for seq, raw in event_replay_buffer.snapshot_since(thread_id, floor_seq):
+                    if seq > baseline_seq:
+                        continue
+                    try:
+                        ev_type = json.loads(raw).get("type", "unknown")
+                    except Exception:
+                        ev_type = "unknown"
+                    yield f"id: {seq}\nevent: {ev_type}\ndata: {raw}\n\n"
+                    replay_count += 1
+                if replay_count:
+                    logger.info(
+                        f"[SSE] Replayed {replay_count} buffered events for {thread_id} (floor={floor_seq}, baseline={baseline_seq})"
+                    )
+            except Exception:
+                logger.exception(f"[SSE] Replay buffer drain failed for {thread_id}")
 
             # 2. Bootstrap: Send Initial Full State (once)
             try:
@@ -111,13 +145,28 @@ async def stream_chat(thread_id: str):
 
                 if message and message["type"] == "message":
                     raw_data = message["data"]
+                    if isinstance(raw_data, bytes):
+                        raw_data = raw_data.decode("utf-8", errors="replace")
+
+                    # 解包 broker 的 seq 包装（仅 chat channel），实时事件
+                    # 标注 id: 使 Last-Event-ID 断点续传完整闭环。
+                    evt_seq = None
+                    try:
+                        maybe = json.loads(raw_data)
+                        if isinstance(maybe, dict) and "_evt_seq" in maybe:
+                            evt_seq = maybe["_evt_seq"]
+                            raw_data = maybe["_evt_raw"]
+                    except Exception:
+                        pass
 
                     try:
                         event_data = json.loads(raw_data)
                         event_type = event_data.get("type", "unknown")
 
                         # 直接透传，WebChannel 保证了输出格式一致性，不进行二次归一化
-                        yield f"event: {event_type}\ndata: {raw_data}\n\n"
+                        #（回放区间为订阅前窗口，与实时流零重叠，无需去重）
+                        seq_line = f"id: {evt_seq}\n" if evt_seq else ""
+                        yield f"{seq_line}event: {event_type}\ndata: {raw_data}\n\n"
 
                     except Exception as e:
                         yield f"event: error\ndata: {json.dumps({'error': 'Failed to process server event', 'details': str(e)})}\n\n"
@@ -157,7 +206,6 @@ async def stream_system():
     Event Types (dynamic, matching event.event_type):
     - project.new_detected: New project directory detected
     - indexing.status: Indexing status changed
-    - todo.updated: Todo list changed
     - device.connected / device.disconnected: Android mirror device changes
     - synthesis.completed: Smart synthesis finished
     - subscription.changed: Subscription/quota changed

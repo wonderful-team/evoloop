@@ -279,7 +279,11 @@
       "rewindFailed": "回滚失败",
       "cancelRequestFailed": "取消请求失败",
       "resumeAgentFailed": "恢复智能体失败",
-      "stopAgentFailed": "停止智能体失败"
+      "stopAgentFailed": "停止智能体失败",
+      "unauthorized": "登录已过期，请重新登录",
+      "subscriptionExpired": "套餐已到期或额度耗尽，请续费后重试",
+      "runFailed": "本轮执行失败，请查看消息列表中的错误详情",
+      "reconnectedIdle": "连接已恢复，检测到上一轮执行中断"
     },
     "externalLinks": "外部链接",
     "goToSettings": "去设置",
@@ -577,10 +581,11 @@
         "projects": "项目管理",
         "projectsDesc": "管理所有开发项目与工作流",
         "skills": "学习中心",
-        "skillsDesc": "训练智能体并升级核心能力",
-        "todos": "待办事项",
-        "todosDesc": "追踪任务进展与自动化记录"
-      }
+        "skillsDesc": "训练智能体并升级核心能力"
+      },
+      "contextSubtitle": "看到你正在「{{page}}」，需要我帮你做点什么？",
+      "hostConnected": "已同步 商城后台 · {{route}}",
+      "hostConnecting": "已连接商城后台，正在同步当前页面…"
     },
     "agentRunning": "智能体运行中",
     "goalBanner": {
@@ -625,7 +630,9 @@
     "a2aDetailDevice": "目标设备",
     "a2aDetailEmpty": "未找到委派详情",
     "a2aDetailClose": "关闭",
-    "a2aDetailBack": "返回"
+    "a2aDetailBack": "返回",
+    "typingIndicator": "正在思考…",
+    "maxStepsReached": "本轮已达工具调用步数上限（{{count}}），可发送新消息继续。"
   },
   "common": {
     "actions": "操作",
@@ -2301,69 +2308,6 @@
       "previous": "上一页"
     }
   },
-  "todos": {
-    "calendar": "日历",
-    "category": {
-      "all": "全部分类",
-      "title": "分类"
-    },
-    "create": {
-      "add": "添加",
-      "categoryPlaceholder": "分类",
-      "error": "创建待办事项失败",
-      "placeholder": "有什么需要做的？",
-      "priorityPlaceholder": "优先级",
-      "setDate": "设置日期",
-      "success": "待办事项已创建"
-    },
-    "delete": {
-      "error": "删除待办事项失败",
-      "success": "待办事项已删除"
-    },
-    "empty": {
-      "loading": "加载中...",
-      "testing": "测试中...",
-      "connected": "已连接",
-      "disconnected": "未连接",
-      "noActive": "暂无待办事项。请在上方添加！",
-      "noFilterMatch": "没有符合当前筛选条件的事项。"
-    },
-    "execute": "立即执行",
-    "executeTaskPrefix": "执行: ",
-    "filters": "筛选",
-    "headers": {
-      "allTasks": "所有事项",
-      "completedTasks": "已完成事项",
-      "pendingTasks": "待办事项"
-    },
-    "jumpToChat": "跳转对话",
-    "list": "列表",
-    "noDueDate": "无截止日期",
-    "priority": {
-      "all": "全部优先级",
-      "high": "高",
-      "low": "低",
-      "medium": "中",
-      "title": "优先级"
-    },
-    "refresh": "刷新",
-    "sort": {
-      "dueDate": "截止日期",
-      "newest": "最新",
-      "priority": "优先级"
-    },
-    "status": {
-      "all": "全部",
-      "completed": "已完成",
-      "pending": "待办",
-      "title": "状态"
-    },
-    "update": {
-      "error": "更新待办事项失败",
-      "success": "待办事项已更新"
-    },
-    "executeTaskMessage": "执行：{{title}}\n{{description}}"
-  },
   "tour": {
     "finish": "完成",
     "next": "下一步",
@@ -2616,8 +2560,7 @@
     "learning": "学习",
     "projects": "项目",
     "searchFilesPlaceholder": "搜索文件...",
-    "settings": "设置",
-    "todos": "待办"
+    "settings": "设置"
   },
   "debug": {
     "controlCenter": "控制中心",

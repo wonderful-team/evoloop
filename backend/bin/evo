@@ -122,7 +122,6 @@ show_help() {
 ║    evo clean skills         清理技能数据（含 trace_events）  ║
 ║    evo clean memory         清理记忆数据                     ║
 ║    evo clean index          清理项目索引(资源/仓库/代码)     ║
-║    evo clean todos           清理待办事项                   ║
 ║    evo clean conversations   清理对话（10张关联表）           ║
 ║    evo clean expired         清理过期截图和录制               ║
 ║    evo clean help           查看完整清理命令列表             ║
@@ -713,10 +712,6 @@ case "${1:-help}" in
                 info "清理 Brain Memory..."
                 .venv/bin/python bin/scripts/cleanup_system.py --brain
                 ;;
-            todos)
-                info "清理待办事项..."
-                .venv/bin/python bin/scripts/cleanup_system.py --todos
-                ;;
             conversations|conv)
                 info "清理对话及相关数据..."
                 warning "这将删除 conversations, messages, plans, file_operations, checkpoints 等10张表数据"
@@ -760,7 +755,6 @@ case "${1:-help}" in
                 echo "║    evo clean screenshots      清理截图(sc)                   ║"
                 echo "║    evo clean recordings       清理屏幕录制(rec)              ║"
                 echo "║    evo clean brain            清理 Brain Memory              ║"
-                echo "║    evo clean todos            清理待办事项                   ║"
                 echo "║    evo clean conversations    清理对话（10张关联表）           ║"
                 echo "║    evo clean expired          清理过期截图和录制             ║"
                 echo "║                                                              ║"
@@ -777,7 +771,6 @@ case "${1:-help}" in
                 echo "  evo clean dry            预览清理内容"
                 echo "  evo clean skills         清理技能数据（含 trace_events）"
                 echo "  evo clean memory         清理记忆数据"
-                echo "  evo clean todos          清理待办事项"
                 echo "  evo clean conversations  清理对话（10张关联表）"
                 echo "  evo clean expired        清理过期文件"
                 echo ""

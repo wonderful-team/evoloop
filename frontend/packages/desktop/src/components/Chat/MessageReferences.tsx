@@ -12,9 +12,12 @@ import {
 } from "lucide-react"
 import type React from "react"
 import { useTranslation } from "react-i18next"
-import { OpenAPI } from "@/client"
 import { downloadFile } from "@/utils/fileLinkHandler"
-import { cleanFileUrl, getRawFileUrl, isAbsolutePath } from "@/utils/fileUtils"
+import {
+  cleanFileUrl,
+  isAbsolutePath,
+  resolveLocalFileSrc,
+} from "@/utils/fileUtils"
 import { EChartsArtifact } from "./Artifacts/EChartsArtifact"
 import { HtmlArtifact } from "./Artifacts/HtmlArtifact"
 import { MapArtifact } from "./Artifacts/MapArtifact"
@@ -42,12 +45,15 @@ interface MessageReferencesProps {
   references: Reference[]
   onReferenceClick?: (ref: Reference) => void
   isUser?: boolean
+  /** 消息正文：用于去重——正文中已内联渲染（![img](x) / [Video:](x)）的媒体引用不再重复展示 */
+  content?: string
 }
 
 export const MessageReferences: React.FC<MessageReferencesProps> = ({
   references,
   onReferenceClick,
   isUser = false,
+  content,
 }) => {
   const { t } = useTranslation()
 
@@ -66,9 +72,23 @@ export const MessageReferences: React.FC<MessageReferencesProps> = ({
       "directory",
     ].includes(r.type),
   )
-  // 内联媒体（图片/视频）单独渲染大图，不放进 chip 组
+  // 正文若已内联渲染该媒体（![img](x) 图片 / [Video:](x) 视频），引用不再重复展示
+  const isInlineRendered = (target: string, type: string) => {
+    if (!content) return false
+    const esc = target.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+    if (type === "image") {
+      return new RegExp(`!\\[[^\\]]*\\]\\([^)]*${esc}`).test(content)
+    }
+    if (type === "video") {
+      return new RegExp(`\\[Video:[^\\]]*\\]\\([^)]*${esc}`).test(content)
+    }
+    return false
+  }
+  // 内联媒体（图片/视频）渲染为宫格缩略图，不放进 chip 组
   const mediaRefs = references.filter(
-    (r) => r.type === "image" || r.type === "video",
+    (r) =>
+      (r.type === "image" || r.type === "video") &&
+      !isInlineRendered(r.target_id, r.type),
   )
   const chipRefs = resources.filter(
     (r) => r.type !== "image" && r.type !== "video",
@@ -154,11 +174,15 @@ export const MessageReferences: React.FC<MessageReferencesProps> = ({
         </div>
       )}
 
-      {/* 2. Media Rendering (Inline image/video thumbnails) */}
+      {/* 2. Media Rendering（宫格式缩略图平铺；视频单独占行内联播放） */}
       {mediaRefs.length > 0 && (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-wrap gap-2 my-1">
           {mediaRefs.map((ref) => (
-            <MediaReference key={ref.id} reference={ref} />
+            <MediaReference
+              key={ref.id}
+              reference={ref}
+              onClick={() => onReferenceClick?.(ref)}
+            />
           ))}
         </div>
       )}
@@ -180,18 +204,21 @@ export const MessageReferences: React.FC<MessageReferencesProps> = ({
   )
 }
 
-// 内联渲染图片/视频引用（生成结果的大图展示）
-const MediaReference = ({ reference }: { reference: Reference }) => {
+// 媒体引用：图片渲染为宫格缩略图（点击预览），视频内联播放器
+const MediaReference = ({
+  reference,
+  onClick,
+}: {
+  reference: Reference
+  onClick: () => void
+}) => {
   const { t } = useTranslation()
-  const target = reference.target_id
-  const url =
-    target.startsWith("http://") || target.startsWith("https://")
-      ? target
-      : getRawFileUrl(cleanFileUrl(target), undefined, OpenAPI.BASE)
+  // resolveLocalFileSrc 统一处理：http(s) / data: / blob: / /api/... / uploads/... / file://
+  const url = resolveLocalFileSrc(reference.target_id)
 
   if (reference.type === "video") {
     return (
-      <div className="my-1 max-w-[320px]">
+      <div className="w-full max-w-[320px]">
         <video
           controls
           src={url}
@@ -208,13 +235,19 @@ const MediaReference = ({ reference }: { reference: Reference }) => {
   }
 
   return (
-    <div className="my-1">
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-24 h-24 rounded-lg border overflow-hidden bg-muted cursor-zoom-in hover:brightness-90 transition-all shrink-0"
+      title={reference.target_name || "generated image"}
+    >
       <img
         src={url}
         alt={reference.target_name || "generated image"}
-        className="max-w-[320px] max-h-[320px] rounded-lg border bg-muted object-contain"
+        className="w-full h-full object-cover"
+        loading="lazy"
       />
-    </div>
+    </button>
   )
 }
 

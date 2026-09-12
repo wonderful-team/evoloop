@@ -18,7 +18,6 @@ import {
   Bug,
   FolderOpen,
   GraduationCap,
-  ListTodo,
   MessageSquare,
   Settings,
 } from "lucide-react"
@@ -50,12 +49,6 @@ export function AppSidebar() {
       title: t("sidebar.projects"),
       path: "/projects",
       dataTour: "sidebar-projects",
-    },
-    {
-      icon: ListTodo,
-      title: t("sidebar.todos"),
-      path: "/todos",
-      dataTour: "sidebar-todos",
     },
   ]
 

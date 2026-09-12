@@ -1,14 +1,16 @@
 ---
 name: Code Development
-description: "Standard Operating Procedure (SOP) for the Universal Code Development Agent. Triggers for any software engineering, code refactoring, bug fixing, or architectural improvement tasks."
+description: Standard Operating Procedure (SOP) for the Universal Code Development
+  Agent. Triggers for any software engineering, code refactoring, bug fixing, or architectural
+  improvement tasks.
 namespace: roles
 trigger_patterns:
-  - "refactor this code"
-  - "implement feature {feature_name}"
-  - "optimize the architecture of {target}"
-  - "fix this bug in {file_path}"
-  - "write a unit test for {target}"
-  - "review the codebase"
+- refactor this code
+- implement feature {feature_name}
+- optimize the architecture of {target}
+- fix this bug in {file_path}
+- write a unit test for {target}
+- review the codebase
 parameters:
   feature_name:
     type: string
@@ -19,8 +21,6 @@ parameters:
   file_path:
     type: string
     description: Path to the specific file containing a bug or needing a fix.
-requires:
-  tools: [read_file, write_file, grep_search, find_files, search_history, edit_file, execute_command, list_dir, search_web, browser, mobile, analyze_image]
 ---
 
 # Universal Code Development

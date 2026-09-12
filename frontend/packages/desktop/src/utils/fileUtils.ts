@@ -24,8 +24,25 @@ export function cleanFileUrl(href: string): string {
  * boundary as the Agent tools (WORKSPACE_ROOT, ~/.evoloop, uploads).
  */
 export function resolveLocalFileSrc(src: string): string {
-  if (!src.startsWith("file://")) return src
-  return getRawFileUrl(cleanFileUrl(src), undefined, OpenAPI.BASE)
+  // 绝对资源 URL / 内联数据 / blob → 原样使用
+  if (
+    src.startsWith("http://") ||
+    src.startsWith("https://") ||
+    src.startsWith("data:") ||
+    src.startsWith("blob:")
+  ) {
+    return src
+  }
+  // 已拼好的后端 API URL（用户上传附件的常见形态）→ 前缀 BASE
+  if (src.startsWith("/api/")) {
+    return `${OpenAPI.BASE}${src}`
+  }
+  // file:// 本地路径 → 去协议后包装成 raw 端点
+  if (src.startsWith("file://")) {
+    return getRawFileUrl(cleanFileUrl(src), undefined, OpenAPI.BASE)
+  }
+  // uploads/... 或项目相对路径 → 包装成 raw 端点
+  return getRawFileUrl(src, undefined, OpenAPI.BASE)
 }
 
 export function getRawFileUrl(

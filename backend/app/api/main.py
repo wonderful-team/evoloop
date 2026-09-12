@@ -25,7 +25,6 @@ from app.api.routes import (
     symbols,
     system,
     tasks,
-    todos,
     tools,
     utils,
     vault,
@@ -59,7 +58,6 @@ api_router.include_router(vault.router)
 
 # Project Management Modules (Proxy)
 api_router.include_router(tasks.router, prefix="/tasks")
-api_router.include_router(todos.router, prefix="/todos", tags=["todos"])
 api_router.include_router(subtasks.router, tags=["subtasks"])
 api_router.include_router(projects.modules_router, prefix="/project-modules", tags=["project-modules"])
 

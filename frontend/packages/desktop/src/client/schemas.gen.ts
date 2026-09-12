@@ -868,6 +868,62 @@ export const ChatRequestSchema = {
                 }
             ],
             title: 'Scenario'
+        },
+        working_directory: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Working Directory'
+        },
+        task_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Task Id'
+        },
+        secret: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Secret'
+        },
+        callback_url: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Callback Url'
+        },
+        host_context: {
+            anyOf: [
+                {
+                    additionalProperties: true,
+                    type: 'object'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Host Context'
         }
     },
     type: 'object',
@@ -1695,6 +1751,34 @@ export const CredentialListItemSchema = {
     title: 'CredentialListItem'
 } as const;
 
+export const DataResponseSchema = {
+    properties: {
+        success: {
+            type: 'boolean',
+            title: 'Success',
+            default: true
+        },
+        message: {
+            type: 'string',
+            title: 'Message',
+            default: ''
+        },
+        data: {
+            anyOf: [
+                {},
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Data'
+        }
+    },
+    additionalProperties: true,
+    type: 'object',
+    title: 'DataResponse',
+    description: 'Response carrying a single data payload.'
+} as const;
+
 export const DebugStatusResponseSchema = {
     properties: {
         success: {
@@ -2059,32 +2143,14 @@ export const DutyConfigSchema = {
                     type: 'object'
                 },
                 {
+                    items: {},
+                    type: 'array'
+                },
+                {
                     type: 'null'
                 }
             ],
             title: 'Channels'
-        },
-        interval: {
-            anyOf: [
-                {
-                    type: 'integer'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Interval'
-        },
-        business_poll_interval: {
-            anyOf: [
-                {
-                    type: 'integer'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Business Poll Interval'
         },
         business_poll_prompts: {
             anyOf: [
@@ -2107,8 +2173,10 @@ export const DutyConfigSchema = {
     description: `值守配置（项目 project.json 的 customer_service_duty 字段）。
 
 全字段可选 = 部分更新语义（PUT）：未传字段保持原值。
-interval/business_poll_interval 用 StrictInt（禁止 "60"→60 之类 coercion），
-非法类型在 422 层被拒，与运行时校验语义一致（v6.3 起）。`
+
+轮巡间隔/业务巡检扫描间隔属于全局值守设置（CUSTOMER_SERVICE_DUTY），
+不在项目级配置；项目只负责参与意愿（enabled）+ 渠道（channels）+
+巡检任务列表（business_poll_prompts）。`
 } as const;
 
 export const EmbeddingApplyResponseSchema = {
@@ -3246,6 +3314,17 @@ export const ImportProjectByPathResponseSchema = {
             type: 'integer',
             title: 'Repo Id'
         },
+        project_id: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Project Id'
+        },
         name: {
             type: 'string',
             title: 'Name'
@@ -4328,6 +4407,26 @@ export const McpServerCreateSchema = {
             ],
             title: 'Env',
             default: {}
+        },
+        headers: {
+            anyOf: [
+                {
+                    additionalProperties: {
+                        type: 'string'
+                    },
+                    type: 'object'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Headers',
+            default: {}
+        },
+        enabled: {
+            type: 'boolean',
+            title: 'Enabled',
+            default: true
         }
     },
     additionalProperties: true,
@@ -4411,9 +4510,7 @@ export const MessageItemSchema = {
             title: 'Run Id'
         },
         role: {
-            type: 'string',
-            enum: ['human', 'ai', 'tool', 'system'],
-            title: 'Role'
+            '$ref': '#/components/schemas/MessageRole'
         },
         category: {
             anyOf: [
@@ -4506,7 +4603,8 @@ export const MessageItemSchema = {
         },
         references: {
             items: {
-                '$ref': '#/components/schemas/ReferenceItem'
+                additionalProperties: true,
+                type: 'object'
             },
             type: 'array',
             title: 'References',
@@ -4734,6 +4832,13 @@ export const MessageListResponseSchema = {
     required: ['has_more'],
     title: 'MessageListResponse',
     description: 'Response model for paginated message list.'
+} as const;
+
+export const MessageRoleSchema = {
+    type: 'string',
+    enum: ['human', 'ai', 'tool', 'system'],
+    title: 'MessageRole',
+    description: 'Message role vocabulary persisted in the database.'
 } as const;
 
 export const MirrorDevicesResponseSchema = {
@@ -5721,108 +5826,6 @@ export const RecordingSessionsResponseSchema = {
     title: 'RecordingSessionsResponse'
 } as const;
 
-export const ReferenceItemSchema = {
-    properties: {
-        id: {
-            type: 'string',
-            title: 'Id'
-        },
-        type: {
-            type: 'string',
-            title: 'Type'
-        },
-        target_id: {
-            type: 'string',
-            title: 'Target Id'
-        },
-        target_name: {
-            type: 'string',
-            title: 'Target Name'
-        },
-        metadata: {
-            anyOf: [
-                {
-                    '$ref': '#/components/schemas/ReferenceItemMetadata'
-                },
-                {
-                    type: 'null'
-                }
-            ]
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    required: ['id', 'type', 'target_id', 'target_name'],
-    title: 'ReferenceItem'
-} as const;
-
-export const ReferenceItemMetadataSchema = {
-    properties: {
-        duration: {
-            anyOf: [
-                {
-                    type: 'number'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Duration'
-        },
-        transcript: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Transcript'
-        },
-        waveform: {
-            anyOf: [
-                {
-                    items: {
-                        type: 'number'
-                    },
-                    type: 'array'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Waveform'
-        },
-        url: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Url'
-        },
-        mime_type: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Mime Type'
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    title: 'ReferenceItemMetadata',
-    description: 'Metadata for a message reference. Extra fields allowed per reference type.'
-} as const;
-
 export const RegisterMobileRequestSchema = {
     properties: {
         mobile: {
@@ -6073,6 +6076,18 @@ export const ResumeRequestSchema = {
                 }
             ],
             title: 'Model'
+        },
+        grant_mode: {
+            anyOf: [
+                {
+                    type: 'string',
+                    enum: ['once', 'always', 'default']
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Grant Mode'
         }
     },
     type: 'object',
@@ -6483,6 +6498,18 @@ export const SkillParameterSchema = {
     required: ['name'],
     title: 'SkillParameter',
     description: 'Shared parameter definition for learned skills.'
+} as const;
+
+export const SsoAcceptRequestSchema = {
+    properties: {
+        sso_code: {
+            type: 'string',
+            title: 'Sso Code'
+        }
+    },
+    type: 'object',
+    required: ['sso_code'],
+    title: 'SsoAcceptRequest'
 } as const;
 
 export const StartMirrorRecordingRequestSchema = {
@@ -7671,6 +7698,29 @@ export const TaskWithSubtasksCreateSchema = {
     description: 'Create parent task with subtasks.'
 } as const;
 
+export const TerminalCancelRequestSchema = {
+    properties: {
+        task_id: {
+            type: 'string',
+            title: 'Task Id'
+        },
+        project_id: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Project Id'
+        }
+    },
+    type: 'object',
+    required: ['task_id'],
+    title: 'TerminalCancelRequest'
+} as const;
+
 export const TerminalCommandRequestSchema = {
     properties: {
         command: {
@@ -7758,354 +7808,6 @@ export const TimesheetQuickAddRequestSchema = {
     type: 'object',
     required: ['project_id', 'hours', 'description'],
     title: 'TimesheetQuickAddRequest'
-} as const;
-
-export const TodoCreateSchema = {
-    properties: {
-        title: {
-            type: 'string',
-            maxLength: 255,
-            minLength: 1,
-            title: 'Title'
-        },
-        description: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Description'
-        },
-        priority: {
-            anyOf: [
-                {
-                    type: 'string',
-                    enum: ['low', 'medium', 'high']
-                },
-                {
-                    '$ref': '#/components/schemas/TodoPriority'
-                }
-            ],
-            title: 'Priority',
-            default: 'medium'
-        },
-        category: {
-            anyOf: [
-                {
-                    type: 'string',
-                    maxLength: 50
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Category'
-        },
-        due_date: {
-            anyOf: [
-                {
-                    type: 'string',
-                    format: 'date-time'
-                },
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Due Date'
-        },
-        project_id: {
-            anyOf: [
-                {
-                    type: 'integer'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Project Id'
-        },
-        source_conversation_id: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Source Conversation Id'
-        },
-        source_message_id: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Source Message Id'
-        },
-        run_id: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Run Id'
-        }
-    },
-    type: 'object',
-    required: ['title'],
-    title: 'TodoCreate',
-    description: 'Schema for creating a new Todo.'
-} as const;
-
-export const TodoPrioritySchema = {
-    type: 'string',
-    enum: ['low', 'medium', 'high'],
-    title: 'TodoPriority'
-} as const;
-
-export const TodoResponseSchema = {
-    properties: {
-        created_at: {
-            anyOf: [
-                {
-                    type: 'string',
-                    format: 'date-time'
-                },
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Created At'
-        },
-        updated_at: {
-            anyOf: [
-                {
-                    type: 'string',
-                    format: 'date-time'
-                },
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Updated At'
-        },
-        id: {
-            type: 'string',
-            title: 'Id'
-        },
-        title: {
-            type: 'string',
-            title: 'Title'
-        },
-        description: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Description'
-        },
-        status: {
-            '$ref': '#/components/schemas/TodoStatus'
-        },
-        priority: {
-            '$ref': '#/components/schemas/TodoPriority'
-        },
-        category: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Category'
-        },
-        due_date: {
-            anyOf: [
-                {
-                    type: 'string',
-                    format: 'date-time'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Due Date'
-        },
-        source_conversation_id: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Source Conversation Id'
-        },
-        source_message_id: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Source Message Id'
-        },
-        run_id: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Run Id'
-        },
-        project_id: {
-            anyOf: [
-                {
-                    type: 'integer'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Project Id'
-        }
-    },
-    type: 'object',
-    required: ['id', 'title', 'description', 'status', 'priority', 'category', 'due_date', 'source_conversation_id', 'source_message_id', 'run_id', 'project_id'],
-    title: 'TodoResponse',
-    description: 'Schema for Todo responses.'
-} as const;
-
-export const TodoStatusSchema = {
-    type: 'string',
-    enum: ['pending', 'completed', 'cancelled'],
-    title: 'TodoStatus'
-} as const;
-
-export const TodoUpdateSchema = {
-    properties: {
-        title: {
-            anyOf: [
-                {
-                    type: 'string',
-                    maxLength: 255,
-                    minLength: 1
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Title'
-        },
-        description: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Description'
-        },
-        status: {
-            anyOf: [
-                {
-                    '$ref': '#/components/schemas/TodoStatus'
-                },
-                {
-                    type: 'null'
-                }
-            ]
-        },
-        priority: {
-            anyOf: [
-                {
-                    type: 'string',
-                    enum: ['low', 'medium', 'high']
-                },
-                {
-                    '$ref': '#/components/schemas/TodoPriority'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Priority'
-        },
-        category: {
-            anyOf: [
-                {
-                    type: 'string',
-                    maxLength: 50
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Category'
-        },
-        due_date: {
-            anyOf: [
-                {
-                    type: 'string',
-                    format: 'date-time'
-                },
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Due Date'
-        },
-        project_id: {
-            anyOf: [
-                {
-                    type: 'integer'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Project Id'
-        }
-    },
-    type: 'object',
-    title: 'TodoUpdate',
-    description: 'Schema for updating an existing Todo.'
 } as const;
 
 export const TokenSchema = {
@@ -9073,14 +8775,6 @@ export const WeChatStatusResponseSchema = {
     title: 'WeChatStatusResponse'
 } as const;
 
-export const WebhookPayloadSchema = {
-    properties: {},
-    additionalProperties: true,
-    type: 'object',
-    title: 'WebhookPayload',
-    description: 'External webhook payload. Extra fields are allowed per source/event_type.'
-} as const;
-
 export const WebhookRequestSchema = {
     properties: {
         project_id: {
@@ -9114,7 +8808,9 @@ export const WebhookRequestSchema = {
             title: 'Event Type'
         },
         payload: {
-            '$ref': '#/components/schemas/WebhookPayload'
+            additionalProperties: true,
+            type: 'object',
+            title: 'Payload'
         }
     },
     type: 'object',

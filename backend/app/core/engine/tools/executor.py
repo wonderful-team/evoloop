@@ -274,6 +274,10 @@ class AgentToolExecutor:
             # 工具执行失败：快照不会被 _track_diffs 消费，必须丢弃。
             self._discard_snapshots(thread_id)
 
+            # 审计修复：PRE_TOOL_USE 钩子等在回调变量赋值前抛异常时，
+            # 此处直接引用会 UnboundLocalError 掩盖原始错误。
+            tool_callbacks = locals().get("tool_callbacks")
+            tool_run_id = locals().get("tool_run_id", "")
             if tool_callbacks:
                 await emit_tool_error(tool_callbacks, tool_name, e, tool_run_id)
 

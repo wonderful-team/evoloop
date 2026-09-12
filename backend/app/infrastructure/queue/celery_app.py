@@ -32,7 +32,7 @@ def config_loggers(*args, **kwargs):
 def on_worker_init(*args, **kwargs):
     """
     Hook into Celery worker child process initialization to ensure all in-process
-    event handlers (like MemoryRewind, TodoRewind) are auto-discovered and registered.
+    event handlers (like MemoryRewind) are auto-discovered and registered.
     """
     from app.core.events.discovery import auto_discover_handlers
 

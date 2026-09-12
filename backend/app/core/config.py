@@ -129,6 +129,9 @@ class Settings(BaseSettings):
     AGENT_MAX_STEPS: int = 100
     AGENT_MAX_STEPS_MIN: int = 25
     AGENT_MAX_STEPS_MAX: int = 500
+    # 单次 run 内允许的 steer（运行中注入新消息并重置步数预算）次数上限，
+    # 超限后新消息回落 session 队列由下一轮 delivery 处理（防无限续期）。
+    AGENT_MAX_STEERS: int = 50
 
     BACKEND_CORS_ORIGINS: Annotated[
         list[AnyUrl] | str, BeforeValidator(parse_cors)
@@ -340,6 +343,16 @@ class Settings(BaseSettings):
     EVOCLOUD_SSO_KEY: str | None = Field(
         None, validation_alias="EVOCLOUD_SSO_KEY"
     )
+    # SSO：Member Center 直连地址（仅 /api/sso/* 的 redeem 使用）。
+    # 线上缺省 None → 沿用 EVOCLOUD_API_URL + /member（nginx 反代）；
+    # 本地开发矩阵不在云域下，SSO 兑换需直指矩阵地址。
+    # 注意：login/refreshToken/user_info 等其余 member API 的用户体系在云，
+    # 恒走 EVOCLOUD_API_URL —— 此前整条 member 通道直指矩阵曾污染 identity
+    # store（LLM/device claim 401），勿再扩大该覆盖范围。
+    EVOCLOUD_MEMBER_URL: str | None = Field(
+        None, validation_alias="EVOCLOUD_MEMBER_URL"
+    )
+
 
     # Client / Device Info
     EVOCLOUD_ACCESS_TOKEN: str | None = Field(

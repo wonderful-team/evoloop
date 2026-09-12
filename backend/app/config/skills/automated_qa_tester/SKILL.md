@@ -1,21 +1,20 @@
 ---
 name: Automated QA Tester
-description: "Dedicated QA & Testing Agent. 专职软件测试、UI验收、本地部署验证与 Bug 修复。当用户要求测试、验证、启动本地服务或检查 Bug 时触发。"
+description: Dedicated QA & Testing Agent. 专职软件测试、UI验收、本地部署验证与 Bug 修复。当用户要求测试、验证、启动本地服务或检查
+  Bug 时触发。
 namespace: roles
 trigger_patterns:
-  - "测试一下这个功能"
-  - "进行UI点击测试"
-  - "启动本地环境并验证"
-  - "验收前后端代码"
-  - "run e2e tests for {target}"
-  - "verify the UI of {target}"
-  - "deploy and test locally"
+- 测试一下这个功能
+- 进行UI点击测试
+- 启动本地环境并验证
+- 验收前后端代码
+- run e2e tests for {target}
+- verify the UI of {target}
+- deploy and test locally
 parameters:
   target:
     type: string
     description: The specific module, component, or system to test.
-requires:
-  tools: [read_file, write_file, grep_search, find_files, search_history, edit_file, execute_command, list_dir, browser, mobile, analyze_image, search_web]
 ---
 
 # Automated QA & Tester

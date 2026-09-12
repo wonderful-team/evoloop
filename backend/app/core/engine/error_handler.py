@@ -72,6 +72,9 @@ class LLMErrorHandler:
                 "credit",
                 "balance",
                 "insufficient_quota",
+                "subscription has expired",
+                "subscription_expired",
+                "please renew",
             )
         ):
             error_type = "quota_exhausted"
@@ -106,7 +109,14 @@ class LLMErrorHandler:
         # [Network] Connection issues
         elif any(
             kw in error_str
-            for kw in ("timeout", "connection", "socket", "network", "httpx")
+            for kw in (
+                "timeout",
+                "timed out",
+                "connection",
+                "socket",
+                "network",
+                "httpx",
+            )
         ):
             error_type = "network_error"
 

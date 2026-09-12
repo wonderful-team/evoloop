@@ -118,6 +118,11 @@ class LearnedSkill(Base):
 
     tools_used: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)  # JSON list of tool names
 
+    # 能力包声明（capability-packages-refactor.md §5.1）：
+    # {domain, tools: [{mcp_server, include?}], preload, route_patterns}
+    # null = 普通技能（非包）；与 requires.tools/tools_used（原生工具依赖）语义不同
+    capability: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
     # Source Reference
     source_thread_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     source_session_id: Mapped[str | None] = mapped_column(String(255), nullable=True)

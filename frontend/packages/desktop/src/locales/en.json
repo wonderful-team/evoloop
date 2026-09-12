@@ -279,7 +279,11 @@
       "rewindFailed": "Failed to rewind",
       "cancelRequestFailed": "Failed to cancel request",
       "resumeAgentFailed": "Failed to resume agent",
-      "stopAgentFailed": "Failed to stop agent"
+      "stopAgentFailed": "Failed to stop agent",
+      "unauthorized": "Session expired, please login again",
+      "subscriptionExpired": "Subscription expired or quota exhausted. Please renew to continue.",
+      "runFailed": "This run failed. See error details in the message list.",
+      "reconnectedIdle": "Connection restored. The previous run was interrupted."
     },
     "externalLinks": "External Links",
     "goToSettings": "Go to Settings",
@@ -577,10 +581,11 @@
         "projects": "Project Management",
         "projectsDesc": "Manage all development projects",
         "skills": "Learning Center",
-        "skillsDesc": "Train and upgrade agent skills",
-        "todos": "To-do Items",
-        "todosDesc": "Track progress and automations"
-      }
+        "skillsDesc": "Train and upgrade agent skills"
+      },
+      "contextSubtitle": "I see you're on \"{{page}}\". What can I do for you?",
+      "hostConnected": "Synced · Member Center · {{route}}",
+      "hostConnecting": "Connected to Member Center, syncing current page…"
     },
     "agentRunning": "Agent Running",
     "goalBanner": {
@@ -625,7 +630,9 @@
     "a2aDetailDevice": "Target Device",
     "a2aDetailEmpty": "Delegation detail not found",
     "a2aDetailClose": "Close",
-    "a2aDetailBack": "Back"
+    "a2aDetailBack": "Back",
+    "typingIndicator": "Thinking…",
+    "maxStepsReached": "Step limit reached for this turn ({{count}}). Send a new message to continue."
   },
   "common": {
     "actions": "Actions",
@@ -1694,7 +1701,7 @@
       "businessPollHint": "1~1440 min; scan the task list at this frequency. Due tasks are sent as separate human messages to the Agent",
       "businessPollBad": "Business poll interval must be an integer of 1~1440",
       "businessPollTasksLabel": "Poll tasks",
-      "businessPollTaskPlaceholder": "Please run a business poll task for project #{project_id} for pending todos; handle them if any, or reply with no todos.",
+      "businessPollTaskPlaceholder": "Please run a business poll task for project #{project_id}: check for pending items; handle them if any, or reply that there is nothing to handle this round.",
       "addBusinessPollTask": "Add task",
       "noBusinessPollTasks": "No tasks yet; click Add task above",
       "taskEnabled": "Enabled",
@@ -2300,66 +2307,6 @@
       "previous": "Go to previous page"
     }
   },
-  "todos": {
-    "calendar": "Calendar",
-    "category": {
-      "all": "All Categories",
-      "title": "Category"
-    },
-    "create": {
-      "add": "Add",
-      "categoryPlaceholder": "Category",
-      "error": "Failed to create todo",
-      "placeholder": "What needs to be done?",
-      "priorityPlaceholder": "Priority",
-      "setDate": "Set date",
-      "success": "Todo created"
-    },
-    "delete": {
-      "error": "Failed to delete todo",
-      "success": "Todo deleted"
-    },
-    "empty": {
-      "loading": "Loading todos...",
-      "noActive": "No active todos. Add one above!",
-      "noFilterMatch": "No tasks match current filters."
-    },
-    "execute": "Execute Task",
-    "executeTaskPrefix": "Execute: ",
-    "filters": "Filters",
-    "headers": {
-      "allTasks": "All Tasks",
-      "completedTasks": "Completed Tasks",
-      "pendingTasks": "Pending Tasks"
-    },
-    "jumpToChat": "Jump to Chat",
-    "list": "List",
-    "noDueDate": "No Due Date",
-    "priority": {
-      "all": "All Priorities",
-      "high": "High",
-      "low": "Low",
-      "medium": "Medium",
-      "title": "Priority"
-    },
-    "refresh": "Refresh",
-    "sort": {
-      "dueDate": "Due Date",
-      "newest": "Newest",
-      "priority": "Priority"
-    },
-    "status": {
-      "all": "All",
-      "completed": "Completed",
-      "pending": "Pending",
-      "title": "Status"
-    },
-    "update": {
-      "error": "Failed to update todo",
-      "success": "Todo updated"
-    },
-    "executeTaskMessage": "Execute: {{title}}\n{{description}}"
-  },
   "tour": {
     "finish": "Finish",
     "next": "Next",
@@ -2612,8 +2559,7 @@
     "learning": "Learning",
     "projects": "Projects",
     "searchFilesPlaceholder": "Search files...",
-    "settings": "Settings",
-    "todos": "Todos"
+    "settings": "Settings"
   },
   "debug": {
     "controlCenter": "Control Center",

@@ -16,7 +16,7 @@ DEFAULT_MAX_CONTEXT_TOKENS = 128_000
 DEFAULT_INTERNAL_LLM_TOKENS = 4_000
 
 # ====================== Cross-subsystem Event Constants ======================
-#: Rewind requested event type (used by engine, memory, file, learning, planning, todo)
+#: Rewind requested event type (used by engine, memory, file, learning, planning)
 REWIND_REQUESTED = "rewind.requested"
 #: Messages cleanup event type (used by engine and evocloud sync)
 MESSAGES_CLEANUP = "rewind.messages.cleanup"

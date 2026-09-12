@@ -3,19 +3,19 @@ from fastapi import APIRouter, BackgroundTasks
 # 直接来自真实来源（_chat 已不再 import；此处保持 test patch 兼容的模块级导出）
 from app.core.engine.agent import run_agent_background  # noqa: F401
 
+# Re-exports for test compatibility
+from app.infrastructure.database import session_scope
+
 # External dependencies used by agent endpoints that tests patch directly on agent module
 from app.infrastructure.database.resource_manager import db_resource_manager
 
-# Re-exports for test compatibility
 from .chat import (
     ChatRequest,
     ResumeRequest,
-    _check_thread_not_running,
     activity_monitor,
     chat_endpoint,
     resume_chat,
     retry_chat,
-    session_scope,
     stop_chat,
     thread_context_store,
 )
@@ -89,7 +89,6 @@ __all__ = [
     "session_scope",
     "run_agent_background",
     "thread_context_store",
-    "_check_thread_not_running",
     "webhook_endpoint",
     "WebhookRequest",
     "EventAdapter",

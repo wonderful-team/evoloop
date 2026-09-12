@@ -23,6 +23,7 @@ import { useIsMultiTenant } from "@/hooks/useIsMultiTenant"
 import { useSystemEvent } from "@/hooks/useSystemEvent"
 import { useVoiceEvents } from "@/hooks/useVoiceEvents"
 import { isTauri } from "@/lib/tauri"
+import { useHostContextStore } from "@/stores/hostContextStore"
 import { useUIStore } from "@/stores/uiStore"
 
 export const Route = createFileRoute("/_layout")({
@@ -47,7 +48,6 @@ function Layout() {
     pathname.includes("/chat") ||
     pathname.includes("/files") ||
     pathname.includes("/projects") ||
-    pathname.includes("/todos") ||
     pathname.startsWith("/learning/skills") ||
     pathname.startsWith("/learning/macros")
 
@@ -55,6 +55,8 @@ function Layout() {
   // Tauri 下窗口本身收缩（lib/miniWindow），Web 预览降级为居中迷你卡片。
   const isChatMini =
     useUIStore((s) => s.miniMode) && pathname.startsWith("/chat")
+  // 宿主内嵌（Member Center 后台 iframe）：退化为纯对话组件，隐藏应用外壳
+  const isEmbedded = useHostContextStore((s) => s.connected)
   const isTauriApp = isTauri()
 
   // Sync wizard state with context
@@ -153,7 +155,7 @@ function Layout() {
               : "flex h-full min-w-0 flex-1 flex-col overflow-hidden"
           }
         >
-          <AppTitleBar />
+          {!isEmbedded && <AppTitleBar />}
           <main
             className={`flex-1 min-w-0 ${isFullWidth ? "overflow-hidden" : "p-6 md:p-8 overflow-auto"}`}
           >

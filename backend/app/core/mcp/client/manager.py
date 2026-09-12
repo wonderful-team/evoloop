@@ -13,9 +13,7 @@ from sqlalchemy import select
 from app.core.events.base import BaseEvent, EventData, system_bus
 from app.core.events.registry import SystemEventType
 from app.core.mcp import constants as mcp_constants
-from app.core.mcp.auth.manager import mcp_auth_manager
 from app.core.mcp.config import (
-    AuthType,
     ConnectionResult,
     ConnectionState,
     McpServerConfig,
@@ -79,6 +77,11 @@ class McpClientManager:
         self._sessions: dict[str, Any] = {}
         self._stacks: dict[str, AsyncExitStack] = {}
         self._configs: dict[str, McpServerConfig] = {}
+        # server runner（稳定性修复）：每 server 一个长驻任务持有 transport
+        # stack（anyio scope 自包含），connect/disconnect 经事件与 runner 交互
+        self._runners: dict[str, asyncio.Task] = {}
+        self._stop_events: dict[str, asyncio.Event] = {}
+        self._runner_results: dict[str, ConnectionResult] = {}
 
         # Features
         self._tools_feature: dict[str, McpToolsFeature] = {}
@@ -103,6 +106,12 @@ class McpClientManager:
         """
         Connect to an MCP server.
 
+        生命周期模式（稳定性修复，aitoearn 502 事故）：每个 server 的 transport
+        stack 在**独立长驻 runner 任务**里 enter/exit——anyio cancel scope 绑定
+        runner 任务自身，与调用者（lifespan/工具调用任务）完全解耦。此前 stack
+        挂在进入者任务上：远程 server 502 时清理路径的 scope.cancel() 误伤外层
+        lifespan scope，单个坏 server 即可打崩整个 API 进程。
+
         Args:
             config: Server configuration
 
@@ -113,34 +122,60 @@ class McpClientManager:
         server_name = config.name
 
         # Disconnect existing if any
-        if server_name in self._stacks:
+        if server_name in self._stacks or server_name in self._runners:
             await self.disconnect(server_name)
 
+        ready_evt = asyncio.Event()
+        runner = asyncio.create_task(
+            self._server_runner(server_name, config, ready_evt)
+        )
+        self._runners[server_name] = runner
         try:
-            # Handle OAuth authentication if configured
-            auth_headers = {}
-            if config.auth_type != AuthType.NONE and config.auth_config:
-                handler = mcp_auth_manager.create_handler(
-                    server_name, config.auth_config
-                )
-                if handler:
-                    logger.info(
-                        f"Authenticating with {server_name} using {config.auth_type}"
-                    )
-                    token = await mcp_auth_manager.authenticate(server_name)
-                    auth_headers = mcp_auth_manager.get_headers(server_name)
-                    logger.info(f"Successfully authenticated with {server_name}")
-
-            # Merge auth headers into config headers
-            if auth_headers:
-                config.headers.update(auth_headers)
-
-            # Create transport and session
-            stack = AsyncExitStack()
+            # runner 成功/失败都会在 ready_evt.set()（finally 兜底）唤醒；
+            # 超时则取消 runner（清理在其任务内同任务完成，无跨任务问题）
+            await asyncio.wait_for(ready_evt.wait(), timeout=self.MCP_CONNECT_TIMEOUT)
+        except asyncio.TimeoutError:
+            runner.cancel()
             try:
-                # 传输上下文必须在当前任务进入（SSE/stdio transport 的 task group
-                # 生命周期绑定进入它的任务；放进 wait_for 子任务会跨任务销毁
-                # cancel scope、杀死接收循环）。超时只包 initialize()。
+                await runner
+            except BaseException:
+                pass
+            self._runners.pop(server_name, None)
+            logger.error(
+                f"MCP connect to '{server_name}' timed out after "
+                f"{self.MCP_CONNECT_TIMEOUT}s — skipping this server."
+            )
+            return ConnectionResult(
+                success=False,
+                server_name=server_name,
+                error=f"Connection timed out after {self.MCP_CONNECT_TIMEOUT}s",
+            )
+        result = self._runner_results.get(server_name)
+        if result is None or not result.success:
+            await self.disconnect(server_name)
+            return result or ConnectionResult(
+                success=False, server_name=server_name, error="connection aborted"
+            )
+        logger.info(f"[MCP] runner started for '{server_name}'")
+        return result
+
+    async def _server_runner(
+        self,
+        server_name: str,
+        config: McpServerConfig,
+        ready_evt: asyncio.Event,
+    ) -> None:
+        """长驻 runner：transport/session 生命周期 + features 初始化 + 保活。
+
+        所有 anyio 上下文都在本任务进入与退出（scope 自包含）。断开通过
+        ``self._stop_events[server_name].set()`` 触发，清理在本任务执行。
+        """
+        stop_evt = asyncio.Event()
+        self._stop_events[server_name] = stop_evt
+        stack = AsyncExitStack()
+        session = None
+        try:
+            async with stack:
                 read, write = await stack.enter_async_context(
                     self._transport.create_transport(config)
                 )
@@ -150,100 +185,72 @@ class McpClientManager:
                     message_handler=self._build_message_handler(server_name),
                     timeout=self.MCP_CONNECT_TIMEOUT,
                 )
-                # Push session exit onto the same stack so teardown order is
-                # guaranteed: session (stops receive loop) closes BEFORE the
-                # transport's streams. Closing them separately would race the
-                # still-cancelling receive loop with stream.aclose().
                 stack.push_async_exit(session.__aexit__)
-
                 self._stacks[server_name] = stack
                 self._sessions[server_name] = session
                 self._configs[server_name] = config
-            except asyncio.TimeoutError:
-                logger.error(
-                    f"MCP connect to '{server_name}' timed out after "
-                    f"{self.MCP_CONNECT_TIMEOUT}s — skipping this server (it must not "
-                    f"block the core service)."
+
+                tools_feature = McpToolsFeature()
+                await tools_feature.initialize(
+                    session,
+                    server_name,
+                    ensure_alive=self._ensure_session_alive,
+                    ensure_alive_force=self._ensure_alive_force,
                 )
-                await stack.aclose()
-                return ConnectionResult(
-                    success=False,
-                    server_name=server_name,
-                    error=f"Connection timed out after {self.MCP_CONNECT_TIMEOUT}s",
+                self._tools_feature[server_name] = tools_feature
+                resources_feature = McpResourcesFeature()
+                await resources_feature.initialize(session, server_name)
+                self._resources_feature[server_name] = resources_feature
+                prompts_feature = McpPromptsFeature()
+                await prompts_feature.initialize(session, server_name)
+                self._prompts_feature[server_name] = prompts_feature
+                tools_count = len(tools_feature.get_tools())
+                self._runner_results[server_name] = ConnectionResult(
+                    success=True, server_name=server_name, tools_count=tools_count
                 )
-            except Exception:
-                await stack.aclose()
-                raise
-
-            # Initialize features
-            tools_feature = McpToolsFeature()
-            await tools_feature.initialize(
-                session,
-                server_name,
-                ensure_alive=self._ensure_session_alive,
-                ensure_alive_force=self._ensure_alive_force,
-            )
-            self._tools_feature[server_name] = tools_feature
-
-            resources_feature = McpResourcesFeature()
-            await resources_feature.initialize(session, server_name)
-            self._resources_feature[server_name] = resources_feature
-
-            prompts_feature = McpPromptsFeature()
-            await prompts_feature.initialize(session, server_name)
-            self._prompts_feature[server_name] = prompts_feature
-
-            # 保活：远程 servicer 会空闲关闭 SSE 连接，导致本地会话套接字进
-            # CLOSE_WAIT、后续工具调用挂死。后台定期 ping 防空闲关闭；失败重连。
-            asyncio.create_task(self._keepalive_loop(server_name, session))
-
-            tools_count = len(tools_feature.get_tools())
-            resources_count = len(resources_feature.get_resources())
-            prompts_count = len(prompts_feature.get_prompts())
-
-            logger.info(
-                f"Connected to MCP server: {server_name} "
-                f"({tools_count} tools, {resources_count} resources, {prompts_count} prompts)"
-            )
-
-            return ConnectionResult(
-                success=True, server_name=server_name, tools_count=tools_count
-            )
-
-        except Exception as e:
-            logger.exception(f"Error connecting to {server_name}: {e}")
-            if "stack" in locals():
-                await stack.aclose()
-            return ConnectionResult(
-                success=False, server_name=server_name, error=str(e)
-            )
-
-    async def _keepalive_loop(self, server_name: str, session: ClientSession) -> None:
-        """保活后台任务：定期 ping 会话，防空闲被远端关闭（SSE CLOSE_WAIT 僵尸）。
-
-        检测到失联后**主动安排重连**（独立任务里 disconnect + ensure_connected），
-        而不是只记日志——否则"ping 通但会话已退化"的僵尸会话会一直拖到调用失败才
-        重连。重连放独立任务：keepalive 任务本身不碰 disconnect，避免被会话拆除
-        的 anyio 取消波及；重连由每 server 锁串行，且 ensure_connected 会为新会话
-        重新拉起本保活任务。
-        """
-        while True:
-            await asyncio.sleep(self.MCP_KEEPALIVE_INTERVAL)
-            if self._sessions.get(server_name) is not session:
-                break
-            try:
-                await asyncio.wait_for(
-                    session.send_ping(),
-                    timeout=self.MCP_PING_TIMEOUT,
+                logger.info(
+                    f"Connected to MCP server: {server_name} "
+                    f"({tools_count} tools, runner task active)"
                 )
-            except asyncio.CancelledError:
-                break  # 任务被取消（会话拆除/进程关闭）
-            except Exception:
-                logger.warning(
-                    f"[MCP] keepalive ping '{server_name}' 失败，安排后台重连"
-                )
-                asyncio.create_task(self._reconnect(server_name))
-                break
+                ready_evt.set()
+                # 常驻：保活循环内联（原 _keepalive_loop 的职责），直到 stop
+                while not stop_evt.is_set():
+                    try:
+                        await asyncio.wait_for(
+                            session.send_ping(), timeout=self.MCP_PING_TIMEOUT
+                        )
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception:
+                        # ping 失败：会话失联，退出 runner（tools_feature 的
+                        # ensure_alive 在下次调用时触发重连）
+                        logger.warning(
+                            f"[MCP] '{server_name}' session lost (ping failed); runner exiting"
+                        )
+                        break
+                    try:
+                        await asyncio.wait_for(
+                            stop_evt.wait(), timeout=self.MCP_KEEPALIVE_INTERVAL
+                        )
+                    except asyncio.TimeoutError:
+                        continue
+            return
+        except asyncio.CancelledError:
+            raise
+        except BaseException as e:
+            # 连接失败：降级为 ConnectionResult（任何 server 故障不得影响宿主）
+            self._runner_results[server_name] = ConnectionResult(
+                success=False, server_name=server_name, error=f"{type(e).__name__}: {e}"
+            )
+            logger.error(f"MCP runner for '{server_name}' failed: {type(e).__name__}: {e}")
+            return
+        finally:
+            ready_evt.set()
+            # 清理 registry（disconnect 已 pop 的场景跳过）
+            self._sessions.pop(server_name, None)
+            self._stacks.pop(server_name, None)
+            self._stop_events.pop(server_name, None)
+
 
     async def _reconnect(self, server_name: str) -> None:
         """后台重连：断开死会话并从缓存 config 重建（每 server 锁串行）。"""
@@ -301,7 +308,6 @@ class McpClientManager:
                 except Exception:
                     logger.exception(f"[MCP] 调用前重连 '{server_name}' 失败")
             return self._sessions.get(server_name)
-
     async def _ensure_alive_force(self, server_name: str) -> ClientSession | None:
         """强制重连：不测 ping（可能"ping 通但会话已退化"），直接断开重建。
 
@@ -314,7 +320,6 @@ class McpClientManager:
             except Exception:
                 logger.exception(f"[MCP] 强制重连 '{server_name}' 失败")
         return self._sessions.get(server_name)
-
     async def connect_from_db(self, server_name: str) -> ConnectionResult:
         """
         Connect to a server using configuration from database.
@@ -327,9 +332,9 @@ class McpClientManager:
         """
         async with session_scope() as session:
             result = await session.execute(
-                select(McpServer).where(
-                    McpServer.name == server_name, McpServer.enabled
-                )
+                # 不按 enabled 过滤：enabled=0 语义是「不随启动常驻」，显式
+                # 按名连接（ensure_connected/use_mcp_server/包预挂）是按需拉起
+                select(McpServer).where(McpServer.name == server_name)
             )
             server = result.scalars().first()
 
@@ -337,7 +342,7 @@ class McpClientManager:
                 return ConnectionResult(
                     success=False,
                     server_name=server_name,
-                    error=f"Server '{server_name}' not found in database or disabled",
+                    error=f"Server '{server_name}' not found in database",
                 )
 
             # Parse args and env
@@ -486,24 +491,24 @@ class McpClientManager:
         return _on_message
 
     async def disconnect(self, server_name: str) -> None:
-        """Disconnect a single server."""
-        # 原子 pop：并发 disconnect（如后台 keepalive 重连与调用方同时断开）
-        # 不会出现「检查存在→await→del」之间的竞态（KeyError）。
-        stack = self._stacks.pop(server_name, None)
-        if stack is not None:
+        """Disconnect a single server（经 runner stop 事件，清理在 runner 任务内）."""
+        runner = self._runners.pop(server_name, None)
+        stop_evt = self._stop_events.get(server_name)
+        if runner is not None and stop_evt is not None and not runner.done():
+            stop_evt.set()
             try:
-                # The stack owns both the session and the transport, closing
-                # them in registration order (session first, transport second).
-                await stack.aclose()
-            except Exception as e:
+                await runner
+            except Exception:
                 logger.debug(
-                    f"Error closing stack for '{server_name}': {e}", exc_info=True
+                    f"[MCP] runner exit with error for '{server_name}'", exc_info=True
                 )
 
         self._sessions.pop(server_name, None)
+        self._stacks.pop(server_name, None)
         self._tools_feature.pop(server_name, None)
         self._resources_feature.pop(server_name, None)
         self._prompts_feature.pop(server_name, None)
+        self._runner_results.pop(server_name, None)
         self._health_checker.reset(server_name)
 
         logger.info(f"Disconnected MCP server: {server_name}")

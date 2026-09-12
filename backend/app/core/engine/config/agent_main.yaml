@@ -8,7 +8,7 @@ state_schema: "app.core.engine.state.AgentState"
 # =====================================================================
 # 🎯 REACT 主 Agent 工具面（单 Agent ReAct 主循环，重构目标架构）
 # 默认工具面 20 个：核心 12（OpenCode 对齐名）+ 特有 2（macro/remember）+ 具身 4 + 密码箱 1 + 定时 1
-#   核心 12：bash/read/glob/grep/edit/write/task/webfetch/websearch/todo/skill/question
+#   核心 12：bash/read/glob/grep/edit/write/task/webfetch/websearch/plan/skill/question
 #   特有 2：macro（一体式宏入口，list/read/run/create/update/delete/debug）/ remember
 #   具身 4：browser（网页探索）/ image（图像 facade：analyze+generate，VISION_MODEL 未配时 analyze 自动过滤）
 #          / video（视频 facade：analyze+generate）/ mobile（Android 设备控制）/ desktop（桌面控制）
@@ -33,8 +33,8 @@ agents:
       # 检索
       - "webfetch"
       - "websearch"
-      # 计划 / 待办 facade
-      - "todo"
+      # 计划 facade（Agent 唯一工作清单：plan create / update_step / status）
+      - "plan"
       # 技能（索引+按需加载，§5）
       - "skill"
       # 交互

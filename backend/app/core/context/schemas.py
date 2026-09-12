@@ -32,3 +32,13 @@ class ContextMetadata(DynamicBaseModel):
 
     # L0 intent hint passed from entry points to context hydrator
     intent_hint: Any | None = None
+
+    # 能力包可见性（capability-packages-refactor.md §6-#4）：thread 级叠加集。
+    # EvoContext 经 ContextManager.save/load 随 thread 持久（build_ctx 每轮 load
+    # 恢复），故 ctx 即 thread 级载体——预选集每轮确定性重算，加载集增量叠加。
+    loaded_packages: list[str] = Field(default_factory=list)
+    # 页面预选集（每轮由 domain+page 确定性重算，hydrate 写入；不持久依赖）
+    preselected_packages: list[str] = Field(default_factory=list)
+    # 包面脏标记：skill 激活后置位，inference 循环检测到即重算工具面并
+    # rebind（同 run 内立即可用，不必等下一次 delivery）
+    packages_dirty: bool = Field(default=False)

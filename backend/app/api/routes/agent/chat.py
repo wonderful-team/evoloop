@@ -2,10 +2,8 @@ import asyncio
 import json
 import logging
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import JSONResponse
-from sqlalchemy import select
-from sqlalchemy.orm import selectinload
 
 from app.api.deps import (
     CurrentUserOptional,
@@ -29,22 +27,11 @@ from app.core.execution.system_tools_formatter import SystemToolsFormatter
 from app.core.monitoring.activity import activity_monitor
 from app.core.monitoring.constants import ActivityStatus
 from app.core.routing.dispatch_handler import dispatch_user_message, route_lock_scope
-from app.infrastructure.database import session_scope
-from app.models import Message
 from app.utils.id import gen_uuid, unique_id
 
 router = APIRouter()
 
 logger = logging.getLogger(__name__)
-
-
-async def _check_thread_not_running(thread_id: str) -> None:
-    state = await activity_monitor.get_activity(thread_id)
-    if state and state.status == "running":
-        raise HTTPException(
-            status_code=409,
-            detail=f"Thread {thread_id} is currently processing. Please wait for it to complete.",
-        )
 
 
 @router.post("/chat", dependencies=[Depends(verify_guest_access)])
@@ -76,6 +63,7 @@ async def chat_endpoint(
     )
     if req.working_directory:
         thread_context_store.set_working_directory(req.thread_id, req.working_directory)
+
     member_id = _current_user.id if _current_user else 0
 
     async with route_lock_scope(req.thread_id, ctx):
@@ -229,122 +217,20 @@ async def stop_all_agent(
 @router.post("/chat/retry", dependencies=[Depends(verify_guest_access)])
 async def retry_chat(
     req: ChatRequest,
-    _request: Request = None,
     _current_user: CurrentUserOptional = None,
     token: TokenDepOptional = None,
 ):
+    """重试会话中最近/指定的一条 human 消息。
+
+    定位消息、rewind、重派、submit 全部收敛到 retry_service（与
+    EngineCommand 重派共用同一实现）：skip_l0=True、intent_hint 由
+    统一路由产出、host_context 从被重试消息的持久化 meta_data 恢复。
+    """
     if not req.thread_id:
         raise HTTPException(status_code=400, detail="thread_id is required")
-    from app.core.engine.rewind import (
-        MessageNotFoundError,
-        NoHumanMessageError,
-        RewindError,
-        perform_rewind,
-    )
 
-    async with session_scope() as session:
-        if req.message_id:
-            logger.info(f"[Retry] Targeted retry for message {req.message_id}")
-            stmt = (
-                select(Message)
-                .options(selectinload(Message.references))
-                .where(Message.id == req.message_id)
-            )
-            result = await session.execute(stmt)
-            target_msg = result.scalar_one_or_none()
-
-            if not target_msg:
-                logger.warning(
-                    f"[Retry] Message {req.message_id} not found in database"
-                )
-                raise HTTPException(
-                    status_code=404, detail=f"Message {req.message_id} not found"
-                )
-            if target_msg.thread_id != req.thread_id:
-                logger.warning(
-                    f"[Retry] Message {req.message_id} belongs to thread {target_msg.thread_id}"
-                )
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Message {req.message_id} not found in thread",
-                )
-            if target_msg.role != "human":
-                logger.warning(
-                    f"[Retry] Message {req.message_id} has role '{target_msg.role}'"
-                )
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Message {req.message_id} is not a human message",
-                )
-            last_human_msg = target_msg
-        else:
-            stmt = (
-                select(Message)
-                .options(selectinload(Message.references))
-                .where(Message.thread_id == req.thread_id)
-                .where(Message.role == "human")
-                .order_by(Message.id.desc())
-                .limit(1)
-            )
-            result = await session.execute(stmt)
-            last_human_msg = result.scalar_one_or_none()
-
-        if not last_human_msg:
-            raise HTTPException(
-                status_code=404, detail="No human message found to retry"
-            )
-
-        references = None
-        if last_human_msg.references:
-            references = [
-                {
-                    "type": ref.type,
-                    "id": ref.target_id,
-                    "target_id": ref.target_id,
-                    "target_name": ref.target_name,
-                    "meta_data": ref.meta_data,
-                }
-                for ref in last_human_msg.references
-            ]
-
-        retry_message_content = last_human_msg.content
-
-    try:
-        result = await perform_rewind(
-            thread_id=req.thread_id,
-            target_message_id=str(last_human_msg.id),
-            include_target=False,
-            revert_files=req.revert_files,
-            reset_state=True,
-            reason="retry",
-        )
-
-        files_reverted = result.reverted_file_count
-        checkpoint_id = None
-
-        if result.status != "success":
-            errors_str = "; ".join(result.errors)
-            logger.error(f"[Retry] Rewind failed: {errors_str}")
-            raise RewindError(errors_str, thread_id=req.thread_id)
-
-        logger.info(
-            f"[Retry] Rewind completed: {result.removed_message_count} messages removed, "
-            f"{result.reverted_file_count} files reverted"
-        )
-
-    except MessageNotFoundError:
-        raise HTTPException(
-            status_code=404, detail="Target message not found for retry"
-        )
-    except NoHumanMessageError:
-        raise HTTPException(status_code=404, detail="No human message found to retry")
-    except RewindError as e:
-        logger.exception(f"[Retry] Rewind failed: {e}")
-        raise HTTPException(500, f"Rewind failed: {e}")
-    except Exception as e:
-        logger.exception(f"[Retry] Unexpected error during rewind: {e}")
-        raise HTTPException(500, f"Retry failed: {e}")
-
+    from app.core.context.manager import ContextManager
+    from app.core.engine.retry_service import RetryError, retry_and_redispatch
     from app.core.state import shared_state
 
     project_id = int(req.project_id) if req.project_id else 0
@@ -361,40 +247,32 @@ async def retry_chat(
     )
     ContextManager.set(ctx)
 
-    msg = await web_input.receive(
-        {
-            "thread_id": req.thread_id,
-            "message": retry_message_content,
-            "project_id": project_id,
-            "references": references,
-            "command_id": req.command_id,
-            "checkpoint_id": checkpoint_id,
-            "model": req.model,
-        },
-        context=ctx,
-        member_id=_current_user.id if _current_user else 0,
-        is_retry=True,
-        skip_message_persistence=True,
-    )
-    if msg is None:
-        raise HTTPException(status_code=400, detail="invalid retry request")
-    result = await web_input.dispatch(msg)
-    if result.status == "failed":
-        raise HTTPException(status_code=500, detail=result.error)
-
-    # 会话模式：统一走 session_manager.submit（有活会话注入，无活会话创建并启动）
-    from app.core.engine.session.manager import session_manager
-
-    await session_manager.submit(req.thread_id, result.inputs)
+    try:
+        outcome = await retry_and_redispatch(
+            thread_id=req.thread_id,
+            project_id=project_id,
+            context=ctx,
+            member_id=_current_user.id if _current_user else 0,
+            target_message_id=req.message_id,
+            host_context=req.host_context,
+            revert_files=req.revert_files,
+            reset_state=True,
+            include_target=False,
+            reason="retry",
+            command_id=req.command_id,
+            model=req.model,
+            source="web",
+        )
+    except RetryError as e:
+        raise HTTPException(status_code=e.status, detail=e.message)
 
     return {
         "status": "queued",
         "thread_id": req.thread_id,
-        "message_id": result.message_id,
+        "message_id": outcome.message_id,
         "action": "retry",
-        "files_reverted": files_reverted,
+        "files_reverted": outcome.files_reverted,
     }
-
 
 @router.post("/chat/resume")
 async def resume_chat(

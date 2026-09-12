@@ -11,6 +11,7 @@ import httpx
 from app.core.config import settings
 from app.core.evocloud.backends.auth_mixin import AuthMixin
 from app.core.evocloud.backends.devices_mixin import DevicesMixin
+from app.core.evocloud.backends.media_mixin import MediaMixin
 from app.core.evocloud.backends.projects_mixin import ProjectsMixin
 from app.core.evocloud.backends.subscription_mixin import SubscriptionMixin
 from app.core.evocloud.backends.sync_mixin import SyncMixin
@@ -32,12 +33,14 @@ class EvoCloudHTTPClient(
     DevicesMixin,
     SubscriptionMixin,
     SyncMixin,
+    MediaMixin,
     EvoCloudClientProtocol,
 ):
     """Standardized HTTP Client for EvoCloud.
 
     Composed from domain-specific mixins:
     - AuthMixin: login, tokens, user info, captcha, register
+    - MediaMixin: chat media upload (image/video → public URL)
     - ProjectsMixin: projects, tasks, budget, timesheet
     - DevicesMixin: devices, heartbeat, logs, cancellation
     - SubscriptionMixin: subscription, AI quota, LLM models
@@ -57,7 +60,12 @@ class EvoCloudHTTPClient(
     def root_url(self) -> str:
         return self.base_url.rstrip("/")
 
-    def _get_base_url(self, is_gateway: bool) -> str:
+    def _get_base_url(self, is_gateway: bool, endpoint: str = "") -> str:
+        if not is_gateway and settings.EVOCLOUD_MEMBER_URL and str(endpoint).startswith("/api/sso/"):
+            # 仅 SSO redeem 走 Member Center 直连：sso_code 由矩阵签发，只能回矩阵兑换。
+            # 其余 member API（login/refreshToken/user_info…）的用户体系在云，
+            # 必须走 EVOCLOUD_API_URL + /member（本地无该反代）。
+            return str(settings.EVOCLOUD_MEMBER_URL).rstrip("/")
         prefix = "/gateway" if is_gateway else "/member"
         return f"{self.root_url}{prefix}"
 
@@ -97,12 +105,16 @@ class EvoCloudHTTPClient(
         # Multi-tenant mode resolves the token from the request context only
         # (no global session cache); fall back to the identity store in
         # single-tenant mode. Mirrors evocloud_manager.get_token().
+        #
+        # 单用户模式不采信 ctx_token：SSO iframe 场景下请求 Bearer 是 Member
+        # Center 矩阵 token（与 LLM/云网关 token 两套体系），发给云 API 会 401。
+        # 单用户是本机本人，云 token 统一取 identity store（线上登录/刷新写入）。
         from app.core.context import ContextManager
 
-        ctx_token = ContextManager.get_var("token")
-        if ctx_token:
-            return ctx_token
         if settings.MULTI_TENANT_MODE:
+            ctx_token = ContextManager.get_var("token")
+            if ctx_token:
+                return ctx_token
             return None
         return await identity_service.get_access_token()
 
@@ -184,6 +196,7 @@ class EvoCloudHTTPClient(
         data: dict | None = None,
         token: str | None = None,
         headers: dict | None = None,
+        files: dict | None = None,
         _retry_count: int = 0,
     ) -> dict:
         client = await self.get_client()
@@ -193,14 +206,18 @@ class EvoCloudHTTPClient(
             active_token = token or await self.get_token()
 
         is_gateway = get_endpoint_route(endpoint) == RouteTarget.GATEWAY
-        current_base = self._get_base_url(is_gateway)
+        current_base = self._get_base_url(is_gateway, endpoint)
 
         url = f"{current_base}{endpoint}"
         timestamp = int(time.time())
         body_str = dumps(data) if data else ""
 
         req_headers = headers or {}
-        req_headers.update({"Content-Type": "application/json", "X-Timestamp": str(timestamp)})
+        if files:
+            # multipart：让 httpx 自动生成带 boundary 的 Content-Type
+            req_headers.update({"X-Timestamp": str(timestamp)})
+        else:
+            req_headers.update({"Content-Type": "application/json", "X-Timestamp": str(timestamp)})
 
         if self.config.api_key and self.config.api_secret:
             req_headers["X-API-Key"] = self.config.api_key
@@ -217,7 +234,12 @@ class EvoCloudHTTPClient(
         logger.debug(f"[EvoCloud] {method} {endpoint} token={active_token[:8] if active_token else 'none'} params={log_params}")
 
         try:
-            resp = await client.request(method, url, params=request_params, json=data, headers=req_headers)
+            if files:
+                resp = await client.request(
+                    method, url, params=request_params, data=data or {}, files=files, headers=req_headers
+                )
+            else:
+                resp = await client.request(method, url, params=request_params, json=data, headers=req_headers)
             resp_json = (resp.json() if resp.status_code == 200 else None) or {}
             is_token_expired = (
                 resp.status_code == 401
@@ -243,6 +265,7 @@ class EvoCloudHTTPClient(
                             data=data,
                             token=new_token,
                             headers=headers,
+                            files=files,
                             _retry_count=_retry_count + 1,
                         )
                     else:

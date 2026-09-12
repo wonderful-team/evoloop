@@ -58,4 +58,6 @@ async def resolve_skill(name: str) -> dict[str, Any] | None:
         "base_dir": base_dir,
         "files": files,
         "name": skill.name,
+        # 能力包声明（capability-packages-refactor.md）：非包技能为 None
+        "capability": getattr(skill, "capability", None),
     }

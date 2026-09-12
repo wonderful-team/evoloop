@@ -144,7 +144,10 @@ export function ProjectSwitcher({
     setOpen(false)
 
     // Sync project selection to backend via ProjectSwitchedEvent
-    if (project?.id) {
+    // 审计修复：`project?.id` 的 falsy 判断把 global(0) 排除在外——切到
+    // 工作空间时 SSOT 不更新，shared_state 钉死在上一个项目，后续不带
+    // 有效 project_id 的请求全部归属错误项目。0 是合法值，必须同步。
+    if (project) {
       import("@/client")
         .then(({ ProjectsService }) => {
           ProjectsService.switchProject({

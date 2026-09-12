@@ -24,6 +24,9 @@ class ChatRequest(ScopedRequest):
     task_id: str | None = None
     secret: str | None = None
     callback_url: str | None = None
+    # 宿主（Member Center 后台 iframe）注入的页面上下文快照；
+    # 缺省/结构异常时按无上下文处理，不影响通用会话
+    host_context: dict[str, Any] | None = None
 
 
 class WebhookRequest(ScopedRequest):

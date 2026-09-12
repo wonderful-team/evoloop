@@ -21,7 +21,7 @@ REACT_FULL_TOOLS = [
     "task",
     "webfetch",
     "websearch",
-    "todo",
+    "plan",
     "skill",
     "question",
     "macro",
@@ -67,7 +67,9 @@ SUBTYPES: dict[str, SubagentType] = {
     "explore": SubagentType(
         name="explore",
         prompt="core/agent/subagent.explore.txt",
-        tools=_face("read", "glob", "grep", "bash", "webfetch", "websearch", read_only=True),
+        tools=_face(
+            "read", "glob", "grep", "bash", "webfetch", "websearch", read_only=True
+        ),
         description="文件搜索专科，只读工具，快速定位代码/文件",
         readonly=True,
         allow_nested_task=False,
@@ -75,8 +77,8 @@ SUBTYPES: dict[str, SubagentType] = {
     "general": SubagentType(
         name="general",
         prompt="core/agent/subagent.general.txt",
-        # 对齐 OpenCode general：全量工具但禁 todowrite(todo) 与 task（防嵌套/防旁路）
-        tools=tuple(t for t in REACT_FULL_TOOLS if t not in ("task", "todo")),
+        # 对齐 OpenCode general：全量工具但禁 task（防嵌套/防旁路）
+        tools=tuple(t for t in REACT_FULL_TOOLS if t != "task"),
         description="通用子代理，执行多步骤子任务",
         readonly=False,
         allow_nested_task=False,

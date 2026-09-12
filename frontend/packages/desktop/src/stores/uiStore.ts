@@ -29,11 +29,6 @@ export interface UIState {
   previewFile: PreviewFileState | null
   locateFilePath: string | null
 
-  // Rewind Dialog
-  isRewindDialogOpen: boolean
-  rewindMode: "rewind" | "retry"
-  rewindMessageId: string | undefined
-
   // --- Chat layout (lifted from ChatInterface so the titlebar slot can
   //     render chat-contextual actions without prop drilling) ---
   isCompactWindow: boolean
@@ -46,12 +41,6 @@ export interface UIState {
   setPreviewDiff: (preview: PreviewDiffState | null) => void
   setPreviewFile: (preview: PreviewFileState | null) => void
   setLocateFilePath: (path: string | null) => void
-
-  openRewindDialog: (
-    messageId: string | undefined,
-    mode: "rewind" | "retry",
-  ) => void
-  closeRewindDialog: () => void
 
   setIsCompactWindow: (v: boolean) => void
   setShowContextPanel: (v: boolean) => void
@@ -66,10 +55,6 @@ export const useUIStore = create<UIState>((set) => ({
   previewFile: null,
   locateFilePath: null,
 
-  isRewindDialogOpen: false,
-  rewindMode: "rewind",
-  rewindMessageId: undefined,
-
   isCompactWindow: initialIsCompactWindow(),
   showContextPanel: initialShowContextPanel(),
   showChatListSheet: false,
@@ -80,18 +65,6 @@ export const useUIStore = create<UIState>((set) => ({
   setPreviewDiff: (preview) => set({ previewDiff: preview }),
   setPreviewFile: (preview) => set({ previewFile: preview }),
   setLocateFilePath: (path) => set({ locateFilePath: path }),
-
-  openRewindDialog: (messageId, mode) =>
-    set({
-      isRewindDialogOpen: true,
-      rewindMessageId: messageId,
-      rewindMode: mode,
-    }),
-  closeRewindDialog: () =>
-    set({
-      isRewindDialogOpen: false,
-      rewindMessageId: undefined,
-    }),
 
   setIsCompactWindow: (v) => set({ isCompactWindow: v }),
   setShowContextPanel: (v) => set({ showContextPanel: v }),

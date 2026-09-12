@@ -15,7 +15,6 @@
   },
   "finish": {
     "brain_update": "\n\n🧠 **大脑更新**: 已保存 {count} 个新概念到记忆库: {concepts}",
-    "proactive_reminder": "\n\n📝 **主动提醒**: 已添加待办事项: '{title}'",
     "session_concluded": "会话已结束。",
     "conclusion_fallback": "会话已结束。",
     "session_complete": "✅ 任务已完成"
@@ -188,7 +187,6 @@
       "list_macros": "列出宏[[ (查询: {query}) ]]",
       "macro": "宏: {action}[[ {name}]]",
       "plan": "计划: {action}[[ {title}]]",
-      "todo": "待办: {action}[[ {title}]]",
       "create_task_with_subtasks": "创建层级任务 '{title}'",
       "get_task_tree_summary": "获取任务树 (ID: {task_id})",
       "update_task_completion": "更新任务进度 '{task_id}'[[ → {status} ]][[ ({reason}) ]]",
@@ -203,14 +201,10 @@
       "quick_check_screen": "快速检查屏幕",
       "update_step_status": "更新步骤状态 '{step_id}' → {status}",
       "cancel_command": "取消命令 '{task_id}'",
-      "cancel_todo": "取消待办 '{todo_id}'",
-      "complete_todo": "完成待办 '{todo_id}'",
-      "create_todo": "创建待办 '{title}'[[ (优先级: {priority}) ]]",
       "execute_command": "正在运行命令 '{command}'",
       "get_mcp_prompt": "获取 MCP 提示 '{prompt_name}'",
       "list_mcp_prompts": "列出 MCP 提示",
       "list_mcp_resources": "列出 MCP 资源",
-      "list_todos": "列出待办",
       "query_command_status": "查询命令状态 '{task_id}'",
       "read_mcp_resource": "读取 MCP 资源 '{uri}'[[ (元数据: {metadata}) ]]",
       "default": "正在运行 {tool}",
@@ -415,17 +409,6 @@
       "macro_confirmation": "该宏标记为需人工确认的高风险操作。",
       "macro_params": "参数：{params}",
       "macro_confirm_prompt": "请确认是否执行。"
-    },
-    "manage_todo": {
-      "error_title": "错误：添加待办事项必须提供 'title'。",
-      "error_due_date": "错误：无法解析 due_date '{date}'。请使用 ISO 格式、相对时间（如 '2小时'、'30分钟'）或 '待定'。",
-      "success_add": "待办事项已创建：[{priority}] {title} (ID: {id})",
-      "no_todos": "未找到待办事项。",
-      "error_id": "错误：{action} 操作必须提供 'todo_id'。",
-      "error_not_found": "错误：未找到待办事项 {id}。",
-      "success_update": "待办事项 {id} 已更新。",
-      "success_delete": "待办事项 {id} 已删除。",
-      "error_action": "错误：未知操作。"
     },
     "terminal": {
       "cd_success": "已切换目录至 {path}",

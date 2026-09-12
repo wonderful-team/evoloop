@@ -73,13 +73,13 @@ def get_working_directory(config: dict | None = None) -> str:
             )
 
     try:
-        from app.core.project.utils import (
-            current_member_id,
-            resolve_member_workspace_root,
-        )
-
         # 多租户：兜底盘限定在"该 member 的工作根"；单用户：沿全局 WORKSPACE_ROOT。
         from app.core.config import settings as _settings
+        from app.core.project.utils import (
+            current_member_id,
+            get_workspace_root,
+            resolve_member_workspace_root,
+        )
 
         member = current_member_id()
         if _settings.MULTI_TENANT_MODE and not member:

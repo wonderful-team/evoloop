@@ -123,6 +123,11 @@ class SkillImporter:
                 )
                 existing.parameters = metadata.get("parameters", [])
                 existing.tools_used = _extract_tools_required(metadata)
+                existing.capability = SkillValidator._normalize_capability(
+                    metadata.get("capability"),
+                    top_domain=metadata.get("domain"),
+                    requires=metadata.get("requires"),
+                )
                 await apply_validation_result(existing, validation)
             else:
                 # Create new skill
@@ -136,6 +141,11 @@ class SkillImporter:
                     + (metadata.get("trigger_patterns", [])),
                     parameters=metadata.get("parameters", []),
                     tools_used=_extract_tools_required(metadata),
+                    capability=SkillValidator._normalize_capability(
+                        metadata.get("capability"),
+                        top_domain=metadata.get("domain"),
+                        requires=metadata.get("requires"),
+                    ),
                     skill_source="imported",
                 )
                 db.add(new_skill)

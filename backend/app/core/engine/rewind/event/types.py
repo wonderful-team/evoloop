@@ -12,6 +12,5 @@ class RewindEventType(str, Enum):
     MESSAGES_CLEANUP = MESSAGES_CLEANUP
     FILES_CLEANUP = "rewind.files.cleanup"
     MEMORY_CLEANUP = "rewind.memory.cleanup"
-    TODO_CLEANUP = "rewind.todo.cleanup"
     TRACE_CLEANUP = "rewind.trace.cleanup"
     CHECKPOINT_CLEANUP = "rewind.checkpoint.cleanup"

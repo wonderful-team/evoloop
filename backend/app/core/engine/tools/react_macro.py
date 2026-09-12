@@ -1,7 +1,7 @@
 """React engine `macro` tool — single unified macro entry (OpenCode `tool/task.ts` §5.7).
 
 把 宏的增删改查/执行/查看 收敛为单一 ``macro`` 工具，按 ``action`` 分发，与
-``skill``（索引+按需加载）和 ``todo``（facade）对齐：索引 + 查看 + 执行 + 编写
+``skill``（索引+按需加载）对齐：索引 + 查看 + 执行 + 编写
 全在一个工具内完成。实际执行/编写仍复用既有的确定性回放（run_macro）与 authoring
 校验管线（create_macro/update_macro），此处只做薄分发。
 

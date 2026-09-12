@@ -20,7 +20,11 @@ class SchedulerService:
     async def tick():
         """
         Poll for due tasks and dispatch them to the background worker.
-        Called every 60s by engine_scheduler_tick_periodic (Huey periodic "* * * * *").
+
+        调用方为 API 进程 lifespan 的 asyncio 调度循环（main.py，每 60s）。
+        启动即先 tick：next_run_at <= now 的扫描语义天然覆盖离线补跑
+        （进程死亡期间到期的任务，重启后首轮 tick 全部命中，无需独立 misfire 机制）。
+        注：历史上此处的 "Huey periodic" 描述为过时注释，Huey 与 tick 触发无关。
         """
         now = datetime.now(timezone.utc)
 

@@ -65,14 +65,25 @@ async def dispatch_user_message(
     member_id: int,
     context: EvoContext,
     agent_run_registry: Any = None,
+    skip_l0: bool | None = None,
+    channel_kwargs: dict[str, Any] | None = None,
 ) -> DispatchOutcome:
     """Normalize, route, and dispatch a user message from any channel.
 
     The caller is responsible for holding the route lock and setting an active
     ``EvoContext`` (use ``route_lock_scope``). This function performs the
     channel-agnostic routing work.
+
+    ``skip_l0``：入口显式声明的 L0 策略。L0 模板宏只服务于 voice 通道的毫秒级
+    截流；所有文本类入口（web/mobile/retry/duty）必须传 True，避免文本命中
+    模板宏被静默执行而不进 agent。缺省 None 时保持历史行为（web/mobile 跳过）。
+
+    ``channel_kwargs``：透传给 ``input_channel.receive`` 的通道级参数
+    （如 is_retry / skip_message_persistence）。
     """
-    msg = await input_channel.receive(raw, context=context, member_id=member_id)
+    msg = await input_channel.receive(
+        raw, context=context, member_id=member_id, **(channel_kwargs or {})
+    )
     if msg is None:
         return DispatchOutcome(handled=False, msg=None)
 
@@ -83,12 +94,20 @@ async def dispatch_user_message(
     if msg.member_id is None:
         msg.member_id = member_id
 
+    # 宿主上下文声明域（host_declared）：宿主直接给 domain（路由比分类准，
+    # 且域定义归宿主侧，引擎不猜测业务域），直接跳过 L1 推理
+    predeclared_domain = None
+    host_ctx = (msg.metadata or {}).get("host_context")
+    if isinstance(host_ctx, dict) and isinstance(host_ctx.get("domain"), str):
+        predeclared_domain = host_ctx["domain"]
+
     decision = await command_router.resolve(
         msg.text,
         thread_id=thread_id,
         project_id=project_id,
         source=source,
-        skip_l0=(source in ("web", "mobile")),
+        skip_l0=(source in ("web", "mobile")) if skip_l0 is None else skip_l0,
+        predeclared_domain=predeclared_domain,
     )
 
     if decision.intent_hint:

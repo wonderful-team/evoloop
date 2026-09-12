@@ -113,7 +113,6 @@ class RewindResult(DynamicBaseModel):
     removed_message_count: int = 0
     reverted_file_count: int = 0
     removed_memory_count: int = 0
-    removed_todo_count: int = 0
     removed_trace_count: int = 0
     checkpoint_id: str | None = None
     errors: list[str] = Field(default_factory=list)
@@ -125,7 +124,6 @@ class RewindResult(DynamicBaseModel):
             "removed_count": self.removed_message_count,
             "files_reverted": self.reverted_file_count,
             "memory_removed": self.removed_memory_count,
-            "todos_removed": self.removed_todo_count,
             "traces_removed": self.removed_trace_count,
             "checkpoint_id": self.checkpoint_id,
             "errors": self.errors if self.errors else None,

@@ -22,8 +22,7 @@ logger = logging.getLogger(__name__)
 class ProjectStateContextPlugin(ContextPlugin):
     """
     Hydrates the EvoContext with project-specific database state:
-    - Active Plans
-    - High-priority or In-Progress Todos
+    - Active Plans (with step status + FOCUS directive)
     """
 
     _SKIP_FOR_INTENTS: frozenset[str | None] = frozenset(

@@ -15,7 +15,6 @@
   },
   "finish": {
     "brain_update": "\n\n🧠 **Brain Update**: Saved {count} concept(s) to memory: {concepts}",
-    "proactive_reminder": "\n\n📝 **Proactive Reminder**: I've added a todo: '{title}'",
     "conclusion_fallback": "Session concluded.",
     "session_complete": "✅ SESSION COMPLETE"
   },
@@ -187,7 +186,6 @@
       "list_macros": "Listing macros[[ (query: {query}) ]]",
       "macro": "Macro: {action}[[ {name}]]",
       "plan": "Plan: {action}[[ {title}]]",
-      "todo": "Todo: {action}[[ {title}]]",
       "create_task_with_subtasks": "Creating hierarchical task '{title}'",
       "get_task_tree_summary": "Getting task tree (ID: {task_id})",
       "update_task_completion": "Updating task '{task_id}' → {status}",
@@ -202,14 +200,10 @@
       "quick_check_screen": "Quick checking screen",
       "update_step_status": "Updating step '{step_id}' → {status}",
       "cancel_command": "Canceling command '{task_id}'",
-      "cancel_todo": "Canceling todo '{todo_id}'",
-      "complete_todo": "Completing todo '{todo_id}'",
-      "create_todo": "Creating todo '{title}'",
       "execute_command": "Running command '{command}'",
       "get_mcp_prompt": "Getting MCP prompt '{prompt_name}'",
       "list_mcp_prompts": "Listing MCP prompts",
       "list_mcp_resources": "Listing MCP resources",
-      "list_todos": "Listing todos",
       "query_command_status": "Querying command status '{task_id}'",
       "read_mcp_resource": "Reading MCP resource '{uri}'",
       "default": "Running {tool}",
@@ -414,17 +408,6 @@
       "macro_confirmation": "This macro is marked as a high-risk operation requiring human confirmation.",
       "macro_params": "Parameters: {params}",
       "macro_confirm_prompt": "Please confirm whether to execute."
-    },
-    "manage_todo": {
-      "error_title": "Error: 'title' is required for adding a todo.",
-      "error_due_date": "Error: Could not parse due_date '{date}'. Please use ISO format, relative time (e.g., '1 hour', '30 mins'), or 'TBD'.",
-      "success_add": "Todo created: [{priority}] {title} (ID: {id})",
-      "no_todos": "No todos found.",
-      "error_id": "Error: 'todo_id' is required for {action}.",
-      "error_not_found": "Error: Todo {id} not found.",
-      "success_update": "Todo {id} updated.",
-      "success_delete": "Todo {id} deleted.",
-      "error_action": "Error: Unknown action."
     },
     "terminal": {
       "cd_success": "Changed directory to {path}",

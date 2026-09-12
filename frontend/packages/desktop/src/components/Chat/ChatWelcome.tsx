@@ -3,10 +3,11 @@
 
 import { useNavigate } from "@tanstack/react-router"
 import { motion } from "framer-motion"
-import { LayoutGrid, ListTodo, Wand2 } from "lucide-react"
+import { LayoutGrid, Wand2 } from "lucide-react"
 import type React from "react"
 import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
+import { useHostContextStore } from "@/stores/hostContextStore"
 
 // ─────────────────────────────────────────────
 // WoodenRobot — 1:1 port from mobile
@@ -689,12 +690,6 @@ const WELCOME_NAVS = [
     descKey: "chat.welcome.nav.projectsDesc",
   },
   {
-    to: "/todos",
-    icon: ListTodo,
-    labelKey: "chat.welcome.nav.todos",
-    descKey: "chat.welcome.nav.todosDesc",
-  },
-  {
     to: "/learning",
     icon: Wand2,
     labelKey: "chat.welcome.nav.skills",
@@ -705,6 +700,8 @@ const WELCOME_NAVS = [
 export const ChatWelcome: React.FC = () => {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const hostContext = useHostContextStore((s) => s.context)
+  const hostConnected = useHostContextStore((s) => s.connected)
 
   const greetingKey = () => {
     const hour = new Date().getHours()
@@ -757,47 +754,59 @@ export const ChatWelcome: React.FC = () => {
             EvoLoop AI
           </h1>
           <p className="mx-auto mt-4 max-w-md text-[15px] leading-relaxed text-muted-foreground">
-            {t(`chat.welcome.subtitle.${greetingKey()}`)}
+            {hostContext
+              ? t("chat.welcome.contextSubtitle", {
+                  page: hostContext.pageName || hostContext.route,
+                })
+              : hostConnected
+                ? t("chat.welcome.hostConnecting")
+                : t(`chat.welcome.subtitle.${greetingKey()}`)}
           </p>
           <p className="mt-2.5 font-mono text-[11px] tracking-[0.04em] text-muted-foreground/50">
-            {t("chat.welcome.mobileHint")}
+            {hostConnected
+              ? t("chat.welcome.hostConnected", {
+                  route: hostContext?.route ?? "syncing",
+                })
+              : t("chat.welcome.mobileHint")}
           </p>
         </motion.div>
       </div>
 
-      {/* 导航卡片 — 发丝线 ghost 卡 */}
-      <motion.div
-        className="relative z-10 mt-14 w-full max-w-3xl"
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3, duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-      >
-        <div className="grid w-full grid-cols-1 gap-3.5 sm:grid-cols-3">
-          {WELCOME_NAVS.map((nav, idx) => (
-            <button
-              key={nav.to}
-              type="button"
-              onClick={() => navigate({ to: nav.to as any })}
-              className="group flex flex-col items-start rounded-xl border border-border bg-card p-4 text-left transition-all duration-300 hover:-translate-y-0.5 hover:border-foreground/20 hover:bg-accent/40"
-            >
-              <div className="flex w-full items-center justify-between">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-muted text-muted-foreground transition-colors group-hover:border-primary/30 group-hover:text-primary">
-                  <nav.icon size={15} />
+      {/* 导航卡片 — 宿主内嵌时隐藏（纯对话组件，无桌面导航语义） */}
+      {!hostConnected && (
+        <motion.div
+          className="relative z-10 mt-14 w-full max-w-3xl"
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3, duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+        >
+          <div className="grid w-full grid-cols-1 gap-3.5 sm:grid-cols-2">
+            {WELCOME_NAVS.map((nav, idx) => (
+              <button
+                key={nav.to}
+                type="button"
+                onClick={() => navigate({ to: nav.to as any })}
+                className="group flex flex-col items-start rounded-xl border border-border bg-card p-4 text-left transition-all duration-300 hover:-translate-y-0.5 hover:border-foreground/20 hover:bg-accent/40"
+              >
+                <div className="flex w-full items-center justify-between">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-muted text-muted-foreground transition-colors group-hover:border-primary/30 group-hover:text-primary">
+                    <nav.icon size={15} />
+                  </div>
+                  <span className="font-mono text-[10px] tracking-[0.14em] text-muted-foreground/40">
+                    {`0${idx + 1}`}
+                  </span>
                 </div>
-                <span className="font-mono text-[10px] tracking-[0.14em] text-muted-foreground/40">
-                  {`0${idx + 1}`}
-                </span>
-              </div>
-              <h3 className="mt-3.5 text-[13px] font-medium tracking-tight text-foreground">
-                {t(nav.labelKey)}
-              </h3>
-              <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-                {t(nav.descKey)}
-              </p>
-            </button>
-          ))}
-        </div>
-      </motion.div>
+                <h3 className="mt-3.5 text-[13px] font-medium tracking-tight text-foreground">
+                  {t(nav.labelKey)}
+                </h3>
+                <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                  {t(nav.descKey)}
+                </p>
+              </button>
+            ))}
+          </div>
+        </motion.div>
+      )}
     </div>
   )
 }

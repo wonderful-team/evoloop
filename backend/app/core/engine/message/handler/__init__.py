@@ -17,7 +17,6 @@ import time
 from app.core.engine.message.deduplicator import MessageDeduplicator
 from app.core.engine.message.handler.ai_mixin import AiMessageMixin
 from app.core.engine.message.handler.dispatch_mixin import DispatchMixin
-from app.core.engine.message.handler.error_mixin import ErrorMessageMixin
 from app.core.engine.message.handler.stream_mixin import StreamMixin
 from app.core.engine.message.handler.tool_mixin import ToolMessageMixin
 from app.core.engine.message.handler.user_mixin import UserMessageMixin
@@ -30,7 +29,6 @@ class MessageHandler(
     AiMessageMixin,
     ToolMessageMixin,
     UserMessageMixin,
-    ErrorMessageMixin,
     DispatchMixin,
     StreamMixin,
 ):

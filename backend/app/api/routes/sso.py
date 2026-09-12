@@ -56,8 +56,23 @@ async def accept_sso_token(req: SsoAcceptRequest) -> DataResponse:
         )
 
     if not settings.MULTI_TENANT_MODE:
-        await identity_service.set_token(token, refresh_token)
+        # 单用户模式：建立本地会话身份（member_id 供 API 认证回退使用）。
+        # 注意：绝不调用 identity_service.set_token 覆盖 identity 存储中的
+        # 线上平台 token——矩阵 member token 与 LLM/云网关 token 是两套体系，
+        # 覆盖会导致 LLM 401（历史上踩过）。token→member_id 的映射写入缓存，
+        # 供 resolve_member_id_from_token 快速命中、避免反复打云校验。
         await identity_service.store.save_member_id(int(member_id))
+        try:
+            from app.core.cache import cache
+            from app.core.identity import identity_constants
+
+            await cache.set(
+                f"evoloop:token_mid:{token}",
+                str(int(member_id)),
+                ex=identity_constants.TOKEN_CACHE_TTL,
+            )
+        except Exception as e:
+            logger.warning(f"SSO token->member_id cache write skipped: {e}")
         await publish_user_logged_in(token=token, member_id=int(member_id))
 
     return DataResponse(

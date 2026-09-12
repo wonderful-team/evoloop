@@ -80,6 +80,9 @@ async def lifespan(app: FastAPI):  # noqa: ARG001
         async def _scheduler_loop():
             from app.infrastructure.scheduler.service import SchedulerService
 
+            # 先 tick 后 sleep：启动即补扫 —— tick 按 next_run_at <= now 扫描，
+            # 进程离线期间到期的任务在重启后首轮全部命中（离线补跑语义，
+            # 依赖此顺序，勿改为先 sleep）。
             while True:
                 try:
                     await SchedulerService.tick()

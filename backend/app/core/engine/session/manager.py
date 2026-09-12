@@ -22,6 +22,10 @@ class SessionManager:
 
     def __init__(self) -> None:
         self._sessions: dict[str, AgentSession] = {}
+        # 强引用 session task：asyncio.create_task 只有事件循环弱引用，
+        # 长时间挂起（如 MCP Streamable HTTP 连接 IO）期间可能被 GC 回收，
+        # 表现为 run 无故 CancelledError（Task-destroyed-pending）。
+        self._tasks: dict[str, asyncio.Task] = {}
         self._lock = asyncio.Lock()
 
     def get(self, thread_id: str) -> AgentSession | None:
@@ -42,7 +46,10 @@ class SessionManager:
 
             session = AgentSession(thread_id)
             self._sessions[thread_id] = session
-            asyncio.create_task(run_agent_session(session))
+            self._tasks[thread_id] = asyncio.create_task(run_agent_session(session))
+            self._tasks[thread_id].add_done_callback(
+                lambda _t, tid=thread_id: self._tasks.pop(tid, None)
+            )
             logger.info(f"[SessionManager] Created session for thread {thread_id}")
             return session
 

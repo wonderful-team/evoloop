@@ -86,10 +86,10 @@ export interface AgentState {
   _updateStatus: (status: any) => void
   _setHumanRequest: (request: any) => void
   _setQuotaExhausted: (info: {
-    title: string
-    message: string
-    hint: string
-    actionText: string
+    title?: string
+    message?: string
+    hint?: string
+    actionText?: string
   }) => void
   _setLLMAuthError: (ev: any) => void
   _updateProgress: (ev: any) => void
@@ -106,6 +106,13 @@ export interface AgentState {
   _openA2ADetail: (taskId: string) => void
   _closeA2ADetail: () => void
   _setError: (error: string) => void
+  /** 服务端错误统一分发中枢（quota/llm_auth/auth_expired/其他） */
+  _handleServerError: (ev: {
+    type: string
+    title?: string
+    message?: string
+    hint?: string
+  }) => void
   clearContent: () => void
 
   // Actions

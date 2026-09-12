@@ -7,6 +7,7 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+from app.core.config import settings
 from app.core.engine.constants import MAX_STEPS
 from app.core.engine.context_trimmer import ContextTrimmer, TrimTrigger
 from app.core.engine.error_handler import (
@@ -255,12 +256,19 @@ class InferenceEngine:
         # 沿用 on_llm_start 预分配的 message_id 落库，保证与 tool 消息的
         # parent_id（database_logger._last_ai_message_id / ctx.last_ai_message_id）
         # 一致，否则 tool_output 的外键会指向不存在的消息。
+        # 结构化媒体引用直传：image/video 工具生成媒体时经 ctx 暂存引用，
+        # 在此合并进 AI 消息的 references（不依赖模型在正文中复述链接）。
+        extra_references = list(getattr(ctx.metadata, "pending_media_refs", None) or [])
+        if extra_references:
+            ctx.metadata.pending_media_refs = []
+
         await handler.handle_ai_message(
             content=content,
             tool_calls=response.tool_calls,
             thinking=thinking,
             metadata=metadata,
             message_id=ctx.last_ai_message_id,
+            extra_references=extra_references,
         )
 
     async def _execute_llm_call(
@@ -374,6 +382,7 @@ class InferenceEngine:
         model: str | None = None,
         iteration_count: int | None = None,
         steer_provider: Callable | None = None,
+        rebind: Callable | None = None,
     ) -> dict:
         from app.core.monitoring.activity import activity_monitor
 
@@ -412,6 +421,7 @@ class InferenceEngine:
         last_response = None
         steps_used = 0
         _compacted = False
+        steer_count = 0
 
         logger.info(
             f"[{name}] ▶️ run_react_loop START | iteration={iteration_count} | max_steps={max_steps}"
@@ -433,13 +443,35 @@ class InferenceEngine:
                     logger.warning(f"[{name}] steer_provider failed: {e}")
                     steered = []
                 if steered:
-                    for _m in steered:
-                        loop_messages.append(_m)
-                    # 对齐 OpenCode「promote any new user input resets provider-turn allowance」
-                    steps_used = 0
-                    logger.info(
-                        f"[{name}] Steered {len(steered)} new message(s) into running loop; budget reset."
-                    )
+                    # 审计修复：steer 次数无上限 + 每次归零步数预算 = 持续注入
+                    # 新消息可无限延长 run。设上限，超限后新消息回落到
+                    # session 队列（下一轮 delivery 处理）。
+                    if steer_count < settings.AGENT_MAX_STEERS:
+                        steer_count += 1
+                        for _m in steered:
+                            loop_messages.append(_m)
+                        # 对齐 OpenCode「promote any new user input resets provider-turn allowance」
+                        steps_used = 0
+                        logger.info(
+                            f"[{name}] Steered {len(steered)} new message(s) into running loop; budget reset ({steer_count}/{settings.AGENT_MAX_STEERS})."
+                        )
+                    else:
+                        logger.warning(
+                            f"[{name}] Steer budget exhausted ({settings.AGENT_MAX_STEERS}); {len(steered)} new message(s) deferred to next delivery."
+                        )
+
+            # 包面脏检测：skill() 激活新包后本 run 内立即可用（重算 + rebind）
+            try:
+                from app.core.context.manager import ContextManager
+                _mctx = ContextManager.current()
+                if rebind is not None and getattr(_mctx.metadata, "packages_dirty", False):
+                    _mctx.metadata.packages_dirty = False
+                    llm_with_tools, new_tool_map = await rebind()
+                    if hasattr(tool_executor, "update_tool_map"):
+                        tool_executor.update_tool_map(new_tool_map)
+                    logger.info(f"[{name}] Package surface changed; tool face rebound mid-run.")
+            except Exception:
+                logger.exception(f"[{name}] mid-run rebind failed; keeping previous tool face")
 
             loop_messages, _ = await self._prepare_turn_context(
                 loop_messages=loop_messages,

@@ -8,7 +8,7 @@ import logging
 import re
 from datetime import datetime
 
-from app.core.memory.models import MemoryEntry, MemoryType
+from app.core.memory.models import MemoryEntry
 from app.infrastructure.llm import InternalLLMService
 
 logger = logging.getLogger(__name__)
@@ -21,13 +21,11 @@ class MemoryPruningService:
     Strategies:
     1. Redundancy: If a memory is covered by static docs (README, Norms).
     2. Staleness: If a memory is contradicted by newer code/memories.
-    3. Fulfillment: If a TODO task is now marked as complete.
     """
 
-    def __init__(self, storage, project_context=None, todo_service=None):
+    def __init__(self, storage, project_context=None):
         self.storage = storage
         self.project_context = project_context
-        self.todo_service = todo_service
 
     async def run_pruning_cycle(self, project_id: int | None = None) -> list[dict]:
         """
@@ -53,90 +51,24 @@ class MemoryPruningService:
         if not memories:
             return []
 
-        # 2. Strategy: Task Fulfillment (Simple & Data-driven)
-        todo_logs = await self._prune_fulfilled_tasks(memories, project_id)
-        audit_log.extend(todo_logs)
-
-        # 3. Strategy: Consolidation (Merging related memories)
+        # 2. Strategy: Consolidation (Merging related memories)
         # We consolidate every N sessions or when memory grows
         consolidator = MemoryConsolidator(self.storage)
         consolidation_logs = await consolidator.consolidate(memories, project_id)
         audit_log.extend(consolidation_logs)
 
-        # 4. Strategy: Redundancy & Staleness (LLM-assisted)
+        # 3. Strategy: Redundancy & Staleness (LLM-assisted)
         # Refresh memories list after consolidation
         updated_memories = [
             m
             for m in memories
-            if m.id not in [l["id"] for l in audit_log if l["action"] == "DELETED"]
+            if m.id
+            not in [entry["id"] for entry in audit_log if entry["action"] == "DELETED"]
         ]
         semantic_logs = await self._prune_semantically(updated_memories, project_id)
         audit_log.extend(semantic_logs)
 
         return audit_log
-
-    async def _prune_fulfilled_tasks(
-        self, memories: list[MemoryEntry], project_id: int | None
-    ) -> list[dict]:
-        """Prune memories that reference already completed TODOs."""
-        logs = []
-        # Filter for memories that look like tasks or have 'todo' tags
-        task_memories = [
-            m
-            for m in memories
-            if m.type == MemoryType.PROJECT
-            and ("todo" in m.tags or "task" in m.tags or "fix" in m.title.lower())
-        ]
-
-        if not task_memories or not project_id:
-            return logs
-
-        # Get current pending todos from service
-        try:
-            if self.todo_service:
-                pending_todos = await self.todo_service.list_pending_by_project(
-                    project_id
-                )
-            else:
-                from app.domain.todo.service import TodoService
-                from app.infrastructure.database import session_scope
-
-                async with session_scope() as session:
-                    todo_service = TodoService(session)
-                    pending_todos = await todo_service.list_pending_by_project(
-                        project_id
-                    )
-
-            pending_titles = {t.title.lower() for t in pending_todos}
-
-            for mem in task_memories:
-                if "todo" in mem.tags:
-                    is_pending = any(
-                        mem.title.lower() in p_title or p_title in mem.title.lower()
-                        for p_title in pending_titles
-                    )
-
-                    if not is_pending:
-                        success = await self.storage.delete(mem.id)
-                        if success:
-                            logs.append(
-                                {
-                                    "id": mem.id,
-                                    "action": "DELETED",
-                                    "reason": "FULFILLED",
-                                    "details": f"Task '{mem.title}' is no longer in pending TODOs.",
-                                    "timestamp": datetime.utcnow().isoformat(),
-                                }
-                            )
-                            logger.info(
-                                f"[Pruning] Silently deleted fulfilled task memory {mem.id}"
-                            )
-        except Exception as e:
-            logger.warning(
-                f"[Pruning] Failed to check fulfilled tasks: {e}", exc_info=True
-            )
-
-        return logs
 
     async def _prune_semantically(
         self, memories: list[MemoryEntry], project_id: int | None

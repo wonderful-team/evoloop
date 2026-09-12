@@ -1,12 +1,13 @@
 ---
 name: Wiki Generation
-description: Generate a comprehensive, structured Wiki documentation for a software project by analyzing its codebase and writing multi-page Markdown documentation.
+description: Generate a comprehensive, structured Wiki documentation for a software
+  project by analyzing its codebase and writing multi-page Markdown documentation.
 namespace: roles
 trigger_patterns:
-  - "Generate wiki"
-  - "Create project wiki"
-  - "Build documentation"
-  - "Generate project documentation"
+- Generate wiki
+- Create project wiki
+- Build documentation
+- Generate project documentation
 parameters:
   project_id:
     type: integer
@@ -14,16 +15,6 @@ parameters:
   working_directory:
     type: string
     description: The root directory of the project to document.
-requires:
-  tools:
-    - query_code_chunks
-    - query_code_relations
-    - query_source_files
-    - query_security_findings
-    - write_wiki_page
-    - edit_wiki_page
-    - create_plan
-    - save_concepts
 ---
 
 # Wiki Generation

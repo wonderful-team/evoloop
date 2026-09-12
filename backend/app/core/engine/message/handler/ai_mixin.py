@@ -23,6 +23,7 @@ class AiMessageMixin:
         metadata: dict | None = None,
         parent_id: str | None = None,
         message_id: str | None = None,
+        extra_references: list[dict] | None = None,
     ) -> MessageHandlerResult:
         category = MessageClassifier.classify_ai_message(
             content=content,
@@ -61,6 +62,15 @@ class AiMessageMixin:
             from app.core.engine.message.extractor import attachment_extractor
 
             extracted_refs = attachment_extractor.extract_from_ai_response(content=persist_data.content)
+
+            # 结构化媒体引用直传（工具生成图/视频时经 ctx 暂存）：
+            # 不依赖模型在正文中复述链接，合并去重后落库为 references。
+            if extra_references:
+                seen = {r.get("target_id") for r in extracted_refs if isinstance(r, dict)}
+                for ref in extra_references:
+                    if isinstance(ref, dict) and ref.get("target_id") not in seen:
+                        extracted_refs.append(ref)
+                        seen.add(ref.get("target_id"))
 
             dev_key, dev_name = self._get_device_attribution()
             msg_id, seq = await self._repository.persist(

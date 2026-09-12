@@ -52,3 +52,8 @@ def create_generation_client() -> Any:
         http_client=HTTP_CLIENT_POOL.get(),
         timeout=300.0,
     )
+
+
+def is_gateway_configured() -> bool:
+    """Whether the EvoLoop Gateway is configured (usable for generation)."""
+    return bool(_gateway_base_url())

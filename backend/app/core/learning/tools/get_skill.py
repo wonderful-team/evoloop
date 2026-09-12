@@ -30,7 +30,18 @@ async def get_skill(
     if match and relevant:
         skill_obj = relevant[0]
         tools_req = []
-        if skill_obj.tools_used:
+        # v3.1：优先从 capability.tools 展开（包声明是运行时权威），
+        # fallback 旧 tools_used（学习管线记录）
+        cap = getattr(skill_obj, "capability", None)
+        if cap and isinstance(cap.get("tools"), list):
+            for entry in cap["tools"]:
+                server = entry.get("mcp_server") or ""
+                include = entry.get("include") or []
+                if include:
+                    tools_req.extend(f"{server}:{t}" for t in include)
+                else:
+                    tools_req.append(server)
+        elif skill_obj.tools_used:
             try:
                 tools_req = json.loads(skill_obj.tools_used)
             except Exception as e:

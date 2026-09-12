@@ -1,12 +1,10 @@
 import { GlobalDiffViewer } from "@/components/Chat/GlobalDiffViewer"
 import { GlobalFilePreviewer } from "@/components/Chat/GlobalFilePreviewer"
-import { useUIStore } from "@/stores/uiStore"
 
 export function GlobalOverlayManager() {
-  const _isRewindDialogOpen = useUIStore((s) => s.isRewindDialogOpen)
-  const _rewindMode = useUIStore((s) => s.rewindMode)
-  const _rewindMessageId = useUIStore((s) => s.rewindMessageId)
-  const _closeRewindDialog = useUIStore((s) => s.closeRewindDialog)
+  // 审计清理：rewind 预留订阅删除（声明后从未使用，且订阅会让 uiStore
+  // 的 rewind 字段变化触发本组件无谓重渲染）。RewindConfirmDialog 实际
+  // 由 ChatInterface 本地 state 管理；若未来迁移到全局 overlay 再加回。
 
   // TODO: Connect RewindConfirmDialog confirm actions if necessary.
   // Wait, the confirm action in ChatInterface.tsx calls rewindMutation.mutate.

@@ -1,3 +1,5 @@
+import { toast } from "sonner"
+import i18n from "@evoloop/shared/i18n"
 import { OpenAPI } from "@/client/core/OpenAPI"
 
 export interface ChatConnectionCallbacks {
@@ -89,6 +91,16 @@ export class ChatConnection {
           : OpenAPI.TOKEN
     } catch (e) {
       console.warn("[ChatConnection] Failed to retrieve auth token", e)
+    }
+
+    // 审计修复（竞态）：await token 期间可能发生 disconnect()/新的 connect()。
+    // 若 currentThreadId 已不是本次请求的目标，放弃本次建连，防止旧闭包的
+    // EventSource 覆盖新连接（流串线）。
+    if (this.currentThreadId !== threadId) {
+      console.log(
+        "[ChatConnection] Aborting stale connect (thread switched during auth)",
+      )
+      return
     }
 
     let url = `${OpenAPI.BASE}/api/v1/stream/chat/${threadId}`
@@ -298,6 +310,19 @@ export class ChatConnection {
       }
     })
 
+    sse.addEventListener("max_steps_reached", (e) => {
+      try {
+        const data = JSON.parse((e as MessageEvent).data) as { max_steps?: number }
+        toast.warning(
+          i18n.t("chat.maxStepsReached", {
+            defaultValue: "本轮已达工具调用步数上限（{{count}}），可发送新消息继续。",
+            count: data.max_steps ?? "?",
+          }),
+        )
+      } catch (err) {
+        console.warn("[ChatConnection] Failed to parse max_steps_reached event", err)
+      }
+    })
     sse.addEventListener("quota_exhausted", (e) => {
       try {
         const data = JSON.parse(e.data)

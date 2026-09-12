@@ -32,6 +32,7 @@ export interface MessageReference {
     | "file"
     | "directory"
     | "image"
+    | "video"
     | "audio"
     | "message"
     | "artifact"
@@ -160,9 +161,13 @@ const ChatMessageItem = memo(
   }: ChatMessageItemProps) => {
     const { t } = useTranslation()
 
-    // Hide system prompts from main chat
+    // Hide system prompts from main chat.
+    // ErrorEmitter 单出口契约：仅系统级错误块（category==="error"）可见，
+    // 其余 system 消息不渲染。
     if (msg.role === "system") {
-      return null
+      if ((msg as { category?: string }).category !== "error") {
+        return null
+      }
     }
 
     // Hide HITL tool messages
@@ -203,6 +208,11 @@ const ChatMessageItem = memo(
           </span>
           {msg.status === "running" && (
             <Loader2 className="h-3 w-3 animate-spin text-primary ml-2 shrink-0" />
+          )}
+          {msg.status === "failed" && (
+            <span className="ml-2 shrink-0 text-[10px] text-destructive">
+              {t("chat.toolMessage.failed", { defaultValue: "failed" })}
+            </span>
           )}
           {msg.changeset_count !== undefined && msg.changeset_count > 0 && (
             <Badge
@@ -248,6 +258,7 @@ const ChatMessageItem = memo(
           <MessageReferences
             references={msg.references || []}
             isUser={true}
+            content={msg.content}
             onReferenceClick={handleReferenceClick}
           />
 
@@ -384,6 +395,7 @@ const ChatMessageItem = memo(
               references={(msg.references || []).filter(
                 (r) => r.type !== "artifact",
               )}
+              content={msg.content}
               onReferenceClick={handleReferenceClick}
             />
           </div>

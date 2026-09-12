@@ -15,6 +15,13 @@ from app.core.engine.message.native_classes import RunnableConfig
 from app.core.tools import evoloop_tool
 from app.core.tools.base import InjectedToolArg
 from app.core.vision import vision_engine
+from app.core.vision.tools._media import (
+    download_bytes,
+    load_source_bytes,
+    remove_file,
+    stash_media_ref,
+    write_temp,
+)
 from app.infrastructure.vision import VisionTask
 from app.infrastructure.vision.types import PlatformType
 from app.utils.template import render_template
@@ -33,14 +40,13 @@ ImageEditSize: TypeAlias = Literal[
 @evoloop_tool(
     name="image",
     is_state_mutating=True,
-    affected_path_keys=["source", "output_path"],
+    affected_path_keys=["source"],
     summary_template="evoloop.tool_summary.image",
 )
 async def image(
     action: Literal["analyze", "generate"] = "analyze",
     prompt: str | None = None,
     source: str | None = None,
-    output_path: str = "uploads/generated_image.png",
     size: str = "1024x1024",
     question: str = "Describe this image in detail.",
     include_ax_tree: bool = False,
@@ -53,7 +59,7 @@ async def image(
     - analyze:  分析本地图片文件路径或公开 URL。可用 question 指定问题，
                 可选 include_ax_tree 注入 macOS/Android UI 树用于接地。
     - generate: 文生图（prompt）或图生图（prompt + source 参考图），
-                经网关 OpenAI 标准接口调用图像模型，结果存到 output_path 并返回 markdown 链接。
+                经网关 OpenAI 标准接口调用图像模型，结果上传云端并返回公网链接。
 
     WHEN TO USE:
     - 用户发来图片问"这是什么 / 描述一下 / 看看布局问题" → analyze。
@@ -63,14 +69,13 @@ async def image(
         action: 执行的动作（analyze / generate）。
         prompt: generate 时的文本提示词（文生图/图生图描述）。
         source: analyze 时的本地图片绝对路径或公开 URL；generate 时可选参考图路径/URL（图生图）。
-        output_path: generate 输出保存路径（建议 uploads/... 便于聊天内引用）。
         size: generate 输出尺寸（OpenAI 标准枚举，如 1024x1024 / 1024x1536 / 1536x1024）。
         question: analyze 时对图片的问题或指令。
         include_ax_tree: analyze 时是否注入当前平台 UI Accessibility 树。
         model: 可选指定图像模型；缺省由网关默认图像模型路由。
     """
     if action == "generate":
-        return await _generate(prompt, source, output_path, size, model, config)
+        return await _generate(prompt, source, size, model, config)
 
     return await _analyze(source, question, include_ax_tree)
 
@@ -120,7 +125,6 @@ async def _analyze(source: str | None, question: str, include_ax_tree: bool) -> 
 async def _generate(
     prompt: str | None,
     source: str | None,
-    output_path: str,
     size: str,
     model: str | None,
     config,
@@ -130,8 +134,7 @@ async def _generate(
         return "Error: action=generate requires `prompt` (text description)."
 
     try:
-        from openai._types import FileTypes
-
+        from app.core.evocloud import evocloud_manager
         from app.infrastructure.vision.generation import create_generation_client
 
         try:
@@ -151,24 +154,28 @@ async def _generate(
                 model = image_models[0].model_id
                 logger.info("[Image] auto-selected image model: %s", model)
 
+        # 图生图：参考图统一转为公网 URL（Ark 直接拉取；本地路径先上传 MC）
+        extra_body: dict = {}
         if source:
-            # 图生图：OpenAI 标准 images.edit（source 为本地路径/URL）
-            resp = await client.images.edit(
-                model=model or "",
-                prompt=prompt,
-                image=cast(FileTypes, source),
-                n=1,
-                size=cast(ImageEditSize, size),
-                response_format="url",
-            )
-        else:
-            resp = await client.images.generate(
-                model=model or "",  # 空 model 由网关默认图像模型路由
-                prompt=prompt,
-                n=1,
-                size=cast(ImageSize, size),
-                response_format="url",
-            )
+            if source.startswith(("http://", "https://")):
+                source_url = source
+            else:
+                source_bytes = await load_source_bytes(source, config)
+                tmp = await write_temp(source_bytes, ".png")
+                try:
+                    source_url = await evocloud_manager.api.upload_chat_media(tmp, "image")
+                finally:
+                    await remove_file(tmp)
+            extra_body = {"image": [source_url]}
+
+        resp = await client.images.generate(
+            model=model or "",  # 空 model 由网关默认图像模型路由
+            prompt=prompt,
+            n=1,
+            size=cast(ImageSize, size),
+            response_format="url",
+            extra_body=extra_body,
+        )
 
         if not resp.data:
             return "Error: image generation returned no result."
@@ -177,29 +184,24 @@ async def _generate(
         if not image_url:
             return "Error: image generation returned no URL."
 
-        # 保存到本地 uploads 命名空间，便于聊天内引用与持久化
-        from app.core.file.tools.utils import resolve_and_validate_path
+        # 下载到临时文件 → 上传 Member Center 换公网 URL（云端为权威存储）
+        data = await download_bytes(image_url)
+        tmp_path = await write_temp(data, ".png")
+        try:
+            public_url = await evocloud_manager.api.upload_chat_media(tmp_path, "image")
+        finally:
+            await remove_file(tmp_path)
 
-        resolved = await resolve_and_validate_path(output_path, config)
-        await _download_to_path(image_url, resolved)
-        return f"[Image: generated image]({output_path})"
+        # 结构化引用直传：AI 消息持久化时合并（不依赖模型复述链接）
+        stash_media_ref("image", public_url, "generated image")
+
+        return (
+            f"![generated image]({public_url})\n\n"
+            f"(图片已生成并上传。你的最终回复中无需重复该链接——界面会自动展示图片；"
+            f"如需在正文中提及，请原样保留上面的图片链接。)"
+        )
     except Exception as e:
         logger.exception(f"[Image] generate failed: {e}")
         return f"Error: image generation failed: {str(e)}"
 
 
-async def _download_to_path(url: str, path: str) -> None:
-    """Download a URL to a local path (async, no sync blocking)."""
-    import os
-
-    import aiofiles
-    import httpx
-
-    async with httpx.AsyncClient(follow_redirects=True) as client:
-        resp = await client.get(url)
-        resp.raise_for_status()
-        parent = os.path.dirname(path)
-        if parent:
-            os.makedirs(parent, exist_ok=True)
-        async with aiofiles.open(path, "wb") as f:
-            await f.write(resp.content)

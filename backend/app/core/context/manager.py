@@ -248,7 +248,29 @@ class ContextManager:
 
             if hset_data:
                 cache_service = ContextCacheService()
-                await cache_service.save_context(thread_id, hset_data)
+                try:
+                    await cache_service.save_context(thread_id, hset_data)
+                except Exception:
+                    # 审计修复：metadata 中混入不可 JSON 序列化对象（如 datetime）
+                    # 会导致整个 ctx 持久化失败、loaded_packages 等跨轮丢失。
+                    # 降级重试：str() 兜底强制序列化，保证核心字段落盘。
+                    retry_data = {}
+                    for k, v in data.items():
+                        if k == "terminal_error":
+                            continue
+                        if isinstance(v, (list, dict)):
+                            try:
+                                retry_data[k] = json.dumps(v, default=str)
+                            except Exception:
+                                logging.getLogger(__name__).warning(
+                                    "[ContextSave] dropping unserializable field '%s'", k
+                                )
+                                continue
+                        elif v is None:
+                            retry_data[k] = ""
+                        else:
+                            retry_data[k] = str(v)
+                    await cache_service.save_context(thread_id, retry_data)
 
         except Exception as e:
             logging.getLogger(__name__).warning(
@@ -274,6 +296,8 @@ class ContextManager:
                     "identity_rules",
                     "wiki_index",
                 }
+                # 能力包集合在 ctx.metadata（ContextMetadata）上，随 metadata
+                # JSON 整体恢复——顶层无此键（v3 审计：顶层分支不可达）
                 # Support both dict and list for flexible context fields
                 flexible_fields = {
                     "spatial_awareness",

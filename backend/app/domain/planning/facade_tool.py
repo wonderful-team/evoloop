@@ -41,7 +41,7 @@ async def plan(
     result: str = "",
     config: Annotated[RunnableConfig, InjectedToolArg] = None,
 ) -> str:
-    """统一计划管理（结构化执行计划）。
+    """统一计划管理（Agent 唯一工作清单，用户经前端面板只读查验）。
 
     Actions:
     - create:      新建/覆盖当前会话计划（title + steps 列表）。
@@ -50,7 +50,11 @@ async def plan(
 
     WHEN TO USE:
     - 长任务（>3 步）先用 plan create 落地结构化计划，再逐步 update_step 推进。
+    - 每完成一步必须调 update_step 标记 completed，并填 result（这步干了什么、结果如何）——
+      这是用户在面板上查验"此前干了什么"的唯一数据来源；正在开始下一步前先标 in_progress。
     - 前端计划面板会随调用实时刷新。
+    - 收尾时发现非阻塞项（不影响本次任务的遗留问题/建议）不要自行记账，
+      在收尾回复中列出并询问用户是否建为旁支任务（create_project_tasks）。
 
     Args:
         action: create / update_step / status。
@@ -59,7 +63,7 @@ async def plan(
         plan_id: update_step / status 时的计划 ID。
         step_id: update_step 时的步骤 ID。
         status: update_step 时的新状态（pending/in_progress/completed/failed）。
-        result: update_step 时的步骤结果描述。
+        result: update_step 时的步骤结果描述（completed 时必填）。
     """
     thread_id = config.get("configurable", {}).get("thread_id") if config else None
 
@@ -105,16 +109,16 @@ async def plan(
                         order=idx,
                     )
                 )
-                db_steps.append({"id": step_id, "title": step_title, "status": step_status})
+                db_steps.append(
+                    {"id": step_id, "title": step_title, "status": step_status}
+                )
 
             lines = [f"### Plan Created: {title}", f"**Plan ID**: {plan_id}", ""]
             lines.append("| Step ID | Title | Status |")
             lines.append("| :--- | :--- | :--- |")
             for s in db_steps:
                 lines.append(f"| `{s['id']}` | {s['title']} | {s['status']} |")
-            lines.append(
-                "\n*Tip: 用 plan(action='update_step', ...) 更新每步状态。*"
-            )
+            lines.append("\n*Tip: 用 plan(action='update_step', ...) 更新每步状态。*")
             await _publish_plan_updated(thread_id, plan_id)
             return "\n".join(lines), {
                 "id": plan_id,
@@ -125,6 +129,13 @@ async def plan(
         if action == "update_step":
             if not plan_id or not step_id or not status:
                 return "Error: update_step 需要 plan_id、step_id、status。"
+            if status == "completed" and not (result or "").strip():
+                return (
+                    "Error: completed 步骤必须填写 result（这步做了什么、结果如何）。"
+                    "请补充后再标记 completed。"
+                )
+            if result and len(result) > 500:
+                result = result[:500]
             step = await session.get(DBPlanStep, step_id)
             if not step:
                 return f"Error: Step {step_id} not found.", {"status": "error"}
@@ -148,7 +159,11 @@ async def plan(
             db_plan = await session.get(DBPlan, plan_id)
             if not db_plan:
                 return f"Error: Plan {plan_id} not found."
-            stmt = select(DBPlanStep).where(DBPlanStep.plan_id == plan_id).order_by(DBPlanStep.order)
+            stmt = (
+                select(DBPlanStep)
+                .where(DBPlanStep.plan_id == plan_id)
+                .order_by(DBPlanStep.order)
+            )
             db_steps = (await session.execute(stmt)).scalars().all()
             lines = [f"### Plan: {db_plan.title} (id={plan_id})", ""]
             lines.append("| Step ID | Title | Status |")
@@ -161,7 +176,10 @@ async def plan(
 
 
 async def _publish_plan_updated(
-    thread_id: str | None = None, plan_id: str | None = None, step_id: str | None = None, status: str | None = None
+    thread_id: str | None = None,
+    plan_id: str | None = None,
+    step_id: str | None = None,
+    status: str | None = None,
 ) -> None:
     try:
         from app.core.events import system_bus
@@ -176,4 +194,6 @@ async def _publish_plan_updated(
             )
         )
     except Exception as e:
-        logger.warning(f"[plan] Failed to publish plan updated event: {e}", exc_info=True)
+        logger.warning(
+            f"[plan] Failed to publish plan updated event: {e}", exc_info=True
+        )

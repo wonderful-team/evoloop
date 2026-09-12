@@ -43,6 +43,9 @@ export interface ChatState {
   firstMessageId: number | string | null
   totalMessageCount: number | null
 
+  /** 发送请求在途（POST chatEndpoint 未返回）——防重与输入框 loading 态 */
+  isSending: boolean
+
   // Model Selection
   selectedModel: string | null
 
@@ -67,7 +70,11 @@ export interface ChatState {
   setPendingCreateTask: (
     data: { taskId: string; secret: string; callbackUrl: string } | null,
   ) => void
-  fetchHistory: (threadId: string) => Promise<void>
+  fetchHistory: (
+    threadId: string,
+    /** silent: 不驱动顶部历史 loading（本地已有 optimistic 消息的场景） */
+    opts?: { silent?: boolean },
+  ) => Promise<void>
   fetchActivity: (threadId: string) => Promise<void>
   loadMoreHistory: () => Promise<void>
   sendMessage: (

@@ -226,10 +226,13 @@ class ProjectDomainSubscriber:
             if project_id:
                 thread_context_store.set_active_project("remote-default", project_id)
                 thread_context_store.set_active_project("default", project_id)
-        else:
+        elif project_id:
             logger.warning(
                 f"[ProjectHandlers] Project switch received but no path provided: {event.model_dump()}"
             )
+        else:
+            # global(0) 无 path 是正常路径（SSOT 已在上方无条件更新）
+            logger.info("[ProjectHandlers] Switched to global workspace (project_id=0)")
 
 
 @event_register()

@@ -66,6 +66,10 @@ class WebInputChannel(InputChannel):
             meta["secret"] = raw.get("secret")
         if raw.get("callback_url"):
             meta["callback_url"] = raw.get("callback_url")
+        # 宿主页面上下文（Member Center 后台 iframe 注入）；仅接受 dict，宽松降级
+        host_ctx = raw.get("host_context")
+        if isinstance(host_ctx, dict) and host_ctx:
+            meta["host_context"] = host_ctx
         try:
             from app.core.engine.session.manager import session_manager
 

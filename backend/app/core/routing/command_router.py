@@ -72,6 +72,7 @@ class CommandRouter:
         source: str = "voice",
         context: dict[str, Any] | None = None,
         skip_l0: bool = False,
+        predeclared_domain: str | None = None,
     ) -> RouteDecision:
         """Classify ``text`` and return a channel-independent routing decision.
 
@@ -86,11 +87,25 @@ class CommandRouter:
         text chat turn is always an agent conversation, so the decision jumps
         straight to the L1 domain classifier and delegates to the agent.
 
+        ``predeclared_domain``：宿主/入口直接声明的域标签（host_declared），
+        存在时跳过 L1 分类（路由比分类准），仅保留多轮状态记录副作用。
+
         ``context`` is accepted for interface compatibility but is currently
         unused; context probing is performed internally by ``IntentResolver``.
         """
         del context  # reserved for future source/channel context
         previous_intent, session_history = _get_thread_intent_state(thread_id)
+
+        if predeclared_domain:
+            decision = self._predeclared_delegate(
+                text,
+                predeclared_domain,
+                session_history,
+                previous_intent=previous_intent,
+                source=source,
+            )
+            await self._record_thread_intent(thread_id, decision, text)
+            return decision
 
         if skip_l0:
             decision = await self._l1_delegate(
@@ -202,6 +217,35 @@ class CommandRouter:
         )
         await self._record_thread_intent(thread_id, decision, text)
         return decision
+
+    def _predeclared_delegate(
+        self,
+        text: str,
+        domain: str,
+        session_history: list[str],
+        *,
+        previous_intent: str | None,
+        source: str,
+    ) -> RouteDecision:
+        """Host-declared domain: skip classification, delegate straight away."""
+        return RouteDecision(
+            status="delegate",
+            target_type="agent",
+            target={"type": "agent"},
+            params={},
+            confidence=1.0,
+            intent_hint=IntentHint(
+                intent=routing_constants.INTENT_DOMAIN_CLASSIFIED,
+                domain=domain,
+                confidence=1.0,
+                suggested_modules=[],
+                reason=f"host declared: {domain}",
+                previous_intent=previous_intent,
+                session_history=session_history,
+            ),
+            source=source,
+            raw=domain,
+        )
 
     async def _l1_delegate(
         self,

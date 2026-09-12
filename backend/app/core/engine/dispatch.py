@@ -143,8 +143,9 @@ async def dispatch_agent_run(
             # operating on the wrong directory.
             # 多租户（云）项目的元数据不在本机，无本地路径是常态而非异常，
             # 降级为 info，避免每个 run 刷 ERROR 噪音。
-            from app.core.config import settings
-
+            # 注意：此处不得使用函数级 `from ... import settings`——那会把
+            # settings 变成整个函数的局部变量，后续 212 行等未经过该分支的
+            # 代码会抛 UnboundLocalError（顶层已导入，直接用）。
             log_fn = logger.info if settings.MULTI_TENANT_MODE else logger.error
             log_fn(
                 f"[Dispatch] No local path for project_id={project_id}"
@@ -355,6 +356,8 @@ async def dispatch_agent_run(
                 source=source,
                 message_id=message_id,
                 session=session,
+                # 持久化请求级 metadata（含 host_context），供 Retry 恢复上下文
+                metadata=metadata or None,
             )
             persisted_msg_id = msg_id
 

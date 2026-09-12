@@ -91,5 +91,4 @@ class ArtifactValidationEvent(BaseEvent):
 # - IndexingEventType -> app.domain.codebase.event.types
 # - FileSystemEventType -> app.core.file.event.types
 # - ToolEventType -> app.core.tools.event.types
-# - TodoEventType -> app.domain.todo.event.types
 # - VisionEventType -> app.core.vision.event.types

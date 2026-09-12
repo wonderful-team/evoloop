@@ -153,6 +153,27 @@ class InputChannel(ABC):
         """Submit a normalized message to the agent engine."""
         from app.core.engine.dispatch import dispatch_agent_run
 
+        # 客服等文本通道统一补齐 intent_hint（skip_l0=True：duty 场景不执行
+        # L0 模板宏），与 web/mobile 入口取得同等质量的先验上下文。
+        # 函数内 import：routing.dispatch_handler 依赖本模块的类型，避免循环。
+        if not (msg.metadata or {}).get("intent_hint"):
+            from app.core.routing.dispatch_handler import command_router
+
+            decision = await command_router.resolve(
+                msg.text or "",
+                thread_id=msg.thread_id,
+                project_id=msg.project_id or 0,
+                source=msg.source or "duty",
+                skip_l0=True,
+            )
+            if decision.intent_hint:
+                msg.metadata = msg.metadata or {}
+                msg.metadata["intent_hint"] = (
+                    decision.intent_hint.model_dump()
+                    if hasattr(decision.intent_hint, "model_dump")
+                    else decision.intent_hint
+                )
+
         return await dispatch_agent_run(
             thread_id=msg.thread_id,
             message_content=msg.text,

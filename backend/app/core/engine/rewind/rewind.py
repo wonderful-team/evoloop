@@ -2,7 +2,7 @@
 
 The rewind system has two parts:
 1. perform_rewind() — deletes messages, clears HITL, then publishes RewindRequestedEvent
-2. RewindRequestedEvent — 7 domains subscribe via @event_subscribe to do their own cleanup
+2. RewindRequestedEvent — 6 domains subscribe via @event_subscribe to do their own cleanup
 
 The MESSAGES_CLEANUP event is also published for EvoCloud sync (separate subscriber).
 """
@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 class RewindRequestedEvent(BaseEvent):
-    """Published to trigger cross-domain cleanup (memory, file, learning, todo, planning, evocloud).
+    """Published to trigger cross-domain cleanup (memory, file, learning, planning, evocloud).
 
     Subscribers read event.results to report counts.
     Pre-computed affected_message_ids prevents race conditions between handlers.
@@ -179,7 +179,7 @@ async def perform_rewind(
         # Phase 2: Clear HITL requests and activity status
         await _clear_hitl(thread_id)
 
-        # Phase 3: Publish event for cross-domain cleanup (memory, file, learning, todo, planning, evocloud)
+        # Phase 3: Publish event for cross-domain cleanup (memory, file, learning, planning, evocloud)
         event = RewindRequestedEvent(
             thread_id=thread_id,
             target_message_id=target_message_id,
@@ -211,7 +211,6 @@ async def perform_rewind(
             removed_message_count=deleted_count,
             reverted_file_count=res.get("files", 0),
             removed_memory_count=res.get("memories", 0),
-            removed_todo_count=res.get("todos", 0),
             removed_trace_count=res.get("traces", 0),
             checkpoint_id=None,
             errors=event.errors,

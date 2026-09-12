@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import select
 
-import app.core.learning.constants as _mc
 from app.core.config import settings
 from app.core.learning.constants import ALLOWED_UI_ACTIONS, EXCLUDED_EVENT_TYPES, RAW_MOBILE_EVENT_TYPES
 from app.infrastructure.database import session_scope

@@ -5,6 +5,7 @@ import { AgentService, ConversationsService } from "@/client"
 import { ChatConnection } from "@/lib/ChatConnection"
 import { useChangesetStore } from "@/stores/changesetStore"
 import { useChatStore } from "@/stores/chatStore"
+import { useHostContextStore } from "@/stores/hostContextStore"
 
 export function useChatMutations({
   setIsRewindDialogOpen,
@@ -90,6 +91,18 @@ export function useChatMutations({
           revert_files: revertFiles,
           message_id: messageId,
           model: selectedModel,
+          // 重试时附带当前宿主上下文（后端还会从被重试消息的 meta_data 兜底恢复）
+          host_context: (() => {
+            const hc = useHostContextStore.getState().context
+            if (!hc) return undefined
+            return {
+              route: hc.route,
+              page_name: hc.pageName,
+              entity: hc.entity,
+              domain: hc.domain ?? undefined,
+              ts: hc.ts,
+            }
+          })(),
         },
       } as any)
     },

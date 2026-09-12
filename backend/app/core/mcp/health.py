@@ -15,8 +15,14 @@ logger = logging.getLogger(__name__)
 class McpHealthChecker:
     """Health checker for MCP server connections."""
 
+    # 优化：ensure_connected 已连接路径每轮 hydrate × 每个预挂 server 都发
+    # 完整 list_tools RPC（107 工具序列化）。30s 内复用结果——工具调用失败
+    # 路径另有 ping+重连兜底，短 TTL 误判可接受。
+    CACHE_TTL_SECONDS = 30.0
+
     def __init__(self, timeout_seconds: float = 10.0):
         self.timeout_seconds = timeout_seconds
+        self._cache: dict[str, tuple[float, HealthStatus]] = {}
         self._last_check: dict[str, float] = {}
 
     async def check(self, server_name: str, session: ClientSession) -> HealthStatus:
@@ -39,6 +45,15 @@ class McpHealthChecker:
                 error_message="No session available",
             )
 
+        # 优化：30s 内的成功结果直接复用（每轮 hydrate × 每个预挂 server
+        # 的重复 list_tools RPC 消除）。失败不缓存——重连路径自行兜底。
+        cached = self._cache.get(server_name)
+        if cached:
+            ts, status = cached
+            if time.time() - ts < self.CACHE_TTL_SECONDS:
+                return status
+            self._cache.pop(server_name, None)
+
         start_time = time.time()
 
         try:
@@ -53,14 +68,17 @@ class McpHealthChecker:
             response_time = elapsed_ms(start_time)
             self._last_check[server_name] = time.time()
 
-            return HealthStatus(
+            status = HealthStatus(
                 is_healthy=True,
                 server_name=server_name,
                 last_check=time.time(),
                 response_time_ms=response_time,
             )
+            self._cache[server_name] = (time.time(), status)
+            return status
 
         except Exception as e:
+            self._cache.pop(server_name, None)
             response_time = elapsed_ms(start_time)
             logger.warning(
                 f"Health check failed for MCP server '{server_name}': {e}",
@@ -82,3 +100,4 @@ class McpHealthChecker:
     def reset(self, server_name: str) -> None:
         """Reset health check tracking for a server."""
         self._last_check.pop(server_name, None)
+        self._cache.pop(server_name, None)

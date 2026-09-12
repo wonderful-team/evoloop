@@ -172,6 +172,7 @@ const TurnStepsGroupView = memo(function TurnStepsGroupView({
   )
 })
 
+import { useAgentStore } from "@/stores/agentStore"
 import { useChatStore } from "@/stores/chatStore"
 
 // --- Static Virtuoso Components ---
@@ -226,8 +227,22 @@ const VirtuosoHeader = ({ context }: any) => {
 }
 
 const VirtuosoFooter = ({ context }: any) => {
-  const { footer } = context || {}
-  return <div className="pb-2 px-3 sm:px-5 lg:px-6">{footer}</div>
+  const { footer, showTypingIndicator, t } = context || {}
+  return (
+    <div className="pb-2 px-3 sm:px-5 lg:px-6">
+      {showTypingIndicator && (
+        <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
+          <span className="flex gap-1">
+            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:0ms]" />
+            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:150ms]" />
+            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:300ms]" />
+          </span>
+          {t ? t("chat.typingIndicator") : null}
+        </div>
+      )}
+      {footer}
+    </div>
+  )
 }
 
 const STATIC_COMPONENTS = {
@@ -255,6 +270,21 @@ export const MessageList = memo(function MessageList({
   const messages = overrideMessages ?? storeMessages
   const hasMoreHistory = overrideMessages ? false : storeHasMoreHistory
   const isLoadingHistory = overrideMessages ? false : storeIsLoadingHistory
+
+  // “处理中”占位：Agent 运行中但列表里还没有任何 streaming/running 行
+  // （路由/上下文装配/工具首跳期间 LLM 尚未出 token）→ 底部显示思考指示器
+  const agentWorking = useAgentStore(
+    (s) => s.status === "running" || s.status === "summarizing",
+  )
+  const showTypingIndicator =
+    !overrideMessages &&
+    agentWorking &&
+    !messages.some(
+      (m) =>
+        m.status === "streaming" ||
+        m.status === "running" ||
+        m.status === "pending",
+    )
   const scrollerRef = useRef<HTMLElement | null>(null)
   const virtuosoRef = useRef<VirtuosoHandle>(null)
   // Use refs to avoid stale closures in Virtuoso callbacks
@@ -528,6 +558,13 @@ export const MessageList = memo(function MessageList({
         items.push({ type: "message", data: { ...msg, showDate } })
         prevTimestamp = msg.timestamp
         isNewAiTurn = true
+      } else if (msg.role === "system") {
+        // ErrorEmitter 单出口：系统级错误块独立成行（不被 turn 分组吞掉，
+        // 错误语义打断当前 turn——其后内容归新 turn）。非 error 的 system
+        // 在 ChatMessageItem 中仍 return null。
+        flushTurn()
+        items.push({ type: "message", data: { ...msg } })
+        isNewAiTurn = true
       } else if (msg.role === "ai" || msg.role === "tool") {
         if (isNewAiTurn && msg.role === "ai") {
           // 标记 turn 内第一条 AI（用于决定是否显示 avatar）
@@ -749,13 +786,7 @@ export const MessageList = memo(function MessageList({
     const pin = () => {
       if (userScrolledUpRef.current) return
       const tail = virtItems[virtItems.length - 1]
-      // TEMP DEBUG: verify tool steps land at the bottom (remove after check)
-      console.debug("[ScrollPin]", {
-        tail: tail.type,
-        steps:
-          tail.type === "turn_steps_group" ? tail.steps?.length : undefined,
-        delta: el.scrollHeight - el.clientHeight - el.scrollTop,
-      })
+      void tail
       el.scrollTop = el.scrollHeight
     }
     pin()
@@ -772,6 +803,7 @@ export const MessageList = memo(function MessageList({
       messagesLength: messages.length,
       t,
       footer,
+      showTypingIndicator: showTypingIndicator,
     }),
     [
       handleScroll,
@@ -780,6 +812,7 @@ export const MessageList = memo(function MessageList({
       messages.length,
       t,
       footer,
+      showTypingIndicator,
     ],
   )
 

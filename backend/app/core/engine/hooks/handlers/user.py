@@ -53,6 +53,9 @@ async def user_prompt_submit_handler(context: HookContext) -> HookResult:
             thread_id=context.thread_id or "",
             project_id=context.project_id or 0,
             source=context.metadata.get("source", "chat"),
+            # 兜底分类只做 L1 域分类：L0 模板宏仅服务于 voice 通道的毫秒级截流，
+            # 任何文本入口的兜底路径都不得静默执行本地宏。
+            skip_l0=True,
         )
     except Exception as exc:  # noqa: BLE001
         return HookResult(

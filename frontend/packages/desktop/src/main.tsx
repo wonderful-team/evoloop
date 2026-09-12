@@ -6,6 +6,7 @@ import "@xterm/xterm/css/xterm.css"
 // Tell @monaco-editor/react to use local monaco-editor instead of jsdelivr CDN
 import { loader } from "@monaco-editor/react"
 import * as monaco from "monaco-editor"
+
 loader.config({ monaco })
 
 // Configure Monaco Editor Web Workers globally for Vite/Tauri ESM compatibility.
@@ -52,6 +53,10 @@ import { ApiError, OpenAPI } from "./client"
 import { initApiInterceptors } from "./interceptors.ts"
 import enLocal from "./locales/en.json"
 import zhLocal from "./locales/zh.json"
+import {
+  normalizeHostContext,
+  useHostContextStore,
+} from "./stores/hostContextStore"
 import "./index.css"
 import { routeTree } from "./routeTree.gen"
 
@@ -73,9 +78,7 @@ initApiInterceptors()
   if (!evosso) return
   // 先清参数（保留 hash 路由），防刷新重复兑换
   const cleanUrl =
-    window.location.origin +
-    window.location.pathname +
-    window.location.hash
+    window.location.origin + window.location.pathname + window.location.hash
   window.history.replaceState({}, "", cleanUrl)
   fetch("/api/v1/sso/accept-token", {
     method: "POST",
@@ -94,6 +97,56 @@ initApiInterceptors()
       }
     })
     .catch(() => {})
+})()
+
+// 宿主上下文（Member Center 后台 iframe 注入）：
+// 监听 matrix_context 消息 → 存 store（覆盖式）→ ChatWelcome/聊天链路消费
+;(function initHostContextBridge() {
+  // 乐观内嵌态：运行于 iframe 即标记（UI 裁剪不等消息到达，避免
+  // evosso reload / vite 冷启动等时序竞态导致宿主 UI 闪现全量）。
+  // context 数据仍由 matrix_context 消息补充。
+  if (window.parent !== window) {
+    useHostContextStore.getState().markEmbedded()
+  }
+
+  // 唯一配置来源：VITE_HOST_ORIGINS（env 文件/构建注入）——代码零硬编码。
+  // 开发默认值在 frontend/.env.development；生产在构建时注入宿主域名。
+  const envOrigins =
+    (import.meta.env.VITE_HOST_ORIGINS as string | undefined) ?? ""
+  const allowed = envOrigins
+    .split(",")
+    .map((s) => s.trim().replace(/\/$/, ""))
+    .filter(Boolean)
+  const allowedSet = new Set(allowed)
+  if (allowedSet.size === 0) {
+    // 审计修复（静默失效告警）：生产构建若漏配 VITE_HOST_ORIGINS，宿主
+    // 上下文桥直接不启动——内嵌搭子收不到 matrix_context，域判定静默
+    // 降级且无任何报错。内嵌态（iframe）下这是必然失效组合，必须喊出来。
+    if (import.meta.env.PROD && window.parent !== window) {
+      console.error(
+        "[HostContext] iframe embedded but VITE_HOST_ORIGINS is empty — " +
+          "host context bridge disabled. Set VITE_HOST_ORIGINS at build time " +
+          "(e.g. https://your-host-domain) or the embedded assistant will " +
+          "silently lose domain preselection.",
+      )
+    }
+    return
+  }
+
+  // 通知宿主 iframe 已就绪，宿主会补发当前页面快照
+  try {
+    window.parent.postMessage({ type: "matrix_ready", v: 1 }, "*")
+  } catch {
+    // 非 iframe 环境（直接访问）时无需通知
+  }
+
+  window.addEventListener("message", (event: MessageEvent) => {
+    if (!allowedSet.has(event.origin.replace(/\/$/, ""))) return
+    const data = event.data as { type?: string; payload?: unknown } | null
+    if (!data || data.type !== "matrix_context") return
+    const ctx = normalizeHostContext(data.payload)
+    if (ctx) useHostContextStore.getState().setContext(ctx)
+  })
 })()
 
 // 全局标志，防止重复显示401提示

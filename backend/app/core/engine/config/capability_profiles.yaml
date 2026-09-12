@@ -1,0 +1,17 @@
+# 域驱动的能力装配注册表（capability profiles）——引擎级默认。
+#
+# 域标识来源（优先级）：host_declared（宿主 host_context.domain 声明）
+#   > classified（L1 BERT）> ambiguous。
+#
+# 分层覆盖：项目级 profile 放在项目工作区的 .evoloop/capability_profiles.yaml，
+# 同名域覆盖本文件条目（如 mall_ops 由 mall-backend 项目声明）。
+#
+# 兜底原则：域无 profile / 字段为 null → 沿用现状全量，任何场景零回归。
+
+domains: {}
+# 示例（通用引擎不预置业务域，示例仅供格式参考）：
+#   some_domain:
+#     native_tools: [webfetch, plan, skill, question]   # null = 沿用静态面
+#     mcp_allowlist: [some-mcp-server]                  # null = 全量
+#     prompt_fragments: ["project:.evoloop/fragments/some_domain.md"]
+#     modules: [Base, Skill]                            # null = domain_mapping 默认

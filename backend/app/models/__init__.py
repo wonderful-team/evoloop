@@ -38,9 +38,6 @@ from .system import McpServer as McpServer
 from .system import ProjectResource as ProjectResource
 from .system import SystemConfig as SystemConfig
 from .system import Tool as Tool
-from .todo import TodoItem as TodoItem
-from .todo import TodoPriority as TodoPriority
-from .todo import TodoStatus as TodoStatus
 from .wiki import WikiPage as WikiPage
 
 __all__ = [
@@ -70,9 +67,6 @@ __all__ = [
     "McpServer",
     "ProjectResource",
     "Tool",
-    "TodoItem",
-    "TodoPriority",
-    "TodoStatus",
     "WikiPage",
     "ProjectTask",
     "Message",

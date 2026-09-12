@@ -45,6 +45,7 @@ import { useAutoSpeak } from "@/hooks/useTTS"
 import { useWakeWord, useWakeWordSettings } from "@/hooks/useWakeWord"
 import { isTauri, safeInvoke } from "@/lib/tauri"
 import { useChatStore } from "@/stores/chatStore"
+import { useHostContextStore } from "@/stores/hostContextStore"
 import { useVoiceStore } from "@/stores/voiceStore"
 import { FilePreview, type PickedFile } from "./FilePreview"
 import { ModelSelector } from "./ModelSelector"
@@ -92,6 +93,8 @@ export const ChatInputArea = memo(
       const { t } = useTranslation()
       const isTerminalMode = useChatStore((s) => s.isTerminalMode)
       const setTerminalMode = useChatStore((s) => s.setTerminalMode)
+      // 宿主内嵌：隐藏技能库/终端等桌面工具按钮，保留模型选择与输入
+      const isEmbedded = useHostContextStore((s) => s.connected)
       const [inputValue, setInputValue] = useState("")
       const [isUploading, setIsUploading] = useState(false)
       const [pickedFiles, setPickedFiles] = useState<PickedFile[]>([])
@@ -151,6 +154,11 @@ export const ChatInputArea = memo(
       const handleSend = () => {
         if ((!inputValue.trim() && pickedFiles.length === 0) || isSending)
           return
+        // 审计修复：上传未完成（url 为空）的附件不得随消息发出
+        if (isUploading) {
+          toast.info(t("chat.interface.uploadInProgress", { defaultValue: "附件上传中，请稍候…" }))
+          return
+        }
 
         // Pass raw input and files directly to store/parent
         // The store handles the optimistic display formatting and API payload construction
@@ -210,13 +218,8 @@ export const ChatInputArea = memo(
         }
 
         if (e.key === "Enter" && !e.shiftKey) {
-          if (showPicker) {
-            e.preventDefault()
-            handleSend()
-          } else {
-            e.preventDefault()
-            handleSend()
-          }
+          e.preventDefault()
+          handleSend()
         }
 
         // History Traversal (Up/Down)
@@ -469,8 +472,11 @@ export const ChatInputArea = memo(
           {showPicker && currentProject && !isGlobalMode && (
             <div className="absolute bottom-full left-0 right-0 z-50 px-4">
               {/* Click outside backdrop - Declared first to stay underneath */}
-              <div
-                className="fixed inset-0 z-40 bg-transparent"
+              <button
+                type="button"
+                aria-label={t("common.close")}
+                tabIndex={-1}
+                className="fixed inset-0 z-40 bg-transparent cursor-default"
                 onClick={() => setShowPicker(false)}
               />
               {/* Picker card - Declared second with z-50 to overlay on top of the backdrop */}
@@ -486,6 +492,8 @@ export const ChatInputArea = memo(
           )}
 
           <div
+            role="region"
+            aria-label={t("chat.interface.uploadFile")}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
@@ -581,6 +589,7 @@ export const ChatInputArea = memo(
                 {isTerminalMode ? (
                   <div className="flex items-center gap-1.5">
                     <button
+                      type="button"
                       onClick={() => setTerminalMode(false)}
                       className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-mono text-signal-blue bg-signal-blue/15 hover:bg-signal-blue/25 border border-signal-blue/30 font-bold transition-all select-none shrink-0 shadow-xs cursor-pointer group"
                       title={t("chat.interface.exitTerminal")}
@@ -596,11 +605,12 @@ export const ChatInputArea = memo(
 
                     <div className="w-px h-6 bg-border mx-1" />
 
-                    <SkillLibraryDialog
-                      open={isSkillDialogOpen}
-                      onOpenChange={setIsSkillDialogOpen}
-                      threadId={activeThreadId ?? ""}
-                      projectId={currentProject?.id}
+                    {!isEmbedded && (
+                      <SkillLibraryDialog
+                        open={isSkillDialogOpen}
+                        onOpenChange={setIsSkillDialogOpen}
+                        threadId={activeThreadId ?? ""}
+                        projectId={currentProject?.id}
                       onSelectSkill={(skill) => {
                         // Attach skill as reference (allow multiple skills to be mounted)
                         const newFile: PickedFile = {
@@ -631,7 +641,8 @@ export const ChatInputArea = memo(
                         </Button>
                       }
                     />
-                    {isTauri() && (
+                    )}
+                    {isTauri() && !isEmbedded && (
                       <div className="h-8 hidden lg:flex items-center justify-center">
                         <RecordingButton
                           threadId={activeThreadId ?? ""}
@@ -640,17 +651,19 @@ export const ChatInputArea = memo(
                       </div>
                     )}
 
-                    <div className="flex items-center gap-1.5">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-foreground shrink-0 cursor-pointer"
-                        title={t("chat.interface.enterTerminal")}
-                        onClick={() => setTerminalMode(true)}
-                      >
-                        <Terminal size={16} />
-                      </Button>
-                    </div>
+                    {!isEmbedded && (
+                      <div className="flex items-center gap-1.5">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-foreground shrink-0 cursor-pointer"
+                          title={t("chat.interface.enterTerminal")}
+                          onClick={() => setTerminalMode(true)}
+                        >
+                          <Terminal size={16} />
+                        </Button>
+                      </div>
+                    )}
                   </>
                 )}
               </div>
@@ -669,6 +682,7 @@ export const ChatInputArea = memo(
                       type="file"
                       id="chat-file-upload"
                       className="hidden"
+                      multiple
                       onChange={handleUpload}
                       disabled={isUploading}
                     />

@@ -254,6 +254,7 @@ class ToolMessageMixin:
         }
 
         message_id = None
+        streamed = False
         if sequence_number:
             update_result = await self._repository.update(
                 sequence_number=sequence_number,
@@ -264,6 +265,27 @@ class ToolMessageMixin:
             if update_result:
                 message_id = update_result if isinstance(update_result, str) else None
 
+            # 审计修复：失败态推 SSE（此前只落库，前端工具行永远转圈）。
+            # 隐藏工具不推（与正常路径 is_visible_to_user 语义一致）。
+            if message_id and not metadata_registry.is_hidden:
+                await self._dispatch_block(
+                    role=MessageRole.TOOL,
+                    content=content,
+                    category=(
+                        MessageCategory.INTERNAL_TOOL_CALL
+                        if metadata_registry.is_hidden
+                        else MessageCategory.TOOL_OUTPUT
+                    ).value,
+                    status=MessageStatus.FAILED,
+                    sequence_number=seq,
+                    tool_name=tool_name,
+                    tool_call_id=tool_call_id,
+                    metadata=metadata,
+                    message_id=message_id,
+                    action="update",
+                )
+                streamed = True
+
         return MessageHandlerResult(
             category=(
                 MessageCategory.INTERNAL_TOOL_CALL
@@ -271,7 +293,7 @@ class ToolMessageMixin:
                 else MessageCategory.TOOL_OUTPUT
             ).value,
             persisted=bool(sequence_number),
-            streamed=False,
+            streamed=streamed,
             message_id=message_id,
             sequence_number=seq,
         )

@@ -33,6 +33,7 @@ from app.core.engine.runner_base import (
 )
 from app.core.engine.session.gate import GateEvent, ThreadGate
 from app.core.exceptions import AgentCancelledException, AgentHumanInterruptException
+from app.core.engine.error_emitter import error_emitter
 from app.core.hitl.orchestrator import HITLOrchestrator
 from app.core.monitoring.activity import activity_monitor
 from app.utils.id import unique_id
@@ -152,8 +153,10 @@ async def run_agent_session(session: AgentSession) -> None:
     except AgentCancelledException:
         logger.info(f"[Session] {session.thread_id} main loop cancelled by stop")
     except Exception as e:
-        logger.error(
-            f"[Session] {session.thread_id} main loop crashed: {e}", exc_info=True
+        logger.error(f"[Session] {session.thread_id} main loop crashed: {e}", exc_info=True)
+        # 错误呈现单出口：分类→事件→SSE，契约见 tests/.../test_error_emitter.py
+        await error_emitter.emit(
+            session.thread_id, e, project_id=session.state.project_id if session.state else None
         )
     finally:
         session.lifecycle = "closed"

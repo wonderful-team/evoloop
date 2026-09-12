@@ -4,7 +4,6 @@ import {
   Brain,
   FolderOpen,
   GraduationCap,
-  ListTodo,
   MessageSquare,
   Settings,
 } from "lucide-react"
@@ -43,8 +42,6 @@ export function AppTitleBar() {
       return { title: t("sidebar.chat"), icon: MessageSquare }
     if (pathname === "/projects")
       return { title: t("sidebar.projects"), icon: FolderOpen }
-    if (pathname.startsWith("/todos"))
-      return { title: t("sidebar.todos"), icon: ListTodo }
     if (pathname.startsWith("/learning"))
       return { title: t("sidebar.learning"), icon: GraduationCap }
     if (pathname.startsWith("/settings"))

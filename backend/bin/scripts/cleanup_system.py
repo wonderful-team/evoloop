@@ -503,7 +503,6 @@ class CleanupManager:
 
         表：
         - messages, conversations - 消息和对话
-        - todos - 待办事项
         - jobs - 任务队列
         - learned_skills, trace_events - 技能相关
         - repositories, source_files, code_entities - 代码索引
@@ -526,7 +525,6 @@ class CleanupManager:
                 tables = [
                     ("messages", "消息"),
                     ("conversations", "对话"),
-                    ("todos", "待办事项"),
                     ("jobs", "任务队列"),
                     ("learned_skills", "学习技能"),
                     ("trace_events", "跟踪事件"),
@@ -843,7 +841,7 @@ class CleanupManager:
         9. plans - 任务计划（依赖 conversations，外键+级联）
         10. conversations - 对话主表
 
-        注意：trace_events 在技能清理中处理，todos 需单独清理，checkpoint_migrations 保留
+        注意：trace_events 在技能清理中处理，checkpoint_migrations 保留
 
         Args:
             days: 只清理 N 天前的对话，None 表示清理所有
@@ -856,7 +854,7 @@ class CleanupManager:
             from app.infrastructure.database.sql.database import session_scope
 
             async with session_scope() as session:
-                # 统计各表数据（注意：trace_events 在技能清理中，todos 需单独清理，checkpoint_migrations 保留）
+                # 统计各表数据（注意：trace_events 在技能清理中，checkpoint_migrations 保留）
                 tables_info = [
                     ("conversations", "id IS NOT NULL"),
                     ("checkpoints", "1=1"),
@@ -1070,51 +1068,6 @@ class CleanupManager:
             self.stats.errors.append(f"对话: {e}")
             return False
 
-    async def cleanup_todos(self) -> bool:
-        """
-        清理待办事项表。
-
-        表：
-        - todos - 待办事项
-        """
-        print("\n📋 待办事项清理")
-        print("-" * 40)
-
-        try:
-            from sqlalchemy import text
-            from app.infrastructure.database.sql.database import session_scope
-
-            async with session_scope() as session:
-                # 统计待办事项
-                result = await session.execute(text("SELECT COUNT(*) FROM todos"))
-                count = result.scalar() or 0
-
-                if self.dry_run:
-                    print(f"  🔍 发现 {count} 条待办事项")
-                    return True
-
-                if count == 0:
-                    print("  ℹ️  没有待办事项需要清理")
-                    return True
-
-                if not self._confirm(f"删除 {count} 条待办事项?"):
-                    print("  ⏭️  已跳过")
-                    return False
-
-                result = await session.execute(text("TRUNCATE TABLE todos CASCADE"))
-
-                self.stats.postgres_rows_deleted += count
-                print(f"  ✅ 已删除 {count} 条待办事项")
-                return True
-
-        except ImportError as e:
-            logger.warning(f"  ⚠️  PostgreSQL 不可用：{e}")
-            return False
-        except Exception as e:
-            logger.error(f"  ❌ 待办事项清理失败：{e}")
-            self.stats.errors.append(f"待办事项: {e}")
-            return False
-
     async def run_all(self, args):
         """根据命令行参数运行清理。"""
         # 检测运行模式
@@ -1184,9 +1137,6 @@ class CleanupManager:
 
         if args.all or args.brain:
             self.cleanup_brain_memory()
-
-        if args.all or args.todos:
-            await self.cleanup_todos()
 
         if args.all or args.conversations:
             await self.cleanup_conversations(days=args.conversation_days)
@@ -1268,9 +1218,6 @@ async def main():
         "--keychain", action="store_true", help="清理 Keychain 中存储的登录凭据 (access_token, device_key, member_id)"
     )
     parser.add_argument(
-        "--todos", action="store_true", help="清理待办事项表"
-    )
-    parser.add_argument(
         "--conversations", action="store_true", help="清理对话及关联数据（消息、计划、文件操作等7张表）"
     )
     parser.add_argument(
@@ -1297,7 +1244,7 @@ async def main():
     if not any([
         args.all, args.redis, args.cache, args.neo4j, args.memory, args.skills, args.index,
         args.messages, args.jobs, args.sqlite, args.screenshots, args.recordings,
-        args.brain, args.keychain, args.todos, args.conversations
+        args.brain, args.keychain, args.conversations
     ]):
         parser.print_help()
         return

@@ -153,6 +153,36 @@ class SkillDiscovery:
         await self._get_active_skills()
         return self._id_map.get(skill_id)
 
+    async def get_packages_for_domain(self, domain: str | None) -> list[LearnedSkill]:
+        """域 → 能力包目录（capability-packages-refactor.md v3）。
+
+        包自声明归属域（capability.domain），DB 查询取代 profile 的 packages
+        字段（v3 收敛：作用域模型统一，包是全局资源）。O(内存索引)。
+        """
+        if not domain:
+            return []
+        skills = await self._get_active_skills()
+        return [
+            s
+            for s in skills
+            if (cap := getattr(s, "capability", None))
+            and cap.get("domain") == domain
+        ]
+
+    async def get_capability(self, name: str) -> dict | None:
+        """能力包声明（capability-packages-refactor.md §6-#5）。
+
+        O(1) 内存索引（_name_map），非包技能返回 None。ToolManager 过滤层
+        每轮调用——依赖既有缓存，不做额外 IO。
+        """
+        if not name:
+            return None
+        await self._get_active_skills()
+        skill = self._name_map.get(name.strip().lower())
+        if skill is None:
+            return None
+        return getattr(skill, "capability", None)
+
     async def _get_skills_by_namespace(
         self, namespace_prefix: str
     ) -> list[LearnedSkill]:
@@ -177,6 +207,14 @@ class SkillDiscovery:
         Call this after DB mutations.
         """
         await self._get_active_skills(force_reload=True)
+        # 优化：同步失效静态层缓存（技能是全局资源，导入/更新/删除后
+        # 各 thread 的 <available_skills> 索引应立即可见，不必等 TTL）。
+        try:
+            from app.core.context.cache import LayeredContextCache
+
+            LayeredContextCache.invalidate_static(session_id=None)
+        except Exception:
+            pass
 
     # --- Phase 5: Deterministic "Yellow Pages" Discovery ---
 
@@ -289,11 +327,27 @@ class SkillDiscovery:
                 id=s.id,
                 name=s.name,
                 namespace=s.namespace or "general",
-                description=(s.description or "No description.").replace("\n", " "),
+                description=self._index_description(s),
             )
             for s in all_skills
         ]
         return self._skills_list_cache
+
+    @staticmethod
+    def _index_description(skill: LearnedSkill) -> str:
+        """索引条目描述：能力包追加「能力包」标记（capability-packages §6-#7）。
+
+        预挂/加载状态由渲染层按 ctx.metadata.loaded_packages 追加（每轮变化，
+        不入缓存）。
+        """
+        desc = (skill.description or "No description.").replace("\n", " ")
+        # G2 瘦身：索引是导航而非全文，SOP 正文承载完整规则。40 条 × 长描述
+        # 的 token 开销显著，单条 160 字符足够定位。
+        if len(desc) > 160:
+            desc = desc[:159].rstrip() + "…"
+        if getattr(skill, "capability", None):
+            desc = f"{desc} [capability package]"
+        return desc
 
 
 # Singleton

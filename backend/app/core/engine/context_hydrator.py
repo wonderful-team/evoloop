@@ -148,9 +148,19 @@ class AgentContextHydrator:
         if intent_hint_obj is not None:
             domain = intent_hint_obj.domain
             intent = intent_hint_obj.intent
-            # L1 emits a domain label and leaves functional resolution to the engine.
+            # L1/host emits a domain label; functional resolution is profile-first
+            #（项目侧 capability profile 声明 intent/modules）→ domain_mapping 默认。
             if domain and intent == INTENT_DOMAIN_CLASSIFIED:
-                resolved_intent, resolved_modules = resolve_domain(domain)
+                from app.core.engine.capability_profiles import get_profile
+
+                _profile = get_profile(domain, ctx.working_directory)
+                _default_intent, _default_modules = resolve_domain(domain)
+                resolved_intent = (
+                    _profile.intent if _profile is not None and _profile.intent else _default_intent
+                )
+                resolved_modules = (
+                    _profile.modules if _profile is not None and _profile.modules else list(_default_modules)
+                )
                 intent = resolved_intent
                 intent_hint_obj = intent_hint_obj.model_copy(
                     update={
@@ -169,6 +179,10 @@ class AgentContextHydrator:
             if has_prior_context:
                 boosted = ConversationState.apply_anaphora_boost(intent_hint_obj, last_human_msg, has_prior_context)
                 intent_hint_obj = intent_hint_obj.model_copy(update=boosted.model_dump(exclude_none=True))
+
+            # 写回 resolved hint：下游能力装配（ToolsManager 域过滤等）从 ctx 读，
+            # 不应再各自解析 config.metadata 的原始 hint
+            ctx.metadata.intent_hint = intent_hint_obj
 
             suggested_modules_raw = intent_hint_obj.suggested_modules
             session_history_raw = intent_hint_obj.session_history
@@ -294,7 +308,9 @@ class AgentContextHydrator:
             data["operation_map"] = operation_map
             return data
 
-        session_id = config.get("configurable", {}).get("run_id", ctx.request_id)
+        # 审计修复：键原用 run_id（每轮 delivery 重新生成）→ 静态层永不命中
+        # 且条目只增不减（进程级泄漏）。改 thread 级稳定键。
+        session_id = ctx.thread_id or config.get("configurable", {}).get("run_id", ctx.request_id)
         explicit = (config.get("metadata") or {}).get("explicit_skills") or []
         explicit_key = "|".join(
             sorted(
@@ -303,6 +319,34 @@ class AgentContextHydrator:
                 if isinstance(x, dict)
             )
         )
+        # 页面级包预选（v3）——必须在缓存加载器之外每轮执行（预选是写 ctx
+        # 的副作用，依赖「每轮确定性重算」；埋进 loader 会随缓存命中被跳过）。
+        # 域→包目录走 DB（包自声明 capability.domain），页面预挂 =
+        # host_ctx.route 经包 route_patterns 匹配 + 预挂包 server
+        # ensure_connected（G4：写工具经 confirm_tools 排除，须显式加载包）。
+        try:
+            from app.core.engine.preselection import (
+                preload_preselection,
+                resolve_preselection,
+            )
+
+            hint = ctx.metadata.intent_hint
+            domain = None
+            if hint is not None:
+                domain = (
+                    getattr(hint, "domain", None)
+                    or (hint.get("domain") if isinstance(hint, dict) else None)
+                )
+            preselected = await resolve_preselection(
+                domain,
+                (config.get("metadata") or {}).get("host_context"),
+            )
+            await preload_preselection(preselected, ctx)
+        except Exception:
+            logger.exception(
+                "[Hydrator] package preselection failed (ignored)"
+            )
+
         static_layer = await LayeredContextCache.get_static_layer(
             session_id=session_id,
             project_id=ctx.project_id,
@@ -327,8 +371,10 @@ class AgentContextHydrator:
         ctx.metadata.tool_memory = state.tool_memory
         ctx.metadata.iteration_count = iteration_count
 
-        # Backward-compatible duck-typing wrapper for plugins or tools that read ctx.metadata.blackboard
-        ctx.metadata.blackboard = state
+        # 冗余清理：不再把整个 state 挂进 metadata（唯一消费者 memory
+        # 工具已改读 shared_context）。置 None 以清洗旧 thread 残留的
+        # 全量 state 副本（否则 save 全量 model_dump 会把残留反复写回）。
+        ctx.metadata.blackboard = None
 
         from app.core.context.plugins import plugin_registry
 

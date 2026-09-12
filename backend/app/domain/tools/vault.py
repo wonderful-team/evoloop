@@ -1,7 +1,7 @@
 """Secure Vault tool — single unified entry (密码箱 facade).
 
 把 列凭据 / 请求录入 收敛为单一 ``vault`` 工具，按 ``action`` 分发，
-与 ``macro``/``todo`` facade 对齐：只读的 list 与写入的 request 共存于
+与 ``macro`` facade 对齐：只读的 list 与写入的 request 共存于
 同一工具，安全敏感行为由 SecureVaultService 与占位符钩子负责。
 """
 

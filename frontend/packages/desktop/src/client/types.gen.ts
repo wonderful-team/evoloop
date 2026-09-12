@@ -216,9 +216,13 @@ export type ChatRequest = {
     skill_ids?: (Array<(number)> | null);
     revert_files?: boolean;
     scenario?: (string | null);
+    working_directory?: (string | null);
     task_id?: (string | null);
     secret?: (string | null);
     callback_url?: (string | null);
+    host_context?: ({
+    [key: string]: unknown;
+} | null);
 };
 
 export type CheckMobileRequest = {
@@ -412,6 +416,16 @@ export type CredentialListItem = {
 };
 
 /**
+ * Response carrying a single data payload.
+ */
+export type DataResponse = {
+    success?: boolean;
+    message?: string;
+    data?: (unknown | null);
+    [key: string]: unknown | boolean | string;
+};
+
+/**
  * EvoCloud debug status response.
  */
 export type DebugStatusResponse = {
@@ -500,16 +514,16 @@ export type DownloadRequest = {
  * 值守配置（项目 project.json 的 customer_service_duty 字段）。
  *
  * 全字段可选 = 部分更新语义（PUT）：未传字段保持原值。
- * interval/business_poll_interval 用 StrictInt（禁止 "60"→60 之类 coercion），
- * 非法类型在 422 层被拒，与运行时校验语义一致（v6.3 起）。
+ *
+ * 轮巡间隔/业务巡检扫描间隔属于全局值守设置（CUSTOMER_SERVICE_DUTY），
+ * 不在项目级配置；项目只负责参与意愿（enabled）+ 渠道（channels）+
+ * 巡检任务列表（business_poll_prompts）。
  */
 export type DutyConfig = {
     enabled?: (boolean | null);
     channels?: ({
     [key: string]: unknown;
-} | null);
-    interval?: (number | null);
-    business_poll_interval?: (number | null);
+} | Array<unknown> | null);
     business_poll_prompts?: (Array<BusinessPollPrompt> | null);
     [key: string]: unknown;
 };
@@ -818,6 +832,7 @@ export type ImportProjectByPathResponse = {
     message?: string;
     status: string;
     repo_id: number;
+    project_id?: (number | null);
     name: string;
     [key: string]: unknown | boolean | string | number;
 };
@@ -1083,8 +1098,11 @@ export type McpServerCreate = {
     env?: ({
     [key: string]: (string);
 } | null);
+    headers?: ({
+    [key: string]: (string);
+} | null);
     enabled?: boolean;
-    [key: string]: unknown | string;
+    [key: string]: unknown | string | boolean;
 };
 
 export type MemberBenefitsResponse = {
@@ -1106,7 +1124,7 @@ export type MessageItem = {
     id: string;
     thread_id: string;
     run_id?: (string | null);
-    role: 'human' | 'ai' | 'tool' | 'system';
+    role: MessageRole;
     category?: (string | null);
     content?: string;
     content_type?: string;
@@ -1118,7 +1136,9 @@ export type MessageItem = {
     tool_meta?: ({
     [key: string]: unknown;
 } | null);
-    references?: Array<ReferenceItem>;
+    references?: Array<{
+        [key: string]: unknown;
+    }>;
     has_file_operations?: boolean;
     changeset_count?: number;
     changeset_files?: (Array<MessageChangesetFile> | null);
@@ -1136,10 +1156,8 @@ export type MessageItem = {
     meta_data?: {
         [key: string]: unknown;
     };
-    [key: string]: unknown | string | ReferenceItem | boolean | number;
+    [key: string]: unknown | string | MessageRole | boolean | number;
 };
-
-export type role = 'human' | 'ai' | 'tool' | 'system';
 
 /**
  * Response model for paginated message list.
@@ -1157,6 +1175,11 @@ export type MessageListResponse = {
     total_count?: (number | null);
     [key: string]: unknown | boolean | string | MessageItem | number;
 };
+
+/**
+ * Message role vocabulary persisted in the database.
+ */
+export type MessageRole = 'human' | 'ai' | 'tool' | 'system';
 
 export type MirrorDevicesResponse = {
     success?: boolean;
@@ -1451,27 +1474,6 @@ export type RecordingSessionsResponse = {
     [key: string]: unknown | boolean | string | RecordingSessionItem;
 };
 
-export type ReferenceItem = {
-    id: string;
-    type: string;
-    target_id: string;
-    target_name: string;
-    metadata?: (ReferenceItemMetadata | null);
-    [key: string]: unknown | string;
-};
-
-/**
- * Metadata for a message reference. Extra fields allowed per reference type.
- */
-export type ReferenceItemMetadata = {
-    duration?: (number | null);
-    transcript?: (string | null);
-    waveform?: (Array<(number)> | null);
-    url?: (string | null);
-    mime_type?: (string | null);
-    [key: string]: unknown;
-};
-
 export type RegisterMobileRequest = {
     mobile: string;
     key: string;
@@ -1617,6 +1619,10 @@ export type SkillParameter = {
     description?: string;
     default?: (unknown | null);
     required?: boolean;
+};
+
+export type SsoAcceptRequest = {
+    sso_code: string;
 };
 
 /**
@@ -1918,6 +1924,11 @@ export type TaskWithSubtasksCreate = {
     [key: string]: unknown | string | number | SubtaskCreate;
 };
 
+export type TerminalCancelRequest = {
+    task_id: string;
+    project_id?: (number | null);
+};
+
 export type TerminalCommandRequest = {
     command: string;
     project_id?: (number | null);
@@ -1934,57 +1945,6 @@ export type TimesheetQuickAddRequest = {
     hours: number;
     description: string;
     work_type?: (string | null);
-};
-
-/**
- * Schema for creating a new Todo.
- */
-export type TodoCreate = {
-    title: string;
-    description?: (string | null);
-    priority?: ('low' | 'medium' | 'high' | TodoPriority);
-    category?: (string | null);
-    due_date?: (string | null);
-    project_id?: (number | null);
-    source_conversation_id?: (string | null);
-    source_message_id?: (string | null);
-    run_id?: (string | null);
-};
-
-export type TodoPriority = 'low' | 'medium' | 'high';
-
-/**
- * Schema for Todo responses.
- */
-export type TodoResponse = {
-    created_at?: (string | null);
-    updated_at?: (string | null);
-    id: string;
-    title: string;
-    description: (string | null);
-    status: TodoStatus;
-    priority: TodoPriority;
-    category: (string | null);
-    due_date: (string | null);
-    source_conversation_id: (string | null);
-    source_message_id: (string | null);
-    run_id: (string | null);
-    project_id: (number | null);
-};
-
-export type TodoStatus = 'pending' | 'completed' | 'cancelled';
-
-/**
- * Schema for updating an existing Todo.
- */
-export type TodoUpdate = {
-    title?: (string | null);
-    description?: (string | null);
-    status?: (TodoStatus | null);
-    priority?: ('low' | 'medium' | 'high' | TodoPriority | null);
-    category?: (string | null);
-    due_date?: (string | null);
-    project_id?: (number | null);
 };
 
 export type Token = {
@@ -2186,19 +2146,14 @@ export type VectorSearchResult = {
     [key: string]: unknown | string | number;
 };
 
-/**
- * External webhook payload. Extra fields are allowed per source/event_type.
- */
-export type WebhookPayload = {
-    [key: string]: unknown;
-};
-
 export type WebhookRequest = {
     project_id?: (number | null);
     thread_id?: (string | null);
     source: string;
     event_type: string;
-    payload: WebhookPayload;
+    payload: {
+        [key: string]: unknown;
+    };
 };
 
 export type WeChatConfigResponse = {
@@ -2367,12 +2322,6 @@ export type AtlasGenerateAppMapData = {
 
 export type AtlasGenerateAppMapResponse = (TaskAcceptedResponse);
 
-export type AtlasGenerateMacrosData = {
-    appMapId: number;
-};
-
-export type AtlasGenerateMacrosResponse = (TaskAcceptedResponse);
-
 export type AtlasListAppMapsData = {
     projectId: number;
 };
@@ -2527,6 +2476,13 @@ export type ConversationsSendTerminalInputData = {
 };
 
 export type ConversationsSendTerminalInputResponse = (unknown);
+
+export type ConversationsCancelTerminalCommandData = {
+    requestBody: TerminalCancelRequest;
+    threadId: string;
+};
+
+export type ConversationsCancelTerminalCommandResponse = (unknown);
 
 export type ConversationsGetActiveThreadTasksData = {
     threadId: string;
@@ -3283,6 +3239,12 @@ export type RouteRouteInitData = {
 
 export type RouteRouteInitResponse = (unknown);
 
+export type SsoAcceptSsoTokenData = {
+    requestBody: SsoAcceptRequest;
+};
+
+export type SsoAcceptSsoTokenResponse = (DataResponse);
+
 export type StreamStreamChatData = {
     guestId?: (string | null);
     threadId: string;
@@ -3560,40 +3522,6 @@ export type TasksExecuteTaskData = {
 };
 
 export type TasksExecuteTaskResponse = (unknown);
-
-export type TodosCreateTodoData = {
-    requestBody: TodoCreate;
-};
-
-export type TodosCreateTodoResponse = (TodoResponse);
-
-export type TodosListTodosData = {
-    limit?: number;
-    offset?: number;
-    projectId?: (number | null);
-    status?: (TodoStatus | null);
-};
-
-export type TodosListTodosResponse = (Array<TodoResponse>);
-
-export type TodosGetTodoData = {
-    todoId: string;
-};
-
-export type TodosGetTodoResponse = (TodoResponse);
-
-export type TodosUpdateTodoData = {
-    requestBody: TodoUpdate;
-    todoId: string;
-};
-
-export type TodosUpdateTodoResponse = (TodoResponse);
-
-export type TodosDeleteTodoData = {
-    todoId: string;
-};
-
-export type TodosDeleteTodoResponse = (unknown);
 
 export type ToolsListRuntimeToolsResponse = (Array<ToolInfo>);
 

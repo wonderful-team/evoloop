@@ -18,7 +18,6 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AndroidMarkerOverlayRouteImport } from './routes/android-marker-overlay'
 import { Route as LayoutRouteImport } from './routes/_layout'
 import { Route as LayoutIndexRouteImport } from './routes/_layout/index'
-import { Route as LayoutTodosRouteImport } from './routes/_layout/todos'
 import { Route as LayoutSubscriptionRouteImport } from './routes/_layout.subscription'
 import { Route as LayoutSettingsRouteImport } from './routes/_layout/settings'
 import { Route as LayoutLearningRouteImport } from './routes/_layout/learning'
@@ -89,11 +88,6 @@ const LayoutRoute = LayoutRouteImport.update({
 const LayoutIndexRoute = LayoutIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => LayoutRoute,
-} as any)
-const LayoutTodosRoute = LayoutTodosRouteImport.update({
-  id: '/todos',
-  path: '/todos',
   getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutSubscriptionRoute = LayoutSubscriptionRouteImport.update({
@@ -265,7 +259,6 @@ export interface FileRoutesByFullPath {
   '/learning': typeof LayoutLearningRouteWithChildren
   '/settings': typeof LayoutSettingsRoute
   '/subscription': typeof LayoutSubscriptionRouteWithChildren
-  '/todos': typeof LayoutTodosRoute
   '/projects/$projectId': typeof LayoutProjectsProjectIdRouteWithChildren
   '/projects/': typeof LayoutProjectsIndexRoute
   '/subscription/': typeof LayoutSubscriptionIndexRoute
@@ -301,7 +294,6 @@ export interface FileRoutesByTo {
   '/chat': typeof LayoutChatRoute
   '/learning': typeof LayoutLearningRouteWithChildren
   '/settings': typeof LayoutSettingsRoute
-  '/todos': typeof LayoutTodosRoute
   '/': typeof LayoutIndexRoute
   '/projects': typeof LayoutProjectsIndexRoute
   '/subscription': typeof LayoutSubscriptionIndexRoute
@@ -340,7 +332,6 @@ export interface FileRoutesById {
   '/_layout/learning': typeof LayoutLearningRouteWithChildren
   '/_layout/settings': typeof LayoutSettingsRoute
   '/_layout/subscription': typeof LayoutSubscriptionRouteWithChildren
-  '/_layout/todos': typeof LayoutTodosRoute
   '/_layout/': typeof LayoutIndexRoute
   '/_layout/projects/$projectId': typeof LayoutProjectsProjectIdRouteWithChildren
   '/_layout/projects/': typeof LayoutProjectsIndexRoute
@@ -381,7 +372,6 @@ export interface FileRouteTypes {
     | '/learning'
     | '/settings'
     | '/subscription'
-    | '/todos'
     | '/projects/$projectId'
     | '/projects/'
     | '/subscription/'
@@ -417,7 +407,6 @@ export interface FileRouteTypes {
     | '/chat'
     | '/learning'
     | '/settings'
-    | '/todos'
     | '/'
     | '/projects'
     | '/subscription'
@@ -455,7 +444,6 @@ export interface FileRouteTypes {
     | '/_layout/learning'
     | '/_layout/settings'
     | '/_layout/subscription'
-    | '/_layout/todos'
     | '/_layout/'
     | '/_layout/projects/$projectId'
     | '/_layout/projects/'
@@ -556,13 +544,6 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof LayoutIndexRouteImport
-      parentRoute: typeof LayoutRoute
-    }
-    '/_layout/todos': {
-      id: '/_layout/todos'
-      path: '/todos'
-      fullPath: '/todos'
-      preLoaderRoute: typeof LayoutTodosRouteImport
       parentRoute: typeof LayoutRoute
     }
     '/_layout/subscription': {
@@ -838,7 +819,6 @@ interface LayoutRouteChildren {
   LayoutLearningRoute: typeof LayoutLearningRouteWithChildren
   LayoutSettingsRoute: typeof LayoutSettingsRoute
   LayoutSubscriptionRoute: typeof LayoutSubscriptionRouteWithChildren
-  LayoutTodosRoute: typeof LayoutTodosRoute
   LayoutIndexRoute: typeof LayoutIndexRoute
   LayoutProjectsProjectIdRoute: typeof LayoutProjectsProjectIdRouteWithChildren
   LayoutProjectsIndexRoute: typeof LayoutProjectsIndexRoute
@@ -849,7 +829,6 @@ const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutLearningRoute: LayoutLearningRouteWithChildren,
   LayoutSettingsRoute: LayoutSettingsRoute,
   LayoutSubscriptionRoute: LayoutSubscriptionRouteWithChildren,
-  LayoutTodosRoute: LayoutTodosRoute,
   LayoutIndexRoute: LayoutIndexRoute,
   LayoutProjectsProjectIdRoute: LayoutProjectsProjectIdRouteWithChildren,
   LayoutProjectsIndexRoute: LayoutProjectsIndexRoute,

@@ -47,7 +47,7 @@ T = TypeVar("T")
 # 不感知该 (project_id, kind) 是否已在飞（排队中或执行中）。单轮执行时长 >
 # interval 时，每 60s tick 都会再投一份，Huey 队列（持久化）持续积压重复副本。
 # 修复：dispatch 投递前 try_claim_inflight 登记；run_duty_poll 执行结束 finally
-# release。Huey 单 worker 下 tick 周期任务与 run_duty_poll 同进程，进程内登记可靠。
+# release。tick 与 run_duty_poll 同在 API 进程内联执行，进程内登记可靠。
 # 超时兜底：worker 异常/卡死导致未 release 时，陈旧登记自动失效可重新 claim，
 # 避免任务被永久卡死。
 

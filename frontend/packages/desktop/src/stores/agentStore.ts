@@ -55,6 +55,31 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         // Always fetch history to catch up on missed messages during disconnection
         chatState.fetchHistory(threadId)
         chatState.fetchActivity(threadId)
+
+        // run_end 可能在断线期间丢失（后端重启/崩溃）——重连后短暂观察：
+        // 仍处于 running 且列表里没有 streaming 行 → 复位 idle，避免 typing 永转
+        const st = get().status
+        if (st === "running" || st === "summarizing") {
+          setTimeout(async () => {
+            if (get().status !== "running" && get().status !== "summarizing")
+              return
+            const cur = useChatStore.getState()
+            if (!cur.threadId) return
+            await cur.fetchHistory(cur.threadId)
+            const stillStreaming = useChatStore
+              .getState()
+              .messages.some(
+                (m) =>
+                  m.status === "streaming" ||
+                  m.status === "running" ||
+                  m.status === "pending",
+              )
+            if (!stillStreaming) {
+              set({ status: "idle" })
+              toast.info(i18n.t("chat.errors.reconnectedIdle"))
+            }
+          }, 5000)
+        }
       }
     }
   },
@@ -152,6 +177,12 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   _updateStatus: (ev) => {
     const raw = ev.status || ev
     if (raw === "quota_exhausted") return set({ status: "quota_exhausted" })
+    if (raw === "error") {
+      // 后端 StatusEvent(error)：带 message 时兜底呈现（正常错误应走
+      // QuotaExhausted/LLMAuth 专用事件或 system 消息块，此处仅防御）
+      if (ev.message) toast.error(ev.message)
+      return set({ status: "error" })
+    }
 
     let normalized = raw
     if (HITL_ENDED_STATUSES.includes(raw)) normalized = "idle"
@@ -223,6 +254,36 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       },
     }),
 
+  /**
+   * 服务端错误统一分发中枢（对齐后端 ErrorEmitter 单出口契约）：
+   * quota_exhausted → 续费横幅；llm_auth_error → toast+设置跳转；
+   * auth_expired → toast；其余 → 连接错误 toast。
+   * 新增错误类型只在此追加分支，UI 组件不感知事件类型。
+   */
+  _handleServerError: (ev: {
+    type: string
+    title?: string
+    message?: string
+    hint?: string
+  }) => {
+    switch (ev.type) {
+      case "quota_exhausted":
+        get()._setQuotaExhausted(ev)
+        break
+      case "llm_auth_error":
+        get()._setLLMAuthError(ev)
+        break
+      case "auth_expired":
+        toast.error(ev.message || i18n.t("chat.errors.unauthorized"), {
+          duration: 8000,
+        })
+        set({ status: "error" })
+        break
+      default:
+        get()._setError(ev.message || ev.type)
+    }
+  },
+
   _setLLMAuthError: (ev) => {
     toast.error(ev.title || i18n.t("chat.llmAuthError"), {
       description: ev.message || i18n.t("chat.llmAuthErrorDesc"),
@@ -285,6 +346,11 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       agentState: state.agentState
         ? { ...state.agentState, activeSkills: null }
         : state.agentState,
+    }
+
+    // failed 收尾：具体错误由 system 消息块/专用事件承载，这里给轻量提示
+    if (ev.status === "failed") {
+      toast.error(i18n.t("chat.errors.runFailed"), { duration: 6000 })
     }
 
     useChatStore.getState()._finalizeMessages()

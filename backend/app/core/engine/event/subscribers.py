@@ -19,7 +19,7 @@ from sqlalchemy.orm import selectinload
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.channel.input.mobile_input import mobile_input
 from app.core.engine.constants import ENGINE_ACTIONS
-from app.core.engine.dispatch import DispatchStatus, dispatch_agent_run
+from app.core.engine.dispatch import DispatchStatus
 from app.core.engine.event import AgentEventType, ConversationEventType
 from app.core.engine.event.handlers import A2ACommandHandler, MemoryCommandHandler
 from app.core.engine.event.schemas import (
@@ -445,34 +445,75 @@ class EngineCommandSubscriber:
         await session_manager.stop_agent(thread_id, "mobile_stop")
 
     async def _handle_retry(self, command: RemoteCommand) -> None:
-        """Handle retry command from Mobile (rewind + re-dispatch)."""
-        await self._handle_retry_or_rewind(command, should_redispatch=True)
+        """Handle retry command from Mobile (rewind + re-dispatch via retry_service)."""
+        thread_id = command.get("thread_id")
+        if not thread_id:
+            logger.warning("[EngineCommand] Retry command missing thread_id, skipping")
+            return
+
+        payload = command.get_payload()
+        message_id = command.get("message_id")
+        revert_files = payload.get("revert_files", True)
+        include_target = payload.get("include_target", False)
+
+        logger.info(
+            f"[EngineCommand] Processing retry for thread {thread_id}, target={message_id}"
+        )
+
+        from app.core.context.manager import ContextManager, EvoContext
+        from app.core.engine.retry_service import RetryError, retry_and_redispatch
+
+        ctx = EvoContext(thread_id=thread_id)
+        ContextManager.set(ctx)
+
+        try:
+            outcome = await retry_and_redispatch(
+                thread_id=thread_id,
+                project_id=DEFAULT_PROJECT_ID,
+                context=ctx,
+                target_message_id=message_id,
+                revert_files=revert_files,
+                reset_state=True,
+                include_target=include_target,
+                reason="retry",
+                command_id=command.get("command_id"),
+            )
+            logger.info(
+                f"[EngineCommand] retry completed: target={outcome.target_message_id}, "
+                f"removed={outcome.removed_message_count}, message_id={outcome.message_id}"
+            )
+        except RetryError as e:
+            logger.error(f"[EngineCommand] retry failed: {e.message}")
+            # 目标消息不在本地时的云清理 fallback（保持原行为）
+            if message_id and include_target:
+                from app.core.engine.rewind import publish_messages_cleanup
+
+                await publish_messages_cleanup(
+                    thread_id=thread_id,
+                    message_ids=[message_id],
+                    delete_references=False,
+                    target_sequence=0,
+                    include_target=False,
+                )
 
     async def _handle_rewind(self, command: RemoteCommand) -> None:
         """Handle rewind command from Mobile (rewind only, no re-dispatch)."""
-        await self._handle_retry_or_rewind(command, should_redispatch=False)
-
-    async def _handle_retry_or_rewind(
-        self, command: RemoteCommand, should_redispatch: bool
-    ) -> None:
-        """Shared logic for retry and rewind commands."""
         thread_id = command.get("thread_id")
         if not thread_id:
             logger.warning(
-                "[EngineCommand] Retry/Rewind command missing thread_id, skipping"
+                "[EngineCommand] Rewind command missing thread_id, skipping"
             )
             return
 
         payload = command.get_payload()
         message_id = command.get("message_id")
         revert_files = payload.get("revert_files", True)
-        action = "retry" if should_redispatch else "rewind"
+        include_target = payload.get("include_target", True)
 
         logger.info(
-            f"[EngineCommand] Processing {action} for thread {thread_id}, target={message_id}"
+            f"[EngineCommand] Processing rewind for thread {thread_id}, target={message_id}"
         )
 
-        from app.core.context.manager import ContextManager
         from app.core.engine.rewind import perform_rewind
 
         async with session_scope() as session:
@@ -496,10 +537,9 @@ class EngineCommandSubscriber:
 
             if not target_msg:
                 logger.error(
-                    f"[EngineCommand] No human message found for {action} thread {thread_id}"
+                    f"[EngineCommand] No human message found for rewind thread {thread_id}"
                 )
-                # Fallback: if message is missing locally, at least attempt to delete the target message from the cloud
-                if message_id and payload.get("include_target", not should_redispatch):
+                if message_id and include_target:
                     from app.core.engine.rewind import publish_messages_cleanup
 
                     await publish_messages_cleanup(
@@ -511,81 +551,24 @@ class EngineCommandSubscriber:
                     )
                 return
 
-            references = None
-            if target_msg.references:
-                references = [
-                    {
-                        "type": ref.type,
-                        "id": ref.target_id,
-                        "target_id": ref.target_id,
-                        "target_name": ref.target_name,
-                        "meta_data": ref.meta_data,
-                    }
-                    for ref in target_msg.references
-                ]
-
-            retry_content = target_msg.content
-            project_id = (
-                target_msg.project_id
-                if target_msg.project_id is not None
-                else DEFAULT_PROJECT_ID
-            )
-
         rewind_result = await perform_rewind(
             thread_id=thread_id,
             target_message_id=str(target_msg.id),
-            include_target=payload.get("include_target", not should_redispatch),
+            include_target=include_target,
             revert_files=revert_files,
-            reset_state=should_redispatch,
-            reason=action,
+            reset_state=False,
+            reason="rewind",
         )
 
         if rewind_result.status != "success":
             logger.error(
-                f"[EngineCommand] {action} rewind failed: {rewind_result.errors}"
+                f"[EngineCommand] rewind failed: {rewind_result.errors}"
             )
             return
 
         logger.info(
-            f"[EngineCommand] {action} rewind completed: {rewind_result.removed_message_count} messages removed"
+            f"[EngineCommand] rewind completed: {rewind_result.removed_message_count} messages removed"
         )
-
-        if not should_redispatch:
-            logger.info("[EngineCommand] Rewind done, no re-dispatch required")
-            return
-
-        # Retry: re-dispatch the message
-        from app.core.context.manager import EvoContext
-
-        ctx = EvoContext(thread_id=thread_id, project_id=project_id)
-        ContextManager.set(ctx)
-
-        result = await dispatch_agent_run(
-            thread_id=thread_id,
-            message_content=retry_content,
-            project_id=project_id,
-            references=references,
-            command_id=command.get("command_id"),
-            model=None,
-            is_retry=True,
-            skip_message_persistence=True,
-            context=ctx,
-            metadata={"goal_prefix": "Retry: "},
-        )
-
-        if result.status == DispatchStatus.FAILED:
-            logger.error(f"[EngineCommand] Retry dispatch failed: {result.error}")
-            return
-
-        # 反映 rewind 后的 DB）；无活会话创建并启动，不再回落到 run_agent_background。
-        await session_manager.submit(thread_id, result.inputs)
-
-
-@event_register()
-class EngineConversationCleanup:
-    """
-    Cleans up engine-owned data when a conversation is deleted.
-    """
 
     @event_subscribe(ConversationEventType.CONVERSATION_DELETED)
     async def on_conversation_deleted(self, event: ConversationDeletedEvent) -> None:

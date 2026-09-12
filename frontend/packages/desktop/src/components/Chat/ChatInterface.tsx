@@ -97,6 +97,7 @@ export function ChatInterface() {
   const sendMessage = useChatStore((s) => s.sendMessage)
   const isTerminalMode = useChatStore((s) => s.isTerminalMode)
   const sendTerminalCommand = useChatStore((s) => s.sendTerminalCommand)
+  const isSending = useChatStore((s) => s.isSending)
   const status = useAgentStore((s) => s.status)
   const humanRequest = useAgentStore((s) => s.humanRequest)
   const stopAgent = useAgentStore((s) => s.stopAgent)
@@ -269,6 +270,22 @@ export function ChatInterface() {
     }
   }, [status])
 
+  // 审计修复（会话归属错乱）：切换项目 = 切换会话空间。此前 projectId
+  // 变化后 threadId 保留旧项目的会话 → 继续往旧 thread 发消息（thread
+  // 归属旧项目，会话列表仍出现在旧项目下）。跳过首挂（由 init effect
+  // 负责 URL 深链）。
+  const lastProjectIdRef = useRef<number | undefined>(undefined)
+  useEffect(() => {
+    if (lastProjectIdRef.current === undefined) {
+      lastProjectIdRef.current = projectId
+      return
+    }
+    if (lastProjectIdRef.current !== projectId) {
+      lastProjectIdRef.current = projectId
+      setThread(null, projectId ?? null)
+    }
+  }, [projectId, setThread])
+
   // Auto-show context panel when agent starts working (skipped in compact window,
   // and skipped when user has manually closed it before)
   useEffect(() => {
@@ -353,7 +370,8 @@ export function ChatInterface() {
         setTimeout(() => sendMessage(pendingMessage), 500)
         stripChatLinkParams()
       } else if (!shouldAutoSend && !quoteId) {
-        // Just plain fill? (Need store support)
+        // 纯预填：消息带入输入框但不自动发送（此前只清 URL，消息被静默丢弃）
+        chatInputRef.current?.setInput(pendingMessage)
         stripChatLinkParams()
       }
     }
@@ -500,7 +518,7 @@ export function ChatInterface() {
 
   const handleNewChat = useCallback(() => {
     if (projectId !== undefined) {
-      setThread(null, projectId)
+      setThread(null, projectId ?? null)
     }
   }, [projectId, setThread])
 
@@ -1077,7 +1095,7 @@ export function ChatInterface() {
                     isAgentWorking={
                       status === "running" || status === "summarizing"
                     }
-                    isSending={false}
+                    isSending={isSending}
                     isStopPending={false}
                     currentProject={currentProject}
                     activeThreadId={activeThreadId || undefined}

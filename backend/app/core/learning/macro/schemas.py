@@ -9,7 +9,12 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.core.learning import constants as _mc
-from app.core.learning.constants import DEFAULT_ALLOWED_FAMILIES, RISK_TIER_ORDER, RISK_TIERS
+# re-export：公共 API（测试与外部以 schemas 为单一导入源，勿删）
+from app.core.learning.constants import (  # noqa: F401
+    DEFAULT_ALLOWED_FAMILIES,
+    RISK_TIERS,
+)
+from app.core.learning.constants import RISK_TIER_ORDER
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils.yaml import macro_from_yaml, macro_to_yaml
 

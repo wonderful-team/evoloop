@@ -7,7 +7,7 @@ import logging
 
 from app.core.config import settings
 from app.core.context.manager import ContextManager
-from app.core.memory.constants import DEFAULT_SEARCH_LIMIT, get_memory_tools, register_memory_tools, SHORT_TERM_MAX_MESSAGES
+from app.core.memory.constants import DEFAULT_SEARCH_LIMIT, get_memory_tools, register_memory_tools
 from app.core.memory.models import MemoryEntry, MemoryType, PrivacyLevel
 from app.core.memory.short_term import SqlShortTermMemory
 from app.core.tools import evoloop_tool
@@ -42,11 +42,12 @@ async def write_handover_notes(notes: str, key: str = "general") -> str:
     """
     try:
         ctx = ContextManager.current()
-        if ctx and ctx.metadata.blackboard:
-            state = ctx.metadata.blackboard
-            shared = dict(state.shared_context or {})
+        # 冗余清理：原经 ctx.metadata.blackboard（整个 state 的 duck-typing
+        # 挂载）取 shared_context——为读一个字段把全量对话历史每轮写进
+        # Redis。shared_context 已由 hydrator 单独同步到 ctx.metadata，直读。
+        if ctx and ctx.metadata.shared_context:
+            shared = dict(ctx.metadata.shared_context or {})
             shared[key] = notes
-            state.shared_context = shared
             ctx.metadata.shared_context = shared
             logger.info(f"[MemoryTool] Wrote handover notes for key: {key}")
             return f"Successfully saved handover notes under key '{key}'."

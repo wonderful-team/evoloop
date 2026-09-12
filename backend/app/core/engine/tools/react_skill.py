@@ -55,6 +55,8 @@ async def skill(
             "Do not guess names; only load skills listed in the system prompt."
         )
 
+    activated_note = await _activate_package_capability(resolved)
+
     lines = [resolved["content"].strip()]
     base = resolved["base_dir"]
     if base:
@@ -64,4 +66,69 @@ async def skill(
         lines.append("<skill_files>")
         lines.extend(resolved["files"])
         lines.append("</skill_files>")
+    if activated_note:
+        lines.append(activated_note)
     return "\n".join(lines)
+
+
+async def _activate_package_capability(resolved: dict) -> str:
+    """能力包加载联动（capability-packages-refactor.md §6-#3）。
+
+    包类技能（capability.tools 声明）加载时：
+    1. 逐 server ``ensure_connected``（连接进程级持久，幂等）；
+    2. 包名并入 ``ctx.metadata.loaded_packages``（EvoContext 随 thread 持久，
+       下一轮 ToolManager 按 (server, tool) 解析可见性）。
+
+    Returns:
+        附给 LLM 的提示文本（工具下一轮可用）；非包技能返回空串。
+    """
+    capability = resolved.get("capability")
+    if not capability:
+        return ""
+
+    package_name = resolved.get("name") or ""
+    servers: list[str] = []
+    for entry in capability.get("tools") or []:
+        server = entry.get("mcp_server")
+        if isinstance(server, str) and server and server not in servers:
+            servers.append(server)
+
+    notes: list[str] = []
+    all_connected = True
+    if servers:
+        from app.core.mcp import mcp_client_manager
+
+        for server_name in servers:
+            connected = await mcp_client_manager.ensure_connected(server_name)
+            if not connected:
+                all_connected = False
+            notes.append(
+                f"MCP server '{server_name}' connected: yes"
+                if connected
+                else f"MCP server '{server_name}' connected: FAILED (tools unavailable)"
+            )
+
+    # 审计修复：server 连接失败时不得记账为已加载（否则 G4 按「已加载=全量」
+    # 解锁写工具，调用必然失败且无失效机制）。连接全失败时不激活。
+    if all_connected:
+        try:
+            from app.core.context import ContextManager
+
+            ctx = ContextManager.current()
+            loaded = ctx.metadata.loaded_packages
+            if package_name and package_name not in loaded:
+                loaded.append(package_name)
+                # 审计修复：bind_tools 每次 delivery 只绑一次，此前激活的新
+                # 工具要等下一次 delivery 才可达（同 run 内必然 not found →
+                # doom loop）。置脏标记，inference 循环每步检测并 rebind，
+                # 本 run 内立即可用。
+                ctx.metadata.packages_dirty = True
+        except Exception:
+            logger.exception("[SkillTool] failed to record loaded package '%s'", package_name)
+    else:
+        notes.append(
+            "Package NOT activated (server unavailable): tools remain locked. "
+            "Retry later or use the tools after the server recovers."
+        )
+
+    return "\n".join(notes)

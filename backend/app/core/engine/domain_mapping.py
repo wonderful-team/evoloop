@@ -22,6 +22,8 @@ from app.core.routing.constants import (
 )
 
 DOMAIN_TO_INTENT_MODULES: dict[str, tuple[str, list[str]]] = {
+    # 注：宿主/项目声明域（如 mall_ops）的 modules 由 capability profile 提供
+    # （AgentContextHydrator profile-first），不在此注册——引擎保持通用。
     # Knowledge / task domains that delegate to the worker agent
     "coding_dev": (INTENT_WORKER_TASK, ["Base", "Skill", "Project"]),
     "coding_test": (INTENT_WORKER_TASK, ["Base", "Skill", "Project"]),

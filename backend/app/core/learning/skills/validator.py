@@ -48,6 +48,15 @@ class SkillValidator:
                 errors.append("Missing 'name' in skill metadata")
             if "description" not in metadata:
                 warnings.append("Missing 'description' in skill metadata")
+            # 能力包声明（capability-packages-refactor.md §5.1）：格式错误
+            # 静默降级为普通技能（capability=None）并告警，不阻断导入
+            capability = cls._normalize_capability(
+                metadata.get("capability"),
+                top_domain=metadata.get("domain"),
+                requires=metadata.get("requires"),
+            )
+            if isinstance(metadata.get("capability"), dict) and capability is None:
+                warnings.append("Invalid 'capability' block; treated as plain skill")
 
         # 3. Check for recommended structure
         for r_dir in RECOMMENDED_DIRS:
@@ -78,6 +87,78 @@ class SkillValidator:
             warnings=warnings,
             metadata=metadata,
         )
+
+    @staticmethod
+    def _normalize_capability(raw, top_domain=None, requires=None) -> dict | None:
+        """Normalize the SKILL.md ``capability`` frontmatter block.
+
+        Accepts dict with optional keys: domain (str), tools (list of
+        {mcp_server, include?}), preload (bool), route_patterns (list[str]),
+        confirm_tools (list[str]).
+        ``top_domain``：顶层 frontmatter 的 domain 键兜底（包归属域声明在
+        顶层，capability 块内可覆盖）。域→包目录（v3 DB 查询）依赖此字段。
+        ``requires``（废弃，v3.1）：兼容合并——requires.mcp 的 server 依赖
+        自动转为 capability.tools（include 缺省=全量）；requires.tools 的
+        原生工具名忽略（native 面由 profile 管）。全部走 deprecation warning。
+        Malformed declarations degrade to None (ordinary skill) per contract §9.1.
+        """
+        if raw is None and isinstance(requires, dict) and (
+            requires.get("mcp") or requires.get("tools")
+        ):
+            raw = {}
+        if not isinstance(raw, dict) or not raw:
+            return None
+        cap: dict = {}
+        domain = raw.get("domain") or top_domain
+        if isinstance(domain, str) and domain.strip():
+            cap["domain"] = domain.strip()
+        tools = raw.get("tools")
+        if isinstance(tools, list):
+            cleaned: list[dict] = []
+            for entry in tools:
+                if not isinstance(entry, dict):
+                    continue
+                server = entry.get("mcp_server")
+                if not isinstance(server, str) or not server.strip():
+                    continue
+                item: dict = {"mcp_server": server.strip()}
+                include = entry.get("include")
+                if isinstance(include, list) and all(
+                    isinstance(x, str) for x in include
+                ):
+                    item["include"] = [x for x in include if x.strip()]
+                cleaned.append(item)
+            if cleaned:
+                cap["tools"] = cleaned
+        # v3.1 requires 兼容合并（deprecation）：requires.mcp → 全量 server
+        if isinstance(requires, dict):
+            legacy_mcp = requires.get("mcp")
+            if isinstance(legacy_mcp, list):
+                existing_servers = {
+                    e.get("mcp_server") for e in cap.get("tools") or []
+                }
+                for server in legacy_mcp:
+                    if isinstance(server, str) and server.strip() and (
+                        server.strip() not in existing_servers
+                    ):
+                        cap.setdefault("tools", []).append(
+                            {"mcp_server": server.strip()}
+                        )
+        preload = raw.get("preload")
+        if isinstance(preload, bool):
+            cap["preload"] = preload
+        confirm_tools = raw.get("confirm_tools")
+        if isinstance(confirm_tools, list) and all(
+            isinstance(x, str) and x for x in confirm_tools
+        ):
+            # 写操作清单（G4）：页面预挂时排除；显式加载包（SOP 已读）后放开
+            cap["confirm_tools"] = confirm_tools
+        route_patterns = raw.get("route_patterns")
+        if isinstance(route_patterns, list) and all(
+            isinstance(x, str) and x for x in route_patterns
+        ):
+                cap["route_patterns"] = route_patterns
+        return cap or None
 
     @staticmethod
     def _fix_yaml_frontmatter(yaml_text: str) -> str:

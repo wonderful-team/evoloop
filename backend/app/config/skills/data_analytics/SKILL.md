@@ -1,12 +1,14 @@
 ---
 name: Data Analytics
-description: "Standard Operating Procedure (SOP) for the Universal Data Analytics Agent. Triggers for data exploration, data cleaning, advanced statistical modeling, or analyzing pre-fetched data files from upstream sources."
+description: Standard Operating Procedure (SOP) for the Universal Data Analytics Agent.
+  Triggers for data exploration, data cleaning, advanced statistical modeling, or
+  analyzing pre-fetched data files from upstream sources.
 namespace: roles
 trigger_patterns:
-  - "analyze data in {file_path}"
-  - "what is the trend for {metric}"
-  - "create a report based on {data_source}"
-  - "build a dashboard for {business_context}"
+- analyze data in {file_path}
+- what is the trend for {metric}
+- create a report based on {data_source}
+- build a dashboard for {business_context}
 parameters:
   file_path:
     type: string
@@ -23,9 +25,10 @@ parameters:
   business_context:
     type: string
     description: Domain-specific context (e.g., marketing, finance, SaaS).
-requires:
-  mcp: [rube, database]
-  tools: [execute_command, read_file, write_file, edit_file, browser, analyze_image, search_web]
+capability:
+  tools:
+  - mcp_server: rube
+  - mcp_server: database
 ---
 
 # 📊 Universal Data Analytics Agent

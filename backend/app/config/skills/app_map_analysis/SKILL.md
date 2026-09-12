@@ -1,12 +1,13 @@
 ---
 name: AppMap Analysis
-description: Survey a project's source code and produce AppMaps (structured five-layer entity maps) for macro generation.
+description: Survey a project's source code and produce AppMaps (structured five-layer
+  entity maps) for macro generation.
 namespace: roles
 trigger_patterns:
-  - "生成源码地图"
-  - "分析项目结构"
-  - "铺满技能"
-  - "Generate source map"
+- 生成源码地图
+- 分析项目结构
+- 铺满技能
+- Generate source map
 parameters:
   project_id:
     type: integer
@@ -14,30 +15,17 @@ parameters:
   working_directory:
     type: string
     description: The root directory of the project to survey.
-requires:
-  tools:
-    - query_code_chunks
-    - query_code_relations
-    - read_app_map
-    - write_app_map
-    - list_app_maps
-    - generate_macros_from_app_map
-    - read_file
-    - write_file
-    - execute_command
-    - grep_search
 scripts:
   batch_write:
     path: scripts/batch_writer.py
     description: Batch-write all AppMap records from a collector JSON file.
-    usage: |
-      uv run python app/config/skills/app_map_analysis/scripts/batch_writer.py \
-        --project-id {project_id} --input {json_path}
+    usage: "uv run python app/config/skills/app_map_analysis/scripts/batch_writer.py\
+      \ \\\n  --project-id {project_id} --input {json_path}\n"
   reference_collector:
     path: scripts/collector.py
-    description: Reference collector script. Copy to project root, adapt FRAMEWORK CONFIG, then run.
-    usage: |
-      cp app/config/skills/app_map_analysis/scripts/collector.py {project_root}/collect_appmaps.py
+    description: Reference collector script. Copy to project root, adapt FRAMEWORK
+      CONFIG, then run.
+    usage: cp app/config/skills/app_map_analysis/scripts/collector.py {project_root}/collect_appmaps.py
 ---
 
 # AppMap Analysis

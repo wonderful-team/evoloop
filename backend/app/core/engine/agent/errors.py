@@ -10,18 +10,13 @@ from app.core.engine.message.classifier import MessageClassifier
 from app.core.engine.message.constants import MessageStatus
 from app.core.engine.message.mobile_notifier import MobileErrorNotifier
 from app.core.engine.message.sequence import SequenceService
-from app.core.events import system_bus
+from app.core.engine.error_emitter import error_emitter
 from app.core.exceptions import AgentHumanInterruptException
 from app.core.monitoring.activity import activity_monitor
 from app.core.monitoring.constants import ActivityStatus
 from app.i18n.service import i18n
 from app.infrastructure.database import session_scope
 from app.models import Message
-from app.models.schemas.events import (
-    AuthExpiredEvent,
-    LLMAuthErrorEvent,
-    QuotaExhaustedEvent,
-)
 from app.utils.id import gen_uuid
 
 logger = logging.getLogger(__name__)
@@ -64,14 +59,7 @@ async def handle_task_exception(
     if error_type == "auth_expired":
         logger.warning(f"[EvoLoopAuth] Thread {thread_id} platform auth expired")
         await activity_monitor.end_run(thread_id, ActivityStatus.FAILED)
-        await system_bus.publish(
-            AuthExpiredEvent(
-                thread_id=thread_id,
-                title=classification.title,
-                message=classification.message,
-                hint=classification.hint,
-            )
-        )
+        await error_emitter.emit(thread_id, e)
         await _push_to_mobile_if_handler(classification)
         return True
 
@@ -80,28 +68,14 @@ async def handle_task_exception(
             f"[LLMAuthError] Thread {thread_id} hit LLM API authentication error"
         )
         await activity_monitor.end_run(thread_id, ActivityStatus.FAILED)
-        await system_bus.publish(
-            LLMAuthErrorEvent(
-                thread_id=thread_id,
-                title=classification.title,
-                message=classification.message,
-                hint=classification.hint,
-            )
-        )
+        await error_emitter.emit(thread_id, e)
         await _push_to_mobile_if_handler(classification)
         return True
 
     if error_type == "quota_exhausted":
         logger.warning(f"[QuotaExhausted] Thread {thread_id} hit quota limit")
         await activity_monitor.end_run(thread_id, ActivityStatus.QUOTA_EXHAUSTED)
-        await system_bus.publish(
-            QuotaExhaustedEvent(
-                thread_id=thread_id,
-                title=classification.title,
-                message=classification.message,
-                hint=classification.hint,
-            )
-        )
+        await error_emitter.emit(thread_id, e)
         await _push_to_mobile_if_handler(classification)
         return True
 

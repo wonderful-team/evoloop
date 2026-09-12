@@ -6,14 +6,18 @@
 - generate: 文生视频 / 图生视频，走 OpenAI 标准 ``videos.create_and_poll``
             接口（经网关统一代理，模型由网关目录动态提供）。
 """
-import asyncio
 import logging
-import os
 from typing import Annotated, Literal, TypeAlias, cast
 
 from app.core.engine.message.native_classes import RunnableConfig
 from app.core.tools import evoloop_tool
 from app.core.tools.base import InjectedToolArg
+from app.core.vision.tools._media import (
+    load_source_bytes,
+    remove_file,
+    stash_media_ref,
+    write_temp,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -24,14 +28,13 @@ VideoSize: TypeAlias = Literal["720x1280", "1280x720", "1024x1792", "1792x1024"]
 @evoloop_tool(
     name="video",
     is_state_mutating=True,
-    affected_path_keys=["source", "output_path"],
+    affected_path_keys=["source"],
     summary_template="evoloop.tool_summary.video",
 )
 async def video(
     action: Literal["analyze", "generate"] = "analyze",
     prompt: str | None = None,
     source: str | None = None,
-    output_path: str = "uploads/generated_video.mp4",
     seconds: int = 5,
     size: str = "1920x1080",
     question: str = "Describe this video in detail.",
@@ -44,8 +47,7 @@ async def video(
     - analyze:  提取视频关键帧（VideoService.extract_keyframes）并交给 VisionEngine
                 分析内容。source 为本地视频路径或公开 URL。
     - generate: 文生视频（prompt）或图生视频（prompt + source 参考图），
-                经网关 OpenAI 标准接口（videos.create_and_poll）生成，结果存到
-                output_path 并返回 markdown 链接。
+                经网关 OpenAI 标准接口（videos.create_and_poll）生成，结果上传云端并返回公网链接。
 
     WHEN TO USE:
     - 用户发来视频问"这里面发生了什么 / 总结一下" → analyze。
@@ -55,14 +57,13 @@ async def video(
         action: 执行的动作（analyze / generate）。
         prompt: generate 时的文本提示词（文生视频/图生视频描述）。
         source: analyze 时的本地视频路径或公开 URL；generate 时可选参考图路径/URL（图生视频）。
-        output_path: generate 输出保存路径（建议 uploads/... 便于聊天内引用）。
         seconds: generate 视频时长（秒）。
         size: generate 视频分辨率（OpenAI 标准，如 1920x1080 / 720x720）。
         question: analyze 时对视频内容的问题。
         model: 可选指定视频模型；缺省由网关默认视频模型路由。
     """
     if action == "generate":
-        return await _generate(prompt, source, output_path, seconds, size, model, config)
+        return await _generate(prompt, source, seconds, size, model, config)
 
     return await _analyze(source, question)
 
@@ -85,7 +86,7 @@ async def _analyze(source: str | None, question: str) -> str:
         summary_lines = []
         for i, frame in enumerate(frames, start=1):
             prompt = f"[Frame {i}/{len(frames)}] {question}"
-            frame_path = await _frame_to_temp_path(frame.data, i)
+            frame_path = await write_temp(frame.data, ".jpg")
             try:
                 result = await vision_engine.process(
                     task=VisionTask.ANALYZE,
@@ -108,7 +109,6 @@ async def _analyze(source: str | None, question: str) -> str:
 async def _generate(
     prompt: str | None,
     source: str | None,
-    output_path: str,
     seconds: int,
     size: str,
     model: str | None,
@@ -119,9 +119,9 @@ async def _generate(
         return "Error: action=generate requires `prompt` (text description)."
 
     try:
-        from openai._types import FileTypes
         from openai.types.video_seconds import VideoSeconds
 
+        from app.core.evocloud import evocloud_manager
         from app.infrastructure.vision.generation import create_generation_client
 
         try:
@@ -141,20 +141,49 @@ async def _generate(
                 model = video_models[0].model_id
                 logger.info("[Video] auto-selected video model: %s", model)
 
+        # 图生视频：参考图统一转为公网 URL（Ark 从 URL 拉取；本地路径先上传 MC）
+        input_reference: str | None = None
         if source:
-            video_obj = await client.videos.create_and_poll(
-                model=model or "",  # 空 model 由网关默认视频模型路由
-                prompt=prompt,
-                seconds=cast(VideoSeconds, seconds),
-                size=cast(VideoSize, size),
-                input_reference=cast(FileTypes, source),
-            )
-        else:
-            video_obj = await client.videos.create_and_poll(
-                model=model or "",
-                prompt=prompt,
-                seconds=cast(VideoSeconds, seconds),
-                size=cast(VideoSize, size),
+            if source.startswith(("http://", "https://")):
+                input_reference = source
+            else:
+                source_bytes = await load_source_bytes(source, config)
+                tmp = await write_temp(source_bytes, ".png")
+                try:
+                    input_reference = await evocloud_manager.api.upload_chat_media(tmp, "image")
+                finally:
+                    await remove_file(tmp)
+
+        # 轮询上限：防止上游任务卡死导致会话无限挂起（openai SDK create_and_poll 无界）
+        import asyncio
+
+        poll_timeout = 900.0  # 15 分钟
+        try:
+            if input_reference:
+                video_obj = await asyncio.wait_for(
+                    client.videos.create_and_poll(
+                        model=model or "",  # 空 model 由网关默认视频模型路由
+                        prompt=prompt,
+                        seconds=cast(VideoSeconds, seconds),
+                        size=cast(VideoSize, size),
+                        input_reference=input_reference,
+                    ),
+                    timeout=poll_timeout,
+                )
+            else:
+                video_obj = await asyncio.wait_for(
+                    client.videos.create_and_poll(
+                        model=model or "",
+                        prompt=prompt,
+                        seconds=cast(VideoSeconds, seconds),
+                        size=cast(VideoSize, size),
+                    ),
+                    timeout=poll_timeout,
+                )
+        except TimeoutError:
+            return (
+                f"Error: video generation timed out after {int(poll_timeout)}s. "
+                f"The task may still complete upstream; please retry later."
             )
 
         if video_obj.status != "completed":
@@ -163,39 +192,28 @@ async def _generate(
                 f"error={video_obj.error})"
             )
 
-        # 下载生成内容并保存到本地 uploads 命名空间
-        from app.core.file.tools.utils import resolve_and_validate_path
+        # 下载到临时文件 → 上传 Member Center 换公网 URL（云端为权威存储）
+        data = await _download_video_bytes(client, video_obj.id)
+        tmp_path = await write_temp(data, ".mp4")
+        try:
+            public_url = await evocloud_manager.api.upload_chat_media(tmp_path, "video")
+        finally:
+            await remove_file(tmp_path)
 
-        resolved = await resolve_and_validate_path(output_path, config)
-        await _download_video(client, video_obj.id, resolved)
-        return f"[Video: generated video]({output_path})"
+        # 结构化引用直传：AI 消息持久化时合并（不依赖模型复述链接）
+        stash_media_ref("video", public_url, "generated video")
+
+        return (
+            f"[Video: generated video]({public_url})\n\n"
+            f"(视频已生成并上传。你的最终回复中无需重复该链接——界面会自动展示视频播放器；"
+            f"如需在正文中提及，请原样保留上面的视频链接。)"
+        )
     except Exception as e:
         logger.exception(f"[Video] generate failed: {e}")
         return f"Error: video generation failed: {str(e)}"
 
 
-async def _frame_to_temp_path(data: bytes, index: int) -> str:
-    """Write frame bytes to a temp JPEG file and return its path (async-safe)."""
-    import tempfile
-
-    path = os.path.join(tempfile.gettempdir(), f"evoloop_frame_{index}.jpg")
-
-    def _write() -> None:
-        with open(path, "wb") as f:
-            f.write(data)
-
-    await asyncio.to_thread(_write)
-    return path
-
-
-async def _download_video(client, video_id: str, path: str) -> None:
-    """Download a completed video's content to a local path."""
-    import aiofiles
-
+async def _download_video_bytes(client, video_id: str) -> bytes:
+    """Download a completed video's content and return its bytes."""
     response = await client.with_raw_response.videos.download_content(video_id)
-    content = await response.aread()
-    parent = os.path.dirname(path)
-    if parent:
-        os.makedirs(parent, exist_ok=True)
-    async with aiofiles.open(path, "wb") as f:
-        await f.write(content)
+    return await response.aread()

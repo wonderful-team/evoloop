@@ -13,6 +13,7 @@ import {
   tryParseHumanRequest,
 } from "./chat/helpers"
 import type { ActiveTaskInfo, ActivitySnapshot, ChatState } from "./chat/types"
+import { useHostContextStore } from "./hostContextStore"
 import { useProjectStore } from "./projectStore"
 
 // ---------------------------------------------------------------------------
@@ -116,6 +117,7 @@ export const useChatStore = create<ChatState>((set, get) => {
     skillIds: [],
     sessionGoal: null,
     messages: [],
+    isSending: false,
     pendingCreateTask: null,
     hasMoreHistory: false,
     isLoadingHistory: false,
@@ -177,8 +179,10 @@ export const useChatStore = create<ChatState>((set, get) => {
           onAgentState: (ev) => agentStore._setAgentState(ev),
           onSubagent: (ev) => agentStore._handleSubagentLifecycle(ev),
           onA2A: (ev) => agentStore._handleA2ALifecycle(ev),
-          onQuotaExhausted: agentStore._setQuotaExhausted,
-          onLLMAuthError: agentStore._setLLMAuthError,
+          onQuotaExhausted: (info) =>
+            agentStore._handleServerError({ type: "quota_exhausted", ...info }),
+          onLLMAuthError: (ev) =>
+            agentStore._handleServerError({ type: "llm_auth_error", ...ev }),
           onRunStart: agentStore._handleRunStart,
           onRunEnd: agentStore._handleRunEnd,
           onSessionCompleted: agentStore._handleSessionCompleted,
@@ -195,8 +199,10 @@ export const useChatStore = create<ChatState>((set, get) => {
               )
             }
           },
-          onAuthExpired: (ev) => toast.error(ev.message),
-          onError: agentStore._setError,
+          onAuthExpired: (ev) =>
+            agentStore._handleServerError({ type: "auth_expired", ...ev }),
+          onError: (err) =>
+            agentStore._handleServerError({ type: "error", message: err }),
           onUnauthorized: () => {
             useAgentStore.setState({ status: "unauthorized" })
           },
@@ -217,8 +223,9 @@ export const useChatStore = create<ChatState>((set, get) => {
         })
 
         // Fetch history and activity first, then connect SSE
+        // 升级新会话（本地已有 optimistic 消息）时静默拉取，避免历史 loading 闪现
         await Promise.all([
-          get().fetchHistory(threadId),
+          get().fetchHistory(threadId, { silent: isUpgradingNewConversation }),
           get().fetchActivity(threadId),
           get().fetchActiveTasks(threadId),
           useChangesetStore.getState().fetchChangeset(threadId),
@@ -231,8 +238,10 @@ export const useChatStore = create<ChatState>((set, get) => {
       }
     },
 
-    fetchHistory: async (threadId) => {
-      set({ isLoadingHistory: true })
+    fetchHistory: async (threadId, opts) => {
+      // silent：列表里已有 optimistic 消息（新线程首条消息触发的 setThread）时，
+      // 后台静默对齐 server 状态，不闪“加载历史”loading
+      if (!opts?.silent) set({ isLoadingHistory: true })
       try {
         const data = await ConversationsService.getConversationMessages({
           threadId,
@@ -240,6 +249,10 @@ export const useChatStore = create<ChatState>((set, get) => {
         })
         const msgs = (data.data || []).map(normalizeMessage)
         set((state) => {
+          // 审计修复（竞态）：await 期间用户可能已切换会话。旧 thread 的
+          // 历史不得写入新 thread 的消息列表。
+          if (state.threadId !== threadId) return {}
+
           const serverIds = new Set(msgs.map((m) => String(m.id)))
           const activeRunId = (useAgentStore.getState().agentState as any)
             ?.run_id
@@ -247,8 +260,16 @@ export const useChatStore = create<ChatState>((set, get) => {
           const localMsgsToKeep = state.messages.filter((m) => {
             const idStr = String(m.id)
             if (serverIds.has(idStr)) return false // Use server's version
-            if (idStr.startsWith("temp-") || idStr.startsWith("placeholder-"))
+            if (idStr.startsWith("temp-") || idStr.startsWith("placeholder-")) {
+              // optimistic human 与 server 版同内容（SSE/落库先于本次拉取）→ 丢弃副本
+              if (
+                m.role === "human" &&
+                msgs.some((s) => s.role === "human" && s.content === m.content)
+              ) {
+                return false
+              }
               return true
+            }
             if (m.status === "streaming") {
               // Only keep streaming messages if they match the active run
               if (activeRunId && (m as any).run_id === activeRunId) return true
@@ -275,7 +296,7 @@ export const useChatStore = create<ChatState>((set, get) => {
         console.error("[ChatStore] Fetch history failed", e)
         toast.error(i18n.t("chat.errors.fetchHistoryFailed"))
       } finally {
-        set({ isLoadingHistory: false })
+        if (!opts?.silent) set({ isLoadingHistory: false })
       }
     },
 
@@ -312,11 +333,16 @@ export const useChatStore = create<ChatState>((set, get) => {
           limit: 30,
         })
         const oldMsgs = (data.data || []).map(normalizeMessage)
-        set((state) => ({
-          messages: [...oldMsgs, ...state.messages],
-          hasMoreHistory: !!data.has_more,
-          firstMessageId: data.first_id || null,
-        }))
+        set((state) => {
+          // 审计修复（竞态）：与 fetchHistory 同款防护——await 期间用户
+          // 已切换会话时，旧 thread 的更早历史不得拼进新会话列表头部。
+          if (state.threadId !== threadId) return {}
+          return {
+            messages: [...oldMsgs, ...state.messages],
+            hasMoreHistory: !!data.has_more,
+            firstMessageId: data.first_id || null,
+          }
+        })
       } catch (e) {
         console.error("[ChatStore] Load more history failed", e)
         toast.error(i18n.t("chat.errors.loadMoreHistoryFailed"))
@@ -417,7 +443,13 @@ export const useChatStore = create<ChatState>((set, get) => {
 
       // Optimistic update
       const tempId = `temp-${Date.now()}`
-      const mappedReferences = (pickedFiles || []).map((a) => ({
+      set({ isSending: true })
+      // 审计修复：只发上传成功且 url 非空的附件（uploading/error 状态
+      // 会以 target_id: "" 进入后端，成为无效引用）
+      const sendableFiles = (pickedFiles || []).filter(
+        (a) => a.status === "success" && a.url,
+      )
+      const mappedReferences = sendableFiles.map((a) => ({
         id: a.id,
         type: (a.type === "reference" ? "message" : a.type) as any,
         target_id: String(a.url),
@@ -478,6 +510,17 @@ export const useChatStore = create<ChatState>((set, get) => {
             task_id: createTask?.taskId || undefined,
             secret: createTask?.secret || undefined,
             callback_url: createTask?.callbackUrl || undefined,
+            host_context: (() => {
+              const hc = useHostContextStore.getState().context
+              if (!hc) return undefined
+              return {
+                route: hc.route,
+                page_name: hc.pageName,
+                entity: hc.entity,
+                domain: hc.domain ?? undefined,
+                ts: hc.ts,
+              }
+            })(),
           },
         })
         if (createTask) {
@@ -491,20 +534,51 @@ export const useChatStore = create<ChatState>((set, get) => {
             await get().setThread(res.thread_id, projectId, activeSkillIds)
           }
           if (res.message_id) {
-            // Existing thread or new thread: replace optimistic temp ID with real backend ID
-            set((state) => ({
-              messages: state.messages.map((m) =>
-                m.id === tempId ? { ...m, id: res.message_id } : m,
-              ),
-            }))
+            // Replace optimistic temp ID with real backend ID.
+            // 新线程场景：setThread 内的 fetchHistory 可能已带回同 id 的 server
+            // 版本 —— 此时直接丢弃 temp 副本，避免同名双条（“短暂多一条用户消息”）。
+            set((state) => {
+              const serverDuplicate = state.messages.some(
+                (m) =>
+                  m.id !== tempId && String(m.id) === String(res.message_id),
+              )
+              const base = serverDuplicate
+                ? state.messages.filter((m) => m.id !== tempId)
+                : state.messages
+              return {
+                messages: base.map((m) =>
+                  m.id === tempId ? { ...m, id: res.message_id } : m,
+                ),
+              }
+            })
           }
         }
-      } catch (_e: any) {
-        toast.error(i18n.t("chat.errors.sendFailed"))
+      } catch (e: any) {
+        // HTTP 层错误细分：订阅过期/登录失效/后端 detail，避免一律「发送失败」
+        const status = e?.status
+        const body = e?.body as any
+        let msg = i18n.t("chat.errors.sendFailed")
+        if (status === 401) {
+          msg = i18n.t("chat.errors.unauthorized")
+        } else if (
+          status === 403 ||
+          body?.code === "subscription_expired" ||
+          (typeof body?.detail === "string" &&
+            body.detail.includes("subscription"))
+        ) {
+          msg = i18n.t("chat.errors.subscriptionExpired")
+        } else if (typeof body?.detail === "string" && body.detail) {
+          msg = body.detail
+        }
+        toast.error(msg, { duration: 8000 })
         set((state) => ({
           messages: state.messages.filter((m) => m.id !== tempId),
+          isSending: false,
         }))
         useAgentStore.getState()._handleRunEnd({ status: "idle" })
+        return
+      } finally {
+        set({ isSending: false })
       }
     },
 
@@ -699,9 +773,12 @@ export const useChatStore = create<ChatState>((set, get) => {
     _finalizeMessages: () => {
       set((state) => {
         const updates: any = commitThinkingBuffer(state)
-        updates.messages = (updates.messages || state.messages).map((m: any) =>
-          m.status === "streaming" ? { ...m, status: "completed" } : m,
-        )
+        updates.messages = (updates.messages || state.messages).map((m: any) => {
+          if (m.status === "streaming") return { ...m, status: "completed" }
+          // 工具失败行：run 结束时仍在 running（后端 FAILED 已推/将补拉）则置 failed
+          if (m.status === "running" && m.role === "tool") return { ...m, status: "failed" }
+          return m
+        })
         return updates
       })
     },
@@ -726,13 +803,29 @@ export const useChatStore = create<ChatState>((set, get) => {
     _appendMessage: (raw) => {
       // SSE "message" events wrap MessageBlock in {type, action, data: MessageBlock}
       const payload = raw?.data ? raw.data : raw
-      const { threadId, messages } = get()
+      const { threadId } = get()
       set((state) => {
         useAgentStore.setState({ streamingThinking: "" })
         return commitThinkingBuffer(state)
       })
+      // 审计修复（串线防护）：MessageBlock 自带 thread_id。会话切换的
+      // await 窗口内，旧连接的残余事件不得写入新会话的消息列表
+      //（connect 竞态修复的纵深防御层）。
+      const payloadThreadId = (payload as { thread_id?: string }).thread_id
+      if (
+        threadId &&
+        payloadThreadId &&
+        String(payloadThreadId) !== String(threadId)
+      ) {
+        return
+      }
+
       const humanReq = tryParseHumanRequest(payload)
-      if (!threadId || (payload.role === "system" && !humanReq)) return
+      // ErrorEmitter 单出口契约：system + category==="error" 是系统级错误块，
+      // 必须可见（渲染为错误消息），其余非 HITL system 消息仍丢弃。
+      const isErrorSystem =
+        payload.role === "system" && (payload as { category?: string }).category === "error"
+      if (!threadId || (payload.role === "system" && !humanReq && !isErrorSystem)) return
 
       if (humanReq) {
         set((state) => {
@@ -747,34 +840,39 @@ export const useChatStore = create<ChatState>((set, get) => {
 
       const msg = normalizeMessage(payload)
 
+      // 注意：所有索引查找都必须在 set 回调内基于最新 state.messages 进行。
+      // 上方 commitThinkingBuffer 可能已 push/更新列表（flush 50ms 定时器与本
+      // 事件并发），用外部快照的索引写回最新列表会错位覆盖相邻消息。
+
       // Replace optimistic human message (temp-*) with real backend ID
       if (msg.role === "human" && !msg.id.toString().startsWith("temp-")) {
-        const tempIdx = messages.findIndex(
-          (m) => m.role === "human" && String(m.id).startsWith("temp-"),
-        )
-        if (tempIdx >= 0) {
-          set((state) => {
-            const msgs = [...state.messages]
-            msgs[tempIdx] = {
-              ...msgs[tempIdx],
-              ...msg,
-              id: msg.id,
-              references:
-                msg.references && msg.references.length > 0
-                  ? msg.references
-                  : msgs[tempIdx].references,
-            }
-            return { messages: msgs }
-          })
-          return
-        }
+        let replaced = false
+        set((state) => {
+          const tempIdx = state.messages.findIndex(
+            (m) => m.role === "human" && String(m.id).startsWith("temp-"),
+          )
+          if (tempIdx < 0) return {}
+          replaced = true
+          const msgs = [...state.messages]
+          msgs[tempIdx] = {
+            ...msgs[tempIdx],
+            ...msg,
+            id: msg.id,
+            references:
+              msg.references && msg.references.length > 0
+                ? msg.references
+                : msgs[tempIdx].references,
+          }
+          return { messages: msgs }
+        })
+        if (replaced) return
       }
 
-      const existIdx = messages.findIndex((m) => m.id === msg.id)
-      if (existIdx >= 0) {
-        let shouldRefreshChangeset = false
-        set((state) => {
-          const msgs = [...state.messages]
+      let mergedExisting = false
+      set((state) => {
+        const msgs = [...state.messages]
+        const existIdx = msgs.findIndex((m) => m.id === msg.id)
+        if (existIdx >= 0) {
           const ex = msgs[existIdx]
           const prevChangesetCount = ex.changeset_count || 0
           msgs[existIdx] = {
@@ -802,25 +900,24 @@ export const useChatStore = create<ChatState>((set, get) => {
                 ? msg.has_file_operations
                 : ex.has_file_operations,
           }
+          mergedExisting = true
           if (
             msg.changeset_count &&
             msg.changeset_count > 0 &&
             prevChangesetCount === 0
           ) {
-            shouldRefreshChangeset = true
+            setTimeout(() => {
+              const threadId = get().threadId
+              if (threadId) {
+                useChangesetStore.getState().fetchChangeset(threadId)
+              }
+            }, 500)
           }
           return { messages: msgs }
-        })
-        if (shouldRefreshChangeset) {
-          setTimeout(() => {
-            const threadId = get().threadId
-            if (threadId) {
-              useChangesetStore.getState().fetchChangeset(threadId)
-            }
-          }, 500)
         }
-        return
-      }
+        return {}
+      })
+      if (mergedExisting) return
 
       // Merge into an existing streaming row of the same role when the incoming
       // block is a continuation/finalization of that same logical message:
@@ -831,41 +928,33 @@ export const useChatStore = create<ChatState>((set, get) => {
       // into one and makes AI messages appear squeezed together.
       const isNewToolStep = msg.role === "tool" && msg.status === "running"
       if (!isNewToolStep) {
-        let streamIdx = -1
-        for (let i = messages.length - 1; i >= 0; i--) {
-          if (
-            messages[i].role === msg.role &&
-            messages[i].status === "streaming"
-          ) {
-            streamIdx = i // fallback: remember the last streaming message
-            if (String(messages[i].id) === String(msg.id)) {
-              break // exact match found
+        let mergedStream = false
+        set((state) => {
+          const msgs = [...state.messages]
+          let streamIdx = -1
+          for (let i = msgs.length - 1; i >= 0; i--) {
+            if (msgs[i].role === msg.role && msgs[i].status === "streaming") {
+              streamIdx = i // fallback: remember the last streaming message
+              if (String(msgs[i].id) === String(msg.id)) {
+                break // exact match found
+              }
             }
           }
-        }
-
-        if (streamIdx >= 0) {
-          let shouldRefreshChangeset = false
-          set((state) => {
-            const msgs = [...state.messages]
-            const ex = msgs[streamIdx]
-            const prevChangesetCount = ex.changeset_count || 0
-            msgs[streamIdx] = {
-              ...msg,
-              content: msg.content || msgs[streamIdx].content,
-              thinking: msg.thinking || msgs[streamIdx].thinking,
-              status: msg.status || "completed",
-            }
-            if (
-              msg.changeset_count &&
-              msg.changeset_count > 0 &&
-              prevChangesetCount === 0
-            ) {
-              shouldRefreshChangeset = true
-            }
-            return { messages: msgs }
-          })
-          if (shouldRefreshChangeset) {
+          if (streamIdx < 0) return {}
+          mergedStream = true
+          const ex = msgs[streamIdx]
+          const prevChangesetCount = ex.changeset_count || 0
+          msgs[streamIdx] = {
+            ...msg,
+            content: msg.content || ex.content,
+            thinking: msg.thinking || ex.thinking,
+            status: msg.status || "completed",
+          }
+          if (
+            msg.changeset_count &&
+            msg.changeset_count > 0 &&
+            prevChangesetCount === 0
+          ) {
             setTimeout(() => {
               const threadId = get().threadId
               if (threadId) {
@@ -873,8 +962,9 @@ export const useChatStore = create<ChatState>((set, get) => {
               }
             }, 500)
           }
-          return
-        }
+          return { messages: msgs }
+        })
+        if (mergedStream) return
       }
 
       // Trigger changeset refresh if message has file changes
