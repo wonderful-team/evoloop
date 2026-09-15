@@ -94,7 +94,6 @@ export function VoiceMessage({
     }
   }, [isPlaying, isLoaded])
 
-  const _progress = duration > 0 ? currentTime / duration : 0
   const remainingTime = Math.max(0, duration - currentTime)
 
   return (

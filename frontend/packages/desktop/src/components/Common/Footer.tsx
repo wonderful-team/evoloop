@@ -1,20 +1,3 @@
-import { FaGithub, FaLinkedinIn } from "react-icons/fa"
-import { FaXTwitter } from "react-icons/fa6"
-
-const _socialLinks = [
-  {
-    icon: FaGithub,
-    href: "https://github.com/evoloop",
-    label: "GitHub",
-  },
-  { icon: FaXTwitter, href: "https://x.com/evoloop", label: "X" },
-  {
-    icon: FaLinkedinIn,
-    href: "https://linkedin.com/company/evoloop",
-    label: "LinkedIn",
-  },
-]
-
 import { useTranslation } from "react-i18next"
 
 export function Footer() {

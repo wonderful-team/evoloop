@@ -36,7 +36,7 @@ import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { MemoryService, ResourcesService } from "@/client"
-import { useChatStore } from "@/stores/chatStore"
+import { useAgentStore } from "@/stores/agentStore"
 import { MessageContent } from "../MessageContent"
 
 interface ContextGroupTabProps {
@@ -92,7 +92,7 @@ export function ContextGroupTab({ projectId }: ContextGroupTabProps) {
   })
 
   // 2. MEMORY
-  const activeMemories = useChatStore((s) => s.activeMemories)
+  const activeMemories = useAgentStore((s) => s.activeMemories)
   const isActiveMemory = (conceptName: string) => {
     return activeMemories.some((m) =>
       m.name?.toLowerCase().includes(conceptName.toLowerCase()),

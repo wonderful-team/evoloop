@@ -9,6 +9,8 @@
 
 from dataclasses import dataclass
 
+from app.utils.diff import is_binary_content
+
 
 @dataclass(frozen=True)
 class FileDiff:
@@ -52,6 +54,15 @@ def compute_file_diff(
     """
     if before == after:
         return FileDiff(operation="", diff="", original=None)
+
+    # Binary files cannot be text-diffed: report existence-level change only,
+    # with an empty diff and no undo backup.
+    if is_binary_content(before) or is_binary_content(after):
+        if not before and after:
+            return FileDiff(operation="ADD", diff="", original=None)
+        if before and not after:
+            return FileDiff(operation="DELETE", diff="", original=None)
+        return FileDiff(operation="EDIT", diff="", original=None)
 
     if not before and after:
         operation = "ADD"

@@ -97,6 +97,11 @@ def _load(working_directory: str | None) -> dict[str, CapabilityProfile]:
     return merged
 
 
+def list_domains(working_directory: str | None = None) -> list[str]:
+    """List domains declared by the project-side capability profile."""
+    return list(_load(working_directory).keys())
+
+
 def get_profile(
     domain: str | None, working_directory: str | None = None
 ) -> CapabilityProfile | None:

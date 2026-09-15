@@ -4,13 +4,13 @@ Background agent error handling utilities.
 
 import logging
 
+from app.core.engine.error_emitter import error_emitter
 from app.core.engine.error_handler import LLMErrorHandler
 from app.core.engine.message.category import MessageCategory
 from app.core.engine.message.classifier import MessageClassifier
 from app.core.engine.message.constants import MessageStatus
 from app.core.engine.message.mobile_notifier import MobileErrorNotifier
 from app.core.engine.message.sequence import SequenceService
-from app.core.engine.error_emitter import error_emitter
 from app.core.exceptions import AgentHumanInterruptException
 from app.core.monitoring.activity import activity_monitor
 from app.core.monitoring.constants import ActivityStatus
@@ -74,7 +74,11 @@ async def handle_task_exception(
 
     if error_type == "quota_exhausted":
         logger.warning(f"[QuotaExhausted] Thread {thread_id} hit quota limit")
-        await activity_monitor.end_run(thread_id, ActivityStatus.QUOTA_EXHAUSTED)
+        # final_outcome 携带原始错误文本（含"reset at ..."）——值守熔断据此
+        # 暂停到配额重置点，而不是盲等固定冷却（见 domain/tasks/event/subscribers）。
+        await activity_monitor.end_run(
+            thread_id, ActivityStatus.QUOTA_EXHAUSTED, final_outcome=str(e)[:300]
+        )
         await error_emitter.emit(thread_id, e)
         await _push_to_mobile_if_handler(classification)
         return True

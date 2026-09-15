@@ -152,18 +152,6 @@ export type Body_learning_upload_screenshot = {
     file: (Blob | File);
 };
 
-/**
- * 业务巡检任务（一条独立的 Agent 会话）。
- */
-export type BusinessPollPrompt = {
-    id: string;
-    prompt: string;
-    next_run_at: string;
-    interval_minutes: number;
-    enabled?: boolean;
-    [key: string]: unknown | string | number | boolean;
-};
-
 export type CacheInvalidateResponse = {
     code?: number;
     message: string;
@@ -515,16 +503,15 @@ export type DownloadRequest = {
  *
  * 全字段可选 = 部分更新语义（PUT）：未传字段保持原值。
  *
- * 轮巡间隔/业务巡检扫描间隔属于全局值守设置（CUSTOMER_SERVICE_DUTY），
- * 不在项目级配置；项目只负责参与意愿（enabled）+ 渠道（channels）+
- * 巡检任务列表（business_poll_prompts）。
+ * 轮巡间隔属于全局值守设置（CUSTOMER_SERVICE_DUTY），不在项目级配置；
+ * 项目只负责参与意愿（enabled）+ 渠道（channels）。业务巡检已迁移为
+ * 任务队列的 recurring 任务（business_poll_prompts 已废弃）。
  */
 export type DutyConfig = {
     enabled?: (boolean | null);
     channels?: ({
     [key: string]: unknown;
 } | Array<unknown> | null);
-    business_poll_prompts?: (Array<BusinessPollPrompt> | null);
     [key: string]: unknown;
 };
 
@@ -3522,6 +3509,71 @@ export type TasksExecuteTaskData = {
 };
 
 export type TasksExecuteTaskResponse = (unknown);
+
+export type TasksQueueCreateTaskData = {
+    requestBody: {
+        [key: string]: unknown;
+    };
+};
+
+export type TasksQueueCreateTaskResponse = ({
+    [key: string]: unknown;
+});
+
+export type TasksQueueListQueueData = {
+    projectId?: (number | null);
+    status?: (string | null);
+};
+
+export type TasksQueueListQueueResponse = ({
+    [key: string]: unknown;
+});
+
+export type TasksQueueEditTaskData = {
+    requestBody: {
+        [key: string]: unknown;
+    };
+    taskId: string;
+};
+
+export type TasksQueueEditTaskResponse = ({
+    [key: string]: unknown;
+});
+
+export type TasksQueueConfirmProposalData = {
+    taskId: string;
+};
+
+export type TasksQueueConfirmProposalResponse = ({
+    [key: string]: unknown;
+});
+
+export type TasksQueueAcceptTaskData = {
+    taskId: string;
+};
+
+export type TasksQueueAcceptTaskResponse = ({
+    [key: string]: unknown;
+});
+
+export type TasksQueueRejectTaskData = {
+    requestBody?: ({
+    [key: string]: unknown;
+} | null);
+    taskId: string;
+};
+
+export type TasksQueueRejectTaskResponse = ({
+    [key: string]: unknown;
+});
+
+export type TasksQueueQueueDashboardData = {
+    projectId?: (number | null);
+};
+
+export type TasksQueueQueueDashboardResponse = ({
+    [key: string]: unknown;
+});
 
 export type ToolsListRuntimeToolsResponse = (Array<ToolInfo>);
 

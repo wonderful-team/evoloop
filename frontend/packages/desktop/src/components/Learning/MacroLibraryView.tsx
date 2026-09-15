@@ -24,8 +24,7 @@ import {
 import { Input } from "@evoloop/shared/components/ui/input"
 import { Label } from "@evoloop/shared/components/ui/label"
 import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useNavigate } from "@tanstack/react-router"
+import { useMutation, useQuery } from "@tanstack/react-query"
 import {
   ChevronDown,
   ChevronRight,
@@ -39,7 +38,7 @@ import {
 import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import { AtlasService, MacrosService } from "@/client/sdk.gen"
+import { MacrosService } from "@/client/sdk.gen"
 import type { MacroDetailDTO, MacroDTO } from "@/client/types.gen"
 import { useChatStore } from "@/stores/chatStore"
 import { useProjectStore } from "@/stores/projectStore"
@@ -58,8 +57,6 @@ interface MacroLibraryViewProps {
 // ── component ────────────────────────────────────────────────────────────────
 export function MacroLibraryView({ projectId }: MacroLibraryViewProps) {
   const { t } = useTranslation()
-  const queryClient = useQueryClient()
-  const navigate = useNavigate()
   const { projects } = useProjectStore()
 
   const [searchQuery, setSearchQuery] = useState("")
@@ -89,84 +86,6 @@ export function MacroLibraryView({ projectId }: MacroLibraryViewProps) {
         skip: (page - 1) * pageSize,
         limit: pageSize,
       } as any) as unknown as Promise<MacroDTO[]>,
-  })
-
-  const invalidate = () =>
-    queryClient.invalidateQueries({ queryKey: ["macros"] })
-
-  const _confirmMutation = useMutation({
-    mutationFn: (ids: number[]) =>
-      MacrosService.confirmBulk({ requestBody: { macro_ids: ids } }),
-    onSuccess: (_r, ids) => {
-      toast.success(t("learning.macros.confirmed", { count: ids.length }))
-      setSelected(new Set())
-      invalidate()
-    },
-    onError: (e: any) => toast.error(e.message),
-  })
-
-  const _deleteMutation = useMutation({
-    mutationFn: (id: number) => MacrosService.deleteMacro({ macroId: id }),
-    onSuccess: () => {
-      toast.success(t("learning.macros.deleted"))
-      invalidate()
-    },
-    onError: (e: any) => toast.error(e.message),
-  })
-
-  const _regenMutation = useMutation({
-    mutationFn: (appMapId: number) => AtlasService.generateMacros({ appMapId }),
-    onSuccess: () => {
-      toast.success(t("learning.macros.regenStarted"))
-      setTimeout(invalidate, 4000)
-    },
-    onError: (e: any) => toast.error(e.message),
-  })
-
-  // TODO: 桌面应用扫描入口（隐藏）——需先实现"选择要扫描的应用"UI
-  // （后端 POST /api/v1/macros/maintenance 已支持 apps 参数指定 bundle:Name 列表），
-  // 完成后在工具栏展示"更新桌面宏"按钮。
-  const _maintenanceMutation = useMutation({
-    mutationFn: () => MacrosService.triggerMacroMaintenance({}),
-    onSuccess: () => {
-      toast.success(t("learning.macros.updateDesktopStarted"))
-      setTimeout(invalidate, 6000)
-    },
-    onError: (e: any) => toast.error(e.message),
-  })
-
-  const _createMutation = useMutation({
-    mutationFn: (projId: number | null) =>
-      MacrosService.createMacro({
-        requestBody: {
-          name: t("learning.macros.newMacroName"),
-          description: t("learning.macros.newMacroDesc"),
-          project_id: projId,
-          macro_script: "steps: []",
-        },
-      }),
-    onSuccess: (newMacro) => {
-      toast.success(t("learning.macros.createSuccess"))
-      invalidate()
-      navigate({
-        to: "/learning/macros/$macroId/edit",
-        params: { macroId: (newMacro as any).id.toString() },
-      } as any)
-    },
-    onError: (e: any) => toast.error(e.message),
-  })
-
-  const _bulkDeleteMutation = useMutation({
-    mutationFn: async (ids: number[]) => {
-      await Promise.all(ids.map((id) => MacrosService.deleteMacro({ macroId: id })))
-      return ids
-    },
-    onSuccess: (_, ids) => {
-      toast.success(t("learning.macros.bulkDeleteSuccess", { count: ids.length }))
-      setSelected(new Set())
-      invalidate()
-    },
-    onError: (e: any) => toast.error(e.message),
   })
 
   const runMutation = useMutation({
@@ -225,14 +144,6 @@ export function MacroLibraryView({ projectId }: MacroLibraryViewProps) {
     return [...byEntity.entries()].sort((a, b) => a[0].localeCompare(b[0]))
   }, [filtered, t])
 
-  const _pendingSelected = useMemo(
-    () =>
-      (macros || []).filter(
-        (m) => selected.has(m.id) && m.status === "pending_review",
-      ),
-    [macros, selected],
-  )
-
   const toggleSelect = (id: number) => {
     setSelected((prev) => {
       const next = new Set(prev)
@@ -270,13 +181,6 @@ export function MacroLibraryView({ projectId }: MacroLibraryViewProps) {
     })) as unknown as MacroDetailDTO
     setDetail(d)
     setDetailOpen(true)
-  }
-
-  const _openEdit = (m: MacroDTO) => {
-    navigate({
-      to: "/learning/macros/$macroId/edit",
-      params: { macroId: m.id.toString() },
-    } as any)
   }
 
   const openRun = (m: MacroDTO) => {
@@ -523,9 +427,9 @@ export function MacroLibraryView({ projectId }: MacroLibraryViewProps) {
                             </div>
                             {(Array.isArray(m.trigger_patterns) ? m.trigger_patterns : []).filter(Boolean).length > 0 && (
                               <div className="flex flex-wrap gap-1">
-                                {(Array.isArray(m.trigger_patterns) ? m.trigger_patterns : [])
+                                {(Array.isArray(m.trigger_patterns) ? (m.trigger_patterns as string[]) : [])
                                   .filter(Boolean)
-                                  .map((p: string, i: number) => (
+                                  .map((p, i) => (
                                     <span key={i} className="text-[10px] bg-primary/5 text-primary px-1.5 py-0.5 rounded border border-primary/10 font-mono">
                                       {p}
                                     </span>

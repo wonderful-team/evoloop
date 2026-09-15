@@ -40,7 +40,7 @@ export interface ReferencePickerHandle {
 export const ReferencePicker = forwardRef<
   ReferencePickerHandle,
   ReferencePickerProps
->(({ projectId, searchQuery, onSelect, onClose, className }, ref) => {
+>(({ projectId, searchQuery, onSelect, className }, ref) => {
   const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState<"files" | "messages">("files")
   const [items, setItems] = useState<ReferenceItem[]>([])

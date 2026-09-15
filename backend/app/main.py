@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import os
 import time
@@ -72,45 +71,21 @@ async def lifespan(app: FastAPI):  # noqa: ARG001
     await publish_app_started(startup_time)
     logger.info("[Startup] APP_STARTED event published")
 
-    # --- 值守/自主调度：由 API 进程驱动 ---
-    # 值守 Agent 会话跑在 API 进程 → 事件直接进 API 的本地 broker → SSE 实时到前端
-    # （worker 进程的 broker 是进程内、且未注册 sse 渠道，值守跑在 worker 前端收不到实时事件）。
-    scheduler_task: asyncio.Task | None = None
-    try:
-        async def _scheduler_loop():
-            from app.infrastructure.scheduler.service import SchedulerService
-
-            # 先 tick 后 sleep：启动即补扫 —— tick 按 next_run_at <= now 扫描，
-            # 进程离线期间到期的任务在重启后首轮全部命中（离线补跑语义，
-            # 依赖此顺序，勿改为先 sleep）。
-            while True:
-                try:
-                    await SchedulerService.tick()
-                except Exception:
-                    logger.exception("[Scheduler] tick 执行失败")
-                await asyncio.sleep(60)
-
-        scheduler_task = asyncio.create_task(_scheduler_loop())
-        logger.info("[Startup] 值守/自主调度循环已启动 (API 进程)")
-    except Exception as e:
-        logger.warning(f"[Startup] 调度循环启动失败 (非关键): {e}")
+    # --- 值守双循环已迁至各自模块的生命周期订阅者（模块自治）---
+    # 触发器层心跳（SchedulerLifecycleSubscriber，infrastructure/scheduler/lifecycle.py）
+    # 与工作项层 supervisor（SupervisorLifecycleSubscriber，domain/tasks/event/subscribers.py）
+    # 订阅 APP_STARTED 拉起 / APP_STOPPING 停止，由上方 auto_discover_handlers
+    # 统一发现注册。worker 进程（bin/run_worker.py）不发布 APP_STARTED，
+    # 单 drainer 红线由进程归属保证（详见 AGENTS.md「自主值守关键事实」）。
 
     yield
 
     # --- Shutdown ---
     logger.info("Shutting down EvoLoop resources...")
 
-    # 停止值守/自主调度循环
-    if scheduler_task is not None:
-        scheduler_task.cancel()
-        try:
-            await scheduler_task
-        except asyncio.CancelledError:
-            pass
-        logger.info("[Shutdown] 调度循环已停止")
-
     # 1. Publish Application Stopping Event
     # This triggers all decentalized LifecycleHandlers (EvoCloud, Memory, Indexing, MCP, etc.)
+    # 及双循环的 APP_STOPPING 订阅者（supervisor / tick 心跳在此自行取消）
     try:
         from app.core.events.publishers import publish_app_stopping
 

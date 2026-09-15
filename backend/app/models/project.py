@@ -36,8 +36,38 @@ class ProjectTask(Base):
     parent_id: Mapped[str | None] = mapped_column(ForeignKey("project_tasks.id"), nullable=True, index=True)
 
     # Task execution status
-    status: Mapped[str] = mapped_column(String(50), default="pending")  # pending, in_progress, completed, failed
+    # Queue lifecycle: proposed, pending, in_progress, self_checked,
+    # waiting_acceptance, completed, failed, cancelled
+    status: Mapped[str] = mapped_column(String(50), default="pending")
     progress: Mapped[int] = mapped_column(Integer, default=0)  # 0-100
+
+    # ---- Queue fields (autonomous task loop, stage 1) ----
+    # Full executable instruction for the agent (first-class column: editable
+    # from the board UI and by the agent tool; JSON task_data stays for the rest)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Task kind: "once" (default) or "recurring" (trigger_spec drives requeue)
+    type: Mapped[str] = mapped_column(String(20), default="once")
+    # Entry source of the task row: user / external / agent (creator semantics)
+    source: Mapped[str] = mapped_column(String(20), default="user", index=True)
+    # Derivation path: {kind: message|patrol_run|agent_run|event, ref: ...}
+    source_ref: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # Idempotency key for external events: "{source}:{event_id}"
+    dedup_key: Mapped[str | None] = mapped_column(String(255), nullable=True, unique=True, index=True)
+    # Acceptance tier inherited from MCP risk annotations: T1-T4
+    risk_level: Mapped[str | None] = mapped_column(String(4), nullable=True)
+    # Due time for one-shot tasks (scheduling scan key)
+    due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    # Recurring spec (cron or "interval:seconds"); non-null = recurring task
+    trigger_spec: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Next run for recurring tasks (advanced on claim to prevent re-dispatch)
+    next_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    # Structured self-check report: {verdict, checks, deviations}
+    self_check: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # Acceptance receipt: {by, at, verdict, feedback}
+    acceptance: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # Latest workspace thread for board drill-down
+    last_thread_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
 
     # Task data (JSON)
     # {

@@ -39,6 +39,9 @@ class Channel(ABC):
     """
 
     name: str = "base"
+    # 该渠道的主要输出是否直达外部客户/联系人（客服渠道）。
+    # True = 回复受渠道长度硬限约束；False = 内部通道（web/SSE/通知），无硬限。
+    customer_facing: bool = False
     accepts_blocks: bool = True
     accepts_stream_events: bool = False
 

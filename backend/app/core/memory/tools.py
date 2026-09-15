@@ -7,7 +7,11 @@ import logging
 
 from app.core.config import settings
 from app.core.context.manager import ContextManager
-from app.core.memory.constants import DEFAULT_SEARCH_LIMIT, get_memory_tools, register_memory_tools
+from app.core.memory.constants import (
+    DEFAULT_SEARCH_LIMIT,
+    get_memory_tools,
+    register_memory_tools,
+)
 from app.core.memory.models import MemoryEntry, MemoryType, PrivacyLevel
 from app.core.memory.short_term import SqlShortTermMemory
 from app.core.tools import evoloop_tool

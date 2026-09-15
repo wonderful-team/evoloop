@@ -2,11 +2,11 @@ import { Button } from "@evoloop/shared/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuLabel,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@evoloop/shared/components/ui/dropdown-menu"
-import { Separator } from "@evoloop/shared/components/ui/separator"
 import {
   Tooltip,
   TooltipContent,
@@ -15,14 +15,19 @@ import {
 } from "@evoloop/shared/components/ui/tooltip"
 import { cn } from "@evoloop/shared/lib/utils"
 import {
+  ArrowUp,
   BookOpen,
+  ChevronDown,
   Ear,
   FileText,
+  Film,
+  Image as ImageIcon,
+  MessageSquareQuote,
+  Wand2,
   Loader2,
   MessageCircle,
   Mic,
   Paperclip,
-  Send,
   Square,
   Terminal,
   Volume2,
@@ -33,6 +38,7 @@ import {
   forwardRef,
   memo,
   useCallback,
+  useEffect,
   useImperativeHandle,
   useRef,
   useState,
@@ -55,6 +61,112 @@ import {
   ReferencePicker,
   type ReferencePickerHandle,
 } from "./ReferencePicker"
+
+
+// ── 输入区上下文模式（对话/生图/生视频/派任务）──────────────────
+// 设计：模式只做三件事——切换参数组、切换话术 starter、切换 placeholder。
+// 参数以文本后缀合成进消息（[生成参数] / [值守参数]），Agent prompt 直接消费。
+type ChatMode = "chat" | "image" | "video"
+
+interface ModeParamDef {
+  label: string
+  options: string[]
+}
+
+interface ModeDef {
+  label: string
+  icon: typeof ImageIcon
+  params: ModeParamDef[]
+  starter?: string
+  placeholderKey: string
+}
+
+const CHAT_MODE_DEFS: Record<ChatMode, ModeDef> = {
+  chat: {
+    label: "对话",
+    icon: MessageCircle,
+    params: [],
+    placeholderKey: "",
+  },
+  image: {
+    label: "生图",
+    icon: ImageIcon,
+    params: [
+      { label: "比例", options: ["1:1", "3:4", "4:3", "16:9"] },
+      { label: "风格", options: ["写实", "插画", "国风", "赛博朋克"] },
+      { label: "张数", options: ["1", "2", "4"] },
+    ],
+    starter: "画一只…",
+    placeholderKey: "chat.interface.imagePlaceholder",
+  },
+  video: {
+    label: "生视频",
+    icon: Film,
+    params: [
+      { label: "比例", options: ["16:9", "9:16", "1:1"] },
+      { label: "风格", options: ["写实", "动画", "电影感"] },
+      { label: "时长", options: ["5s", "10s"] },
+    ],
+    starter: "生成一段视频：…",
+    placeholderKey: "chat.interface.videoPlaceholder",
+  },
+}
+
+// ── 常用话术模板（分类组织；v2 迁移至项目侧能力包配置）────────
+interface PhraseTemplate {
+  label: string
+  text: string
+}
+
+interface PhraseCategory {
+  category: string
+  items: PhraseTemplate[]
+}
+
+const PHRASE_TEMPLATES: PhraseCategory[] = [
+  {
+    category: "值守巡检",
+    items: [
+      {
+        label: "订单巡检",
+        text: "请对商城进行订单巡检：检查是否有待发货、待付款或异常订单，有则直接处理并回复处理结果，无则回复「本次订单巡检无待办」。",
+      },
+      {
+        label: "售后巡检",
+        text: "请对商城进行售后巡检：检查是否有待处理的退款、退货、换货工单，有则直接处理并回复处理结果，无则回复「本次售后巡检无待办」。",
+      },
+      {
+        label: "库存巡检",
+        text: "请对商城进行库存巡检：检查是否有低库存预警、缺货商品或库存异常，有则直接处理并回复处理结果，无则回复「本次库存巡检无待办」。",
+      },
+      {
+        label: "会员巡检",
+        text: "请对商城进行会员巡检：检查是否有待处理的会员投诉、等级/积分异常，有则直接处理并回复处理结果；会员提现不纳入自动处理，仅汇报待办数量，无则回复「本次会员巡检无待办」。",
+      },
+      {
+        label: "营销巡检",
+        text: "请对商城进行营销巡检：检查是否有即将到期、异常或待生效的促销活动/优惠券/满减规则，有则直接处理并回复处理结果，无则回复「本次营销巡检无待办」。",
+      },
+      {
+        label: "资金巡检",
+        text: "请对商城进行资金巡检：检查是否有待处理的结算异常、提现审批、对账差异或资金风险，有则直接处理并回复处理结果，无则回复「本次资金巡检无待办」。",
+      },
+    ],
+  },
+  {
+    category: "任务委托",
+    items: [
+      {
+        label: "建值守任务",
+        text: "请帮我把这件事建成值守任务：\n· 要做的事：\n· 执行频率（可选，如每天 09:00 / 每 30 分钟）：\n· 需要特别注意的风险点（可选）：",
+      },
+      {
+        label: "建一次性任务",
+        text: "请帮我把这件事建成一个待办任务：\n· 要做的事：\n· 完成标准：",
+      },
+    ],
+  },
+]
 
 interface ChatInputAreaProps {
   onSend: (text: string, pickedFiles?: any[]) => void
@@ -96,6 +208,43 @@ export const ChatInputArea = memo(
       // 宿主内嵌：隐藏技能库/终端等桌面工具按钮，保留模型选择与输入
       const isEmbedded = useHostContextStore((s) => s.connected)
       const [inputValue, setInputValue] = useState("")
+      const [chatMode, setChatMode] = useState<ChatMode>("chat")
+      const [activeParams, setActiveParams] = useState<Record<string, string>>({})
+
+      // 切换模式：清参数；非对话模式自动填 starter（仅在输入框为空时，不打扰已输入内容）
+      function switchChatMode(mode: ChatMode) {
+        if (mode === chatMode) return
+        setChatMode(mode)
+        setActiveParams({})
+        if (mode !== "chat") setTerminalMode(false)
+        const starter = CHAT_MODE_DEFS[mode].starter
+        if (starter && !inputValue.trim()) setInputValue(starter)
+      }
+
+      function setParam(label: string, value: string | null) {
+        setActiveParams((prev) => {
+          const next = { ...prev }
+          if (value === null) delete next[label]
+          else next[label] = value
+          return next
+        })
+      }
+
+      // 发送合成：激活参数 → 结构化后缀（Agent prompt 直接消费）
+      function composeOutgoingText(raw: string): string {
+        if (chatMode === "chat") return raw
+        const modeDef = CHAT_MODE_DEFS[chatMode]
+        if (chatMode === "image" || chatMode === "video") {
+          const parts = [`类型=${chatMode === "image" ? "图片" : "视频"}`]
+          for (const p of modeDef.params) {
+            const v = activeParams[p.label]
+            if (v) parts.push(`${p.label}=${v}`)
+          }
+          const suffix = `[生成参数] ${parts.join(" ")}`
+          return raw.trim() ? `${raw.trim()}\n${suffix}` : suffix
+        }
+        return raw
+      }
       const [isUploading, setIsUploading] = useState(false)
       const [pickedFiles, setPickedFiles] = useState<PickedFile[]>([])
       const [isDragging, setIsDragging] = useState(false)
@@ -104,6 +253,25 @@ export const ChatInputArea = memo(
       const [searchQuery, setSearchQuery] = useState("")
       const [isSkillDialogOpen, setIsSkillDialogOpen] = useState(false)
       const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+      // 自动增高：随 inputValue 变化（含话术模板/草稿的程序化填入）
+      useEffect(() => {
+        const textarea = textareaRef.current
+        if (!textarea) return
+        textarea.style.height = "auto"
+        textarea.style.height = `${Math.min(textarea.scrollHeight, 500)}px`
+      }, [inputValue])
+
+      // 值守工作台"派个任务"预填草稿：挂载即消费（一次性），并聚焦输入框
+      useEffect(() => {
+        const draft = useChatStore.getState().pendingTaskDraft
+        if (draft) {
+          setInputValue(draft)
+          useChatStore.getState().setPendingTaskDraft(null)
+          requestAnimationFrame(() => textareaRef.current?.focus())
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [])
       const pickerRef = useRef<ReferencePickerHandle>(null)
 
       // Helper to extract @query from cursor position
@@ -162,7 +330,7 @@ export const ChatInputArea = memo(
 
         // Pass raw input and files directly to store/parent
         // The store handles the optimistic display formatting and API payload construction
-        onSend(inputValue, pickedFiles)
+        onSend(composeOutgoingText(inputValue), pickedFiles)
 
         // Request notification permission on first user gesture (if not already handled)
         if ("Notification" in window && Notification.permission === "default") {
@@ -468,10 +636,9 @@ export const ChatInputArea = memo(
 
       return (
         <div className="w-full px-4 py-2 relative">
-          {/* Reference Picker Popover - Hidden in global mode */}
+          {/* @ Reference Picker Popover */}
           {showPicker && currentProject && !isGlobalMode && (
             <div className="absolute bottom-full left-0 right-0 z-50 px-4">
-              {/* Click outside backdrop - Declared first to stay underneath */}
               <button
                 type="button"
                 aria-label={t("common.close")}
@@ -479,7 +646,6 @@ export const ChatInputArea = memo(
                 className="fixed inset-0 z-40 bg-transparent cursor-default"
                 onClick={() => setShowPicker(false)}
               />
-              {/* Picker card - Declared second with z-50 to overlay on top of the backdrop */}
               <ReferencePicker
                 ref={pickerRef}
                 projectId={currentProject.id!}
@@ -491,6 +657,7 @@ export const ChatInputArea = memo(
             </div>
           )}
 
+          {/* ── 输入卡片 ── */}
           <div
             role="region"
             aria-label={t("chat.interface.uploadFile")}
@@ -498,12 +665,12 @@ export const ChatInputArea = memo(
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
             className={cn(
-              "bg-card rounded-xl border transition-all ring-offset-0 overflow-hidden relative z-50",
+              "rounded-2xl border bg-card shadow-sm transition-all overflow-hidden relative z-50",
               isDragging
                 ? "border-primary border-dashed bg-primary/5 scale-[1.01]"
                 : isTerminalMode
-                  ? "border-signal-blue/30 focus-within:border-signal-blue/60 focus-within:ring-4 focus-within:ring-signal-blue/10"
-                  : "border-border focus-within:border-primary/40 focus-within:ring-4 focus-within:ring-primary/10",
+                  ? "border-signal-blue/40 focus-within:border-signal-blue/60 focus-within:ring-4 focus-within:ring-signal-blue/10"
+                  : "border-border focus-within:border-primary/50 focus-within:shadow-md focus-within:ring-4 focus-within:ring-primary/5",
             )}
           >
             {isDragging && (
@@ -514,39 +681,130 @@ export const ChatInputArea = memo(
                 </span>
               </div>
             )}
-            {/* Top: File Preview */}
-            <FilePreview
-              pickedFiles={pickedFiles}
-              onRemove={(id) =>
-                setPickedFiles((prev) => prev.filter((a) => a.id !== id))
-              }
-              onClick={(file) => {
-                if (file.type === "directory" || file.type === "file") {
-                  window.dispatchEvent(
-                    new CustomEvent("locate-file", {
-                      detail: {
-                        path: typeof file.url === "string" ? file.url : file.id,
-                      },
-                    }),
-                  )
-                }
-              }}
-            />
 
-            {/* Wake Word Indicator */}
-            {showWakeWordIndicator && (
-              <div className="px-4 py-2 bg-success/10 border-b border-success/20 flex items-center gap-2">
-                <Ear className="h-4 w-4 text-success animate-pulse" />
-                <span className="text-sm text-success">
-                  {t("chat.voice.wakeWordActive")}
-                </span>
+            {/* ── 上下文行：附件 + 模式芯片 + 参数 pills + 终端芯片 ── */}
+            {(pickedFiles.length > 0 ||
+              isTerminalMode ||
+              showWakeWordIndicator ||
+              chatMode !== "chat") && (
+              <div className="px-3 pt-2.5 flex flex-wrap items-center gap-1.5">
+                {showWakeWordIndicator && (
+                  <div className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] text-success bg-success/10 border border-success/20 select-none">
+                    <Ear className="h-3 w-3 animate-pulse" />
+                    <span>{t("chat.voice.wakeWordActive")}</span>
+                  </div>
+                )}
+                {isTerminalMode && (
+                  <button
+                    type="button"
+                    onClick={() => setTerminalMode(false)}
+                    className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-mono text-signal-blue bg-signal-blue/10 border border-signal-blue/30 select-none cursor-pointer hover:bg-signal-blue/20 transition-colors"
+                    title={t("chat.interface.exitTerminal")}
+                  >
+                    <Terminal className="h-3 w-3" />
+                    <span>{t("chat.interface.terminalMode")}</span>
+                    <X className="h-3 w-3 opacity-60" />
+                  </button>
+                )}
+                {chatMode !== "chat" && !isTerminalMode && (
+                  <button
+                    type="button"
+                    onClick={() => switchChatMode("chat")}
+                    className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium text-primary bg-primary/10 border border-primary/30 select-none cursor-pointer hover:bg-primary/20 transition-colors"
+                    title={t("chat.interface.exitMode", {
+                      defaultValue: "退出该模式",
+                    })}
+                  >
+                    <Wand2 className="h-3 w-3" />
+                    <span>{CHAT_MODE_DEFS[chatMode].label}</span>
+                    <X className="h-3 w-3 opacity-60" />
+                  </button>
+                )}
+                {chatMode !== "chat" &&
+                  !isTerminalMode &&
+                  CHAT_MODE_DEFS[chatMode].params.map((p) => {
+                    const val = activeParams[p.label]
+                    return (
+                      <DropdownMenu key={p.label}>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            type="button"
+                            className={cn(
+                              "flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] border select-none cursor-pointer transition-colors",
+                              val
+                                ? "bg-muted border-border text-foreground font-medium"
+                                : "bg-background border-dashed border-border text-muted-foreground hover:border-primary/40 hover:text-foreground",
+                            )}
+                          >
+                            {val ? (
+                              <>
+                                <span className="text-muted-foreground/70">
+                                  {p.label}
+                                </span>
+                                <span>{val}</span>
+                                <X className="h-2.5 w-2.5 opacity-50" />
+                              </>
+                            ) : (
+                              <>
+                                {p.label}
+                                <ChevronDown className="h-2.5 w-2.5 opacity-50" />
+                              </>
+                            )}
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start">
+                          {p.options.map((o) => (
+                            <DropdownMenuItem
+                              key={o}
+                              onClick={() => setParam(p.label, o)}
+                              className={
+                                val === o ? "text-primary font-medium" : ""
+                              }
+                            >
+                              {o}
+                              {val === o && (
+                                <span className="ml-auto text-primary">✓</span>
+                              )}
+                            </DropdownMenuItem>
+                          ))}
+                          {val && (
+                            <DropdownMenuItem
+                              onClick={() => setParam(p.label, null)}
+                            >
+                              清除
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )
+                  })}
+                <FilePreview
+                  pickedFiles={pickedFiles}
+                  onRemove={(id) =>
+                    setPickedFiles((prev) =>
+                      prev.filter((a) => a.id !== id),
+                    )
+                  }
+                  onClick={(file) => {
+                    if (file.type === "directory" || file.type === "file") {
+                      window.dispatchEvent(
+                        new CustomEvent("locate-file", {
+                          detail: {
+                            path:
+                              typeof file.url === "string" ? file.url : file.id,
+                          },
+                        }),
+                      )
+                    }
+                  }}
+                />
               </div>
             )}
 
-            {/* Middle: Text Area */}
-            <div className="px-2 py-2 flex items-center gap-2">
+            {/* ── 文本区 ── */}
+            <div className="px-3.5 pt-2.5 pb-1 flex items-start gap-2">
               {isTerminalMode && (
-                <span className="text-signal-blue font-mono font-bold select-none self-start">
+                <span className="text-signal-blue font-mono font-bold select-none self-start pt-1.5">
                   {t("chat.terminal.promptSymbol")}
                 </span>
               )}
@@ -558,152 +816,262 @@ export const ChatInputArea = memo(
                 onPaste={handlePaste}
                 placeholder={
                   isTerminalMode
-                    ? t("chat.interface.terminalPlaceholder")
-                    : disabled
-                      ? t("chat.interface.inputDisabled")
-                      : isGlobalMode
-                        ? t("chat.interface.askGlobal")
-                        : currentProject
-                          ? t("chat.interface.askProject", {
-                              project: currentProject.name,
-                            })
-                          : t("chat.interface.selectProject")
+                    ? t("chat.terminal.promptPlaceholder", {
+                        defaultValue: "输入命令，Enter 直接执行…",
+                      })
+                    : chatMode !== "chat"
+                      ? t(CHAT_MODE_DEFS[chatMode].placeholderKey, {
+                          defaultValue:
+                            chatMode === "image"
+                              ? "描述你想要的画面…"
+                              : chatMode === "video"
+                                ? "描述要生成的视频…"
+                                : "把要做的事交给 Agent…",
+                        })
+                      : disabled
+                        ? t("chat.interface.inputDisabled")
+                        : isGlobalMode
+                          ? t("chat.interface.askGlobal")
+                          : currentProject
+                            ? t("chat.interface.askProject", {
+                                project: currentProject.name,
+                              })
+                            : t("chat.interface.selectProject")
                 }
                 disabled={(!currentProject && !isGlobalMode) || disabled}
-                className="flex w-full bg-transparent border-none focus:ring-0 text-sm placeholder:text-muted-foreground resize-none focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 min-h-[36px] max-h-[300px]"
+                className="flex w-full bg-transparent border-none focus:ring-0 text-sm placeholder:text-muted-foreground/60 resize-none focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 min-h-[44px] max-h-[300px] py-1"
                 rows={1}
-                style={{ height: "auto", minHeight: "36px" }}
-                onInput={(e) => {
-                  // Auto-grow hack
-                  const target = e.target as HTMLTextAreaElement
-                  target.style.height = "auto"
-                  target.style.height = `${Math.min(target.scrollHeight, 500)}px`
-                }}
+                style={{ height: "auto", minHeight: "44px" }}
               />
             </div>
 
-            {/* Bottom: Toolbar */}
-            <div className="flex items-center justify-between bg-muted/20 px-2 py-1 gap-2 overflow-hidden">
-              {/* Left Group: Tools */}
-              <div className="flex items-center gap-1.5 flex-1 min-w-0 overflow-x-auto hide-scrollbar">
-                {isTerminalMode ? (
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => setTerminalMode(false)}
-                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-mono text-signal-blue bg-signal-blue/15 hover:bg-signal-blue/25 border border-signal-blue/30 font-bold transition-all select-none shrink-0 shadow-xs cursor-pointer group"
-                      title={t("chat.interface.exitTerminal")}
-                    >
-                      <Terminal className="h-3.5 w-3.5" />
-                      <span>{t("chat.interface.terminalMode")}</span>
-                      <X className="h-3.5 w-3.5 ml-0.5 opacity-60 group-hover:opacity-100 transition-opacity" />
-                    </button>
-                  </div>
-                ) : (
+            {/* ── 工具条 ── */}
+            <div className="px-1 pb-1 pt-0.5 flex items-center gap-1 flex-nowrap">
+              {/* 左组：附件 / 技能 / 录制 / 创作 / 终端 / 语音 / 自动朗读 */}
+              <div className="flex items-center gap-0.5 min-w-0 overflow-x-auto hide-scrollbar">
+                <input
+                  type="file"
+                  id="chat-file-upload"
+                  className="hidden"
+                  multiple
+                  onChange={handleUpload}
+                  disabled={isUploading}
+                />
+                <TooltipProvider delayDuration={100}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                        onClick={() =>
+                          document.getElementById("chat-file-upload")?.click()
+                        }
+                        disabled={isUploading}
+                      >
+                        {isUploading ? (
+                          <Loader2 size={16} className="animate-spin" />
+                        ) : (
+                          <Paperclip size={16} />
+                        )}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      {t("chat.interface.uploadFile")}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+
+                {!isTerminalMode && (
                   <>
-                    <ModelSelectorWrapper isSending={isSending} />
-
-                    <div className="w-px h-6 bg-border mx-1" />
-
                     {!isEmbedded && (
                       <SkillLibraryDialog
                         open={isSkillDialogOpen}
                         onOpenChange={setIsSkillDialogOpen}
                         threadId={activeThreadId ?? ""}
                         projectId={currentProject?.id}
-                      onSelectSkill={(skill) => {
-                        // Attach skill as reference (allow multiple skills to be mounted)
-                        const newFile: PickedFile = {
-                          id: Math.random().toString(36).substring(2, 15),
-                          url: skill.id,
-                          name: skill.name,
-                          type: "skill",
-                          metadata: {
-                            skill_id: skill.id,
-                            skill_name: skill.name,
-                          },
+                        onSelectSkill={(skill) => {
+                          const newFile: PickedFile = {
+                            id: Math.random().toString(36).substring(2, 15),
+                            url: skill.id,
+                            name: skill.name,
+                            type: "skill",
+                            metadata: {
+                              skill_id: skill.id,
+                              skill_name: skill.name,
+                            },
+                          }
+                          setPickedFiles((prev) => [
+                            ...prev.filter((a) => a.url !== skill.id),
+                            newFile,
+                          ])
+                          setIsSkillDialogOpen(false)
+                          toast.success(t("chat.skillAttached"))
+                        }}
+                        trigger={
+                          <Button
+                            variant="ghost"
+                            className="h-8 px-2 gap-1 text-[11px] text-muted-foreground hover:text-foreground shrink-0"
+                            title={t("learning.skillLibrary")}
+                          >
+                            <BookOpen size={14} />
+                            <span className="hidden lg:inline">
+                              {t("chat.interface.skillLabel", {
+                                defaultValue: "技能",
+                              })}
+                            </span>
+                          </Button>
                         }
-                        setPickedFiles((prev) => [
-                          ...prev.filter((a) => a.url !== skill.id),
-                          newFile,
-                        ])
-                        setIsSkillDialogOpen(false)
-                        toast.success(t("chat.skillAttached"))
-                      }}
-                      trigger={
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                          title={t("learning.skillLibrary")}
-                        >
-                          <BookOpen size={16} />
-                        </Button>
-                      }
-                    />
+                      />
                     )}
+
                     {isTauri() && !isEmbedded && (
-                      <div className="h-8 hidden lg:flex items-center justify-center">
+                      <div className="hidden lg:flex items-center justify-center">
                         <RecordingButton
                           threadId={activeThreadId ?? ""}
                           enabled={true}
+                          withText={true}
                         />
                       </div>
                     )}
 
+                    {/* 创作：模式下拉（生图 / 生视频 / 派任务） */}
                     {!isEmbedded && (
-                      <div className="flex items-center gap-1.5">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:text-foreground shrink-0 cursor-pointer"
-                          title={t("chat.interface.enterTerminal")}
-                          onClick={() => setTerminalMode(true)}
-                        >
-                          <Terminal size={16} />
-                        </Button>
-                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            className={cn(
+                              "h-8 px-2 gap-1 text-[11px] shrink-0",
+                              chatMode !== "chat"
+                                ? "text-primary bg-primary/10 font-medium"
+                                : "text-muted-foreground hover:text-foreground",
+                            )}
+                            title={t("chat.interface.creativeLabel", {
+                              defaultValue: "创作模式",
+                            })}
+                          >
+                            <Wand2 size={14} />
+                            <span className="hidden lg:inline">
+                              {chatMode !== "chat"
+                                ? CHAT_MODE_DEFS[chatMode].label
+                                : t("chat.interface.creativeLabel", {
+                                    defaultValue: "创作",
+                                  })}
+                            </span>
+                            <ChevronDown size={12} className="opacity-60" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start">
+                          {(
+                            ["image", "video"] as ChatMode[]
+                          ).map((m) => (
+                            <DropdownMenuItem
+                              key={m}
+                              onClick={() => switchChatMode(m)}
+                              className={
+                                chatMode === m ? "text-primary font-medium" : ""
+                              }
+                            >
+                              {(() => {
+                                const Def = CHAT_MODE_DEFS[m]
+                                const DefIcon = Def.icon
+                                return (
+                                  <>
+                                    <DefIcon size={14} className="mr-2" />
+                                    {Def.label}
+                                    {chatMode === m && (
+                                      <span className="ml-auto text-primary">
+                                        ✓
+                                      </span>
+                                    )}
+                                  </>
+                                )
+                              })()}
+                            </DropdownMenuItem>
+                          ))}
+                          {chatMode !== "chat" && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => switchChatMode("chat")}
+                              >
+                                <X size={14} className="mr-2" />
+                                {t("chat.interface.exitMode", {
+                                  defaultValue: "退出创作模式",
+                                })}
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     )}
-                  </>
-                )}
-              </div>
 
-              {/* Hint Text (Fluid Center) */}
-              <div className="flex-1 min-w-0 px-2 pointer-events-none select-none text-[10px] text-muted-foreground/40 text-center truncate hidden md:block">
-                {t("chat.interface.inputHint")}
-              </div>
+                    {!isEmbedded && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            className="h-8 px-2 gap-1 text-[11px] text-muted-foreground hover:text-foreground shrink-0 cursor-pointer"
+                            title={t("chat.interface.phraseLabel", {
+                              defaultValue: "常用话术",
+                            })}
+                          >
+                            <MessageSquareQuote size={14} />
+                            <span className="hidden lg:inline">
+                              {t("chat.interface.phraseLabel", {
+                                defaultValue: "话术",
+                              })}
+                            </span>
+                            <ChevronDown size={12} className="opacity-60" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className="max-h-[360px] overflow-y-auto">
+                          {PHRASE_TEMPLATES.map((group) => (
+                            <div key={group.category}>
+                              <DropdownMenuLabel className="text-[10px] text-muted-foreground">
+                                {group.category}
+                              </DropdownMenuLabel>
+                              {group.items.map((tpl) => (
+                                <DropdownMenuItem
+                                  key={tpl.label}
+                                  onClick={() =>
+                                    setInputValue((prev) =>
+                                      prev.trim()
+                                        ? `${prev.trim()}\n\n${tpl.text}`
+                                        : tpl.text,
+                                    )
+                                  }
+                                  className="text-xs"
+                                >
+                                  {tpl.label}
+                                </DropdownMenuItem>
+                              ))}
+                              <DropdownMenuSeparator />
+                            </div>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
 
-              {/* Right Group: Action */}
-              <div className="flex items-center gap-1.5 shrink-0">
-                {/* Voice and upload controls - only relevant for chat */}
-                {!isTerminalMode && (
-                  <>
-                    <input
-                      type="file"
-                      id="chat-file-upload"
-                      className="hidden"
-                      multiple
-                      onChange={handleUpload}
-                      disabled={isUploading}
-                    />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                      onClick={() =>
-                        document.getElementById("chat-file-upload")?.click()
-                      }
-                      disabled={isUploading}
-                      title={t("chat.interface.uploadFile")}
-                    >
-                      {isUploading ? (
-                        <Loader2 size={16} className="animate-spin" />
-                      ) : (
-                        <Paperclip size={16} />
-                      )}
-                    </Button>
-
-                    <Separator orientation="vertical" className="h-4 mx-1" />
+                    {!isEmbedded && (
+                      <Button
+                        variant="ghost"
+                        className="h-8 px-2 gap-1 text-[11px] text-muted-foreground hover:text-foreground shrink-0 cursor-pointer"
+                        title={t("chat.interface.enterTerminal")}
+                        onClick={() => {
+                          setChatMode("chat")
+                          setTerminalMode(true)
+                        }}
+                      >
+                        <Terminal size={14} />
+                        <span className="hidden lg:inline">
+                          {t("chat.interface.terminalLabel", {
+                            defaultValue: "终端",
+                          })}
+                        </span>
+                      </Button>
+                    )}
 
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -722,7 +1090,7 @@ export const ChatInputArea = memo(
                           <Mic className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="min-w-[40px]">
+                      <DropdownMenuContent align="start" className="min-w-[40px]">
                         <TooltipProvider delayDuration={100}>
                           <Tooltip>
                             <TooltipTrigger asChild>
@@ -740,45 +1108,16 @@ export const ChatInputArea = memo(
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
-                        <TooltipProvider delayDuration={100}>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <DropdownMenuItem
-                                onClick={() => setVoiceMode("dialogue")}
-                                className={
-                                  voiceMode === "dialogue" ? "text-success" : ""
-                                }
-                              >
-                                <MessageCircle className="h-4 w-4" />
-                              </DropdownMenuItem>
-                            </TooltipTrigger>
-                            <TooltipContent side="left">
-                              {t("chat.voice.dialogueMode")}
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                        {voiceMode !== "off" && (
-                          <>
-                            <DropdownMenuSeparator />
-                            <TooltipProvider delayDuration={100}>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <DropdownMenuItem
-                                    onClick={() => setVoiceMode("off")}
-                                  >
-                                    <X className="h-4 w-4" />
-                                  </DropdownMenuItem>
-                                </TooltipTrigger>
-                                <TooltipContent side="left">
-                                  {t("chat.voice.voiceOff")}
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          </>
-                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
+                  </>
+                )}
+              </div>
 
+              {/* 右组：模型选择 + 发送/停止 */}
+              <div className="ml-auto flex items-center gap-1.5 shrink-0">
+                {!isTerminalMode && (
+                  <>
                     <TooltipProvider delayDuration={100}>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -786,7 +1125,7 @@ export const ChatInputArea = memo(
                             variant={autoSpeak ? "secondary" : "ghost"}
                             size="icon"
                             onClick={toggleAutoSpeak}
-                            className="h-8 w-8 hidden lg:inline-flex"
+                            className="h-8 w-8 hidden xl:inline-flex"
                           >
                             {autoSpeak ? (
                               <Volume2 className="h-4 w-4 text-primary" />
@@ -802,11 +1141,9 @@ export const ChatInputArea = memo(
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
-
-                    <div className="w-px h-6 bg-border mx-1 hidden lg:block" />
+                    <ModelSelectorWrapper isSending={isSending} />
                   </>
                 )}
-
                 <Button
                   onClick={() => (isAgentWorking ? onStop() : handleSend())}
                   disabled={
@@ -817,27 +1154,21 @@ export const ChatInputArea = memo(
                     (!currentProject && !isGlobalMode) ||
                     isUploading
                   }
-                  size="sm"
-                  className={`h-8 px-3 transition-all ${isAgentWorking ? "bg-destructive hover:bg-destructive/90 text-white" : ""}`}
+                  size="icon"
+                  className={cn(
+                    "h-9 w-9 rounded-full transition-all shrink-0",
+                    isAgentWorking || isStopPending
+                      ? "bg-destructive hover:bg-destructive/90 text-white"
+                      : "bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm disabled:opacity-40 disabled:shadow-none",
+                  )}
+                  title={isAgentWorking ? t("common.stop") : t("common.send")}
                 >
-                  {isAgentWorking || isStopPending ? (
-                    <span className="flex items-center gap-2">
-                      {isStopPending ? (
-                        <Loader2 size={14} className="animate-spin" />
-                      ) : (
-                        <Square size={14} fill="currentColor" />
-                      )}
-                      <span className="text-xs font-medium">
-                        {t("common.stop")}
-                      </span>
-                    </span>
+                  {isStopPending ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : isAgentWorking ? (
+                    <Square size={15} fill="currentColor" />
                   ) : (
-                    <span className="flex items-center gap-2">
-                      <Send size={14} />
-                      <span className="hidden sm:inline text-xs font-bold">
-                        {t("common.send")}
-                      </span>
-                    </span>
+                    <ArrowUp size={17} strokeWidth={2.5} />
                   )}
                 </Button>
               </div>
@@ -848,6 +1179,7 @@ export const ChatInputArea = memo(
     },
   ),
 )
+
 
 // Wrapper component for ModelSelector that connects to chatStore
 function ModelSelectorWrapper({ isSending }: { isSending: boolean }) {

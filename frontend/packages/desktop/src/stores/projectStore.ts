@@ -154,6 +154,7 @@ export interface Project {
   last_indexed_at?: string | null // ISO timestamp of last successful indexing
   files_count?: number // Number of files in the project (optional, from API)
   created_at?: string | null // ISO timestamp of project creation (optional, from API)
+  duty_enabled?: boolean // Whether duty monitoring is enabled for this project
   isGlobal?: boolean // Flag to identify virtual global project
 }
 

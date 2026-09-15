@@ -8,6 +8,7 @@ import time
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 
+from app.api.deps import CurrentUserOptional
 from app.api.schemas.files import (
     CreateFileRequest,
     DownloadFileRequest,
@@ -36,7 +37,6 @@ from app.core.file import (
 from app.core.file.traverser import TraverseOptions
 from app.core.project.utils import get_project_path, get_workspace_root
 from app.core.security.path import get_allowed_roots, is_under_allowed_root
-from app.api.deps import CurrentUserOptional
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["files"])
@@ -149,7 +149,10 @@ async def _resolve_upload_file(normalized: str, member_id: int = 0) -> str | Non
 
     # 2) member 物理根 uploads（多租户新落位）
     if _settings.MULTI_TENANT_MODE:
-        from app.core.project.utils import current_member_id, resolve_member_workspace_root
+        from app.core.project.utils import (
+            current_member_id,
+            resolve_member_workspace_root,
+        )
 
         mid = int(member_id or 0) or current_member_id()
         member_root = resolve_member_workspace_root(mid) if mid else ""

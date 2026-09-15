@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { useMutation } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { AgentService, ConversationsService } from "@/client"
@@ -9,15 +9,12 @@ import { useHostContextStore } from "@/stores/hostContextStore"
 
 export function useChatMutations({
   setIsRewindDialogOpen,
-  setRewindContent,
   chatInputRef,
 }: {
   setIsRewindDialogOpen: (open: boolean) => void
-  setRewindContent: (content: string) => void
   chatInputRef: React.RefObject<any>
 }) {
   const { t } = useTranslation()
-  const _queryClient = useQueryClient()
   const activeThreadId = useChatStore((s) => s.threadId)
   const projectId = useChatStore((s) => s.projectId)
   const selectedModel = useChatStore((s) => s.selectedModel)
@@ -27,7 +24,7 @@ export function useChatMutations({
     mutationFn: ({
       revertFiles,
       messageId,
-      content,
+      content: _content,
     }: {
       revertFiles: boolean
       messageId?: string

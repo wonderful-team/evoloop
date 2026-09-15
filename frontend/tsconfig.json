@@ -20,6 +20,7 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./packages/desktop/src/*"],
+      "/src/*": ["./packages/desktop/src/*"],
       "@evoloop/shared/*": ["./packages/shared/src/*"]
     }
   },

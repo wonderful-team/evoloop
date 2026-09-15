@@ -36,7 +36,7 @@ class EventReplayBuffer:
 
     def __init__(self) -> None:
         # thread_id -> deque[(seq, raw_json_str)]，OrderedDict 维护插入序供淘汰
-        self._buffers: "OrderedDict[str, deque]" = OrderedDict()
+        self._buffers: OrderedDict[str, deque] = OrderedDict()
         self._seqs: dict[str, int] = {}
 
     @staticmethod

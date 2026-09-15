@@ -584,37 +584,6 @@ export const Body_learning_upload_screenshotSchema = {
     title: 'Body_learning-upload_screenshot'
 } as const;
 
-export const BusinessPollPromptSchema = {
-    properties: {
-        id: {
-            type: 'string',
-            title: 'Id'
-        },
-        prompt: {
-            type: 'string',
-            title: 'Prompt'
-        },
-        next_run_at: {
-            type: 'string',
-            title: 'Next Run At'
-        },
-        interval_minutes: {
-            type: 'integer',
-            title: 'Interval Minutes'
-        },
-        enabled: {
-            type: 'boolean',
-            title: 'Enabled',
-            default: true
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    required: ['id', 'prompt', 'next_run_at', 'interval_minutes'],
-    title: 'BusinessPollPrompt',
-    description: '业务巡检任务（一条独立的 Agent 会话）。'
-} as const;
-
 export const CacheInvalidateResponseSchema = {
     properties: {
         code: {
@@ -2151,20 +2120,6 @@ export const DutyConfigSchema = {
                 }
             ],
             title: 'Channels'
-        },
-        business_poll_prompts: {
-            anyOf: [
-                {
-                    items: {
-                        '$ref': '#/components/schemas/BusinessPollPrompt'
-                    },
-                    type: 'array'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Business Poll Prompts'
         }
     },
     additionalProperties: true,
@@ -2174,9 +2129,9 @@ export const DutyConfigSchema = {
 
 全字段可选 = 部分更新语义（PUT）：未传字段保持原值。
 
-轮巡间隔/业务巡检扫描间隔属于全局值守设置（CUSTOMER_SERVICE_DUTY），
-不在项目级配置；项目只负责参与意愿（enabled）+ 渠道（channels）+
-巡检任务列表（business_poll_prompts）。`
+轮巡间隔属于全局值守设置（CUSTOMER_SERVICE_DUTY），不在项目级配置；
+项目只负责参与意愿（enabled）+ 渠道（channels）。业务巡检已迁移为
+任务队列的 recurring 任务（business_poll_prompts 已废弃）。`
 } as const;
 
 export const EmbeddingApplyResponseSchema = {

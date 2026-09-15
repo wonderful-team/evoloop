@@ -49,7 +49,6 @@ export function LLMConfigStep() {
   const selectedModelId = data.selectedModelId || ""
   const isCustom = selectedModelId === "custom"
   const selectedPreset = presetModels.find((m) => m.id === selectedModelId)
-  const _isPlatformModel = selectedPreset?.type === "platform"
   const isCustomModel = isCustom || selectedPreset?.type === "custom"
 
   // Initialize with first preset if empty

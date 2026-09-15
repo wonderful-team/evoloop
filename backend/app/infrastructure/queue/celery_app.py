@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 @setup_logging.connect
-def config_loggers(*args, **kwargs):
+def config_loggers(*args, **kwargs):  # noqa: ARG001 — celery signal 契约签名
     """
     Hook into Celery's logging setup to ensure our app's custom logging configuration
     is applied to both the main Celery process and any spawned worker processes.
@@ -29,7 +29,7 @@ def config_loggers(*args, **kwargs):
 
 
 @worker_process_init.connect
-def on_worker_init(*args, **kwargs):
+def on_worker_init(*args, **kwargs):  # noqa: ARG001 — celery signal 契约签名
     """
     Hook into Celery worker child process initialization to ensure all in-process
     event handlers (like MemoryRewind) are auto-discovered and registered.
@@ -80,10 +80,10 @@ def create_celery_app():
                 "schedule": 86400.0,
                 "args": (False,),
             },
-            "autonomous-scheduler-tick": {
-                "task": "engine_scheduler_tick",
-                "schedule": 60.0,
-            },
+            # 注：autonomous-scheduler-tick 已移除——tick 心跳由 API 进程的
+            # SchedulerLifecycleSubscriber 随 APP_STARTED 启动（触发器层与工作项层
+            # 都只在 API 进程，单 drainer/单触发器；worker 内跑 tick 会造成
+            # 跨进程双 duty poll，inflight 防重是进程内的，跨进程无效）。
         },
     )
 

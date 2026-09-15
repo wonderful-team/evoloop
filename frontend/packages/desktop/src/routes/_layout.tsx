@@ -3,6 +3,7 @@ import {
   SidebarProvider,
 } from "@evoloop/shared/components/ui/sidebar"
 import { createFileRoute, Outlet, useRouterState } from "@tanstack/react-router"
+import { AnimatePresence, motion } from "framer-motion"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
@@ -35,6 +36,27 @@ function Layout() {
   const { t } = useTranslation()
   const router = useRouterState()
   const pathname = router.location.pathname
+
+  // ── 页面切换动效：chat ↔ 自主值守工作台 整页左右滑动 ──
+  // 方向由**进入的路由**唯一决定（进入工作台=从右入 dir=1；进入对话=从左入
+  // dir=-1），与来源无关——确定性方向不会在过渡中途被重渲染翻转（曾故
+  // 障：用 prev ref 计算方向，导航后的轮询重渲染把 custom 翻成 0，退出
+  // 动画塌缩成瞬时淡出，视觉=硬切）。非成对路由仅轻淡入。
+  const SLIDE_ORDER: Record<string, number> = {
+    "/chat": -1,
+    "/duty-autonomous": 1,
+  }
+  const slideDirection = SLIDE_ORDER[pathname] ?? 0
+
+  const pageVariants = {
+    enter: (dir: number) =>
+      dir === 0 ? { opacity: 0 } : { x: dir > 0 ? "100%" : "-100%" },
+    center: { x: 0, opacity: 1 },
+    exit: (dir: number) =>
+      dir === 0
+        ? { opacity: 0, transition: { duration: 0.12 } }
+        : { x: dir > 0 ? "-100%" : "100%" },
+  }
   const { user } = useAuth()
   const { required: setupRequired, loading: setupLoading } = useSetupRequired()
   const { setIsWizardOpen } = useSetupWizard()
@@ -48,6 +70,7 @@ function Layout() {
     pathname.includes("/chat") ||
     pathname.includes("/files") ||
     pathname.includes("/projects") ||
+    pathname.includes("/duty-autonomous") ||
     pathname.startsWith("/learning/skills") ||
     pathname.startsWith("/learning/macros")
 
@@ -162,11 +185,28 @@ function Layout() {
             <div
               className={
                 isFullWidth
-                  ? "h-full w-full min-w-0 overflow-hidden"
-                  : "mx-auto max-w-7xl min-w-0"
+                  ? "relative h-full w-full min-w-0 overflow-hidden"
+                  : "relative mx-auto max-w-7xl min-w-0"
               }
             >
-              <Outlet />
+              <AnimatePresence
+                initial={false}
+                mode="popLayout"
+                custom={slideDirection}
+              >
+                <motion.div
+                  key={pathname}
+                  custom={slideDirection}
+                  variants={pageVariants}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  transition={{ type: "tween", duration: 0.28, ease: [0.32, 0.72, 0, 1] }}
+                  className={isFullWidth ? "h-full w-full" : ""}
+                >
+                  <Outlet />
+                </motion.div>
+              </AnimatePresence>
             </div>
           </main>
         </SidebarInset>

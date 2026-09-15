@@ -562,20 +562,20 @@ export function MultimodalSynthesizeDialog({
                                 <div
                                   className="absolute border-2 border-primary bg-primary/10"
                                   style={{
-                                    left: `${(annotation.region.x || 0) * 100}%`,
-                                    top: `${(annotation.region.y || 0) * 100}%`,
-                                    width: `${(annotation.region.width || 0.1) * 100}%`,
-                                    height: `${(annotation.region.height || 0.1) * 100}%`,
+                                    left: `${(Number(annotation.region.x) || 0) * 100}%`,
+                                    top: `${(Number(annotation.region.y) || 0) * 100}%`,
+                                    width: `${(Number(annotation.region.width) || 0.1) * 100}%`,
+                                    height: `${(Number(annotation.region.height) || 0.1) * 100}%`,
                                   }}
                                 >
                                   <div className="absolute -top-5 left-0 bg-primary text-primary-foreground text-[9px] px-1 rounded">
                                     {Math.round(
-                                      (annotation.region.width || 0) * 100,
+                                      (Number(annotation.region.width) || 0) * 100,
                                     )}
                                     {t("common.percent")}{" "}
                                     {t("common.multiplicationSign")}{" "}
                                     {Math.round(
-                                      (annotation.region.height || 0) * 100,
+                                      (Number(annotation.region.height) || 0) * 100,
                                     )}
                                     {t("common.percent")}
                                   </div>

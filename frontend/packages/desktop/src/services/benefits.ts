@@ -45,19 +45,6 @@ export async function getMemberBenefits(
 }
 
 /**
- * 批量检查权益
- */
-export async function checkBenefitsBatch(
-  features: FeatureCode[],
-): Promise<Record<FeatureCode, boolean>> {
-  const res = await MemberService.checkBenefitsBatch({
-    benefit_codes: features,
-  })
-
-  return (res.data?.results || {}) as Record<FeatureCode, boolean>
-}
-
-/**
  * 清除权益缓存
  */
 export function clearBenefitsCache(): void {

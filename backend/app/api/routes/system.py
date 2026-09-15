@@ -234,7 +234,10 @@ async def validate_customer_service_duty() -> dict:
 async def update_customer_service_duty(cfg: dict) -> dict:
     """更新全局客服值守配置。渠道启用/启停时联动（§8.5.6 全局停止）。"""
     from app.core.channel.duty import provision
-    from app.core.channel.duty.config import clamp_duty_interval, save_global_duty_config
+    from app.core.channel.duty.config import (
+        clamp_duty_interval,
+        save_global_duty_config,
+    )
 
     enabled = bool(cfg.get("enabled", False))
     old = await get_customer_service_duty()

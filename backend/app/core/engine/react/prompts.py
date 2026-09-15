@@ -14,6 +14,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from app.core.channel.duty.constants import CUSTOMER_FACING_CHANNEL_NAMES
 from app.core.context.manager import ContextManager
 from app.utils.prompt_loader import prompt_exists, render_prompt
 
@@ -306,5 +307,20 @@ async def build_system_prompt(state: Any, config: dict[str, Any]) -> str:
         main += "\n\n" + render_prompt("core/agent/main.voice.txt")
     elif source in ("duty", "wecom_duty") and prompt_exists("core/agent/main.duty.txt"):
         main += "\n\n" + render_prompt("core/agent/main.duty.txt")
+        # autonomous duty: expose channel marker; only customer-facing
+        # channels get the hard-limit section (main.duty.customer.txt).
+        meta = ctx.metadata if isinstance(ctx.metadata, dict) else {}
+        channel_name = meta.get("channel_name") or config.get(
+            "metadata", {}
+        ).get("channel_name") or ""
+        if channel_name in CUSTOMER_FACING_CHANNEL_NAMES:
+            main += '\n\n<duty_channel customer_facing="true" />'
+            if prompt_exists("core/agent/main.duty.customer.txt"):
+                main += (
+                    "\n\n"
+                    + render_prompt("core/agent/main.duty.customer.txt")
+                )
+        else:
+            main += '\n\n<duty_channel customer_facing="false" />'
 
     return main

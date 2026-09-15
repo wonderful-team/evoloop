@@ -9,8 +9,6 @@ mermaid.initialize({
   theme: "dark",
   securityLevel: "loose",
   fontFamily: "inherit",
-  // Suppress global error UI at the bottom of the page
-  suppressErrorNotifications: true,
 })
 
 export const Mermaid = memo(({ chart }: { chart: string }) => {
@@ -50,8 +48,6 @@ export const Mermaid = memo(({ chart }: { chart: string }) => {
       } catch (error) {
         // Only show error if we don't have a last valid render to fallback to
         if (!isCancelled && ref.current && !lastValidSvg.current) {
-          const _errorMessage =
-            error instanceof Error ? error.message : String(error)
           ref.current.innerHTML = `
                         <div class="text-left w-full opacity-60">
                             <div class="text-[11px] text-destructive italic mb-2 font-medium">⚠️ ${t("mermaid.diagramSyntaxError")}</div>

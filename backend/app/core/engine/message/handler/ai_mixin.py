@@ -101,6 +101,7 @@ class AiMessageMixin:
                     parent_id=effective_parent_id,
                     message_id=msg_id,
                     is_visible=is_visible,
+                    references=extracted_refs,
                 )
 
         if stream_data.should_stream:

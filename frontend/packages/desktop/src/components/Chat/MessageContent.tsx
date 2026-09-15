@@ -32,7 +32,7 @@ function ImageViewer({
   if (!isOpen) return null
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-full h-full p-0 bg-black/90 border-none sm:rounded-none flex flex-col justify-center items-center">
+      <DialogContent className="w-screen h-screen max-w-none sm:max-w-none rounded-none sm:rounded-none border-none bg-black/90 p-0 gap-0 flex flex-col justify-center items-center">
         <DialogTitle className="sr-only">
           {t("chat.messageList.imageViewer")}
         </DialogTitle>

@@ -5,7 +5,6 @@ import {
   ChevronLeft,
   FileCode,
   FileText,
-  Headset,
   Key,
   LayoutDashboard,
   Zap,
@@ -98,12 +97,6 @@ function ProjectLayout() {
       label: t("projects.tabs.macros"),
       icon: Zap,
       path: "/macros",
-    },
-    {
-      id: "duty",
-      label: t("projects.tabs.duty"),
-      icon: Headset,
-      path: "/duty",
     },
   ]
 

@@ -226,7 +226,6 @@ export function ChatInterface() {
   // Custom Hook for Mutations
   const { rewindMutation, retryMutation } = useChatMutations({
     setIsRewindDialogOpen,
-    setRewindContent,
     chatInputRef,
   })
 

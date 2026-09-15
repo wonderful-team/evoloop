@@ -81,7 +81,6 @@ function VoiceHUD() {
     const unlistenNavPromise = listen<{ route: string; feedback?: string }>(
       "voice:navigate",
       async (event) => {
-        const route = event.payload.route
         const feedback = event.payload.feedback
         if (feedback) {
           const { emit } = await import("@tauri-apps/api/event")

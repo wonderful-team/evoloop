@@ -16,7 +16,10 @@ from app.infrastructure.vision.schemas import (
     ScreenshotCleanupResult,
     StorageReport,
 )
-from app.infrastructure.vision.storage import screen_recording_storage, screenshot_storage
+from app.infrastructure.vision.storage import (
+    screen_recording_storage,
+    screenshot_storage,
+)
 
 logger = logging.getLogger(__name__)
 

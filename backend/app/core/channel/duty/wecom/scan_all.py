@@ -8,6 +8,7 @@
 import logging
 
 from app.core.channel.duty.constants import SERVICE_ACCOUNTS
+
 from .common import open_wecom, scan_unread_view
 
 logger = logging.getLogger(__name__)

@@ -19,6 +19,11 @@ import {
 import { useTranslation } from "react-i18next"
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso"
 import { type Message, SmartChatMessageItem } from "./ChatMessageItem"
+import {
+  ImageGalleryViewer,
+  type GalleryImage,
+} from "./ImageGalleryViewer"
+import { collectSessionImages } from "./galleryUtils"
 import { ChatWelcome } from "./ChatWelcome"
 
 interface MessageListProps {
@@ -95,6 +100,7 @@ const TurnStepsGroupView = memo(function TurnStepsGroupView({
   onRetry,
   onQuote,
   onViewChangeset,
+  onOpenImageGallery,
 }: {
   steps: (Message & { showDate?: boolean })[]
   isTurnActive?: boolean
@@ -111,6 +117,11 @@ const TurnStepsGroupView = memo(function TurnStepsGroupView({
     path?: string,
     diff?: string,
   ) => void
+  onOpenImageGallery?: (ref: {
+    type: string
+    target_id: string
+    target_name?: string
+  }) => void
 }) {
   const { t } = useTranslation()
   const [isOpen, setIsOpen] = useState(isTurnActive || false)
@@ -139,16 +150,19 @@ const TurnStepsGroupView = memo(function TurnStepsGroupView({
         <Button
           variant="ghost"
           size="sm"
-          className="group h-7 px-2.5 rounded text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors flex items-center gap-2 mb-1"
+          className="group h-6 px-2 rounded text-[11px] font-medium text-muted-foreground/70 hover:text-foreground hover:bg-muted/40 transition-colors flex items-center gap-2 mb-1"
         >
-          <Layers className="w-3.5 h-3.5 text-primary/70 shrink-0" />
-          <span>
-            {t("chat.interface.executionSteps")} ({steps.length})
+          <Layers className="w-3 h-3 text-muted-foreground/50 group-hover:text-primary/70 shrink-0 transition-colors" />
+          <span className="font-mono text-[10px] tracking-[0.08em]">
+            {t("chat.interface.executionSteps")}
           </span>
-          <ChevronRight className="w-3.5 h-3.5 transition-transform duration-200 group-data-[state=open]:rotate-90 text-muted-foreground/50 ml-0.5" />
+          <span className="font-mono text-[10px] text-muted-foreground/40">
+            {steps.length}
+          </span>
+          <ChevronRight className="w-3 h-3 transition-transform duration-200 group-data-[state=open]:rotate-90 text-muted-foreground/40 ml-0.5" />
         </Button>
       </CollapsibleTrigger>
-      <CollapsibleContent className="pl-1 my-1 border-l-1 border-border/40 space-y-1">
+      <CollapsibleContent className="pl-2 my-1 ml-1.5 border-l border-border/25 space-y-0.5">
         {steps.map((stepMsg, index) => (
           <SmartChatMessageItem
             key={stepMsg.id}
@@ -165,6 +179,7 @@ const TurnStepsGroupView = memo(function TurnStepsGroupView({
             onRetry={() => onRetry?.(stepMsg)}
             onQuote={() => onQuote?.(stepMsg)}
             onViewChangeset={onViewChangeset}
+            onOpenImageGallery={onOpenImageGallery}
           />
         ))}
       </CollapsibleContent>
@@ -270,6 +285,46 @@ export const MessageList = memo(function MessageList({
   const messages = overrideMessages ?? storeMessages
   const hasMoreHistory = overrideMessages ? false : storeHasMoreHistory
   const isLoadingHistory = overrideMessages ? false : storeIsLoadingHistory
+
+  // 会话级图片 Gallery：跨消息收集全部图片引用（去重，按消息顺序）
+  const [gallery, setGallery] = useState<{
+    images: GalleryImage[]
+    index: number
+  } | null>(null)
+  const handleOpenImageGallery = useCallback(
+    (ref: { type: string; target_id: string; target_name?: string }) => {
+      if (ref.type !== "image" || !ref.target_id) return
+      const images = collectSessionImages(messages)
+      if (images.length === 0) return
+      const idx = Math.max(
+        images.findIndex((im) => im.url === ref.target_id),
+        0,
+      )
+      setGallery({ images, index: idx })
+    },
+    [messages],
+  )
+  // latest-ref：memo 化的旧消息组件闭包里始终持有同一个稳定引用，
+  // 调用时转发到最新实现（否则第一轮消息只能看到旧快照里的图片集）
+  const galleryOpenerRef = useRef(handleOpenImageGallery)
+  galleryOpenerRef.current = handleOpenImageGallery
+  const stableOpenImageGallery = useCallback(
+    (ref: {
+      type: string
+      target_id: string
+      target_name?: string
+    }) => galleryOpenerRef.current(ref),
+    [],
+  )
+  const galleryUI = (
+    <ImageGalleryViewer
+      images={gallery?.images || []}
+      index={gallery?.index || 0}
+      open={!!gallery}
+      onIndexChange={(index) => setGallery((g) => (g ? { ...g, index } : g))}
+      onClose={() => setGallery(null)}
+    />
+  )
 
   // “处理中”占位：Agent 运行中但列表里还没有任何 streaming/running 行
   // （路由/上下文装配/工具首跳期间 LLM 尚未出 token）→ 底部显示思考指示器
@@ -838,6 +893,7 @@ export const MessageList = memo(function MessageList({
               onRetry={() => onRetry?.(item.data!)}
               onQuote={() => onQuote?.(item.data!)}
               onViewChangeset={onViewChangeset}
+              onOpenImageGallery={stableOpenImageGallery}
             />
           </div>
         )
@@ -853,6 +909,7 @@ export const MessageList = memo(function MessageList({
               onRetry={onRetry}
               onQuote={onQuote}
               onViewChangeset={onViewChangeset}
+              onOpenImageGallery={stableOpenImageGallery}
             />
           </div>
         )
@@ -865,6 +922,7 @@ export const MessageList = memo(function MessageList({
       onRetry,
       onQuote,
       onViewChangeset,
+      stableOpenImageGallery,
       virtItems.length,
     ],
   )
@@ -874,16 +932,19 @@ export const MessageList = memo(function MessageList({
   }
 
   return (
-    <Virtuoso
-      ref={virtuosoRef}
-      style={{ height: "100%" }}
-      data={virtItems}
-      firstItemIndex={firstItemIndex}
-      itemContent={itemContent}
-      followOutput={handleFollowOutput}
-      atBottomThreshold={50}
-      components={STATIC_COMPONENTS}
-      context={virtuosoContext}
-    />
+    <>
+      <Virtuoso
+        ref={virtuosoRef}
+        style={{ height: "100%" }}
+        data={virtItems}
+        firstItemIndex={firstItemIndex}
+        itemContent={itemContent}
+        followOutput={handleFollowOutput}
+        atBottomThreshold={50}
+        components={STATIC_COMPONENTS}
+        context={virtuosoContext}
+      />
+      {galleryUI}
+    </>
   )
 })

@@ -17,11 +17,13 @@ import { useRecordingStore } from "@/stores/recordingStore"
 interface RecordingButtonProps {
   threadId: string
   enabled?: boolean
+  withText?: boolean
 }
 
 export function RecordingButton({
   threadId,
   enabled = true,
+  withText = false,
 }: RecordingButtonProps) {
   const { t } = useTranslation()
   const {
@@ -30,7 +32,6 @@ export function RecordingButton({
     stopRecording,
     eventCount,
     isDesktopRecording,
-    setIsDesktopRecording,
     setPostRecordingAction,
   } = useRecordingStore()
 
@@ -202,7 +203,7 @@ export function RecordingButton({
             size="sm"
             onClick={handleClick}
             // disabled={isGlobalMode && hasPermission === false} // Allow clicking to trigger permission request
-            className={`h-8 px-2 relative ${isRecording ? "animate-pulse" : "text-muted-foreground hover:text-destructive"}`}
+            className={`h-8 px-2 relative ${withText ? "gap-1" : ""} ${isRecording ? "animate-pulse" : "text-muted-foreground hover:text-destructive"}`}
           >
             {isRecording ? (
               <span className="flex items-center gap-1">
@@ -216,6 +217,11 @@ export function RecordingButton({
               </span>
             ) : (
               <Circle className="h-4 w-4 fill-current" />
+            )}
+            {withText && !isRecording && (
+              <span className="hidden lg:inline text-[11px] select-none">
+                {t("chat.interface.recordLabel", { defaultValue: "录制" })}
+              </span>
             )}
           </Button>
         </TooltipTrigger>

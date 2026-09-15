@@ -44,7 +44,7 @@ class EvoLoopToolConfig(DynamicBaseModel):
                 args.get("action_description")
                 or args.get("message")
                 or args.get("intent")
-                or ""
+                or None
             )
         if "pattern" not in args:
             args["pattern"] = (

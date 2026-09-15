@@ -12,6 +12,7 @@ import logging
 from typing import Any
 
 from app.core.channel.base import IncomingMessage, InputChannel
+from app.core.engine.agent_run_registry import agent_run_registry
 
 logger = logging.getLogger(__name__)
 
@@ -64,18 +65,12 @@ class MobileInputChannel(InputChannel):
 
         meta: dict[str, Any] = {}
         try:
-            from app.core.engine.session.manager import session_manager
-
-            session = session_manager.get(thread_id)
-            if (
-                session is not None
-                and session.worker is not None
-                and not session.worker.done
-            ):
+            running_worker = await agent_run_registry.get_run(thread_id)
+            if running_worker and running_worker.status == "running":
                 meta["has_running_worker"] = "true"
-                meta["running_worker_desc"] = session.worker.description
+                meta["running_worker_desc"] = running_worker.description
         except Exception:
-            logger.warning("[MobileInputChannel] session lookup failed", exc_info=True)
+            logger.warning("[MobileInputChannel] running worker lookup failed", exc_info=True)
 
         return IncomingMessage(
             source="mobile",

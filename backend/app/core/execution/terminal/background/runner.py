@@ -6,16 +6,16 @@ import logging
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.context import ContextManager
 from app.core.engine.message.native_classes import RunnableConfig
+from app.core.execution.constants import (
+    DEFAULT_OUTPUT_LINES,
+    MAX_COMMAND_TITLE_LENGTH,
+    QUICK_TIMEOUT_SECONDS,
+)
 from app.core.execution.sandbox.factory import SandboxFactory
 from app.core.execution.terminal.background import (
     CreateBackgroundTaskRequest,
     TaskType,
     task_manager,
-)
-from app.core.execution.constants import (
-    DEFAULT_OUTPUT_LINES,
-    MAX_COMMAND_TITLE_LENGTH,
-    QUICK_TIMEOUT_SECONDS,
 )
 from app.core.execution.terminal.background.utils import (
     format_command_result,

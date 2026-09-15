@@ -250,7 +250,7 @@ async def update_project_settings(
 ):
     """更新项目设置（name/url）。
 
-    值守配置（enabled/interval/business_poll_interval/notify/channels）走
+    值守配置（enabled/interval/notify/channels）走
     独立端点 PUT /projects/{id}/duty（v7 拆分，含校验与启停语义）。
     """
     path = await get_project_path(project_id)

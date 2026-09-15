@@ -9,7 +9,7 @@ import time
 from sqlalchemy import desc, func, select
 from sqlalchemy.orm import selectinload
 
-from app.constants import DEFAULT_INTERNAL_LLM_TOKENS, DEFAULT_PROJECT_ID
+from app.constants import DEFAULT_INTERNAL_LLM_TOKENS
 from app.core.config import settings
 from app.core.context.manager import ContextManager, EvoContext
 from app.core.engine.message.category import MessageCategory
@@ -20,7 +20,6 @@ from app.core.learning.trace.recorder import sync_thread_to_graph
 from app.infrastructure.database import session_scope
 from app.infrastructure.queue.factory import shared_task
 from app.models import FileOperation, Message, TraceEvent
-from app.utils.id import unique_id
 from app.utils.pydantic_helpers import clean_none_values
 
 logger = logging.getLogger(__name__)
@@ -235,7 +234,9 @@ async def harvest_concepts_task(concepts_data: list[dict], project_id: int):
                 pkg_match = re.search(r"\(([^)]+)\)", name)
                 bundle_id = pkg_match.group(1) if pkg_match else "unknown"
 
-                from app.core.environment.event.publishers import publish_ui_tree_observed
+                from app.core.environment.event.publishers import (
+                    publish_ui_tree_observed,
+                )
 
                 await publish_ui_tree_observed(
                     platform="android",
@@ -310,7 +311,10 @@ async def record_episode_task(
                     # Persist through the single creation service so the skill
                     # lands as pending_review (user confirmation required),
                     # exactly like the REST /skills/synthesize path.
-                    from app.core.events.publishers import publish_macro_mutated, publish_skill_mutated
+                    from app.core.events.publishers import (
+                        publish_macro_mutated,
+                        publish_skill_mutated,
+                    )
                     from app.core.learning.skills.lifecycle import create_from_synthesis
 
                     macro_script = MacroScriptCompiler().compile(sequence).to_yaml()
@@ -522,109 +526,6 @@ async def reconcile_skill_macro_task(skill_id: int, thread_id: str, model: str |
                 await publish_macro_mutated(macro_id, action="update")
     finally:
         ContextManager.reset(token)
-
-
-# 进程内 tick 单飞标志（值守轮巡在 tick 内原地执行，防周期性 tick 堆积）
-_engine_scheduler_tick_active = False
-
-
-@shared_task(name="engine_scheduler_tick")  # type: ignore[reportCallIssue]
-async def engine_scheduler_tick():
-    """
-    Background task to poll for due autonomous tasks.
-
-    进程内单飞守卫：值守轮巡现改为在 tick 内原地 await 执行，一次轮巡可能
-    持续数十秒~分钟。若上一轮 tick 尚未结束，本轮直接跳过，避免每分钟的
-    周期性 tick 排队积压、重复扫描同一批任务。
-    """
-    global _engine_scheduler_tick_active
-    if _engine_scheduler_tick_active:
-        logger.info("[Scheduler] tick 已在运行，跳过本轮")
-        return
-    _engine_scheduler_tick_active = True
-    try:
-        from app.infrastructure.scheduler.service import SchedulerService
-
-        await SchedulerService.tick()
-    finally:
-        _engine_scheduler_tick_active = False
-
-
-@shared_task(name="run_autonomous_task_execution")  # type: ignore[reportCallIssue]
-async def run_autonomous_task_execution(task_id: int, project_id: int | None = None):
-    """
-    Background task to execute an autonomous task.
-    """
-    from app.core.engine.agent import run_agent_background
-    from app.core.environment.devices import DevicePool
-    from app.models.scheduler import AutonomousTask
-
-    # 1. Reserve a device
-    device_id = await DevicePool.reserve_device(task_id=f"task-{task_id}")
-    if not device_id:
-        raise ValueError(f"No available Android devices for task {task_id}.")
-
-    try:
-        async with session_scope() as session:
-            task = await session.get(AutonomousTask, task_id)
-            if not task:
-                raise ValueError(f"Autonomous task {task_id} not found.")
-
-            skill_ids = list(task.skill_ids or [])
-            skills = []
-            if skill_ids:
-                from app.core.learning.skills.repository import skill_repository
-
-                skills = await skill_repository.get_by_ids(skill_ids, db=session)
-
-            intent_description = task.intent_description
-            # 主 skill = 第一个（任务可关联多个 skill，主 skill 用于渲染初始 prompt）
-            skill_name = skills[0].name if skills else ""
-            skill_id = skills[0].id if skills else 0
-
-        thread_id = unique_id("auton", task_id)
-
-        from app.utils.template import render_template
-
-        prompt = render_template(
-            "core/engine/tasks/autonomous_task.prompt.j2",
-            intent_description=intent_description,
-            skill_name=skill_name,
-            skill_id=skill_id,
-            device_id=device_id,
-        )
-
-        # 2. Trigger Unified Dispatcher
-        from app.core.engine.dispatch import DispatchStatus, dispatch_agent_run
-
-        result = await dispatch_agent_run(
-            thread_id=thread_id,
-            message_content=prompt,
-            project_id=project_id if project_id is not None else DEFAULT_PROJECT_ID,
-            metadata={
-                "autonomous_task_id": task_id,
-                "source_skill_id": skill_id,
-                "device_id": device_id,
-                "goal_prefix": "[Autonomous Task] ",
-            },
-        )
-
-        if result.status == DispatchStatus.FAILED:
-            raise RuntimeError(f"Dispatch failed for task {task_id}: {result.error}")
-
-        logger.info(
-            f"[Task] Starting autonomous agent for task {task_id} on {device_id}"
-        )
-
-        async with session_scope() as session:
-            task = await session.get(AutonomousTask, task_id)
-            if task:
-                task.consecutive_failures = 0
-
-        if result.inputs:
-            await run_agent_background(thread_id, result.inputs)
-    finally:
-        await DevicePool.release_device(device_id, task_id=f"task-{task_id}")
 
 
 # resolve_base_type, clean_none_values, distribute_list_to_schema_fields

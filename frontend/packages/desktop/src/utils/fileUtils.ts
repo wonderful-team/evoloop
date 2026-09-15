@@ -50,6 +50,14 @@ export function getRawFileUrl(
   projectId?: number,
   apiBase = "",
 ): string {
+  // 公网资源 URL 直通，严禁再包一层 raw 端点（会 404）
+  if (path.startsWith("http://") || path.startsWith("https://")) {
+    return path
+  }
+  // 本站 API 相对链接（历史引用格式）：同源直连，同样禁止套娃
+  if (path.startsWith("/api/")) {
+    return `${apiBase}${path}`
+  }
   if (isAbsolutePath(path) || path.startsWith("uploads/")) {
     return `${apiBase}/api/v1/files/raw?path=${encodeURIComponent(path)}`
   }
@@ -81,7 +89,10 @@ export function resolveReferencePreview(
   }
 
   if (ref.type === "image" || ref.type === "audio") {
+    // 媒体预览优先用 target_id（渲染 URL 语义，云端公网地址）；
+    // source_path 可能是 /api/ 相对链接或旧格式，仅作回退
     const path =
+      (ref.target_id?.startsWith("http") && ref.target_id) ||
       ref.meta_data?.source_path ||
       ref.meta_data?.source_id ||
       cleanFileUrl(ref.target_id)

@@ -52,7 +52,14 @@ export function ImportSkillsDialog({
       })
 
       if (response.success) {
-        setResult(response.results)
+        setResult(
+          (response.results as unknown) as {
+            total_found: number
+            imported: number
+            skipped: number
+            errors: string[]
+          },
+        )
         toast.success(t("learning.import.success"))
         onSuccess?.()
       } else {

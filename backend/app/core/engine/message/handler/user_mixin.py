@@ -77,18 +77,25 @@ class UserMessageMixin:
             executor_device_name=dev_name,
         )
         if not suppress_user_push:
+            # 通道决策：默认 SSE-only（HITL 交互 UI 在 Web，移动端尚无作答界面）。
+            # 值守（duty）例外：提问必须实时触达负责人手机（移动端看到通知后
+            # 到 Web 作答）——否则值守信任纪律中"应答要快"没有投递通道。
+            from app.core.channel.duty import is_duty_source
+            from app.core.context.manager import ContextManager
+
+            ctx = ContextManager.current()
+            source = str((ctx.metadata or {}).get("source") or "") if ctx else ""
+            channels = {"sse", "mobile"} if is_duty_source(source) else {"sse"}
             await self._dispatch_block(
                 role=MessageRole.SYSTEM,
                 content=content,
                 category=MessageCategory.HITL_REQUEST.value,
-status=MessageStatus.WAITING_HUMAN,
+                status=MessageStatus.WAITING_HUMAN,
                 sequence_number=seq,
                 tool_name=tool_name,
                 tool_call_id=tool_call_id or request_id,
                 metadata=final_metadata if final_metadata else None,
-                # SSE-only: HITL request UI lives only in the web chat; mobile and
-                # voice do not yet support interactive human-in-the-loop prompts.
-                channels={"sse"},
+                channels=channels,
                 parent_id=effective_parent_id,
             )
 

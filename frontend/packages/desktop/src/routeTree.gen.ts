@@ -21,6 +21,7 @@ import { Route as LayoutIndexRouteImport } from './routes/_layout/index'
 import { Route as LayoutSubscriptionRouteImport } from './routes/_layout.subscription'
 import { Route as LayoutSettingsRouteImport } from './routes/_layout/settings'
 import { Route as LayoutLearningRouteImport } from './routes/_layout/learning'
+import { Route as LayoutDutyAutonomousRouteImport } from './routes/_layout/duty-autonomous'
 import { Route as LayoutChatRouteImport } from './routes/_layout/chat'
 import { Route as LayoutSubscriptionIndexRouteImport } from './routes/_layout.subscription.index'
 import { Route as LayoutProjectsIndexRouteImport } from './routes/_layout/projects.index'
@@ -34,7 +35,6 @@ import { Route as LayoutProjectsProjectIdOverviewRouteImport } from './routes/_l
 import { Route as LayoutProjectsProjectIdMacrosRouteImport } from './routes/_layout/projects.$projectId.macros'
 import { Route as LayoutProjectsProjectIdGenerationRouteImport } from './routes/_layout/projects.$projectId.generation'
 import { Route as LayoutProjectsProjectIdFilesRouteImport } from './routes/_layout/projects.$projectId.files'
-import { Route as LayoutProjectsProjectIdDutyRouteImport } from './routes/_layout/projects.$projectId.duty'
 import { Route as LayoutProjectsProjectIdAssetsRouteImport } from './routes/_layout/projects.$projectId.assets'
 import { Route as LayoutProjectsProjectIdV2IndexRouteImport } from './routes/_layout/projects.$projectId.v2.index'
 import { Route as LayoutProjectsProjectIdV2WikiRouteImport } from './routes/_layout/projects.$projectId.v2.wiki'
@@ -103,6 +103,11 @@ const LayoutSettingsRoute = LayoutSettingsRouteImport.update({
 const LayoutLearningRoute = LayoutLearningRouteImport.update({
   id: '/learning',
   path: '/learning',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutDutyAutonomousRoute = LayoutDutyAutonomousRouteImport.update({
+  id: '/duty-autonomous',
+  path: '/duty-autonomous',
   getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutChatRoute = LayoutChatRouteImport.update({
@@ -179,12 +184,6 @@ const LayoutProjectsProjectIdFilesRoute =
     path: '/files',
     getParentRoute: () => LayoutProjectsProjectIdRoute,
   } as any)
-const LayoutProjectsProjectIdDutyRoute =
-  LayoutProjectsProjectIdDutyRouteImport.update({
-    id: '/duty',
-    path: '/duty',
-    getParentRoute: () => LayoutProjectsProjectIdRoute,
-  } as any)
 const LayoutProjectsProjectIdAssetsRoute =
   LayoutProjectsProjectIdAssetsRouteImport.update({
     id: '/assets',
@@ -256,6 +255,7 @@ export interface FileRoutesByFullPath {
   '/signup': typeof SignupRoute
   '/voice-hud': typeof VoiceHudRoute
   '/chat': typeof LayoutChatRoute
+  '/duty-autonomous': typeof LayoutDutyAutonomousRoute
   '/learning': typeof LayoutLearningRouteWithChildren
   '/settings': typeof LayoutSettingsRoute
   '/subscription': typeof LayoutSubscriptionRouteWithChildren
@@ -263,7 +263,6 @@ export interface FileRoutesByFullPath {
   '/projects/': typeof LayoutProjectsIndexRoute
   '/subscription/': typeof LayoutSubscriptionIndexRoute
   '/projects/$projectId/assets': typeof LayoutProjectsProjectIdAssetsRoute
-  '/projects/$projectId/duty': typeof LayoutProjectsProjectIdDutyRoute
   '/projects/$projectId/files': typeof LayoutProjectsProjectIdFilesRoute
   '/projects/$projectId/generation': typeof LayoutProjectsProjectIdGenerationRoute
   '/projects/$projectId/macros': typeof LayoutProjectsProjectIdMacrosRoute
@@ -292,13 +291,13 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRoute
   '/voice-hud': typeof VoiceHudRoute
   '/chat': typeof LayoutChatRoute
+  '/duty-autonomous': typeof LayoutDutyAutonomousRoute
   '/learning': typeof LayoutLearningRouteWithChildren
   '/settings': typeof LayoutSettingsRoute
   '/': typeof LayoutIndexRoute
   '/projects': typeof LayoutProjectsIndexRoute
   '/subscription': typeof LayoutSubscriptionIndexRoute
   '/projects/$projectId/assets': typeof LayoutProjectsProjectIdAssetsRoute
-  '/projects/$projectId/duty': typeof LayoutProjectsProjectIdDutyRoute
   '/projects/$projectId/files': typeof LayoutProjectsProjectIdFilesRoute
   '/projects/$projectId/generation': typeof LayoutProjectsProjectIdGenerationRoute
   '/projects/$projectId/macros': typeof LayoutProjectsProjectIdMacrosRoute
@@ -329,6 +328,7 @@ export interface FileRoutesById {
   '/signup': typeof SignupRoute
   '/voice-hud': typeof VoiceHudRoute
   '/_layout/chat': typeof LayoutChatRoute
+  '/_layout/duty-autonomous': typeof LayoutDutyAutonomousRoute
   '/_layout/learning': typeof LayoutLearningRouteWithChildren
   '/_layout/settings': typeof LayoutSettingsRoute
   '/_layout/subscription': typeof LayoutSubscriptionRouteWithChildren
@@ -337,7 +337,6 @@ export interface FileRoutesById {
   '/_layout/projects/': typeof LayoutProjectsIndexRoute
   '/_layout/subscription/': typeof LayoutSubscriptionIndexRoute
   '/_layout/projects/$projectId/assets': typeof LayoutProjectsProjectIdAssetsRoute
-  '/_layout/projects/$projectId/duty': typeof LayoutProjectsProjectIdDutyRoute
   '/_layout/projects/$projectId/files': typeof LayoutProjectsProjectIdFilesRoute
   '/_layout/projects/$projectId/generation': typeof LayoutProjectsProjectIdGenerationRoute
   '/_layout/projects/$projectId/macros': typeof LayoutProjectsProjectIdMacrosRoute
@@ -369,6 +368,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/voice-hud'
     | '/chat'
+    | '/duty-autonomous'
     | '/learning'
     | '/settings'
     | '/subscription'
@@ -376,7 +376,6 @@ export interface FileRouteTypes {
     | '/projects/'
     | '/subscription/'
     | '/projects/$projectId/assets'
-    | '/projects/$projectId/duty'
     | '/projects/$projectId/files'
     | '/projects/$projectId/generation'
     | '/projects/$projectId/macros'
@@ -405,13 +404,13 @@ export interface FileRouteTypes {
     | '/signup'
     | '/voice-hud'
     | '/chat'
+    | '/duty-autonomous'
     | '/learning'
     | '/settings'
     | '/'
     | '/projects'
     | '/subscription'
     | '/projects/$projectId/assets'
-    | '/projects/$projectId/duty'
     | '/projects/$projectId/files'
     | '/projects/$projectId/generation'
     | '/projects/$projectId/macros'
@@ -441,6 +440,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/voice-hud'
     | '/_layout/chat'
+    | '/_layout/duty-autonomous'
     | '/_layout/learning'
     | '/_layout/settings'
     | '/_layout/subscription'
@@ -449,7 +449,6 @@ export interface FileRouteTypes {
     | '/_layout/projects/'
     | '/_layout/subscription/'
     | '/_layout/projects/$projectId/assets'
-    | '/_layout/projects/$projectId/duty'
     | '/_layout/projects/$projectId/files'
     | '/_layout/projects/$projectId/generation'
     | '/_layout/projects/$projectId/macros'
@@ -567,6 +566,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutLearningRouteImport
       parentRoute: typeof LayoutRoute
     }
+    '/_layout/duty-autonomous': {
+      id: '/_layout/duty-autonomous'
+      path: '/duty-autonomous'
+      fullPath: '/duty-autonomous'
+      preLoaderRoute: typeof LayoutDutyAutonomousRouteImport
+      parentRoute: typeof LayoutRoute
+    }
     '/_layout/chat': {
       id: '/_layout/chat'
       path: '/chat'
@@ -656,13 +662,6 @@ declare module '@tanstack/react-router' {
       path: '/files'
       fullPath: '/projects/$projectId/files'
       preLoaderRoute: typeof LayoutProjectsProjectIdFilesRouteImport
-      parentRoute: typeof LayoutProjectsProjectIdRoute
-    }
-    '/_layout/projects/$projectId/duty': {
-      id: '/_layout/projects/$projectId/duty'
-      path: '/duty'
-      fullPath: '/projects/$projectId/duty'
-      preLoaderRoute: typeof LayoutProjectsProjectIdDutyRouteImport
       parentRoute: typeof LayoutProjectsProjectIdRoute
     }
     '/_layout/projects/$projectId/assets': {
@@ -765,7 +764,6 @@ const LayoutSubscriptionRouteWithChildren =
 
 interface LayoutProjectsProjectIdRouteChildren {
   LayoutProjectsProjectIdAssetsRoute: typeof LayoutProjectsProjectIdAssetsRoute
-  LayoutProjectsProjectIdDutyRoute: typeof LayoutProjectsProjectIdDutyRoute
   LayoutProjectsProjectIdFilesRoute: typeof LayoutProjectsProjectIdFilesRoute
   LayoutProjectsProjectIdGenerationRoute: typeof LayoutProjectsProjectIdGenerationRoute
   LayoutProjectsProjectIdMacrosRoute: typeof LayoutProjectsProjectIdMacrosRoute
@@ -787,7 +785,6 @@ interface LayoutProjectsProjectIdRouteChildren {
 const LayoutProjectsProjectIdRouteChildren: LayoutProjectsProjectIdRouteChildren =
   {
     LayoutProjectsProjectIdAssetsRoute: LayoutProjectsProjectIdAssetsRoute,
-    LayoutProjectsProjectIdDutyRoute: LayoutProjectsProjectIdDutyRoute,
     LayoutProjectsProjectIdFilesRoute: LayoutProjectsProjectIdFilesRoute,
     LayoutProjectsProjectIdGenerationRoute:
       LayoutProjectsProjectIdGenerationRoute,
@@ -816,6 +813,7 @@ const LayoutProjectsProjectIdRouteWithChildren =
 
 interface LayoutRouteChildren {
   LayoutChatRoute: typeof LayoutChatRoute
+  LayoutDutyAutonomousRoute: typeof LayoutDutyAutonomousRoute
   LayoutLearningRoute: typeof LayoutLearningRouteWithChildren
   LayoutSettingsRoute: typeof LayoutSettingsRoute
   LayoutSubscriptionRoute: typeof LayoutSubscriptionRouteWithChildren
@@ -826,6 +824,7 @@ interface LayoutRouteChildren {
 
 const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutChatRoute: LayoutChatRoute,
+  LayoutDutyAutonomousRoute: LayoutDutyAutonomousRoute,
   LayoutLearningRoute: LayoutLearningRouteWithChildren,
   LayoutSettingsRoute: LayoutSettingsRoute,
   LayoutSubscriptionRoute: LayoutSubscriptionRouteWithChildren,

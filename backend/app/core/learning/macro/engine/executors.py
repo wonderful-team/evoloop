@@ -1,9 +1,8 @@
 import asyncio
 import logging
 
-from app.core.environment.capabilities.registry import ActionRegistry
-
 import app.core.learning.constants as _mc
+from app.core.environment.capabilities.registry import ActionRegistry
 
 logger = logging.getLogger(__name__)
 

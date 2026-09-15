@@ -12,6 +12,8 @@ import { useTranslation } from "react-i18next"
 
 import type { SubscriptionPlan } from "@/types/subscription"
 
+type Benefits = Record<string, number | boolean | string>
+
 interface PlanComparisonProps {
   plans: SubscriptionPlan[]
   currentLevelId?: number

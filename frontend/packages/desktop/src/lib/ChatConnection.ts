@@ -314,10 +314,11 @@ export class ChatConnection {
       try {
         const data = JSON.parse((e as MessageEvent).data) as { max_steps?: number }
         toast.warning(
-          i18n.t("chat.maxStepsReached", {
-            defaultValue: "本轮已达工具调用步数上限（{{count}}），可发送新消息继续。",
-            count: data.max_steps ?? "?",
-          }),
+          i18n.t(
+            "chat.maxStepsReached",
+            "本轮已达工具调用步数上限（{{count}}），可发送新消息继续。",
+            { count: data.max_steps ?? 1 },
+          ),
         )
       } catch (err) {
         console.warn("[ChatConnection] Failed to parse max_steps_reached event", err)

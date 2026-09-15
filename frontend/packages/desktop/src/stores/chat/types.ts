@@ -30,6 +30,9 @@ export interface ChatState {
   sessionGoal: string | null
   messages: Message[]
 
+  // 值守工作台"派个任务"预填草稿（临时，输入框挂载即消费清空）
+  pendingTaskDraft: string | null
+
   // AI 创作 deep link 回传元数据（临时，发送后即清空）
   pendingCreateTask: {
     taskId: string
@@ -70,6 +73,7 @@ export interface ChatState {
   setPendingCreateTask: (
     data: { taskId: string; secret: string; callbackUrl: string } | null,
   ) => void
+  setPendingTaskDraft: (draft: string | null) => void
   fetchHistory: (
     threadId: string,
     /** silent: 不驱动顶部历史 loading（本地已有 optimistic 消息的场景） */

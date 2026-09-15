@@ -25,6 +25,7 @@ from app.core.config import settings
 from app.core.context.manager import ContextManager, EvoContext
 from app.core.engine.agent.models import BackgroundAgentInputs
 from app.core.engine.context_hydrator import AgentContextHydrator
+from app.core.engine.error_emitter import error_emitter
 from app.core.engine.message.native_classes import HumanMessage
 from app.core.engine.runner_base import (
     build_agent_state,
@@ -33,7 +34,6 @@ from app.core.engine.runner_base import (
 )
 from app.core.engine.session.gate import GateEvent, ThreadGate
 from app.core.exceptions import AgentCancelledException, AgentHumanInterruptException
-from app.core.engine.error_emitter import error_emitter
 from app.core.hitl.orchestrator import HITLOrchestrator
 from app.core.monitoring.activity import activity_monitor
 from app.utils.id import unique_id

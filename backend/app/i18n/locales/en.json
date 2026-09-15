@@ -234,8 +234,7 @@
       "read_result": "Read {lines} lines.",
       "write": "Write file '{path}'",
       "edit": "Edit file '{path}'",
-      "websearch": "Search completed[[, {count} results found]][[ ({pattern}) ]]",
-      "schedule": "Schedule: {action}[[ {intent}]]"
+      "websearch": "Search completed[[, {count} results found]][[ ({pattern}) ]]"
     }
   },
   "database_logger": {

@@ -16,6 +16,10 @@ class Plan(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)  # UUID
     thread_id: Mapped[str] = mapped_column(ForeignKey("conversations.id"), unique=True, index=True)
+    # Owning task (autonomous task loop); nullable for plain conversation plans
+    task_id: Mapped[str | None] = mapped_column(
+        ForeignKey("project_tasks.id"), nullable=True, index=True
+    )
     title: Mapped[str] = mapped_column(String(255))
     status: Mapped[str] = mapped_column(String(50), default="active")  # active, completed, archived
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

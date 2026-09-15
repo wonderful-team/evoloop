@@ -537,7 +537,7 @@ class IndexingService:
                     await self.sql_persister.batch_persist(
                         [
                             (indexed, sf)
-                            for (_, indexed), sf in zip(window_items, source_files)
+                            for (_, indexed), sf in zip(window_items, source_files, strict=False)
                         ],
                         session,
                     )

@@ -7,7 +7,7 @@ import { useDutyStore } from "@/stores/dutyStore"
 
 /**
  * 托盘值守管理器（headless，仿 GlobalRecorderManager）。
- * 监听托盘"客服值守"点击 → 切换全局 enabled（全局总闸，§8.5.4）。
+ * 监听托盘"自主值守"点击 → 切换全局 enabled（全局总闸，§8.5.4）。
  * 状态唯一来源 = 后端全局 customer_service_duty.enabled。
  */
 export function CustomerServiceDutyManager() {

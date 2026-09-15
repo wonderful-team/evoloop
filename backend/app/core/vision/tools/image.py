@@ -68,7 +68,7 @@ async def image(
     Args:
         action: 执行的动作（analyze / generate）。
         prompt: generate 时的文本提示词（文生图/图生图描述）。
-        source: analyze 时的本地图片绝对路径或公开 URL；generate 时可选参考图路径/URL（图生图）。
+        source: analyze 时的图片来源（本地绝对路径、uploads/ 相对路径、/api/v1/files/raw 链接或公网 URL）；generate 时可选参考图（同格式，图生图）。
         size: generate 输出尺寸（OpenAI 标准枚举，如 1024x1024 / 1024x1536 / 1536x1024）。
         question: analyze 时对图片的问题或指令。
         include_ax_tree: analyze 时是否注入当前平台 UI Accessibility 树。
@@ -84,6 +84,19 @@ async def _analyze(source: str | None, question: str, include_ax_tree: bool) -> 
     """Analyze an image (originally analyze_image)."""
     if not source:
         return "Error: action=analyze requires `source` (local image path or URL)."
+
+    # 非公网 URL 一律先解析为本地绝对路径（支持 uploads/ 相对路径与 /api/ raw 链接）
+    if not source.startswith(("http://", "https://")):
+        from app.core.vision.tools._media import resolve_media_source
+
+        try:
+            source = await resolve_media_source(source, config=None)
+        except (ValueError, FileNotFoundError, OSError) as e:
+            return f"Error: cannot resolve image source '{source}': {e}"
+        import os
+
+        if not os.path.isfile(source):
+            return f"Error: image not found: {source}"
 
     final_prompt = question
 
@@ -119,7 +132,16 @@ async def _analyze(source: str | None, question: str, include_ax_tree: bool) -> 
 
     if result.success:
         return result.summary or "Image analysis completed."
-    return f"Error: {result.metadata.get('error', 'Unknown error')}"
+    error = str(result.metadata.get("error", "Unknown error"))
+    if "no vision model" in error:
+        return (
+            "Error: no vision model is configured for this account, "
+            "so image content cannot be analyzed directly. "
+            "For image-to-image workflows, call this tool with action=generate "
+            "and pass the reference via `source` — the image generation model "
+            "will read the reference image itself (style, composition, subject)."
+        )
+    return f"Error: {error}"
 
 
 async def _generate(

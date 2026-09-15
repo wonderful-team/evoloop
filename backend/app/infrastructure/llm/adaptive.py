@@ -205,6 +205,12 @@ class AdaptiveChatOpenAI:
         run_id = _get_run_id(config)
         metadata = _get_metadata(config)
 
+        # Accept a bare prompt string (LangChain convention: a string prompt is
+        # a single human/user message). Iterating a str directly yields one
+        # character per step, which breaks the message loop below.
+        if isinstance(messages, str):
+            messages = [{"role": "user", "content": messages}]
+
         state = AdaptiveRetryState(
             current_max_tokens=self.max_tokens or self.retry_max_tokens_base,
             current_temperature=self.temperature if self.temperature is not None else 0.7,

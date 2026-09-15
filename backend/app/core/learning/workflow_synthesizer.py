@@ -18,7 +18,8 @@ from enum import Enum
 from pydantic import BaseModel, Field
 
 from app.constants import DEFAULT_INTERNAL_LLM_TOKENS
-from app.core.learning.constants import MACRO as MACRO_MODE, SKILL as SKILL_MODE
+from app.core.learning.constants import MACRO as MACRO_MODE
+from app.core.learning.constants import SKILL as SKILL_MODE
 from app.core.learning.prompts import prompt_builder
 from app.core.learning.schemas import SkillParameter
 from app.core.learning.trace.parser import TraceParser, TraceSequence

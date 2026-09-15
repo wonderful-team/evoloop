@@ -103,9 +103,14 @@ function SignUp() {
   } | null>(null)
   const [isAgreementLoading, setIsAgreementLoading] = useState(false)
 
+  const agreementShowValue = (
+    registerConfigQuery.data?.data as
+      | { value?: { agreement_show?: string | number } }
+      | null
+      | undefined
+  )?.value?.agreement_show
   const showAgreement =
-    registerConfigQuery.data?.data?.value?.agreement_show === "1" ||
-    registerConfigQuery.data?.data?.value?.agreement_show === 1
+    agreementShowValue === "1" || agreementShowValue === 1
 
   const handleShowAgreement = async (type: "SERVICE" | "PRIVACY") => {
     setAgreementType(type)

@@ -105,7 +105,7 @@ export function SkillLibraryView({
 
   const skills = data?.data || []
   const totalSkills = data?.total || 0
-  const totalPages = data?.total_pages || 0
+  const totalPages = Number(data?.total_pages) || 0
 
   // Handle auto-navigate to editor if highlightSkillId is provided
   useEffect(() => {

@@ -140,7 +140,7 @@ export function LightningSettings() {
         },
       })
       setTestResult({
-        success: res.llm_ok,
+        success: !!res.llm_ok,
         msg: res.llm_ok
           ? t("settings.lightning.connected")
           : res.llm_reply || t("settings.lightning.connection_failed"),

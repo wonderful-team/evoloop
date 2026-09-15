@@ -35,6 +35,7 @@ async def plan(
     action: Literal["create", "update_step", "status"] = "create",
     title: str | None = None,
     steps: list[str] | None = None,
+    task_id: str | None = None,
     plan_id: str | None = None,
     step_id: str | None = None,
     status: str | None = None,
@@ -78,6 +79,8 @@ async def plan(
             if existing:
                 plan_id = existing.id
                 existing.title = title
+                if task_id:
+                    existing.task_id = task_id
                 existing.status = PlanStatus.ACTIVE.value
                 await session.execute(
                     delete(DBPlanStep).where(DBPlanStep.plan_id == plan_id)
@@ -88,6 +91,7 @@ async def plan(
                     DBPlan(
                         id=plan_id,
                         thread_id=thread_id,
+                        task_id=task_id,
                         title=title,
                         status=PlanStatus.ACTIVE.value,
                     )

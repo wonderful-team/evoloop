@@ -58,11 +58,23 @@ def event_subscribe_all() -> Callable[[F], F]:
 def register_instance_handlers(instance: Any, bus: Any = None) -> None:
     """
     Register all decorated handlers on an instance to the event bus.
+
+    类级幂等守卫：每个订阅者类只注册一次。订阅者是单例语义——模块单例
+    与 discovery 扫描会先后实例化同一个类，不设类级守卫会双份注册
+    （同一事件并发重复消费，历史事故：ingest dedup 竞态 → UNIQUE 冲突）。
+    同类后续实例不再收到事件（警告日志），这是有意为之。
     """
     if bus is None:
         bus = system_bus
 
     instance_class = instance.__class__
+    if getattr(instance_class, "_event_handlers_registered", False):
+        logger.warning(
+            f"[EventRegister] {instance_class.__name__} 已注册，跳过重复实例"
+            "（订阅者为单例语义，请使用模块级单例）"
+        )
+        return
+
     registered_count = 0
 
     # Get all methods that have event handlers
@@ -87,6 +99,7 @@ def register_instance_handlers(instance: Any, bus: Any = None) -> None:
         logger.info(
             f"[EventRegister] {instance_class.__name__}: {registered_count} handlers registered"
         )
+    instance_class._event_handlers_registered = True
 
 
 def event_register(arg: Any = None) -> Any:

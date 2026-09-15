@@ -15,13 +15,14 @@ import {
   RotateCcw,
   Undo,
 } from "lucide-react"
-import { memo, useEffect } from "react"
+import { memo, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { useAutoSpeak, useTTS } from "@/hooks/useTTS"
 import { previewFile } from "@/utils/fileLinkHandler"
 import { resolveReferencePreview } from "@/utils/fileUtils"
 import { ChangesetSnapshot } from "./ChangesetSnapshotView"
+import { ImageGalleryViewer, type GalleryImage } from "./ImageGalleryViewer"
 import { MessageContent } from "./MessageContent"
 import { MessageReferences } from "./MessageReferences"
 import { TTSButton } from "./TTSButton"
@@ -81,6 +82,31 @@ export interface Message {
   turnDuration?: string
 }
 
+// 后端 summary 模板会把这些 input 字段内嵌进 display_name 单行摘要；
+// 长/多行值需要剥离成块渲染（顺序即优先级，命中第一个即停）
+const TOOL_DETAIL_KEYS = [
+  "command",
+  "pattern",
+  "sql",
+  "query",
+  "prompt",
+  "question",
+  "content",
+]
+
+// 语义化标签下通用参数呈现的候选键：短值内联、长值成块
+const TOOL_INLINE_PARAM_KEYS = [
+  "prompt",
+  "url",
+  "path",
+  "source",
+  "pattern",
+  "query",
+  "name",
+  "identifier",
+  "content",
+]
+
 const formatSmartTimestamp = (timestamp?: string) => {
   if (!timestamp) return ""
   const date = new Date(timestamp)
@@ -124,6 +150,8 @@ interface ChatMessageItemProps {
     path?: string,
     diff?: string,
   ) => void
+  /** 打开会话级图片 Gallery（跨消息收集全部图片）；未提供时回退到本条消息内浏览 */
+  onOpenImageGallery?: (ref: MessageReference) => void
   isActivelyStreaming?: boolean
 }
 
@@ -156,8 +184,7 @@ const ChatMessageItem = memo(
     onRetry,
     onQuote,
     onViewChangeset,
-    isGrouped,
-    showAvatar,
+    onOpenImageGallery,
   }: ChatMessageItemProps) => {
     const { t } = useTranslation()
 
@@ -179,6 +206,21 @@ const ChatMessageItem = memo(
     }
 
     const isUser = msg.role === "human"
+    const [gallery, setGallery] = useState<{
+      images: GalleryImage[]
+      index: number
+    } | null>(null)
+    const galleryUI = (
+      <ImageGalleryViewer
+        images={gallery?.images || []}
+        index={gallery?.index || 0}
+        open={!!gallery}
+        onIndexChange={(index) =>
+          setGallery((g) => (g ? { ...g, index } : g))
+        }
+        onClose={() => setGallery(null)}
+      />
+    )
     const actionContent =
       msg.effective_content !== undefined && msg.effective_content.trim() !== ""
         ? msg.effective_content
@@ -186,41 +228,170 @@ const ChatMessageItem = memo(
 
     // Render Tool Message (Flat & Compact)
     if (msg.role === "tool") {
+      // 后端 display_name 是单行摘要模板，长值（命令/正则/SQL/提示词等）会被
+      // 内嵌并压成一行 —— 检测摘要中内嵌的长值/多行值，剥离为多行块渲染。
+      // 匹配必须用未经空白清理的原始串（heredoc/缩进命令含连续空白，
+      // 预清理会破坏 includes 匹配），清理放到剥离之后。
+      // 仅当值确实内嵌在摘要中时才剥离（write/edit 的 content 不在摘要内，
+      // 归 changeset 呈现，不在此渲染）；question（image/video analyze）不在
+      // 摘要内，长问题时仅以块补充。
+      const rawDisplayName = (
+        msg.tool_meta?.display_name ||
+        msg.tool_name ||
+        t("chat.toolMessage.fallbackName")
+      ).trim()
+      const toolInput =
+        msg.input && typeof msg.input === "object"
+          ? (msg.input as Record<string, unknown>)
+          : {}
+      const rawAction = typeof toolInput.action === "string" ? toolInput.action : ""
+
+      // 语义化命名：action 级（facade 工具）优先，退回工具级；
+      // 均未配置时保留后端 display_name。替代"图像：analyze"这类
+      // 工具名+原始参数的生硬展示
+      const actionLabel =
+        rawAction && msg.tool_name
+          ? t(`chat.toolAction.${msg.tool_name}.${rawAction}`, {
+              defaultValue: "",
+            })
+          : ""
+      const toolLabel = msg.tool_name
+        ? t(`chat.toolName.${msg.tool_name}`, { defaultValue: "" })
+        : ""
+      const semanticLabel = actionLabel || toolLabel
+
+      let header = rawDisplayName
+      let detail: string | null = null
+      if (semanticLabel) {
+        header = semanticLabel
+        // 长参数/多行参数 → 多行块
+        for (const key of TOOL_INLINE_PARAM_KEYS) {
+          const value = toolInput[key]
+          if (typeof value === "string") {
+            const trimmed = value.trim()
+            if (
+              trimmed &&
+              (trimmed.length > 48 || trimmed.includes("\n"))
+            ) {
+              detail = value
+              break
+            }
+          }
+        }
+        // 短参数 → 内联第一个非空值
+        if (!detail) {
+          for (const key of TOOL_INLINE_PARAM_KEYS) {
+            const value = toolInput[key]
+            if (typeof value === "string") {
+              const trimmed = value.trim()
+              if (trimmed) {
+                header = `${semanticLabel} '${trimmed}'`
+                break
+              }
+            }
+          }
+        }
+        // analyze 类的自定义长问题（question 不做内联，默认问题无展示价值）
+        if (!detail) {
+          const question = toolInput.question
+          if (typeof question === "string") {
+            const trimmed = question.trim()
+            if (
+              trimmed &&
+              (trimmed.length > 48 || trimmed.includes("\n"))
+            ) {
+              detail = question
+            }
+          }
+        }
+      } else {
+        let stripFromHeader = false
+        for (const key of TOOL_DETAIL_KEYS) {
+          const value = toolInput[key]
+          if (typeof value === "string") {
+            const trimmed = value.trim()
+            if (
+              !trimmed ||
+              !(trimmed.length > 48 || trimmed.includes("\n"))
+            ) {
+              continue
+            }
+            if (rawDisplayName.includes(trimmed)) {
+              detail = value
+              stripFromHeader = true
+              break
+            }
+            if (key === "question") {
+              detail = value
+              stripFromHeader = false
+              break
+            }
+          }
+        }
+        if (detail && stripFromHeader) {
+          header = rawDisplayName
+            .split(detail.trim())
+            .join(" ")
+            .replace(/'\s*'/g, "")
+            .replace(/\([^):]*:\s*\)/g, "")
+            .replace(/\s{2,}/g, " ")
+            .trim()
+        } else {
+          header = rawDisplayName
+            .replace(/'\s*'/g, "")
+            .replace(/\s{2,}/g, " ")
+            .trim()
+        }
+      }
+
       return (
         <motion.div
-          className="group relative flex items-center gap-2.5 w-full py-1 px-3 my-0.5 rounded transition-colors font-mono text-[12px] text-muted-foreground/70 hover:text-muted-foreground bg-muted/10 hover:bg-muted/25"
+          className={`group relative flex w-full py-1 px-3 my-0.5 rounded transition-colors font-mono text-[12px] text-muted-foreground/70 hover:text-muted-foreground bg-muted/10 hover:bg-muted/25 ${
+            detail ? "flex-col items-stretch gap-1" : "items-center gap-2.5"
+          }`}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.1 }}
         >
-          <div className="w-1.5 h-1.5 rounded-full bg-primary/50 shrink-0" />
-          <span
-            className="truncate flex-1"
-            title={
-              msg.tool_meta?.display_name ||
-              msg.tool_name ||
-              t("chat.toolMessage.fallbackName")
-            }
-          >
-            {msg.tool_meta?.display_name ||
-              msg.tool_name ||
-              t("chat.toolMessage.fallbackName")}
-          </span>
-          {msg.status === "running" && (
-            <Loader2 className="h-3 w-3 animate-spin text-primary ml-2 shrink-0" />
-          )}
-          {msg.status === "failed" && (
-            <span className="ml-2 shrink-0 text-[10px] text-destructive">
-              {t("chat.toolMessage.failed", { defaultValue: "failed" })}
-            </span>
-          )}
-          {msg.changeset_count !== undefined && msg.changeset_count > 0 && (
-            <Badge
-              variant="secondary"
-              className="h-4 px-1.5 text-[9px] bg-primary/10 text-primary border-none shrink-0 ml-auto"
+          <div className="flex items-center gap-2.5 min-w-0 w-full">
+            <div
+              className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                msg.status === "running" || msg.status === "streaming"
+                  ? "bg-primary shadow-[0_0_6px_var(--primary)]"
+                  : msg.status === "failed"
+                    ? "bg-destructive"
+                    : msg.status === "waiting_human"
+                      ? "bg-warning"
+                      : "bg-foreground/25"
+              }`}
+            />
+            <span
+              className="truncate flex-1"
+              title={detail || header}
             >
-              {msg.changeset_count} {t("chat.interface.files")}
-            </Badge>
+              {header}
+            </span>
+            {msg.status === "running" && (
+              <Loader2 className="h-3 w-3 animate-spin text-primary ml-2 shrink-0" />
+            )}
+            {msg.status === "failed" && (
+              <span className="ml-2 shrink-0 text-[10px] text-destructive">
+                {t("chat.toolMessage.failed", { defaultValue: "failed" })}
+              </span>
+            )}
+            {msg.changeset_count !== undefined && msg.changeset_count > 0 && (
+              <Badge
+                variant="secondary"
+                className="h-4 px-1.5 text-[9px] bg-primary/10 text-primary border-none shrink-0 ml-auto"
+              >
+                {msg.changeset_count} {t("chat.interface.files")}
+              </Badge>
+            )}
+          </div>
+          {detail && (
+            <pre className="pl-4 max-h-40 overflow-y-auto font-mono text-[11px] leading-[1.6] whitespace-pre-wrap break-all text-muted-foreground/55">
+              {detail}
+            </pre>
           )}
         </motion.div>
       )
@@ -230,6 +401,22 @@ const ChatMessageItem = memo(
       if (ref.type === "changeset") {
         onViewChangeset?.(msg.id)
         return
+      }
+
+      // 图片引用 → Gallery 查看器（优先会话级：跨消息浏览全部图片）
+      if (ref.type === "image") {
+        if (onOpenImageGallery) {
+          onOpenImageGallery(ref)
+          return
+        }
+        const images = (msg.references || [])
+          .filter((r) => r.type === "image" && r.target_id)
+          .map((r) => ({ url: r.target_id, name: r.target_name || r.target_id }))
+        if (images.length > 0) {
+          const idx = images.findIndex((im) => im.url === ref.target_id)
+          setGallery({ images, index: Math.max(idx, 0) })
+          return
+        }
       }
 
       const preview = resolveReferencePreview(ref)
@@ -250,16 +437,17 @@ const ChatMessageItem = memo(
     // 1. User Message Layout (Ultra compact: no bottom line, no timestamp, actions folded in absolute hover pill)
     if (isUser) {
       return (
-        <motion.div
-          className="chat-bubble-user group relative flex flex-col w-full my-2.5 px-4 py-3.5 rounded-xl text-[15px] font-medium leading-relaxed transition-all"
-          data-run-id={msg.run_id}
-        >
-          <MessageContent content={msg.content} isUser={isUser} />
-          <MessageReferences
-            references={msg.references || []}
-            isUser={true}
-            content={msg.content}
-            onReferenceClick={handleReferenceClick}
+        <>
+          <motion.div
+            className="chat-bubble-user group relative flex flex-col w-full my-2.5 px-4 py-3.5 rounded-xl text-[15px] font-medium leading-relaxed transition-all"
+            data-run-id={msg.run_id}
+          >
+            <MessageContent content={msg.content} isUser={isUser} />
+            <MessageReferences
+              references={msg.references || []}
+              isUser={true}
+              content={msg.content}
+              onReferenceClick={handleReferenceClick}
           />
 
           {/* Absolute Hover Action Pill (Folded into top-right corner on hover, saving vertical space) */}
@@ -337,6 +525,8 @@ const ChatMessageItem = memo(
             )}
           </div>
         </motion.div>
+        {galleryUI}
+        </>
       )
     }
 
@@ -484,6 +674,7 @@ const ChatMessageItem = memo(
             </div>
           </div>
         )}
+        {galleryUI}
       </motion.div>
     )
   },

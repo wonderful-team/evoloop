@@ -56,7 +56,7 @@ async def video(
     Args:
         action: 执行的动作（analyze / generate）。
         prompt: generate 时的文本提示词（文生视频/图生视频描述）。
-        source: analyze 时的本地视频路径或公开 URL；generate 时可选参考图路径/URL（图生视频）。
+        source: analyze 时的视频来源（本地绝对路径、uploads/ 相对路径、/api/v1/files/raw 链接或公网 URL）；generate 时可选参考图（同格式，图生视频）。
         seconds: generate 视频时长（秒）。
         size: generate 视频分辨率（OpenAI 标准，如 1920x1080 / 720x720）。
         question: analyze 时对视频内容的问题。

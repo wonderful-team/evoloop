@@ -687,13 +687,13 @@ export interface Context {
 4. **统一截断**：四者输出都过 `truncate.output`。
 5. **统一 hook**：`tool.execute.before/after` 对四者生效。
 
-#### 10.4.3 迁移检查项
+#### 10.4.3 迁移检查项（2026-09 核实）
 
-- [ ] `main.txt` 动态块含四段索引（skills / macros / mcp / mcp_instructions）
-- [ ] 新增 `macro(name)` 工具（对齐 `skill(name)`，返回 MacroScript 概览）
-- [ ] `run_macro` 保留确定性执行 + WEB_POLICY 自愈回退，不因重构删除
-- [ ] Macro 自动创建（`MacroCreatorService`）改为代码层触发，不从 prompt 规则
-- [ ] `macro_usage.j2` 反循环规则随重构移除（防循环入代码层）
+- [x] `main.txt` 动态块含能力索引：`<available_skills>` / `<available_macros>` 已实现（`react/prompts.py::_capability_index`）；`<available_agents>`（A2A 远端设备）已实现（`_capability_index_async`）；`<available_mcp>` 暂未注入（MCP 经 skill 检索按需加载，无独立索引段——如后续 MCP 数量增多再补，避免过度设计）
+- [x] `macro(name)` 一体式工具已实现（`tools/react_macro.py`：list/read/run/create/update/delete/debug 七 action，`read` 返回概览）
+- [x] `run_macro` 确定性执行保留（复用 `_run_macro_row`，含高风险宏确认门控）
+- [x] Macro 自动创建改为代码层触发（`react/completion.py` 收尾管线判定 `MacroCreatorService.is_eligible`，不依赖 prompt 规则）
+- [x] `macro_usage.j2` 反循环规则已随重构移除（模板已不存在；防循环入代码层 `doom_loop_detected` + HITL 问询降级）
 
 ---
 

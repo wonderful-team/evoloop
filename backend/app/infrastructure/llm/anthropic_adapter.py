@@ -125,6 +125,12 @@ class CompatibleChatAnthropic:
         run_id = _get_run_id(config)
         metadata = _get_metadata(config)
 
+        # Accept a bare prompt string (LangChain convention: a string prompt is
+        # a single human/user message). Iterating a str directly yields one
+        # character per step, which breaks the message loop below.
+        if isinstance(messages, str):
+            messages = [{"role": "user", "content": messages}]
+
         system_content = None
         api_messages = []
 

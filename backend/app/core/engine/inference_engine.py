@@ -41,6 +41,19 @@ logger = logging.getLogger(__name__)
 DOOM_LOOP_WINDOW = 3
 
 
+def consume_pending_media_refs(ctx) -> list[dict]:
+    """取出并清空执行上下文中暂存的生成媒体引用（stash → 一次性消费）。
+
+    image/video 工具生成媒体时经 ``stash_media_ref`` 写入
+    ``ctx.metadata.pending_media_refs``；本函数在 AI 消息落库前取出，
+    返回后清空 stash，保证引用只消费一次、不跨轮重复。
+    """
+    refs = list(getattr(ctx.metadata, "pending_media_refs", None) or [])
+    if refs:
+        ctx.metadata.pending_media_refs = []
+    return refs
+
+
 def doom_loop_detected(signatures: list[str], window: int = DOOM_LOOP_WINDOW) -> bool:
     """代码层防循环检测：最近 ``window`` 条工具调用签名完全相同即判循环。
 
@@ -258,9 +271,7 @@ class InferenceEngine:
         # 一致，否则 tool_output 的外键会指向不存在的消息。
         # 结构化媒体引用直传：image/video 工具生成媒体时经 ctx 暂存引用，
         # 在此合并进 AI 消息的 references（不依赖模型在正文中复述链接）。
-        extra_references = list(getattr(ctx.metadata, "pending_media_refs", None) or [])
-        if extra_references:
-            ctx.metadata.pending_media_refs = []
+        extra_references = consume_pending_media_refs(ctx)
 
         await handler.handle_ai_message(
             content=content,

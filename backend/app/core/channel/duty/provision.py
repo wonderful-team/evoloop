@@ -22,10 +22,8 @@ from app.core.channel.duty.config import (
     save_global_duty_config,
 )
 from app.core.channel.duty.constants import (
-    BUSINESS_POLL_INTERVAL,
     CHANNEL_KIND_MAP,
     DUTY_INTERVAL,
-    KIND_BUSINESS_POLL,
 )
 from app.core.channel.duty.scheduler import task_is_duty
 from app.infrastructure.database import session_scope
@@ -237,11 +235,9 @@ async def _disable_project_config(project_id: int) -> None:
 
 
 async def _upsert_tasks(project_id: int) -> None:
-    """upsert 该项目的值守 AutonomousTask：每个启用渠道一条轮巡任务 + 业务巡检扫描。
+    """upsert 该项目的值守 AutonomousTask：每个启用渠道一条轮巡任务。
 
-    轮巡间隔取自全局（poll_interval）；业务巡检扫描频率固定为系统常量
-    （BUSINESS_POLL_INTERVAL 分钟，对齐 60s tick 粒度，真正的执行节奏由
-    每条 prompt 的 interval_minutes 控制）。
+    轮巡间隔取自全局（poll_interval），对齐 60s tick 粒度。
     """
     cfg = await load_duty_config(project_id)
     poll_interval = cfg.get("poll_interval", DUTY_INTERVAL)
@@ -255,20 +251,12 @@ async def _upsert_tasks(project_id: int) -> None:
             interval_seconds=poll_interval,
             channel_name=channel_name,
         )
-    await _upsert_task_by_kind(
-        project_id,
-        kind=KIND_BUSINESS_POLL,
-        interval_seconds=BUSINESS_POLL_INTERVAL * 60,
-        channel_name=None,
-    )
-
-
 async def _upsert_task_by_kind(
     project_id: int, kind: str, interval_seconds: int, channel_name: str | None
 ) -> None:
     """upsert 某项目某一类值守 AutonomousTask。"""
     trigger_spec = f"interval:{interval_seconds}"
-    duty_channel = "mcp_kf" if channel_name == "callback" else "wecom_duty"
+    duty_channel = "mcp_message" if channel_name == "callback" else "wecom_duty"
     params_template = {"duty_channel": duty_channel, "kind": kind}
     async with session_scope() as session:
         stmt = select(AutonomousTask).where(AutonomousTask.project_id == project_id)
@@ -300,6 +288,8 @@ async def _upsert_task_by_kind(
             task.is_active = True
             task.params_template = params_template
             task.next_run_at = _next_run_at()
+
+
 
 
 async def _deactivate_tasks(project_id: int) -> None:
@@ -379,13 +369,17 @@ async def _thread_status(thread_id: str) -> str:
 
 
 async def _duty_thread_ids(project_id: int) -> list[str]:
-    """查该项目的值守 thread_id（duty_{project}_%）。"""
+    """查该项目的值守 thread_id（客服轮巡 duty_{project}_% + 任务队列 wakeup_{project}_%）。"""
     async with session_scope() as session:
         rows = await session.execute(
             text(
-                "SELECT DISTINCT thread_id FROM messages WHERE thread_id LIKE :prefix"
+                "SELECT DISTINCT thread_id FROM messages "
+                "WHERE thread_id LIKE :duty_prefix OR thread_id LIKE :wakeup_prefix"
             ),
-            {"prefix": f"duty_{project_id}_%"},
+            {
+                "duty_prefix": f"duty_{project_id}_%",
+                "wakeup_prefix": f"wakeup_{project_id}_%",
+            },
         )
         return [r[0] for r in rows.all()]
 

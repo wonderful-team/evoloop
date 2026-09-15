@@ -350,7 +350,11 @@ async def _macro_debug(
     于 create 的校验门，但不创建任何宏记录。
     """
     from app.core.learning.constants import DEFAULT_ALLOWED_FAMILIES  # noqa: E402
-    from app.core.learning.macro.schemas import MacroScript, compute_max_risk, scan_step_families
+    from app.core.learning.macro.schemas import (
+        MacroScript,
+        compute_max_risk,
+        scan_step_families,
+    )
     from app.core.learning.macro.service import MacroService
     from app.core.learning.macro.utils import cleanup_macro_steps
     from app.utils.yaml import macro_from_yaml

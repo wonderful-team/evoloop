@@ -129,7 +129,10 @@ async def find_files_internal(
         # 【多租户】uploads 搜索限定在当前 member 的工作根 uploads/ 内，
         # 不扫其他 member 的 thread 目录/全局目录（按用户隔离）。
         from app.core.config import settings as _settings
-        from app.core.project.utils import current_member_id, resolve_member_workspace_root
+        from app.core.project.utils import (
+            current_member_id,
+            resolve_member_workspace_root,
+        )
 
         if _settings.MULTI_TENANT_MODE:
             member_root = resolve_member_workspace_root(current_member_id())

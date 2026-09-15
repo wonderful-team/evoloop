@@ -74,7 +74,6 @@ async def load_duty_config(project_id: int) -> dict:
             "channels": dict,            # 各渠道参数（wecom / callback MCP 配置）
             "active_channels": list[str],  # 启用的渠道名（wecom/callback，缺省 enabled=true）
             "poll_interval": int,        # 兜底轮巡间隔（秒，来自全局，钳制 60~3600）
-            "business_poll_prompts": list,  # 业务巡检任务列表（每条独立会话）
             "history_dir": str,      # <local_path>/.evoloop/wecom_history
             "project_path": str,
         }
@@ -106,49 +105,8 @@ async def load_duty_config(project_id: int) -> dict:
         "channels": channels,
         "active_channels": active_channels,
         "poll_interval": poll_interval,
-        "business_poll_prompts": cfg.get("business_poll_prompts") or [],
         "history_dir": history_dir,
         "project_path": path,
     }
 
 
-async def save_business_poll_prompts(project_id: int, prompts: list[dict]) -> None:
-    """写业务巡检任务列表（含更新后的 next_run_at）到项目 project.json。
-
-    业务巡检任务（``business_poll_prompts``）是值守逻辑，合并语义归本模块；
-    实际读写通过 project 层的通用 I/O（``app.core.project.utils``）完成。
-
-    只更新调度字段（next_run_at/enabled/interval_minutes），**保留文件当前
-    prompt 文案**——避免 worker 读-改-写把运营手动编辑过的提示词覆盖回旧版。
-    文件当前不存在的 prompt（新任务）才整条写入。
-    """
-    path = await get_project_path(project_id)
-    if not path:
-        return
-    pj = read_project_json(path)
-    duty = pj.get("customer_service_duty") or {}
-
-    current: dict[str, dict] = {}
-    for p in duty.get("business_poll_prompts") or []:
-        if isinstance(p, dict) and p.get("id"):
-            current[p["id"]] = p
-
-    merged: list[dict] = []
-    for p in prompts:
-        if not isinstance(p, dict):
-            merged.append(p)
-            continue
-        pid = p.get("id")
-        base = current.get(pid)
-        if base is None:
-            merged.append(p)  # 文件里没有的任务：整条写入
-            continue
-        # 保留文件当前字段（含文案），仅回填调度字段
-        item = dict(base)
-        for k in ("next_run_at", "enabled", "interval_minutes"):
-            if k in p:
-                item[k] = p[k]
-        merged.append(item)
-
-    duty["business_poll_prompts"] = merged
-    write_project_json(path, {"customer_service_duty": duty})

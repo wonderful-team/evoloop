@@ -1,8 +1,7 @@
 import logging
 
-from app.core.learning.macro.schemas import MacroSource, MacroStepType
-
 import app.core.learning.constants as _mc
+from app.core.learning.macro.schemas import MacroSource, MacroStepType
 
 logger = logging.getLogger(__name__)
 

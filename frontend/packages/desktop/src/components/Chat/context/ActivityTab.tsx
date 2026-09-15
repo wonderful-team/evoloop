@@ -188,12 +188,13 @@ export function ActivityTab({ activeThreadId }: ActivityTabProps) {
       return
     }
     try {
-      await LearningService.executeSkill({
+      await LearningService.runSkill({
         skillId: skill.id,
         requestBody: {
           thread_id: activeThreadId,
-          params: {},
-          allow_self_healing: skill.allow_self_healing !== false,
+          params: {
+            _allow_self_healing: skill.allow_self_healing !== false,
+          },
         },
       })
       toast.success(t("learning.executionStarted"))

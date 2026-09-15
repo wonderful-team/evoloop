@@ -6,11 +6,11 @@ import signal
 from typing import Annotated
 
 from app.core.engine.message.native_classes import RunnableConfig
-from app.core.execution.terminal.background import TaskStatus, task_manager
 from app.core.execution.constants import (
     DEFAULT_OUTPUT_LINES,
     MAX_QUERY_OUTPUT_LINES,
 )
+from app.core.execution.terminal.background import TaskStatus, task_manager
 from app.core.tools import evoloop_tool
 from app.core.tools.base import InjectedToolArg
 

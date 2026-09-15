@@ -169,6 +169,9 @@ async def dispatch_agent_run(
 
     if member_id:
         context.member_id = member_id
+    src_task_id = (metadata or {}).get("source_task_id")
+    if src_task_id and not context.current_task_id:
+        context.current_task_id = str(src_task_id)
 
     ContextManager.set(context)
     await ContextManager.save(thread_id)

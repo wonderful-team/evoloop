@@ -5,8 +5,8 @@ import tree_sitter
 
 from app.core.file import get_file_ext
 from app.core.file.types import is_test as is_test_file
-from app.domain.codebase.indexing.base import BaseExtractor
 from app.domain.codebase.constants import TREE_SITTER_QUERIES
+from app.domain.codebase.indexing.base import BaseExtractor
 from app.domain.codebase.indexing.parsers import parser_registry
 from app.domain.codebase.schemas import (
     Document,

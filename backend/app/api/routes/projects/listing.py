@@ -42,7 +42,7 @@ async def _read_duty_status(project_id: int, local_path: str, task_or_tasks: Any
 
     Args:
         task_or_tasks: 预加载的 AutonomousTask（单条，兼容旧调用）或
-            {"wecom": task, "business_poll": task} 字典（None = 未查）。
+            {"wecom": task, "kf": task} 字典（None = 未查）。
 
     Returns:
         {
@@ -51,9 +51,6 @@ async def _read_duty_status(project_id: int, local_path: str, task_or_tasks: Any
             "last_run_at": str|None,
             "next_run_at": str|None,
             "interval": int,
-            "business_poll_interval": int,
-            "business_last_run_at": str|None,
-            "business_next_run_at": str|None,
             "last_failure": str|None,
             "global_enabled": bool,
         }
@@ -62,7 +59,6 @@ async def _read_duty_status(project_id: int, local_path: str, task_or_tasks: Any
         clamp_duty_interval,
         load_global_duty_config,
     )
-    from app.core.channel.duty.constants import BUSINESS_POLL_INTERVAL
 
     result = {
         "enabled": False,
@@ -70,9 +66,6 @@ async def _read_duty_status(project_id: int, local_path: str, task_or_tasks: Any
         "last_run_at": None,
         "next_run_at": None,
         "interval": 60,
-        "business_poll_interval": BUSINESS_POLL_INTERVAL,
-        "business_last_run_at": None,
-        "business_next_run_at": None,
         "last_failure": None,
         "global_enabled": False,
     }
@@ -87,17 +80,14 @@ async def _read_duty_status(project_id: int, local_path: str, task_or_tasks: Any
         global_cfg = load_global_duty_config()
         result["global_enabled"] = bool(global_cfg.get("enabled", False))
         result["active"] = result["enabled"] and result["global_enabled"]
-        # 轮巡间隔取自全局（兜底节奏）；业务巡检扫描频率固定为系统常量
+        # 轮巡间隔取自全局（兜底节奏）
         result["interval"] = clamp_duty_interval(global_cfg.get("poll_interval"))
-        result["business_poll_interval"] = BUSINESS_POLL_INTERVAL
 
         wecom_task: Any = None
         kf_task: Any = None
-        business_task: Any = None
         if isinstance(task_or_tasks, dict):
             wecom_task = task_or_tasks.get("wecom")
             kf_task = task_or_tasks.get("kf")
-            business_task = task_or_tasks.get("business_poll")
         elif task_or_tasks is not None:
             wecom_task = task_or_tasks
 
@@ -193,7 +183,7 @@ async def get_projects(
                     if t.project_id is None:
                         continue
                     kind = (t.params_template or {}).get("kind")
-                    if kind in ("wecom", "business_poll"):
+                    if kind == "wecom":
                         duty_task_by_project.setdefault(t.project_id, {})[kind] = t
             except Exception as e:
                 logger.warning("[ProjectsAPI] 加载值守任务失败: %s", e)

@@ -3,10 +3,9 @@ import logging
 import os
 import re
 
+import app.core.learning.constants as _mc
 from app.core.learning.macro.schemas import MacroSource
 from app.core.monitoring.activity import activity_monitor
-
-import app.core.learning.constants as _mc
 
 logger = logging.getLogger(__name__)
 

@@ -7,7 +7,7 @@
 
 执行模型：串行队列 + 按种类判定。
 - 所有轮巡任务串行执行（同一时刻只处理一个，不同种类排队等执行）；
-- 任务带"种类"（企微线 wecom / 业务巡检 business_poll 等）；
+- 任务带"种类"（企微线 wecom / 商城客服线 kf）；
 - 同种类：上一个还没处理完时，新到同类任务直接跳过；
 - 不同种类：互不跳过，按序排队执行。
 """
@@ -25,7 +25,6 @@ from app.core.channel.duty.constants import (
     CHANNEL_KIND_MAP,
     DUTY_PARAM_MARKER,
     KF_POLL_HARD_TIMEOUT,
-    KIND_BUSINESS_POLL,
     KIND_CHANNEL_MAP,
     KIND_KF,
     KIND_WECOM,
@@ -122,7 +121,7 @@ async def _run_duty_poll_impl(project_id: int, kind: str | None = None) -> int:
     """值守轮巡核心实现（不依赖 Android 设备池）。
 
     Args:
-        kind: 指定执行种类；None 则按 active_channels 顺序执行各渠道线 + 业务巡检（兼容旧调度）。
+        kind: 指定执行种类；None 则按 active_channels 顺序执行各渠道线（兼容旧调度）。
     """
     from app.core.evocloud.manager import evocloud_manager
 
@@ -137,39 +136,52 @@ async def _run_duty_poll_impl(project_id: int, kind: str | None = None) -> int:
     cfg["project_id"] = project_id
     total = 0
     if kind is not None:
-        # 指定种类：只跑该线（wecom/kf/business_poll）
-        if kind == KIND_BUSINESS_POLL:
-            from app.core.channel.duty.wecom.channel import WeComDutyChannel
+        # 指定种类：只跑该线（wecom / mcp_message）
+        if kind == KIND_KF:
+            # 商城客服线：McpMessageChannel.poll_once（拉取→逐条入队，
+            # 与 push 同一归一化路径；队列语义在 domain/tasks）。
+            from app.core.channel.input.mcp_message import mcp_message_channel
 
-            channel = WeComDutyChannel()
-            channel.bind_project(cfg)
-            business = await _run_kind(
-                KIND_BUSINESS_POLL,
-                lambda: channel.business_poll_check(project_id),
-            )
-            total += business or 0
-        else:
-            cls_name = KIND_CHANNEL_MAP.get(kind)
-            if cls_name is None:
-                logger.warning("[duty] 未知值守种类 %s，跳过", kind)
-                return 0
-            channel = _build_channel(cls_name, cfg)
             handled = await _run_kind(
-                kind,
-                lambda: channel.poll_once(project_id),
-                skip_if_active=(kind != KIND_KF),
-                run_timeout=(KF_POLL_HARD_TIMEOUT if kind == KIND_KF else None),
+                KIND_KF,
+                lambda: mcp_message_channel.poll_once(project_id),
+                skip_if_active=False,
+                run_timeout=KF_POLL_HARD_TIMEOUT,
             )
             total += handled or 0
+            return total
+
+        cls_name = KIND_CHANNEL_MAP.get(kind)
+        if cls_name is None:
+            logger.warning("[duty] 未知值守种类 %s，跳过", kind)
+            return 0
+        channel = _build_channel(cls_name, cfg)
+        handled = await _run_kind(
+            kind,
+            lambda: channel.poll_once(project_id),
+            skip_if_active=True,
+        )
+        total += handled or 0
         return total
 
-    # 兼容旧调度（kind=None）：按启用的渠道线 + 业务巡检全跑
+    # 兼容旧调度（kind=None）：按启用的渠道线全跑
     active = cfg.get("active_channels") or []
     if not active and cfg.get("channels"):
         active = ["wecom"]
     for channel_name in active:
         kind_name = CHANNEL_KIND_MAP.get(channel_name)
         if kind_name is None:
+            continue
+        if kind_name == KIND_KF:
+            from app.core.channel.input.mcp_message import mcp_message_channel
+
+            handled = await _run_kind(
+                KIND_KF,
+                lambda: mcp_message_channel.poll_once(project_id),
+                skip_if_active=False,
+                run_timeout=KF_POLL_HARD_TIMEOUT,
+            )
+            total += handled or 0
             continue
         cls_name = KIND_CHANNEL_MAP.get(kind_name)
         if cls_name is None:
@@ -179,29 +191,14 @@ async def _run_duty_poll_impl(project_id: int, kind: str | None = None) -> int:
             kind_name, lambda ch=channel: ch.poll_once(project_id)
         )
         total += handled or 0
-
-    from app.core.channel.duty.wecom.channel import WeComDutyChannel
-
-    channel = WeComDutyChannel()
-    channel.bind_project(cfg)
-    business = await _run_kind(
-        KIND_BUSINESS_POLL,
-        lambda: channel.business_poll_check(project_id),
-    )
-    total += business or 0
     return total
 
 
-def _build_channel(cls_name: str, cfg: dict):
-    """按渠道类名实例化 DutyChannel 单例并绑定项目配置。"""
-    if cls_name == "MpcKfChannel":
-        from app.core.channel.duty.mcp_kf.mcp_kf_channel import MpcKfChannel
+def _build_channel(cfg: dict):
+    """实例化 DutyChannel 单例并绑定项目配置。"""
+    from app.core.channel.duty.wecom.channel import WeComDutyChannel
 
-        channel = MpcKfChannel()
-    else:
-        from app.core.channel.duty.wecom.channel import WeComDutyChannel
-
-        channel = WeComDutyChannel()
+    channel = WeComDutyChannel()
     channel.bind_project(cfg)
     return channel
 
@@ -216,7 +213,6 @@ async def run_duty_poll_with_release(project_id: int, kind: str | None) -> int:
         if kind is None:
             release_inflight(project_id, KIND_WECOM)
             release_inflight(project_id, KIND_KF)
-            release_inflight(project_id, KIND_BUSINESS_POLL)
         else:
             release_inflight(project_id, kind)
 

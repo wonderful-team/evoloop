@@ -14,7 +14,6 @@ state_schema: "app.core.engine.state.AgentState"
 #          / video（视频 facade：analyze+generate）/ mobile（Android 设备控制）/ desktop（桌面控制）
 #          ——mobile/desktop 由 required_benefit 门控，无对应权益的成员调用时被拒（调用时过滤，工具仍常驻 face）
 #   密码箱 1：vault（一体式密码箱入口，action=list 列凭据 / action=request 请求录入）
-#   定时 1：schedule（统一调度入口，action=create 创建周期任务 / action=list 查看自主任务）
 # 其余低频/垂直能力（Atlas/Wiki/Codebase/MCP）走 skill/macro/task 索引+按需加载。
 # =====================================================================
 agents:
@@ -35,6 +34,9 @@ agents:
       - "websearch"
       # 计划 facade（Agent 唯一工作清单：plan create / update_step / status）
       - "plan"
+      # 任务队列 facade（自主值守：tasks list/create/take/update_status/submit_acceptance；
+      # 周期任务 = create + task_type=recurring + trigger_spec，由 supervisor 统一排空）
+      - "tasks"
       # 技能（索引+按需加载，§5）
       - "skill"
       # 交互
@@ -47,8 +49,6 @@ agents:
       - "desktop"
       # 密码箱（Secure Vault facade：list 列凭据 / request 请求录入；占位符 {{vault.id.key}} 由安全钩子解密）
       - "vault"
-      # 定时任务（统一 schedule facade：action=create 创建周期任务 / action=list 查看自主任务）
-      - "schedule"
       # 一等公民：宏（单一 macro 工具，list/read/run/create/update/delete 一体，§5.7）
       - "macro"
       # 记忆（特有）

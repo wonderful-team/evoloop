@@ -15,12 +15,11 @@ import logging
 import time
 from typing import Any
 
+from app.core.atlas.constants import MAX_DEPTH
 from app.infrastructure.drivers.macos.workspace import (
     ax_copy_attribute,
     ensure_app_running,
 )
-
-from app.core.atlas.constants import MAX_DEPTH
 
 logger = logging.getLogger(__name__)
 

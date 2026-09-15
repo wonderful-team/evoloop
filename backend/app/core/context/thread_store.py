@@ -51,8 +51,8 @@ class ThreadContextStore:
         # app.core.evocloud 初始化期的循环导入，导致服务无法启动。
         from app.core.config import settings as _settings
         from app.core.project.utils import (
-            get_workspace_root,
             current_member_id,
+            get_workspace_root,
             resolve_member_workspace_root,
         )
 
@@ -83,7 +83,10 @@ class ThreadContextStore:
         from app.core.config import settings as _settings
 
         if _settings.MULTI_TENANT_MODE:
-            from app.core.project.utils import current_member_id, resolve_member_workspace_root
+            from app.core.project.utils import (
+                current_member_id,
+                resolve_member_workspace_root,
+            )
 
             member_root = resolve_member_workspace_root(current_member_id())
             if not member_root:

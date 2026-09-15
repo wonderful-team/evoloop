@@ -13,7 +13,7 @@ import os
 
 from app.core.config import settings
 from app.core.file.changes.diff import FileDiff, compute_file_diff
-from app.utils.diff import diff_tracker
+from app.utils.diff import diff_tracker, read_text_or_binary
 
 logger = logging.getLogger(__name__)
 
@@ -53,8 +53,7 @@ class FileChangeTracker:
             return
 
         try:
-            with open(path, encoding="utf-8") as f:
-                after = f.read()
+            after = read_text_or_binary(path)
         except FileNotFoundError:
             after = ""
         except OSError as e:

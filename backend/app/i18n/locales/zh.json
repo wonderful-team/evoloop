@@ -235,8 +235,7 @@
       "read_result": "已读取 '{path}'[[ ({start_line}-{end_line} 行) ]]",
       "write": "写入文件 '{path}'",
       "edit": "编辑文件 '{path}'[[ ({start_line}-{end_line} 行) ]]",
-      "websearch": "搜索完成[[，找到 {count} 个结果]][[ ({pattern}) ]]",
-      "schedule": "定时任务: {action}[[ {intent}]]"
+      "websearch": "搜索完成[[，找到 {count} 个结果]][[ ({pattern}) ]]"
     }
   },
   "database_logger": {

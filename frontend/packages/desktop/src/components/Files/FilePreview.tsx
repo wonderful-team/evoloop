@@ -85,7 +85,9 @@ export function FilePreview({ projectId, file }: FilePreviewProps) {
   const isAbsolutePath = (path: string) =>
     path.startsWith("/") || path.startsWith("~") || /^[a-zA-Z]:[\\/]/.test(path)
 
-  const fileType = file ? getFileType(file.name) : "text"
+  // 文件类型必须由路径/URL 推导（含扩展名）；
+  // name 仅作展示（如 "generated image" 无扩展名，会误判为 text）
+  const fileType = file ? getFileType(file.path || file.name) : "text"
   const isText =
     fileType === "text" || fileType === "markdown" || fileType === "csv"
 
@@ -231,10 +233,11 @@ export function FilePreview({ projectId, file }: FilePreviewProps) {
       <div className="flex-1 overflow-auto p-0 relative bg-background">
         {fileType === "image" ? (
           <div className="flex items-center justify-center p-4 min-h-full">
+            {/* max-h-full 在可滚动父容器内会失效（高度由内容撑开），用视口约束防超屏 */}
             <img
               src={rawUrl}
               alt={file.name}
-              className="max-w-full max-h-full object-contain shadow-sm border rounded"
+              className="max-w-full max-h-[78vh] w-auto h-auto object-contain shadow-sm border rounded"
             />
           </div>
         ) : fileType === "pdf" ? (

@@ -1,6 +1,6 @@
+import json
 import logging
 from datetime import datetime, timezone
-from typing import Any
 
 from croniter import croniter
 from sqlalchemy import func, select
@@ -26,6 +26,9 @@ class SchedulerService:
         （进程死亡期间到期的任务，重启后首轮 tick 全部命中，无需独立 misfire 机制）。
         注：历史上此处的 "Huey periodic" 描述为过时注释，Huey 与 tick 触发无关。
         """
+        # 存量宏类行一次性幂等迁移（AutonomousTask 收缩为纯定时器后宏走队列）
+        await SchedulerService.convert_legacy_macro_rows()
+
         now = datetime.now(timezone.utc)
 
         async with session_scope() as session:
@@ -53,125 +56,105 @@ class SchedulerService:
             except Exception as e:
                 logger.exception(f"[Scheduler] Failed to dispatch task {task_id}: {e}")
 
+        # AutonomousTask 已收缩为纯定时器：本 tick 只负责值守轮巡触发
+        # （wecom GUI / mcp_message poll 兜底，机械采集、进程内直接执行）。
+        # 工作项（周期委派/外部消息/人建/Agent 建）一律走 ProjectTask 队列，
+        # 由 duty supervisor 单 drainer 排空。
+
+    @staticmethod
+    async def convert_legacy_macro_rows() -> int:
+        """存量宏类 AutonomousTask 行 → recurring ProjectTask（一次性幂等迁移）。
+
+        AutonomousTask 收缩为纯定时器后，定时宏执行改为工作项语义：
+        supervisor 排空 → Agent 经 macro 工具执行（自带宏失败的自适应处理）。
+        转换后原行墓碑化（is_active=False）；幂等：重复执行零转换。
+        """
+        from app.domain.tasks.service import TaskQueueService
+
+        async with session_scope() as session:
+            stmt = select(AutonomousTask).where(
+                AutonomousTask.macro_id.isnot(None),
+                AutonomousTask.is_active.is_(True),
+            )
+            rows = (await session.execute(stmt)).scalars().all()
+
+        converted = 0
+        for task in rows:
+            params = dict(task.params_template or {})
+            param_text = (
+                json.dumps(params, ensure_ascii=False) if params else "无"
+            )
+            intent = task.intent_description or f"定时执行宏 #{task.macro_id}"
+            await TaskQueueService.create_task(
+                project_id=task.project_id or 0,
+                title=intent,
+                description=(
+                    f"{intent}\n\n"
+                    f"[legacy-migrated] 到点执行宏 #{task.macro_id}，"
+                    f"参数：{param_text}。用 macro 工具执行。"
+                ),
+                type="recurring",
+                source="user",
+                member_id=task.member_id or 0,
+                trigger_spec=task.trigger_spec,
+                dedup_key=f"legacy-macro:{task.id}",
+                category="macro",
+            )
+            async with session_scope() as session:
+                row = await session.get(AutonomousTask, task.id)
+                row.is_active = False
+            converted += 1
+            logger.info(
+                "[Scheduler] legacy macro row %s → ProjectTask (recurring)", task.id
+            )
+        if converted:
+            logger.info("[Scheduler] converted %d legacy macro row(s)", converted)
+        return converted
+
     @staticmethod
     async def dispatch_task(task_id: int):
         """
-        Dispatch a single autonomous task to the background executor.
+        Dispatch a single autonomous task（值守轮巡触发器专用）。
+
+        AutonomousTask 已收缩为纯定时器：只有 provision 建的值守轮巡行。
+        轮巡是机械采集（不烧 LLM、无验收语义），进程内直接执行，
+        不进 ProjectTask 队列（串行 drain 会被慢轮巡互堵）。
         """
         async with session_scope() as session:
             task = await session.get(AutonomousTask, task_id)
             if not task:
+                return
+
+            from app.core.channel.duty.scheduler import task_is_duty
+
+            if not task_is_duty(task.params_template):
+                # 非值守行 = 迁移漏网的历史残留（正常应为墓碑），防御性日志
+                logger.warning(
+                    "[Scheduler] non-duty row %s reached dispatch (legacy residue?), skip",
+                    task.id,
+                )
                 return
 
             # Update last run and next run
             task.last_run_at = datetime.now(timezone.utc)
             task.next_run_at = SchedulerService.calculate_next_run(task.trigger_spec, task.last_run_at)
 
-            # 值守任务（params_template 带 duty_channel 标记）走轻量轮巡路径，
-            # 不依赖 Android 设备池，直接 poll_once → dispatch。
-            # 值守轮巡**不进持久队列**：在 tick 进程内直接 await 执行，
-            # 避免 Huey 队列里残留旧 run_duty_poll 任务、重启后重复执行。
-            from app.core.channel.duty.scheduler import task_is_duty, try_claim_inflight
-
-            if task_is_duty(task.params_template):
-                from app.core.channel.duty.scheduler import run_duty_poll_with_release
-
-                kind = task.params_template.get("kind")
-                # 防积压：该 (project_id, kind) 已在飞（排队中或执行中）→ 跳过本轮
-                # 投递，只推进 next_run_at，不重复执行。执行结束由
-                # run_duty_poll_with_release finally 释放登记。
-                if not try_claim_inflight(task.project_id, kind):
-                    logger.info(f"[Scheduler] Duty task {task.id} in-flight (project={task.project_id}, kind={kind}), skip dispatch")
-                    return
-
-                await run_duty_poll_with_release(project_id=task.project_id, kind=kind)
-                logger.info(f"[Scheduler] Ran duty task {task.id} (next run: {task.next_run_at})")
-                return
-
-            # 宏任务：关联了 macro_id → 直接执行宏（不经 agent、不强制设备池）。
-            # 宏内部按 source 处理 web/desktop/mobile 执行器；device 由执行器解析。
-            if task.macro_id is not None:
-                await SchedulerService.dispatch_macro_task(task)
-                return
-
-            # Prepare payload for background agent
-            # Instead of just running the macro, we start an agent session
-            # so it can use 'agentic' adaptive logic if the macro fails.
-            from app.core.engine.tasks import run_autonomous_task_execution
-
-            # Dispatch as Celery task
-            run_autonomous_task_execution.delay(task_id=task.id, project_id=task.project_id)
-
-            logger.info(f"[Scheduler] Dispatched task {task.id} (next run: {task.next_run_at})")
-
-    @staticmethod
-    async def dispatch_macro_task(task: AutonomousTask):
-        """Execute a macro-linked autonomous task directly (no agent session).
-
-        Loads the macro by id (scoped to the task's project) and runs it via
-        MacroEngine with the task's params template. Logs the outcome and tracks
-        consecutive failures / dead-letter state.
-        """
-        try:
-            from app.core.learning.macro import load_macro
-            from app.core.learning.macro.engine import MacroEngine
-            from app.utils.id import unique_id
-
-            macro = await load_macro(
-                int(task.macro_id), project_id=task.project_id
-            )
-            if macro is None:
-                raise ValueError(f"Macro {task.macro_id} not found for task {task.id}")
-
-            thread_id = unique_id("sched", task.id)
-            result = await MacroEngine.run(
-                thread_id=thread_id,
-                macro=macro,
-                params=dict(task.params_template or {}),
-                project_id=task.project_id or 0,
+            from app.core.channel.duty.scheduler import (
+                run_duty_poll_with_release,
+                try_claim_inflight,
             )
 
-            logger.info(
-                "[Scheduler] Macro task %s executed macro %s: success=%s status=%s",
-                task.id,
-                task.macro_id,
-                result.success,
-                result.status,
-            )
-            if not result.success:
-                raise RuntimeError(
-                    result.message or f"Macro {task.macro_id} failed (status={result.status})"
-                )
-        except Exception as e:
-            logger.exception("[Scheduler] Macro task %s failed: %s", task.id, e)
-            # 失败计数 + dead-letter 兜底，与 agent 路径对齐
-            await SchedulerService._record_task_failure(task.id, str(e))
-            return
-
-        await SchedulerService._clear_task_failures(task.id)
-
-    @staticmethod
-    async def _record_task_failure(task_id: int, reason: str):
-        """Increment consecutive failures; dead-letter the task when exhausted."""
-        async with session_scope() as session:
-            task = await session.get(AutonomousTask, task_id)
-            if not task:
+            kind = task.params_template.get("kind")
+            # 防积压：该 (project_id, kind) 已在飞（排队中或执行中）→ 跳过本轮
+            # 投递，只推进 next_run_at，不重复执行。执行结束由
+            # run_duty_poll_with_release finally 释放登记。
+            if not try_claim_inflight(task.project_id, kind):
+                logger.info(f"[Scheduler] Duty task {task.id} in-flight (project={task.project_id}, kind={kind}), skip dispatch")
                 return
-            task.consecutive_failures += 1
-            task.last_failure_reason = reason
-            if task.consecutive_failures >= (task.max_retries or 3):
-                task.is_active = False
-                task.is_dead_letter = True
 
-    @staticmethod
-    async def _clear_task_failures(task_id: int):
-        """Reset consecutive failure counter after a successful run."""
-        async with session_scope() as session:
-            task = await session.get(AutonomousTask, task_id)
-            if not task:
-                return
-            task.consecutive_failures = 0
-            task.last_failure_reason = None
+            await run_duty_poll_with_release(project_id=task.project_id, kind=kind)
+            logger.info(f"[Scheduler] Ran duty task {task.id} (next run: {task.next_run_at})")
+        # 单 drainer 化同时关闭了 API/worker 双 tick 的跨进程双派发窗口。
 
     @staticmethod
     def calculate_next_run(trigger_spec: str, base_time: datetime) -> datetime:
@@ -194,46 +177,3 @@ class SchedulerService:
         # Default fallback (1 hour if invalid)
         return datetime.fromtimestamp(base_time.timestamp() + 3600, tz=timezone.utc)
 
-    @staticmethod
-    async def register_task(
-        intent_description: str,
-        skill_ids: list[int] | None = None,
-        macro_id: int | None = None,
-        trigger_spec: str = "interval:3600",
-        params: dict[str, Any] | None = None,
-        project_id: int | None = None,
-    ) -> int:
-        """
-        Programmatic entry for Agent to register a new recurring delegation.
-        """
-        skill_ids = skill_ids or []
-        async with session_scope() as session:
-            # Validate skills (if any)
-            if skill_ids:
-                from app.core.learning.skills.repository import skill_repository
-
-                missing = await skill_repository.validate_ids(skill_ids, db=session)
-                if missing:
-                    raise ValueError(f"Skill IDs {sorted(missing)} not found.")
-
-            # Validate macro (if any)
-            if macro_id is not None:
-                from app.core.learning.macro import load_macro
-
-                macro = await load_macro(int(macro_id), project_id=project_id)
-                if macro is None:
-                    raise ValueError(f"Macro {macro_id} not found (project={project_id}).")
-
-            task = AutonomousTask(
-                member_id=0,
-                intent_description=intent_description,
-                skill_ids=skill_ids,
-                macro_id=macro_id,
-                trigger_spec=trigger_spec,
-                params_template=params,
-                project_id=project_id,
-                next_run_at=SchedulerService.calculate_next_run(trigger_spec, datetime.now(timezone.utc))
-            )
-            session.add(task)
-            await session.flush()
-            return task.id

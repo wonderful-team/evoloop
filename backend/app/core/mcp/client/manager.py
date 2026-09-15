@@ -435,16 +435,16 @@ class McpClientManager:
     def _build_message_handler(self, server_name: str):
         """构造 mcp ClientSession 的入站消息处理器。
 
-        服务端主动推送的任意 notification（如 notifications/kf_new_message）会
+        服务端主动推送的任意 notification（如 notifications/mcp_message）会
         经由此 handler 以通用事件 ``MCP_SERVER_NOTIFICATION`` 分发到事件总线，
         method 与 payload 保留在 ``event.data`` 中，由各订阅方自行判断是否关心。
         MCP 客户端层不感知任何具体业务 method。
 
         注意：**派发绝不能阻塞 mcp 接收循环**。接收循环 ``await`` message_handler，
-        若在这里 await 完整事件总线发布链，而某订阅方（如 kf 推送立即轮巡）又去
-        调 MCP 工具（kf_list 等）——工具响应需要接收循环投递，形成死锁：轮巡等
-        响应、接收循环等轮巡，最终 ping 响应也无人处理 → 被判死重连。因此这里
-        只 ``create_task`` 后台派发，接收循环立即返回。
+        若在这里 await 完整事件总线发布链，而某订阅方（如 mcp_message 入站归一化
+        后触发 MCP 工具调用）又去调 MCP 工具——工具响应需要接收循环投递，形成
+        死锁：轮巡等响应、接收循环等轮巡，最终 ping 响应也无人处理 → 被判死重连。
+        因此这里只 ``create_task`` 后台派发，接收循环立即返回。
         """
 
         async def _on_message(message) -> None:

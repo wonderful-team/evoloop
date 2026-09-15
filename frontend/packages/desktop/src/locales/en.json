@@ -599,6 +599,119 @@
     "toolMessage": {
       "fallbackName": "TOOL"
     },
+    "toolAction": {
+      "image": {
+        "analyze": "Analyze image",
+        "generate": "Generate image"
+      },
+      "video": {
+        "analyze": "Analyze video",
+        "generate": "Generate video"
+      },
+      "browser": {
+        "navigate": "Open page",
+        "back": "Go back",
+        "forward": "Go forward",
+        "reload": "Reload page",
+        "get_url": "Get page URL",
+        "new_tab": "New tab",
+        "switch_tab": "Switch tab",
+        "click": "Click element",
+        "double_click": "Double-click element",
+        "hover": "Hover element",
+        "type_text": "Type text",
+        "select_option": "Select option",
+        "key_press": "Press key",
+        "scroll": "Scroll page",
+        "drag_drop": "Drag and drop",
+        "batch": "Batch actions",
+        "upload": "Upload file",
+        "get_text": "Read page text",
+        "get_html": "Get page HTML",
+        "get_attribute": "Get attribute",
+        "get_links": "Extract links",
+        "find_element": "Find element",
+        "screenshot": "Take screenshot",
+        "wait_for": "Wait for element",
+        "check_element": "Check element",
+        "run_js": "Run JS",
+        "get_cookies": "Get cookies",
+        "set_cookies": "Set cookies",
+        "local_storage": "Local storage",
+        "network_wait": "Wait for network"
+      },
+      "desktop": {
+        "screenshot": "Take screenshot",
+        "click": "Click",
+        "double_click": "Double-click",
+        "type_text": "Type text",
+        "key_press": "Press key",
+        "open_app": "Open app",
+        "applescript": "Run AppleScript",
+        "get_info": "Get window info",
+        "list_apps": "List apps",
+        "batch": "Batch actions",
+        "get_active_app": "Get active app",
+        "scroll": "Scroll",
+        "drag_drop": "Drag and drop",
+        "dump_ui": "Dump UI tree",
+        "gui_extract": "Extract GUI elements"
+      },
+      "mobile": {
+        "screenshot": "Take screenshot",
+        "tap": "Tap",
+        "click": "Tap",
+        "long_press": "Long press",
+        "swipe": "Swipe",
+        "scroll": "Scroll",
+        "input_text": "Type text",
+        "press_key": "Press key",
+        "dump_ui": "Dump UI tree",
+        "list_devices": "List devices",
+        "get_info": "Get device info",
+        "list_apps": "List apps",
+        "open_app": "Open app",
+        "push": "Push file",
+        "pull": "Pull file",
+        "intent_flow": "Run intent",
+        "read_sms": "Read SMS",
+        "gui_extract": "Extract GUI elements"
+      },
+      "macro": {
+        "list": "List macros",
+        "read": "Read macro",
+        "run": "Run macro",
+        "create": "Create macro",
+        "update": "Update macro",
+        "delete": "Delete macro",
+        "debug": "Debug macro"
+      },
+      "task": {
+        "run": "Run subtask",
+        "complete": "Subtask complete",
+        "list_agents": "List subagents"
+      },
+      "vault": {
+        "list": "List credentials",
+        "request": "Request credential"
+      }
+    },
+    "toolName": {
+      "browser": "Browser control",
+      "desktop": "Desktop control",
+      "mobile": "Mobile control",
+      "macro": "Macro",
+      "vault": "Vault",
+      "task": "Delegate subtask",
+      "webfetch": "Fetch web page",
+      "websearch": "Web search",
+      "skill": "Load skill",
+      "todo": "Manage todos",
+      "question": "Ask user",
+      "remember": "Save memory",
+      "glob": "Find files by name",
+      "grep": "Search content"
+    },
     "subagentsTitle": "Parallel Subagents",
     "noSubagents": "No active subagents",
     "subagentRunning": "Running",
@@ -1661,8 +1774,8 @@
     "title": "Projects",
     "projectNameFallback": "Project #{{id}}",
     "duty": {
-      "title": "Customer Service Duty",
-      "desc": "Let the Agent act as this project's intelligent customer service for WeCom inquiries.",
+      "title": "Autonomous Duty",
+      "desc": "When on, the Agent autonomously handles this project's customer messages and due tasks.",
       "active": "Duty active: Agent is handling this project's customer messages",
       "loadError": "Failed to load duty config",
       "enabled": "Project duty started",
@@ -2126,8 +2239,8 @@
       "sttProvider": "STT Provider"
     },
     "duty": {
-      "title": "Customer Service Duty (Global)",
-      "enabledDesc": "When on, projects can join duty from their overview (Agent acts as that project's customer service)",
+      "title": "Enable Autonomous Duty",
+      "enabledDesc": "When on, projects can join autonomous duty from their overview (Agent handles customer messages and due tasks)",
       "channelsLabel": "Available Channels",
       "wecomDesc": "WeCom desktop client (GUI automation)",
       "pollIntervalLabel": "Fallback Poll Interval (seconds)",
@@ -2139,13 +2252,13 @@
       "stopLabel": "Stop Duty",
       "startDuty": "Start Duty",
       "stopDuty": "Stop Duty",
-      "runningDesc": "Duty active: Agent is serving participating projects",
+      "runningDesc": "Duty active: Agent is autonomously handling participating projects",
       "stoppedDesc": "Stopped: projects can join once enabled",
       "saved": "Saved",
       "validationFailed": "WeCom not ready, cannot enable",
-      "stopping": "Stopping customer service duty, please wait",
-      "stopped": "Customer service duty stopped",
-      "started": "Customer service duty started"
+      "stopping": "Stopping autonomous duty, please wait",
+      "stopped": "Autonomous duty stopped",
+      "started": "Autonomous duty enabled"
     }
   },
   "startup": {
@@ -2554,12 +2667,15 @@
     "csvPreviewError": "CSV preview error",
     "openInSystemApp": "Open in system default app",
     "chat": "Chat",
+    "chatShort": "Chat",
     "debug": "Debug",
     "debugTooltip": "Debug Control Center",
     "learning": "Learning",
     "projects": "Projects",
     "searchFilesPlaceholder": "Search files...",
-    "settings": "Settings"
+    "settings": "Settings",
+    "dutyAutonomous": "Autonomous Duty (Exp)",
+    "dutyAutonomousShort": "Duty"
   },
   "debug": {
     "controlCenter": "Control Center",
@@ -2614,5 +2730,105 @@
   "hitl": {
     "approveOnce": "Once",
     "approveAlways": "Always allow"
+  },
+  "dutyBoard": {
+    "title": "Task Queue",
+    "create": "Delegate a task",
+    "empty": "No tasks",
+    "selectProject": "Select a project first",
+    "recurring": "recurring",
+    "kpi": {
+      "state": "Duty State",
+      "currentRun": "Current Task",
+      "tokensToday": "Tokens Today",
+      "tokensWeek": "Tokens This Week",
+      "workSpan": "Work Span Today"
+    },
+    "state": {
+      "busy": "Busy",
+      "idle": "Idle",
+      "error": "Error"
+    },
+    "section": {
+      "proposed": "Proposals · need your confirm",
+      "pending": "Queue · ready",
+      "inProgress": "In Progress",
+      "waiting": "Awaiting Acceptance",
+      "done": "Completed"
+    },
+    "action": {
+      "confirm": "Confirm",
+      "reject": "Reject",
+      "accept": "Accept",
+      "openThread": "Workspace"
+    },
+    "rejectTitle": "Reject Task",
+    "rejectPlaceholder": "Reason is required — the agent will read this feedback",
+    "notice": {
+      "title": "Experimental Feature",
+      "body": "Autonomous Duty is experimental: the agent executes tasks autonomously (including tool calls and business data changes). Use with caution; keep human acceptance for critical work.",
+      "leave": "Leave",
+      "understood": "Understood, continue"
+    },
+    "form": {
+      "createTitle": "New Task",
+      "editTitle": "Edit Task",
+      "title": "Title",
+      "description": "Instruction",
+      "descriptionHint": "Describe fully what the agent should do and how to verify",
+      "type": "Type",
+      "once": "Once",
+      "recurring": "Recurring",
+      "priority": "Priority",
+      "triggerSpec": "Trigger (cron or interval:seconds)",
+      "category": "Category",
+      "riskLevel": "Risk",
+      "riskPlaceholder": "unset",
+      "status": "Status",
+      "cancel": "Cancel",
+      "save": "Save",
+      "titleRequired": "Title is required",
+      "guide": "Create deterministic, procedural tasks — avoid open-ended questions. The clearer the instruction, the better the Agent completes it",
+      "goodExample": "Good: Check all yesterday's orders, generate a follow-up list for late shipments and write a report",
+      "badExample": "Bad: Take a look at any recent order issues?",
+      "titlePlaceholder": "Verb + object + expected output, e.g. Verify yesterday's orders and produce a follow-up list"
+    },
+    "detail": {
+      "instruction": "Instruction",
+      "selfCheck": "Self-check",
+      "verdict": "Verdict",
+      "acceptance": "Acceptance"
+    },
+    "plan": {
+      "title": "Current Plan",
+      "selectHint": "Select a task on the left to view its plan & execution"
+    },
+    "exec": {
+      "title": "Execution Trace"
+    },
+    "switch": {
+      "title": "Duty Master Switch",
+      "desc": "Turning off stops the agent from executing tasks (patrol/dispatch)"
+    },
+    "chart": {
+      "tokensAxis": "Tokens",
+      "completedAxis": "Completed",
+      "inputTokens": "Input Tokens",
+      "outputTokens": "Output Tokens",
+      "completedTasks": "Completed Tasks",
+      "totalTasks": "Total",
+      "weeklyTrend": "7-Day Trend",
+      "statusDistribution": "Status Distribution",
+      "empty": "No data yet",
+      "agentPulse": "Agent Pulse",
+      "weekStrip": "This Week's Tasks"
+    },
+    "feed": {
+      "title": "Event Stream",
+      "empty": "No events yet"
+    },
+    "subtitle": "Autonomous duty status",
+    "hint": "Tasks are dispatched to the Agent automatically on schedule",
+    "createHint": "Hand the task to the Agent in chat; it will draft a proposal for you to confirm"
   }
 }

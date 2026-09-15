@@ -14,7 +14,11 @@ from typing import TYPE_CHECKING
 from sqlalchemy import select
 
 from app.core.config import settings
-from app.core.learning.constants import ALLOWED_UI_ACTIONS, EXCLUDED_EVENT_TYPES, RAW_MOBILE_EVENT_TYPES
+from app.core.learning.constants import (
+    ALLOWED_UI_ACTIONS,
+    EXCLUDED_EVENT_TYPES,
+    RAW_MOBILE_EVENT_TYPES,
+)
 from app.infrastructure.database import session_scope
 from app.models import AgentActivity, Message, TraceEvent
 

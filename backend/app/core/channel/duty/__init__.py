@@ -1,13 +1,14 @@
 """值守渠道（duty）— 客服值守的主动轮巡渠道。
 
 与 ``input/``（被动接收）和 ``output/``（投递）不同，值守是"主动拉取 + 处理 + 回复"
-的完整闭环：定时轮巡扫描新消息 → 增量派发 Agent → Agent 回复客户 / 升级操作者。
+的完整闭环。商城微信客服线（原 mcp_kf）已并入通用 MCP 消息渠道
+（``app.core.channel.input.mcp_message``：轮巡兜底 + push 采集 → 任务队列），
+此处仅存企微 GUI 线。
 
 结构：
 - ``base.py``            DutyChannel 基类 + ContactDelta/RawInbound
 - ``wecom/``             企业微信值守实现（channel.py + common/read/reply/scan_all）
-- ``mcp_kf/``            经 MCP（项目配置 callback.mcp_server）接入商城微信客服的值守实现
-- ``scheduler.py``       run_duty_poll 调度接入
+- ``scheduler.py``       run_duty_poll 调度接入（kf 线路由到 McpMessageChannel.poll_once）
 """
 
 from app.core.channel.duty.base import (
@@ -15,7 +16,6 @@ from app.core.channel.duty.base import (
     DutyChannel,
     RawInbound,
 )
-from app.core.channel.duty.mcp_kf.mcp_kf_channel import MpcKfChannel
 from app.core.channel.duty.wecom.channel import WeComDutyChannel
 
 
@@ -37,7 +37,6 @@ __all__ = [
     "ContactDelta",
     "DutyChannel",
     "RawInbound",
-    "MpcKfChannel",
     "WeComDutyChannel",
     "is_duty_source",
 ]

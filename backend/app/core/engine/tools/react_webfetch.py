@@ -26,9 +26,8 @@ def _is_private_target(url: str) -> bool:
     实际地址（防 DNS rebinding 指私网）。
     """
     import ipaddress
-    from urllib.parse import urlparse
-
     import socket
+    from urllib.parse import urlparse
 
     try:
         parsed = urlparse(url if "://" in url else f"https://{url}")

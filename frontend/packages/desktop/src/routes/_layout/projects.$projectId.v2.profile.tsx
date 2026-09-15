@@ -94,6 +94,7 @@ function ProfilePage() {
         exists: true,
         name: data.name ?? null,
         url: data.url ?? null,
+        frameworkProfile: (data.framework_profile ?? null) as Record<string, unknown> | null,
       })
       setIsEditing(false)
       toast.success(t("common.saveSuccess"))
@@ -255,7 +256,7 @@ function ProfilePage() {
                     </span>
                   ))}
                 </div>
-                {profile.frameworkProfile.domain_vocabulary && (
+                {Boolean(profile.frameworkProfile.domain_vocabulary) && (
                   <div className="flex flex-wrap gap-1">
                     <span className="text-xs text-muted-foreground mr-1">词汇:</span>
                     {(profile.frameworkProfile.domain_vocabulary as string[]).map((v: string) => (

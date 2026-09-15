@@ -78,13 +78,15 @@ export function SkillExecutionDialog({
   const handleExecute = async () => {
     setExecuting(true)
     try {
-      await LearningService.executeSkill({
+      await LearningService.runSkill({
         skillId: skill.id,
         requestBody: {
           thread_id: threadId,
-          params,
+          params: {
+            ...params,
+            _allow_self_healing: selfHealEnabled,
+          },
           project_id: projectId,
-          allow_self_healing: selfHealEnabled,
         },
       })
       toast.success(t("learning.executionStarted"))

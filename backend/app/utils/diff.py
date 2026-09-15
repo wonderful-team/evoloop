@@ -12,6 +12,32 @@ import threading
 
 logger = logging.getLogger(__name__)
 
+#: 二进制文件快照占位前缀（后接字节数），text diff 无法对二进制内容生成，
+#: 但可据此保持 ADD/EDIT/DELETE 的存在性/变化跟踪，且不触发 UnicodeDecodeError。
+BINARY_FILE_MARKER = "__EVOLOOP_BINARY__"
+
+
+def is_binary_content(content: str) -> bool:
+    """判断读出的内容是否为二进制占位（``read_text_or_binary`` 产物）。"""
+    return content.startswith(BINARY_FILE_MARKER)
+
+
+def read_text_or_binary(path: str) -> str:
+    """读取文件：文本文件返回 UTF-8 内容；二进制文件返回二进制占位串。
+
+    以字节方式读取后判 UTF-8 可解码性，避免对 PNG/图片等二进制文件抛出
+    ``UnicodeDecodeError``（原实现对二进制快照会刷告警并丢失存在性跟踪）。
+    占位串记录字节数，使 compute_diff 仍能判定 ADD/EDIT/DELETE。
+    """
+    with open(path, "rb") as f:
+        raw = f.read()
+    if b"\x00" in raw:
+        return f"{BINARY_FILE_MARKER}:{len(raw)}"
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return f"{BINARY_FILE_MARKER}:{len(raw)}"
+
 
 class DiffStats:
     """Statistics about the difference between two texts."""
@@ -75,8 +101,7 @@ class DiffTracker:
 
         key = f"{thread_id}:{path}"
         try:
-            with open(path, encoding="utf-8") as f:
-                content = f.read()
+            content = read_text_or_binary(path)
         except FileNotFoundError:
             # File might mean to be created
             content = ""
@@ -115,14 +140,23 @@ class DiffTracker:
             return "", "", None
 
         try:
-            with open(path, encoding="utf-8") as f:
-                new_content = f.read()
+            new_content = read_text_or_binary(path)
         except FileNotFoundError:
             # File deleted?
             new_content = ""
 
         if old_content == new_content:
             return "", "", None
+
+        # Binary files cannot be text-diffed; only report existence-level change.
+        if is_binary_content(old_content) or is_binary_content(new_content):
+            operation = "EDIT"
+            if not old_content and new_content:
+                operation = "ADD"
+            elif old_content and not new_content:
+                operation = "DELETE"
+            # No text content to serve as an undo backup for binary files.
+            return operation, "", None
 
         # Determine Operation
         operation = "EDIT"

@@ -599,6 +599,119 @@
     "toolMessage": {
       "fallbackName": "工具"
     },
+    "toolAction": {
+      "image": {
+        "analyze": "进行图像分析",
+        "generate": "进行图像生成"
+      },
+      "video": {
+        "analyze": "进行视频分析",
+        "generate": "进行视频生成"
+      },
+      "browser": {
+        "navigate": "打开网页",
+        "back": "网页后退",
+        "forward": "网页前进",
+        "reload": "刷新页面",
+        "get_url": "获取页面链接",
+        "new_tab": "新建标签页",
+        "switch_tab": "切换标签页",
+        "click": "点击元素",
+        "double_click": "双击元素",
+        "hover": "悬停元素",
+        "type_text": "输入文本",
+        "select_option": "选择选项",
+        "key_press": "按键",
+        "scroll": "滚动页面",
+        "drag_drop": "拖拽",
+        "batch": "批量操作",
+        "upload": "上传文件",
+        "get_text": "读取页面文本",
+        "get_html": "获取页面源码",
+        "get_attribute": "读取元素属性",
+        "get_links": "提取页面链接",
+        "find_element": "查找元素",
+        "screenshot": "网页截图",
+        "wait_for": "等待元素",
+        "check_element": "检查元素",
+        "run_js": "执行JS脚本",
+        "get_cookies": "获取Cookies",
+        "set_cookies": "设置Cookies",
+        "local_storage": "本地存储操作",
+        "network_wait": "等待网络请求"
+      },
+      "desktop": {
+        "screenshot": "桌面截图",
+        "click": "点击屏幕",
+        "double_click": "双击屏幕",
+        "type_text": "输入文本",
+        "key_press": "按键",
+        "open_app": "打开应用",
+        "applescript": "执行AppleScript",
+        "get_info": "获取窗口信息",
+        "list_apps": "列出应用",
+        "batch": "批量操作",
+        "get_active_app": "获取前台应用",
+        "scroll": "滚动屏幕",
+        "drag_drop": "拖拽",
+        "dump_ui": "读取UI结构",
+        "gui_extract": "提取界面元素"
+      },
+      "mobile": {
+        "screenshot": "手机截图",
+        "tap": "轻点屏幕",
+        "click": "点击屏幕",
+        "long_press": "长按",
+        "swipe": "滑动屏幕",
+        "scroll": "滚动屏幕",
+        "input_text": "输入文本",
+        "press_key": "按键",
+        "dump_ui": "读取UI结构",
+        "list_devices": "列出设备",
+        "get_info": "获取设备信息",
+        "list_apps": "列出应用",
+        "open_app": "打开应用",
+        "push": "推送文件",
+        "pull": "拉取文件",
+        "intent_flow": "执行Intent",
+        "read_sms": "读取短信",
+        "gui_extract": "提取界面元素"
+      },
+      "macro": {
+        "list": "列出宏",
+        "read": "读取宏",
+        "run": "执行宏",
+        "create": "创建宏",
+        "update": "更新宏",
+        "delete": "删除宏",
+        "debug": "调试宏"
+      },
+      "task": {
+        "run": "运行子任务",
+        "complete": "子任务完成",
+        "list_agents": "列出子代理"
+      },
+      "vault": {
+        "list": "列出凭据",
+        "request": "请求录入凭据"
+      }
+    },
+    "toolName": {
+      "browser": "浏览器操作",
+      "desktop": "桌面操作",
+      "mobile": "手机操作",
+      "macro": "宏操作",
+      "vault": "密码箱操作",
+      "task": "委派子任务",
+      "webfetch": "获取网页",
+      "websearch": "搜索网页",
+      "skill": "加载技能",
+      "todo": "管理待办",
+      "question": "向用户提问",
+      "remember": "保存记忆",
+      "glob": "按名称搜索文件",
+      "grep": "搜索内容"
+    },
     "subagentsTitle": "并行子任务",
     "noSubagents": "无并行子任务",
     "subagentRunning": "运行中",
@@ -1661,9 +1774,9 @@
     "title": "项目",
     "projectNameFallback": "项目 #{{id}}",
     "duty": {
-      "title": "客服值守",
-      "desc": "让 Agent 充当本项目的智能客服，值守企业微信客户咨询。",
-      "active": "值守中：Agent 正在处理本项目的客户消息",
+      "title": "自主值守",
+      "desc": "开启后，Agent 将自主值守本项目（处理客户消息与到期任务）。",
+      "active": "值守中：Agent 正在自主处理本项目的消息与任务",
       "loadError": "加载值守配置失败",
       "enabled": "本项目值守已启动",
       "disabled": "本项目值守已停止",
@@ -2127,8 +2240,8 @@
       "sttProvider": "语音识别服务提供商"
     },
     "duty": {
-      "title": "客服值守（全局）",
-      "enabledDesc": "开启后，各项目可在项目概览中参与值守（Agent 充当该项目客服）",
+      "title": "开启自主值守",
+      "enabledDesc": "开启后，各项目可在项目概览中参与自主值守（Agent 自主处理客户消息与到期任务）",
       "channelsLabel": "可用渠道",
       "wecomDesc": "企业微信客户端（GUI 自动化）",
       "pollIntervalLabel": "兜底轮巡间隔（秒）",
@@ -2140,13 +2253,13 @@
       "stopLabel": "停止值守",
       "startDuty": "开启值守",
       "stopDuty": "停止值守",
-      "runningDesc": "值守中：Agent 正在服务各参与项目的客户",
+      "runningDesc": "值守中：Agent 正在自主处理各参与项目的任务",
       "stoppedDesc": "已停止：开启后各项目可参与值守",
       "saved": "已保存",
       "validationFailed": "企业微信未就绪，无法开启",
-      "stopping": "客服值守停止中，请稍等",
-      "stopped": "客服值守已停止",
-      "started": "客服值守已开启"
+      "stopping": "自主值守停止中，请稍等",
+      "stopped": "自主值守已停止",
+      "started": "自主值守已开启"
     }
   },
   "startup": {
@@ -2554,13 +2667,16 @@
     "excelPreviewError": "Excel 预览失败",
     "csvPreviewError": "CSV 预览失败",
     "openInSystemApp": "在系统默认应用中打开",
-    "chat": "聊天",
+    "chat": "智能体对话",
+    "chatShort": "对话",
     "debug": "调试",
     "debugTooltip": "调试控制中心",
     "learning": "学习",
     "projects": "项目",
     "searchFilesPlaceholder": "搜索文件...",
-    "settings": "设置"
+    "settings": "设置",
+    "dutyAutonomous": "自主值守（实验）",
+    "dutyAutonomousShort": "值守"
   },
   "debug": {
     "controlCenter": "控制中心",
@@ -2615,5 +2731,105 @@
   "hitl": {
     "approveOnce": "仅本次",
     "approveAlways": "总是允许"
+  },
+  "dutyBoard": {
+    "title": "任务队列",
+    "create": "派个任务",
+    "empty": "暂无任务",
+    "selectProject": "请先选择项目",
+    "recurring": "周期",
+    "kpi": {
+      "state": "值守状态",
+      "currentRun": "当前任务",
+      "tokensToday": "今日 Token",
+      "tokensWeek": "本周 Token",
+      "workSpan": "今日工作时长"
+    },
+    "state": {
+      "busy": "忙碌",
+      "idle": "空闲",
+      "error": "异常"
+    },
+    "section": {
+      "proposed": "提案 · 待你确认",
+      "pending": "队列 · 待执行",
+      "inProgress": "进行中",
+      "waiting": "待验收",
+      "done": "已完成"
+    },
+    "action": {
+      "confirm": "确认",
+      "reject": "驳回",
+      "accept": "验收通过",
+      "openThread": "工作台"
+    },
+    "rejectTitle": "驳回任务",
+    "rejectPlaceholder": "请填写驳回原因（必填）——Agent 会看到这条反馈",
+    "notice": {
+      "title": "实验性功能提示",
+      "body": "「自主值守」当前为实验性功能：Agent 将以自动化方式执行任务（包括调用外部工具、修改业务数据）。存在不确定风险，请谨慎使用，重要任务请保持人工验收习惯。",
+      "leave": "返回",
+      "understood": "我已知晓，继续使用"
+    },
+    "form": {
+      "createTitle": "新建任务",
+      "editTitle": "编辑任务",
+      "title": "标题",
+      "description": "任务指令",
+      "descriptionHint": "完整描述 Agent 要做什么、如何验证（越具体越好）",
+      "type": "类型",
+      "once": "一次性",
+      "recurring": "周期性",
+      "priority": "优先级",
+      "triggerSpec": "触发规则（cron 或 interval:秒）",
+      "category": "分类",
+      "riskLevel": "风险档",
+      "riskPlaceholder": "未设置",
+      "status": "状态",
+      "cancel": "取消",
+      "save": "保存",
+      "titleRequired": "标题必填",
+      "guide": "请创建「确定性、流程化」的任务，避免询问式问题——指令越明确，Agent 完成的质量与完整度越高",
+      "goodExample": "好例：检查昨日全部订单，超时未发货的生成催办清单并写入报告",
+      "badExample": "差例：帮我看看最近订单有什么问题？",
+      "titlePlaceholder": "动词开头 + 明确对象 + 预期产出，如：核对昨日订单并生成催办清单"
+    },
+    "detail": {
+      "instruction": "任务指令",
+      "selfCheck": "自检报告",
+      "verdict": "结论",
+      "acceptance": "验收记录"
+    },
+    "plan": {
+      "title": "当前计划",
+      "selectHint": "从左侧选择任务查看其计划与执行"
+    },
+    "exec": {
+      "title": "执行过程"
+    },
+    "switch": {
+      "title": "值守总开关",
+      "desc": "关闭后 Agent 停止自主执行任务（巡检/派发）"
+    },
+    "chart": {
+      "tokensAxis": "Token",
+      "completedAxis": "完成数",
+      "inputTokens": "输入 Token",
+      "outputTokens": "输出 Token",
+      "completedTasks": "完成任务",
+      "totalTasks": "总任务",
+      "weeklyTrend": "近 7 天趋势",
+      "statusDistribution": "任务状态分布",
+      "empty": "暂无数据",
+      "agentPulse": "Agent 工作脉搏",
+      "weekStrip": "本周任务分布"
+    },
+    "feed": {
+      "title": "跃迁事件流",
+      "empty": "暂无事件"
+    },
+    "subtitle": "自主值守运行状态",
+    "hint": "任务由系统按计划自动派发给 Agent 执行，无需手动干预",
+    "createHint": "去聊天里把任务交给 Agent，它会建提案待你确认"
   }
 }

@@ -163,6 +163,7 @@ class DockerSandbox(Sandbox):
             raise RuntimeError("Sandbox container not initialized")
 
         container_wd = "/workspace"
+        wrapped = command  # default: run as-is inside /workspace
         if working_dir:
             container_wd = _to_container_path(working_dir, self.workspace_root)
             if container_wd is None:
@@ -172,8 +173,7 @@ class DockerSandbox(Sandbox):
                 )
                 # 给 agent 的错误文本不回显宿主路径（多租户不泄露宿主目录结构）
                 raise RuntimeError(
-                    "Working directory is outside your workspace and not mounted "
-                    "in the sandbox; cd into /workspace instead"
+                    "Working directory is outside WORKSPACE_ROOT and not mounted in the sandbox"
                 )
 
             wrapped = (

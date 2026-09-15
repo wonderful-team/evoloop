@@ -1181,7 +1181,7 @@ pub fn run() {
             let record_i = MenuItem::with_id(_app, "record", "技能录制 (Ctrl+Shift+R)", true, None::<&str>)?;
             let voice_dictation_i = MenuItem::with_id(_app, "voice_dictation", "语音听写", true, Some("F12"))?;
             let voice_dialogue_i = MenuItem::with_id(_app, "voice_dialogue", "语音对话", true, Some("F12"))?;
-            let duty_i = MenuItem::with_id(_app, "duty_toggle", "客服值守", true, None::<&str>)?;
+            let duty_i = MenuItem::with_id(_app, "duty_toggle", "自主值守", true, None::<&str>)?;
 
             let service_state = AppServiceState {
                 children: Arc::new(Mutex::new(Vec::new())),

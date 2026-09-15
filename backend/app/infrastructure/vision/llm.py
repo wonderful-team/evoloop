@@ -40,6 +40,40 @@ class VisionLLMFactory:
         db_vision_model = SystemConfigService.get_value("VISION_MODEL")
         final_model = model_name or db_vision_model
 
+        from app.infrastructure.llm.platform_service import llm_platform_service
+
+        # DB 配置可能指向纯文本 chat 模型（历史遗留），发图片过去只会得到
+        # "看不到图"的幻觉回复——校验目录标记，不支持视觉则视为未配置。
+        if final_model and not model_name:
+            configured = llm_platform_service.get_model_by_id(final_model)
+            if configured is not None and not configured.supports_vision:
+                logger.warning(
+                    "[VisionLLMFactory] VISION_MODEL=%s is not a vision model "
+                    "per the platform catalog; ignoring it",
+                    final_model,
+                )
+                final_model = None
+
+        # 未显式指定时，从平台目录自动选择支持视觉的模型；
+        # 找不到则明确报错——绝不能 fallback 到纯文本 chat 模型
+        #（那会导致模型"看不到"图片却编造分析结果）。
+        if not final_model:
+            vision_models = [
+                m
+                for m in llm_platform_service.get_cached_models()
+                if m.supports_vision
+            ]
+            if vision_models:
+                final_model = vision_models[0].model_id
+                logger.info(
+                    "[VisionLLMFactory] auto-selected vision model: %s", final_model
+                )
+            else:
+                raise ValueError(
+                    "no vision model available: VISION_MODEL is not configured "
+                    "and the platform catalog has no model with supports_vision"
+                )
+
         vision_base_url = base_url or SystemConfigService.get_value("VISION_BASE_URL")
         vision_api_key = api_key or SystemConfigService.get_value("VISION_API_KEY")
         vision_provider = provider_type or SystemConfigService.get_value("VISION_PROVIDER_TYPE")

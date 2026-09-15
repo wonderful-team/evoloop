@@ -26,9 +26,7 @@ class VisionEngine:
         start_time = time.time()
 
         # 1. Publish Start Event
-        from app.core.vision.event.publishers import (
-            publish_vision_process_started,
-        )
+        from app.core.vision.event.publishers import publish_vision_process_started
         await publish_vision_process_started(task.value, image_source)
 
         # Specialized Logic: DETECTION (Multiple Providers)
@@ -52,9 +50,7 @@ class VisionEngine:
                 app_info = get_current_app_context()
 
                 # 2. Publish to Awakening Event Bus for AppAtlasService to consume
-                from app.core.environment.event.publishers import (
-                    publish_ui_tree_observed,
-                )
+                from app.core.environment.event.publishers import publish_ui_tree_observed
 
                 await publish_ui_tree_observed(
                     platform=PlatformType.MACOS.value,
@@ -85,34 +81,9 @@ class VisionEngine:
         # 4. Finalize
         result.latency_ms = elapsed_ms(start_time)
 
-        # 5. Passive Atlas Learning for non-DETECT tasks
-        # Skip Atlas learning for browser contexts (dynamic web pages don't benefit from Atlas)
-        enable_atlas = kwargs.get("enable_atlas_learning", True)
-        if task != VisionTask.DETECT and result.success and enable_atlas:
-            # Check platform
-            platform = kwargs.get("platform")
-            if not platform:
-                platform = (
-                PlatformType.ANDROID.value if kwargs.get("on_android") else PlatformType.MACOS.value
-            )
-
-            # Dispatch to Celery background worker to offload OCR/Neo4j processing
-            try:
-                from app.infrastructure.queue.factory import get_scheduler
-
-                get_scheduler().send_task(
-                    "app.core.atlas.tasks.map_observed_ui",
-                    args=(image_source, kwargs.get("device_id"), platform, ""),
-                )
-                logger.debug(f"[VisionEngine] Dispatched Atlas background mapping for {image_source}")
-            except Exception as ex:
-                logger.debug(f"[VisionEngine] Failed to dispatch Celery task: {ex}", exc_info=True)
-
-        # 6. Publish Completion Event
+        # 5. Publish Completion Event
         provider_name = provider.name if task != VisionTask.DETECT else "pipeline_manager"
-        from app.core.vision.event.publishers import (
-            publish_vision_process_completed,
-        )
+        from app.core.vision.event.publishers import publish_vision_process_completed
         await publish_vision_process_completed(result, task.value, provider_name)
 
         return result

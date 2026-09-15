@@ -54,7 +54,7 @@ export function CodeEditor({
 
       // Get cursor position
       const position = e.target.selectionStart
-      const { line, column, lineText } = calculateCursorPosition(position)
+      const { line, column } = calculateCursorPosition(position)
 
       setCursorLine(line)
       setCursorColumn(column)

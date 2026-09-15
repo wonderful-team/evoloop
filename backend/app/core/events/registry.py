@@ -33,6 +33,10 @@ class SystemEventType(str, Enum):
     WEBSOCKET_MESSAGE_RECEIVED = "websocket.message_received"
     # 服务端主动推送的任意 MCP notification（method 与 payload 在 event.data 中）
     MCP_SERVER_NOTIFICATION = "mcp.server_notification"
+    # 第三方消息源经 channel 归一化后的统一入站消息（唯一生产方 channel 层）
+    INBOUND_MESSAGE = "channel.inbound_message"
+    # 任务回复路由（domain 决策 → channel 传输的出站回复）
+    OUTBOUND_REPLY = "channel.outbound_reply"
 
     # Conversation Lifecycle
     CONVERSATION_CREATED = "conversation.created"
@@ -80,6 +84,46 @@ class ArtifactValidationEvent(BaseEvent):
     project_id: int
     item: str
     is_valid: bool = True
+
+
+class InboundMessageEvent(BaseEvent):
+    """第三方入站消息（channel 归一化后的唯一形态）。
+
+    生产方：app.core.channel.input.mcp_message —— 所有第三方 MCP 消息源
+    经 ``notifications/mcp_message`` 通知进入，在此归一化为强类型事件。
+    消费方：app.domain.tasks（消息 → 任务入队）；``contact`` 为会话类
+    消息的回复路由元数据，缺省 = 纯工作项（无需回复）。
+    """
+
+    event_type: str = SystemEventType.INBOUND_MESSAGE
+    source_system: str  # 来源 MCP server 名（provenance）
+    event_id: str  # 幂等键（推送方保证同事件重投同 id）
+    project_id: int = 0
+    title: str
+    content: str = ""
+    contact: str | None = None
+    channel: str = ""  # 来源渠道名（回复路由用，落 task.source_ref.channel）
+    category: str | None = None
+    priority: str = "medium"
+    risk_level: str | None = None
+    start_in_hours: float | None = None
+
+
+class OutboundReplyEvent(BaseEvent):
+    """任务回复路由事件（domain 决策「发给谁」，channel 传输「怎么发」）。
+
+    生产方：app.domain.tasks（wakeup 会话终态按 task.source_ref 反查）。
+    消费方：目标渠道（channel 名匹配）执行发送；纯工作项（无 contact）
+    不产生本事件。
+    """
+
+    event_type: str = SystemEventType.OUTBOUND_REPLY
+    channel: str  # 目标渠道名（如 mcp_message）
+    recipient: str  # 联系人（contact）
+    content: str  # 回复文本
+    project_id: int = 0
+    source_system: str = ""  # 来源 MCP server 名（渠道定位回复目标）
+    thread_id: str | None = None
 
 
 # Note: Module-specific event types are defined in their respective modules:

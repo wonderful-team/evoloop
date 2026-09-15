@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, cast
 
+import app.core.learning.constants as _mc
 from app.core.learning.constants import ALLOWED_UI_ACTIONS
 from app.core.learning.macro.schemas import (
     ExtractType,
@@ -21,8 +22,6 @@ from app.core.learning.macro.schemas import (
     MacroStepType,
 )
 from app.core.learning.macro.utils import cleanup_macro_steps
-
-import app.core.learning.constants as _mc
 
 if TYPE_CHECKING:
     from app.core.learning.schemas.migrated import TraceStep

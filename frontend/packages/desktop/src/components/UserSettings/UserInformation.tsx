@@ -15,6 +15,7 @@ import { useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
 import { z } from "zod"
+import type { ApiError } from "@/client"
 import { MemberService } from "@/client"
 import useAuth from "@/hooks/useAuth"
 import { handleError } from "@/utils"
@@ -77,7 +78,7 @@ const UserInformation = () => {
       queryClient.invalidateQueries({ queryKey: ["currentUser"] })
       form.reset(data)
     } catch (error) {
-      handleError.bind(showErrorToast)(error)
+      handleError.bind(showErrorToast)(error as ApiError)
       throw error
     }
   }

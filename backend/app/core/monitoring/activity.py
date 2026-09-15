@@ -135,7 +135,14 @@ class ActivityMonitor:
             raise
 
         except AgentHumanInterruptException:
+            # HITL 挂起等人是合法状态（非失败）：落 HUMAN_INTERRUPT 终态并发布，
+            # 否则 activity 悬挂 running、事件系统无感知（值守 reconcile 会误判死亡）。
+            # 用户答复后 resume 链路重新 start_run，生命周期正常接续。
             logger.info(f"[ActivityMonitor] ⏸️ Run {run_id} interrupted for human input")
+            result = await self._state_service.end_run(
+                thread_id, ActivityStatus.HUMAN_INTERRUPT, run_id=run_id
+            )
+            await self._publish_run_completed(thread_id, result, run_id, task_type)
             raise
 
         except Exception as e:

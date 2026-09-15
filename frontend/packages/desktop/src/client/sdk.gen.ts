@@ -3,7 +3,7 @@
 import type { CancelablePromise } from './core/CancelablePromise';
 import { OpenAPI } from './core/OpenAPI';
 import { request as __request } from './core/request';
-import type { AccountLoginAccessTokenData, AccountLoginAccessTokenResponse, AccountRequestMobileCodeData, AccountRequestMobileCodeResponse, AccountLoginMobileData, AccountLoginMobileResponse, AccountGetWechatConfigResponse, AccountGenerateQrCodeResponse, AccountCheckWechatLoginStatusData, AccountCheckWechatLoginStatusResponse, AccountWechatDirectLoginData, AccountWechatDirectLoginResponse, AccountWechatCallbackData, AccountWechatCallbackResponse, AccountLogoutResponse, AgentChatEndpointData, AgentChatEndpointResponse, AgentMockChatData, AgentMockChatResponse, AgentStopChatData, AgentStopChatResponse, AgentStopAllAgentData, AgentStopAllAgentResponse, AgentRetryChatData, AgentRetryChatResponse, AgentResumeChatData, AgentResumeChatResponse, AgentCancelHitlRequestData, AgentCancelHitlRequestResponse, AgentWebhookEndpointData, AgentWebhookEndpointResponse, AtlasGenerateAppMapData, AtlasGenerateAppMapResponse, AtlasListAppMapsData, AtlasListAppMapsResponse, AtlasTrainOperationMapsData, AtlasTrainOperationMapsResponse, AtlasOperationMapStatusData, AtlasOperationMapStatusResponse, AuthGetCaptchaConfigResponse, AuthGetCaptchaData, AuthGetCaptchaResponse, AuthGetRegisterConfigResponse, AuthGetRegisterAgreementData, AuthGetRegisterAgreementResponse, AuthSendSmsData, AuthSendSmsResponse, AuthRegisterMobileData, AuthRegisterMobileResponse, AuthRegisterUsernameData, AuthRegisterUsernameResponse, AuthLoginMobileData, AuthLoginMobileResponse, AuthCheckMobileData, AuthCheckMobileResponse, AuthResetPasswordData, AuthResetPasswordResponse, CodeModulesListModulesData, CodeModulesListModulesResponse, CodeModulesGetModuleOfData, CodeModulesGetModuleOfResponse, ConversationsListConversationsData, ConversationsListConversationsResponse, ConversationsUpdateConversationData, ConversationsUpdateConversationResponse, ConversationsDeleteConversationData, ConversationsDeleteConversationResponse, ConversationsGetThreadActivityData, ConversationsGetThreadActivityResponse, ConversationsGetConversationMessagesData, ConversationsGetConversationMessagesResponse, ConversationsSearchConversationsData, ConversationsSearchConversationsResponse, ConversationsRewindConversationData, ConversationsRewindConversationResponse, ConversationsGetThreadChangesetData, ConversationsGetThreadChangesetResponse, ConversationsRunTerminalCommandData, ConversationsRunTerminalCommandResponse, ConversationsSendTerminalInputData, ConversationsSendTerminalInputResponse, ConversationsCancelTerminalCommandData, ConversationsCancelTerminalCommandResponse, ConversationsGetActiveThreadTasksData, ConversationsGetActiveThreadTasksResponse, DevicesGetDevicesResponse, DevicesSendCommandData, DevicesSendCommandResponse, DevicesGetRecentLogsData, DevicesGetRecentLogsResponse, DevicesSearchLogsData, DevicesSearchLogsResponse, DevicesBindClientData, DevicesBindClientResponse, DevicesBindCurrentDeviceData, DevicesBindCurrentDeviceResponse, DevicesGetDebugStatusResponse, FilesListFilesData, FilesListFilesResponse, FilesCreateFileData, FilesCreateFileResponse, FilesDeleteFileData, FilesDeleteFileResponse, FilesGetFileContentData, FilesGetFileContentResponse, FilesGetRawFileData, FilesGetRawFileResponse, FilesOpenFileData, FilesOpenFileResponse, FilesUploadFileData, FilesUploadFileResponse, FilesWorkspaceUploadData, FilesWorkspaceUploadResponse, FilesSearchFilesData, FilesSearchFilesResponse, FilesSearchFilesByNameData, FilesSearchFilesByNameResponse, FilesCreateDirectoryData, FilesCreateDirectoryResponse, FilesMoveFileData, FilesMoveFileResponse, FilesReadAnyFileData, FilesReadAnyFileResponse, FilesDownloadAnyFileData, FilesDownloadAnyFileResponse, ProjectsDispatchGenerationEndpointData, ProjectsDispatchGenerationEndpointResponse, ProjectsListGenerationStatusEndpointData, ProjectsListGenerationStatusEndpointResponse, ProjectsRetryGenerationEndpointData, ProjectsRetryGenerationEndpointResponse, ProjectsGetGenerationContentEndpointData, ProjectsGetGenerationContentEndpointResponse, LearningGetActionRegistryResponse, LearningSynthesizeSkillData, LearningSynthesizeSkillResponse, LearningImportSkillsData, LearningImportSkillsResponse, LearningListSkillsData, LearningListSkillsResponse, LearningGetSkillData, LearningGetSkillResponse, LearningDeleteSkillData, LearningDeleteSkillResponse, LearningUpdateSkillData, LearningUpdateSkillResponse, LearningRunSkillData, LearningRunSkillResponse, LearningValidateSkillData, LearningValidateSkillResponse, LearningConfirmLearnedSkillData, LearningConfirmLearnedSkillResponse, LearningCreateSkillFromYamlData, LearningCreateSkillFromYamlResponse, LearningValidateSkillYamlData, LearningValidateSkillYamlResponse, LearningGetSkillYamlData, LearningGetSkillYamlResponse, LearningUpdateSkillYamlData, LearningUpdateSkillYamlResponse, LearningStartRecordingData, LearningStartRecordingResponse, LearningStopRecordingData, LearningStopRecordingResponse, LearningListRecordingSessionsData, LearningListRecordingSessionsResponse, LearningSynthesizeFromRecordingData, LearningSynthesizeFromRecordingResponse, LearningPreviewRecordingDataData, LearningPreviewRecordingDataResponse, LearningListAnnotationsData, LearningListAnnotationsResponse, LearningCleanupRecordingSessionData, LearningCleanupRecordingSessionResponse, LearningListMirrorDevicesResponse, LearningStartMirrorSessionData, LearningStartMirrorSessionResponse, LearningStartMirrorRecordingData, LearningStartMirrorRecordingResponse, LearningStopMirrorSessionData, LearningStopMirrorSessionResponse, LearningGetDeviceResolutionData, LearningGetDeviceResolutionResponse, LearningPersistMirrorEventsData, LearningPersistMirrorEventsResponse, LearningPersistGlobalEventsData, LearningPersistGlobalEventsResponse, LearningPersistDomEventsData, LearningPersistDomEventsResponse, LearningUploadScreenshotData, LearningUploadScreenshotResponse, LearningCreateAndroidExtractPointData, LearningCreateAndroidExtractPointResponse, LearningListAndroidExtractPointsData, LearningListAndroidExtractPointsResponse, MacrosCreateMacroData, MacrosCreateMacroResponse, MacrosListMacrosData, MacrosListMacrosResponse, MacrosGetMacroData, MacrosGetMacroResponse, MacrosUpdateMacroData, MacrosUpdateMacroResponse, MacrosDeleteMacroData, MacrosDeleteMacroResponse, MacrosConfirmMacroData, MacrosConfirmMacroResponse, MacrosConfirmBulkData, MacrosConfirmBulkResponse, MacrosExecuteMacroData, MacrosExecuteMacroResponse, MacrosTriggerMacroMaintenanceData, MacrosTriggerMacroMaintenanceResponse, McpListMcpServersResponse, McpAddMcpServerData, McpAddMcpServerResponse, McpDeleteMcpServerData, McpDeleteMcpServerResponse, McpConnectMcpServerData, McpConnectMcpServerResponse, MemberReadUserMeResponse, MemberUpdateUserMeData, MemberUpdateUserMeResponse, MemberChangePasswordData, MemberChangePasswordResponse, MemberGetCancellationInfoResponse, MemberApplyCancellationResponse, MemberCancelCancellationResponse, MemberCheckBenefitsBatchData, MemberCheckBenefitsBatchResponse, MemberGetMemberBenefitsApiData, MemberGetMemberBenefitsApiResponse, MemberInvalidateMemberBenefitsCacheResponse, MemoryListConceptsData, MemoryListConceptsResponse, MemoryAddConceptData, MemoryAddConceptResponse, MemoryListConceptsForMobileData, MemoryListConceptsForMobileResponse, MemoryListConceptsWithCountsData, MemoryListConceptsWithCountsResponse, MemoryGetConceptData, MemoryGetConceptResponse, MemoryDeleteConceptData, MemoryDeleteConceptResponse, MemoryUpdateConceptData, MemoryUpdateConceptResponse, MemorySearchMemoryData, MemorySearchMemoryResponse, MemorySearchMemoryVectorData, MemorySearchMemoryVectorResponse, MemorySearchMemoryHybridData, MemorySearchMemoryHybridResponse, MemoryGetEpisodesByConceptData, MemoryGetEpisodesByConceptResponse, MemoryDeduplicateCheckpointsData, MemoryDeduplicateCheckpointsResponse, ModelsGetModelStatusData, ModelsGetModelStatusResponse, ModelsStartDownloadData, ModelsStartDownloadResponse, ModelsDownloadProgressData, ModelsDownloadProgressResponse, PlanningGetPlanData, PlanningGetPlanResponse, ProjectModulesGetBudgetListData, ProjectModulesGetBudgetListResponse, ProjectModulesGetBudgetOverviewData, ProjectModulesGetBudgetOverviewResponse, ProjectModulesGetTimesheetListData, ProjectModulesGetTimesheetListResponse, ProjectModulesQuickAddTimesheetData, ProjectModulesQuickAddTimesheetResponse, ProjectModulesGetProjectStatisticsData, ProjectModulesGetProjectStatisticsResponse, ProjectsDiscoverProfileData, ProjectsDiscoverProfileResponse, ProjectsGetProfileData, ProjectsGetProfileResponse, ProjectsUpdateProfileData, ProjectsUpdateProfileResponse, ProjectsGetProjectSettingsData, ProjectsGetProjectSettingsResponse, ProjectsUpdateProjectSettingsData, ProjectsUpdateProjectSettingsResponse, ProjectsGetProjectsData, ProjectsGetProjectsResponse, ProjectsCreateProjectData, ProjectsCreateProjectResponse, ProjectsGetProjectDutyData, ProjectsGetProjectDutyResponse, ProjectsUpdateProjectDutyData, ProjectsUpdateProjectDutyResponse, ProjectsGetProjectDutyStatusData, ProjectsGetProjectDutyStatusResponse, ProjectsGetCurrentProjectResponse, ProjectsImportProjectByPathData, ProjectsImportProjectByPathResponse, ProjectsGetProjectStatusData, ProjectsGetProjectStatusResponse, ProjectsDeleteProjectData, ProjectsDeleteProjectResponse, ProjectsRunIndexingEndpointData, ProjectsRunIndexingEndpointResponse, ProjectsSwitchProjectData, ProjectsSwitchProjectResponse, ResourcesListResourcesData, ResourcesListResourcesResponse, ResourcesCreateResourceData, ResourcesCreateResourceResponse, ResourcesDeleteResourceData, ResourcesDeleteResourceResponse, RouteRouteInitData, RouteRouteInitResponse, SsoAcceptSsoTokenData, SsoAcceptSsoTokenResponse, StreamStreamChatData, StreamStreamChatResponse, StreamStreamSystemData, StreamStreamSystemResponse, SubscriptionGetSubscriptionPlansResponse, SubscriptionCalculateUpgradePriceData, SubscriptionCalculateUpgradePriceResponse, SubscriptionGetSubscriptionStatusResponse, SubscriptionGetSubscriptionDetailResponse, SubscriptionCreateSubscriptionOrderData, SubscriptionCreateSubscriptionOrderResponse, SubscriptionCancelSubscriptionData, SubscriptionCancelSubscriptionResponse, SubscriptionCheckSubscriptionOrderStatusData, SubscriptionCheckSubscriptionOrderStatusResponse, SubscriptionGetAiQuotaResponse, SubscriptionGetAllAiQuotasResponse, SubscriptionGetAiQuotaHistoryData, SubscriptionGetAiQuotaHistoryResponse, SubscriptionHandleBenefitsUpdateWebhookData, SubscriptionHandleBenefitsUpdateWebhookResponse, SubtasksCreateTaskWithSubtasksData, SubtasksCreateTaskWithSubtasksResponse, SubtasksGetTaskTreeData, SubtasksGetTaskTreeResponse, SubtasksUpdateTaskProgressData, SubtasksUpdateTaskProgressResponse, SubtasksGetNextExecutableTaskData, SubtasksGetNextExecutableTaskResponse, SubtasksFlattenTaskTreeData, SubtasksFlattenTaskTreeResponse, SubtasksListRootTasksData, SubtasksListRootTasksResponse, SymbolsSearchSymbolsData, SymbolsSearchSymbolsResponse, SymbolsGetProjectRelationsData, SymbolsGetProjectRelationsResponse, SystemGetSystemStatusResponse, SystemGetSystemConfigResponse, SystemUpdateSystemConfigData, SystemUpdateSystemConfigResponse, SystemGetLightningStatusResponse, SystemApplyLightningConfigData, SystemApplyLightningConfigResponse, SystemTestLightningConnectionData, SystemTestLightningConnectionResponse, SystemDiscoverModelsResponse, SystemHealthCheckResponse, SystemGetCustomerServiceDutyResponse, SystemUpdateCustomerServiceDutyData, SystemUpdateCustomerServiceDutyResponse, SystemValidateCustomerServiceDutyResponse, SystemGetEmbeddingTierStatusResponse, SystemApplyEmbeddingTierConfigData, SystemApplyEmbeddingTierConfigResponse, SystemTestEmbeddingTierConnectionData, SystemTestEmbeddingTierConnectionResponse, SystemTestEmbeddingConnectionData, SystemTestEmbeddingConnectionResponse, SystemApplyEmbeddingConfigData, SystemApplyEmbeddingConfigResponse, SystemTestLlmConnectionData, SystemTestLlmConnectionResponse, SystemApplyLlmConfigData, SystemApplyLlmConfigResponse, SystemGetCloudStatusResponse, SystemGetLlmModelsData, SystemGetLlmModelsResponse, SystemGetEmbeddingModelsResponse, TasksGetProjectTasksData, TasksGetProjectTasksResponse, TasksCreateTaskData, TasksCreateTaskResponse, TasksGetTaskDetailData, TasksGetTaskDetailResponse, TasksUpdateTaskData, TasksUpdateTaskResponse, TasksDeleteTaskData, TasksDeleteTaskResponse, TasksUpdateTaskStatusEndpointData, TasksUpdateTaskStatusEndpointResponse, TasksExecuteTaskData, TasksExecuteTaskResponse, ToolsListRuntimeToolsResponse, ToolsListAllToolsResponse, UtilsHealthCheckResponse, UtilsGetEvoloopStatusResponse, UtilsGetAiConfigResponse, VaultListCredentialsData, VaultListCredentialsResponse, VaultAddCredentialData, VaultAddCredentialResponse, VaultListCredentialFieldsData, VaultListCredentialFieldsResponse, VaultGetCredentialPayloadData, VaultGetCredentialPayloadResponse, VaultDeleteCredentialData, VaultDeleteCredentialResponse, VoiceGenerateTtsData, VoiceGenerateTtsResponse, WikiGetWikiPagesData, WikiGetWikiPagesResponse, WikiGenerateWikiData, WikiGenerateWikiResponse } from './types.gen';
+import type { AccountLoginAccessTokenData, AccountLoginAccessTokenResponse, AccountRequestMobileCodeData, AccountRequestMobileCodeResponse, AccountLoginMobileData, AccountLoginMobileResponse, AccountGetWechatConfigResponse, AccountGenerateQrCodeResponse, AccountCheckWechatLoginStatusData, AccountCheckWechatLoginStatusResponse, AccountWechatDirectLoginData, AccountWechatDirectLoginResponse, AccountWechatCallbackData, AccountWechatCallbackResponse, AccountLogoutResponse, AgentChatEndpointData, AgentChatEndpointResponse, AgentMockChatData, AgentMockChatResponse, AgentStopChatData, AgentStopChatResponse, AgentStopAllAgentData, AgentStopAllAgentResponse, AgentRetryChatData, AgentRetryChatResponse, AgentResumeChatData, AgentResumeChatResponse, AgentCancelHitlRequestData, AgentCancelHitlRequestResponse, AgentWebhookEndpointData, AgentWebhookEndpointResponse, AtlasGenerateAppMapData, AtlasGenerateAppMapResponse, AtlasListAppMapsData, AtlasListAppMapsResponse, AtlasTrainOperationMapsData, AtlasTrainOperationMapsResponse, AtlasOperationMapStatusData, AtlasOperationMapStatusResponse, AuthGetCaptchaConfigResponse, AuthGetCaptchaData, AuthGetCaptchaResponse, AuthGetRegisterConfigResponse, AuthGetRegisterAgreementData, AuthGetRegisterAgreementResponse, AuthSendSmsData, AuthSendSmsResponse, AuthRegisterMobileData, AuthRegisterMobileResponse, AuthRegisterUsernameData, AuthRegisterUsernameResponse, AuthLoginMobileData, AuthLoginMobileResponse, AuthCheckMobileData, AuthCheckMobileResponse, AuthResetPasswordData, AuthResetPasswordResponse, CodeModulesListModulesData, CodeModulesListModulesResponse, CodeModulesGetModuleOfData, CodeModulesGetModuleOfResponse, ConversationsListConversationsData, ConversationsListConversationsResponse, ConversationsUpdateConversationData, ConversationsUpdateConversationResponse, ConversationsDeleteConversationData, ConversationsDeleteConversationResponse, ConversationsGetThreadActivityData, ConversationsGetThreadActivityResponse, ConversationsGetConversationMessagesData, ConversationsGetConversationMessagesResponse, ConversationsSearchConversationsData, ConversationsSearchConversationsResponse, ConversationsRewindConversationData, ConversationsRewindConversationResponse, ConversationsGetThreadChangesetData, ConversationsGetThreadChangesetResponse, ConversationsRunTerminalCommandData, ConversationsRunTerminalCommandResponse, ConversationsSendTerminalInputData, ConversationsSendTerminalInputResponse, ConversationsCancelTerminalCommandData, ConversationsCancelTerminalCommandResponse, ConversationsGetActiveThreadTasksData, ConversationsGetActiveThreadTasksResponse, DevicesGetDevicesResponse, DevicesSendCommandData, DevicesSendCommandResponse, DevicesGetRecentLogsData, DevicesGetRecentLogsResponse, DevicesSearchLogsData, DevicesSearchLogsResponse, DevicesBindClientData, DevicesBindClientResponse, DevicesBindCurrentDeviceData, DevicesBindCurrentDeviceResponse, DevicesGetDebugStatusResponse, FilesListFilesData, FilesListFilesResponse, FilesCreateFileData, FilesCreateFileResponse, FilesDeleteFileData, FilesDeleteFileResponse, FilesGetFileContentData, FilesGetFileContentResponse, FilesGetRawFileData, FilesGetRawFileResponse, FilesOpenFileData, FilesOpenFileResponse, FilesUploadFileData, FilesUploadFileResponse, FilesWorkspaceUploadData, FilesWorkspaceUploadResponse, FilesSearchFilesData, FilesSearchFilesResponse, FilesSearchFilesByNameData, FilesSearchFilesByNameResponse, FilesCreateDirectoryData, FilesCreateDirectoryResponse, FilesMoveFileData, FilesMoveFileResponse, FilesReadAnyFileData, FilesReadAnyFileResponse, FilesDownloadAnyFileData, FilesDownloadAnyFileResponse, ProjectsDispatchGenerationEndpointData, ProjectsDispatchGenerationEndpointResponse, ProjectsListGenerationStatusEndpointData, ProjectsListGenerationStatusEndpointResponse, ProjectsRetryGenerationEndpointData, ProjectsRetryGenerationEndpointResponse, ProjectsGetGenerationContentEndpointData, ProjectsGetGenerationContentEndpointResponse, LearningGetActionRegistryResponse, LearningSynthesizeSkillData, LearningSynthesizeSkillResponse, LearningImportSkillsData, LearningImportSkillsResponse, LearningListSkillsData, LearningListSkillsResponse, LearningGetSkillData, LearningGetSkillResponse, LearningDeleteSkillData, LearningDeleteSkillResponse, LearningUpdateSkillData, LearningUpdateSkillResponse, LearningRunSkillData, LearningRunSkillResponse, LearningValidateSkillData, LearningValidateSkillResponse, LearningConfirmLearnedSkillData, LearningConfirmLearnedSkillResponse, LearningCreateSkillFromYamlData, LearningCreateSkillFromYamlResponse, LearningValidateSkillYamlData, LearningValidateSkillYamlResponse, LearningGetSkillYamlData, LearningGetSkillYamlResponse, LearningUpdateSkillYamlData, LearningUpdateSkillYamlResponse, LearningStartRecordingData, LearningStartRecordingResponse, LearningStopRecordingData, LearningStopRecordingResponse, LearningListRecordingSessionsData, LearningListRecordingSessionsResponse, LearningSynthesizeFromRecordingData, LearningSynthesizeFromRecordingResponse, LearningPreviewRecordingDataData, LearningPreviewRecordingDataResponse, LearningListAnnotationsData, LearningListAnnotationsResponse, LearningCleanupRecordingSessionData, LearningCleanupRecordingSessionResponse, LearningListMirrorDevicesResponse, LearningStartMirrorSessionData, LearningStartMirrorSessionResponse, LearningStartMirrorRecordingData, LearningStartMirrorRecordingResponse, LearningStopMirrorSessionData, LearningStopMirrorSessionResponse, LearningGetDeviceResolutionData, LearningGetDeviceResolutionResponse, LearningPersistMirrorEventsData, LearningPersistMirrorEventsResponse, LearningPersistGlobalEventsData, LearningPersistGlobalEventsResponse, LearningPersistDomEventsData, LearningPersistDomEventsResponse, LearningUploadScreenshotData, LearningUploadScreenshotResponse, LearningCreateAndroidExtractPointData, LearningCreateAndroidExtractPointResponse, LearningListAndroidExtractPointsData, LearningListAndroidExtractPointsResponse, MacrosCreateMacroData, MacrosCreateMacroResponse, MacrosListMacrosData, MacrosListMacrosResponse, MacrosGetMacroData, MacrosGetMacroResponse, MacrosUpdateMacroData, MacrosUpdateMacroResponse, MacrosDeleteMacroData, MacrosDeleteMacroResponse, MacrosConfirmMacroData, MacrosConfirmMacroResponse, MacrosConfirmBulkData, MacrosConfirmBulkResponse, MacrosExecuteMacroData, MacrosExecuteMacroResponse, MacrosTriggerMacroMaintenanceData, MacrosTriggerMacroMaintenanceResponse, McpListMcpServersResponse, McpAddMcpServerData, McpAddMcpServerResponse, McpDeleteMcpServerData, McpDeleteMcpServerResponse, McpConnectMcpServerData, McpConnectMcpServerResponse, MemberReadUserMeResponse, MemberUpdateUserMeData, MemberUpdateUserMeResponse, MemberChangePasswordData, MemberChangePasswordResponse, MemberGetCancellationInfoResponse, MemberApplyCancellationResponse, MemberCancelCancellationResponse, MemberCheckBenefitsBatchData, MemberCheckBenefitsBatchResponse, MemberGetMemberBenefitsApiData, MemberGetMemberBenefitsApiResponse, MemberInvalidateMemberBenefitsCacheResponse, MemoryListConceptsData, MemoryListConceptsResponse, MemoryAddConceptData, MemoryAddConceptResponse, MemoryListConceptsForMobileData, MemoryListConceptsForMobileResponse, MemoryListConceptsWithCountsData, MemoryListConceptsWithCountsResponse, MemoryGetConceptData, MemoryGetConceptResponse, MemoryDeleteConceptData, MemoryDeleteConceptResponse, MemoryUpdateConceptData, MemoryUpdateConceptResponse, MemorySearchMemoryData, MemorySearchMemoryResponse, MemorySearchMemoryVectorData, MemorySearchMemoryVectorResponse, MemorySearchMemoryHybridData, MemorySearchMemoryHybridResponse, MemoryGetEpisodesByConceptData, MemoryGetEpisodesByConceptResponse, MemoryDeduplicateCheckpointsData, MemoryDeduplicateCheckpointsResponse, ModelsGetModelStatusData, ModelsGetModelStatusResponse, ModelsStartDownloadData, ModelsStartDownloadResponse, ModelsDownloadProgressData, ModelsDownloadProgressResponse, PlanningGetPlanData, PlanningGetPlanResponse, ProjectModulesGetBudgetListData, ProjectModulesGetBudgetListResponse, ProjectModulesGetBudgetOverviewData, ProjectModulesGetBudgetOverviewResponse, ProjectModulesGetTimesheetListData, ProjectModulesGetTimesheetListResponse, ProjectModulesQuickAddTimesheetData, ProjectModulesQuickAddTimesheetResponse, ProjectModulesGetProjectStatisticsData, ProjectModulesGetProjectStatisticsResponse, ProjectsDiscoverProfileData, ProjectsDiscoverProfileResponse, ProjectsGetProfileData, ProjectsGetProfileResponse, ProjectsUpdateProfileData, ProjectsUpdateProfileResponse, ProjectsGetProjectSettingsData, ProjectsGetProjectSettingsResponse, ProjectsUpdateProjectSettingsData, ProjectsUpdateProjectSettingsResponse, ProjectsGetProjectsData, ProjectsGetProjectsResponse, ProjectsCreateProjectData, ProjectsCreateProjectResponse, ProjectsGetProjectDutyData, ProjectsGetProjectDutyResponse, ProjectsUpdateProjectDutyData, ProjectsUpdateProjectDutyResponse, ProjectsGetProjectDutyStatusData, ProjectsGetProjectDutyStatusResponse, ProjectsGetCurrentProjectResponse, ProjectsImportProjectByPathData, ProjectsImportProjectByPathResponse, ProjectsGetProjectStatusData, ProjectsGetProjectStatusResponse, ProjectsDeleteProjectData, ProjectsDeleteProjectResponse, ProjectsRunIndexingEndpointData, ProjectsRunIndexingEndpointResponse, ProjectsSwitchProjectData, ProjectsSwitchProjectResponse, ResourcesListResourcesData, ResourcesListResourcesResponse, ResourcesCreateResourceData, ResourcesCreateResourceResponse, ResourcesDeleteResourceData, ResourcesDeleteResourceResponse, RouteRouteInitData, RouteRouteInitResponse, SsoAcceptSsoTokenData, SsoAcceptSsoTokenResponse, StreamStreamChatData, StreamStreamChatResponse, StreamStreamSystemData, StreamStreamSystemResponse, SubscriptionGetSubscriptionPlansResponse, SubscriptionCalculateUpgradePriceData, SubscriptionCalculateUpgradePriceResponse, SubscriptionGetSubscriptionStatusResponse, SubscriptionGetSubscriptionDetailResponse, SubscriptionCreateSubscriptionOrderData, SubscriptionCreateSubscriptionOrderResponse, SubscriptionCancelSubscriptionData, SubscriptionCancelSubscriptionResponse, SubscriptionCheckSubscriptionOrderStatusData, SubscriptionCheckSubscriptionOrderStatusResponse, SubscriptionGetAiQuotaResponse, SubscriptionGetAllAiQuotasResponse, SubscriptionGetAiQuotaHistoryData, SubscriptionGetAiQuotaHistoryResponse, SubscriptionHandleBenefitsUpdateWebhookData, SubscriptionHandleBenefitsUpdateWebhookResponse, SubtasksCreateTaskWithSubtasksData, SubtasksCreateTaskWithSubtasksResponse, SubtasksGetTaskTreeData, SubtasksGetTaskTreeResponse, SubtasksUpdateTaskProgressData, SubtasksUpdateTaskProgressResponse, SubtasksGetNextExecutableTaskData, SubtasksGetNextExecutableTaskResponse, SubtasksFlattenTaskTreeData, SubtasksFlattenTaskTreeResponse, SubtasksListRootTasksData, SubtasksListRootTasksResponse, SymbolsSearchSymbolsData, SymbolsSearchSymbolsResponse, SymbolsGetProjectRelationsData, SymbolsGetProjectRelationsResponse, SystemGetSystemStatusResponse, SystemGetSystemConfigResponse, SystemUpdateSystemConfigData, SystemUpdateSystemConfigResponse, SystemGetLightningStatusResponse, SystemApplyLightningConfigData, SystemApplyLightningConfigResponse, SystemTestLightningConnectionData, SystemTestLightningConnectionResponse, SystemDiscoverModelsResponse, SystemHealthCheckResponse, SystemGetCustomerServiceDutyResponse, SystemUpdateCustomerServiceDutyData, SystemUpdateCustomerServiceDutyResponse, SystemValidateCustomerServiceDutyResponse, SystemGetEmbeddingTierStatusResponse, SystemApplyEmbeddingTierConfigData, SystemApplyEmbeddingTierConfigResponse, SystemTestEmbeddingTierConnectionData, SystemTestEmbeddingTierConnectionResponse, SystemTestEmbeddingConnectionData, SystemTestEmbeddingConnectionResponse, SystemApplyEmbeddingConfigData, SystemApplyEmbeddingConfigResponse, SystemTestLlmConnectionData, SystemTestLlmConnectionResponse, SystemApplyLlmConfigData, SystemApplyLlmConfigResponse, SystemGetCloudStatusResponse, SystemGetLlmModelsData, SystemGetLlmModelsResponse, SystemGetEmbeddingModelsResponse, TasksGetProjectTasksData, TasksGetProjectTasksResponse, TasksCreateTaskData, TasksCreateTaskResponse, TasksGetTaskDetailData, TasksGetTaskDetailResponse, TasksUpdateTaskData, TasksUpdateTaskResponse, TasksDeleteTaskData, TasksDeleteTaskResponse, TasksUpdateTaskStatusEndpointData, TasksUpdateTaskStatusEndpointResponse, TasksExecuteTaskData, TasksExecuteTaskResponse, TasksQueueCreateTaskData, TasksQueueCreateTaskResponse, TasksQueueListQueueData, TasksQueueListQueueResponse, TasksQueueEditTaskData, TasksQueueEditTaskResponse, TasksQueueConfirmProposalData, TasksQueueConfirmProposalResponse, TasksQueueAcceptTaskData, TasksQueueAcceptTaskResponse, TasksQueueRejectTaskData, TasksQueueRejectTaskResponse, TasksQueueQueueDashboardData, TasksQueueQueueDashboardResponse, ToolsListRuntimeToolsResponse, ToolsListAllToolsResponse, UtilsHealthCheckResponse, UtilsGetEvoloopStatusResponse, UtilsGetAiConfigResponse, VaultListCredentialsData, VaultListCredentialsResponse, VaultAddCredentialData, VaultAddCredentialResponse, VaultListCredentialFieldsData, VaultListCredentialFieldsResponse, VaultGetCredentialPayloadData, VaultGetCredentialPayloadResponse, VaultDeleteCredentialData, VaultDeleteCredentialResponse, VoiceGenerateTtsData, VoiceGenerateTtsResponse, WikiGetWikiPagesData, WikiGetWikiPagesResponse, WikiGenerateWikiData, WikiGenerateWikiResponse } from './types.gen';
 
 export class AccountService {
     /**
@@ -3281,7 +3281,7 @@ export class ProjectProfilesService {
      * Update Project Settings
      * 更新项目设置（name/url）。
      *
-     * 值守配置（enabled/interval/business_poll_interval/notify/channels）走
+     * 值守配置（enabled/interval/notify/channels）走
      * 独立端点 PUT /projects/{id}/duty（v7 拆分，含校验与启停语义）。
      * @param data The data for the request.
      * @param data.projectId
@@ -3442,7 +3442,7 @@ export class ProjectsService {
      * Update Project Settings
      * 更新项目设置（name/url）。
      *
-     * 值守配置（enabled/interval/business_poll_interval/notify/channels）走
+     * 值守配置（enabled/interval/notify/channels）走
      * 独立端点 PUT /projects/{id}/duty（v7 拆分，含校验与启停语义）。
      * @param data The data for the request.
      * @param data.projectId
@@ -3565,9 +3565,9 @@ export class ProjectsService {
     
     /**
      * Get Project Duty
-     * 读取项目值守配置（enabled/channels/business_poll_prompts）。
+     * 读取项目值守配置（enabled/channels）。
      *
-     * 轮巡间隔/业务巡检扫描间隔属全局值守设置，不在此返回。
+     * 轮巡间隔属全局值守设置，不在此返回。
      * @param data The data for the request.
      * @param data.projectId
      * @returns DutyConfig Successful Response
@@ -3590,10 +3590,9 @@ export class ProjectsService {
      * Update Project Duty
      * 更新项目值守配置（部分更新），并执行启动/停止语义。
      *
-     * 校验（422）：business_poll_prompts 为列表，每条含 id/prompt/next_run_at/
-     * interval_minutes/enabled。轮巡间隔/业务巡检扫描间隔属全局，不在项目 PUT 里。
      * 启停（§8.5.5/§8.5.6）：enabled=true → 校验全局/渠道条件并启动，
-     * 失败回滚 enabled=false（400 + 失败原因）；false → 停止并协作式切断 Agent。
+     * 失败回滚 enabled=false（400 + 失败原因）；false → 停止并协作式切断 Agent
+     * （含任务队列的 wakeup run 与 pending 派发门控）。
      * @param data The data for the request.
      * @param data.projectId
      * @param data.requestBody
@@ -3620,7 +3619,6 @@ export class ProjectsService {
      * 读取项目值守运行状态（参与开关 + 调度运行信息）。
      *
      * 返回：enabled / active / last_run_at / next_run_at / interval /
-     * business_poll_interval / business_last_run_at / business_next_run_at /
      * last_failure / global_enabled。
      * @param data The data for the request.
      * @param data.projectId
@@ -3760,9 +3758,9 @@ export class ProjectsService {
 export class ProjectsDutyService {
     /**
      * Get Project Duty
-     * 读取项目值守配置（enabled/channels/business_poll_prompts）。
+     * 读取项目值守配置（enabled/channels）。
      *
-     * 轮巡间隔/业务巡检扫描间隔属全局值守设置，不在此返回。
+     * 轮巡间隔属全局值守设置，不在此返回。
      * @param data The data for the request.
      * @param data.projectId
      * @returns DutyConfig Successful Response
@@ -3785,10 +3783,9 @@ export class ProjectsDutyService {
      * Update Project Duty
      * 更新项目值守配置（部分更新），并执行启动/停止语义。
      *
-     * 校验（422）：business_poll_prompts 为列表，每条含 id/prompt/next_run_at/
-     * interval_minutes/enabled。轮巡间隔/业务巡检扫描间隔属全局，不在项目 PUT 里。
      * 启停（§8.5.5/§8.5.6）：enabled=true → 校验全局/渠道条件并启动，
-     * 失败回滚 enabled=false（400 + 失败原因）；false → 停止并协作式切断 Agent。
+     * 失败回滚 enabled=false（400 + 失败原因）；false → 停止并协作式切断 Agent
+     * （含任务队列的 wakeup run 与 pending 派发门控）。
      * @param data The data for the request.
      * @param data.projectId
      * @param data.requestBody
@@ -3815,7 +3812,6 @@ export class ProjectsDutyService {
      * 读取项目值守运行状态（参与开关 + 调度运行信息）。
      *
      * 返回：enabled / active / last_run_at / next_run_at / interval /
-     * business_poll_interval / business_last_run_at / business_next_run_at /
      * last_failure / global_enabled。
      * @param data The data for the request.
      * @param data.projectId
@@ -4998,6 +4994,162 @@ export class TasksService {
             },
             headers: {
                 authorization: data.authorization
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+}
+
+export class TasksQueueService {
+    /**
+     * Create Task
+     * User creates a task (board form: title/description/type/priority...).
+     * @param data The data for the request.
+     * @param data.requestBody
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static createTask(data: TasksQueueCreateTaskData): CancelablePromise<TasksQueueCreateTaskResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/tasks/queue',
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * List Queue
+     * Queue listing for the task board (stage 4 UI reads the same data).
+     * @param data The data for the request.
+     * @param data.status
+     * @param data.projectId
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static listQueue(data: TasksQueueListQueueData = {}): CancelablePromise<TasksQueueListQueueResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/tasks/queue',
+            query: {
+                status: data.status,
+                project_id: data.projectId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Edit Task
+     * User edits task fields (title/description/priority/risk/type/trigger).
+     * @param data The data for the request.
+     * @param data.taskId
+     * @param data.requestBody
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static editTask(data: TasksQueueEditTaskData): CancelablePromise<TasksQueueEditTaskResponse> {
+        return __request(OpenAPI, {
+            method: 'PUT',
+            url: '/api/v1/tasks/queue/{task_id}',
+            path: {
+                task_id: data.taskId
+            },
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Confirm Proposal
+     * User confirms an Agent proposal: proposed -> pending.
+     * @param data The data for the request.
+     * @param data.taskId
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static confirmProposal(data: TasksQueueConfirmProposalData): CancelablePromise<TasksQueueConfirmProposalResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/tasks/queue/{task_id}/confirm',
+            path: {
+                task_id: data.taskId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Accept Task
+     * User accepts a task under waiting_acceptance: -> completed.
+     * @param data The data for the request.
+     * @param data.taskId
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static acceptTask(data: TasksQueueAcceptTaskData): CancelablePromise<TasksQueueAcceptTaskResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/tasks/queue/{task_id}/accept',
+            path: {
+                task_id: data.taskId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Reject Task
+     * User rejects: -> in_progress (rework loop) with mandatory feedback.
+     * @param data The data for the request.
+     * @param data.taskId
+     * @param data.requestBody
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static rejectTask(data: TasksQueueRejectTaskData): CancelablePromise<TasksQueueRejectTaskResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/tasks/queue/{task_id}/reject',
+            path: {
+                task_id: data.taskId
+            },
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Queue Dashboard
+     * Aggregated KPIs for the autonomous duty dashboard (counts + tokens + state).
+     * @param data The data for the request.
+     * @param data.projectId
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static queueDashboard(data: TasksQueueQueueDashboardData = {}): CancelablePromise<TasksQueueQueueDashboardResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/tasks/queue/dashboard',
+            query: {
+                project_id: data.projectId
             },
             errors: {
                 422: 'Validation Error'

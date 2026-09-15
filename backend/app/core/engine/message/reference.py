@@ -39,6 +39,13 @@ class ReferenceService:
         references = []
 
         quotes_data = []
+
+        # 图片引用先行并发规范化：本地图一次性上传 MC 换公网 URL，
+        # 供远端 VLM（image_url 块）、image 工具（source）与图生图共用。
+        canonical_map = await self._canonicalize_image_urls(
+            references_input, root_path
+        )
+
         for att in references_input:
             att_type = att.get("type", "file")
             att_id = att.get("target_id") or att.get("id") or att.get("url")
@@ -150,17 +157,18 @@ class ReferenceService:
 
             # 3. Direct Image References
             elif att_type == "image":
+                att_url = canonical_map.get(att_id, att_id)
                 content_blocks.append(
-                    {"type": "image_url", "image_url": {"url": att_id}}
+                    {"type": "image_url", "image_url": {"url": att_url}}
                 )
-                reference_notes.append(f"Image Reference: {att_name} (Path: {att_id})")
+                reference_notes.append(f"Image Reference: {att_name} (Path: {att_url})")
                 references.append(
                     {
                         "id": gen_uuid(),
                         "type": "image",
-                        "target_id": att_id,
+                        "target_id": att_url,
                         "target_name": att_name,
-                        "metadata": {"filename": att_name},
+                        "metadata": {"filename": att_name, "source_path": att_id},
                     }
                 )
 
@@ -183,10 +191,12 @@ class ReferenceService:
             # 4.5. Video References
             elif att_type == "video":
                 # Extract keyframes as image_url blocks for LLM vision support
+                # att_id 可能是 /api/ 链接或 uploads 相对路径，先解析为本地文件
+                video_local = self._resolve_attachment_local(att_id, root_path) or att_id
                 try:
                     from app.infrastructure.vision.video.service import VideoService
 
-                    frames = await VideoService.extract_keyframes(att_id, count=3)
+                    frames = await VideoService.extract_keyframes(video_local, count=3)
                     for frame in frames:
                         import base64
 
@@ -272,6 +282,93 @@ class ReferenceService:
             injected_message=updated_message,
             references=references,
         )
+
+    async def _canonicalize_image_urls(
+        self, references_input: list[dict[str, Any]], root_path: str | None = None
+    ) -> dict[str, str]:
+        """Concurrently canonicalize user-attached images to public URLs.
+
+        Local files (uploads/... or /api/v1/files/raw links) are uploaded to the
+        member center once, so the remote VLM, the image tool and 图生图 all get
+        a fetchable URL. Failures fall back to the original att_id.
+        """
+        import asyncio
+
+        image_ids: list[str] = []
+        for att in references_input:
+            if att.get("type") == "image":
+                att_id = att.get("target_id") or att.get("id") or att.get("url")
+                if att_id:
+                    image_ids.append(att_id)
+
+        if not image_ids:
+            return {}
+
+        async def _one(att_id: str) -> tuple[str, str]:
+            try:
+                local_path = self._resolve_attachment_local(att_id, root_path)
+                if not local_path:
+                    return att_id, att_id
+                from app.core.evocloud import evocloud_manager
+
+                public_url = await evocloud_manager.api.upload_chat_media(
+                    local_path, "image"
+                )
+                return att_id, public_url
+            except Exception as e:
+                logger.warning(
+                    f"[ReferenceService] Image canonicalization failed for {att_id}: {e}",
+                    exc_info=True,
+                )
+                return att_id, att_id
+
+        results = await asyncio.gather(*[_one(i) for i in image_ids])
+        return dict(results)
+
+    def _resolve_attachment_local(
+        self, att_id: str, root_path: str | None = None
+    ) -> str | None:
+        """Resolve an attachment id to a local file path (None for http URLs).
+
+        优先使用 dispatch 转正后的会话上传目录（root_path），兜底复用
+        raw 端点的 uploads 解析（线程隔离 / member 物理根 / legacy）。
+        """
+        if is_http_url(att_id):
+            return None
+
+        inner = att_id
+        if att_id.startswith("/api/"):
+            query = parse_qs(urlparse(att_id).query)
+            inner = query.get("path", [None])[0] or ""
+            if not inner:
+                return None
+
+        if inner.startswith("uploads/"):
+            filename = os.path.basename(inner[len("uploads/") :])
+            if root_path:
+                candidate = os.path.join(root_path, filename)
+                if os.path.isfile(candidate):
+                    return candidate
+            try:
+                from app.api.routes.files import _resolve_upload_file
+                from app.core.project.utils import current_member_id
+
+                return _resolve_upload_file(inner, current_member_id() or 0)
+            except Exception as e:
+                logger.warning(
+                    f"[ReferenceService] uploads resolution failed for {inner}: {e}",
+                    exc_info=True,
+                )
+                return None
+
+        if os.path.isabs(inner):
+            return inner if os.path.isfile(inner) else None
+
+        if root_path:
+            candidate = os.path.join(root_path, inner)
+            if os.path.isfile(candidate):
+                return candidate
+        return None
 
     async def _handle_message_reference(
         self, msg_id_str: str, name: str, session: AsyncSession

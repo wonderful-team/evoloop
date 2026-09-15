@@ -8,11 +8,11 @@ from contextlib import contextmanager
 from types import TracebackType
 from typing import Any
 
+from httpx import AsyncClient, Timeout
 from mcp import ClientSession
 from mcp.client.sse import sse_client
-from mcp.client.streamable_http import streamablehttp_client
 from mcp.client.stdio import StdioServerParameters, stdio_client
-from httpx import AsyncClient, Timeout
+from mcp.client.streamable_http import streamablehttp_client
 from pydantic import RootModel
 
 from app.core.mcp.config import (
@@ -55,7 +55,7 @@ class _LooseServerNotification(RootModel[Any]):
     """宽松的 ServerNotification：接受任意自定义 notification。
 
     mcp 1.26 的 ClientSession 硬编码 ``types.ServerNotification``（9 个已知类型的
-    Union），服务端推送的自定义 method（如 notifications/kf_new_message）会在
+    Union），服务端推送的自定义 method（如 notifications/mcp_message）会在
     ``model_validate`` 阶段校验失败被丢弃。此类型接受任意 payload，使自定义
     notification 能进入 ``_received_notification`` / ``message_handler``。
     """
@@ -209,7 +209,7 @@ class McpTransport:
         mcp>=1.26 的 BaseSession 只在 `__aenter__` 时启动 `_receive_loop` 任务组；
         若不进入 session 上下文，服务端响应永远不会被处理，initialize() 将永久挂起。
 
-        服务端主动推送的自定义 notification（如 notifications/kf_new_message）：
+        服务端主动推送的自定义 notification（如 notifications/mcp_message）：
         mcp 1.26 的 ClientSession 硬编码 ``types.ServerNotification`` 校验，未知
         method 会在类型校验阶段抛异常被丢弃。这里 monkey-patch 一个宽松类型，
         使自定义 notification 能通过校验并分发到 ``message_handler``。

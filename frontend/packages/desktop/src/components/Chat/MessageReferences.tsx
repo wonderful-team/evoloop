@@ -181,6 +181,7 @@ export const MessageReferences: React.FC<MessageReferencesProps> = ({
             <MediaReference
               key={ref.id}
               reference={ref}
+              isUser={isUser}
               onClick={() => onReferenceClick?.(ref)}
             />
           ))}
@@ -205,11 +206,14 @@ export const MessageReferences: React.FC<MessageReferencesProps> = ({
 }
 
 // 媒体引用：图片渲染为宫格缩略图（点击预览），视频内联播放器
+// AI 消息图片用大尺寸（144px，突出展示生成结果）；human 上传图保持紧凑（96px）
 const MediaReference = ({
   reference,
+  isUser = false,
   onClick,
 }: {
   reference: Reference
+  isUser?: boolean
   onClick: () => void
 }) => {
   const { t } = useTranslation()
@@ -238,7 +242,10 @@ const MediaReference = ({
     <button
       type="button"
       onClick={onClick}
-      className="w-24 h-24 rounded-lg border overflow-hidden bg-muted cursor-zoom-in hover:brightness-90 transition-all shrink-0"
+      className={cn(
+        "rounded-lg border overflow-hidden bg-muted cursor-zoom-in hover:brightness-90 transition-all shrink-0",
+        isUser ? "w-24 h-24" : "w-80 h-80",
+      )}
       title={reference.target_name || "generated image"}
     >
       <img

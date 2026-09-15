@@ -213,7 +213,7 @@ export function SkillEditorPage({
         toast.error(t("learning.macroRun.openChatFirst"))
         return
       }
-      await LearningService.executeSkill({
+      await LearningService.runSkill({
         skillId,
         requestBody: {
           thread_id: threadId,

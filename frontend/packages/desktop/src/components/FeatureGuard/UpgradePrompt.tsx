@@ -21,7 +21,6 @@ export function UpgradePrompt({
   feature,
   requiredPlan,
   isExpired = false,
-  onClose,
 }: UpgradePromptProps) {
   const { t } = useTranslation()
 

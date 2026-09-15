@@ -118,6 +118,7 @@ export const useChatStore = create<ChatState>((set, get) => {
     sessionGoal: null,
     messages: [],
     isSending: false,
+    pendingTaskDraft: null,
     pendingCreateTask: null,
     hasMoreHistory: false,
     isLoadingHistory: false,
@@ -418,6 +419,9 @@ export const useChatStore = create<ChatState>((set, get) => {
 
     setPendingCreateTask: (data) => {
       set({ pendingCreateTask: data })
+    },
+    setPendingTaskDraft: (draft) => {
+      set({ pendingTaskDraft: draft })
     },
 
     sendMessage: async (content, pickedFiles, skillIds) => {

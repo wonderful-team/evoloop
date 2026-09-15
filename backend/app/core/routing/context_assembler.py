@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from app.core.routing.conversation_state import _ANAPHORA_RE
 from app.core.routing.constants import (
     DOMAIN_AMBIGUOUS,
     INTENT_DIRECT_ANSWER,
     INTENT_MACRO_TASK,
 )
+from app.core.routing.conversation_state import _ANAPHORA_RE
 
 # Non-knowledge L0 labels.  When the immediately preceding turn is one of these,
 # an anaphoric reference is likely pointing to an entity from a turn earlier than

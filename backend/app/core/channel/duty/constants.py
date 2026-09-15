@@ -17,10 +17,6 @@ DUTY_INTERVAL = 60
 DUTY_INTERVAL_MIN = 60
 DUTY_INTERVAL_MAX = 3600
 
-# 运营线（业务巡检）扫描频率（分钟）。固定系统常量，对齐 60s tick 粒度。
-BUSINESS_POLL_INTERVAL = 1
-
-
 # ── scheduler 相关 ───────────────────────────────────────
 
 # 值守任务标记（params_template 里携带，dispatch 时用于分流）
@@ -28,8 +24,8 @@ DUTY_PARAM_MARKER = "duty_channel"
 
 # 值守任务种类
 KIND_WECOM = "wecom"  # 企微线（本地客户端 GUI 轮巡）
-KIND_KF = "kf"  # 商城微信客服线（经 MCP 接入）
-KIND_BUSINESS_POLL = "business_poll"  # 运营线：业务巡检
+KIND_KF = "kf"  # 商城微信客服线（经 MCP 接入；轮巡走 McpMessageChannel.poll_once，
+# 消息进任务队列——kind 值保持 "kf" 兼容存量 AutonomousTask 行与项目配置）
 
 # 客服轮巡硬超时（电路断路器）：即使轮巡内部有未知卡点，
 # 超过时限强制中断并释放全局锁，避免拖死整个值守调度器。
@@ -41,29 +37,17 @@ CHANNEL_KIND_MAP = {
     "callback": KIND_KF,
 }
 
-# 值守任务种类 → DutyChannel 类名（run_duty_poll 按 kind 分流）
+# 值守任务种类 → DutyChannel 类名（run_duty_poll 按 kind 分流；
+# KIND_KF 不经此表——直接路由 McpMessageChannel.poll_once）
 KIND_CHANNEL_MAP = {
     KIND_WECOM: "WeComDutyChannel",
-    KIND_KF: "MpcKfChannel",
 }
 
 
-# ── mcp_kf 相关 ──────────────────────────────────────────
+# ── mcp_message（原 mcp_kf）相关 ─────────────────────────
 
 # 渠道在 project.json customer_service_duty.channels 里的 key
 CHANNEL_KEY = "callback"
-
-# 商城微信客服单条消息长度上限（复用 GUI 线实测值，取安全余量）
-MAX_MESSAGE_LEN = 1500
-
-# 单次 Agent delivery 上限（秒）：防止长任务/HITL 把 poll 无限阻塞。
-DUTY_KF_DELIVERY_TIMEOUT = 60
-
-# 单次 kf 工具调用超时：远程 MCP 会话偶发僵死时，避免把轮巡拖死。
-KF_TOOL_TIMEOUT = 10.0
-
-# 推送后首次轮巡拉空时的补轮巡延迟：覆盖远程"推送即断"后 keepalive 重连窗口。
-KF_PUSH_RETRY_DELAY = 8.0
 
 
 # ── wecom 相关 ───────────────────────────────────────────
@@ -121,3 +105,8 @@ SERVICE_ACCOUNTS = [
     "客户咨询",
     "文件传输助手",
 ]
+
+
+# 客服渠道（回复直达外部客户/联系人，受渠道长度硬限约束）。
+# 新增客服渠道时在此登记；prompts 层据此注入 customer_facing 标注。
+CUSTOMER_FACING_CHANNEL_NAMES: frozenset[str] = frozenset({"wecom_duty", "mcp_message"})

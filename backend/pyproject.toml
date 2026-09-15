@@ -180,6 +180,7 @@ keep-runtime-typing = true
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["T201", "E501"]
 "bin/scripts/**/*.py" = ["T201"]
+"scripts/*.py" = ["T201"]
 "verify_*.py" = ["T201"]
 "check_*.py" = ["T201"]
 "export_openapi.py" = ["T201"]

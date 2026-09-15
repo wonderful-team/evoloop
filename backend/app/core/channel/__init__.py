@@ -13,6 +13,7 @@ from .base import (
     IncomingMessage,
     InputChannel,
 )
+from .input.mcp_message import McpMessageChannel
 from .input.mobile_input import mobile_input
 from .input.voice_input import voice_input
 from .input.web_input import web_input
@@ -32,6 +33,7 @@ __all__ = [
     "VoiceChannel",
     "WebChannel",
     "MobileChannel",
+    "McpMessageChannel",
     "voice_input",
     "mobile_input",
     "web_input",

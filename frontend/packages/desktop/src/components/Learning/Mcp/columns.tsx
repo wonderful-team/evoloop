@@ -53,7 +53,6 @@ function DeleteServer({ name }: { name: string }) {
 }
 
 function ToggleEnabled({ server }: { server: McpServerPublic }) {
-  const { t } = useTranslation()
   const queryClient = useQueryClient()
   const { showErrorToast } = useCustomToast()
 
