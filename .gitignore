@@ -1,3 +1,5 @@
+/sherpa-onnx/
+
 .vscode
 node_modules/
 /test-results/
@@ -13,6 +15,7 @@ node_modules/
 /frontend/.tanstack/
 /frontend/src-tauri/binaries/
 /frontend/src-tauri/.evoloop/
+/frontend/src-tauri/models/
 /.playwright-mcp/
 /.github/
 /.claude/
@@ -23,3 +26,8 @@ frontend/src-tauri/resources/*.app/
 /.pytest_cache
 /tests
 /deploy/dist/
+
+# Large model files (exceed Git 200MB limit)
+mobile/android/app/src/main/assets/sherpa-kokoro/model.onnx
+mobile/harmony/entry/src/main/resources/rawfile/sherpa-kokoro/model.onnx
+mobile/ios/EvoLoopMobile/Resources/sherpa-kokoro/model.onnx
