@@ -31,7 +31,6 @@ interface SidebarChatListProps {
   activeThreadId: string
   setActiveThreadId: (id: string) => void
   onDeleteThread: (id: string) => void
-  onStopThread: (id: string) => void
   onNewChat: () => void
   fetchNextPage?: () => void
   hasNextPage?: boolean
@@ -122,7 +121,6 @@ export function SidebarChatList({
   activeThreadId,
   setActiveThreadId,
   onDeleteThread,
-  onStopThread,
   onNewChat,
   fetchNextPage,
   hasNextPage,
@@ -405,20 +403,16 @@ export function SidebarChatList({
                       </Button>
                     )}
 
-                    {/* Stop Button (only for running, inside hover container) */}
+                    {/* Running Indicator (display-only: 停止须进入会话在输入区操作) */}
                     {thread.status === "running" && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 text-destructive hover:bg-destructive/10"
-                        onClick={(e: any) => {
-                          e.stopPropagation()
-                          onStopThread(thread.thread_id)
-                        }}
-                        title={t("chat.interface.stop")}
+                      <span
+                        className="h-6 w-6 flex items-center justify-center shrink-0"
+                        title={t("chat.interface.sessionRunning", {
+                          defaultValue: "会话运行中",
+                        })}
                       >
-                        <div className="h-2 w-2 bg-current rounded-[1px]" />
-                      </Button>
+                        <span className="h-2 w-2 bg-destructive rounded-[1px] animate-pulse" />
+                      </span>
                     )}
 
                     {/* Delete Button (not for running) */}
@@ -441,20 +435,16 @@ export function SidebarChatList({
                     )}
                   </div>
 
-                  {/* Standalone Stop Button: permanently visible on the right when running and not hovered */}
+                  {/* Running Indicator: permanently visible on the right when running (display-only) */}
                   {thread.status === "running" && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6 text-destructive hover:bg-destructive/10 shrink-0 z-10 animate-pulse group-hover:opacity-0 group-hover:pointer-events-none transition-opacity duration-150 absolute right-0 top-1/2 -translate-y-1/2"
-                      onClick={(e: any) => {
-                        e.stopPropagation()
-                        onStopThread(thread.thread_id)
-                      }}
-                      title={t("chat.interface.stop")}
+                    <span
+                      className="h-6 w-6 text-destructive shrink-0 z-10 flex items-center justify-center absolute right-0 top-1/2 -translate-y-1/2"
+                      title={t("chat.interface.sessionRunning", {
+                        defaultValue: "会话运行中",
+                      })}
                     >
-                      <div className="h-2 w-2 bg-current rounded-[1px]" />
-                    </Button>
+                      <span className="h-2 w-2 bg-current rounded-[1px] animate-pulse" />
+                    </span>
                   )}
                 </div>
               )}

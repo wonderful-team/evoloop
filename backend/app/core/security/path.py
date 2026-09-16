@@ -4,9 +4,16 @@ This module provides a single source of truth for "which paths an Agent tool is
 allowed to touch". The allowed roots are:
 
 - the current thread/project working directory
-- ``WORKSPACE_ROOT``
+- ``WORKSPACE_ROOT``（仅全局模式；项目会话激活时收窄，见下）
 - the EvoLoop app data directory (``~/.evoloop``)
-- any prefix configured in ``settings.ALLOWED_PATH_PREFIXES``
+- any prefix configured in ``settings.ALLOWED_PATH_PREFIXES``（仅全局模式）
+
+项目边界（2026-09-15 安全修复）：调用方提供 ``project_path``（即线程绑定了
+具体项目）时，进入**项目作用域**——WORKSPACE_ROOT / ALLOWED_PATH_PREFIXES
+不再整体放行，allowed roots 收敛为 ``working_dir + project_path + ~/.evoloop``。
+跨项目/工作区访问必须经 authorization_gate 的 ``authorized_paths`` 授权
+（HITL 批准后落盘 grant）方可放行。全局模式（未提供 project_path）保持
+宿主运维语义不变。
 
 Anything under ``~/.evoloop`` is treated as safe application data. Only
 ``.evoloop`` directories that live inside a project workspace are considered
@@ -17,6 +24,7 @@ from __future__ import annotations
 
 import os
 import re
+import shlex
 
 from app.core.config import settings
 from app.core.project.utils import get_workspace_root
@@ -39,6 +47,11 @@ def get_allowed_roots(
 
     Only directories that actually exist on disk are returned, so callers don't
     accidentally whitelist a non-existent path.
+
+    项目作用域：``project_path`` 非空（线程绑定项目）时，单用户模式**不再**
+    放行全局 WORKSPACE_ROOT / ALLOWED_PATH_PREFIXES——它们是宿主运维语义；
+    项目会话的边界收敛为 working_dir + project_path + ~/.evoloop，跨项目
+    访问走 authorized_paths 授权。全局模式（project_path 为空）保持旧行为。
 
     多租户（MULTI_TENANT_MODE=true）下按用户隔离：
     - 工作根只允许 ``workspace/<member_id>``（A 用户看不到 B 的目录）；
@@ -66,12 +79,15 @@ def get_allowed_roots(
     if not multi_tenant:
         roots.add(_normalize_path(settings.APP_DATA_DIR))
 
-        workspace_root = get_workspace_root()
-        if workspace_root:
-            roots.add(_normalize_path(workspace_root))
+        # 项目作用域：项目会话激活时不放行全局宿主白名单（安全修复 2026-09-15）。
+        # 全局模式（无 project_path）维持宿主运维语义。
+        if not project_path:
+            workspace_root = get_workspace_root()
+            if workspace_root:
+                roots.add(_normalize_path(workspace_root))
 
-        for prefix in settings.ALLOWED_PATH_PREFIXES:
-            roots.add(_normalize_path(prefix))
+            for prefix in settings.ALLOWED_PATH_PREFIXES:
+                roots.add(_normalize_path(prefix))
     else:
         member = member_id if member_id else current_member_id()
         member_root = resolve_member_workspace_root(member) if member else ""
@@ -188,3 +204,130 @@ def _is_path_like_token(token: str) -> bool:
     if token.startswith("."):
         return token.startswith(".evoloop") or token.startswith("..")
     return False
+
+
+# ── 命令路径提取（authorization_gate 用）─────────────────────────────
+# 缺陷背景：tests/e2e/defects/SECURITY_execute_command_path_bypass.md ——
+# authorization_gate 只提取结构化 path 参数，Agent 可用 execute_command 的
+# shell 命令（grep/ls/cat + 绝对路径）绕过文件工具边界读取任意目录。
+# 此提取器把命令文本里"看起来像路径的参数"抽出来交回 gate 检查。
+# 启发式、尽力而为：解析失败/不确定时宁可漏检也不误伤（安全兜底另有
+# runner 层 has_workspace_escape 的 cd 硬拦与 is_dangerous_command）。
+
+_COMMAND_SEGMENT_SPLIT_RE = re.compile(r"&&|\|\||[;|&()`]")
+_COMMAND_WORD_PRELUDE = frozenset(
+    {"sudo", "env", "nohup", "time", "nice", "exec", "command", "builtin",
+     "xargs", "timeout", "stdbuf"}
+)
+_REDIRECT_OPS = frozenset({">", ">>", "1>", "2>", "&>"})
+_ENV_ASSIGN_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+_TRAILING_SHELL_CHARS = ";&|"
+
+
+def _clean_command_token(token: str) -> str:
+    """剥除 token 两侧引号与尾部 shell 分隔符。"""
+    return token.strip("\"'`").rstrip(_TRAILING_SHELL_CHARS).strip()
+
+
+def _resolve_command_path(token: str, base_dir: str | None) -> str | None:
+    """把命令 token 解析成绝对路径；无法安全解析时返回 None。
+
+    与 ``_resolve_cd_target`` 同语义：相对路径必须有 base_dir 才可解析。
+    """
+    if not token:
+        return None
+    expanded = os.path.expanduser(token)
+    if os.path.isabs(expanded):
+        return _normalize_path(expanded)
+    if base_dir:
+        return _normalize_path(os.path.join(base_dir, expanded))
+    return None
+
+
+def extract_command_paths(
+    command: str, base_dir: str | None = None
+) -> list[tuple[str, str]]:
+    """Extract filesystem paths referenced by a shell ``command`` string.
+
+    Returns ordered, deduplicated ``(absolute_path, action)`` pairs where
+    ``action`` is ``"read"`` for path arguments and ``"write"`` for redirect
+    targets (``>`` / ``>>``). Used by the authorization gate to apply the same
+    path boundary to shell commands as to structured file tools.
+
+    尽力而为（best-effort）：无法解析的构造直接跳过，不抛异常——安全兜底
+    由 runner 层 cd 硬拦与 is_dangerous_command 承担，此处只收增量覆盖。
+    """
+    if not command or not command.strip():
+        return []
+
+    candidates: list[tuple[str, str]] = []
+    seen: set[str] = set()
+
+    def _add(raw_token: str, action: str) -> None:
+        cleaned = _clean_command_token(raw_token)
+        if not cleaned:
+            return
+        resolved = _resolve_command_path(cleaned, base_dir)
+        if resolved is None:
+            return
+        if resolved not in seen:
+            seen.add(resolved)
+            candidates.append((resolved, action))
+
+    for segment in _COMMAND_SEGMENT_SPLIT_RE.split(command):
+        segment = segment.strip()
+        if not segment:
+            continue
+        try:
+            tokens = shlex.split(segment)
+        except ValueError:
+            tokens = segment.split()
+        if not tokens:
+            continue
+
+        skip_next_as_command = False
+        after_double_dash = False
+        for index, token in enumerate(tokens):
+            if skip_next_as_command:
+                skip_next_as_command = False
+                continue
+            # 段首与 prelude（sudo/env/…）后的 token 视为命令字，跳过
+            if index == 0 or tokens[index - 1] in _COMMAND_WORD_PRELUDE:
+                continue
+            # env 后的 VAR=val 赋值不是路径
+            if _ENV_ASSIGN_RE.match(token):
+                continue
+
+            # 重定向：独立操作符取下一个 token；粘连形式取剩余部分
+            if token in _REDIRECT_OPS:
+                if index + 1 < len(tokens):
+                    _add(tokens[index + 1], "write")
+                    skip_next_as_command = False
+                continue
+            if token.startswith(">>") and len(token) > 2:
+                _add(token[2:], "write")
+                continue
+            if token.startswith(">") and len(token) > 1:
+                _add(token[1:], "write")
+                continue
+
+            if token == "--":
+                after_double_dash = True
+                continue
+
+            # flag：跳过本身；--opt=path 取 = 后的值参与检查
+            if token.startswith("-") and not after_double_dash:
+                if "=" in token:
+                    _add(token.split("=", 1)[1], "read")
+                continue
+
+            cleaned = _clean_command_token(token)
+            if not cleaned:
+                continue
+            if cleaned.startswith("/") or cleaned.startswith("~"):
+                _add(cleaned, "read")
+            elif "/" in cleaned:
+                # 相对路径参数：有 base_dir 才能安全定位
+                _add(cleaned, "read")
+
+    return candidates

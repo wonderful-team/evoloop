@@ -1431,6 +1431,7 @@
     "nameRequired": "请给工具起个名字",
     "save": "保存",
     "status": {
+      "available": "未连接",
       "connected": "已就绪",
       "disconnected": "未连接",
       "error": "连接出错"

@@ -21,7 +21,7 @@ from app.core.execution.terminal.background.utils import (
     format_command_result,
     get_thread_id,
 )
-from app.core.project.utils import get_workspace_root
+from app.core.project.utils import get_project_path, get_workspace_root
 from app.core.security.command import has_workspace_escape, is_dangerous_command
 from app.core.security.path import get_allowed_roots
 from app.core.tools import get_working_directory
@@ -34,13 +34,14 @@ _WORKSPACE_ESCAPE_ERROR = (
 )
 
 
-def _build_allowed_roots(working_dir: str | None) -> list[str]:
+def _build_allowed_roots(working_dir: str | None, project_path: str | None = None) -> list[str]:
     """Build the list of directories commands are allowed to access.
 
     Delegates to the centralized path security helper so that execute_command,
-    file tools, and hooks all agree on the safe boundaries.
+    file tools, and hooks all agree on the safe boundaries. 传入 project_path
+    （项目会话激活）时边界收敛为项目作用域——WORKSPACE_ROOT 不再整体放行。
     """
-    return get_allowed_roots(working_dir=working_dir)
+    return get_allowed_roots(working_dir=working_dir, project_path=project_path)
 
 
 def _member_id_for(config: RunnableConfig | None) -> int:
@@ -61,7 +62,7 @@ def _member_id_for(config: RunnableConfig | None) -> int:
         return 0
 
 
-def _resolve_working_dir(command: str, config: RunnableConfig | None) -> tuple[str | None, str | None]:
+async def _resolve_working_dir(command: str, config: RunnableConfig | None) -> tuple[str | None, str | None]:
     """Resolve the working directory and run policy checks.
 
     Returns ``(working_dir, security_error|None)``. When ``security_error`` is
@@ -69,6 +70,12 @@ def _resolve_working_dir(command: str, config: RunnableConfig | None) -> tuple[s
     """
     ctx = ContextManager.current()
     working_dir = get_working_directory(config)
+
+    project_path: str | None = None
+    if ctx.project_id and ctx.project_id != DEFAULT_PROJECT_ID:
+        # 项目会话：解析项目本地路径，cd 逃逸检查按项目作用域收窄边界
+        # （复用 get_project_path 单一解析出处，不走平行实现）。
+        project_path = await get_project_path(ctx.project_id) or None
 
     if ctx.project_id == DEFAULT_PROJECT_ID or (
         ctx.project_id is None and working_dir == "."
@@ -101,7 +108,7 @@ def _resolve_working_dir(command: str, config: RunnableConfig | None) -> tuple[s
         return None, f"Security Error: {reason}"
 
     if working_dir and working_dir != ".":
-        allowed_roots = _build_allowed_roots(working_dir)
+        allowed_roots = _build_allowed_roots(working_dir, project_path)
         escape = has_workspace_escape(
             command,
             working_dir=working_dir,
@@ -165,7 +172,7 @@ async def execute_in_background(command: str, timeout: int, config: RunnableConf
 
 async def run_command_background(task, command: str, timeout: int, config: RunnableConfig | None):
     try:
-        working_dir, error_msg = _resolve_working_dir(command, config)
+        working_dir, error_msg = await _resolve_working_dir(command, config)
         if error_msg:
             task.append_output(error_msg)
             await task_manager.fail_task(task.task_id, error=error_msg)
@@ -202,7 +209,7 @@ async def execute_smart(command: str, timeout: int, config: RunnableConfig | Non
 
     task = await _create_execution_task(command, thread_id, timeout)
 
-    working_dir, error_msg = _resolve_working_dir(command, config)
+    working_dir, error_msg = await _resolve_working_dir(command, config)
     if error_msg:
         return error_msg
 

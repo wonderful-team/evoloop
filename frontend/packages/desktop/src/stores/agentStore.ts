@@ -119,6 +119,19 @@ export const useAgentStore = create<AgentState>((set, get) => ({
 
   _setActivitySnapshot: (data) => {
     const newStatus = data.status || "unknown"
+    // 未知状态不裁决（保持现状态不动）：快照词汇漂移/缺失时绝不误杀
+    // running——停止按钮因此不会因接口形状变化而消失（严格 fail-safe）。
+    const KNOWN_ACTIVITY_STATUSES = new Set([
+      ...HITL_ENDED_STATUSES,
+      ...HITL_PENDING_STATUSES,
+      "running",
+      "idle",
+      "stopping",
+      "stopped",
+      "quota_exhausted",
+      "error",
+    ])
+    if (!KNOWN_ACTIVITY_STATUSES.has(newStatus)) return
     let normalized = newStatus
     if (HITL_ENDED_STATUSES.includes(newStatus)) normalized = "idle"
     else if (newStatus === "stopping") normalized = "stopped"

@@ -23,7 +23,7 @@ from app.core.hitl.core import (
     raise_hitl_interrupt,
 )
 from app.core.hitl.engine_runtime import get_runtime
-from app.core.hitl.types import HITLDecision, HumanRequestType
+from app.core.hitl.types import HITLDecision, HITLRequestStatus, HumanRequestType
 from app.i18n.service import i18n
 from app.infrastructure.database import session_scope
 from app.models import Message
@@ -439,7 +439,12 @@ class HITLOrchestrator:
             thread_id, pending_tool, user_input, grant_mode=grant_mode
         )
         final_result = await HITLOrchestrator.resolve_approved_tool_result(
-            pending_tool, config, normalized_input, state=state, grant_mode=grant_mode
+            pending_tool,
+            config,
+            normalized_input,
+            state=state,
+            grant_mode=grant_mode,
+            thread_id=thread_id,
         )
         # 落为 human 消息（用户可见）+ 更新原 tool 消息结果（Agent 可见），
         # 而非新增 tool 消息（避免同 tool_call 双 tool 结果导致 Agent 取空）。
@@ -462,6 +467,7 @@ class HITLOrchestrator:
         fallback_result: str,
         state=None,
         grant_mode: str | None = None,
+        thread_id: str | None = None,
     ) -> str:
         """审批后的工具结果：授权门控工具记录授权并重执行，返回真实结果；否则回退。
 
@@ -513,6 +519,19 @@ class HITLOrchestrator:
         ):
             resource_path = authorization.get("resource_path", "")
             action = authorization.get("action", "read")
+            # 拒绝即判死（防 ping-pong）：把拒绝落库，authorization_gate 查询后
+            # 对同线程同资源的后续访问直接硬拒绝，不再重复弹审批打扰用户。
+            if thread_id:
+                try:
+                    await HITLOrchestrator.mark_thread_resource_rejected(
+                        thread_id=thread_id, resource_path=resource_path
+                    )
+                except Exception:
+                    logger.exception(
+                        "[HITL] mark_thread_resource_rejected failed (thread=%s, path=%s)",
+                        thread_id,
+                        resource_path,
+                    )
             return (
                 f"[AUTHORIZATION REJECTED] 用户拒绝了工具 {tool_name or ''} "
                 f"对 {resource_path} 的 {action} 访问。该操作未执行；"
@@ -570,6 +589,57 @@ class HITLOrchestrator:
         except Exception as e:
             logger.exception(f"[HITL] Re-execution failed for {tool_name}: {e}")
             return f"[HITL Re-execution Failed] {e}"
+
+    @staticmethod
+    async def mark_thread_resource_rejected(thread_id: str, resource_path: str) -> None:
+        """把本线程对某资源的待审批请求标记为已拒绝（拒绝即判死的数据源）。
+
+        authorization_gate 在发起新审批前查询此标记：同线程同资源已被用户
+        拒绝过的，后续访问直接硬拒绝，不再重复弹审批（防 ping-pong）。
+        历史遗留的 pending 行一并关闭（用户已表达拒绝，不再需要响应）。
+        """
+        from sqlalchemy import update
+
+        from app.models import HumanRequest
+
+        async with session_scope() as session:
+            await session.execute(
+                update(HumanRequest)
+                .where(
+                    HumanRequest.thread_id == thread_id,
+                    HumanRequest.type == HumanRequestType.APPROVAL.value,
+                    HumanRequest.status == HITLRequestStatus.PENDING.value,
+                    HumanRequest.description.contains(resource_path),
+                )
+                .values(
+                    status=HITLRequestStatus.COMPLETED.value,
+                    result=HITLDecision.REJECTED.value,
+                )
+            )
+
+    @staticmethod
+    async def has_thread_resource_rejection(thread_id: str, resource_path: str) -> bool:
+        """查询本线程是否已有对某资源的拒绝记录（gate 判死查询）。"""
+        if not thread_id or not resource_path:
+            return False
+
+        from sqlalchemy import select
+
+        from app.models import HumanRequest
+
+        async with session_scope() as session:
+            stmt = (
+                select(HumanRequest.id)
+                .where(
+                    HumanRequest.thread_id == thread_id,
+                    HumanRequest.type == HumanRequestType.APPROVAL.value,
+                    HumanRequest.result == HITLDecision.REJECTED.value,
+                    HumanRequest.description.contains(resource_path),
+                )
+                .limit(1)
+            )
+            found = (await session.execute(stmt)).scalars().first()
+            return found is not None
 
     @staticmethod
     async def request_authorization(

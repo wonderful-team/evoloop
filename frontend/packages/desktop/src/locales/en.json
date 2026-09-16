@@ -1431,6 +1431,7 @@
     "nameRequired": "Please give the tool a name",
     "save": "Save",
     "status": {
+      "available": "Not Connected",
       "connected": "Ready",
       "disconnected": "Not Connected",
       "error": "Error"

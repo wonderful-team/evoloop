@@ -304,6 +304,34 @@ async def resume_chat(
         from app.core.hitl.orchestrator import HITLOrchestrator
 
         pending = await HITLOrchestrator.get_pending_request(req.thread_id, active_model)
+        if pending is None:
+            # 竞态兜底：HITL 刚创建时 system Message（WAITING_HUMAN）落库有几毫秒
+            # 延迟，超快到达的 resume（自动化客户端/值守）会查不到 pending 而被
+            # 误降级为"新消息"——Agent 将收不到批准/拒绝反馈。仅当 human_requests
+            # 存在 pending 审批时才轮询等待（真实新消息零延迟，不受影响）。
+            from app.core.hitl.core import get_pending_requests_for_thread
+
+            try:
+                pending_rows = await get_pending_requests_for_thread(req.thread_id)
+            except Exception:
+                logger.warning(
+                    "[Chat] pending approval rows lookup failed (thread=%s)",
+                    req.thread_id,
+                )
+                pending_rows = []
+            for _ in range(10):
+                if not pending_rows:
+                    break
+                await asyncio.sleep(0.2)
+                pending = await HITLOrchestrator.get_pending_request(
+                    req.thread_id, active_model
+                )
+                if pending:
+                    logger.info(
+                        "[Chat] pending HITL message became ready after poll (thread=%s)",
+                        req.thread_id,
+                    )
+                    break
         if pending:
             logger.info("[Chat] Resume into live session (HITL) %s", req.thread_id)
             session.inject_resume(
@@ -381,6 +409,7 @@ async def resume_chat(
             resume_config,
             normalized_input,
             grant_mode=req.grant_mode,
+            thread_id=req.thread_id,
         )
 
         # 落为 human 消息（用户可见）+ 更新原 tool 消息结果（Agent 可见），

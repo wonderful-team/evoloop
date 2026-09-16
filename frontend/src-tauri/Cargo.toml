@@ -1,6 +1,6 @@
 [package]
 name = "EvoLoop"
-version = "0.7.0"
+version = "0.97.0"
 description = "EvoLoop"
 authors = ["you"]
 edition = "2021"

@@ -940,7 +940,6 @@ export function ChatInterface() {
                 setActiveThreadId={handleSetActiveThreadId}
                 projectId={projectId}
                 onDeleteThread={handleDeleteThread}
-                onStopThread={handleStopThread}
                 onNewChat={handleNewChat}
                 onSelectDiff={handleSelectDiff}
                 onQuoteFile={handleQuoteFile}
@@ -1156,7 +1155,6 @@ export function ChatInterface() {
               }}
               projectId={projectId}
               onDeleteThread={handleDeleteThread}
-              onStopThread={handleStopThread}
               onNewChat={() => {
                 handleNewChat()
                 setShowChatListSheet(false)

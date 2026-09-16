@@ -236,6 +236,13 @@ async def _run_delivery(
         except AgentHumanInterruptException:
             logger.info(f"[Session] {session.thread_id} HITL/A2A hang within scope")
             await _hang_for_resume(session)
+            # 消费用户 HITL 答案：resume_and_persist 把 APPROVED 重执行/REJECTED
+            # 文案写回 DB tool 消息（此前断链：pending_resume 无人读取，Agent
+            # 永远收不到拒绝反馈，反复重试同一被拒操作）。
+            resume_inputs = session.pending_resume
+            session.pending_resume = None
+            if resume_inputs:
+                await _handle_resume(session, state, resume_inputs)
 
 
 async def _run_turn(
@@ -253,11 +260,18 @@ async def _run_turn(
 
     async def _steer_provider() -> list[Any]:
         msgs: list[Any] = []
+        # 竞态保护：resume 事件可能早于 AgentHumanInterruptException 传播到挂起点
+        # 到达（自动化客户端毫秒级响应）。此类事件不是 steer 消息，重新入队，
+        # 由 _hang_for_resume 消费；在此排干会静默丢失用户的批准/拒绝答案。
+        deferred_resumes: list[GateEvent] = []
         for ev in session.gate.drain():
             if ev.kind in ("session_cancel", "session_close"):
                 raise AgentCancelledException("session cancelled while steering")
             if ev.kind == "user_message":
                 payload = ev.payload or {}
+                if payload.get("hitl_resume_response") is not None:
+                    deferred_resumes.append(ev)
+                    continue
                 raw = payload.get("inputs")
                 goal = None
                 if isinstance(raw, dict):
@@ -268,6 +282,8 @@ async def _run_turn(
                     )
                 if goal:
                     msgs.append(HumanMessage(content=str(goal)))
+        for ev in deferred_resumes:
+            session.gate.put(ev)
         return msgs
 
     while True:
@@ -282,6 +298,11 @@ async def _run_turn(
             break
         except AgentHumanInterruptException:
             await _hang_for_resume(session)
+            # 消费用户 HITL 答案（写回 DB tool 消息），与外层 delivery 循环同语义
+            resume_inputs = session.pending_resume
+            session.pending_resume = None
+            if resume_inputs:
+                await _handle_resume(session, state, resume_inputs)
             # 恢复后重建 state（HITL 答案已写回 DB tool 消息）
             session.state = await build_agent_state(
                 session.thread_id,

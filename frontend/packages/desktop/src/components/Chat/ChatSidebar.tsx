@@ -20,7 +20,6 @@ interface ChatSidebarProps {
   setActiveThreadId: (id: string) => void
   projectId: number | undefined
   onDeleteThread: (id: string) => void
-  onStopThread: (id: string) => void
   onNewChat: () => void
   onSelectDiff?: (path: string, diff: string) => void
   onQuoteFile?: (file: any) => void
@@ -40,7 +39,6 @@ export const ChatSidebar = memo(
     setActiveThreadId,
     projectId,
     onDeleteThread,
-    onStopThread,
     onNewChat,
     onSelectDiff,
     onQuoteFile,
@@ -110,7 +108,6 @@ export const ChatSidebar = memo(
                 activeThreadId={activeThreadId}
                 setActiveThreadId={setActiveThreadId}
                 onDeleteThread={onDeleteThread}
-                onStopThread={onStopThread}
                 onNewChat={onNewChat}
                 fetchNextPage={fetchNextPage}
                 hasNextPage={hasNextPage}

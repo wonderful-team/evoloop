@@ -15,12 +15,12 @@ from datetime import datetime, timezone
 from app.core.context.thread_store import thread_context_store
 from app.core.engine.hooks.core import HookContext, HookEvent, HookResult, hook_system
 from app.core.engine.hooks.schemas import ToolInput
-from app.core.engine.state.sub_schemas import PendingApproval
 from app.core.hitl.authorization import AuthorizationDecision, AuthorizationService
 from app.core.hitl.core import hitl_enabled
+from app.core.hitl.orchestrator import HITLOrchestrator
 from app.core.hitl.policies import AuthorizationPolicy
 from app.core.project.utils import get_project_path
-from app.core.security.path import is_path_safe
+from app.core.security.path import extract_command_paths, is_path_safe
 from app.i18n.service import i18n
 
 logger = logging.getLogger(__name__)
@@ -89,10 +89,27 @@ async def authorization_gate(context: HookContext) -> HookResult:
         tool_input=context.tool_input,
     )
 
-    # Extra CowAgent-inspired Safety Boundary check for file tools
+    # Extra CowAgent-inspired Safety Boundary check for file tools AND shell
+    # command path arguments（缺陷 SECURITY_execute_command_path_bypass：Agent
+    # 可用 execute_command 的 grep/ls/cat + 绝对路径绕过文件工具边界）。
+    candidates: list[tuple[str, str]] = []
     extracted = _extract_path_from_input(context.tool_name or "", context.tool_input)
     if extracted is not None:
-        resource_path, action = extracted
+        candidates.append(extracted)
+
+    # 命令文本路径提取（尽力而为）：相对 token 以线程工作目录解析。
+    # 注意：execute_command 通常没有结构化 path 参数，candidates 初始为空，
+    # 必须以 command 文本存在作为进入条件，不能挂在 extracted 结果之下。
+    command: str | None = None
+    if context.tool_input is not None:
+        command = context.tool_input.command
+        if not command and context.tool_input.args:
+            arg_command = context.tool_input.args.get("command")
+            if isinstance(arg_command, str):
+                command = arg_command
+    has_command = bool(command and command.strip())
+
+    if candidates or has_command:
         try:
             project_path = await get_project_path(context.project_id)
         except Exception:
@@ -105,29 +122,72 @@ async def authorization_gate(context: HookContext) -> HookResult:
         except Exception:
             working_directory = None
 
-        if not _is_path_safe(resource_path, project_path, working_directory):
-            # Check if this permission was already granted previously
-            is_already_granted = False
-            now = datetime.now(timezone.utc)
+        if has_command:
+            candidates.extend(
+                extract_command_paths(command, base_dir=working_directory)
+            )
+
+        if candidates:
             # Make sure we load granted permissions
             await auth_service._load()
-            for grant in auth_service._granted or []:
-                # Check match
-                # Try relative paths as well
-                check_paths = [resource_path]
-                if project_path and os.path.isabs(resource_path):
-                    try:
-                        rel = os.path.relpath(resource_path, project_path)
-                        if not rel.startswith(".."):
-                            check_paths.append(rel)
-                    except Exception as e:
-                        logger.debug("Suppressed error: %s", e, exc_info=True)
-                if grant.action == action and grant.path in check_paths:
-                    if not grant.is_expired(now):
-                        is_already_granted = True
-                        break
+            now = datetime.now(timezone.utc)
+            for resource_path, action in candidates:
+                if _is_path_safe(resource_path, project_path, working_directory):
+                    continue
 
-            if not is_already_granted:
+                # Check if this permission was already granted previously
+                is_already_granted = False
+                for grant in auth_service._granted or []:
+                    # Check match
+                    # Try relative paths as well
+                    check_paths = [resource_path]
+                    if project_path and os.path.isabs(resource_path):
+                        try:
+                            rel = os.path.relpath(resource_path, project_path)
+                            if not rel.startswith(".."):
+                                check_paths.append(rel)
+                        except Exception as e:
+                            logger.debug("Suppressed error: %s", e, exc_info=True)
+                    if grant.action == action and grant.path in check_paths:
+                        if not grant.is_expired(now):
+                            is_already_granted = True
+                            break
+
+                if is_already_granted:
+                    continue
+
+                # 拒绝即判死（防 ping-pong）：用户已拒绝过同线程同资源的访问，
+                # 后续重试直接硬拒绝（不新建 HumanRequest 打扰用户）。
+                # 查询异常降级为"未拒绝过"，保持 HITL 链路可用（fail-open to HITL）。
+                try:
+                    previously_rejected = await HITLOrchestrator.has_thread_resource_rejection(
+                        context.thread_id, resource_path
+                    )
+                except Exception:
+                    logger.exception(
+                        "[AuthorizationGate] rejection lookup failed (thread=%s)",
+                        context.thread_id,
+                    )
+                    previously_rejected = False
+
+                if previously_rejected:
+                    decision = AuthorizationDecision(
+                        approved=False,
+                        requires_hitl=False,
+                        reason=i18n.get(
+                            "engine.authorization.previously_rejected_reason",
+                            default=(
+                                f"用户此前已拒绝对本资源（{resource_path}）的访问，"
+                                "本次调用被直接拦截。"
+                            ),
+                            resource_path=resource_path,
+                        ),
+                        policy=None,
+                        resource_path=resource_path,
+                        action=action,
+                    )
+                    break
+
                 # 值守模式（thread_id 以 duty_ 前缀）同样走 HITL：授权请求推送到
                 # 操作台，由运营人员远程批准/拒绝（默认 REJECTED，不会永久挂起）。
                 # 资金/敏感操作在值守下必须由人工确认，直接拒绝会静默放弃操作。
@@ -153,6 +213,7 @@ async def authorization_gate(context: HookContext) -> HookResult:
                     resource_path=resource_path,
                     action=action,
                 )
+                break
 
     if decision.approved and not decision.requires_hitl:
         return HookResult(success=True)
@@ -169,32 +230,9 @@ async def authorization_gate(context: HookContext) -> HookResult:
         return HookResult(success=True)
 
     if decision.requires_hitl and decision.policy is not None:
-        # Record pending approval in blackboard so the resume handler can persist it
-        if context.state is not None:
-            tool_args = {}
-            if context.tool_input is not None:
-                tool_args = context.tool_input.args or {}
-                inp = context.tool_input
-                if inp.command is not None:
-                    tool_args["command"] = inp.command
-                if inp.path is not None:
-                    tool_args["path"] = inp.path
-                if inp.content is not None:
-                    tool_args["content"] = inp.content
-                if inp.query is not None:
-                    tool_args["query"] = inp.query
-            context.state.pending_approvals.append(
-                PendingApproval(
-                    tool_name=context.tool_name or "",
-                    tool_call_id=context.tool_use_id or "",
-                    resource_path=decision.resource_path,
-                    action=decision.action,
-                    risk_level=decision.policy.risk_level,
-                    requested_at=datetime.now(timezone.utc).isoformat(),
-                    tool_args=tool_args,
-                )
-            )
-
+        # 旧图架构的 pending_approvals 记账已删：现行精简版 AgentState 无该字段
+        # （曾致 AttributeError 被 hook 系统吞掉 → HITL 静默失效、工具照常执行）。
+        # HumanRequest 由 request_authorization 落库，resume 从 DB 恢复，无需 state 记账。
         tool_args = {}
         if context.tool_input is not None:
             tool_args = context.tool_input.args or {}

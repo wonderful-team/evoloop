@@ -231,7 +231,7 @@ def _host_context_block(config: dict[str, Any]) -> str:
             if etype and eid:
                 entity_desc = f"当前实体：{etype} #{eid}\n"
 
-        # 审计修复：业务专属话术（商城后台/mall-backend-ops）此前硬编码在
+        # 审计修复：业务专属话术（商城后台/capability-matrix）此前硬编码在
         # 引擎层，违反「引擎保持通用」约定。引擎只生成通用结构；业务指引
         # （宿主是什么系统、用哪个 MCP server、指代消解规则）由项目级
         # fragment 注入（如 project:.evoloop/fragments/mall_ops.md）。
