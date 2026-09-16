@@ -57,8 +57,8 @@ export function AppTitleBar() {
   if (!info) return null
 
   const IconComp = info.icon
-  // 顶栏视图 Tabs 显隐开关（对话/值守切换）：当前隐藏，入口为工作台/侧边栏
-  const SHOW_VIEW_TABS = false
+  // 顶栏视图 Tabs 显隐开关（对话/值守切换）
+  const SHOW_VIEW_TABS = true
   const noDragStyle = { WebkitAppRegion: "no-drag" } as React.CSSProperties
 
   return (

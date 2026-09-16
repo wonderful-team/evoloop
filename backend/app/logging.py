@@ -65,7 +65,12 @@ def setup_logging():
 
     # Add Filter
     context_filter = ContextFilter()
-    handler.addFilter(context_filter) # Filter on handler ensuring it applies to formatter
+    handler.addFilter(context_filter)
+
+    # DB driver diagnostics are extremely verbose. Keep them quiet even when
+    # the application is running with LOG_LEVEL=DEBUG.
+    logging.getLogger("aiosqlite").setLevel(logging.WARNING)
+    logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
 
     # 第三方噪声日志仅在非 DEBUG 时压到 WARNING，保证 LOG_LEVEL 是唯一权威开关。
     # 设 LOG_LEVEL=DEBUG 时不抑制，让这些库的 DEBUG 也能输出。
@@ -78,7 +83,6 @@ def setup_logging():
             "openai",
             "mcp",
             "watchfiles",
-            "aiosqlite",
             "websockets.client",
             "websockets.server",
             "huey.consumer",

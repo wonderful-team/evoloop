@@ -19,8 +19,8 @@ Revises: 281a2571267c
 Create Date: 2026-05-31 09:17:03.190061
 
 """
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = '25e4171f16ba'
@@ -29,53 +29,43 @@ branch_labels = None
 depends_on = None
 
 
+COLUMNS_WITH_DEFAULTS = [
+    ('status', sa.VARCHAR(50), 'idle'),
+    ('main_goal', sa.Text(), ''),
+    ('artifacts_json', sa.Text(), '[]'),
+    ('agent_state_json', sa.Text(), '{}'),
+    ('active_memories_json', sa.Text(), '[]'),
+    ('final_outcome', sa.Text(), ''),
+    ('updated_at', sa.TIMESTAMP(timezone=True), sa.text('now()')),
+]
+
+
 def upgrade():
-    op.alter_column(
-        'agent_activities', 'status',
-        existing_type=sa.VARCHAR(50),
-        existing_nullable=False,
-        server_default='idle',
-    )
-    op.alter_column(
-        'agent_activities', 'main_goal',
-        existing_type=sa.Text(),
-        existing_nullable=False,
-        server_default='',
-    )
-    op.alter_column(
-        'agent_activities', 'artifacts_json',
-        existing_type=sa.Text(),
-        existing_nullable=False,
-        server_default='[]',
-    )
-    op.alter_column(
-        'agent_activities', 'agent_state_json',
-        existing_type=sa.Text(),
-        existing_nullable=False,
-        server_default='{}',
-    )
-    op.alter_column(
-        'agent_activities', 'active_memories_json',
-        existing_type=sa.Text(),
-        existing_nullable=False,
-        server_default='[]',
-    )
-    op.alter_column(
-        'agent_activities', 'final_outcome',
-        existing_type=sa.Text(),
-        existing_nullable=False,
-        server_default='',
-    )
-    op.alter_column(
-        'agent_activities', 'updated_at',
-        existing_type=sa.TIMESTAMP(timezone=True),
-        existing_nullable=False,
-        server_default=sa.text('now()'),
-    )
+    if op.get_bind().dialect.name == "postgresql":
+        for col, col_type, default in COLUMNS_WITH_DEFAULTS:
+            op.alter_column(
+                'agent_activities', col,
+                existing_type=col_type,
+                existing_nullable=False,
+                server_default=default,
+            )
+        return
+    with op.batch_alter_table('agent_activities') as batch_op:
+        for col, col_type, default in COLUMNS_WITH_DEFAULTS:
+            batch_op.alter_column(
+                col,
+                existing_type=col_type,
+                existing_nullable=False,
+                server_default=default,
+            )
 
 
 def downgrade():
     # Remove the server-side defaults, reverting to the original bare NOT NULL state.
-    for col in ('status', 'main_goal', 'artifacts_json', 'agent_state_json',
-                'active_memories_json', 'final_outcome', 'updated_at'):
-        op.alter_column('agent_activities', col, server_default=None)
+    if op.get_bind().dialect.name == "postgresql":
+        for col, _, _ in COLUMNS_WITH_DEFAULTS:
+            op.alter_column('agent_activities', col, server_default=None)
+        return
+    with op.batch_alter_table('agent_activities') as batch_op:
+        for col, col_type, _ in COLUMNS_WITH_DEFAULTS:
+            batch_op.alter_column(col, existing_type=col_type, existing_nullable=False, server_default=None)

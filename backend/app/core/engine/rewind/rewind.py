@@ -219,6 +219,8 @@ async def perform_rewind(
         return result
 
     except Exception as e:
+        if isinstance(e, RewindError):
+            raise
         logger.exception(f"[Rewind] Failed for thread={thread_id}: {e}")
         raise RewindError(f"Rewind failed: {e}", thread_id=thread_id) from e
 
@@ -235,14 +237,17 @@ async def _compute_affected_message_ids(
         )
 
         if target_message_id:
-            stmt_target = select(Message.sequence_number).where(
+            stmt_target = select(Message.sequence_number, Message.thread_id).where(
                 Message.id == target_message_id
             )
             res_target = await session.execute(stmt_target)
-            target_seq = res_target.scalar_one_or_none()
-            if target_seq is None:
+            target = res_target.one_or_none()
+            if target is None or target.thread_id != thread_id:
                 logger.warning(f"[Rewind] Target message {target_message_id} not found")
-                return [], [], 0
+                raise MessageNotFoundError(
+                    f"Target message {target_message_id} not found in thread {thread_id}"
+                )
+            target_seq = target.sequence_number
             if include_target:
                 stmt = stmt.where(Message.sequence_number >= target_seq)
             else:
@@ -260,7 +265,7 @@ async def _compute_affected_message_ids(
                 target_seq = last_human_seq
                 stmt = stmt.where(Message.sequence_number >= last_human_seq)
             else:
-                return [], [], 0
+                raise NoHumanMessageError(f"No human message found in thread {thread_id}")
 
         result = await session.execute(stmt)
         rows = result.all()

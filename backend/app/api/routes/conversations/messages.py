@@ -151,6 +151,14 @@ async def rewind_conversation(
                 thread_id=thread_id,
                 removed_count=0
             )
+        if result.status == "partial_failure":
+            return RewindResponse(
+                status="partial_failure",
+                removed_count=result.removed_message_count,
+                thread_id=thread_id,
+                files_reverted=result.reverted_file_count,
+                errors=result.errors,
+            )
 
         return RewindResponse(
             status="rewound",

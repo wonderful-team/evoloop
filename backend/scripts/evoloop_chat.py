@@ -298,6 +298,10 @@ def handle_event(event_name: str, data: str, verbose: bool) -> None:
     elif etype == "human_request":
         desc = obj.get("prompt") or obj.get("description") or obj.get("context") or ""
         print(f"\n[待审批] {json.dumps(obj, ensure_ascii=False)[:300]}", flush=True)
+        # 仅对 create（真正的审批请求）自动批准/拒绝；clear 等生命周期事件
+        # 是前端清卡片信号，对其 resume 会被当成"新消息"注入（双发根因）。
+        if obj.get("action", "create") != "create":
+            return
         mode = _HITL_CTX["mode"]
         if mode:
             decision = "yes" if mode == "approve" else "no"

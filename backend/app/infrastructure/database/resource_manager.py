@@ -22,8 +22,9 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import NullPool, event, inspect, text
+from sqlalchemy import event, inspect, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import AsyncAdaptedQueuePool, QueuePool
 from sqlmodel import SQLModel
 from sqlmodel import create_engine as create_sync_engine
 
@@ -142,7 +143,10 @@ class DatabaseResourceManager:
                     db_uri,
                     echo=settings.DB_ECHO,
                     future=True,
-                    poolclass=NullPool,
+                    poolclass=AsyncAdaptedQueuePool,
+                    pool_size=settings.DB_POOL_SIZE,
+                    max_overflow=settings.DB_MAX_OVERFLOW,
+                    pool_pre_ping=True,
                     connect_args={
                         "check_same_thread": False,
                         "timeout": 30,
@@ -152,7 +156,10 @@ class DatabaseResourceManager:
                 if self._sync_engine is None:
                     self._sync_engine = create_sync_engine(
                         sync_db_uri,
-                        poolclass=NullPool,
+                        poolclass=QueuePool,
+                        pool_size=settings.DB_POOL_SIZE,
+                        max_overflow=settings.DB_MAX_OVERFLOW,
+                        pool_pre_ping=True,
                         connect_args={
                             "check_same_thread": False,
                             "timeout": 30,

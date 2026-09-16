@@ -46,7 +46,7 @@ class Message(Base):
         # consider FTS5 virtual table for large local message volumes.
     )
 
-    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    id: Mapped[str] = mapped_column(String(255), primary_key=True)
     thread_id: Mapped[str] = mapped_column(String(255), index=True)
     member_id: Mapped[int] = mapped_column(Integer, default=0, index=True)  # Owner member ID
     project_id: Mapped[int | None] = mapped_column(Integer, index=True)
@@ -140,7 +140,7 @@ class MessageReference(Base):
     __tablename__ = "message_references"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)  # UUID
-    message_id: Mapped[str] = mapped_column(ForeignKey("messages.id"), index=True)
+    message_id: Mapped[str] = mapped_column(String(255), ForeignKey("messages.id"), index=True)
     type: Mapped[str] = mapped_column(String(50))  # 见 docstring 中的合法值列表
     target_id: Mapped[str] = mapped_column(String(255))  # 资源路径、消息 ID、URL 或唯一标识
     target_name: Mapped[str] = mapped_column(String(255))  # 人类可读名称

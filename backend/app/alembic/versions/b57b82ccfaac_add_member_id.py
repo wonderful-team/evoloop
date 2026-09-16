@@ -5,8 +5,8 @@ Revises: cb2eace845a1
 Create Date: 2026-05-25 05:20:41.395686
 
 """
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 revision = "b57b82ccfaac"
 down_revision = "cb2eace845a1"
@@ -29,11 +29,25 @@ TABLES = [
 ]
 
 def upgrade():
+    bind = op.get_bind()
+    is_postgres = bind.dialect.name == "postgresql"
     for table in TABLES:
-        op.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS member_id INTEGER NOT NULL DEFAULT 0")
+        if is_postgres:
+            op.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS member_id INTEGER NOT NULL DEFAULT 0")
+        else:
+            columns = {c["name"] for c in sa.inspect(bind).get_columns(table)}
+            if "member_id" not in columns:
+                op.add_column(table, sa.Column("member_id", sa.Integer(), nullable=False, server_default="0"))
         op.execute(f"CREATE INDEX IF NOT EXISTS ix_{table}_member_id ON {table} (member_id)")
 
 def downgrade():
+    bind = op.get_bind()
+    is_postgres = bind.dialect.name == "postgresql"
     for table in reversed(TABLES):
         op.execute(f"DROP INDEX IF EXISTS ix_{table}_member_id")
-        op.execute(f"ALTER TABLE {table} DROP COLUMN IF EXISTS member_id")
+        if is_postgres:
+            op.execute(f"ALTER TABLE {table} DROP COLUMN IF EXISTS member_id")
+        else:
+            columns = {c["name"] for c in sa.inspect(bind).get_columns(table)}
+            if "member_id" in columns:
+                op.drop_column(table, "member_id")

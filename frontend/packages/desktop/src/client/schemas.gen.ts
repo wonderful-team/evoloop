@@ -6103,6 +6103,13 @@ export const RewindResponseSchema = {
             type: 'integer',
             title: 'Files Reverted',
             default: 0
+        },
+        errors: {
+            items: {
+                type: 'string'
+            },
+            type: 'array',
+            title: 'Errors'
         }
     },
     additionalProperties: true,

@@ -5,17 +5,23 @@ Revises:
 Create Date: 2026-05-25 04:31:10.496178
 
 """
-from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
+from alembic import op
 
 revision = "cb2eace845a1"
 down_revision = None
 branch_labels = None
 depends_on = None
 
+
+def add_foreign_key_if_supported(statement: str) -> None:
+    if op.get_bind().dialect.name == "postgresql":
+        op.execute(sa.text(statement))
+
+
 def upgrade() -> None:
-    op.execute(sa.text("""CREATE EXTENSION IF NOT EXISTS vector"""))
+    if op.get_bind().dialect.name == "postgresql":
+        op.execute(sa.text("""CREATE EXTENSION IF NOT EXISTS vector"""))
     op.execute(sa.text("""CREATE TABLE agent_activities (
 	thread_id VARCHAR(255) NOT NULL, 
 	status VARCHAR(50) NOT NULL, 
@@ -256,7 +262,7 @@ def upgrade() -> None:
     op.execute(sa.text("""CREATE INDEX ix_messages_tool_call_id ON messages (tool_call_id)"""))
     op.execute(sa.text("""CREATE INDEX ix_messages_thread_visible_id ON messages (thread_id, is_visible, id)"""))
     op.execute(sa.text("""CREATE INDEX ix_messages_thread_id ON messages (thread_id)"""))
-    op.execute(sa.text("""ALTER TABLE messages ADD FOREIGN KEY(parent_id) REFERENCES messages (id)"""))
+    add_foreign_key_if_supported("""ALTER TABLE messages ADD FOREIGN KEY(parent_id) REFERENCES messages (id)""")
     op.execute(sa.text("""CREATE TABLE project_resources (
 	id SERIAL NOT NULL, 
 	project_id INTEGER NOT NULL, 
@@ -291,7 +297,7 @@ def upgrade() -> None:
     op.execute(sa.text("""CREATE INDEX ix_project_tasks_member_id ON project_tasks (member_id)"""))
     op.execute(sa.text("""CREATE INDEX ix_project_tasks_parent_id ON project_tasks (parent_id)"""))
     op.execute(sa.text("""CREATE INDEX ix_project_tasks_analysis_id ON project_tasks (analysis_id)"""))
-    op.execute(sa.text("""ALTER TABLE project_tasks ADD FOREIGN KEY(parent_id) REFERENCES project_tasks (id)"""))
+    add_foreign_key_if_supported("""ALTER TABLE project_tasks ADD FOREIGN KEY(parent_id) REFERENCES project_tasks (id)""")
     op.execute(sa.text("""CREATE TABLE repositories (
 	id SERIAL NOT NULL, 
 	project_id INTEGER, 
@@ -448,7 +454,7 @@ def upgrade() -> None:
     op.execute(sa.text("""CREATE INDEX ix_wikipage_member_id ON wikipage (member_id)"""))
     op.execute(sa.text("""CREATE INDEX ix_wikipage_slug ON wikipage (slug)"""))
     op.execute(sa.text("""CREATE INDEX ix_wikipage_project_id ON wikipage (project_id)"""))
-    op.execute(sa.text("""ALTER TABLE wikipage ADD FOREIGN KEY(parent_id) REFERENCES wikipage (id)"""))
+    add_foreign_key_if_supported("""ALTER TABLE wikipage ADD FOREIGN KEY(parent_id) REFERENCES wikipage (id)""")
     op.execute(sa.text("""CREATE TABLE autonomous_tasks (
 	id SERIAL NOT NULL, 
 	intent_description TEXT NOT NULL, 
@@ -474,7 +480,7 @@ def upgrade() -> None:
     op.execute(sa.text("""CREATE INDEX ix_autonomous_tasks_member_id ON autonomous_tasks (member_id)"""))
     op.execute(sa.text("""CREATE INDEX ix_autonomous_tasks_next_run_at ON autonomous_tasks (next_run_at)"""))
     op.execute(sa.text("""CREATE INDEX ix_autonomous_tasks_project_id ON autonomous_tasks (project_id)"""))
-    op.execute(sa.text("""ALTER TABLE autonomous_tasks ADD FOREIGN KEY(skill_id) REFERENCES learned_skills (id)"""))
+    add_foreign_key_if_supported("""ALTER TABLE autonomous_tasks ADD FOREIGN KEY(skill_id) REFERENCES learned_skills (id)""")
     op.execute(sa.text("""CREATE TABLE message_references (
 	id VARCHAR(36) NOT NULL, 
 	message_id VARCHAR(36) NOT NULL, 
@@ -487,7 +493,7 @@ def upgrade() -> None:
 	FOREIGN KEY(message_id) REFERENCES messages (id)
 )"""))
     op.execute(sa.text("""CREATE INDEX ix_message_references_message_id ON message_references (message_id)"""))
-    op.execute(sa.text("""ALTER TABLE message_references ADD FOREIGN KEY(message_id) REFERENCES messages (id)"""))
+    add_foreign_key_if_supported("""ALTER TABLE message_references ADD FOREIGN KEY(message_id) REFERENCES messages (id)""")
     op.execute(sa.text("""CREATE TABLE plans (
 	id VARCHAR(36) NOT NULL, 
 	thread_id VARCHAR(255) NOT NULL, 
@@ -499,7 +505,7 @@ def upgrade() -> None:
 	FOREIGN KEY(thread_id) REFERENCES conversations (id)
 )"""))
     op.execute(sa.text("""CREATE UNIQUE INDEX ix_plans_thread_id ON plans (thread_id)"""))
-    op.execute(sa.text("""ALTER TABLE plans ADD FOREIGN KEY(thread_id) REFERENCES conversations (id)"""))
+    add_foreign_key_if_supported("""ALTER TABLE plans ADD FOREIGN KEY(thread_id) REFERENCES conversations (id)""")
     op.execute(sa.text("""CREATE TABLE source_files (
 	id SERIAL NOT NULL, 
 	repository_id INTEGER NOT NULL, 
@@ -510,7 +516,7 @@ def upgrade() -> None:
 	FOREIGN KEY(repository_id) REFERENCES repositories (id)
 )"""))
     op.execute(sa.text("""CREATE INDEX ix_source_files_path ON source_files (path)"""))
-    op.execute(sa.text("""ALTER TABLE source_files ADD FOREIGN KEY(repository_id) REFERENCES repositories (id)"""))
+    add_foreign_key_if_supported("""ALTER TABLE source_files ADD FOREIGN KEY(repository_id) REFERENCES repositories (id)""")
     op.execute(sa.text("""CREATE TABLE code_chunks (
 	id SERIAL NOT NULL, 
 	source_file_id INTEGER NOT NULL, 
@@ -523,7 +529,7 @@ def upgrade() -> None:
 	FOREIGN KEY(source_file_id) REFERENCES source_files (id)
 )"""))
     op.execute(sa.text("""CREATE INDEX ix_code_chunks_source_file_id ON code_chunks (source_file_id)"""))
-    op.execute(sa.text("""ALTER TABLE code_chunks ADD FOREIGN KEY(source_file_id) REFERENCES source_files (id)"""))
+    add_foreign_key_if_supported("""ALTER TABLE code_chunks ADD FOREIGN KEY(source_file_id) REFERENCES source_files (id)""")
     op.execute(sa.text("""CREATE TABLE code_entities (
 	id SERIAL NOT NULL, 
 	file_id INTEGER NOT NULL, 
@@ -538,7 +544,7 @@ def upgrade() -> None:
 )"""))
     op.execute(sa.text("""CREATE INDEX ix_code_entities_name ON code_entities (name)"""))
     op.execute(sa.text("""CREATE INDEX ix_code_entities_full_name ON code_entities (full_name)"""))
-    op.execute(sa.text("""ALTER TABLE code_entities ADD FOREIGN KEY(file_id) REFERENCES source_files (id)"""))
+    add_foreign_key_if_supported("""ALTER TABLE code_entities ADD FOREIGN KEY(file_id) REFERENCES source_files (id)""")
     op.execute(sa.text("""CREATE TABLE plan_steps (
 	id VARCHAR(36) NOT NULL, 
 	plan_id VARCHAR(36) NOT NULL, 
@@ -554,7 +560,7 @@ def upgrade() -> None:
 	FOREIGN KEY(plan_id) REFERENCES plans (id)
 )"""))
     op.execute(sa.text("""CREATE INDEX ix_plan_steps_plan_id ON plan_steps (plan_id)"""))
-    op.execute(sa.text("""ALTER TABLE plan_steps ADD FOREIGN KEY(plan_id) REFERENCES plans (id)"""))
+    add_foreign_key_if_supported("""ALTER TABLE plan_steps ADD FOREIGN KEY(plan_id) REFERENCES plans (id)""")
     op.execute(sa.text("""CREATE TABLE code_relations (
 	id SERIAL NOT NULL, 
 	source_entity_id INTEGER NOT NULL, 
@@ -567,8 +573,8 @@ def upgrade() -> None:
 	FOREIGN KEY(source_entity_id) REFERENCES code_entities (id)
 )"""))
     op.execute(sa.text("""CREATE INDEX ix_code_relations_target_name ON code_relations (target_name)"""))
-    op.execute(sa.text("""ALTER TABLE code_relations ADD FOREIGN KEY(target_entity_id) REFERENCES code_entities (id)"""))
-    op.execute(sa.text("""ALTER TABLE code_relations ADD FOREIGN KEY(source_entity_id) REFERENCES code_entities (id)"""))
+    add_foreign_key_if_supported("""ALTER TABLE code_relations ADD FOREIGN KEY(target_entity_id) REFERENCES code_entities (id)""")
+    add_foreign_key_if_supported("""ALTER TABLE code_relations ADD FOREIGN KEY(source_entity_id) REFERENCES code_entities (id)""")
 
 def downgrade() -> None:
     op.execute(sa.text("DROP TABLE IF EXISTS code_relations CASCADE"))

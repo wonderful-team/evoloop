@@ -2,6 +2,8 @@
 
 from datetime import datetime
 
+from pydantic import Field
+
 from app.api.schemas.responses import BaseAPIResponse, ListResponse
 from app.core.engine.message.schemas import MessageBlock
 from app.infrastructure.pydantic_base import DynamicBaseModel
@@ -74,6 +76,7 @@ class RewindResponse(BaseAPIResponse):
     thread_id: str
     removed_count: int = 0
     files_reverted: int = 0
+    errors: list[str] = Field(default_factory=list)
 
 
 class ConversationDeleteResponse(BaseAPIResponse):

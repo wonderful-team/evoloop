@@ -12,6 +12,7 @@
     "preview": "vite preview",
     "generate-client": "cd ../backend/ && bin/evo export openapi && cd ../frontend/ && openapi-ts",
     "tauri": "tauri",
+    "build:desktop": "PATH=\"/usr/bin:/bin:$PATH\" tauri build && node scripts/fix-dmg-arch.mjs",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",

@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 async def plan(
     action: Literal["create", "update_step", "status"] = "create",
     title: str | None = None,
-    steps: list[str] | None = None,
+    steps: list[str | dict] | None = None,
     task_id: str | None = None,
     plan_id: str | None = None,
     step_id: str | None = None,
@@ -68,12 +68,32 @@ async def plan(
     """
     thread_id = config.get("configurable", {}).get("thread_id") if config else None
 
+    def _normalize_step(step: str | dict) -> tuple[str, str | None]:
+        if isinstance(step, str):
+            title = step.strip()
+            if not title:
+                raise ValueError("steps 中存在空步骤")
+            return title, None
+        if not isinstance(step, dict):
+            raise ValueError("steps 只支持字符串或对象")
+        title = str(step.get("title") or step.get("name") or "").strip()
+        if not title:
+            raise ValueError("steps 对象缺少 title")
+        description = step.get("description") or step.get("detail") or None
+        if description is not None:
+            description = str(description).strip() or None
+        return title[:255], description
+
     async with session_scope() as session:
         if action == "create":
             if not thread_id:
                 return json.dumps({"error": "Missing thread_id in config"})
             if not title or not steps:
                 return "Error: create 需要 title 和 steps。"
+            try:
+                normalized_steps = [_normalize_step(step) for step in steps]
+            except ValueError as exc:
+                return f"Error: {exc}"
             stmt = select(DBPlan).where(DBPlan.thread_id == thread_id)
             existing = (await session.execute(stmt)).scalar_one_or_none()
             if existing:
@@ -97,7 +117,7 @@ async def plan(
                     )
                 )
             db_steps = []
-            for idx, step_title in enumerate(steps):
+            for idx, (step_title, step_description) in enumerate(normalized_steps):
                 step_id = gen_uuid()
                 step_status = (
                     PlanStepStatus.IN_PROGRESS.value
@@ -109,6 +129,7 @@ async def plan(
                         id=step_id,
                         plan_id=plan_id,
                         title=step_title,
+                        description=step_description,
                         status=step_status,
                         order=idx,
                     )

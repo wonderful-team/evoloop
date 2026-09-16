@@ -56,8 +56,11 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         chatState.fetchHistory(threadId)
         chatState.fetchActivity(threadId)
 
-        // run_end 可能在断线期间丢失（后端重启/崩溃）——重连后短暂观察：
-        // 仍处于 running 且列表里没有 streaming 行 → 复位 idle，避免 typing 永转
+        // run_end 可能在断线期间丢失（后端重启/崩溃）——重连后短暂观察。
+        // 裁决依据 = 活动快照（AgentActivity，后端真实运行状态），而非
+        // "消息流里有没有 streaming 行"的启发式：LLM 长思考期本来就没有
+        // streaming 行，曾致 running 被误判 idle → 停止按钮消失、无法主动
+        // 停止（快照 running 则保持 running，不误杀）。
         const st = get().status
         if (st === "running" || st === "summarizing") {
           setTimeout(async () => {
@@ -66,6 +69,9 @@ export const useAgentStore = create<AgentState>((set, get) => ({
             const cur = useChatStore.getState()
             if (!cur.threadId) return
             await cur.fetchHistory(cur.threadId)
+            await cur.fetchActivity(cur.threadId) // _setActivitySnapshot 以后端真实状态归一化并裁决
+            const stillRunning =
+              get().status === "running" || get().status === "summarizing"
             const stillStreaming = useChatStore
               .getState()
               .messages.some(
@@ -74,7 +80,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                   m.status === "running" ||
                   m.status === "pending",
               )
-            if (!stillStreaming) {
+            if (!stillRunning && !stillStreaming) {
               set({ status: "idle" })
               toast.info(i18n.t("chat.errors.reconnectedIdle"))
             }

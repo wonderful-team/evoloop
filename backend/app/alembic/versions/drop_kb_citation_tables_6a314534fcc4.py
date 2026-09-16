@@ -17,9 +17,10 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.execute("DROP TABLE IF EXISTS citations CASCADE")
-    op.execute("DROP TABLE IF EXISTS doc_stats CASCADE")
-    op.execute("DROP TABLE IF EXISTS session_docs CASCADE")
+    cascade = " CASCADE" if op.get_bind().dialect.name == "postgresql" else ""
+    op.execute(f"DROP TABLE IF EXISTS citations{cascade}")
+    op.execute(f"DROP TABLE IF EXISTS doc_stats{cascade}")
+    op.execute(f"DROP TABLE IF EXISTS session_docs{cascade}")
 
 
 def downgrade() -> None:

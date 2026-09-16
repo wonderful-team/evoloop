@@ -43,7 +43,14 @@ export function useChatMutations({
         .optimisticTruncate(messageId || "", true)
       return { snapshot }
     },
-    onSuccess: (data: any, _variables: any) => {
+    onSuccess: (data: any, _variables: any, context: any) => {
+      if (data.status !== "rewound") {
+        if (context?.snapshot) {
+          useChatStore.getState().restoreSnapshot(context.snapshot)
+        }
+        toast.error(t("chat.errors.rewindFailed"))
+        return
+      }
       if (activeThreadId) {
         useChangesetStore.getState().fetchChangeset(activeThreadId)
       }

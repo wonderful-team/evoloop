@@ -1,7 +1,9 @@
 """Activity state service — manages agent activity state persistence."""
 
+import asyncio
 import json
 import logging
+import threading
 import time
 from datetime import timezone
 from typing import Any
@@ -18,7 +20,9 @@ from app.models.subagent import SubagentRun
 logger = logging.getLogger(__name__)
 
 _CANCELLATION_CACHE: dict[str, tuple[bool, float]] = {}
-_CANCELLATION_CACHE_TTL_SECONDS = 0.5
+_CANCELLATION_CACHE_TTL_SECONDS = 2.0
+_CANCELLATION_CACHE_LOCK = threading.Lock()
+_CANCELLATION_LOCKS: dict[tuple[int, str], asyncio.Lock] = {}
 
 
 class ActivityArtifact(DynamicBaseModel):
@@ -103,8 +107,9 @@ class ActivityStateService:
         activity.human_request_json = None
         activity.final_outcome = ""
         # 新 run 开始时清空可能的旧取消缓存，避免下一轮 run_scope 读取到 stale 的
-        # _CANCELLATION_CACHE（TTL 0.5s 内上一 run 的 check_cancellation 结果）。
-        _CANCELLATION_CACHE.pop(thread_id, None)
+        # _CANCELLATION_CACHE（TTL 2s 内上一 run 的 check_cancellation 结果）。
+        with _CANCELLATION_CACHE_LOCK:
+            _CANCELLATION_CACHE.pop(thread_id, None)
         return True
 
     async def end_run(
@@ -336,13 +341,15 @@ class ActivityStateService:
             if activity is None:
                 return False
             activity.status = ActivityStatus.STOPPING
-        _CANCELLATION_CACHE.pop(thread_id, None)
+        with _CANCELLATION_CACHE_LOCK:
+            _CANCELLATION_CACHE.pop(thread_id, None)
         return True
 
     async def check_cancellation(self, thread_id: str, session=None) -> bool:
         """Check if run is marked for stopping."""
         now = time.time()
-        cached = _CANCELLATION_CACHE.get(thread_id)
+        with _CANCELLATION_CACHE_LOCK:
+            cached = _CANCELLATION_CACHE.get(thread_id)
         if cached is not None:
             is_cancelled, expires_at = cached
             if now < expires_at:
@@ -351,8 +358,22 @@ class ActivityStateService:
         if session:
             return await self._check_cancellation_with_session(thread_id, now, session)
 
-        async with self._get_session_scope()() as s:
-            return await self._check_cancellation_with_session(thread_id, now, s)
+        loop_id = id(asyncio.get_running_loop())
+        lock_key = (loop_id, thread_id)
+        with _CANCELLATION_CACHE_LOCK:
+            lock = _CANCELLATION_LOCKS.setdefault(lock_key, asyncio.Lock())
+        async with lock:
+            now = time.time()
+            with _CANCELLATION_CACHE_LOCK:
+                cached = _CANCELLATION_CACHE.get(thread_id)
+            if cached is not None:
+                is_cancelled, expires_at = cached
+                if now < expires_at:
+                    return is_cancelled
+            async with self._get_session_scope()() as session:
+                return await self._check_cancellation_with_session(
+                    thread_id, now, session
+                )
 
     async def _check_cancellation_with_session(
         self, thread_id: str, now: float, session
@@ -362,10 +383,11 @@ class ActivityStateService:
         )
         status = result.scalar_one_or_none()
         is_cancelled = status == ActivityStatus.STOPPING
-        _CANCELLATION_CACHE[thread_id] = (
-            is_cancelled,
-            now + _CANCELLATION_CACHE_TTL_SECONDS,
-        )
+        with _CANCELLATION_CACHE_LOCK:
+            _CANCELLATION_CACHE[thread_id] = (
+                is_cancelled,
+                now + _CANCELLATION_CACHE_TTL_SECONDS,
+            )
         return is_cancelled
 
     async def set_human_request(self, thread_id: str, request_data: dict) -> bool:

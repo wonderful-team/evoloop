@@ -1531,6 +1531,7 @@ export type RewindResponse = {
     thread_id: string;
     removed_count?: number;
     files_reverted?: number;
+    errors?: Array<(string)>;
     [key: string]: unknown | boolean | string | number;
 };
 
