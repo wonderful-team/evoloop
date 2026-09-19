@@ -4,7 +4,7 @@ from fastapi import APIRouter
 from sqlalchemy import select
 
 from app.api.schemas.planning import PlanDataResponse, PlanResponse, PlanStepResponse
-from app.domain.planning.constants import PlanStatus, PlanStepStatus
+from app.domain.planning.constants import PlanStepStatus
 from app.infrastructure.database import session_scope
 from app.models.planning import Plan, PlanStep
 
@@ -21,9 +21,11 @@ async def get_plan(thread_id: str):
     """
     try:
         async with session_scope() as session:
-            # 1. Fetch Active Plan
+            # 1. Fetch the latest plan. Workflow plans intentionally become
+            # completed when their task reaches a terminal state; those plans
+            # must remain observable in the duty workbench.
             stmt = select(Plan).where(
-                Plan.thread_id == thread_id, Plan.status == PlanStatus.ACTIVE.value
+                Plan.thread_id == thread_id
             )
             res = await session.execute(stmt)
             db_plan = res.scalars().first()

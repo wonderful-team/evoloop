@@ -10,10 +10,7 @@ import { Input } from "@evoloop/shared/components/ui/input"
 import { Textarea } from "@evoloop/shared/components/ui/textarea"
 import { createFileRoute, useParams } from "@tanstack/react-router"
 import {
-  Activity,
   AlertCircle,
-  CheckCircle2,
-  Clock,
   Edit,
   FileText,
   Folder,
@@ -30,10 +27,8 @@ import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import {
-  ProjectModulesService,
   ProjectProfilesService,
   ProjectsService,
-  TasksService,
 } from "@/client/sdk.gen"
 import { MarkdownRenderer } from "@/components/Common/MarkdownRenderer"
 import { ProjectAnalysisDialog } from "@/components/Projects/Modules/Overview/ProjectAnalysisDialog"
@@ -44,22 +39,6 @@ interface ProfileData {
   exists: boolean
   name: string | null
   url: string | null
-}
-
-interface ProjectStats {
-  total_tasks: number
-  completed_tasks: number
-  active_tasks: number
-  pending_tasks: number
-  members_count: number
-}
-
-interface RecentTask {
-  task_id: number
-  task_title: string
-  status: number
-  priority: number
-  update_time_format: string
 }
 
 function ProjectProfile() {
@@ -77,9 +56,6 @@ function ProjectProfile() {
   const [editUrl, setEditUrl] = useState("")
   const [isSaving, setIsSaving] = useState(false)
 
-  // Overview state
-  const [stats, setStats] = useState<ProjectStats | null>(null)
-  const [recentTasks, setRecentTasks] = useState<RecentTask[]>([])
   const [generationItems, setGenerationItems] = useState<
     Array<{ item: string; status: string }>
   >([])
@@ -109,23 +85,6 @@ function ProjectProfile() {
       try {
         await Promise.all([
           fetchProfile(),
-          ProjectModulesService.getProjectStatistics({
-            projectId: parseInt(projectId, 10),
-          })
-            .then((res: any) => {
-              if (res.code === 0) setStats(res.data)
-            })
-            .catch(() => {}),
-          TasksService.getProjectTasks({
-            projectId: parseInt(projectId, 10),
-            page: 1,
-            pageSize: 5,
-            status: 1,
-          })
-            .then((res: any) => {
-              if (res.code === 0) setRecentTasks(res.data.list || [])
-            })
-            .catch(() => {}),
           ProjectsService.listGenerationStatusEndpoint({
             projectId: Number(projectId),
           })
@@ -259,45 +218,6 @@ function ProjectProfile() {
             </>
           )}
         </div>
-      </div>
-
-      {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              {t("projects.stats.totalTasks")}
-            </CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats?.total_tasks || 0}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              {t("projects.stats.completed")}
-            </CardTitle>
-            <CheckCircle2 className="h-4 w-4 text-green-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {stats?.completed_tasks || 0}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              {t("projects.stats.inProgress")}
-            </CardTitle>
-            <Clock className="h-4 w-4 text-blue-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats?.active_tasks || 0}</div>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Project Info (only when profile exists or editing) */}
@@ -435,41 +355,6 @@ function ProjectProfile() {
               onChange={(e) => setEditContent(e.target.value)}
               placeholder={t("projects.profile.editPlaceholder")}
             />
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Recent Activity */}
-      {recentTasks.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>{t("projects.overview.recentActivity")}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {recentTasks.map((task) => (
-                <div
-                  key={task.task_id}
-                  className="flex items-center justify-between border-b last:border-0 pb-2 last:pb-0"
-                >
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium leading-none">
-                      {task.task_title}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {task.update_time_format}
-                    </p>
-                  </div>
-                  <Badge variant={task.status === 2 ? "default" : "secondary"}>
-                    {task.status === 2
-                      ? t("projects.tasks.statusLabel.inProgress")
-                      : task.status === 3
-                        ? t("projects.tasks.statusLabel.completed")
-                        : t("projects.tasks.statusLabel.pending")}
-                  </Badge>
-                </div>
-              ))}
-            </div>
           </CardContent>
         </Card>
       )}

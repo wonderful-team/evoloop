@@ -1,4 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
+import { motion } from "framer-motion"
+import { PauseCircle } from "lucide-react"
 import { CheckCircle2, Circle, Loader2, Play } from "lucide-react"
 
 import { PlanningService } from "@/client"
@@ -7,7 +9,13 @@ import { DEMO } from "@/components/Duty/demoData"
 import { getDemoPlan } from "@/components/Duty/demoRuntime"
 
 /** Current plan steps for the selected task's thread (1:1 with the task). */
-export function PlanPanel({ task }: { task: QueueTask }) {
+export function PlanPanel({
+  task,
+  suspended = false,
+}: {
+  task: QueueTask
+  suspended?: boolean
+}) {
   const threadId = task.last_thread_id
 
   const { data, isLoading } = useQuery({
@@ -17,7 +25,6 @@ export function PlanPanel({ task }: { task: QueueTask }) {
         ? (getDemoPlan(threadId) as unknown as Awaited<ReturnType<typeof PlanningService.getPlan>>)
         : await PlanningService.getPlan({ threadId: threadId as string }),
     enabled: DEMO || !!threadId,
-    refetchInterval: 5000,
   })
 
   if (!threadId) {
@@ -57,19 +64,24 @@ export function PlanPanel({ task }: { task: QueueTask }) {
         <span className="text-muted-foreground">
           {done}/{steps.length}
         </span>
-        <div className="flex-1 h-1.5 rounded bg-muted overflow-hidden">
-          <div
-            className="h-full bg-primary rounded transition-all"
-            style={{ width: `${steps.length ? (done / steps.length) * 100 : 0}%` }}
-          />
-        </div>
       </div>
       {steps.map((s) => (
-        <div key={s.id} className="flex items-start gap-2 text-xs">
+        <motion.div
+          key={s.id}
+          layout
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.2 }}
+          className="flex items-start gap-2 text-xs"
+        >
           {s.status === "completed" ? (
             <CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0 mt-0.5" />
           ) : s.status === "in_progress" ? (
-            <Loader2 className="h-3.5 w-3.5 text-primary animate-spin shrink-0 mt-0.5" />
+            suspended ? (
+              <PauseCircle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
+            ) : (
+              <Loader2 className="h-3.5 w-3.5 text-primary animate-spin shrink-0 mt-0.5" />
+            )
           ) : (
             <Circle className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0 mt-0.5" />
           )}
@@ -78,10 +90,12 @@ export function PlanPanel({ task }: { task: QueueTask }) {
               {s.title}
             </div>
             {s.status === "completed" && s.result && (
-              <div className="text-muted-foreground truncate">{s.result}</div>
+              <div className="text-muted-foreground truncate text-[11px]">
+                {s.result.slice(0, 60)}
+              </div>
             )}
           </div>
-        </div>
+        </motion.div>
       ))}
     </div>
   )
@@ -97,7 +111,6 @@ export function PlanProgressInline({ task }: { task: QueueTask }) {
         ? (getDemoPlan(threadId) as unknown as Awaited<ReturnType<typeof PlanningService.getPlan>>)
         : await PlanningService.getPlan({ threadId: threadId as string }),
     enabled: DEMO || !!threadId,
-    refetchInterval: 5000,
   })
   const body = data as unknown as {
     plan?: { steps?: { status: string }[] }

@@ -42,3 +42,12 @@ class ContextMetadata(DynamicBaseModel):
     # 包面脏标记：skill 激活后置位，inference 循环检测到即重算工具面并
     # rebind（同 run 内立即可用，不必等下一次 delivery）
     packages_dirty: bool = Field(default=False)
+
+    # 会话域（包反哺，自动识别）：skill 激活包时若 intent_hint 无域，记包的
+    # capability.domain；thread 级持久。解析优先级：intent_hint.domain（
+    # host_declared > classified）> session_domain（包反哺）。
+    session_domain: str | None = None
+
+    # 会话已执行的原生工具名（append-only 去重，capped）：工具面按域收窄时的
+    # 保险下限——本会话用过的工具不因域切换被裁掉，面只单调变化（缓存友好）。
+    used_native_tools: list[str] = Field(default_factory=list)

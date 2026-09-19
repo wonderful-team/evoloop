@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import time
@@ -37,6 +38,15 @@ async def lifespan(app: FastAPI):  # noqa: ARG001
     logger.info("Initializing EvoLoop resources...")
 
     await db_resource_manager.initialize(create_tables=True)
+
+    # Pool self-heal watchdog: rebuild the async pool if connections stay
+    # checked out at the ceiling (client-abort cancellation races can strand
+    # fairies in paths the shielded session close does not reach).
+    from app.infrastructure.database.resource_manager import (
+        db_resource_manager as _drm_for_watchdog,
+    )
+
+    _pool_watchdog_task = asyncio.create_task(_drm_for_watchdog.run_pool_watchdog())
 
     # Restore persisted SharedState (active project_id) so voice / duty chains
     # get the correct project context even after a backend restart.

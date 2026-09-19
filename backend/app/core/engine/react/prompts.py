@@ -24,7 +24,9 @@ logger = logging.getLogger(__name__)
 # 域裁剪（v3.1）：截断前按 相关性重排——已加载 > 已预挂 > 当前域包 > 其余
 # （稳定排序），通用技能增长不再挤掉域内包（v3 曾实测 mall-orders 被
 # 硬截断导致预挂标记丢失，当时只能靠抬上限到 40 缓解）。
-MAX_SKILLS = 40
+# 2026-09-18 调优：域排序已兜底关键包，40 → 20 收窄索引体积（超限条目
+# 有「另有 N 项」尾注 + skill(name) 按需加载提示，能力不丢失只省 token）。
+MAX_SKILLS = 20
 MAX_MACROS = 20
 MAX_MCP = 10
 MAX_AGENTS = 10
@@ -144,11 +146,7 @@ def _capability_index(ctx: Any, domain_pkgs: set[str] | None = None) -> str:
 
     macros = metadata.get("active_macros") or metadata.get("active_macros_index")
     if macros:
-        macro_lines = [
-            m.strip().lstrip("- ").strip()
-            for m in str(macros).splitlines()
-            if m.strip()
-        ][:MAX_MACROS]
+        macro_lines = _format_macro_lines(macros)[:MAX_MACROS]
         parts.append(
             "<available_macros>\n"
             + "\n".join(f"- {m}" for m in macro_lines)
@@ -162,20 +160,42 @@ def _capability_index(ctx: Any, domain_pkgs: set[str] | None = None) -> str:
     return "\n\n".join(parts) if parts else "（当前无按需加载的能力索引）"
 
 
+def _format_macro_lines(macros: Any) -> list[str]:
+    """宏索引行渲染：结构化索引（lifecycle.list_active_macro_index 返回
+    list[dict]）逐行格式化；此前 str(list) 直接把 Python repr（含 id/entity/
+    risk_tier 的整段 dict）注入 prompt，token 浪费且模型难读。"""
+    if isinstance(macros, list):
+        lines = []
+        for m in macros:
+            if isinstance(m, dict):
+                name = m.get("name")
+                desc = str(m.get("description") or "").replace("\n", " ")
+            else:
+                name = getattr(m, "name", None)
+                desc = str(getattr(m, "description", "") or "").replace("\n", " ")
+            if not name:
+                continue
+            lines.append(f"{name}: {desc}" if desc else str(name))
+        if lines:
+            return lines
+    # legacy 字符串形态（dict/getattr 兼容路径）
+    return [
+        s.strip().lstrip("- ").strip()
+        for s in str(macros).splitlines()
+        if s.strip()
+    ]
+
+
 async def _capability_index_async(ctx: Any) -> str:
     """异步版本：在 skills/macros/mcp 索引基础上追加 <available_agents>（A2A 远端设备）。"""
     parts = []
-    # 域裁剪：取当前域的包名集合（discovery 内存索引 O(1)），供截断排序加权
+    # 域裁剪：取当前会话域的包名集合（discovery 内存索引 O(1)），供截断排序加权
     domain_pkgs: set[str] | None = None
     try:
+        from app.core.engine.capability_profiles import session_domain_of
         from app.core.learning.skills.discovery import skill_discovery
 
-        hint = (ctx.metadata or {}).get("intent_hint") or {}
-        domain = (
-            hint.get("domain")
-            if isinstance(hint, dict)
-            else getattr(hint, "domain", None)
-        )
+        domain = session_domain_of(ctx)
         if domain:
             domain_pkgs = {
                 p.name for p in await skill_discovery.get_packages_for_domain(domain)
@@ -275,24 +295,33 @@ async def build_system_prompt(state: Any, config: dict[str, Any]) -> str:
 
     main = render_prompt("core/agent/main.txt", placeholders)
 
-    # 域专属规则段（capability profile 声明；project: 前缀 = 项目工作区文件，
-    # 域内容归项目侧，引擎保持通用）
+    # 域专属规则段（capability profile 声明；project: 前缀 = profile 所属
+    # 项目工作区文件，域内容归项目侧，引擎保持通用）。含包归属项目回退：
+    # 包是 DB 全局资源，profile 跟随包源项目解析（capability_profiles.resolve_profile）。
     try:
-        from app.core.engine.capability_profiles import get_profile
+        from app.core.engine.capability_profiles import (
+            hint_domain_of,
+            resolve_profile_candidates,
+        )
 
         hint = (config or {}).get("metadata", {}).get("intent_hint") or {}
         domain = hint.get("domain") if isinstance(hint, dict) else getattr(hint, "domain", None)
+        if not domain:
+            domain = hint_domain_of(ctx)
         wd = ctx.working_directory or ""
-        profile = get_profile(domain, wd)
-        for fragment in profile.prompt_fragments or []:
-            if fragment.startswith("project:"):
-                frag_path = Path(wd) / fragment[len("project:"):]
-                if wd and frag_path.is_file():
-                    main += "\n\n" + frag_path.read_text(encoding="utf-8").strip()
-                else:
-                    logger.warning(f"[ReactPrompt] project fragment missing: {frag_path}")
-            elif prompt_exists(fragment):
-                main += "\n\n" + render_prompt(fragment)
+        resolved = await resolve_profile_candidates(ctx, hint_domain=domain)
+        if resolved is not None:
+            profile, home_wd = resolved
+            for fragment in profile.prompt_fragments or []:
+                if fragment.startswith("project:"):
+                    base = home_wd or wd
+                    frag_path = Path(base) / fragment[len("project:"):] if base else Path(fragment[len("project:"):])
+                    if base and frag_path.is_file():
+                        main += "\n\n" + frag_path.read_text(encoding="utf-8").strip()
+                    else:
+                        logger.warning(f"[ReactPrompt] project fragment missing: {frag_path}")
+                elif prompt_exists(fragment):
+                    main += "\n\n" + render_prompt(fragment)
     except Exception as e:
         logger.warning(f"[ReactPrompt] domain fragments skipped: {e}")
 

@@ -10,12 +10,21 @@ from app.utils.json import dumps
 class ContextFilter(logging.Filter):
     """
     Inject context variables into the log record.
+
+    防御性实现（2026-09-19 测试污染事故 + 生产等价风险）：日志 filter 绝不
+    向调用方抛异常——ctx 可能是测试替身/无 thread_id 的局部对象；filter 崩溃
+    会把无关的日志行变成业务调用失败（实测炸穿 tool wrapper → 9 个无辜测试 FAILED）。
     """
 
     def filter(self, record):
-        ctx = ContextManager.current()
-        record.thread_id = ctx.thread_id or "-"
-        record.project_id = ctx.project_id if ctx.project_id is not None else "-"
+        try:
+            ctx = ContextManager.current()
+            record.thread_id = getattr(ctx, "thread_id", None) or "-"
+            project_id = getattr(ctx, "project_id", None)
+            record.project_id = project_id if project_id is not None else "-"
+        except Exception:
+            record.thread_id = "-"
+            record.project_id = "-"
         return True
 
 

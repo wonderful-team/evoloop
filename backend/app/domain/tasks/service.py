@@ -18,7 +18,10 @@ from app.domain.tasks.constants import (
     QUEUE_TRANSITIONS,
     REQUEUE_LIMIT,
     RESULT_MAX,
+    WORKFLOW_RETRY_DELAY_SECONDS,
+    WORKFLOW_RETRY_LIMIT,
 )
+from app.domain.tasks.events import publish_task_queue_event
 from app.domain.tasks.runtime.wakeup import notify_duty_wakeup
 from app.infrastructure.database.sql.database import session_scope
 from app.models.project import ProjectTask
@@ -33,6 +36,9 @@ def _dispatch_order_key(t: ProjectTask):
     td = t.task_data or {}
     prio = PRIORITY_ORDER.get(str(td.get("priority")), 2)
     due = t.due_at or t.next_run_at
+    if due is not None and due.tzinfo is None:
+        # sqlite 常回 naive UTC；统一挂上 UTC 与 aware 值比较
+        due = due.replace(tzinfo=timezone.utc)
     return (prio, due or _now(), str(td.get("category") or ""))
 class TaskQueueError(Exception):
     pass
@@ -177,6 +183,7 @@ class TaskQueueService:
             session.add(task)
             await session.flush()
         notify_duty_wakeup()
+        await publish_task_queue_event(task, event="task_created")
         return task
 
     @staticmethod
@@ -259,7 +266,10 @@ class TaskQueueService:
                 raise TaskQueueError(
                     f"task {task_id} is not claimable (not pending or already taken)"
                 )
-        return await TaskQueueService.get_task(task_id)  # type: ignore[return-value]
+        task = await TaskQueueService.get_task(task_id)
+        assert task is not None
+        await publish_task_queue_event(task, event="task_taken")
+        return task
 
     @staticmethod
     async def advance_task(
@@ -322,6 +332,11 @@ class TaskQueueService:
             notify_duty_wakeup()
         updated = await TaskQueueService.get_task(task_id)
         assert updated is not None
+        await publish_task_queue_event(
+            updated,
+            event="task_advanced",
+            extra={"requested_status": status, "effective_status": effective},
+        )
         return updated
 
     @staticmethod
@@ -353,7 +368,14 @@ class TaskQueueService:
             )
         if verdict == "rejected":
             notify_duty_wakeup()
-        return await TaskQueueService.get_task(task_id)  # type: ignore[return-value]
+        updated = await TaskQueueService.get_task(task_id)
+        assert updated is not None
+        await publish_task_queue_event(
+            updated,
+            event="task_accepted" if verdict == "accepted" else "task_rejected",
+            extra={"by": by, "feedback": feedback},
+        )
+        return updated
 
     @staticmethod
     async def resolve_member_id(task: ProjectTask) -> int:
@@ -391,6 +413,14 @@ class TaskQueueService:
         from app.models.conversation import AgentActivity
         from app.utils.time import utcnow
 
+        activity_filter: list[Any] = []
+        if project_id is not None:
+            project_thread_ids = select(ProjectTask.last_thread_id).where(
+                ProjectTask.project_id == project_id,
+                ProjectTask.last_thread_id.isnot(None),
+            )
+            activity_filter = [AgentActivity.thread_id.in_(project_thread_ids)]
+
         counts: dict[str, int] = {}
         async with session_scope() as session:
             stmt = select(ProjectTask.status, func.count(ProjectTask.id)).group_by(
@@ -403,6 +433,9 @@ class TaskQueueService:
                 counts[st] = int(n)
 
         # duty state: busy if any task in_progress; error if failed in last 24h
+        from app.core.channel.duty.config import load_global_duty_config
+
+        duty_enabled = bool(load_global_duty_config().get("enabled"))
         duty_state = "idle"
         if counts.get("in_progress", 0) > 0:
             duty_state = "busy"
@@ -434,7 +467,10 @@ class TaskQueueService:
                 func.coalesce(func.sum(AgentActivity.input_tokens), 0),
                 func.coalesce(func.sum(AgentActivity.output_tokens), 0),
                 func.coalesce(func.sum(AgentActivity.llm_calls), 0),
-            ).where(AgentActivity.updated_at >= week_start)
+            ).where(
+                AgentActivity.updated_at >= week_start,
+                *activity_filter,
+            )
             res = await session.execute(
                 base.where(AgentActivity.updated_at >= day_start)
             )
@@ -448,15 +484,23 @@ class TaskQueueService:
                 select(
                     func.min(AgentActivity.updated_at),
                     func.max(AgentActivity.updated_at),
-                ).where(AgentActivity.updated_at >= day_start)
+                ).where(
+                    AgentActivity.updated_at >= day_start,
+                    *activity_filter,
+                )
             )
             w = win.one()
             today_window = {
                 "since": w[0].isoformat() if w[0] else None,
                 "until": w[1].isoformat() if w[1] else None,
             }
+            fresh_cutoff = utcnow() - timedelta(hours=2)
             running = await session.execute(
-                select(AgentActivity).where(AgentActivity.status == "running")
+                select(AgentActivity).where(
+                    AgentActivity.status == "running",
+                    AgentActivity.updated_at >= fresh_cutoff,
+                    *activity_filter,
+                )
             )
             act = running.scalars().first()
             if act:
@@ -481,6 +525,7 @@ class TaskQueueService:
                     func.coalesce(func.sum(AgentActivity.output_tokens), 0),
                 )
                 .where(AgentActivity.updated_at >= week_ago)
+                .where(*activity_filter)
                 .group_by(func.date(AgentActivity.updated_at))
             )
             tok_map = {
@@ -495,6 +540,11 @@ class TaskQueueService:
                 .where(
                     ProjectTask.status == "completed",
                     ProjectTask.updated_at >= week_ago,
+                    *(
+                        [ProjectTask.project_id == project_id]
+                        if project_id is not None
+                        else []
+                    ),
                 )
                 .group_by(func.date(ProjectTask.updated_at))
             )
@@ -548,6 +598,11 @@ class TaskQueueService:
                     select(ProjectTask).where(
                         ProjectTask.status == "in_progress",
                         ProjectTask.last_thread_id.isnot(None),
+                        *(
+                            [ProjectTask.project_id == project_id]
+                            if project_id is not None
+                            else []
+                        ),
                     )
                 )
             ).scalars().all()
@@ -585,6 +640,7 @@ class TaskQueueService:
         return DashboardPayload(
             counts=counts,
             duty_state=duty_state,
+            duty_enabled=duty_enabled,
             tokens={"today": today_tokens, "week": week_tokens},
             today_window=today_window,
             current_run=current_run,
@@ -627,6 +683,28 @@ class TaskQueueService:
         return await TaskQueueService.get_task(task_id)
 
     @staticmethod
+    async def requeue_workflow_task(task_id: str, reason: str) -> ProjectTask | None:
+        """Requeue a failed workflow stage until its retry budget is exhausted."""
+        task = await TaskQueueService.get_task(task_id)
+        if task is None or task.status != "in_progress":
+            return None
+        task_data = dict(task.task_data or {})
+        retry_count = int(task_data.get("workflow_retry_count") or 0) + 1
+        task_data["workflow_retry_count"] = retry_count
+        task_data["last_error"] = reason[:RESULT_MAX]
+        task_data["last_result"] = f"retry {retry_count}: {reason}"[:RESULT_MAX]
+        target = "failed" if retry_count > WORKFLOW_RETRY_LIMIT else "pending"
+        values: dict[str, Any] = {"task_data": task_data, "status": target}
+        if target == "pending":
+            values["due_at"] = utcnow() + timedelta(seconds=WORKFLOW_RETRY_DELAY_SECONDS)
+        async with session_scope() as session:
+            await session.execute(
+                update(ProjectTask).where(ProjectTask.id == task_id).values(**values)
+            )
+        notify_duty_wakeup()
+        return await TaskQueueService.get_task(task_id)
+
+    @staticmethod
     async def claim_due_tasks(now: datetime | None = None) -> list[ProjectTask]:
         """Scan due tasks for dispatch, ordered by priority → due → category.
 
@@ -659,6 +737,26 @@ class TaskQueueService:
                     from app.infrastructure.scheduler.service import SchedulerService
 
                     t.next_run_at = SchedulerService.calculate_next_run(t.trigger_spec, now)
+
+            ready_rows: list[ProjectTask] = []
+            for task in rows:
+                task_data = task.task_data or {}
+                dependencies = task_data.get("dependencies")
+                if not task_data.get("workflow_id") or not dependencies:
+                    ready_rows.append(task)
+                    continue
+                dependency_result = await session.execute(
+                    select(ProjectTask.id, ProjectTask.status).where(
+                        ProjectTask.id.in_(dependencies)
+                    )
+                )
+                dependency_statuses = dict(dependency_result.all())
+                if len(dependency_statuses) != len(set(dependencies)):
+                    continue
+                if any(status != "completed" for status in dependency_statuses.values()):
+                    continue
+                ready_rows.append(task)
+            rows = ready_rows
 
         # 值守开关接管（分闸，opt-in）：仅 customer_service_duty.enabled=true
         # 的项目派发；false/未配置/无本地路径均不派发（任务保持 pending，
@@ -697,7 +795,10 @@ class TaskQueueService:
         priority: str | None = None,
         risk_level: str | None = None,
         task_type: str | None = None,
+        due_at: datetime | None = None,
+        clear_due_at: bool = False,
         trigger_spec: str | None = None,
+        clear_trigger_spec: bool = False,
         cancel: bool = False,
     ) -> ProjectTask:
         """User-facing edit: field updates + optional cancel.
@@ -726,9 +827,24 @@ class TaskQueueService:
             updates["risk_level"] = risk_level
         if task_type is not None:
             updates["type"] = task_type
+        if due_at is not None:
+            if due_at <= _now():
+                raise TaskQueueError("due_at must be in the future")
+            updates["due_at"] = due_at
+        elif clear_due_at:
+            updates["due_at"] = None
         if trigger_spec is not None:
             updates["trigger_spec"] = trigger_spec
             updates["type"] = "recurring"
+            from app.infrastructure.scheduler.service import SchedulerService
+
+            updates["next_run_at"] = SchedulerService.calculate_next_run(
+                trigger_spec, _now()
+            )
+        elif clear_trigger_spec:
+            updates["trigger_spec"] = None
+            updates["next_run_at"] = None
+            updates["type"] = task_type or "once"
 
         if not updates:
             raise TaskQueueError("nothing to update")
@@ -739,6 +855,5 @@ class TaskQueueService:
             )
         updated = await TaskQueueService.get_task(task_id)
         assert updated is not None
+        await publish_task_queue_event(updated, event="task_updated")
         return updated
-
-

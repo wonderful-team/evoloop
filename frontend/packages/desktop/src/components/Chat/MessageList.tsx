@@ -92,6 +92,16 @@ function mergeAiMessages(msgs: Message[]): Message | null {
   }
 }
 
+function isTaskProposalMessage(msg: Message) {
+  const input = msg.input as Record<string, unknown> | undefined
+  return (
+    msg.role === "tool" &&
+    msg.tool_name === "tasks" &&
+    input?.action === "create" &&
+    input?.source === "agent"
+  )
+}
+
 const TurnStepsGroupView = memo(function TurnStepsGroupView({
   steps,
   isTurnActive,
@@ -754,7 +764,19 @@ export const MessageList = memo(function MessageList({
           item.data.role === "tool" &&
           (item.data.tool_name === "ask_human" ||
             item.data.tool_name === "ask_confirm")
-        if (!isHitlTool) {
+        const isTaskProposal = isTaskProposalMessage(item.data)
+        if (isTaskProposal) {
+          if (currentTurnSteps.length > 0) {
+            groupedItems.push({
+              type: "turn_steps_group",
+              id: `steps_group_before_task_${item.data.id}`,
+              steps: currentTurnSteps,
+              isTurnActive: false,
+            })
+            currentTurnSteps = []
+          }
+          groupedItems.push(item)
+        } else if (!isHitlTool) {
           currentTurnSteps.push(item.data)
         }
       }

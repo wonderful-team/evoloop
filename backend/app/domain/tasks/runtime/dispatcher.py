@@ -16,10 +16,54 @@ from datetime import datetime, timedelta, timezone
 from app.domain.tasks.constants import (
     WAKEUP_RUN_DEADLINE_SECONDS,
 )
+from app.domain.tasks.events import publish_workflow_event
+from app.domain.tasks.runtime.agent import AgentRuntimeError, EvoloopAgentRuntimeAdapter
 from app.domain.tasks.schemas import WakeupTask
 from app.domain.tasks.service import TaskQueueService
+from app.domain.tasks.workflows import WorkflowError, WorkflowService
 
 logger = logging.getLogger(__name__)
+
+
+async def resolve_wakeup_domain(project_id: int, instruction: str) -> tuple[str | None, str]:
+    """值守唤醒的域解析（供派发 hint）。
+
+    1. profile-first：项目工作目录恰好声明唯一域 → 直接采用（≈host 权威）；
+    2. L1 域标注兜底：与文本消息 ``skip_l0`` 路径同源组件
+       （``domain_classifier.predict``）、同置信度门槛——值守此前漏接了
+       L1（文本客服值守都走），跨项目任务（工作目录未声明域）据此首轮
+       即可按域装配。
+    3. 分不出/低置信 → ``None``：fail-open（全量面 + 包反哺兜底），无回归。
+    """
+    from app.core.engine.capability_profiles import list_domains
+    from app.core.project.utils import get_project_path
+
+    project_dir = await get_project_path(project_id)
+    domains = list_domains(project_dir) if project_dir else []
+    if len(domains) == 1:
+        return domains[0], "duty wakeup (project profile)"
+
+    if not instruction.strip():
+        return None, ""
+
+    from app.core.routing import constants as routing_constants
+    from app.core.routing import domain_classifier
+
+    label, conf = await asyncio.to_thread(domain_classifier.predict, instruction)
+    if label and conf >= routing_constants.CONFIDENCE_THRESHOLD:
+        logger.info(
+            "[DutyDispatcher] L1 domain label: '%s' (conf=%.2f, task project=%s)",
+            label,
+            conf,
+            project_id,
+        )
+        return label, "duty wakeup (L1)"
+    logger.info(
+        "[DutyDispatcher] L1 domain unresolved (label=%s conf=%.2f); full surface",
+        label,
+        conf,
+    )
+    return None, ""
 
 # ── 配额熔断（账号级）────────────────────────────────────
 # quota_exhausted 的 run 终态后，暂停值守派发一段时间：否则串行 drain 会把
@@ -69,6 +113,55 @@ async def _run_wakeup_with_deadline(thread_id: str, inputs: dict) -> None:
         )
 
 
+async def auto_retry_failed_tasks() -> None:
+    """Give transiently-failed tasks ONE automatic requeue (10 min backoff).
+
+    Non-retryable causes (content inspection / missing model config) never
+    auto-retry — they stay failed and surface in the operator queue.
+    """
+    from app.domain.tasks.constants import (
+        FAILED_AUTO_RETRY_BUDGET,
+        FAILED_AUTO_RETRY_DELAY_SECONDS,
+        NON_RETRYABLE_ERROR_MARKERS,
+    )
+
+    rows = await TaskQueueService.list_tasks(status="failed", limit=50)
+    for t in rows:
+        td = t.task_data or {}
+        tries = int(td.get("workflow_auto_retry") or 0)
+        if tries >= FAILED_AUTO_RETRY_BUDGET:
+            continue
+        last_error = str(td.get("last_error") or "")
+        if any(marker in last_error for marker in NON_RETRYABLE_ERROR_MARKERS):
+            continue
+        td["workflow_auto_retry"] = tries + 1
+        td["last_result"] = f"auto retry {tries + 1}: {last_error[:80]}"
+        from datetime import timedelta, timezone
+
+        from app.infrastructure.database.sql.database import session_scope
+
+        async with session_scope() as session:
+            from sqlalchemy import update as sa_update
+
+            from app.models.project import ProjectTask
+
+            await session.execute(
+                sa_update(ProjectTask)
+                .where(ProjectTask.id == t.id)
+                .values(
+                    status="pending",
+                    task_data=td,
+                    due_at=datetime.now(timezone.utc)
+                    + timedelta(seconds=FAILED_AUTO_RETRY_DELAY_SECONDS),
+                )
+            )
+        logger.info(
+            "[DutyDispatcher] auto-retry failed task %s (attempt %s)",
+            t.id,
+            tries + 1,
+        )
+
+
 async def dispatch_due_tasks() -> None:
     """Drain due project_tasks: one run per task, priority → due order.
 
@@ -78,9 +171,7 @@ async def dispatch_due_tasks() -> None:
     the status machine; the drain stops when nothing new is claimable, or when
     a dispatch fails (avoid tight-loop redispatch).
     """
-    from app.core.engine.capability_profiles import list_domains
     from app.core.engine.dispatch import DispatchStatus, dispatch_agent_run
-    from app.core.project.utils import get_project_path
     from app.utils.id import unique_id
     from app.utils.template import render_template
 
@@ -103,6 +194,57 @@ async def dispatch_due_tasks() -> None:
             return
         attempted.add(t.id)
 
+        if (t.task_data or {}).get("workflow_runtime") == "evoloop":
+            try:
+                await EvoloopAgentRuntimeAdapter.run(t)
+            except (AgentRuntimeError, WorkflowError) as exc:
+                logger.exception(
+                    "[DutyDispatcher] Evoloop Agent workflow task failed: %s", t.id
+                )
+                from app.domain.tasks.constants import NON_RETRYABLE_ERROR_MARKERS
+
+                reason = str(exc)
+                if any(marker in reason for marker in NON_RETRYABLE_ERROR_MARKERS):
+                    # 确定性失败（内容审查/配置缺失）：重试不会好，直接终态
+                    logger.warning(
+                        "[DutyDispatcher] non-retryable error, failing task %s directly",
+                        t.id,
+                    )
+                    await TaskQueueService.advance_task(t.id, "failed", result=reason)
+                    workflow_id = str((t.task_data or {}).get("workflow_id") or "")
+                    if workflow_id:
+                        await WorkflowService.refresh_status(workflow_id)
+                        await publish_workflow_event(
+                            workflow_id,
+                            event="task_retry_scheduled",
+                            task_id=t.id,
+                            stage=str((t.task_data or {}).get("workflow_stage") or ""),
+                            status="failed",
+                        )
+                    continue
+                requeued_task = await TaskQueueService.requeue_workflow_task(
+                    t.id,
+                    str(exc),
+                )
+                fresh_task = requeued_task or await TaskQueueService.get_task(t.id)
+                if fresh_task is not None and fresh_task.status == "in_progress":
+                    await TaskQueueService.advance_task(
+                        t.id,
+                        "failed",
+                        result=str(exc),
+                    )
+                workflow_id = str((t.task_data or {}).get("workflow_id") or "")
+                if workflow_id:
+                    await WorkflowService.refresh_status(workflow_id)
+                    await publish_workflow_event(
+                        workflow_id,
+                        event="task_retry_scheduled",
+                        task_id=t.id,
+                        stage=str((t.task_data or {}).get("workflow_stage") or ""),
+                        status=(fresh_task.status if fresh_task else "failed"),
+                    )
+            continue
+
         project_id = t.project_id or 0
         category = str((t.task_data or {}).get("category") or "default")
         # 线程名强制 `wakeup_` 前缀：reconciler 豁免/判死、事件订阅过滤、
@@ -117,11 +259,11 @@ async def dispatch_due_tasks() -> None:
         else:
             thread_id = unique_id(f"wakeup_{project_id}_{t.id}")
 
-        # duty runs have no host page: resolve the domain from the
-        # project-declared capability profile (profile-first assembly)
-        project_dir = await get_project_path(project_id)
-        domains = list_domains(project_dir) if project_dir else []
-        domain = domains[0] if len(domains) == 1 else None
+        # duty runs have no host page: 域解析 profile-first → L1 域标注兜底
+        # （与文本消息路径同源；此前值守漏接 L1，跨项目任务首轮全量）
+        domain, hint_reason = await resolve_wakeup_domain(
+            project_id, t.description or ""
+        )
 
         prompt = render_template(
             "core/engine/tasks/task_wakeup.prompt.j2",
@@ -154,7 +296,7 @@ async def dispatch_due_tasks() -> None:
                         "intent_hint": {
                             "domain": domain,
                             "intent": "domain_classified",
-                            "reason": "duty wakeup (project profile)",
+                            "reason": hint_reason,
                         }
                     }
                     if domain

@@ -66,7 +66,7 @@ async def get_conversation_messages(
             if not include_tool_calls:
                 # 默认不向客户端暴露工具内部调用（工具参数可能含敏感信息）
                 item.tool_calls = None
-            if item.role == "tool":
+            if item.role == "tool" and not include_tool_calls:
                 item.content = ""
             final_items.append(item)
 

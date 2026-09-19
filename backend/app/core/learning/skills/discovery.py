@@ -169,6 +169,23 @@ class SkillDiscovery:
             and cap.get("domain") == domain
         ]
 
+    async def get_capability_domains(self) -> list[str]:
+        """全部能力包声明的去重域列表（内存缓存遍历，无额外 IO）。
+
+        供跨项目别名桥使用：候选标签（分类器/值守 L1 输出）不是任何包的
+        domain 时，按域分组找包归属项目并尝试别名匹配其 profile。
+        """
+        skills = await self._get_active_skills()
+        domains: list[str] = []
+        seen: set[str] = set()
+        for s in skills:
+            cap = getattr(s, "capability", None)
+            d = cap.get("domain") if isinstance(cap, dict) else None
+            if d and d not in seen:
+                seen.add(d)
+                domains.append(d)
+        return domains
+
     async def get_capability(self, name: str) -> dict | None:
         """能力包声明（capability-packages-refactor.md §6-#5）。
 

@@ -94,41 +94,68 @@ async def _activate_package_capability(resolved: dict) -> str:
             servers.append(server)
 
     notes: list[str] = []
-    all_connected = True
+    failed_servers: list[str] = []
     if servers:
         from app.core.mcp import mcp_client_manager
 
         for server_name in servers:
             connected = await mcp_client_manager.ensure_connected(server_name)
             if not connected:
-                all_connected = False
+                failed_servers.append(server_name)
             notes.append(
                 f"MCP server '{server_name}' connected: yes"
                 if connected
                 else f"MCP server '{server_name}' connected: FAILED (tools unavailable)"
             )
 
-    # 审计修复：server 连接失败时不得记账为已加载（否则 G4 按「已加载=全量」
-    # 解锁写工具，调用必然失败且无失效机制）。连接全失败时不激活。
-    if all_connected:
-        try:
-            from app.core.context import ContextManager
+    # 审计修订（2026-09-18，外部连接不可靠是常态）：记账条件从「server 全部
+    # 连接成功」改为「SOP 正文已交付」。原 all_connected 门在 server 故障时
+    # 阻止记账，导致故障恢复后工具面也不会自愈（包不在 loaded 集内，须 Agent
+    # 手动重调 skill）——把「暂时连不上」升级成了「永久搁浅」。现语义：
+    # 1. 记账 = SOP 已读（G4 前提满足），与连接状态解耦；
+    # 2. 工具可见性永远反映真实状态：server 未连接时 aget_all_tools 本就不
+    #    返回其工具，不存在「解锁了坏工具」；恢复后下一轮 get_agent_tools
+    #    自动出现（ensure_connected 每轮重试）——故障只降级可见性，不阻断任务；
+    # 3. 返回给 LLM 的降级报告给出明确行动指引，防止用 bash 绕过（安全钩子
+    #    会拦截 .evoloop/MCP 内部访问，实测会白烧轮次）。
+    try:
+        from app.core.context import ContextManager
 
-            ctx = ContextManager.current()
-            loaded = ctx.metadata.loaded_packages
-            if package_name and package_name not in loaded:
-                loaded.append(package_name)
-                # 审计修复：bind_tools 每次 delivery 只绑一次，此前激活的新
-                # 工具要等下一次 delivery 才可达（同 run 内必然 not found →
-                # doom loop）。置脏标记，inference 循环每步检测并 rebind，
-                # 本 run 内立即可用。
-                ctx.metadata.packages_dirty = True
-        except Exception:
-            logger.exception("[SkillTool] failed to record loaded package '%s'", package_name)
-    else:
+        ctx = ContextManager.current()
+        loaded = ctx.metadata.loaded_packages
+        if package_name and package_name not in loaded:
+            loaded.append(package_name)
+            # bind_tools 每次 delivery 只绑一次；置脏标记，inference 循环
+            # 每步检测并 rebind，本 run 内立即可用。
+            ctx.metadata.packages_dirty = True
+
+        # 包反哺会话域（自动识别）：把包声明的 capability.domain 记为会话域
+        # （last-loaded-wins 证据）。优先级裁决在装配解析处
+        # （capability_profiles.resolve_profile_candidates）：hint 域若不可
+        # 装配（如分类器标签与包目录词汇不一致），不得阻塞可装配的反哺域。
+        cap_domain = capability.get("domain")
+        if cap_domain and ctx.metadata.session_domain != cap_domain:
+            ctx.metadata.session_domain = cap_domain
+            logger.info(
+                "[SkillTool] session domain feedback: '%s' (from package '%s')",
+                cap_domain,
+                package_name,
+            )
+    except Exception:
+        logger.exception("[SkillTool] failed to record loaded package '%s'", package_name)
+
+    if failed_servers:
         notes.append(
-            "Package NOT activated (server unavailable): tools remain locked. "
-            "Retry later or use the tools after the server recovers."
+            f"Package activated with DEGRADED capability: "
+            f"{len(servers) - len(failed_servers)}/{len(servers)} MCP server(s) available; "
+            f"unavailable: {', '.join(failed_servers)}."
+        )
+        notes.append(
+            "Tools from unavailable servers will appear automatically once they "
+            "reconnect (connection is re-checked every turn) — the task can "
+            "proceed without them. Do NOT try to access MCP internals or "
+            ".evoloop via bash (blocked by security policy); if the data is "
+            "blocking, retry skill(name) later or inform the user."
         )
 
     return "\n".join(notes)

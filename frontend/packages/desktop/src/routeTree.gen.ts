@@ -29,7 +29,6 @@ import { Route as LayoutProjectsProjectIdRouteImport } from './routes/_layout/pr
 import { Route as LayoutProjectsProjectIdIndexRouteImport } from './routes/_layout/projects.$projectId.index'
 import { Route as LayoutProjectsProjectIdWikiRouteImport } from './routes/_layout/projects.$projectId.wiki'
 import { Route as LayoutProjectsProjectIdVaultRouteImport } from './routes/_layout/projects.$projectId.vault'
-import { Route as LayoutProjectsProjectIdTasksRouteImport } from './routes/_layout/projects.$projectId.tasks'
 import { Route as LayoutProjectsProjectIdProfileRouteImport } from './routes/_layout/projects.$projectId.profile'
 import { Route as LayoutProjectsProjectIdOverviewRouteImport } from './routes/_layout/projects.$projectId.overview'
 import { Route as LayoutProjectsProjectIdMacrosRouteImport } from './routes/_layout/projects.$projectId.macros'
@@ -39,7 +38,6 @@ import { Route as LayoutProjectsProjectIdAssetsRouteImport } from './routes/_lay
 import { Route as LayoutProjectsProjectIdV2IndexRouteImport } from './routes/_layout/projects.$projectId.v2.index'
 import { Route as LayoutProjectsProjectIdV2WikiRouteImport } from './routes/_layout/projects.$projectId.v2.wiki'
 import { Route as LayoutProjectsProjectIdV2VaultRouteImport } from './routes/_layout/projects.$projectId.v2.vault'
-import { Route as LayoutProjectsProjectIdV2TasksRouteImport } from './routes/_layout/projects.$projectId.v2.tasks'
 import { Route as LayoutProjectsProjectIdV2ProfileRouteImport } from './routes/_layout/projects.$projectId.v2.profile'
 import { Route as LayoutProjectsProjectIdV2GenerationRouteImport } from './routes/_layout/projects.$projectId.v2.generation'
 import { Route as LayoutProjectsProjectIdV2AssetsRouteImport } from './routes/_layout/projects.$projectId.v2.assets'
@@ -148,12 +146,6 @@ const LayoutProjectsProjectIdVaultRoute =
     path: '/vault',
     getParentRoute: () => LayoutProjectsProjectIdRoute,
   } as any)
-const LayoutProjectsProjectIdTasksRoute =
-  LayoutProjectsProjectIdTasksRouteImport.update({
-    id: '/tasks',
-    path: '/tasks',
-    getParentRoute: () => LayoutProjectsProjectIdRoute,
-  } as any)
 const LayoutProjectsProjectIdProfileRoute =
   LayoutProjectsProjectIdProfileRouteImport.update({
     id: '/profile',
@@ -206,12 +198,6 @@ const LayoutProjectsProjectIdV2VaultRoute =
   LayoutProjectsProjectIdV2VaultRouteImport.update({
     id: '/v2/vault',
     path: '/v2/vault',
-    getParentRoute: () => LayoutProjectsProjectIdRoute,
-  } as any)
-const LayoutProjectsProjectIdV2TasksRoute =
-  LayoutProjectsProjectIdV2TasksRouteImport.update({
-    id: '/v2/tasks',
-    path: '/v2/tasks',
     getParentRoute: () => LayoutProjectsProjectIdRoute,
   } as any)
 const LayoutProjectsProjectIdV2ProfileRoute =
@@ -268,7 +254,6 @@ export interface FileRoutesByFullPath {
   '/projects/$projectId/macros': typeof LayoutProjectsProjectIdMacrosRoute
   '/projects/$projectId/overview': typeof LayoutProjectsProjectIdOverviewRoute
   '/projects/$projectId/profile': typeof LayoutProjectsProjectIdProfileRoute
-  '/projects/$projectId/tasks': typeof LayoutProjectsProjectIdTasksRoute
   '/projects/$projectId/vault': typeof LayoutProjectsProjectIdVaultRoute
   '/projects/$projectId/wiki': typeof LayoutProjectsProjectIdWikiRoute
   '/projects/$projectId/': typeof LayoutProjectsProjectIdIndexRoute
@@ -277,7 +262,6 @@ export interface FileRoutesByFullPath {
   '/projects/$projectId/v2/assets': typeof LayoutProjectsProjectIdV2AssetsRoute
   '/projects/$projectId/v2/generation': typeof LayoutProjectsProjectIdV2GenerationRoute
   '/projects/$projectId/v2/profile': typeof LayoutProjectsProjectIdV2ProfileRoute
-  '/projects/$projectId/v2/tasks': typeof LayoutProjectsProjectIdV2TasksRoute
   '/projects/$projectId/v2/vault': typeof LayoutProjectsProjectIdV2VaultRoute
   '/projects/$projectId/v2/wiki': typeof LayoutProjectsProjectIdV2WikiRoute
   '/projects/$projectId/v2/': typeof LayoutProjectsProjectIdV2IndexRoute
@@ -303,7 +287,6 @@ export interface FileRoutesByTo {
   '/projects/$projectId/macros': typeof LayoutProjectsProjectIdMacrosRoute
   '/projects/$projectId/overview': typeof LayoutProjectsProjectIdOverviewRoute
   '/projects/$projectId/profile': typeof LayoutProjectsProjectIdProfileRoute
-  '/projects/$projectId/tasks': typeof LayoutProjectsProjectIdTasksRoute
   '/projects/$projectId/vault': typeof LayoutProjectsProjectIdVaultRoute
   '/projects/$projectId/wiki': typeof LayoutProjectsProjectIdWikiRoute
   '/projects/$projectId': typeof LayoutProjectsProjectIdIndexRoute
@@ -312,7 +295,6 @@ export interface FileRoutesByTo {
   '/projects/$projectId/v2/assets': typeof LayoutProjectsProjectIdV2AssetsRoute
   '/projects/$projectId/v2/generation': typeof LayoutProjectsProjectIdV2GenerationRoute
   '/projects/$projectId/v2/profile': typeof LayoutProjectsProjectIdV2ProfileRoute
-  '/projects/$projectId/v2/tasks': typeof LayoutProjectsProjectIdV2TasksRoute
   '/projects/$projectId/v2/vault': typeof LayoutProjectsProjectIdV2VaultRoute
   '/projects/$projectId/v2/wiki': typeof LayoutProjectsProjectIdV2WikiRoute
   '/projects/$projectId/v2': typeof LayoutProjectsProjectIdV2IndexRoute
@@ -342,7 +324,6 @@ export interface FileRoutesById {
   '/_layout/projects/$projectId/macros': typeof LayoutProjectsProjectIdMacrosRoute
   '/_layout/projects/$projectId/overview': typeof LayoutProjectsProjectIdOverviewRoute
   '/_layout/projects/$projectId/profile': typeof LayoutProjectsProjectIdProfileRoute
-  '/_layout/projects/$projectId/tasks': typeof LayoutProjectsProjectIdTasksRoute
   '/_layout/projects/$projectId/vault': typeof LayoutProjectsProjectIdVaultRoute
   '/_layout/projects/$projectId/wiki': typeof LayoutProjectsProjectIdWikiRoute
   '/_layout/projects/$projectId/': typeof LayoutProjectsProjectIdIndexRoute
@@ -351,7 +332,6 @@ export interface FileRoutesById {
   '/_layout/projects/$projectId/v2/assets': typeof LayoutProjectsProjectIdV2AssetsRoute
   '/_layout/projects/$projectId/v2/generation': typeof LayoutProjectsProjectIdV2GenerationRoute
   '/_layout/projects/$projectId/v2/profile': typeof LayoutProjectsProjectIdV2ProfileRoute
-  '/_layout/projects/$projectId/v2/tasks': typeof LayoutProjectsProjectIdV2TasksRoute
   '/_layout/projects/$projectId/v2/vault': typeof LayoutProjectsProjectIdV2VaultRoute
   '/_layout/projects/$projectId/v2/wiki': typeof LayoutProjectsProjectIdV2WikiRoute
   '/_layout/projects/$projectId/v2/': typeof LayoutProjectsProjectIdV2IndexRoute
@@ -381,7 +361,6 @@ export interface FileRouteTypes {
     | '/projects/$projectId/macros'
     | '/projects/$projectId/overview'
     | '/projects/$projectId/profile'
-    | '/projects/$projectId/tasks'
     | '/projects/$projectId/vault'
     | '/projects/$projectId/wiki'
     | '/projects/$projectId/'
@@ -390,7 +369,6 @@ export interface FileRouteTypes {
     | '/projects/$projectId/v2/assets'
     | '/projects/$projectId/v2/generation'
     | '/projects/$projectId/v2/profile'
-    | '/projects/$projectId/v2/tasks'
     | '/projects/$projectId/v2/vault'
     | '/projects/$projectId/v2/wiki'
     | '/projects/$projectId/v2/'
@@ -416,7 +394,6 @@ export interface FileRouteTypes {
     | '/projects/$projectId/macros'
     | '/projects/$projectId/overview'
     | '/projects/$projectId/profile'
-    | '/projects/$projectId/tasks'
     | '/projects/$projectId/vault'
     | '/projects/$projectId/wiki'
     | '/projects/$projectId'
@@ -425,7 +402,6 @@ export interface FileRouteTypes {
     | '/projects/$projectId/v2/assets'
     | '/projects/$projectId/v2/generation'
     | '/projects/$projectId/v2/profile'
-    | '/projects/$projectId/v2/tasks'
     | '/projects/$projectId/v2/vault'
     | '/projects/$projectId/v2/wiki'
     | '/projects/$projectId/v2'
@@ -454,7 +430,6 @@ export interface FileRouteTypes {
     | '/_layout/projects/$projectId/macros'
     | '/_layout/projects/$projectId/overview'
     | '/_layout/projects/$projectId/profile'
-    | '/_layout/projects/$projectId/tasks'
     | '/_layout/projects/$projectId/vault'
     | '/_layout/projects/$projectId/wiki'
     | '/_layout/projects/$projectId/'
@@ -463,7 +438,6 @@ export interface FileRouteTypes {
     | '/_layout/projects/$projectId/v2/assets'
     | '/_layout/projects/$projectId/v2/generation'
     | '/_layout/projects/$projectId/v2/profile'
-    | '/_layout/projects/$projectId/v2/tasks'
     | '/_layout/projects/$projectId/v2/vault'
     | '/_layout/projects/$projectId/v2/wiki'
     | '/_layout/projects/$projectId/v2/'
@@ -622,13 +596,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutProjectsProjectIdVaultRouteImport
       parentRoute: typeof LayoutProjectsProjectIdRoute
     }
-    '/_layout/projects/$projectId/tasks': {
-      id: '/_layout/projects/$projectId/tasks'
-      path: '/tasks'
-      fullPath: '/projects/$projectId/tasks'
-      preLoaderRoute: typeof LayoutProjectsProjectIdTasksRouteImport
-      parentRoute: typeof LayoutProjectsProjectIdRoute
-    }
     '/_layout/projects/$projectId/profile': {
       id: '/_layout/projects/$projectId/profile'
       path: '/profile'
@@ -690,13 +657,6 @@ declare module '@tanstack/react-router' {
       path: '/v2/vault'
       fullPath: '/projects/$projectId/v2/vault'
       preLoaderRoute: typeof LayoutProjectsProjectIdV2VaultRouteImport
-      parentRoute: typeof LayoutProjectsProjectIdRoute
-    }
-    '/_layout/projects/$projectId/v2/tasks': {
-      id: '/_layout/projects/$projectId/v2/tasks'
-      path: '/v2/tasks'
-      fullPath: '/projects/$projectId/v2/tasks'
-      preLoaderRoute: typeof LayoutProjectsProjectIdV2TasksRouteImport
       parentRoute: typeof LayoutProjectsProjectIdRoute
     }
     '/_layout/projects/$projectId/v2/profile': {
@@ -769,14 +729,12 @@ interface LayoutProjectsProjectIdRouteChildren {
   LayoutProjectsProjectIdMacrosRoute: typeof LayoutProjectsProjectIdMacrosRoute
   LayoutProjectsProjectIdOverviewRoute: typeof LayoutProjectsProjectIdOverviewRoute
   LayoutProjectsProjectIdProfileRoute: typeof LayoutProjectsProjectIdProfileRoute
-  LayoutProjectsProjectIdTasksRoute: typeof LayoutProjectsProjectIdTasksRoute
   LayoutProjectsProjectIdVaultRoute: typeof LayoutProjectsProjectIdVaultRoute
   LayoutProjectsProjectIdWikiRoute: typeof LayoutProjectsProjectIdWikiRoute
   LayoutProjectsProjectIdIndexRoute: typeof LayoutProjectsProjectIdIndexRoute
   LayoutProjectsProjectIdV2AssetsRoute: typeof LayoutProjectsProjectIdV2AssetsRoute
   LayoutProjectsProjectIdV2GenerationRoute: typeof LayoutProjectsProjectIdV2GenerationRoute
   LayoutProjectsProjectIdV2ProfileRoute: typeof LayoutProjectsProjectIdV2ProfileRoute
-  LayoutProjectsProjectIdV2TasksRoute: typeof LayoutProjectsProjectIdV2TasksRoute
   LayoutProjectsProjectIdV2VaultRoute: typeof LayoutProjectsProjectIdV2VaultRoute
   LayoutProjectsProjectIdV2WikiRoute: typeof LayoutProjectsProjectIdV2WikiRoute
   LayoutProjectsProjectIdV2IndexRoute: typeof LayoutProjectsProjectIdV2IndexRoute
@@ -791,7 +749,6 @@ const LayoutProjectsProjectIdRouteChildren: LayoutProjectsProjectIdRouteChildren
     LayoutProjectsProjectIdMacrosRoute: LayoutProjectsProjectIdMacrosRoute,
     LayoutProjectsProjectIdOverviewRoute: LayoutProjectsProjectIdOverviewRoute,
     LayoutProjectsProjectIdProfileRoute: LayoutProjectsProjectIdProfileRoute,
-    LayoutProjectsProjectIdTasksRoute: LayoutProjectsProjectIdTasksRoute,
     LayoutProjectsProjectIdVaultRoute: LayoutProjectsProjectIdVaultRoute,
     LayoutProjectsProjectIdWikiRoute: LayoutProjectsProjectIdWikiRoute,
     LayoutProjectsProjectIdIndexRoute: LayoutProjectsProjectIdIndexRoute,
@@ -800,7 +757,6 @@ const LayoutProjectsProjectIdRouteChildren: LayoutProjectsProjectIdRouteChildren
       LayoutProjectsProjectIdV2GenerationRoute,
     LayoutProjectsProjectIdV2ProfileRoute:
       LayoutProjectsProjectIdV2ProfileRoute,
-    LayoutProjectsProjectIdV2TasksRoute: LayoutProjectsProjectIdV2TasksRoute,
     LayoutProjectsProjectIdV2VaultRoute: LayoutProjectsProjectIdV2VaultRoute,
     LayoutProjectsProjectIdV2WikiRoute: LayoutProjectsProjectIdV2WikiRoute,
     LayoutProjectsProjectIdV2IndexRoute: LayoutProjectsProjectIdV2IndexRoute,

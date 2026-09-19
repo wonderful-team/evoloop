@@ -181,12 +181,14 @@ class AdaptiveChatOpenAI:
                     "parameters": parameters,
                 }
             }
-            # Remove Pydantic v2 internal noise fields, but keep $defs
-            # which is required for $ref references in nested models.
+            # 递归瘦身（去 title/default:null/塌缩 nullable anyOf）：Pydantic
+            # v2 schema 的结构性噪音占工具面 token 一半以上（含嵌套层级的
+            # title，此前的根层 pop 覆盖不到）。
+            from app.core.tools.schema_utils import compact_schema_for_llm
             if "parameters" in t_schema["function"]:
-                params = t_schema["function"]["parameters"]
-                params.pop("title", None)
-                params.pop("additionalProperties", None)
+                t_schema["function"]["parameters"] = compact_schema_for_llm(
+                    t_schema["function"]["parameters"]
+                )
             bound._tools.append(t_schema)
         return bound
 
@@ -366,10 +368,36 @@ class AdaptiveChatOpenAI:
 
                 if usage is not None:
                     u = usage.model_dump() if hasattr(usage, "model_dump") else dict(usage)
+                    input_tokens = int(
+                        u.get("prompt_tokens")
+                        or (u.get("input_tokens") if isinstance(u, dict) else 0)
+                        or 0
+                    )
+                    output_tokens = int(
+                        u.get("completion_tokens")
+                        or (u.get("output_tokens") if isinstance(u, dict) else 0)
+                        or 0
+                    )
                     details = u.get("prompt_tokens_details") or {}
                     cached = details.get("cached_tokens") if isinstance(details, dict) else None
+                    if accumulated is not None:
+                        accumulated.additional_kwargs.update(
+                            {
+                                "input_tokens": input_tokens,
+                                "output_tokens": output_tokens,
+                                "usage": u,
+                            }
+                        )
+                    yield AIMessageChunk(
+                        content="",
+                        additional_kwargs={
+                            "input_tokens": input_tokens,
+                            "output_tokens": output_tokens,
+                            "usage": u,
+                        },
+                    )
                     logger.info(
-                        "[LLMUsage] model=%s input=%s output=%s cache_hit=%s cache_miss=%s cache_read=%s cache_creation=%s cached_tokens=%s",
+                        "[LLMUsage] model=%s input=%s output=%s cache_hit=%s cache_miss=%s cache_read=%s cache_creation=%s cached_tokens=%s tools=%s",
                         self.model,
                         u.get("prompt_tokens"),
                         u.get("completion_tokens"),
@@ -378,6 +406,7 @@ class AdaptiveChatOpenAI:
                         u.get("cache_read_tokens"),
                         u.get("cache_creation_tokens"),
                         cached,
+                        len(self._tools),
                     )
 
                 break
@@ -553,6 +582,8 @@ class _StructuredOutputWrapper:
         params.pop("title", None)
         params.pop("additionalProperties", None)
         params.pop("$defs", None)
+        from app.core.tools.schema_utils import compact_schema_for_llm
+        params = compact_schema_for_llm(params)
         return {
             "type": "function",
             "function": {

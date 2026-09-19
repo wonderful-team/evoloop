@@ -184,6 +184,7 @@ async def run_agent_loop(
 
     # 4. 写回状态
     state.tool_history = result.tool_history
+    state.messages = result.messages
 
     # 5. 收尾管线（react 替代 FinishNode）：SESSION_COMPLETED + 记忆/宏学习闭环
     summary = _extract_summary(result.messages)

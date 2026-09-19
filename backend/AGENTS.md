@@ -136,7 +136,7 @@ pytest tests/e2e/test_02_routing.py -v  # 仅测试 L0 路由模块
   - **可见性模型**：MCP 工具面 = 预选集（每轮由 domain+page 重算，`preselected_packages`）∪ 加载集（Agent 经 `skill` 加载，thread 级持久 `loaded_packages`）。**G4**：预挂包按 `confirm_tools` 排除写工具（SOP 未读须显式加载包后放开）。`include` 缺省 = server 全量。无任何包 = 全量兜底（零回归）。
   - **server 侧不做分域**：MCP_PROFILE 已退役（C1）——server 全量加载（97 工具），可见性由包层承担；`elements/core|ext` 目录保留（代码复用边界）。
   - **历史字段**：`mcp_allowlist` 已删除（C3）。**工具声明只有一种写法（v3.1 统一）**：`capability.tools`（唯一装配权威）——`requires.{tools,mcp}` 已**废弃**（纯文档性、从未有运行时作用；导入器自动合并进 capability 并打 deprecation warning；存量 SKILL.md 已批量迁移）。普通技能不写任何工具声明（native 面由 profile 管）。
-  - **观测**：`[ToolManager] domain=... assembled surface` 日志、`[ProjectSkills] synced N skill(s)`、`[CapabilityProfiles] preload`。
+  - **观测**：`[ToolManager] domain=... assembled surface` 日志、`[CapabilityProfiles] domain resolution: hint=... -> feedback=...` 候选裁决链日志、`[SkillTool] session domain feedback` 反哺日志、`[ProjectSkills] synced N skill(s)`、`[CapabilityProfiles] preload`。L1 分类器标签集（域词汇表）与项目域命名是两套词汇表，排障入口见 `docs/capability-packages-refactor.md`「域词汇表」小节（契约测试 `test_domain_labels_doc_synced` 锁定文档与模型产物同步）。
   - 契约测试：`test_capability_packages.py`（格式/可见性/零回归）、`test_preselection.py`（预选/合成/G4）、`test_project_skill_importer.py`（发现幂等）。方案全文：`docs/capability-packages-refactor.md`。
 - **工具面**：`@evoloop_tool` 注册（约 80 个），react 主 Agent 默认面 20 个（bash/read/glob/grep/edit/write/task/webfetch/websearch/todo/skill/question/macro/remember）；低频能力走 `skill`/`macro`/`task` 索引+按需加载。
 - **子代理与 A2A**：统一收敛到 `task` 工具——`action='run'`（本地 spawn / `remote={'agent_id': ...}` A2A 委派）、`action='complete'`（A2A Worker 回传）、`action='list_agents'`；A2A 派发后主循环挂起，回调经 `a2a_callback` 写回工具消息后恢复。

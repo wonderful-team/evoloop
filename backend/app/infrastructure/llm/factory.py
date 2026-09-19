@@ -261,6 +261,16 @@ class LLMFactory:
                     config.base_url = db_base_url
                     config.api_key = config.api_key or db_api_key
                     config.provider_type = db_provider_type
+                    if not config.model_name:
+                        config.model_name = (
+                            SystemConfigService.get_value("CUSTOM_LLM_MODEL")
+                            or SystemConfigService.get_value("LLM_MODEL")
+                            or ""
+                        )
+                    if not config.model_name:
+                        raise ValueError(
+                            "Custom LLM mode requires CUSTOM_LLM_MODEL or LLM_MODEL"
+                        )
 
         # Generate cache key
         cache_key = LLMFactory._generate_cache_key(

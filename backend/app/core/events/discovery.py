@@ -77,7 +77,7 @@ def _find_handler_classes(module: ModuleType) -> list[type]:
     """
     classes = []
 
-    for name, obj in inspect.getmembers(module, inspect.isclass):
+    for _name, obj in inspect.getmembers(module, inspect.isclass):
         # Skip imported classes (only check classes defined in this module)
         if obj.__module__ != module.__name__:
             continue
@@ -131,7 +131,7 @@ def _scan_module_recursive(
 
         # Recursively scan submodules
         if hasattr(module, "__path__"):
-            for finder, name, ispkg in pkgutil.iter_modules(module.__path__):
+            for _finder, name, _ispkg in pkgutil.iter_modules(module.__path__):
                 submodule_name = f"{module_name}.{name}"
 
                 # Skip already scanned modules
@@ -142,12 +142,27 @@ def _scan_module_recursive(
                     # Recursively scan submodule
                     sub_classes = _scan_module_recursive(submodule_name, scanned)
                     discovered_classes.extend(sub_classes)
+                except ModuleNotFoundError as e:
+                    logger.debug(
+                        "[Discovery] Skipping %s (optional dependency not installed: %s)",
+                        submodule_name,
+                        e,
+                    )
                 except Exception as e:
                     logger.debug(
                         f"[Discovery] Failed to scan {submodule_name}: {e}",
                         exc_info=True,
                     )
 
+    except ModuleNotFoundError as e:
+        # Optional integrations (neo4j, celery, etc.) may not have their
+        # third-party dependencies installed. This is expected and not an
+        # error worth a traceback during discovery.
+        logger.debug(
+            "[Discovery] Skipping %s (optional dependency not installed: %s)",
+            module_name,
+            e,
+        )
     except ImportError as e:
         logger.debug(f"[Discovery] Failed to import {module_name}: {e}", exc_info=True)
     except Exception as e:

@@ -60,7 +60,8 @@ async def plan(
     Args:
         action: create / update_step / status。
         title: create 时的计划标题。
-        steps: create 时的步骤列表。
+        steps: create 时的步骤列表。每项为字符串，或对象 ``{"title": "...", "status": "pending|in_progress"}``
+               （对象必须有 ``title`` 键——实测 agent 曾误用 ``description`` 键被拒重试）。
         plan_id: update_step / status 时的计划 ID。
         step_id: update_step 时的步骤 ID。
         status: update_step 时的新状态（pending/in_progress/completed/failed）。

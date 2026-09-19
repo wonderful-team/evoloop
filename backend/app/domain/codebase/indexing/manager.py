@@ -5,6 +5,7 @@ import threading
 
 from sqlalchemy import delete, select
 
+from app.core.config import settings
 from app.core.file import read_file
 from app.core.project.utils import (
     get_project_path,
@@ -177,6 +178,14 @@ class IndexingManager:
         """
         Start watching a directory. Idempotent.
         """
+        if not settings.ENABLE_CODEBASE_FILE_WATCHER:
+            logger.debug(
+                "[IndexingManager] Codebase file watcher is disabled by settings, "
+                "skipping watch for: %s",
+                path,
+            )
+            return
+
         with self._lock:
             # Check if WORKSPACE_ROOT is configured
             workspace_root = get_workspace_root()

@@ -36,13 +36,42 @@ export interface QueueTask {
   acceptance: Record<string, unknown> | null
   due_at: string | null
   last_thread_id: string | null
+  project_id?: number | null
+  dependencies?: string[] | null
   trigger_spec?: string | null
   elapsed_sec?: number | null
+  created_at?: string | null
+  updated_at?: string | null
+  workflow_id?: string | null
+  workflow_stage?: string | null
+  run?: {
+    thread_id: string
+    status: string
+    llm_calls: number
+    input_tokens: number
+    output_tokens: number
+    tool_errors: number
+  } | null
+  artifacts?: QueueArtifact[]
+}
+
+export interface QueueArtifact {
+  id: string
+  workflow_id: string
+  task_id: string
+  stage: string
+  type: string
+  status: string
+  version: number
+  summary: string
+  data: Record<string, unknown> | null
+  created_at: string
 }
 
 export interface DashboardKpis {
   counts: Record<string, number>
   duty_state: "busy" | "idle" | "error"
+  duty_enabled?: boolean
   tokens: {
     today: { input: number; output: number; llm_calls: number }
     week: { input: number; output: number; llm_calls: number }
@@ -90,6 +119,7 @@ export const TasksQueueApi = {
     priority?: string
     risk_level?: string
     trigger_spec?: string
+    due_at?: string
     project_id: number
   }): Promise<{ success: boolean; id: string; status: string }> {
     return request("/api/v1/tasks/queue", {
@@ -105,6 +135,40 @@ export const TasksQueueApi = {
       method: "PUT",
       body: JSON.stringify(body),
     })
+  },
+  artifacts(taskId: string): Promise<{
+    success: boolean
+    items: {
+      id: string
+      stage: string
+      artifact_type: string
+      status: string
+      version: number
+      summary: string | null
+      created_at: string | null
+    }[]
+  }> {
+    return request(`/api/v1/tasks/queue/${taskId}/artifacts`)
+  },
+  hitlPending(): Promise<{
+    success: boolean
+    count: number
+    items: {
+      request_id: string
+      thread_id: string
+      type: string
+      description: string
+      context: string | null
+      options: string[]
+      created_at: string | null
+      task_id: string | null
+      task_title: string | null
+    }[]
+  }> {
+    return request("/api/v1/tasks/queue/hitl-pending")
+  },
+  rerun(taskId: string): Promise<unknown> {
+    return request(`/api/v1/tasks/queue/${taskId}/rerun`, { method: "POST" })
   },
   confirm(taskId: string): Promise<{ success: boolean; status: string }> {
     return request(`/api/v1/tasks/queue/${taskId}/confirm`, { method: "POST" })

@@ -47,8 +47,6 @@ export function DutyStartStopButton({
 
   useEffect(() => {
     sync()
-    const iv = setInterval(sync, 30000)
-    return () => clearInterval(iv)
   }, [sync])
 
   async function toggle() {
@@ -82,10 +80,7 @@ export function DutyStartStopButton({
 
 
   return (
-    <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-2">
-      {enabled && !busy && (
-        <span className="pointer-events-none absolute bottom-6 right-6 h-14 w-14 rounded-full border-2 border-primary/50 animate-ping" />
-      )}
+    <div className="fixed top-[40px] right-5 z-40 flex flex-col items-end gap-2">
       {error && (
         <div className="rounded-md bg-background px-3 py-1.5 text-xs text-red-600 shadow-lg">
           {error}
@@ -94,9 +89,7 @@ export function DutyStartStopButton({
       <Button
         size="lg"
         variant={enabled ? "destructive" : "default"}
-        className={`h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-shadow ${
-          enabled ? "animate-pulse" : ""
-        }`}
+        className={`h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-shadow ${enabled ? "animate-pulse" : ""}`}
         disabled={busy}
         title={
           enabled
@@ -124,7 +117,7 @@ export function DutyRitualOverlay({ phase }: { phase: "start" | "stop" }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="relative flex flex-col items-center gap-5">
-        {/* pulsing rings */}
+        {/* pulsing rings — both rituals get the ring cascade */}
         <div className="relative h-24 w-24 flex items-center justify-center">
           <span
             className="absolute inset-0 rounded-full border-2 border-primary/60"
@@ -138,8 +131,8 @@ export function DutyRitualOverlay({ phase }: { phase: "start" | "stop" }) {
           />
           <span
             className={`h-8 w-8 rounded-full ${
-              starting ? "bg-primary" : "bg-muted-foreground/60"
-            } ${starting ? "animate-pulse" : ""}`}
+              starting ? "bg-primary animate-pulse" : "bg-muted-foreground/60"
+            }`}
           />
         </div>
         <div className="text-center space-y-1.5">

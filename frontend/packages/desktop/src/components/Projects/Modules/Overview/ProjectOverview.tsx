@@ -9,11 +9,7 @@ import {
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { Link, useParams } from "@tanstack/react-router"
 import {
-  Activity,
   BookOpen,
-  CheckCircle2,
-  CheckSquare,
-  Clock,
   FileText,
   ListTodo,
   RefreshCw,
@@ -29,7 +25,6 @@ import {
   ProjectModulesService,
   ProjectProfilesService,
   ProjectsService,
-  TasksService,
   WikiService,
 } from "@/client/sdk.gen"
 import { useProjectStore } from "@/stores/projectStore"
@@ -38,19 +33,7 @@ import { DiscoverDialog } from "./DiscoverDialog"
 // import { Avatar, AvatarFallback, AvatarImage } from "@shared/components/ui/avatar"
 
 interface ProjectStats {
-  total_tasks: number
-  completed_tasks: number
-  active_tasks: number
-  pending_tasks: number
   members_count: number
-}
-
-interface RecentTask {
-  task_id: number
-  task_title: string
-  status: number
-  priority: number
-  update_time_format: string
 }
 
 export const ProjectOverview: React.FC = () => {
@@ -59,7 +42,6 @@ export const ProjectOverview: React.FC = () => {
   const { t } = useTranslation()
   const [stats, setStats] = useState<ProjectStats | null>(null)
   // const [members, setMembers] = useState<ProjectMember[]>([])
-  const [recentTasks, setRecentTasks] = useState<RecentTask[]>([])
   const [loading, setLoading] = useState(true)
   const [discoverOpen, setDiscoverOpen] = useState(false)
   const [hasProfile, setHasProfile] = useState(false)
@@ -96,17 +78,6 @@ export const ProjectOverview: React.FC = () => {
         })) as any
         if (statsData.code === 0) {
           setStats(statsData.data)
-        }
-
-        // Fetch tasks for recent activity
-        const tasksData = (await TasksService.getProjectTasks({
-          projectId: parseInt(projectId, 10),
-          page: 1,
-          pageSize: 5, // Top 5 recent
-          status: 1, // Pending
-        })) as any
-        if (tasksData.code === 0) {
-          setRecentTasks(tasksData.data.list || [])
         }
 
         // Check if profile exists
@@ -179,42 +150,7 @@ export const ProjectOverview: React.FC = () => {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              {t("projects.stats.totalTasks")}
-            </CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats?.total_tasks || 0}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              {t("projects.stats.completed")}
-            </CardTitle>
-            <CheckCircle2 className="h-4 w-4 text-green-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {stats?.completed_tasks || 0}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              {t("projects.stats.inProgress")}
-            </CardTitle>
-            <Clock className="h-4 w-4 text-blue-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats?.active_tasks || 0}</div>
-          </CardContent>
-        </Card>
+      <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
@@ -274,52 +210,9 @@ export const ProjectOverview: React.FC = () => {
         </Card>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        {/* Recent Activity */}
-        <Card className="col-span-4">
-          <CardHeader>
-            <CardTitle>{t("projects.overview.recentActivity")}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {recentTasks.length === 0 ? (
-                <div className="text-center text-sm text-muted-foreground py-4">
-                  {t("projects.overview.noActivity")}
-                </div>
-              ) : (
-                recentTasks.map((task) => (
-                  <div
-                    key={task.task_id}
-                    className="flex items-center justify-between border-b last:border-0 pb-2 last:pb-0"
-                  >
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium leading-none">
-                        {task.task_title}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {task.update_time_format}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge
-                        variant={task.status === 2 ? "default" : "secondary"}
-                      >
-                        {task.status === 2
-                          ? t("projects.tasks.statusLabel.inProgress")
-                          : task.status === 3
-                            ? t("projects.tasks.statusLabel.completed")
-                            : t("projects.tasks.statusLabel.pending")}
-                      </Badge>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
+      <div className="grid gap-4 md:grid-cols-1">
         {/* Quick Actions / Members */}
-        <Card className="col-span-3">
+        <Card>
           <CardHeader>
             <CardTitle>{t("projects.overview.quickActions")}</CardTitle>
           </CardHeader>
@@ -355,16 +248,6 @@ export const ProjectOverview: React.FC = () => {
               <Button variant="outline" className="w-full justify-start">
                 <FileText className="mr-2 h-4 w-4" />
                 {t("projects.tabs.profile")}
-              </Button>
-            </Link>
-            <Link
-              to="/projects/$projectId/tasks"
-              params={{ projectId: projectId! }}
-              className="block"
-            >
-              <Button variant="outline" className="w-full justify-start">
-                <CheckSquare className="mr-2 h-4 w-4" />
-                {t("projects.actions.viewTasks")}
               </Button>
             </Link>
           </CardContent>

@@ -146,9 +146,7 @@ export function GenerationPanel() {
         ? "/projects/$projectId/wiki"
         : route === "/macros"
           ? "/projects/$projectId/macros"
-          : route === "/tasks"
-            ? "/projects/$projectId/tasks"
-            : "/projects/$projectId"
+          : "/projects/$projectId"
 
     return (
       <Card className={`transition-all hover:border-primary/40 ${busy ? "border-primary/50 shadow-sm" : ""}`}>

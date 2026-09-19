@@ -1,7 +1,6 @@
 import { createFileRoute, Link, Outlet, redirect } from "@tanstack/react-router"
 import {
   AlertCircle,
-  CheckSquare,
   ChevronLeft,
   FileCode,
   FileText,
@@ -73,12 +72,6 @@ function ProjectLayout() {
       label: t("projects.tabs.files"),
       icon: FileCode,
       path: "/files",
-    },
-    {
-      id: "tasks",
-      label: t("projects.tabs.tasks"),
-      icon: CheckSquare,
-      path: "/tasks",
     },
     {
       id: "wiki",

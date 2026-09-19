@@ -22,6 +22,8 @@ QUEUE_TRANSITIONS: dict[str, tuple[str, ...]] = {
     "in_progress": ("self_checked", "failed", "pending", "cancelled"),
     "self_checked": ("waiting_acceptance", "in_progress"),
     "waiting_acceptance": ("completed", "pending"),
+    # failed 非绝对终态：允许人工重跑回队（失败链自愈的唯一路径）
+    "failed": ("pending", "cancelled"),
 }
 
 # 结果字段截断长度（task_data.last_result）
@@ -55,14 +57,27 @@ WAKEUP_RUN_DEADLINE_SECONDS = 1800.0
 QUOTA_COOLDOWN_MINUTES = 15.0
 
 # run 终态集合（reconcile 据此判定"run 已死"）
-RUN_TERMINAL_STATUSES = frozenset(
-    {
-        "done",
-        "cancelled",
-        "failed",
-        "quota_exhausted",
-        "error",
-    }
-)
+RUN_TERMINAL_STATUSES = frozenset({
+    "done",
+    "cancelled",
+    "failed",
+    "quota_exhausted",
+    "error",
+})
 # 这些状态下任务现场仍在推进/等待，不得回队
 RUN_SKIP_STATUSES = frozenset({"running", "stopping", "human_interrupt"})
+
+WORKFLOW_RETRY_LIMIT = 2
+
+# 这些错误重试也不会好：内容审查拦截 / 配置缺模型等确定性失败
+# failed 任务自动重跑预算（仅瞬时错误，审查/配置类永不）；耗时 10 分钟退避
+FAILED_AUTO_RETRY_BUDGET = 1
+FAILED_AUTO_RETRY_DELAY_SECONDS = 600.0
+
+NON_RETRYABLE_ERROR_MARKERS = (
+    "DataInspectionFailed",
+    "must provide a model parameter",
+    "invalid_request_error",
+)
+
+WORKFLOW_RETRY_DELAY_SECONDS = 60.0

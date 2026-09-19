@@ -29,6 +29,7 @@ class DashboardPayload(DynamicBaseModel):
     success: bool = True
     counts: dict[str, int]
     duty_state: str
+    duty_enabled: bool = False
     tokens: dict[str, Any]
     today_window: dict[str, Any]
     current_run: dict[str, Any] | None

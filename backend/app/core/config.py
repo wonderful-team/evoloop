@@ -165,6 +165,7 @@ class Settings(BaseSettings):
     POSTGRES_PASSWORD: str = ""
     POSTGRES_DB: str = ""
     DB_ECHO: bool = False  # Added for EvoLoop compatibility
+    DB_ECHO_POOL: bool = False  # Debug: log pool checkout/checkin lifecycle
     DB_CONNECT_TIMEOUT: float = 99.5  # Strategic: unified timeout for unstable networks
     DB_POOL_SIZE: int = 5  # Base connection pool size per engine
     DB_MAX_OVERFLOW: int = 10  # Max overflow connections per pool beyond pool_size
@@ -266,6 +267,10 @@ class Settings(BaseSettings):
     ENABLE_MACRO_SELF_HEALING: bool = False
     ENABLE_WIKI_TOOLS: bool = False
     ROUTE_INDEX_REQUIRE_VERIFIED: bool = True
+
+    # 是否启用代码库文件监听器（watchdog）。关闭后不再实时监听项目目录变更，
+    # 可显著减少 macOS FSEvents 噪声和 CPU 占用；增量索引需改由手动触发 full index。
+    ENABLE_CODEBASE_FILE_WATCHER: bool = True
 
     # 是否启用本地环境控制工具（浏览器、桌面、手机）。可以根据实际需要开启或关闭。
     # 纯服务端部署推荐关闭 (False)，需要 AI 控制真实设备时开启 (True)。

@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { SystemService } from "@/client/sdk.gen"
 import { isTauri, safeInvoke, safeListen } from "@/lib/tauri"
+import { systemSSEClient } from "@/lib/SystemSSEClient"
 import { useDutyStore } from "@/stores/dutyStore"
 
 /**
@@ -13,19 +14,22 @@ import { useDutyStore } from "@/stores/dutyStore"
 export function CustomerServiceDutyManager() {
   const { t, i18n } = useTranslation()
 
-  // 同步静态文案到托盘
+  // 同步静态文案到托盘（active 取 store 当前值，避免与状态同步竞争归零）
   useEffect(() => {
     if (!isTauri()) return
     safeInvoke("sync_tray_duty_state", {
-      active: false,
+      active: useDutyStore.getState().globalEnabled,
       startText: t("settings.duty.title"),
       stopText: t("settings.duty.stopLabel"),
     }).catch(() => {})
   }, [i18n.language, t])
 
-  // 同步当前值守状态到托盘（同时填充全局 store，供懒加载组件读取）
+  // 同步当前值守状态到托盘（同时填充全局 store，供懒加载组件读取）。
+  // 主推送走 system SSE（duty_state_changed，后端 PUT 时广播）；
+  // 60s 轮询仅兜底断线漏事件。托盘 IPC 有 diff 门闩，状态没变不重复发。
   useEffect(() => {
     let active = true
+    let lastTray: { active: boolean; lang: string } | null = null
     const sync = async () => {
       try {
         const res = (await SystemService.getCustomerServiceDuty()) as Record<
@@ -40,20 +44,31 @@ export function CustomerServiceDutyManager() {
         // 填充全局 store（懒加载组件从 store 读，避免 chunk 冲突）
         useDutyStore.getState().setGlobalState(enabled, wecom)
         if (!isTauri()) return
-        await safeInvoke("sync_tray_duty_state", {
-          active: enabled,
-          startText: t("settings.duty.title"),
-          stopText: t("settings.duty.stopLabel"),
-        })
+        const next = { active: enabled, lang: i18n.language }
+        if (
+          !lastTray ||
+          lastTray.active !== next.active ||
+          lastTray.lang !== next.lang
+        ) {
+          lastTray = next
+          await safeInvoke("sync_tray_duty_state", {
+            active: enabled,
+            startText: t("settings.duty.title"),
+            stopText: t("settings.duty.stopLabel"),
+          })
+        }
       } catch {
         // 忽略（后端可能未就绪）
       }
     }
     sync()
-    const iv = setInterval(sync, 15000)
+    const iv = setInterval(sync, 60000)
+    const sse = systemSSEClient
+    sse.on("duty_state_changed", sync)
     return () => {
       active = false
       clearInterval(iv)
+      sse.off("duty_state_changed", sync)
     }
   }, [i18n.language, t])
 

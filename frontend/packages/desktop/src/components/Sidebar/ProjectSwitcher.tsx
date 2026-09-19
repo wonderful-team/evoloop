@@ -96,7 +96,7 @@ export function ProjectSwitcher({
   onSelect,
 }: ProjectSwitcherProps = {}) {
   const { t } = useTranslation()
-  const { projects, currentProject, setProject, fetchProjects, isGlobalMode } =
+  const { projects, currentProject, setProject, fetchProjects, isGlobalMode, isLoading } =
     useProjectStore()
   const [internalOpen, setInternalOpen] = React.useState(false)
   const [searchQuery, setSearchQuery] = React.useState("")
@@ -236,7 +236,8 @@ export function ProjectSwitcher({
               <span className="truncate font-normal text-foreground/80">
                 {isGlobalMode
                   ? t("projectSwitcher.global")
-                  : currentProject?.name || t("projectSwitcher.select")}
+                  : currentProject?.name ||
+                    (isLoading ? t("common.loading") : t("projectSwitcher.select"))}
               </span>
               {(() => {
                 // Don't show status badges for global mode

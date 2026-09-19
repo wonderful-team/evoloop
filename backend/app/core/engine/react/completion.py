@@ -74,7 +74,7 @@ def _split_article(content: str) -> tuple[str, str, list[str]]:
 
 
 async def notify_create_task(
-    thread_id: str,
+    _thread_id: str,
     config: dict[str, Any],
     state: Any,
     summary: str,
@@ -131,13 +131,20 @@ async def _record_metrics(thread_id: str, state: Any, _config: dict[str, Any]) -
     try:
         messages = state.messages or []
         llm_calls = sum(
-            1 for m in messages if getattr(m, "role", None) in ("ai", "assistant")
+            1
+            for m in messages
+            if getattr(m, "role", None) in ("ai", "assistant")
         )
         tool_errors = 0
         input_tokens = 0
         output_tokens = 0
         for m in messages:
             kw = getattr(m, "additional_kwargs", None) or {}
+            response_metadata = getattr(m, "response_metadata", None) or {}
+            usage_metadata = getattr(m, "usage_metadata", None) or {}
+            raw_usage = kw.get("usage") or response_metadata.get("usage") or usage_metadata
+            if isinstance(raw_usage, dict):
+                kw = {**kw, "input_tokens": kw.get("input_tokens") or raw_usage.get("input_tokens") or raw_usage.get("prompt_tokens") or 0, "output_tokens": kw.get("output_tokens") or raw_usage.get("output_tokens") or raw_usage.get("completion_tokens") or 0}
             if getattr(m, "role", None) == "tool" and "error" in str(getattr(m, "content", "")).lower():
                 tool_errors += 1
             input_tokens += int(kw.get("input_tokens", 0) or 0)

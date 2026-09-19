@@ -41,9 +41,18 @@ class EventReplayBuffer:
 
     @staticmethod
     def thread_id_of(channel: str) -> str | None:
-        # channel 形如 chat:{thread_id}:events
-        if channel.startswith("chat:") and channel.endswith(":events"):
-            tid = channel[5:-7]
+        # channel 形如 chat:{thread_id}:events、workflow:{workflow_id}:events
+        # 或 tasks:{project_id}:events
+        prefix = next(
+            (
+                prefix
+                for prefix in ("chat:", "workflow:", "tasks:")
+                if channel.startswith(prefix)
+            ),
+            None,
+        )
+        if prefix and channel.endswith(":events"):
+            tid = channel[len(prefix):-7]
             return tid or None
         return None
 

@@ -7,15 +7,52 @@ import asyncio
 import json
 import logging
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
+from sqlalchemy import select
 
-from app.api.deps import verify_guest_access
-from app.core.engine.message.broker import get_message_broker
+from app.api.deps import CurrentUserOptional, verify_guest_access
+from app.core.config import settings
+from app.core.engine.message.broker import event_replay_buffer, get_message_broker
+from app.core.identity import identity_service
 from app.core.monitoring.activity import activity_monitor
+from app.domain.tasks.workflows import WorkflowError, WorkflowService
+from app.infrastructure.database.sql.database import session_scope
+from app.models import User
+from app.models.codebase import Repository
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/stream", tags=["stream"])
+
+
+async def _workflow_stream_user(
+    current_user: User | None, token: str | None
+) -> User:
+    user = current_user
+    if user is None and token:
+        member_id = await identity_service.resolve_member_id_from_token(token)
+        if member_id:
+            user = User(id=member_id, is_active=True)
+    if user is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired session",
+        )
+    return user
+
+
+async def _ensure_workflow_access(project_id: int, user: User) -> None:
+    if not settings.MULTI_TENANT_MODE:
+        return
+    async with session_scope() as session:
+        result = await session.execute(
+            select(Repository.member_id).where(
+                Repository.project_id == project_id
+            )
+        )
+        owner_id = result.scalar_one_or_none()
+    if owner_id != int(user.id):
+        raise HTTPException(status_code=404, detail="workflow not found")
 
 
 @router.get("/chat/{thread_id}", dependencies=[Depends(verify_guest_access)])
@@ -182,6 +219,336 @@ async def stream_chat(thread_id: str, request: Request):
         finally:
             if pubsub:
                 await pubsub.close()
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@router.get("/workflow/{workflow_id}")
+async def stream_workflow(
+    workflow_id: str,
+    request: Request,
+    current_user: CurrentUserOptional,
+    token: str | None = Query(None),
+):
+    """
+    Stream workflow lifecycle and artifact events.
+
+    Event type: workflow_updated.
+    """
+    user = await _workflow_stream_user(current_user, token)
+    try:
+        workflow = await WorkflowService.get_workflow(workflow_id)
+    except WorkflowError as exc:
+        raise HTTPException(status_code=404, detail="workflow not found") from exc
+    await _ensure_workflow_access(workflow.project_id, user)
+
+    async def event_generator():
+        pubsub = None
+        try:
+            broker = get_message_broker()
+            baseline_seq = event_replay_buffer.current_seq(workflow_id)
+            pubsub = broker.pubsub()
+            channel = f"workflow:{workflow_id}:events"
+            await pubsub.subscribe(channel)
+
+            last_event_id = request.headers.get("last-event-id")
+            floor_seq = (
+                int(last_event_id)
+                if last_event_id and last_event_id.isdigit()
+                else 0
+            )
+            for seq, raw in event_replay_buffer.snapshot_since(
+                workflow_id, floor_seq
+            ):
+                if seq > baseline_seq:
+                    continue
+                try:
+                    event_type = json.loads(raw).get("type", "unknown")
+                except Exception:
+                    event_type = "unknown"
+                yield f"id: {seq}\nevent: {event_type}\ndata: {raw}\n\n"
+
+            yield (
+                "event: workflow_updated\n"
+                f'data: {json.dumps({"type": "workflow_updated", "workflow_id": workflow_id, "event": "connected", "status": workflow.status})}\n\n'
+            )
+            if workflow.status != "running":
+                return
+
+            reconnect_attempts = 0
+            max_reconnect_attempts = 10
+            base_backoff = 0.5
+            last_heartbeat = asyncio.get_running_loop().time()
+
+            while True:
+                try:
+                    now = asyncio.get_running_loop().time()
+                    if now - last_heartbeat > 15.0:
+                        yield ": ping\n\n"
+                        last_heartbeat = now
+
+                    message = await pubsub.get_message(
+                        ignore_subscribe_messages=True,
+                        timeout=1.0,
+                    )
+                    reconnect_attempts = 0
+                except (ConnectionError, asyncio.TimeoutError):
+                    continue
+                except Exception as exc:
+                    if "Buffer is closed" not in str(exc):
+                        raise
+                    reconnect_attempts += 1
+                    if reconnect_attempts > max_reconnect_attempts:
+                        yield f"event: error\ndata: {json.dumps({'error': 'Workflow stream connection lost after maximum retries'})}\n\n"
+                        break
+                    backoff = min(
+                        base_backoff * (2 ** (reconnect_attempts - 1)),
+                        30.0,
+                    )
+                    logger.warning(
+                        "[SSE] Workflow PubSub read error for %s: %s",
+                        workflow_id,
+                        exc,
+                    )
+                    await asyncio.sleep(backoff)
+                    await pubsub.subscribe(channel)
+                    continue
+
+                if message and message["type"] == "message":
+                    raw_data = message["data"]
+                    if isinstance(raw_data, bytes):
+                        raw_data = raw_data.decode("utf-8", errors="replace")
+                    event_seq = None
+                    terminal_event = False
+                    try:
+                        envelope = json.loads(raw_data)
+                        if isinstance(envelope, dict) and "_evt_seq" in envelope:
+                            event_seq = envelope["_evt_seq"]
+                            raw_data = envelope["_evt_raw"]
+                    except Exception:
+                        pass
+
+                    try:
+                        event_data = json.loads(raw_data)
+                        event_type = event_data.get("type", "unknown")
+                        seq_line = f"id: {event_seq}\n" if event_seq else ""
+                        yield f"{seq_line}event: {event_type}\ndata: {raw_data}\n\n"
+                        terminal_event = (
+                            event_data.get("event") == "workflow_status_changed"
+                            and event_data.get("status") != "running"
+                        )
+                    except Exception as exc:
+                        yield (
+                            "event: error\n"
+                            f"data: {json.dumps({'error': 'Failed to process workflow event', 'details': str(exc)})}\n\n"
+                        )
+
+                    if terminal_event:
+                        break
+
+                await asyncio.sleep(0.01)
+        except asyncio.CancelledError:
+            logger.info("Workflow stream cancelled: %s", workflow_id)
+        except Exception as exc:
+            logger.exception("Workflow stream error: %s", workflow_id)
+            yield f"event: error\ndata: {json.dumps({'error': str(exc)})}\n\n"
+        finally:
+            if pubsub:
+                await pubsub.close()
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@router.get("/tasks")
+async def stream_tasks(
+    current_user: CurrentUserOptional,
+    token: str | None = Query(None),
+    project_id: int | None = Query(None),
+):
+    """
+    Stream task queue lifecycle events.
+
+    Event type: task_queue_updated.
+    """
+    user = await _workflow_stream_user(current_user, token)
+    if project_id is not None and project_id > 0:
+        await _ensure_workflow_access(project_id, user)
+
+    channel = (
+        f"tasks:{project_id}:events"
+        if project_id is not None and project_id > 0
+        else "tasks:all:events"
+    )
+
+    async def event_generator():
+        pubsub = None
+        try:
+            broker = get_message_broker()
+            pubsub = broker.pubsub()
+            await pubsub.subscribe(channel)
+
+            yield (
+                "event: task_queue_updated\n"
+                f'data: {json.dumps({"type": "task_queue_updated", "event": "connected", "project_id": project_id})}\n\n'
+            )
+
+            reconnect_attempts = 0
+            max_reconnect_attempts = 10
+            base_backoff = 0.5
+            last_heartbeat = asyncio.get_running_loop().time()
+
+            while True:
+                try:
+                    now = asyncio.get_running_loop().time()
+                    if now - last_heartbeat > 15.0:
+                        yield ": ping\n\n"
+                        last_heartbeat = now
+
+                    message = await pubsub.get_message(
+                        ignore_subscribe_messages=True,
+                        timeout=1.0,
+                    )
+                    reconnect_attempts = 0
+                except (ConnectionError, asyncio.TimeoutError):
+                    continue
+                except Exception as exc:
+                    if "Buffer is closed" not in str(exc):
+                        raise
+                    reconnect_attempts += 1
+                    if reconnect_attempts > max_reconnect_attempts:
+                        yield f"event: error\ndata: {json.dumps({'error': 'Task stream connection lost after maximum retries'})}\n\n"
+                        break
+                    backoff = min(
+                        base_backoff * (2 ** (reconnect_attempts - 1)),
+                        30.0,
+                    )
+                    logger.warning(
+                        "[SSE] Task PubSub read error for %s: %s",
+                        channel,
+                        exc,
+                    )
+                    await asyncio.sleep(backoff)
+                    await pubsub.subscribe(channel)
+                    continue
+
+                if message and message["type"] == "message":
+                    raw_data = message["data"]
+                    if isinstance(raw_data, bytes):
+                        raw_data = raw_data.decode("utf-8", errors="replace")
+
+                    event_seq = None
+                    try:
+                        envelope = json.loads(raw_data)
+                        if isinstance(envelope, dict) and "_evt_seq" in envelope:
+                            event_seq = envelope["_evt_seq"]
+                            raw_data = envelope["_evt_raw"]
+                    except Exception:
+                        pass
+
+                    try:
+                        event_data = json.loads(raw_data)
+                        event_type = event_data.get("type", "unknown")
+                        seq_line = f"id: {event_seq}\n" if event_seq else ""
+                        yield f"{seq_line}event: {event_type}\ndata: {raw_data}\n\n"
+                    except Exception as exc:
+                        yield (
+                            "event: error\n"
+                            f"data: {json.dumps({'error': 'Failed to process task event', 'details': str(exc)})}\n\n"
+                        )
+
+                await asyncio.sleep(0.01)
+        except asyncio.CancelledError:
+            logger.info("Task stream cancelled: %s", channel)
+        except Exception as exc:
+            logger.exception("Task stream error: %s", channel)
+            yield f"event: error\ndata: {json.dumps({'error': str(exc)})}\n\n"
+        finally:
+            if pubsub:
+                await pubsub.close()
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@router.get("/thread/{thread_id}", dependencies=[Depends(verify_guest_access)])
+async def stream_thread(thread_id: str):
+    """
+    SSE endpoint for thread-level realtime updates (duty workbench).
+
+    Event type: thread_updated — published by MessageRepository.persist
+    whenever a message lands in this thread (tool outputs, reasoning,
+    plan-adjacent steps). Frontend uses it to refresh the execution
+    timeline without polling.
+    """
+
+    async def event_generator():
+        pubsub = None
+        try:
+            broker = get_message_broker()
+            pubsub = broker.pubsub()
+            channel = f"thread:{thread_id}:events"
+            await pubsub.subscribe(channel)
+
+            yield (
+                "event: thread_updated\n"
+                f'data: {json.dumps({"type": "thread_updated", "event": "connected", "thread_id": thread_id})}\n\n'
+            )
+
+            last_heartbeat = asyncio.get_running_loop().time()
+            while True:
+                try:
+                    now = asyncio.get_running_loop().time()
+                    if now - last_heartbeat > 15.0:
+                        yield ": ping\n\n"
+                        last_heartbeat = now
+                    message = await pubsub.get_message(
+                        ignore_subscribe_messages=True,
+                        timeout=1.0,
+                    )
+                except (ConnectionError, asyncio.TimeoutError):
+                    continue
+                except Exception:
+                    break
+                if message is None:
+                    continue
+                data = message.get("data")
+                if isinstance(data, bytes):
+                    data = data.decode("utf-8", "replace")
+                if not data:
+                    continue
+                yield f"event: thread_updated\ndata: {data}\n\n"
+        except asyncio.CancelledError:
+            pass
+        finally:
+            if pubsub:
+                try:
+                    await pubsub.unsubscribe(channel)
+                    await pubsub.close()
+                except Exception:
+                    pass
 
     return StreamingResponse(
         event_generator(),

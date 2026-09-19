@@ -173,6 +173,37 @@ class MessageRepository:
 
                 await session.flush()
 
+            # 实时感知：消息落库即广播（轻量 payload）
+            # 1) thread 频道：执行面板时间线刷新
+            # 2) tasks:all:events 的工作脉冲：值守波形（仅任务/值守线程）
+            try:
+                from app.core.engine.message.broker import get_message_broker
+
+                broker = get_message_broker()
+                await broker.publish(
+                    f"thread:{self.thread_id}:events",
+                    {
+                        "type": "thread_updated",
+                        "thread_id": self.thread_id,
+                        "role": getattr(role, "value", str(role)),
+                        "category": str(category),
+                    },
+                )
+                if self.thread_id.startswith(("agent_", "wakeup_", "duty_")):
+                    # 活动脉冲：Agent 每落一条消息即广播（纯信号，零 DB 查询，
+                    # 不在热路径借第二个连接——连接池泄漏教训）
+                    await broker.publish(
+                        "tasks:all:events",
+                        {
+                            "type": "task_queue_updated",
+                            "event": "task_pulse",
+                            "thread_id": self.thread_id,
+                            "role": getattr(role, "value", str(role)),
+                        },
+                    )
+            except Exception:
+                pass  # 通知失败不阻塞落库
+
             return log.id, seq
 
         except Exception as e:
@@ -733,7 +764,11 @@ class MessageRepository:
                         select(func.count(Message.id)).where(
                             Message.thread_id == self.thread_id,
                             Message.is_visible,
-                            Message.category != MessageCategory.HITL_REQUEST.value,
+                            or_(
+                                Message.category.is_(None),
+                                Message.category
+                                != MessageCategory.HITL_REQUEST.value,
+                            ),
                         )
                     )
                 ).scalar()

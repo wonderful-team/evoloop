@@ -63,6 +63,49 @@ def _aware(dt: datetime | None) -> datetime | None:
     return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
 
 
+async def _expire_stale_hitl_requests(max_age_hours: int = 24) -> int:
+    """审批有时效：pending 超 24h 的请求自动取消。
+
+    值守语义下操作员可能长期不在，无限挂起的审批会让任务永久阻塞。
+    超时 = 放弃这次人工介入（默认拒绝），任务走失败/重跑路径。
+    """
+    from datetime import datetime, timedelta, timezone
+
+    from app.models import HumanRequest
+    from sqlalchemy import select, update
+
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
+    async with session_scope() as session:
+        rows = (
+            (
+                await session.execute(
+                    select(HumanRequest.id).where(
+                        HumanRequest.status == "pending",
+                        HumanRequest.created_at < cutoff,
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        if not rows:
+            return 0
+        result = await session.execute(
+            update(HumanRequest)
+            .where(
+                HumanRequest.id.in_(rows),
+                HumanRequest.status == "pending",
+            )
+            .values(status="cancelled", updated_at=datetime.now(timezone.utc))
+        )
+        count = int(result.rowcount or 0)
+    if count:
+        from app.domain.tasks.runtime.wakeup import notify_duty_wakeup
+
+        notify_duty_wakeup()
+    return count
+
+
 async def reconcile_stranded(*, startup: bool = False) -> int:
     """收敛死亡现场，返回处置的任务数。"""
     from app.domain.tasks.service import TaskQueueService
@@ -157,8 +200,12 @@ async def reconcile_stranded(*, startup: bool = False) -> int:
 
         if status is None:
             reason = "run lost (no activity record); auto-requeued by duty reconciler"
+        elif status is ActivityStatus.HUMAN_INTERRUPT and tid not in hitl_threads:
+            # 孤儿中断：Agent 挂起等人，但 pending 请求已不存在（被关/丢失）——
+            # 没人能解除这个挂起，必须回队重跑，否则任务永久悬挂
+            reason = "orphan human_interrupt (no pending request); auto-requeued"
         elif status in _SKIP_STATUSES:
-            continue  # 在跑 / 停止中 / 等人决策
+            continue  # 在跑 / 停止中 / 等人决策（有 pending 请求）
         elif status not in _TERMINAL_STATUSES and status is not ActivityStatus.IDLE:
             continue
         else:

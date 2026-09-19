@@ -1,4 +1,45 @@
 {
+  "taskLoop": {
+    "title": "Task Loop Growth Workflow",
+    "description": "Five-stage text workflow from market research to listing copy drafts",
+    "historyLabel": "Workflow history",
+    "historyPlaceholder": "Select a workflow",
+    "newWorkflow": "New workflow",
+    "defaultTitle": "Growth Listing Workflow",
+    "refresh": "Refresh",
+    "create": "Start Workflow",
+    "progress": "{{completed}} / {{total}} stages completed",
+    "titleLabel": "Title",
+    "titlePlaceholder": "For example: Smart pet feeder launch",
+    "categoryLabel": "Category",
+    "categoryPlaceholder": "For example: Pet supplies",
+    "goalLabel": "Operations goal",
+    "goalPlaceholder": "Describe the product, target market, and expected result",
+    "workflowStatus": {
+      "running": "Running",
+      "completed": "Completed",
+      "failed": "Failed"
+    },
+    "streamStatus": {
+      "connecting": "Live connecting",
+      "connected": "Live connected",
+      "reconnecting": "Live reconnecting",
+      "closed": "Live closed"
+    },
+    "taskStatus": {
+      "pending": "Pending",
+      "in_progress": "In progress",
+      "completed": "Completed",
+      "failed": "Failed"
+    },
+    "stages": {
+      "market_research": "Market research",
+      "product_opportunity_scan": "Opportunity scan",
+      "selection_dossier": "Selection dossier",
+      "product_brief_builder": "Product brief",
+      "listing_copy_generator": "Listing copy"
+    }
+  },
   "globalToast": {
     "indexingStatus": {
       "loading": "Indexing and static analysis in progress...",
@@ -1528,7 +1569,6 @@
       "label": "Actions",
       "logTime": "Log Time",
       "viewGantt": "View Gantt",
-      "viewTasks": "View Tasks",
       "confirmDesc": "This will permanently delete the project <bold>{{name}}</bold>. This action cannot be undone."
     },
     "active": "Active",
@@ -1678,7 +1718,6 @@
       "profile": "Profile",
       "reports": "Reports",
       "requirements": "Requirements",
-      "tasks": "Tasks",
       "timesheet": "Timesheet",
       "vault": "Vault",
       "wiki": "Wiki",
@@ -2830,6 +2869,7 @@
     },
     "subtitle": "Autonomous duty status",
     "hint": "Tasks are dispatched to the Agent automatically on schedule",
-    "createHint": "Hand the task to the Agent in chat; it will draft a proposal for you to confirm"
+    "createHint": "Hand the task to the Agent in chat; it will draft a proposal for you to confirm",
+    "running": "Running"
   }
 }

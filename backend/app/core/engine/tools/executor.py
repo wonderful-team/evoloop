@@ -19,6 +19,22 @@ from app.utils.id import gen_uuid
 
 logger = logging.getLogger(__name__)
 
+#: 会话已用工具记录上限（防 metadata 无限增长；超出后不再记，保底面封顶）
+USED_NATIVE_TOOLS_CAP = 50
+
+
+def record_used_native_tool(metadata: Any, tool_name: str) -> None:
+    """向 ctx.metadata.used_native_tools 追加已执行工具（append-only 去重）。"""
+    try:
+        used = getattr(metadata, "used_native_tools", None)
+        if used is None or tool_name in used or len(used) >= USED_NATIVE_TOOLS_CAP:
+            return
+        used.append(tool_name)
+    except Exception:
+        logger.exception(
+            "[ToolExecutor] failed to record used native tool '%s'", tool_name
+        )
+
 
 class ToolExecutionResult(BaseModel):
     """Result of a tool execution, including the message and raw output."""
@@ -135,6 +151,10 @@ class AgentToolExecutor:
             tool_sig = f"{tool_name}:{json.dumps(tool_args, sort_keys=True)}"
             async with self._history_lock:
                 local_tool_history.append(tool_sig)
+            # 会话已用工具记账（工具面收窄的保险下限）：通过 PRE_TOOL_USE 钩子
+            # 放行即算"用过"，被拦截的不算。mcp__ 工具也记（保底层在静态面内
+            # 查不到即无操作，MCP 可用性由 loaded_packages 持久保证）。
+            record_used_native_tool(ctx.metadata, tool_name)
 
             is_mutating = tool.metadata.get("is_state_mutating", False)
             if self.enable_diff_tracking and is_mutating:

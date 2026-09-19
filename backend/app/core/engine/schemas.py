@@ -76,6 +76,8 @@ class ContextStats(DynamicBaseModel):
     tool_tokens: int
     recent_tools: list[ToolCallInfo] = Field(default_factory=list)
     usage_ratio: float
+    tools_tokens: int = 0
+    basis: str = "estimated"
 
     def to_prompt(self) -> str:
         usage_pct = self.usage_ratio * 100
@@ -90,6 +92,11 @@ class ContextStats(DynamicBaseModel):
             f"Usage: {self.total_tokens:,} / {self.max_tokens:,} tokens ({usage_pct:.0f}%) - {status}",
             f"Messages: {self.message_count} total, {self.tool_message_count} tool outputs ({self.tool_tokens:,} tokens)",
         ]
+        if self.tools_tokens or self.basis == "measured":
+            detail = f"Basis: {self.basis}"
+            if self.tools_tokens:
+                detail += f", tool surface ≈ {self.tools_tokens:,} tokens"
+            lines.append(detail)
         if self.recent_tools:
             recent_names = [
                 f"{t.name}({t.token_count // 1000}k)" for t in self.recent_tools[-5:]

@@ -54,6 +54,57 @@ def consume_pending_media_refs(ctx) -> list[dict]:
     return refs
 
 
+def _is_context_monitor_block(block: Any) -> bool:
+    return (
+        isinstance(block, dict)
+        and isinstance(block.get("text"), str)
+        and block["text"].strip().startswith("[Context Monitor]")
+    )
+
+
+def inject_context_dashboard(
+    loop_messages: list[BaseMessage],
+    model: str | None,
+    tools_tokens: int = 0,
+) -> list[BaseMessage]:
+    """把最新 Context Monitor 注入最近一条 human 消息（**替换式**，非追加）。
+
+    此前为纯追加：每轮在 last human 上再挂一块 monitor，随消息流逐轮累积
+    （实测值守 run 5 轮攒 5 块，长 run 线性膨胀数千 token）。改为剥掉旧块
+    再注新块——消息流里始终只有最新一块。
+    """
+    from app.core.engine.context_monitor import ContextMonitor
+
+    for i in range(len(loop_messages) - 1, -1, -1):
+        if loop_messages[i].role != MessageRole.HUMAN:
+            continue
+        dashboard = (
+            "\n\n"
+            + ContextMonitor.calculate(
+                loop_messages, model=model, tools_tokens=tools_tokens
+            ).to_prompt()
+        )
+        original_content = loop_messages[i].content
+        if isinstance(original_content, str):
+            idx = original_content.rfind("\n\n[Context Monitor]")
+            base = original_content[:idx] if idx != -1 else original_content
+            new_content = base + dashboard
+        elif isinstance(original_content, list):
+            kept = [
+                blk for blk in original_content if not _is_context_monitor_block(blk)
+            ]
+            new_content = kept + [{"type": "text", "text": dashboard.strip()}]
+        else:
+            break
+        loop_messages[i] = HumanMessage(
+            content=new_content,
+            name=loop_messages[i].name,
+            additional_kwargs=loop_messages[i].additional_kwargs,
+        )
+        break
+    return loop_messages
+
+
 def doom_loop_detected(signatures: list[str], window: int = DOOM_LOOP_WINDOW) -> bool:
     """代码层防循环检测：最近 ``window`` 条工具调用签名完全相同即判循环。
 
@@ -170,7 +221,11 @@ class InferenceEngine:
         thread_id: str | None,
         run_id: str | None,
         config: dict,
+        tools_wire: list[dict] | None = None,
     ) -> tuple[list[BaseMessage], dict[str, Any] | None]:
+        from app.core.engine.context_monitor import ContextMonitor
+
+        tools_tokens = ContextMonitor.estimate_tools_tokens(tools_wire)
         if model is not None:
             trim_result = self._context_trimmer.trim(
                 messages=loop_messages,
@@ -198,39 +253,13 @@ class InferenceEngine:
                 )
 
             if loop_messages:
-                for i in range(len(loop_messages) - 1, -1, -1):
-                    if loop_messages[i].role == MessageRole.HUMAN:
-                        from app.core.engine.context_monitor import ContextMonitor
-
-                        dashboard = (
-                            "\n\n"
-                            + ContextMonitor.calculate(
-                                loop_messages, model=model
-                            ).to_prompt()
-                        )
-
-                        original_content = loop_messages[i].content
-                        if isinstance(original_content, str):
-                            new_content = original_content + dashboard
-                        elif isinstance(original_content, list):
-                            new_content = list(original_content) + [
-                                {"type": "text", "text": dashboard.strip()}
-                            ]
-                        else:
-                            break
-
-                        loop_messages[i] = HumanMessage(
-                            content=new_content,
-                            name=loop_messages[i].name,
-                            additional_kwargs=loop_messages[i].additional_kwargs,
-                        )
-                        break
+                loop_messages = inject_context_dashboard(loop_messages, model, tools_tokens)
 
         msg_count = len(loop_messages)
         if model is not None:
             from app.core.engine.context_monitor import ContextMonitor
 
-            stats = ContextMonitor.calculate(loop_messages, model=model)
+            stats = ContextMonitor.calculate(loop_messages, model=model, tools_tokens=tools_tokens)
             logger.info(
                 f"--- {name} Context: {msg_count} msgs, ~{stats.total_tokens} tokens ({stats.usage_ratio * 100:.1f}%) ---"
             )
@@ -491,6 +520,7 @@ class InferenceEngine:
                 thread_id=thread_id,
                 run_id=run_id,
                 config=config,
+                tools_wire=getattr(llm_with_tools, "_tools", None),
             )
 
             response = await self._execute_llm_call(

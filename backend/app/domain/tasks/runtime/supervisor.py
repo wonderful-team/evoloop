@@ -21,7 +21,10 @@ from app.domain.tasks.constants import (
     DRAIN_IDLE_TIMEOUT_SECONDS,
     RECONCILE_INTERVAL_SECONDS,
 )
-from app.domain.tasks.runtime.dispatcher import dispatch_due_tasks
+from app.domain.tasks.runtime.dispatcher import (
+    auto_retry_failed_tasks,
+    dispatch_due_tasks,
+)
 from app.domain.tasks.runtime.reconciler import reconcile_stranded
 from app.domain.tasks.runtime.wakeup import wait_duty_wakeup
 
@@ -46,6 +49,10 @@ async def run_supervisor_forever() -> None:
         logger.exception("[DutySupervisor] startup reconcile 失败（循环继续，稳态兜底）")
     last_reconcile = time.monotonic()
     while True:
+        try:
+            await auto_retry_failed_tasks()
+        except Exception:
+            logger.exception("[DutySupervisor] auto-retry failed tasks error")
         try:
             await dispatch_due_tasks()
         except Exception:

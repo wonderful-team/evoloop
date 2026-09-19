@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager, contextmanager
 
@@ -67,6 +68,24 @@ class Base(DeclarativeBase):
 
 
 # Dependency for FastAPI
+async def _shielded_session_close(session) -> None:
+    """Return the connection to the pool even while a cancellation is in flight.
+
+    When a client disconnects, uvicorn cancels the request task; the
+    CancelledError surfaces at the first await after the current greenlet
+    completes, which used to be the ``finally: await session.close()`` itself
+    — the close was skipped and the pool connection leaked (one leaked
+    connection per aborted request). Shielding the close keeps the
+    cancellation from preventing the fairy checkin: the shielded close either
+    completes here, or continues in the background after the task is
+    cancelled. Either way the connection returns to the pool.
+    """
+    try:
+        await asyncio.shield(session.close())
+    except asyncio.CancelledError:
+        pass
+
+
 async def get_db():
     async with db_resource_manager.session_factory() as session:
         try:
@@ -76,7 +95,7 @@ async def get_db():
             await session.rollback()
             raise
         finally:
-            await session.close()
+            await _shielded_session_close(session)
 
 
 @asynccontextmanager
@@ -92,7 +111,7 @@ async def session_scope():
             await session.rollback()
             raise
         finally:
-            await session.close()
+            await _shielded_session_close(session)
 
 
 @contextmanager

@@ -1,7 +1,7 @@
 /* Demo dataset for the Agent duty workbench (mirrors Chat/debug/mockData pattern).
  * Flip DEMO to false to return to live API data. */
 
-export const DEMO = true
+export const DEMO = import.meta.env.VITE_DUTY_DEMO === "true"
 
 const NOW = Date.now()
 const iso = (msAgo: number) => new Date(NOW - msAgo).toISOString()

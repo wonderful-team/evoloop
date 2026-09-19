@@ -2,6 +2,8 @@ import json
 import logging
 import time
 
+import asyncio
+
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.deps import get_current_user
@@ -213,6 +215,62 @@ async def update_system_config(config: SystemConfig) -> SystemConfig:
 # --- Customer Service Duty (global config) ---
 
 
+@router.get("/db-debug")
+async def db_debug() -> dict:
+    """TEMP pool-leak debugging: live pool status + holders of checked-out fairies."""
+    import gc as _gc
+    import types as _types
+
+    from app.infrastructure.database.resource_manager import db_resource_manager
+
+    def _scan(engine) -> dict:
+        if engine is None:
+            return {"error": "engine not ready"}
+        pool = engine.sync_engine.pool
+        fairies = [
+            o for o in _gc.get_objects() if type(o).__name__ == "_ConnectionFairy"
+        ]
+        holders = []
+        for f in fairies:
+            refs = _gc.get_referrers(f)
+            interesting = []
+            for r in refs:
+                t = type(r)
+                if isinstance(r, _types.FrameType):
+                    interesting.append(
+                        f"frame:{r.f_code.co_filename.split('backend/')[-1]}:{r.f_code.co_name}:{r.f_lineno}"
+                    )
+                else:
+                    interesting.append(f"{t.__module__}.{t.__name__}")
+            # 上溯一层容器：谁持有这些 list/dict
+            upstream = set()
+            for r in refs:
+                for r2 in _gc.get_referrers(r):
+                    t2 = type(r2)
+                    if isinstance(r2, _types.FrameType):
+                        upstream.add(
+                            f"frame:{r2.f_code.co_filename.split('backend/')[-1]}:{r2.f_code.co_name}"
+                        )
+                    elif not isinstance(r2, (list, dict)):
+                        upstream.add(f"{t2.__module__}.{t2.__name__}")
+            holders.append(
+                {
+                    "id": id(f),
+                    "refs": interesting[:6],
+                    "upstream": sorted(upstream)[:8],
+                }
+            )
+        return {
+            "pool_status": pool.status(),
+            "checkedout": pool.checkedout(),
+            "fairy_count": len(fairies),
+            "holders": holders[:20],
+        }
+
+    engine = db_resource_manager.engine
+    return await asyncio.to_thread(_scan, engine)
+
+
 @router.get("/customer_service_duty", dependencies=[Depends(get_current_user)])
 async def get_customer_service_duty() -> dict:
     """读取全局客服值守配置（总开关 + 渠道选择 + MCP 预加载）。"""
@@ -262,6 +320,29 @@ async def update_customer_service_duty(cfg: dict) -> dict:
     # 全局开 → 恢复所有保留 enabled 的项目的调度（总闸打开，分闸按项目意愿恢复）
     elif enabled and not old.get("enabled"):
         await provision.resume_global()
+
+    # 值守状态变更 → system:events 广播（托盘管理器即时同步，替代 15s 盲轮）。
+    # system 频道走 onmessage + payload.event 分发，需带 SystemEvent 形状。
+    try:
+        from datetime import datetime as _dt
+
+        from app.core.engine.message.broker import get_message_broker
+
+        await get_message_broker().publish(
+            "system:events",
+            {
+                "type": "duty_state_changed",
+                "event": "duty_state_changed",
+                "timestamp": _dt.now().isoformat(),
+                "source": "system",
+                "data": {
+                    "enabled": enabled,
+                    "channels": new_channels,
+                },
+            },
+        )
+    except Exception:
+        pass  # 通知失败不影响配置本身
     return cfg
 
 

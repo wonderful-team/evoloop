@@ -25,6 +25,7 @@ import { ChangesetSnapshot } from "./ChangesetSnapshotView"
 import { ImageGalleryViewer, type GalleryImage } from "./ImageGalleryViewer"
 import { MessageContent } from "./MessageContent"
 import { MessageReferences } from "./MessageReferences"
+import { TaskProposalCard } from "./TaskProposalCard"
 import { TTSButton } from "./TTSButton"
 
 export interface MessageReference {
@@ -228,6 +229,18 @@ const ChatMessageItem = memo(
 
     // Render Tool Message (Flat & Compact)
     if (msg.role === "tool") {
+      const proposalInput =
+        msg.input && typeof msg.input === "object"
+          ? (msg.input as Record<string, unknown>)
+          : {}
+      if (
+        msg.tool_name === "tasks" &&
+        proposalInput.action === "create" &&
+        proposalInput.source === "agent"
+      ) {
+        return <TaskProposalCard msg={{ id: msg.id, content: msg.content, input: proposalInput }} />
+      }
+
       // 后端 display_name 是单行摘要模板，长值（命令/正则/SQL/提示词等）会被
       // 内嵌并压成一行 —— 检测摘要中内嵌的长值/多行值，剥离为多行块渲染。
       // 匹配必须用未经空白清理的原始串（heredoc/缩进命令含连续空白，
@@ -240,10 +253,7 @@ const ChatMessageItem = memo(
         msg.tool_name ||
         t("chat.toolMessage.fallbackName")
       ).trim()
-      const toolInput =
-        msg.input && typeof msg.input === "object"
-          ? (msg.input as Record<string, unknown>)
-          : {}
+      const toolInput = proposalInput
       const rawAction = typeof toolInput.action === "string" ? toolInput.action : ""
 
       // 语义化命名：action 级（facade 工具）优先，退回工具级；

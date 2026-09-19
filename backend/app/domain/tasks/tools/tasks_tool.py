@@ -149,7 +149,9 @@ async def tasks(
             src = source or "user"
             origin_task_id = None
             if src == "agent":
-                origin_task_id = ContextManager.current().task_id
+                origin_task_id = getattr(
+                    ContextManager.current(), "current_task_id", None
+                )
             parsed_due = None
             if due_at:
                 parsed_due = datetime.fromisoformat(due_at)

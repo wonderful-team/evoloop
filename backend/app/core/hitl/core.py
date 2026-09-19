@@ -150,7 +150,27 @@ async def create_request(
 
         pydantic_req = HumanInputRequest.from_db(db_request)
         logger.info(f"Created human input request in DB: {request_id} ({request_type})")
-        return pydantic_req
+
+    # 值守工作台实时感知：Agent 发起审批 → 任务频道广播 hitl_created
+    # （桌面/手机工作台即时弹出"等待审批"，不再依赖 10s 盲轮）。
+    # session_scope 正常退出即已提交，广播失败不影响创建本身。
+    try:
+        from app.core.engine.message.broker import get_message_broker
+
+        await get_message_broker().publish(
+            "tasks:all:events",
+            {
+                "type": "task_queue_updated",
+                "event": "hitl_created",
+                "thread_id": thread_id,
+                "request_id": request_id,
+                "request_type": request_type,
+            },
+        )
+    except Exception:
+        pass
+
+    return pydantic_req
 
 
 async def get_pending_requests_for_thread(thread_id: str) -> list[HumanInputRequest]:
@@ -249,6 +269,25 @@ async def finalize_request(
             updated_request,
             updated_message,
         )
+        # 值守工作台实时感知：审批定局 → 任务频道广播（任意端——桌面/手机——
+        # 做出响应，工作台的"等待审批"计数即时回落，无需轮询收敛）
+        if updated_request or updated_message:
+            try:
+                from app.core.engine.message.broker import get_message_broker
+
+                await get_message_broker().publish(
+                    "tasks:all:events",
+                    {
+                        "type": "task_queue_updated",
+                        "event": "hitl_resolved",
+                        "thread_id": thread_id,
+                        "request_id": request_id,
+                        "status": status,
+                    },
+                )
+            except Exception:
+                pass  # 通知失败不影响定局本身
+
         return updated_request or updated_message
 
 

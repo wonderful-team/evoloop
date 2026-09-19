@@ -35,6 +35,10 @@ class ToolManager:
 
         # 0. 域驱动能力面：按当前会话域解析 capability profile（缺失 = 现状全量）
         profile = self._resolve_domain_profile()
+        if profile is None:
+            # 包归属项目回退：包是 DB 全局资源，会话工作区 ≠ 包源项目时
+            # profile 跟随包源解析（纯机制，域信号仍来自上游 hint）
+            profile = await self._resolve_profile_via_package_home()
 
         # 1. Fetch statically configured tools for this role (Native + specifically requested MCP if defined in yaml)
         try:
@@ -46,12 +50,21 @@ class ToolManager:
             tools = []
 
         combined_map = {t.name: t for t in tools if t.name}
+        # 未过滤全量静态面快照：已用工具保底层的取值池（域面收窄后由此回补）
+        static_face_map = dict(combined_map)
 
+        allowed_native: set[str] = set()
         if profile is not None and profile.native_tools is not None:
             allowed_native = set(profile.native_tools)
             combined_map = {
                 k: v for k, v in combined_map.items() if k in allowed_native
             }
+        elif profile is None:
+            # 项目级 opt-in 兜底策略：域/信号缺失时收窄原生面（未声明 = 全量，零回归）
+            combined_map = self._apply_fallback_policy(combined_map)
+
+        # 保险下限：本会话已执行过的工具在收窄后保底保留（自动识别的安全阀）
+        self._apply_used_tools_floor(static_face_map, combined_map)
 
         # 2. Filter out multimodal tools if no vision model is configured
         from app.infrastructure.config.service import SystemConfigService
@@ -76,6 +89,7 @@ class ToolManager:
         # 按 capability packages 渐进注入（v2 终态，C3 allowlist 已删）：
         #   预选/加载的包 → (server, tool) 精确面；include 缺省 = server 全量；
         #   无包 = 全量兼容（兜底）。
+        package_surface = None
         if state:
             try:
                 from app.core.mcp import mcp_client_manager
@@ -126,22 +140,97 @@ class ToolManager:
 
     @staticmethod
     def _resolve_domain_profile():
-        """Read the session's resolved domain from ContextManager intent_hint."""
+        """Read the session's resolved domain (hint > package-feedback) via ContextManager."""
         try:
             from app.core.context import ContextManager
-            from app.core.engine.capability_profiles import get_profile
+            from app.core.engine.capability_profiles import (
+                get_profile,
+                session_domain_of,
+            )
 
             ctx = ContextManager.current()
-            hint = (ctx.metadata or {}).get("intent_hint")
-            domain = None
-            if hint is not None:
-                domain = getattr(hint, "domain", None) or (
-                    hint.get("domain") if isinstance(hint, dict) else None
-                )
-            return get_profile(domain, ctx.working_directory)
+            return get_profile(session_domain_of(ctx), ctx.working_directory)
         except Exception:
             logger.exception("[ToolManager] domain profile resolution failed")
             return None
+
+    @staticmethod
+    async def _resolve_profile_via_package_home():
+        """hint 域在会话工作区未命中 profile 时的装配回退（候选链）。
+
+        逐候选尝试：hint 域（跨项目回退）→ 包反哺域（会话工作区 + 跨项目）。
+        hint 域不可装配时不阻塞反哺域（分类器标签与包目录可能不同词汇表）。
+        """
+        try:
+            from app.core.context import ContextManager
+            from app.core.engine.capability_profiles import (
+                hint_domain_of,
+                resolve_profile_candidates,
+            )
+
+            ctx = ContextManager.current()
+            resolved = await resolve_profile_candidates(
+                ctx, hint_domain=hint_domain_of(ctx)
+            )
+            return resolved[0] if resolved else None
+        except Exception:
+            logger.exception("[ToolManager] package-home profile resolution failed")
+            return None
+
+    @staticmethod
+    def _apply_used_tools_floor(static_face_map: dict, combined_map: dict) -> None:
+        """保险下限：会话已执行过的原生工具在收窄面之上保底保留（原地并入）。
+
+        语义：域面每轮重算可换型，但本会话用过的工具永不消失——混合会话
+        （查商品 + 抓藏宝阁）不被单一域面误裁。面只单调变化，缓存友好。
+        """
+        try:
+            from app.core.context import ContextManager
+
+            metadata = ContextManager.current().metadata
+            used = (
+                metadata.get("used_native_tools")
+                if isinstance(metadata, dict)
+                else getattr(metadata, "used_native_tools", None)
+            )
+            if not used:
+                return
+            added = {
+                name: static_face_map[name]
+                for name in used
+                if name in static_face_map and name not in combined_map
+            }
+            if added:
+                combined_map.update(added)
+                logger.info(
+                    f"[ToolManager] used-tools floor restored: {sorted(added)}"
+                )
+        except Exception:
+            logger.exception("[ToolManager] used-tools floor resolution failed")
+
+    @staticmethod
+    def _apply_fallback_policy(combined_map: dict) -> dict:
+        """应用项目级 fallback.native_tools 白名单（opt-in；未声明 = 原样返回）。"""
+        try:
+            from app.core.context import ContextManager
+            from app.core.engine.capability_profiles import get_fallback_native_tools
+
+            wd = ContextManager.current().working_directory
+            fallback_tools = get_fallback_native_tools(
+                wd if isinstance(wd, str) else None
+            )
+            if not fallback_tools:
+                return combined_map
+            allowed = set(fallback_tools)
+            filtered = {k: v for k, v in combined_map.items() if k in allowed}
+            logger.info(
+                f"[ToolManager] fallback minimal-core policy applied: "
+                f"{len(filtered)} native tools kept"
+            )
+            return filtered
+        except Exception:
+            logger.exception("[ToolManager] fallback policy application failed")
+            return combined_map
 
     @staticmethod
     def _server_of_mcp_tool(tool_name: str) -> str:

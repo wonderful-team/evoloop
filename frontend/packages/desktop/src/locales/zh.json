@@ -1,4 +1,45 @@
 {
+  "taskLoop": {
+    "title": "Task Loop 增长闭环",
+    "description": "五阶段文本工作流：市场调研到上架文案草稿",
+    "historyLabel": "历史工作流",
+    "historyPlaceholder": "选择一个工作流",
+    "newWorkflow": "新建工作流",
+    "defaultTitle": "增长上新闭环",
+    "refresh": "刷新",
+    "create": "启动闭环",
+    "progress": "{{completed}} / {{total}} 个阶段已完成",
+    "titleLabel": "标题",
+    "titlePlaceholder": "例如：宠物智能喂食器上新",
+    "categoryLabel": "类目",
+    "categoryPlaceholder": "例如：宠物用品",
+    "goalLabel": "运营目标",
+    "goalPlaceholder": "描述要上新的商品、目标市场和期望结果",
+    "workflowStatus": {
+      "running": "运行中",
+      "completed": "已完成",
+      "failed": "失败"
+    },
+    "streamStatus": {
+      "connecting": "实时连接中",
+      "connected": "实时已连接",
+      "reconnecting": "实时重连中",
+      "closed": "实时已关闭"
+    },
+    "taskStatus": {
+      "pending": "等待中",
+      "in_progress": "执行中",
+      "completed": "已完成",
+      "failed": "失败"
+    },
+    "stages": {
+      "market_research": "市场调研",
+      "product_opportunity_scan": "机会发现",
+      "selection_dossier": "选品评估",
+      "product_brief_builder": "商品理解",
+      "listing_copy_generator": "上架文案"
+    }
+  },
   "globalToast": {
     "indexingStatus": {
       "loading": "项目正在构建索引与静态分析...",
@@ -1528,7 +1569,6 @@
       "label": "操作",
       "logTime": "记录工时",
       "viewGantt": "查看甘特图",
-      "viewTasks": "查看任务",
       "confirmDesc": "这将永久删除项目 <bold>{{name}}</bold>。此操作无法撤销。"
     },
     "active": "活跃",
@@ -1678,7 +1718,6 @@
       "profile": "项目配置",
       "reports": "报表",
       "requirements": "需求",
-      "tasks": "任务",
       "timesheet": "工时",
       "vault": "密码箱",
       "wiki": "百科",
@@ -2831,6 +2870,7 @@
     },
     "subtitle": "自主值守运行状态",
     "hint": "任务由系统按计划自动派发给 Agent 执行，无需手动干预",
-    "createHint": "去聊天里把任务交给 Agent，它会建提案待你确认"
+    "createHint": "去聊天里把任务交给 Agent，它会建提案待你确认",
+    "running": "执行中"
   }
 }

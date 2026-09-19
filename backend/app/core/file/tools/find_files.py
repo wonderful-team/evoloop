@@ -26,6 +26,10 @@ async def _search_by_name(
     Uses unified FileTraverser.
     """
     q_lower = pattern.lower() if case_insensitive else pattern
+    # glob 语义修正（2026-09-19）：pattern 含通配符（*/?/[）时按 fnmatch 匹配
+    # 文件名（工具名即 glob，agent 按此先验传 "*.xml"——旧实现是子串匹配，
+    # 传 "*" 恒空）；纯文本 pattern 保持子串语义（向后兼容）。
+    use_fnmatch = any(ch in pattern for ch in "*?[")
 
     matched_files = []
 
@@ -35,9 +39,16 @@ async def _search_by_name(
         rel_path = os.path.relpath(full_path, target_path)
 
         # Check name pattern
-        name_match = (
-            q_lower in filename.lower() if case_insensitive else pattern in filename
-        )
+        if use_fnmatch:
+            name_match = fnmatch.fnmatch(
+                filename.lower(), q_lower
+            ) if case_insensitive else fnmatch.fnmatch(filename, pattern)
+        else:
+            name_match = (
+                q_lower in filename.lower()
+                if case_insensitive
+                else pattern in filename
+            )
 
         # Check scope (glob)
         scope_match = True

@@ -123,6 +123,15 @@ async def dispatch_agent_run(
     # 0. Resolve model (before creating context)
     # ------------------------------------------------------------------
     active_model = model or ""
+    if not active_model:
+        from app.infrastructure.config.service import SystemConfigService
+
+        if SystemConfigService.get_value("LLM_CONFIG_TYPE", "platform") == "custom":
+            active_model = (
+                SystemConfigService.get_value("CUSTOM_LLM_MODEL")
+                or SystemConfigService.get_value("LLM_MODEL")
+                or ""
+            )
 
     # ------------------------------------------------------------------
     # 1. Prepare minimal Context (working_dir will be hydrated later via events)

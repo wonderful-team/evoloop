@@ -21,17 +21,142 @@ import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
+from weakref import WeakKeyDictionary
 
 from sqlalchemy import event, inspect, text
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import AsyncAdaptedQueuePool, QueuePool
+from sqlalchemy.util.concurrency import greenlet_spawn
 from sqlmodel import SQLModel
 from sqlmodel import create_engine as create_sync_engine
 
 from app.core.config import settings
 from app.infrastructure.constants import AGENT_ACTIVITY_EXTRA_COLUMNS
+from app.infrastructure.database.guarded_session import LeakGuardAsyncSession
+from app.infrastructure.database.pool_leak_probe import maybe_install
 
 logger = logging.getLogger(__name__)
+
+_ASYNC_POOL_FINALIZE_PATCH_INSTALLED = False
+
+
+def install_async_pool_finalize_patch() -> None:
+    """Patch SQLAlchemy's pool finalizer to async-clean orphaned async fairies.
+
+    Root cause: sqlalchemy/sqlalchemy#12710.  When an asyncio task is cancelled
+    while a :class:`._ConnectionFairy` has been checked out of an async pool but
+    not yet adopted by the caller, the fairy is garbage collected without ever
+    being checked back in.  SQLAlchemy's default ``_finalize_fairy`` logs a
+    warning and drops the connection for async dialects because it cannot run
+    async IO from a synchronous GC callback.
+
+    This patch intercepts that GC callback for async pools and schedules the
+    connection close (and record checkin) on the running event loop, so the
+    connection is returned to the pool instead of being leaked.  It preserves
+    normal cancellation/timeout semantics for application code.
+
+    .. todo::
+        This is a workaround for sqlalchemy/sqlalchemy#12710. Remove this
+        patch once upstream fixes the orphan fairy problem, or when we upgrade
+        to a SQLAlchemy version that no longer exhibits the leak. When removing,
+        delete ``install_async_pool_finalize_patch``,
+        ``_ASYNC_POOL_FINALIZE_PATCH_INSTALLED``, and the call site in
+        ``DatabaseResourceManager.initialize``.
+    """
+    global _ASYNC_POOL_FINALIZE_PATCH_INSTALLED
+    if _ASYNC_POOL_FINALIZE_PATCH_INSTALLED:
+        return
+
+    import sqlalchemy.pool.base as pool_base
+
+    original_finalize = pool_base._finalize_fairy
+
+    async def _async_finalize_cleanup(
+        connection_record: Any, dbapi_connection: Any
+    ) -> None:
+        """Close an orphaned async connection and return its record to the pool."""
+        # StaticPool 守卫（2026-09-19 组合测试事故）：静态池的物理连接被全部
+        # 借用方共享——finalize 一个泄漏 fairy 若物理 close，会杀死正在使用的
+        # 活连接（测试 in-memory 库表现为断言中途 no-such-table/closed database）。
+        # 只告警、不 close、不动 record；泄漏的 checkout 由 watchdog/重启兜底，
+        # 与既有生产语义一致。
+        _pool = getattr(connection_record, "_ConnectionRecord__pool", None)
+        if _pool is not None and type(_pool).__name__ == "StaticPool":
+            logger.warning(
+                "[ResourceManager] abandoned async fairy on StaticPool connection "
+                "not physically closed (shared connection); record=%r",
+                connection_record,
+            )
+            return
+        try:
+            if dbapi_connection is not None:
+                # aiosqlite/asyncpg close() implementations use await_only()
+                # internally, so they must run inside a greenlet.
+                await greenlet_spawn(dbapi_connection.close)
+        except Exception:
+            logger.exception("[ResourceManager] Failed to close orphaned async connection")
+        finally:
+            if connection_record is not None:
+                try:
+                    # The underlying connection is gone; clear it so the pool
+                    # creates a new one on the next checkout.
+                    connection_record.dbapi_connection = None
+                    connection_record.fairy_ref = None
+                    connection_record.checkin()
+                except Exception:
+                    logger.exception(
+                        "[ResourceManager] Failed to check in orphaned connection record"
+                    )
+
+    def _patched_finalize_fairy(
+        dbapi_connection,
+        connection_record,
+        pool,
+        ref,
+        echo,
+        transaction_was_reset=False,
+        fairy=None,
+    ):
+        is_gc_cleanup = ref is not None
+        if is_gc_cleanup and getattr(pool, "_dialect", None) and pool._dialect.is_async:
+            # _finalize_fairy is called from the weakref callback with
+            # dbapi_connection=None. Reconstruct it so we can close it, but do
+            # NOT mutate the parameter we will pass to original_finalize below.
+            conn = dbapi_connection
+            if conn is None and connection_record is not None:
+                conn = connection_record.dbapi_connection
+
+            if connection_record is not None and conn is not None:
+                try:
+                    loop = asyncio.get_running_loop()
+
+                    def _schedule() -> None:
+                        asyncio.create_task(
+                            _async_finalize_cleanup(connection_record, conn),
+                            name="async-pool-finalize-cleanup",
+                        )
+
+                    loop.call_soon_threadsafe(_schedule)
+                    return
+                except RuntimeError:
+                    # No running event loop; fall back to the original warning.
+                    pass
+
+        return original_finalize(
+            dbapi_connection,
+            connection_record,
+            pool,
+            ref,
+            echo,
+            transaction_was_reset=transaction_was_reset,
+            fairy=fairy,
+        )
+
+    pool_base._finalize_fairy = _patched_finalize_fairy
+    _ASYNC_POOL_FINALIZE_PATCH_INSTALLED = True
+    logger.info(
+        "[ResourceManager] Installed async pool finalize patch (sqlalchemy#12710)"
+    )
 
 
 class DatabaseResourceManager:
@@ -50,21 +175,24 @@ class DatabaseResourceManager:
             # Per-event-loop async resources. asyncio objects are bound to the
             # loop that created them; sharing them between Huey worker threads
             # causes "bound to a different event loop" errors.
-            cls._instance._engines: dict[int, Any] = {}
-            cls._instance._session_factories: dict[int, Any] = {}
-            cls._instance._sqlite_conns: dict[int, Any] = {}
-            cls._instance._vector_stores: dict[int, Any] = {}
-            cls._instance._initialized_loops: set[int] = set()
+            # 键必须是 loop 对象而非 id(loop)：loop 被 GC 后地址会被新 loop
+            # 复用（实测 2026-09-19：id 碰撞命中已 dispose 的旧引擎 →
+            # "Cannot operate on a closed database"，并解释历史组合测试漂移）。
+            # WeakKeyDictionary 令 loop 死亡即条目消失，杜绝复用与无界增长。
+            cls._instance._engines: WeakKeyDictionary = WeakKeyDictionary()
+            cls._instance._session_factories: WeakKeyDictionary = WeakKeyDictionary()
+            cls._instance._sqlite_conns: WeakKeyDictionary = WeakKeyDictionary()
+            cls._instance._vector_stores: WeakKeyDictionary = WeakKeyDictionary()
             cls._instance._tables_ensured = False
             cls._instance._task_queue_path = None
         return cls._instance
 
-    def _current_loop_id(self) -> int:
-        """Return the id of the currently running event loop, or -1 if none."""
+    def _current_loop(self) -> asyncio.AbstractEventLoop | None:
+        """Return the currently running event loop, or None if none."""
         try:
-            return id(asyncio.get_running_loop())
+            return asyncio.get_running_loop()
         except RuntimeError:
-            return -1
+            return None
 
     @staticmethod
     def _setup_sqlite_pragmas(engine):
@@ -84,7 +212,7 @@ class DatabaseResourceManager:
     @property
     def engine(self):
         """Return the async engine for the current event loop."""
-        return self._engines.get(self._current_loop_id())
+        return self._engines.get(self._current_loop())
 
     @property
     def sync_engine(self):
@@ -93,7 +221,7 @@ class DatabaseResourceManager:
     @property
     def session_factory(self):
         """Return the session factory for the current event loop."""
-        return self._session_factories.get(self._current_loop_id())
+        return self._session_factories.get(self._current_loop())
 
     @property
     def is_ready(self) -> bool:
@@ -103,7 +231,7 @@ class DatabaseResourceManager:
     @property
     def vector_store(self):
         """Return the vector store for the current event loop."""
-        return self._vector_stores.get(self._current_loop_id())
+        return self._vector_stores.get(self._current_loop())
 
     async def initialize(self, create_tables: bool = True, seed_data: bool = False):
         """Initialize all database resources (SQL, Vector).
@@ -113,18 +241,18 @@ class DatabaseResourceManager:
             seed_data: Deprecated. Seeding is no longer automatic;
                        run ``scripts/seed_system_config.py`` instead.
         """
-        loop_id = self._current_loop_id()
-        if loop_id == -1:
+        loop = self._current_loop()
+        if loop is None:
             raise RuntimeError(
                 "DatabaseResourceManager.initialize() must be called from a running event loop"
             )
 
         with self._init_lock:
-            if loop_id in self._initialized_loops:
+            if loop in self._engines:
                 return
 
             logger.info(
-                f"🚀 Initializing Unified Database System (EMBEDDED_MODE={settings.EMBEDDED_MODE}, loop={loop_id})"
+                f"🚀 Initializing Unified Database System (EMBEDDED_MODE={settings.EMBEDDED_MODE}, loop={id(loop)})"
             )
 
             # 1. Initialize Engines (Async and Sync)
@@ -142,6 +270,7 @@ class DatabaseResourceManager:
                 engine = create_async_engine(
                     db_uri,
                     echo=settings.DB_ECHO,
+                    echo_pool=settings.DB_ECHO_POOL,
                     future=True,
                     poolclass=AsyncAdaptedQueuePool,
                     pool_size=settings.DB_POOL_SIZE,
@@ -170,6 +299,7 @@ class DatabaseResourceManager:
                 engine = create_async_engine(
                     db_uri,
                     echo=settings.DB_ECHO,
+                    echo_pool=settings.DB_ECHO_POOL,
                     future=True,
                     pool_size=settings.DB_POOL_SIZE,
                     max_overflow=settings.DB_MAX_OVERFLOW,
@@ -183,14 +313,17 @@ class DatabaseResourceManager:
                         connect_args={"connect_timeout": settings.DB_CONNECT_TIMEOUT},
                     )
 
-            self._engines[loop_id] = engine
+            self._engines[loop] = engine
             pool_class = type(engine.sync_engine.pool).__name__
             logger.info(
-                f"[ResourceManager] SQL Engine: {db_uri} (pool={pool_class}, loop={loop_id})"
+                f"[ResourceManager] SQL Engine: {db_uri} (pool={pool_class}, loop={id(loop)})"
             )
+            maybe_install(engine)
+            # TODO(sqlalchemy#12710): remove once upstream fixes orphan fairies.
+            install_async_pool_finalize_patch()
 
-            self._session_factories[loop_id] = async_sessionmaker(
-                bind=engine, class_=AsyncSession, expire_on_commit=False
+            self._session_factories[loop] = async_sessionmaker(
+                bind=engine, class_=LeakGuardAsyncSession, expire_on_commit=False
             )
 
             # 2. Initialize Tables & Extensions (once globally)
@@ -201,9 +334,9 @@ class DatabaseResourceManager:
             # 3. Vector Store Initialization
             from app.infrastructure.database.vector import get_vector_store
 
-            self._vector_stores[loop_id] = get_vector_store()
+            self._vector_stores[loop] = get_vector_store()
 
-            self._initialized_loops.add(loop_id)
+
 
     async def _ensure_tables_exist(self, engine):
         """Execute metadata.create_all and handle extensions."""
@@ -271,7 +404,6 @@ class DatabaseResourceManager:
             await conn.close()
         self._sqlite_conns.clear()
 
-        self._initialized_loops.clear()
         self._tables_ensured = False
 
     async def close(self):
@@ -291,7 +423,6 @@ class DatabaseResourceManager:
             self._sqlite_conns.clear()
 
             self._vector_stores.clear()
-            self._initialized_loops.clear()
             self._tables_ensured = False
             logger.info("🔌 Database resources closed and reset.")
 
@@ -323,6 +454,54 @@ class DatabaseResourceManager:
             yield raw
         finally:
             await raw.close()
+
+    async def run_pool_watchdog(self) -> None:
+        """Self-heal the async pool when connections stay checked out too long.
+
+        Client-abort cancellation paths can still strand a checked-out fairy
+        in rare races that the shielded session close does not cover (task
+        FINISHED yet fairy never returned). Left alone the pool drains to
+        zero capacity and every API call times out for 30s each — the
+        observed "API hangs while WS heartbeat is alive" state. When
+        checkedout stays at the ceiling for ``_WATCHDOG_SUSTAINED_S``, rebuild
+        the pool: the engine object stays valid and new checkouts recreate
+        connections lazily, so the API recovers within one cycle.
+        """
+        sustained: float = 0.0
+        ceiling = settings.DB_POOL_SIZE + settings.DB_MAX_OVERFLOW - 2
+        while True:
+            await asyncio.sleep(15)
+            engine = self.engine
+            if engine is None:
+                continue
+            pool = engine.sync_engine.pool
+            try:
+                checked_out = pool.checkedout()
+            except Exception:
+                logger.exception("[PoolWatchdog] failed to read pool status")
+                continue
+            if checked_out < ceiling:
+                sustained = 0.0
+                continue
+            sustained += 15
+            logger.warning(
+                "[PoolWatchdog] pool saturated: checkedout=%d (ceiling %d) sustained %.0fs",
+                checked_out,
+                ceiling,
+                sustained,
+            )
+            if sustained < 60:
+                continue
+            logger.error(
+                "[PoolWatchdog] rebuilding async pool after sustained saturation "
+                "(checkedout=%d); active operations on abandoned connections will fail fast",
+                checked_out,
+            )
+            try:
+                await engine.dispose()
+            except Exception:
+                logger.exception("[PoolWatchdog] engine.dispose failed")
+            sustained = 0.0
 
     @property
     def task_queue_path(self) -> Path:
