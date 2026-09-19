@@ -1,5 +1,6 @@
 import { memo } from "react"
-import { Loader2, PauseCircle } from "lucide-react"
+import { useNavigate } from "@tanstack/react-router"
+import { ArrowRight, Bell, Bot, Loader2, PauseCircle, Scale } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 import { Badge } from "@evoloop/shared/components/ui/badge"
@@ -22,10 +23,13 @@ export const TaskRow = memo(function TaskRow({
   projectName?: string
 }) {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const isRunning = task.status === "in_progress"
   const isProposal = task.status === "proposed"
   const isWaiting = task.status === "waiting_acceptance"
   const isFailed = task.status === "failed"
+  const isReviewing = isWaiting && !!task.review_pending
+  const isArbitration = isFailed && !!task.escalated
 
   const riskCls = RISK_STYLES[task.risk_level ?? "T3"] ?? RISK_STYLES.T3
 
@@ -49,79 +53,122 @@ export const TaskRow = memo(function TaskRow({
   return (
     <div
       onClick={onSelect}
-      className={`group rounded-md p-3 cursor-pointer transition-colors ${
+      className={`group rounded-md p-3 cursor-pointer transition-colors space-y-1.5 ${
         selected ? "bg-primary/10" : "bg-muted/30 hover:bg-muted/60"
       } ${suspended
         ? "border-l-2 border-l-amber-500"
         : isRunning
           ? "border-l-2 border-l-primary"
-          : ""}`}
+          : isReviewing
+            ? "border-l-2 border-l-violet-500"
+            : isWaiting
+              ? "border-l-2 border-l-amber-400"
+              : isFailed
+                ? "border-l-2 border-l-destructive/70"
+                : ""}`}
     >
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <div className="text-[13px] font-medium truncate flex items-center gap-1.5">
-            {suspended ? (
-              <PauseCircle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-            ) : isRunning ? (
-              <Loader2 className="h-3 w-3 animate-spin text-primary shrink-0" />
-            ) : null}
-            {isProposal && (
-              <span className="shrink-0 rounded-full bg-violet-500/10 text-violet-600 dark:text-violet-400 text-[9px] font-bold px-1.5 py-0.5">
-                提案
-              </span>
-            )}
-            {task.title}
-          </div>
-          {task.description && (
-            <div className="text-[11px] text-muted-foreground line-clamp-1 mt-1">
-              {task.description}
-            </div>
+      {/* 头：编号 + 徽标 */}
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-mono text-[10px] text-muted-foreground/60">
+          {task.task_no != null ? `#T-${task.task_no}` : "\u00a0"}
+        </span>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {isProposal && (
+            <span className="rounded-full bg-violet-500/10 text-violet-600 dark:text-violet-400 text-[9px] font-bold px-1.5 py-0.5">
+              提案
+            </span>
           )}
-        </div>
-        <div className="flex flex-col items-end gap-1 shrink-0">
+          {task.type === "recurring" && (
+            <Badge variant="outline" className="h-4 px-1.5 text-[9px] tracking-wide">
+              {t("dutyBoard.recurring")}
+            </Badge>
+          )}
           {task.risk_level && (
             <Badge className={`h-4.5 px-1.5 text-[10px] font-mono ${riskCls}`}>
               {task.risk_level}
             </Badge>
           )}
-          {task.type === "recurring" && (
-            <Badge
-              variant="outline"
-              className="h-4 px-1.5 text-[9px] tracking-wide"
-            >
-              {t("dutyBoard.recurring")}
-            </Badge>
-          )}
         </div>
       </div>
 
-      <div className="mt-2 flex items-center gap-2 text-[10px] text-muted-foreground font-mono whitespace-nowrap overflow-hidden">
-        {timeSpan && <span className="shrink-0">{timeSpan}</span>}
-        {showProject && task.project_id != null && task.project_id > 0 && (
-          <span className="text-primary/70 min-w-0 truncate">
-            {projectName ?? `#${task.project_id}`}
-          </span>
+      {/* 标题 */}
+      <div className="text-[13px] font-medium leading-snug break-words flex items-start gap-1.5">
+        {suspended ? (
+          <PauseCircle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
+        ) : isRunning ? (
+          <Loader2 className="h-3 w-3 animate-spin text-primary shrink-0 mt-0.5" />
+        ) : null}
+        <span className="min-w-0">{task.title}</span>
+      </div>
+
+      {/* 描述放宽到两行 */}
+      {task.description && (
+        <div className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
+          {task.description}
+        </div>
+      )}
+
+      {/* 底部：归属与状态，各占一行，宽松 */}
+      <div className="pt-1.5 border-t border-border/50 space-y-1">
+        {(task.dependencies?.length ?? 0) > 0 && (
+          <div className="flex items-center gap-1.5 text-[10px] font-mono text-muted-foreground/80">
+            <ArrowRight className="h-3 w-3 shrink-0 rotate-90" />
+            依赖 {task.dependencies!.length} 项 · 上游完成后自动推进
+          </div>
         )}
-        {task.category && (
-          <span className="min-w-0 truncate">{task.category}</span>
-        )}
-        {task.priority && task.priority !== "medium" && (
-          <Badge variant="outline" className="h-4 px-1 text-[9px] shrink-0">
-            {task.priority}
-          </Badge>
-        )}
-        {isWaiting && (
-          <span className="text-amber-600 dark:text-amber-400 font-sans font-medium shrink-0">
-            待验收·右侧处理
-          </span>
-        )}
-        {isFailed && (
-          <span className="text-destructive font-sans shrink-0">失败</span>
-        )}
-        <span className="flex-1" />
-        <span className="shrink-0 opacity-0 group-hover:opacity-60 transition-opacity">
-          查看 →
-        </span>
+        <div className="flex items-center justify-between gap-2 text-[10px] font-mono text-muted-foreground whitespace-nowrap">
+          <span className="shrink-0">{timeSpan}</span>
+          {isReviewing ? (
+            <span className="text-violet-500 font-sans font-medium shrink-0 flex items-center gap-1">
+              <Bot className="h-3 w-3" />
+              评审中
+            </span>
+          ) : isWaiting ? (
+            <span className="text-amber-500 font-sans font-medium shrink-0 flex items-center gap-1">
+              <Bell className="h-3 w-3" />
+              待人工验收
+            </span>
+          ) : isArbitration ? (
+            <button
+              type="button"
+              className="text-amber-500 font-sans font-medium shrink-0 flex items-center gap-1 hover:underline underline-offset-2"
+              onClick={(e) => {
+                e.stopPropagation()
+                if (task.origin_thread_id) {
+                  navigate({
+                    to: "/chat",
+                    search: { thread_id: task.origin_thread_id as string },
+                  })
+                }
+              }}
+            >
+              <Scale className="h-3 w-3" />
+              转人工仲裁·去处理
+              <ArrowRight className="h-3 w-3" />
+            </button>
+          ) : isFailed ? (
+            <span className="text-destructive font-sans shrink-0">失败</span>
+          ) : (
+            <span className="shrink-0 opacity-0 group-hover:opacity-60 transition-opacity text-[10px]">
+              查看 →
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-mono whitespace-nowrap overflow-hidden">
+          {showProject && task.project_id != null && task.project_id > 0 && (
+            <span className="text-primary/70 min-w-0 truncate">
+              {projectName ?? `#${task.project_id}`}
+            </span>
+          )}
+          {task.category && (
+            <span className="min-w-0 truncate">{task.category}</span>
+          )}
+          {task.priority && task.priority !== "medium" && (
+            <Badge variant="outline" className="h-4 px-1 text-[9px] shrink-0">
+              {task.priority}
+            </Badge>
+          )}
+        </div>
       </div>
     </div>
   )

@@ -47,55 +47,24 @@ async def macro(
 ) -> str:
     """统一宏入口——在一个调用里完成宏的 list / read / debug / run / create / update / delete。
 
-    什么是宏：宏是可复用的确定性 UI 自动化脚本（YAML 步骤列表），在一套固定界面上回放固定
-    动作序列（例如 打开 App → 导航 → 采集 → 落盘）。宏是平台沉淀可重复操作的第一等公民机制，
-    把一次可重复操作变成一句话命令（如「抓取每日订单」/「打开仪表盘」）。
-
-    何时用本工具（这是 React 工具面上唯一的宏入口）：
-    - 用户要求把可重复操作变成自动化（「录成宏」/「以后直接叫名字执行」/「每天自动做 XX」）
-      → create，不要只写脚本文件。
-    - 完成定义 = create 落库并激活 + run 验证数据真实采到。只写 YAML 文件或留给用户「自己提交」
-      都是半成品。
-    - 需要执行某个已存宏 → run。
-    - 需要测试/调试一段尚未落库的脚本、或验证 DSL 写法而不保存 → debug。
-    - 需要一个同域已验证宏做模板 / 审查 / 修复 → read / list / update / delete。
-    完整写宏工作流（探索 → 打样 → debug → create → run）加载 macro_authoring 技能。
+    宏 = 可复用的确定性 UI 自动化脚本（YAML 步骤列表，三端：浏览器/桌面/移动），把重复操作
+    变成一句话命令（如「抓取每日订单」）。用户要"录成宏/以后叫名字执行/每天自动做 XX"→
+    create 落库 + run 验证真实采到数据才算完成，只写脚本文件是半成品。
 
     Actions:
-    - list:   列举可用宏（当前项目已激活的宏库）。
-    - read:   查看宏的完整元数据与脚本（name 或 macro_id）——含 risk_tier、参数、完整 YAML。
-    - run:    执行一个宏（高风险宏需确认）。传 name 或 macro_id，可选 params。
-    - create: 编写宏。两种模式：
-              * script_steps 显式给出步骤（按下方 MacroStep 格式）+ rationale；
-              * 不传 script_steps 时，从当前会话已完成的真实操作 trace 回放编译。
-    - debug:  调试执行一段脚本，不落库。传 script_steps（步骤 dict 列表）或 macro_script
-              （YAML 字符串），走风险门后完整执行一遍，返回逐步成败 + 提取数据，便于定位失败
-              步骤、验证 DSL 写法——正式 create 前先用它跑通。
-    - update: 更新宏名/描述/参数；传 macro_script 时需 rationale，并通过校验门后重写脚本。
-    - delete: 按 macro_id 删除宏（需 rationale）。
+    - list/read: 列已激活宏库 / 看某宏完整元数据+YAML（name 或 macro_id）。
+    - run: 执行宏（高风险需确认；name/macro_id + 可选 params）。
+    - create: script_steps（MacroStep dict 列表）+ rationale 手写；或不传 script_steps
+      从本会话已完成操作 trace 回放编译。
+    - debug: script_steps 或 macro_script(YAML) 试跑，不落库，返回逐步成败——
+      正式 create 前先用它跑通。
+    - update/delete: 改名/描述/参数（重写脚本须 rationale 且过校验门）/按 macro_id 删除。
 
-    MacroStep 格式（create 的 script_steps / update 的 macro_script / debug 的 script_steps 使用）：
-    - type: "action" | "extract" | "control" | "if" | "loop"
-    - event_type: 如 click / input / wait / navigate / open_app / get_text / run_js(仅 extract)
-    - payload: 动作参数；navigate 的 url 必须用绝对地址 + {{base_url}} 占位符
-    - step_number: 1, 2, 3, ...
-    - loop/if condition 使用 element_exists / element_visible / text_contains + target_selector
-
-    说明：会写状态（create/update/run/delete 落库或执行）的 action，与只读的 list/read/debug
-    共存于同一工具；具体风险门控在分发的实现（authoring 校验 / HITL 确认）内完成。
-
-    Args:
-        action: 执行的动作（list / read / run / create / update / delete / debug）。
-        name: run/read 时的宏名；create 时的宏名。
-        macro_id: run/read/update/delete 时的宏 ID。
-        params: run/debug 时的宏参数（如 base_url 替换）。
-        skip_confirmation: run 高风险宏时是否跳过确认（由运营授权后 Agent 传入）。
-        description: create 时的宏说明。
-        trigger_patterns: create 时的触发短语。
-        script_steps: create/debug 时的步骤列表（dict 列表）。
-        parameters: create/update 时声明的参数 schema。
-        macro_script: update 时重写脚本 / debug 时调试执行的 YAML 字符串。
-        rationale: create(script_steps)/update(macro_script)/delete 时必填。
+    MacroStep 核心格式：type=action|extract|control|if|loop；event_type=click/input/wait/
+    navigate/open_app/get_text 等；payload 为动作参数（navigate 的 url 必须绝对地址或
+    {{base_url}} 占位符）；step_number 整数递增。
+    写宏完整工作流（探索→打样→debug→create→run）与 DSL 全量枚举/三端细则，以
+    skill(name="Macro Authoring Guide") 为准，动手前先加载它。
     """
     _t = _resolve_thread_id(config)
 

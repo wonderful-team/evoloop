@@ -31,6 +31,8 @@ import { DEMO } from "@/components/Duty/demoData"
 import { ResultCard, AttachmentStrip } from "./ResultCard"
 import { ProposalCard, InlineProposal } from "./ProposalCards"
 import { HitlApprovalCard, hitlRequestFromMsg } from "./HitlApprovalCard"
+import { ReviewProgressCard } from "./ReviewProgressCard"
+import { PendingTaskBrief } from "./PendingTaskBrief"
 import type { Attachment, ArtifactView, PlanStep } from "./types"
 import {
   getDemoMessages,
@@ -148,6 +150,8 @@ export function ExecutionPanel({
   const planSteps = planBody?.plan?.steps ?? []
   const isRunning = task.status === "in_progress"
   const hasHitl = (hitlPending ?? []).length > 0
+  const isReviewing =
+    task.status === "waiting_acceptance" && !!task.review_pending
   const isTerminal = ["waiting_acceptance", "completed", "failed"].includes(
     task.status,
   )
@@ -200,7 +204,7 @@ export function ExecutionPanel({
   if (!threadId && !DEMO) {
     return (
       <div className="text-xs text-muted-foreground p-3">
-        任务尚未派发执行
+        <PendingTaskBrief task={task} />
       </div>
     )
   }
@@ -475,6 +479,15 @@ export function ExecutionPanel({
               </div>
             )
           })}
+          {isReviewing && (
+            <ReviewProgressCard
+              task={task}
+              hitlItems={(hitlPending ?? []).filter(
+                (h) => h.thread_id === task.origin_thread_id,
+              )}
+              onChanged={onChanged}
+            />
+          )}
           <div ref={bottomRef} />
         </div>
       )}

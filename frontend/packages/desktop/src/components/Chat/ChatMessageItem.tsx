@@ -207,6 +207,15 @@ const ChatMessageItem = memo(
     }
 
     const isUser = msg.role === "human"
+    // 值守系统代用户发起的消息（任务评审回灌/转人工仲裁）：识别前缀，
+    // 剥掉前缀渲染并打上"值守系统代发"徽标，与用户亲口说的话区分
+    const SYSTEM_ON_BEHALF_PREFIX = "[值守系统代用户]"
+    const rawContent =
+      msg.effective_content !== undefined && msg.effective_content.trim() !== ""
+        ? msg.effective_content
+        : msg.content
+    const isSystemOnBehalf =
+      isUser && (rawContent || "").trim().startsWith(SYSTEM_ON_BEHALF_PREFIX)
     const [gallery, setGallery] = useState<{
       images: GalleryImage[]
       index: number
@@ -226,6 +235,10 @@ const ChatMessageItem = memo(
       msg.effective_content !== undefined && msg.effective_content.trim() !== ""
         ? msg.effective_content
         : msg.content
+    const onBehalfRender =
+      isSystemOnBehalf && (actionContent || "").trim().startsWith(SYSTEM_ON_BEHALF_PREFIX)
+        ? (actionContent || "").trim().slice(SYSTEM_ON_BEHALF_PREFIX.length).trim()
+        : actionContent
 
     // Render Tool Message (Flat & Compact)
     if (msg.role === "tool") {
@@ -449,10 +462,22 @@ const ChatMessageItem = memo(
       return (
         <>
           <motion.div
-            className="chat-bubble-user group relative flex flex-col w-full my-2.5 px-4 py-3.5 rounded-xl text-[15px] font-medium leading-relaxed transition-all"
+            className={`chat-bubble-user group relative flex flex-col w-full my-2.5 px-4 py-3.5 rounded-xl text-[15px] font-medium leading-relaxed transition-all ${
+              isSystemOnBehalf
+                ? "border border-violet-400/40 bg-violet-500/[0.06]"
+                : ""
+            }`}
             data-run-id={msg.run_id}
           >
-            <MessageContent content={msg.content} isUser={isUser} />
+            {isSystemOnBehalf && (
+              <span className="inline-flex items-center gap-1 self-start shrink-0 mb-1 rounded-full bg-violet-500/10 text-violet-600 dark:text-violet-400 text-[9px] font-bold px-1.5 py-0.5">
+                值守系统代发·任务结果
+              </span>
+            )}
+            <MessageContent
+              content={isSystemOnBehalf ? onBehalfRender : msg.content}
+              isUser={isUser}
+            />
             <MessageReferences
               references={msg.references || []}
               isUser={true}

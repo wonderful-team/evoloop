@@ -54,8 +54,7 @@ parameters: []
  相同（风险门 + **真实执行验证**），但会先 `downgrade_macro` 退回 pending_review、验证通过后
  再 `confirm_macro` 重新激活——**失败时宏停留在未激活状态，不会残留活动中**。
  模板：`macro read name/macro_id`（返回完整元数据 + 完整 YAML 脚本）——**写相似宏前先 read 一个
- 同域已 verified 宏做模板**（工具 DESCRIPTION 的 MacroStep 枚举只列了 action/extract/control/
- if/loop，本技能第二节的完整枚举以引擎为准）。
+ 同域已 verified 宏做模板**（工具 description 只给 MacroStep 核心格式摘要，本技能第二节的完整枚举以引擎为准）。
 
 调试：`macro debug(script_steps=...)` 或 `macro debug(macro_script=<YAML 字符串>)`——**不落库**，
 走风险门后完整执行一遍，返回逐步成败 + 提取数据。适合：

@@ -188,6 +188,54 @@ duty_wakeup_subscriber = DutyWakeupSubscriber()
 
 
 @event_register()
+class TaskReviewSubscriber:
+    """SESSION_COMPLETED（原对话线程）→ 任务评审结论接线。
+
+    任务带 origin_thread_id 完成值守执行后进入 waiting_acceptance 且
+    task_data.review_pending=1；系统把执行结果以系统代用户消息回灌原对话，
+    评审 run 就在该对话里。本订阅者在评审 run 终态时解析评审者的最终回复
+    （最后一行『结论：通过 / 不通过』）并接线验收状态机：
+
+    - 通过   → submit_acceptance(by="reviewer:auto", accepted) → completed
+    - 不通过 → rejected 回队（范围限定反馈回流执行者）；第 2 轮仍不通过
+               由 service 层收敛为 failed + 转人工仲裁
+    - 无结论 → 视为不通过（有 2 轮上限兜底，不无限循环）
+
+    订阅 SESSION_COMPLETED（而非 RUN_COMPLETED）的原因：summary 是 loop
+    在内存里同步提取的最终回复，无消息异步落库的读取竞态（曾致评审结论
+    误判为"无结论"）。
+    """
+
+    @event_subscribe(SystemEventType.SESSION_COMPLETED)
+    async def on_session_completed(self, event: Any) -> None:
+        data = getattr(event, "data", None)
+        if data is None:
+            return
+        thread_id = str(getattr(data, "thread_id", "") or "")
+        if not thread_id or thread_id.startswith("wakeup_"):
+            return
+        task = await TaskQueueService.find_review_pending_by_thread(thread_id)
+        if task is None:
+            return
+        summary = str(getattr(data, "summary", "") or "").strip()
+        if not summary:
+            summary = ""
+        logger.info(
+            "[TaskReview] reviewer session completed: task=%s (reply %d chars)",
+            task.id,
+            len(summary),
+        )
+        try:
+            from app.domain.tasks.review import resolve_review_verdict
+
+            await resolve_review_verdict(task.id, summary)
+        except Exception:
+            logger.exception(
+                "[TaskReview] verdict resolution failed for task %s", task.id
+            )
+
+
+@event_register()
 class SupervisorLifecycleSubscriber:
     """supervisor 主循环生命周期：APP_STARTED 拉起 / APP_STOPPING 停止。
 

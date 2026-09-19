@@ -8,6 +8,7 @@ import {
   MessageSquareX,
   Package,
   Play,
+  Scale,
   XCircle,
 } from "lucide-react"
 
@@ -248,10 +249,37 @@ export function ResultCard({
           验收回执：
           {(task.acceptance as { by?: string }).by === "system:auto"
             ? "系统自动验收（T3/T4 低风险）"
-            : `人工验收 · ${(task.acceptance as { by?: string }).by ?? "运营者"}`}
+            : (task.acceptance as { by?: string }).by === "reviewer:auto"
+              ? "监察评审通过（原对话 Agent 核验）"
+              : `人工验收 · ${(task.acceptance as { by?: string }).by ?? "运营者"}`}
         </div>
       )}
-      {isFailed && (
+      {isFailed && task.escalated && (
+        <div className="mt-1.5 rounded-md border border-amber-400/40 bg-amber-500/[0.06] px-2.5 py-2 text-[11px] text-amber-600 dark:text-amber-400 space-y-1.5">
+          <div className="font-medium flex items-center gap-1.5">
+            <Scale className="h-3.5 w-3.5" />
+            两轮评审未通过，已停止自动返工，转人工仲裁
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-muted-foreground">评审意见见原对话：</span>
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400 underline underline-offset-2 hover:opacity-80"
+              onClick={() =>
+                task.origin_thread_id &&
+                navigate({
+                  to: "/chat",
+                  search: { thread_id: task.origin_thread_id as string },
+                })
+              }
+            >
+              <ExternalLink className="h-3 w-3" />
+              去仲裁处理 →
+            </button>
+          </div>
+        </div>
+      )}
+      {isFailed && !task.escalated && (
         <div className="mt-1.5 text-[11px] text-destructive/80">
           可在队列中重新创建同类任务重试
         </div>

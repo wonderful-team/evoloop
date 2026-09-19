@@ -121,6 +121,86 @@ async def reconcile_stranded(*, startup: bool = False) -> int:
     hitl_threads = await _pending_hitl_threads()
     handled = 0
 
+    # 0) 评审挂死兜底：waiting_acceptance + review_pending 超时（评审 run
+    #    死亡/HITL 挂起/无终态事件）→ 用空结论走评审接线（无结论 = 不通过），
+    #    由 review 的 2 轮上限收敛，绝不永久悬挂。
+    review_timeout = timedelta(minutes=30)
+    async with session_scope() as session:
+        review_rows = (
+            (
+                await session.execute(
+                    select(ProjectTask).where(
+                        ProjectTask.status == "waiting_acceptance",
+                        ProjectTask.origin_thread_id.isnot(None),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+    # signoff / T1T2 等拍板超 24h → 手机再提醒一次（防任务悄悄停在
+    # "等你拍板" 而用户毫无感知；不自动批准——拍板权在人）
+    signoff_rows = [
+        t
+        for t in review_rows
+        if not (t.task_data or {}).get("review_pending")
+        and t.updated_at
+        and (now - t.updated_at) > timedelta(hours=24)
+    ]
+    for t in signoff_rows:
+        td = t.task_data or {}
+        if td.get("signoff_reminded"):
+            continue
+        td["signoff_reminded"] = True
+        from app.infrastructure.database.sql.database import session_scope as _ss
+        from sqlalchemy import update as _u
+
+        from app.models.project import ProjectTask as _PT
+
+        async with _ss() as session:
+            await session.execute(
+                _u(_PT).where(_PT.id == t.id).values(task_data=td)
+            )
+        try:
+            from app.core.channel.base import ChannelContext
+            from app.core.channel.output.mobile_channel import MobileChannel
+            from app.core.config import settings as _settings
+
+            if _settings.MOBILE_SYNC_ENABLED:
+                no = td.get("task_no")
+                label = f"#T-{no}" if no else t.id[:8]
+                await MobileChannel().send_hitl_request(
+                    request_id=f"signoff-remind-{t.id}",
+                    request_type="confirmation",
+                    prompt=f"提醒：任务 {label}「{td.get('title', '')[:36]}」已等你拍板超过 24 小时，链路下游全部停摆",
+                    ctx=ChannelContext(thread_id=t.origin_thread_id or t.id, project_id=t.project_id),
+                    metadata={"kind": "signoff_reminder", "task_id": t.id},
+                )
+        except Exception:
+            logger.exception("[DutyReconciler] signoff remind push failed")
+
+    for t in review_rows:
+        if not (t.task_data or {}).get("review_pending"):
+            continue
+        stale = t.updated_at and (now - t.updated_at) > review_timeout
+        if not stale:
+            continue
+        logger.warning(
+            "[DutyReconciler] review pending timeout: task=%s (updated_at=%s)",
+            t.id,
+            t.updated_at,
+        )
+        try:
+            from app.domain.tasks.review import resolve_review_verdict
+
+            await resolve_review_verdict(t.id, "")
+            handled += 1
+        except Exception:
+            logger.exception(
+                "[DutyReconciler] review timeout resolution failed for %s", t.id
+            )
+
+
     # 1) 悬挂 running 判死
     async with session_scope() as session:
         rows = (

@@ -199,7 +199,7 @@ async def confirm_proposal(task_id: str, current_user: CurrentUser) -> dict[str,
         raise HTTPException(status_code=404, detail="task not found")
     await _ensure_task_access(task, current_user)
     try:
-        task = await TaskQueueService.advance_task(task_id, "pending")
+        task = await TaskQueueService.advance_task(task_id, "pending", by="user")
     except TaskQueueError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
     return {"success": True, "id": task.id, "status": task.status}
@@ -273,21 +273,46 @@ async def hitl_pending_tasks(current_user: CurrentUser) -> dict[str, Any]:
             .scalars()
             .all()
         )
-        items = []
-        for r in rows:
-            if not str(r.thread_id).startswith(prefixes):
-                continue
-            task = (
-                (
-                    await session.execute(
-                        select(ProjectTask).where(
-                            ProjectTask.last_thread_id == r.thread_id
-                        )
+        # 评审 run（origin thread）的审批也聚合：执行者的审批卡在看板，
+        # 评审者挂在原对话的审批同样要看板可见（否则评审中被审批链卡死
+        # 而用户毫无感知——实测缺口）
+        origin_map: dict[str, ProjectTask] = {}
+        review_pending = (
+            (
+                await session.execute(
+                    select(ProjectTask).where(
+                        ProjectTask.status == "waiting_acceptance",
+                        ProjectTask.origin_thread_id.isnot(None),
                     )
                 )
-                .scalars()
-                .first()
             )
+            .scalars()
+            .all()
+        )
+        for t in review_pending:
+            if (t.task_data or {}).get("review_pending"):
+                origin_map[str(t.origin_thread_id)] = t
+
+        items = []
+        for r in rows:
+            is_origin_thread = str(r.thread_id) in origin_map
+            if not str(r.thread_id).startswith(prefixes) and not is_origin_thread:
+                continue
+            task = None
+            if is_origin_thread:
+                task = origin_map[str(r.thread_id)]
+            else:
+                task = (
+                    (
+                        await session.execute(
+                            select(ProjectTask).where(
+                                ProjectTask.last_thread_id == r.thread_id
+                            )
+                        )
+                    )
+                    .scalars()
+                    .first()
+                )
             items.append(
                 {
                     "request_id": r.id,
@@ -299,6 +324,7 @@ async def hitl_pending_tasks(current_user: CurrentUser) -> dict[str, Any]:
                     "created_at": r.created_at.isoformat() if r.created_at else None,
                     "task_id": task.id if task else None,
                     "task_title": (task.task_data or {}).get("title") if task else None,
+                    "task_no": task.task_no if task else None,
                 }
             )
         return {"success": True, "count": len(items), "items": items}
@@ -370,6 +396,7 @@ async def list_queue(current_user: CurrentUser, status: str | None = None, proje
                 "workflow_id": (t.task_data or {}).get("workflow_id"),
                 "dependencies": (t.task_data or {}).get("dependencies") or [],
                 "id": t.id,
+                "task_no": t.task_no,
                 "title": (t.task_data or {}).get("title"),
                 "description": t.description,
                 "type": t.type,
@@ -381,13 +408,15 @@ async def list_queue(current_user: CurrentUser, status: str | None = None, proje
                 "provenance": t.source_ref,
                 "self_check": t.self_check,
                 "acceptance": t.acceptance,
+                "review_count": t.review_count,
+                "review_pending": bool((t.task_data or {}).get("review_pending")),
+                "escalated": bool((t.acceptance or {}).get("escalated")),
+                "origin_thread_id": t.origin_thread_id,
                 "due_at": t.due_at.isoformat() if t.due_at else None,
                 "next_run_at": (
                     t.next_run_at.isoformat() if t.next_run_at else None
                 ),
                 "last_thread_id": t.last_thread_id,
-                "created_at": t.created_at.isoformat() if t.created_at else None,
-                "updated_at": t.updated_at.isoformat() if t.updated_at else None,
                 "created_at": t.created_at.isoformat() if t.created_at else None,
                 "updated_at": t.updated_at.isoformat() if t.updated_at else None,
                 "workflow_id": (t.task_data or {}).get("workflow_id"),

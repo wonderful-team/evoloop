@@ -34,6 +34,11 @@ export interface QueueTask {
   provenance: Record<string, unknown> | null
   self_check: Record<string, unknown> | null
   acceptance: Record<string, unknown> | null
+  task_no?: number | null
+  review_pending?: boolean
+  review_count?: number
+  escalated?: boolean
+  origin_thread_id?: string | null
   due_at: string | null
   last_thread_id: string | null
   project_id?: number | null

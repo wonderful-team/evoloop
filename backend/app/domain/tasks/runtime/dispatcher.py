@@ -131,6 +131,10 @@ async def auto_retry_failed_tasks() -> None:
         tries = int(td.get("workflow_auto_retry") or 0)
         if tries >= FAILED_AUTO_RETRY_BUDGET:
             continue
+        # 评审收敛（2 轮转人工仲裁）的 failed 是终态，绝不 auto-retry——
+        # 否则评审-返工循环重开，执行者会被无限加码
+        if (t.acceptance or {}).get("escalated"):
+            continue
         last_error = str(td.get("last_error") or "")
         if any(marker in last_error for marker in NON_RETRYABLE_ERROR_MARKERS):
             continue
@@ -162,6 +166,143 @@ async def auto_retry_failed_tasks() -> None:
         )
 
 
+
+
+async def _notify_dep_failure(task, failed_up: list) -> None:
+    """上游失败（含 escalated 仲裁）→ 手机推送一次断链告警（防重标记）。
+
+    不自动级联取消下游——上游可能被用户 rerun 修复；通知让人来裁决。
+    """
+    td = dict(task.task_data or {})
+    if td.get("dep_failure_notified"):
+        return
+    td["dep_failure_notified"] = True
+    from app.infrastructure.database.sql.database import session_scope
+    from sqlalchemy import update
+
+    from app.models.project import ProjectTask
+
+    async with session_scope() as session:
+        await session.execute(
+            update(ProjectTask).where(ProjectTask.id == task.id).values(task_data=td)
+        )
+    try:
+        from app.core.channel.base import ChannelContext
+        from app.core.channel.output.mobile_channel import MobileChannel
+        from app.core.config import settings as _settings
+
+        if _settings.MOBILE_SYNC_ENABLED:
+            no = td.get("task_no")
+            label = f"#T-{no}" if no else task.id[:8]
+            names = ", ".join(
+                f"#{(u.task_data or {}).get('task_no') or u.id[:8]}"
+                for u in failed_up
+            )
+            await MobileChannel().send_hitl_request(
+                request_id=f"dep-blocked-{task.id}",
+                request_type="confirmation",
+                prompt=f"任务链断在「{names}」（失败），{len(failed_up) and ''}下游任务 {label}「{td.get('title', '')[:36]}」已阻塞待裁决：修复重跑上游 / 调整链路。",
+                ctx=ChannelContext(thread_id=task.origin_thread_id or task.id, project_id=task.project_id),
+                metadata={"kind": "dep_blocked", "task_id": task.id},
+            )
+    except Exception:
+        logger.exception("[DutyDispatcher] dep-blocked push failed")
+
+
+async def _deps_satisfied(task) -> bool:
+    """依赖链 gating：task_data.dependencies 里的上游任务未全部 completed
+    则暂不派发（pending 依赖的声明性记录在此变为执行顺序约束）。依赖任务
+    缺失/删除视为不满足（数据被清理时不放行，避免孤儿任务乱跑）。
+
+    上游存在 failed 时触发断链告警（手机推送一次），下游保持 blocked 等
+    人工裁决（rerun 修复上游 / 调整链路）。
+    """
+    dep_ids = (task.task_data or {}).get("dependencies") or []
+    if not dep_ids:
+        return True
+    from sqlalchemy import select
+
+    from app.infrastructure.database.sql.database import session_scope
+    from app.models.project import ProjectTask
+
+    async with session_scope() as session:
+        rows = (
+            await session.execute(
+                select(ProjectTask.id, ProjectTask.status).where(
+                    ProjectTask.id.in_([str(d) for d in dep_ids])
+                )
+            )
+        ).all()
+    status_by_id = {rid: st for rid, st in rows}
+    failed_up = [t for t in rows if t[1] == "failed"]
+    if failed_up and not (task.task_data or {}).get("dep_failure_notified"):
+        objs = []
+        async with session_scope() as session:
+            objs = (
+                (
+                    await session.execute(
+                        select(ProjectTask).where(
+                            ProjectTask.id.in_([f[0] for f in failed_up])
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        await _notify_dep_failure(task, list(objs))
+    return all(
+        status_by_id.get(str(d)) == "completed"
+        for d in (str(x) for x in dep_ids)
+    )
+
+
+
+
+async def _build_upstream_context(task) -> str:
+    """依赖任务的产出摘要注入唤醒 payload。
+
+    upstream deps 的 last_result（结论摘要）+ task_artifacts 清单（产物
+    文件路径，执行者可用 read 抽查全文）。失败静默（通知失败不影响派发）。
+    """
+    dep_ids = (task.task_data or {}).get("dependencies") or []
+    if not dep_ids:
+        return ""
+    dep_ids = [str(d) for d in dep_ids]
+    from sqlalchemy import select
+
+    from app.infrastructure.database.sql.database import session_scope
+    from app.models.project import ProjectTask
+    from app.models.task_workflow import TaskArtifact
+
+    try:
+        async with session_scope() as session:
+            result = await session.execute(
+                select(ProjectTask).where(ProjectTask.id.in_(dep_ids))
+            )
+            rows = result.scalars().all()
+            ares = await session.execute(
+                select(TaskArtifact).where(TaskArtifact.task_id.in_(dep_ids))
+            )
+            arts = ares.scalars().all()
+        arts_by_task: dict[str, list] = {}
+        for a in arts:
+            arts_by_task.setdefault(str(a.task_id), []).append(a)
+        lines = ["## 上游任务产出（本任务执行时应直接引用，勿重复调研）"]
+        for up in sorted(rows, key=lambda x: (x.task_no or 0)):
+            no = (up.task_data or {}).get("task_no")
+            label = f"#T-{no}" if no else up.id[:8]
+            result = (up.task_data or {}).get("last_result") or ""
+            lines.append(
+                f"- {label}「{(up.task_data or {}).get('title', '')[:40]}」结论：{result[:300]}"
+            )
+            for a in arts_by_task.get(up.id, [])[:3]:
+                lines.append(f"  · 产物：{getattr(a, 'file_path', '') or getattr(a, 'name', '')}")
+        return "\n".join(lines)
+    except Exception:
+        logger.exception("[DutyDispatcher] upstream context build failed")
+        return ""
+
+
 async def dispatch_due_tasks() -> None:
     """Drain due project_tasks: one run per task, priority → due order.
 
@@ -189,8 +330,22 @@ async def dispatch_due_tasks() -> None:
     attempted: set[str] = set()
     while True:
         due = await TaskQueueService.claim_due_tasks()
-        t = next((x for x in due if x.id not in attempted), None)
+        deps_blocked = 0
+        t = None
+        for cand in due:
+            if cand.id in attempted:
+                continue
+            if not await _deps_satisfied(cand):
+                deps_blocked += 1
+                continue
+            t = cand
+            break
         if t is None:
+            if deps_blocked:
+                logger.info(
+                    "[DutyDispatcher] %d due task(s) waiting on upstream dependencies",
+                    deps_blocked,
+                )
             return
         attempted.add(t.id)
 
@@ -265,6 +420,14 @@ async def dispatch_due_tasks() -> None:
             project_id, t.description or ""
         )
 
+        # 跨任务产出传递：依赖任务的结论摘要与产物链接注入唤醒 payload——
+        # 链式任务的执行者（独立 wakeup 线程）拿不到上游 thread 的消息，
+        # 缺了这段它只能重新调研或编造（链式任务的命脉）。
+        instruction_text = t.description or ""
+        upstream_note = await _build_upstream_context(t)
+        if upstream_note:
+            instruction_text = f"{instruction_text}\n\n{upstream_note}"
+
         prompt = render_template(
             "core/engine/tasks/task_wakeup.prompt.j2",
             category=category,
@@ -272,7 +435,7 @@ async def dispatch_due_tasks() -> None:
                 id=t.id,
                 status=t.status,
                 title=(t.task_data or {}).get("title", ""),
-                instruction=t.description or "",
+                instruction=instruction_text,
                 priority=(t.task_data or {}).get("priority", "medium"),
                 risk=t.risk_level or "T3",
                 due=(t.due_at or t.next_run_at).isoformat()

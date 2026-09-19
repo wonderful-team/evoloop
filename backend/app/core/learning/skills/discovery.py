@@ -1,3 +1,4 @@
+import hashlib
 import logging
 import os
 import shutil
@@ -30,34 +31,64 @@ class SkillDiscovery:
         self._skills_list_cache: list[SkillListItem] | None = None
         self._system_skills_synced = False
 
+    def builtin_skills_path(self) -> str:
+        """内置技能目录：app/config/skills。"""
+        base_dir = os.path.dirname(
+            os.path.dirname(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            )
+        )
+        return os.path.join(base_dir, "config", "skills")
+
+    def builtin_skills_manifest(self) -> str:
+        """内置技能内容清单哈希（路径+内容）。文件新增/修改即变化，用于触发
+        增量重同步——引擎随版本新增的技能必须能到达老部署，不能再信
+        "首启一次"的一次性标志。"""
+        digest = hashlib.sha256()
+        root = self.builtin_skills_path()
+        if not os.path.isdir(root):
+            return ""
+        for dirpath, dirnames, filenames in os.walk(root):
+            dirnames.sort()
+            for fn in sorted(filenames):
+                fp = os.path.join(dirpath, fn)
+                rel = os.path.relpath(fp, root)
+                try:
+                    with open(fp, "rb") as fh:
+                        content = fh.read()
+                except OSError:
+                    content = b"<unreadable>"
+                digest.update(rel.encode("utf-8", "surrogateescape"))
+                digest.update(b"\0")
+                digest.update(hashlib.sha256(content).hexdigest().encode("ascii"))
+                digest.update(b"\0")
+        return digest.hexdigest()
+
     async def ensure_system_skills_synced(self):
         """
-        One-time bootstrap of built-in skills into the DB (public, idempotent).
+        Bootstrap/refresh built-in skills into the DB (public, idempotent).
 
         Workflow:
         1. Copy built-in skills from app/config/skills to ~/.evoloop/skills
+           (mtime-aware: never clobbers user-edited copies)
         2. Scan ~/.evoloop/skills directory and import/update skills in DB
 
-        No-op after the first successful sync (in-memory flag + the
-        SYSTEM_SKILLS_SYNCED config value), so read paths may call it freely.
+        Gate = content manifest of the builtin tree, not a one-time flag:
+        new/changed builtin skills resync on next startup (legacy "true"
+        values are treated as stale and upgrade themselves once). Copy and
+        import are both idempotent, so repeat runs are safe.
         """
         if self._system_skills_synced:
             return
 
         try:
-            # Check DB flag to ensure this is only run on first startup
-            if SystemConfigService.get_value("SYSTEM_SKILLS_SYNCED") == "true":
+            manifest = self.builtin_skills_manifest()
+            if manifest and SystemConfigService.get_value("SYSTEM_SKILLS_SYNCED") == manifest:
                 self._system_skills_synced = True
                 return
 
             # Step 1: Copy built-in skills to user skills directory
-            # Built-in skills are now located in app/config/skills
-            base_dir = os.path.dirname(
-                os.path.dirname(
-                    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-                )
-            )
-            builtin_skills_path = os.path.join(base_dir, "config", "skills")
+            builtin_skills_path = self.builtin_skills_path()
             user_skills_path = settings.SKILLS_DIR
 
             if os.path.exists(builtin_skills_path):
@@ -71,11 +102,11 @@ class SkillDiscovery:
                 logger.info(f"[Discovery] Loading skills from {user_skills_path}")
                 await SkillImporter.import_from_directory(user_skills_path)
 
-            # Save status flag in database
+            # Save content manifest (not "true") so builtin changes re-trigger sync
             SystemConfigService.set_value(
                 "SYSTEM_SKILLS_SYNCED",
-                "true",
-                "Indicates that the system skills have been successfully synchronized on first launch",
+                manifest,
+                "内置技能内容清单哈希；与 app/config/skills 实际清单不一致时启动重同步",
             )
             self._system_skills_synced = True
         except Exception as e:

@@ -221,6 +221,21 @@ async def authorization_gate(context: HookContext) -> HookResult:
     # EXECUTION_MODE=docker：所有 HITL 授权决策自动批准（沙箱隔离兜底）。
     # 覆盖工作区外路径与 project.json 策略两路；元数据硬拦截（上方早退）不受影响。
     # 判定单一出处：hitl_enabled()（hitl/core.py），避免与 _is_docker_mode 双答案漂移。
+    if decision.requires_hitl and decision.action == "read":
+        # HookContext 未透传 dispatch 的 source，从 thread 级 EvoContext 取
+        # （评审 run 的工具执行与 hook 同协程，contextvars 可见）
+        from app.core.context.manager import ContextManager
+
+        _ctx_obj = ContextManager.current()
+        src = getattr(getattr(_ctx_obj, "metadata", None), "source", None)
+        if src == "task_review":
+            logger.info(
+                "[AuthorizationGate] task-review run: read-only exemption %s %s",
+                decision.action,
+                decision.resource_path or "",
+            )
+            return HookResult(success=True)
+
     if decision.requires_hitl and not hitl_enabled():
         logger.info(
             "[AuthorizationGate] docker mode: auto-approving %s %s (sandbox isolation)",

@@ -73,8 +73,9 @@ async def tasks(
       working a task; binds the workspace thread.
     - update_status: advance status (in_progress → self_checked → waiting_acceptance,
       or failed). completed requires result; self_check is the structured JSON report.
-    - submit_acceptance: record the user's acceptance verdict (accepted → completed,
-      rejected → in_progress with feedback).
+    - submit_acceptance: RESERVED for the user API — the agent must NOT call it
+      (acceptance verdicts are never self-recorded; reach waiting_acceptance via
+      update_status instead).
 
     WHEN TO USE:
     - As a duty/wakeup run: list → take → work (plan attached via plan tool) →
@@ -88,7 +89,7 @@ async def tasks(
     - T1/T2 tasks never bypass acceptance. Do not fabricate status.
 
     Args:
-        action: one of list / create / take / update_status / submit_acceptance.
+        action: one of list / create / take / update_status.
         task_id: target task (take / update_status / submit_acceptance).
         status: list filter, or the target status for update_status.
         category: list filter / creation category (e.g. orders, goods, stock).
@@ -155,19 +156,26 @@ async def tasks(
             parsed_due = None
             if due_at:
                 parsed_due = datetime.fromisoformat(due_at)
+            # origin thread 记录（评审者会话）：agent 与 user 两条路径都有
+            # 对话上下文，都要能回到创建它的对话里；无 thread 但有 origin
+            # task 时保留任务链追踪（agent_run）
+            if thread_id:
+                create_ref = {
+                    "kind": "message",
+                    "ref": thread_id,
+                    **({"task_id": origin_task_id} if origin_task_id else {}),
+                }
+            elif origin_task_id:
+                create_ref = {"kind": "agent_run", "task_id": origin_task_id}
+            else:
+                create_ref = {}
             task = await TaskQueueService.create_task(
                 project_id=int(pid),
                 title=title,
                 description=description or "",
                 type=task_type or "once",
                 source=src,
-                source_ref={
-                    "kind": "message",
-                    "ref": thread_id,
-                    **({"task_id": origin_task_id} if origin_task_id else {}),
-                }
-                if src == "agent"
-                else {},
+                source_ref=create_ref,
                 category=category,
                 priority=priority or "medium",
                 risk_level=risk_level,
@@ -178,6 +186,7 @@ async def tasks(
                 {
                     "success": True,
                     "id": task.id,
+                    "task_no": (task.task_data or {}).get("task_no"),
                     "status": task.status,
                     "note": "proposed: awaiting user confirmation"
                     if task.status == "proposed"

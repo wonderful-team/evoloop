@@ -85,44 +85,52 @@ def compact_schema_for_llm(schema: dict[str, Any]) -> dict[str, Any]:
     层级，消除 Pydantic v2 ``model_json_schema()`` 生成的大量结构性噪音
     （实测 20 工具面约 18k token 中噪音占一半以上）：
 
-    - 所有层级的 ``title``：对模型无意义；
+    - schema 节点上的 ``title``：对模型无意义；
     - 值为 ``null`` 的 ``default``：可选性已由 ``required`` 表达；
     - ``{"anyOf": [X, {"type": "null"}]}`` 塌缩为 X + ``type: [T, "null"]``：
       保留 nullable 语义，消除 anyOf 包装的重复结构。
 
     保守边界：含 ``$ref`` / 多分支 anyOf / 非 type 限定的组合键原样保留，
     非空 ``default`` 保留（对模型有默认值提示作用）。
+    ``properties``/``$defs`` 等**命名映射**里名为 title 的参数不是噪音，
+    必须保留（曾有参数叫 title 的整条定义被当噪音误删的事故）。
     """
-    return _compact_node(copy.deepcopy(schema))
+    return _compact_node(copy.deepcopy(schema), named_map=False)
 
 
-def _compact_node(node: Any) -> Any:
+_NAMED_MAP_KEYS = frozenset({"properties", "patternProperties", "$defs", "definitions", "dependencies"})
+
+
+def _compact_node(node: Any, *, named_map: bool) -> Any:
     if isinstance(node, list):
-        return [_compact_node(item) for item in node]
+        return [_compact_node(item, named_map=False) for item in node]
     if not isinstance(node, dict):
         return node
 
     out: dict[str, Any] = {}
     for key, value in node.items():
-        if key == "title":
-            continue
-        if key == "default" and value is None:
-            continue
-        if key == "anyOf":
-            collapsed = _collapse_nullable_anyof(value)
-            if collapsed is not None:
-                merged = dict(collapsed)
-                # anyOf 节点自身的兄弟键保留（但 title / default:null 仍按
-                # 本函数语义剔除，不能因走塌缩分支而回流）
-                for sib_key, sib_val in node.items():
-                    if sib_key == "anyOf" or sib_key in merged:
-                        continue
-                    if sib_key == "title" or (sib_key == "default" and sib_val is None):
-                        continue
-                    merged[sib_key] = _compact_node(sib_val)
-                out.update(merged)
+        if not named_map:
+            if key == "title":
                 continue
-        out[key] = _compact_node(value)
+            if key == "default" and value is None:
+                continue
+            if key == "anyOf":
+                collapsed = _collapse_nullable_anyof(value)
+                if collapsed is not None:
+                    merged = dict(collapsed)
+                    # anyOf 节点自身的兄弟键保留（但 title / default:null 仍按
+                    # 本函数语义剔除，不能因走塌缩分支而回流）
+                    for sib_key, sib_val in node.items():
+                        if sib_key == "anyOf" or sib_key in merged:
+                            continue
+                        if sib_key == "title" or (sib_key == "default" and sib_val is None):
+                            continue
+                        merged[sib_key] = _compact_node(
+                            sib_val, named_map=sib_key in _NAMED_MAP_KEYS
+                        )
+                    out.update(merged)
+                    continue
+        out[key] = _compact_node(value, named_map=key in _NAMED_MAP_KEYS)
     return out
 
 
@@ -143,7 +151,9 @@ def _collapse_nullable_anyof(branches: Any) -> dict[str, Any] | None:
     base_type = other.get("type")
     if not isinstance(base_type, str):
         return None
-    merged = {k: _compact_node(v) for k, v in other.items()}
+    merged = {
+        k: _compact_node(v, named_map=k in _NAMED_MAP_KEYS) for k, v in other.items()
+    }
     merged["type"] = [base_type, "null"]
     return merged
 

@@ -11,7 +11,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Literal
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 
 from app.domain.tasks.constants import (
     PRIORITY_ORDER,
@@ -162,24 +162,35 @@ class TaskQueueService:
         }
         if category:
             task_data["category"] = category
-        task = ProjectTask(
-            id=gen_uuid(),
-            project_id=project_id,
-            member_id=member_id,
-            status=status,
-            progress=0,
-            description=description or None,
-            type=type,
-            task_data=task_data,
-            source=source,
-            source_ref=source_ref or {},
-            risk_level=risk_level,
-            due_at=due_at,
-            trigger_spec=trigger,
-            dedup_key=dedup_key,
-            next_run_at=next_run_at,
-        )
+        # 短编号：项目内递增，对话/评审/反馈用 "#T-<n>" 指代（uuid 太重）
+        origin_thread_id = str((source_ref or {}).get("ref") or "") or None
         async with session_scope() as session:
+            max_no = await session.execute(
+                select(func.coalesce(func.max(ProjectTask.task_no), 0)).where(
+                    ProjectTask.project_id == project_id
+                )
+            )
+            task_no = int(max_no.scalar() or 0) + 1
+            task_data["task_no"] = task_no
+            task = ProjectTask(
+                id=gen_uuid(),
+                project_id=project_id,
+                member_id=member_id,
+                status=status,
+                progress=0,
+                description=description or None,
+                type=type,
+                task_data=task_data,
+                source=source,
+                source_ref=source_ref or {},
+                task_no=task_no,
+                origin_thread_id=origin_thread_id,
+                risk_level=risk_level,
+                due_at=due_at,
+                trigger_spec=trigger,
+                dedup_key=dedup_key,
+                next_run_at=next_run_at,
+            )
             session.add(task)
             await session.flush()
         notify_duty_wakeup()
@@ -278,14 +289,20 @@ class TaskQueueService:
         *,
         result: str | None = None,
         self_check: dict[str, Any] | None = None,
+        by: str = "agent",
     ) -> ProjectTask:
-        """Move a task forward through the status machine."""
+        """Move a task forward through the status machine.
+
+        ``by`` marks the caller: "agent" (duty run) or "user" (board/confirm
+        API). Proposals are only confirmable by the user — the executor run
+        must never confirm its own proposal.
+        """
         current = await TaskQueueService.get_task(task_id)
         if current is None:
             raise TaskQueueError(f"task {task_id} not found")
         cur = current.status
         # 执行权隔离：提案的确认是用户决策（confirm API），Agent 只能推进
-        if cur == "proposed":
+        if cur == "proposed" and by != "user":
             raise TaskQueueError("proposed tasks are confirmed by the user, not the agent")
         # completed 必须留痕：干了什么、结果如何（先于转移合法性，错误信息更有用）
         if status == "completed" and not (result or "").strip():
@@ -294,19 +311,39 @@ class TaskQueueService:
             raise TaskQueueError(f"illegal transition {cur} → {status}")
 
         # Acceptance pre-authorization on self-check (Agent reports done):
-        # - T3/T4: system auto-completes for the user (auditable receipt)
-        # - T1/T2: system moves to waiting_acceptance (human decides)
+        # - T3/T4 with an origin conversation: NOT auto-completed — the result
+        #   is pushed back to the origin dialogue for the reviewer (原对话
+        #   Agent) to audit (reviewer:auto verdict drives completion). A
+        #   waiting_acceptance row with task_data.review_pending=1 is "awaiting
+        #   reviewer", distinct from T1/T2 human acceptance.
+        # - No origin thread (board-created / workflow tasks): system
+        #   auto-completes as before (no reviewer context to consult).
+        # - T1/T2: waiting_acceptance (human decides).
         # self_checked is therefore a transient state, never persisted.
         effective = status
+        review_requested = False
         if status == "self_checked":
             if current.trigger_spec:
                 # recurring task: this round is done, requeue for next trigger
                 effective = "pending"
             else:
                 risk = current.risk_level or "T3"
-                effective = (
-                    "completed" if risk in ("T3", "T4") else "waiting_acceptance"
+                has_origin = bool(current.origin_thread_id)
+                # requires_human_signoff：方向性决策产出（选品方向/定价/上架
+                # 放行等）——评审者只能核验"做没做对"，不能替用户做商业判断，
+                # 此类任务执行完挂"待人工验收"（与 T1/T2 同语义），人批准才
+                # 解锁下游。
+                needs_signoff = bool(
+                    (current.task_data or {}).get("requires_human_signoff")
                 )
+                if risk in ("T3", "T4"):
+                    if has_origin and not needs_signoff:
+                        effective = "waiting_acceptance"
+                        review_requested = True
+                    else:
+                        effective = "waiting_acceptance" if (needs_signoff or risk in ("T1", "T2")) else "completed"
+                else:
+                    effective = "waiting_acceptance"
 
         values: dict[str, Any] = {"status": effective}
         if result is not None:
@@ -314,9 +351,14 @@ class TaskQueueService:
                 **(current.task_data or {}),
                 "last_result": _clamp_result(result),
             }
+        if review_requested:
+            values["task_data"] = {
+                **(values["task_data"]),
+                "review_pending": True,
+            }
         if self_check is not None:
             values["self_check"] = self_check
-        if effective != status:
+        if effective != status and not review_requested:
             values["acceptance"] = {
                 "by": "system:auto",
                 "at": _now().isoformat(),
@@ -337,7 +379,59 @@ class TaskQueueService:
             event="task_advanced",
             extra={"requested_status": status, "effective_status": effective},
         )
+        if review_requested:
+            # 值守完成 → 回灌原对话，交由创建任务时的对话 Agent（评审者）
+            # 以用户立场核验。异步触发，不阻塞 update_status 返回。
+            from app.domain.tasks.review import trigger_review
+
+            await trigger_review(updated)
+        elif effective == "waiting_acceptance" and not review_requested:
+            # signoff / T1/T2 等人拍板 → 推送手机触达（否则用户不开看板就
+            # 无从知道链路停在自己这里）
+            try:
+                from app.core.channel.base import ChannelContext
+                from app.core.channel.output.mobile_channel import MobileChannel
+                from app.core.config import settings as _settings
+
+                if _settings.MOBILE_SYNC_ENABLED:
+                    no = (updated.task_data or {}).get("task_no")
+                    label = f"#T-{no}" if no else updated.id[:8]
+                    title = (updated.task_data or {}).get("title", "")
+                    await MobileChannel().send_hitl_request(
+                        request_id=updated.id,
+                        request_type="confirmation",
+                        prompt=f"任务 {label}「{title[:40]}」执行完成，等你拍板（在看板验收，批准后链路继续）",
+                        ctx=ChannelContext(thread_id=updated.origin_thread_id or updated.id, project_id=updated.project_id),
+                        metadata={"kind": "task_signoff", "task_id": updated.id},
+                    )
+            except Exception:
+                logger.exception("[TaskQueue] signoff mobile push failed")
         return updated
+
+    @staticmethod
+    async def find_review_pending_by_thread(origin_thread_id: str):
+        """Task awaiting its reviewer verdict on the given origin thread."""
+        from sqlalchemy import select
+
+        from app.infrastructure.database.sql.database import session_scope
+
+        async with session_scope() as session:
+            stmt = (
+                select(ProjectTask)
+                .where(
+                    ProjectTask.origin_thread_id == origin_thread_id,
+                    ProjectTask.status == "waiting_acceptance",
+                )
+                .order_by(ProjectTask.task_no.desc())
+                .limit(1)
+            )
+            row = await session.execute(stmt)
+            task = row.scalars().first()
+        if task is None:
+            return None
+        if not (task.task_data or {}).get("review_pending"):
+            return None
+        return task
 
     @staticmethod
     async def submit_acceptance(
@@ -360,13 +454,39 @@ class TaskQueueService:
         receipt = {"by": by, "at": _now().isoformat(), "verdict": verdict, "feedback": feedback}
         target = "completed" if verdict == "accepted" else "pending"
 
+        # 评审收敛纪律：reviewer 不通过最多 2 轮。第 2 轮仍不通过 → 任务转
+        # failed 并升级原对话"转人工仲裁"，杜绝"评审-返工"无限循环导致的
+        # 执行者过度实施。人工（user）拒绝不受此限——用户的裁决权优先。
+        if verdict == "rejected" and target == "pending":
+            new_count = int(getattr(task, "review_count", 0) or 0) + 1
+            if by.startswith("reviewer:") and new_count >= 2:
+                target = "failed"
+                receipt["escalated"] = True
+            values_extra: dict[str, Any] = {}
+            if by.startswith("reviewer:"):
+                values_extra["review_count"] = new_count
+        else:
+            values_extra = {}
+
         async with session_scope() as session:
+            values = {"acceptance": receipt, "status": target, **values_extra}
             await session.execute(
                 update(ProjectTask)
                 .where(ProjectTask.id == task_id)
-                .values(acceptance=receipt, status=target)
+                .values(**values)
             )
         if verdict == "rejected":
+            if target == "failed":
+                # 两轮评审未通过：升级原对话转人工仲裁（终态，不再回队）
+                updated = await TaskQueueService.get_task(task_id)
+                assert updated is not None
+                from app.domain.tasks.review import notify_arbitration
+
+                await notify_arbitration(updated, feedback)
+                await publish_task_queue_event(
+                    updated, event="task_rejected", extra={"by": by, "feedback": feedback}
+                )
+                return updated
             notify_duty_wakeup()
         updated = await TaskQueueService.get_task(task_id)
         assert updated is not None

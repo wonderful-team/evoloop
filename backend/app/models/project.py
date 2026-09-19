@@ -67,6 +67,13 @@ class ProjectTask(Base):
     acceptance: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     # Latest workspace thread for board drill-down
     last_thread_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Human-readable short number assigned at creation: "#T-<n>" per project
+    task_no: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    # Origin conversation thread (dialogue where the task was created); the
+    # reviewer runs here after completion. Null = board/external task (no review).
+    origin_thread_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Times the reviewer rejected the result (cap 2 → failed, human arbitration)
+    review_count: Mapped[int] = mapped_column(Integer, default=0)
 
 
     # Task data (JSON)

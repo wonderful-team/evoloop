@@ -393,7 +393,7 @@ export function AutonomousDutyPage() {
           <ScrollArea className="flex-1">
           <div
             key={activeTab}
-            className="px-1 py-1.5 space-y-3 animate-in fade-in slide-in-from-bottom-1 duration-200"
+            className="pl-1 pr-2.5 py-1.5 space-y-3 animate-in fade-in slide-in-from-bottom-1 duration-200"
           >
               {activeTabDef.groups
                 ? activeTabDef.groups.map((g) => {

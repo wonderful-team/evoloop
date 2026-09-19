@@ -86,7 +86,7 @@ export function PlanPanel({
             <Circle className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0 mt-0.5" />
           )}
           <div className="min-w-0">
-            <div className={s.status === "completed" ? "line-through text-muted-foreground" : ""}>
+            <div className={`break-words line-clamp-2 ${s.status === "completed" ? "line-through text-muted-foreground" : ""}`}>
               {s.title}
             </div>
             {s.status === "completed" && s.result && (
