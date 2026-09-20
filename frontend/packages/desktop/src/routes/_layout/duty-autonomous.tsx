@@ -1,6 +1,6 @@
 import { createFileRoute, redirect } from "@tanstack/react-router"
 import { isLoggedIn } from "@/hooks/useAuth"
-import { AutonomousDutyPage } from "@/components/Duty/AutonomousDutyPage"
+import { DutyWorkbench } from "@evoloop/workbench"
 
 export const Route = createFileRoute("/_layout/duty-autonomous")({
   beforeLoad: async () => {
@@ -8,5 +8,5 @@ export const Route = createFileRoute("/_layout/duty-autonomous")({
       throw redirect({ to: "/login" })
     }
   },
-  component: AutonomousDutyPage,
+  component: DutyWorkbench,
 })

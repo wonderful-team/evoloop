@@ -21,12 +21,15 @@
     "paths": {
       "@/*": ["./packages/desktop/src/*"],
       "/src/*": ["./packages/desktop/src/*"],
-      "@evoloop/shared/*": ["./packages/shared/src/*"]
+      "@evoloop/shared/*": ["./packages/shared/src/*"],
+      "@evoloop/workbench": ["./packages/workbench/src/index.ts"],
+      "@evoloop/workbench/*": ["./packages/workbench/src/*"]
     }
   },
   "include": [
     "packages/desktop/src",
     "packages/shared/src",
+    "packages/workbench/src",
     "tests",
     "playwright.config.ts"
   ],

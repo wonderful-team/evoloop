@@ -178,6 +178,13 @@ interface ChatInputAreaProps {
   activeThreadId?: string
   disabled?: boolean
   isGlobalMode?: boolean
+  className?: string
+  hideTerminal?: boolean
+  hideVoice?: boolean
+  hideAutoSpeak?: boolean
+  hideRecording?: boolean
+  contextSlot?: React.ReactNode
+  cardClassName?: string
 }
 
 export interface ChatInputAreaHandle {
@@ -199,6 +206,13 @@ export const ChatInputArea = memo(
         activeThreadId,
         disabled,
         isGlobalMode,
+        className,
+        hideTerminal = false,
+        hideVoice = false,
+        hideAutoSpeak = false,
+        hideRecording = false,
+        contextSlot,
+        cardClassName,
       },
       ref,
     ) => {
@@ -635,7 +649,7 @@ export const ChatInputArea = memo(
       }))
 
       return (
-        <div className="w-full px-4 py-2 relative">
+        <div className={cn("w-full px-4 py-2 relative", className)}>
           {/* @ Reference Picker Popover */}
           {showPicker && currentProject && !isGlobalMode && (
             <div className="absolute bottom-full left-0 right-0 z-50 px-4">
@@ -665,12 +679,13 @@ export const ChatInputArea = memo(
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
             className={cn(
-              "rounded-2xl border bg-card shadow-sm transition-all overflow-hidden relative z-50",
+              "rounded-2xl border bg-[var(--panel,#ffffff)] dark:bg-[#14151a] shadow-sm transition-all overflow-hidden relative z-50",
               isDragging
                 ? "border-primary border-dashed bg-primary/5 scale-[1.01]"
                 : isTerminalMode
                   ? "border-signal-blue/40 focus-within:border-signal-blue/60 focus-within:ring-4 focus-within:ring-signal-blue/10"
                   : "border-border focus-within:border-primary/50 focus-within:shadow-md focus-within:ring-4 focus-within:ring-primary/5",
+              cardClassName,
             )}
           >
             {isDragging && (
@@ -682,12 +697,14 @@ export const ChatInputArea = memo(
               </div>
             )}
 
-            {/* ── 上下文行：附件 + 模式芯片 + 参数 pills + 终端芯片 ── */}
-            {(pickedFiles.length > 0 ||
-              isTerminalMode ||
-              showWakeWordIndicator ||
+            {/* ── 上下文行：外部插槽 + 附件 + 模式芯片 + 参数 pills + 终端芯片 ── */}
+            {(contextSlot ||
+              pickedFiles.length > 0 ||
+              (!hideTerminal && isTerminalMode) ||
+              (!hideVoice && showWakeWordIndicator) ||
               chatMode !== "chat") && (
               <div className="px-3 pt-2.5 flex flex-wrap items-center gap-1.5">
+                {contextSlot}
                 {showWakeWordIndicator && (
                   <div className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] text-success bg-success/10 border border-success/20 select-none">
                     <Ear className="h-3 w-3 animate-pulse" />
@@ -925,7 +942,7 @@ export const ChatInputArea = memo(
                       />
                     )}
 
-                    {isTauri() && !isEmbedded && (
+                    {isTauri() && !isEmbedded && !hideRecording && (
                       <div className="hidden lg:flex items-center justify-center">
                         <RecordingButton
                           threadId={activeThreadId ?? ""}
@@ -1054,7 +1071,7 @@ export const ChatInputArea = memo(
                       </DropdownMenu>
                     )}
 
-                    {!isEmbedded && (
+                    {!isEmbedded && !hideTerminal && (
                       <Button
                         variant="ghost"
                         className="h-8 px-2 gap-1 text-[11px] text-muted-foreground hover:text-foreground shrink-0 cursor-pointer"
@@ -1073,43 +1090,45 @@ export const ChatInputArea = memo(
                       </Button>
                     )}
 
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant={voiceMode !== "off" ? "secondary" : "ghost"}
-                          size="icon"
-                          disabled={isSending}
-                          className={cn(
-                            "h-8 w-8",
-                            voiceMode === "dictation" && "text-info bg-info/10",
-                            voiceMode === "dialogue" &&
-                              "text-success bg-success/10",
-                            voiceState !== "idle" && "animate-pulse",
-                          )}
-                        >
-                          <Mic className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start" className="min-w-[40px]">
-                        <TooltipProvider delayDuration={100}>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <DropdownMenuItem
-                                onClick={() => setVoiceMode("dictation")}
-                                className={
-                                  voiceMode === "dictation" ? "text-info" : ""
-                                }
-                              >
-                                <FileText className="h-4 w-4" />
-                              </DropdownMenuItem>
-                            </TooltipTrigger>
-                            <TooltipContent side="left">
-                              {t("chat.voice.dictationMode")}
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    {!hideVoice && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant={voiceMode !== "off" ? "secondary" : "ghost"}
+                            size="icon"
+                            disabled={isSending}
+                            className={cn(
+                              "h-8 w-8",
+                              voiceMode === "dictation" && "text-info bg-info/10",
+                              voiceMode === "dialogue" &&
+                                "text-success bg-success/10",
+                              voiceState !== "idle" && "animate-pulse",
+                            )}
+                          >
+                            <Mic className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className="min-w-[40px]">
+                          <TooltipProvider delayDuration={100}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <DropdownMenuItem
+                                  onClick={() => setVoiceMode("dictation")}
+                                  className={
+                                    voiceMode === "dictation" ? "text-info" : ""
+                                  }
+                                >
+                                  <FileText className="h-4 w-4" />
+                                </DropdownMenuItem>
+                              </TooltipTrigger>
+                              <TooltipContent side="left">
+                                {t("chat.voice.dictationMode")}
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
                   </>
                 )}
               </div>
@@ -1118,29 +1137,31 @@ export const ChatInputArea = memo(
               <div className="ml-auto flex items-center gap-1.5 shrink-0">
                 {!isTerminalMode && (
                   <>
-                    <TooltipProvider delayDuration={100}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant={autoSpeak ? "secondary" : "ghost"}
-                            size="icon"
-                            onClick={toggleAutoSpeak}
-                            className="h-8 w-8 hidden xl:inline-flex"
-                          >
-                            {autoSpeak ? (
-                              <Volume2 className="h-4 w-4 text-primary" />
-                            ) : (
-                              <VolumeX className="h-4 w-4 text-muted-foreground" />
-                            )}
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top">
-                          {autoSpeak
-                            ? t("chat.tts.autoSpeakOn")
-                            : t("chat.tts.autoSpeakOff")}
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                    {!hideAutoSpeak && (
+                      <TooltipProvider delayDuration={100}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant={autoSpeak ? "secondary" : "ghost"}
+                              size="icon"
+                              onClick={toggleAutoSpeak}
+                              className="h-8 w-8 hidden xl:inline-flex"
+                            >
+                              {autoSpeak ? (
+                                <Volume2 className="h-4 w-4 text-primary" />
+                              ) : (
+                                <VolumeX className="h-4 w-4 text-muted-foreground" />
+                              )}
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            {autoSpeak
+                              ? t("chat.tts.autoSpeakOn")
+                              : t("chat.tts.autoSpeakOff")}
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
                     <ModelSelectorWrapper isSending={isSending} />
                   </>
                 )}

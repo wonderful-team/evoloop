@@ -20,6 +20,7 @@ export default defineConfig(({ mode }) => {
       alias: {
         "@": path.resolve(__dirname, "./packages/desktop/src"),
         "@evoloop/shared": path.resolve(__dirname, "./packages/shared/src"),
+        "@evoloop/workbench": path.resolve(__dirname, "./packages/workbench/src"),
       },
       dedupe: ["react", "react-dom"],
     },
@@ -58,7 +59,7 @@ export default defineConfig(({ mode }) => {
       host: true,
       proxy: {
         "/api": {
-          target: env.VITE_API_URL || "http://127.0.0.1:8123",
+          target: env.VITE_API_URL || "http://127.0.0.1:20160", // 后端统一端口
           changeOrigin: true,
         },
       },

@@ -21,7 +21,9 @@
       "@desktop/*": ["./src/*"],
       "@shared/*": ["../shared/src/*"],
       "@evoloop/shared/*": ["../shared/src/*"],
-      "@evoloop/shared": ["../shared/src/index.ts"]
+      "@evoloop/shared": ["../shared/src/index.ts"],
+      "@evoloop/workbench/*": ["../workbench/src/*"],
+      "@evoloop/workbench": ["../workbench/src/index.ts"]
     }
   },
   "include": ["./src/**/*"],
