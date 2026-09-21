@@ -1,7 +1,7 @@
 """McpMessageChannel — 通用第三方 MCP 消息渠道（入站归一化 + 出站回复）。
 
 入站：第三方系统以 MCP server 接入，推送 notification，method 统一为
-``notifications/mcp_message``，payload 即消息本体 + 可选建任务参数
+``notifications/mcp_message_send``，payload 即消息本体 + 可选建任务参数
 （push 语义；幂等由推送方 event_id + domain 摄取层 dedup_key 共同保证）::
 
     {
@@ -17,18 +17,16 @@
     }
 
 出站：任务回复经 OutboundReplyEvent（domain 决策）路由到本渠道，
-调用来源 server 上的 ``mcp_reply`` 工具发送（超长分块）::
+调用来源 server 上的 ``mcp_message_reply`` 工具发送（超长分块）::
 
-    mcp_reply(contact="wxid_xxx", content="...", project_id=1)
+    mcp_message_reply(contact="wxid_xxx", content="...", project_id=1)
 
-采集兜底（poll）：推送丢失（"推送即断"）时按项目值守配置轮巡拉取——
-调用来源 server 的 ``mcp_messages_list`` 工具（读取即服务端 ack），
-每条消息走与 push 相同的归一化入队路径（event_id 幂等去重）::
+入站通知的传输形态：MCP 客户端 SDK 对未知 notification method 会做
+联合类型校验并拒绝分发（自定义 method 不可达），因此统一走 MCP 标准的
+logging 通知 ``notifications/message``，消息本体放在 ``params.data`` 中，
+``data.type = "mcp_message_send"`` 作为本通道的识别标记。
 
-    mcp_messages_list() -> {"success": true, "messages": [
-        {"event_id": "...", "contact": "...", "content": "...", "title": "..."}]}
-
-职责边界：本渠道只做「传输」（归一化入站 / 发送出站 / 轮巡拉取），
+职责边界：本渠道只做「传输」（归一化入站 / 发送出站），
 不含任何队列/业务语义（校验、幂等、状态机、回复路由决策在 domain/tasks）。
 """
 
@@ -50,11 +48,13 @@ from app.core.events.registry import (
 
 logger = logging.getLogger(__name__)
 
-MCP_MESSAGE_METHOD = "mcp_message"
-REPLY_TOOL_NAME = "mcp_reply"
-POLL_TOOL_NAME = "mcp_messages_list"
+# MCP 标准 logging 通知（notifications/message）是客户端 SDK 唯一允许
+# 任意自定义载荷的 server→client 推送通道；本通道消息以
+# params.data.type == MCP_MESSAGE_SEND_TYPE 识别。
+LOGGING_NOTIFY_METHOD = "notifications/message"
+MCP_MESSAGE_SEND_TYPE = "mcp_message_send"
+REPLY_TOOL_NAME = "mcp_message_reply"
 REPLY_TOOL_TIMEOUT_SECONDS = 10.0
-POLL_TOOL_TIMEOUT_SECONDS = 30.0
 # 商城微信客服单条消息长度上限（复用 GUI 线实测值，取安全余量）
 MAX_MESSAGE_LEN = 1500
 # 分块发送间隔（秒）：避开远程 server 限频
@@ -73,16 +73,24 @@ class McpMessageChannel:
     async def on_server_notification(self, event: BaseEvent) -> None:
         server_name = str(getattr(event, "server_name", "") or "")
         method = str(getattr(event, "method", "") or "")
-        if MCP_MESSAGE_METHOD not in method:
+        if method != LOGGING_NOTIFY_METHOD:
             return
 
-        # payload 契约见模块 docstring；manager.py 把通知参数放在 data.payload
+        # manager.py 把通知参数放在 event.data.payload（= notifications/message
+        # 的 params）。SDK 强类型路径下 params 是 pydantic 模型
+        # （LoggingMessageNotificationParams，.data 属性），宽松路径下是 dict。
+        # 消息本体在 params.data，data.type == mcp_message_send 为识别标记。
         data = getattr(event, "data", None)
-        params = getattr(data, "payload", None) or {}
-        await self._publish_inbound(server_name, params)
+        wrapper = getattr(data, "payload", None)
+        if wrapper is None:
+            return
+        message = wrapper.get("data") if isinstance(wrapper, dict) else getattr(wrapper, "data", None)
+        if not isinstance(message, dict) or message.get("type") != MCP_MESSAGE_SEND_TYPE:
+            return
+        await self._publish_inbound(server_name, message)
 
     async def _publish_inbound(self, server_name: str, params: dict) -> bool:
-        """归一化一条第三方消息并发布 InboundMessageEvent（push / poll 共用）。
+        """归一化一条第三方消息并发布 InboundMessageEvent（push 入口）。
 
         返回是否真正发布（守卫拦截 = False）。外部输入边界：数值字段格式
         非法（如 project_id="abc"）→ warning + 丢弃该条消息（不向事件总线
@@ -130,65 +138,11 @@ class McpMessageChannel:
         )
         return True
 
-    # ── 采集兜底（poll）──────────────────────────────────
-
-    async def poll_once(self, project_id: int) -> int:
-        """轮巡拉取未处理消息并逐条入队（推送丢失时的兜底采集）。
-
-        server 名来自项目值守配置 channels.callback.mcp_server；list 工具
-        读取即服务端 ack。每条消息走与 push 相同的归一化路径，event_id
-        （mall 消息行 id）幂等去重——重复轮巡不重复建任务。返回处理条数。
-        """
-        server, cfg_ok = await self._server_for_project(project_id)
-        if not cfg_ok:
-            return 0
-        result = await self._call_tool(
-            server, POLL_TOOL_NAME, timeout=POLL_TOOL_TIMEOUT_SECONDS
-        )
-        messages = (result or {}).get("messages") or []
-        if not isinstance(messages, list):
-            logger.warning(
-                "[mcp_message] poll 返回 messages 非列表 (server=%s)", server
-            )
-            return 0
-        handled = 0
-        for msg in messages:
-            if not isinstance(msg, dict):
-                continue
-            params = dict(msg)
-            params.setdefault("project_id", project_id)
-            if await self._publish_inbound(server, params):
-                handled += 1
-        if handled:
-            logger.info(
-                "[mcp_message] poll fetched %d message(s) (project=%s)",
-                handled,
-                project_id,
-            )
-        return handled
-
-    async def _server_for_project(self, project_id: int) -> tuple[str, bool]:
-        """从项目值守配置解析 callback.mcp_server；（server, 配置是否就绪）。"""
-        from app.core.channel.duty.config import load_duty_config
-
-        cfg = await load_duty_config(project_id)
-        server = str(
-            ((cfg or {}).get("channels") or {}).get("callback", {}).get("mcp_server")
-            or ""
-        ).strip()
-        if not server:
-            logger.warning(
-                "[mcp_message] 项目 %s 未配置 callback.mcp_server，跳过 poll",
-                project_id,
-            )
-            return "", False
-        return server, True
-
     # ── 出站 ─────────────────────────────────────────────
 
     @event_subscribe(SystemEventType.OUTBOUND_REPLY)
     async def on_outbound_reply(self, event: OutboundReplyEvent) -> None:
-        """发送路由到本渠道的任务回复（调来源 server 的 mcp_reply 工具，超长分块）。"""
+        """发送路由到本渠道的任务回复（调来源 server 的 mcp_message_reply 工具，超长分块）。"""
         if event.channel != self.name:
             return
         server = event.source_system

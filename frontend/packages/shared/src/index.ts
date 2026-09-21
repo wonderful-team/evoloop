@@ -37,3 +37,20 @@ export * from "./components/ui/textarea"
 export * from "./components/ui/tooltip"
 // Re-export utilities
 export { cn } from "./lib/utils"
+
+// Re-export hooks
+export * from "./hooks/useMobile"
+
+// Re-export Universal HITL Components
+export * from "./components/hitl/types"
+export { HumanRequestCard } from "./components/hitl/HumanRequestCard"
+
+// Re-export Universal Task Proposal Components
+export * from "./components/proposal/types"
+export { TaskProposalCard } from "./components/proposal/TaskProposalCard"
+
+// Re-export Universal Agent Trace & Execution Components
+export * from "./components/trace/types"
+export { ToolCallItem } from "./components/trace/ToolCallItem"
+export { ThinkingBlock } from "./components/trace/ThinkingBlock"
+export { AgentExecutionTimeline } from "./components/trace/AgentExecutionTimeline"

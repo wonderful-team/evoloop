@@ -193,7 +193,10 @@ class EvoCloudManager:
         if ctx_token:
             return ctx_token
 
-        return await self.api.get_token() if self._api_pool else None
+        # `api` 属性按 LoopBoundResource 语义惰性 initialize() 并绑定当前事件循环。
+        # 旧守卫会让未预初始化 evocloud 的进程（如 huey worker 的首个任务）
+        # 静默拿到 None，后台 LLM 任务空转成 {}。
+        return await self.api.get_token()
 
     @property
     def config(self) -> EvoCloudConfig:

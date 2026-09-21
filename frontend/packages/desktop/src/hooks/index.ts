@@ -5,7 +5,7 @@ export { useAuth } from "./useAuth"
 export { useCopyToClipboard } from "./useCopyToClipboard"
 export { useGlobalRecorder } from "./useGlobalRecorder"
 export { useMemberCancellation } from "./useMemberCancellation"
-export { useIsMobile } from "./useMobile"
+export { useIsMobile } from "@evoloop/shared"
 export {
   type SynthesisResult,
   type UseMultimodalSynthesisOptions,

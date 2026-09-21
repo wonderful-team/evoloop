@@ -38,6 +38,19 @@ class TransportType(str, Enum):
     STREAMABLE_HTTP = "streamable_http"
 
 
+def normalize_transport(value: str | None) -> TransportType:
+    """Normalize transport string to TransportType enum."""
+    if not value:
+        return TransportType.STDIO
+    normalized = value.lower().replace("-", "_")
+    if normalized in ("streamable_http", "streamablehttp"):
+        return TransportType.STREAMABLE_HTTP
+    try:
+        return TransportType(normalized)
+    except ValueError:
+        return TransportType.STDIO
+
+
 class AuthType(str, Enum):
     """Authentication types for MCP servers."""
 
@@ -110,7 +123,10 @@ class McpServerConfig(DynamicBaseModel):
                 pass
 
         # Determine transport
-        if is_streamable_http_url(server.command):
+        explicit_transport = normalize_transport(getattr(server, "transport", None))
+        if explicit_transport != TransportType.STDIO:
+            transport = explicit_transport
+        elif is_streamable_http_url(server.command):
             transport = TransportType.STREAMABLE_HTTP
         elif is_sse_url(server.command):
             transport = TransportType.SSE

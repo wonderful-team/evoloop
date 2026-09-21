@@ -24,30 +24,17 @@ DUTY_PARAM_MARKER = "duty_channel"
 
 # 值守任务种类
 KIND_WECOM = "wecom"  # 企微线（本地客户端 GUI 轮巡）
-KIND_KF = "kf"  # 商城微信客服线（经 MCP 接入；轮巡走 McpMessageChannel.poll_once，
-# 消息进任务队列——kind 值保持 "kf" 兼容存量 AutonomousTask 行与项目配置）
 
-# 客服轮巡硬超时（电路断路器）：即使轮巡内部有未知卡点，
-# 超过时限强制中断并释放全局锁，避免拖死整个值守调度器。
-KF_POLL_HARD_TIMEOUT = 180.0
-
-# 项目渠道名 → 值守任务种类（provision 按 active_channels 建任务）
+# 项目渠道名 → 值守任务种类（provision 按 active_channels 建任务；
+# mcp_message 渠道为纯推送（notifications/mcp_message_send），无轮巡任务）
 CHANNEL_KIND_MAP = {
     "wecom": KIND_WECOM,
-    "callback": KIND_KF,
 }
 
-# 值守任务种类 → DutyChannel 类名（run_duty_poll 按 kind 分流；
-# KIND_KF 不经此表——直接路由 McpMessageChannel.poll_once）
+# 值守任务种类 → DutyChannel 类名（run_duty_poll 按 kind 分流）
 KIND_CHANNEL_MAP = {
     KIND_WECOM: "WeComDutyChannel",
 }
-
-
-# ── mcp_message（原 mcp_kf）相关 ─────────────────────────
-
-# 渠道在 project.json customer_service_duty.channels 里的 key
-CHANNEL_KEY = "callback"
 
 
 # ── wecom 相关 ───────────────────────────────────────────

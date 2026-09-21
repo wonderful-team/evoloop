@@ -134,6 +134,8 @@ class TaskQueueService:
         trigger_spec: str | None = None,
         dedup_key: str | None = None,
         member_id: int = 0,
+        parent_id: str | None = None,
+        dependencies: list[str] | None = None,
     ) -> ProjectTask:
         """Insert a task row. Entry semantics:
         - source=user → pending (user-planned, accepted as-is)
@@ -162,6 +164,8 @@ class TaskQueueService:
         }
         if category:
             task_data["category"] = category
+        if dependencies is not None:
+            task_data["dependencies"] = dependencies
         # 短编号：项目内递增，对话/评审/反馈用 "#T-<n>" 指代（uuid 太重）
         origin_thread_id = str((source_ref or {}).get("ref") or "") or None
         async with session_scope() as session:
@@ -176,6 +180,7 @@ class TaskQueueService:
                 id=gen_uuid(),
                 project_id=project_id,
                 member_id=member_id,
+                parent_id=parent_id,
                 status=status,
                 progress=0,
                 description=description or None,
@@ -225,13 +230,32 @@ class TaskQueueService:
 
     @staticmethod
     async def get_task(task_id: str) -> ProjectTask | None:
-        from sqlalchemy import select
-
         async with session_scope() as session:
             stmt = select(ProjectTask).where(ProjectTask.id == task_id)
             res = await session.execute(stmt)
             return res.scalar_one_or_none()
 
+    @staticmethod
+    async def get_subtasks_counts(parent_ids: list[str]) -> dict[str, dict[str, int]]:
+        """Return {parent_id: {'total': N, 'completed': M}} for given parent task IDs."""
+        if not parent_ids:
+            return {}
+        async with session_scope() as session:
+            stmt = select(ProjectTask.parent_id, ProjectTask.status).where(
+                ProjectTask.parent_id.in_(parent_ids)
+            )
+            res = await session.execute(stmt)
+            counts: dict[str, dict[str, int]] = {
+                pid: {"total": 0, "completed": 0} for pid in parent_ids
+            }
+            for pid, status in res.all():
+                if pid and pid in counts:
+                    counts[pid]["total"] += 1
+                    if status == "completed":
+                        counts[pid]["completed"] += 1
+            return counts
+
+    @staticmethod
     async def list_tasks(
         *,
         project_id: int | None = None,
@@ -239,7 +263,9 @@ class TaskQueueService:
         category: str | None = None,
         source: str | None = None,
         due_before: datetime | None = None,
+        root_only: bool = False,
         limit: int = 20,
+        offset: int = 0,
     ) -> list[ProjectTask]:
 
         async with session_scope() as session:
@@ -255,16 +281,30 @@ class TaskQueueService:
                     (ProjectTask.due_at <= due_before)
                     | (ProjectTask.next_run_at <= due_before)
                 )
+            if root_only:
+                stmt = stmt.where(ProjectTask.parent_id.is_(None))
             rows = (await session.execute(stmt)).scalars().all()
         if category:
             rows = [r for r in rows if (r.task_data or {}).get("category") == category]
 
         rows.sort(key=_dispatch_order_key)
-        return rows[:limit]
+        return rows[offset:offset + limit] if offset else rows[:limit]
 
     @staticmethod
     async def take_task(task_id: str, thread_id: str) -> ProjectTask:
-        """Claim a pending task for execution (atomic pending→in_progress)."""
+        """Claim a pending task for execution (atomic pending→in_progress).
+
+        派发即认领（claim-then-persist）下，dispatcher 已在派发前完成系统侧
+        认领并绑定同一 wakeup 线程——agent 的 take 变为幂等确认：同线程重复
+        take 直接返回已认领任务；跨线程占用仍然拒绝。
+        """
+        current = await TaskQueueService.get_task(task_id)
+        if current is not None and current.status == "in_progress":
+            if (current.last_thread_id or "") == thread_id:
+                return current  # 幂等：系统认领即绑定，无事件重复发布
+            raise TaskQueueError(
+                f"task {task_id} is already in progress on another thread"
+            )
 
         async with session_scope() as session:
             stmt = (
@@ -281,6 +321,55 @@ class TaskQueueService:
         assert task is not None
         await publish_task_queue_event(task, event="task_taken")
         return task
+
+    @staticmethod
+    async def claim_for_dispatch(task_id: str, thread_id: str) -> ProjectTask | None:
+        """System-side claim at dispatch (pending→in_progress, atomic).
+
+        派发即认领：one-shot 任务派发前落持久化占位（in_progress + 绑线程
+        + dispatch_count 递增），与 recurring「认领即推进 next_run_at」对齐。
+        修复「run 完成 × 任务仍 pending」被 DutyWakeupSubscriber 立即重派发
+        的紧派发环。认领失败（并发/状态已变）返回 None，调用方跳过本轮。
+
+        发布 ``task_taken``：认领即绑定时刻，前端看板语义与原 agent take 一致。
+        """
+        task = await TaskQueueService.get_task(task_id)
+        if task is None:
+            return None
+        td = dict(task.task_data or {})
+        td["dispatch_count"] = int(td.get("dispatch_count") or 0) + 1
+        async with session_scope() as session:
+            res = await session.execute(
+                update(ProjectTask)
+                .where(ProjectTask.id == task_id, ProjectTask.status == "pending")
+                .values(status="in_progress", last_thread_id=thread_id, task_data=td)
+            )
+            if res.rowcount == 0:
+                return None
+        claimed = await TaskQueueService.get_task(task_id)
+        assert claimed is not None
+        await publish_task_queue_event(claimed, event="task_taken")
+        return claimed
+
+    @staticmethod
+    async def release_dispatch_claim(task_id: str, thread_id: str) -> None:
+        """Rollback a dispatch claim (in_progress→pending) when dispatch failed.
+
+        派发失败（DispatchStatus.FAILED / 派发异常）时回滚认领占位，任务回到
+        队列由下一拍重试；``dispatch_count`` 保留——累计到
+        ``DISPATCH_CLAIM_CIRCUIT_LIMIT`` 由熔断强制终态。不 notify_duty_wakeup：
+        派发失败是确定性问题，立即重试只会形成无意义热循环，60s 兜底即可。
+        """
+        async with session_scope() as session:
+            await session.execute(
+                update(ProjectTask)
+                .where(
+                    ProjectTask.id == task_id,
+                    ProjectTask.status == "in_progress",
+                    ProjectTask.last_thread_id == thread_id,
+                )
+                .values(status="pending", last_thread_id=None)
+            )
 
     @staticmethod
     async def advance_task(
@@ -842,8 +931,18 @@ class TaskQueueService:
             stmt = select(ProjectTask).where(
                 ProjectTask.status == "pending",
                 or_(
-                    ProjectTask.due_at.is_(None),  # dispatchable immediately
-                    ProjectTask.due_at <= now,
+                    # one-shot（无 trigger_spec）：due_at IS NULL → 立即可派发，
+                    # 或给定开始时间已到。recurring 的到期判定只能走 next_run_at
+                    # 分支——due_at 恒为 NULL，若不限定 trigger_spec，该分支会
+                    # 永远命中，next_run_at 门控形同虚设（2026-09-21 实测：
+                    # 明天首跑的每日巡检被判"到期"，开闸后爆发式连跑）。
+                    and_(
+                        ProjectTask.trigger_spec.is_(None),
+                        or_(
+                            ProjectTask.due_at.is_(None),
+                            ProjectTask.due_at <= now,
+                        ),
+                    ),
                     and_(
                         ProjectTask.trigger_spec.isnot(None),
                         ProjectTask.next_run_at <= now,

@@ -1,10 +1,10 @@
 import logging
 import time
 
-from app.constants import CACHE_KEY_DYNAMIC_APPS_PREFIX
 from app.core.environment.constants import (
-    CACHE_KEY_APP_REASONING_PREFIX,
     DYNAMIC_APP_TRIAGE_BATCH_SIZE,
+    dynamic_apps_key,
+    processed_apps_key,
 )
 from app.core.environment.explorers.base import BaseExplorer
 from app.infrastructure.cache import cache
@@ -15,23 +15,14 @@ logger = logging.getLogger(__name__)
 _last_no_apps_log: dict[str, float] = {}
 _no_apps_log_interval: float = 300.0
 
-_TASK_TIMEOUT = 120.0
-
 
 class DynamicAppTriage(BaseExplorer):
     """
     Autonomous discovery of dynamic (coordinate-unstable) applications.
-    Uses LLM to categorize apps and persists results in cache.
+    LLM categorization runs in huey worker tasks, which persist verdicts to
+    cache themselves (fire-and-forget from this scan loop).
     Platform-specific to avoid conflicts between different OS versions.
     """
-
-    @staticmethod
-    def _get_dynamic_apps_key(platform: str) -> str:
-        return f"{CACHE_KEY_DYNAMIC_APPS_PREFIX}:{platform}"
-
-    @staticmethod
-    def _get_reasoning_key(platform: str) -> str:
-        return f"{CACHE_KEY_APP_REASONING_PREFIX}:{platform}"
 
     async def scan(self, *args, **kwargs) -> list:
         return []
@@ -57,7 +48,7 @@ class DynamicAppTriage(BaseExplorer):
         from app.core.environment.explorers.tasks import triage_app_batch
 
         for platform, apps in platforms_to_process:
-            processed_key = f"system:processed_apps:{platform}"
+            processed_key = processed_apps_key(platform)
             processed_apps = await cache.smembers(processed_key)
 
             new_apps = [a for a in apps if a not in processed_apps]
@@ -73,44 +64,16 @@ class DynamicAppTriage(BaseExplorer):
                 continue
 
             logger.info(
-                f"[DynamicAppTriage] Triaging {len(new_apps)} new {platform} apps ({DYNAMIC_APP_TRIAGE_BATCH_SIZE} per batch)..."
+                f"[DynamicAppTriage] Enqueuing {len(new_apps)} new {platform} apps "
+                f"({DYNAMIC_APP_TRIAGE_BATCH_SIZE}/batch, fire-and-forget; verdicts are "
+                "persisted by the worker task itself)"
             )
-
-            all_results = {}
             for i in range(0, len(new_apps), DYNAMIC_APP_TRIAGE_BATCH_SIZE):
                 batch = new_apps[i : i + DYNAMIC_APP_TRIAGE_BATCH_SIZE]
                 try:
-                    result = await triage_app_batch.delay(batch).get(
-                        timeout=_TASK_TIMEOUT
-                    )
-                    if result:
-                        all_results.update(result)
+                    triage_app_batch.delay(batch, platform)
                 except Exception as e:
-                    logger.exception(f"[DynamicAppTriage] Batch task failed: {e}")
-
-            if all_results:
-                dynamic_key = self._get_dynamic_apps_key(platform)
-                reasoning_key = self._get_reasoning_key(platform)
-
-                pipe = cache.pipeline()
-                for app_id, data in all_results.items():
-                    is_dynamic = data.get("is_dynamic", False)
-                    reason = data.get("reason", "Unknown")
-
-                    pipe.sadd(processed_key, app_id)
-
-                    if is_dynamic:
-                        pipe.sadd(dynamic_key, app_id)
-                        pipe.hset(reasoning_key, app_id, reason)
-                        logger.info(
-                            f"[DynamicAppTriage] Marked '{platform}:{app_id}' as DYNAMIC: {reason}"
-                        )
-                    else:
-                        logger.debug(
-                            f"[DynamicAppTriage] Marked '{platform}:{app_id}' as STATIC"
-                        )
-
-                await pipe.execute()
+                    logger.exception(f"[DynamicAppTriage] Failed to enqueue batch: {e}")
 
     @staticmethod
     async def get_dynamic_apps(platform: str = "android") -> set[str]:
@@ -123,7 +86,7 @@ class DynamicAppTriage(BaseExplorer):
             platform: Platform identifier ("android", "macos", etc.)
         """
         try:
-            dynamic_key = f"{CACHE_KEY_DYNAMIC_APPS_PREFIX}:{platform}"
+            dynamic_key = dynamic_apps_key(platform)
             app_ids = await cache.smembers(dynamic_key)
             return set(app_ids) if app_ids else set()
         except Exception as e:

@@ -14,6 +14,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 from app.domain.tasks.constants import (
+    DISPATCH_CLAIM_CIRCUIT_LIMIT,
     WAKEUP_RUN_DEADLINE_SECONDS,
 )
 from app.domain.tasks.events import publish_workflow_event
@@ -414,6 +415,31 @@ async def dispatch_due_tasks() -> None:
         else:
             thread_id = unique_id(f"wakeup_{project_id}_{t.id}")
 
+        # ── 派发即认领（claim-then-persist，AGENTS.md 断裂修复记录 #6）──
+        # 派发前系统侧原子认领（pending→in_progress+绑线程+dispatch_count++），
+        # 与 recurring「认领即推进 next_run_at」对齐：run 结束时任务必已被
+        # 系统持有，DutyWakeupSubscriber 再唤醒也只会认领到**其他** pending
+        # 任务，从构造上关断「run 完成 × 任务未推进」的紧派发环。
+        claimed = await TaskQueueService.claim_for_dispatch(t.id, thread_id)
+        if claimed is None:
+            continue  # 认领失败（并发/状态已变）→ 本轮不派发
+        # 熔断（认领后判定，走合法转移 in_progress→failed）：认领次数达阈值
+        # 仍无终态 = agent 未履约 take/update_status 或派发反复失败 → 强制
+        # 终态，把毒任务显式炸出来而不是无限烧 LLM。
+        if int((claimed.task_data or {}).get("dispatch_count") or 0) >= (
+            DISPATCH_CLAIM_CIRCUIT_LIMIT
+        ):
+            await TaskQueueService.advance_task(
+                t.id,
+                "failed",
+                result=(
+                    f"值守派发熔断：{DISPATCH_CLAIM_CIRCUIT_LIMIT} 次派发未推进"
+                    "任务终态（未 take/未 update_status）"
+                ),
+                by="system",
+            )
+            continue
+
         # duty runs have no host page: 域解析 profile-first → L1 域标注兜底
         # （与文本消息路径同源；此前值守漏接 L1，跨项目任务首轮全量）
         domain, hint_reason = await resolve_wakeup_domain(
@@ -444,33 +470,41 @@ async def dispatch_due_tasks() -> None:
                 feedback=(t.acceptance or {}).get("feedback") or "",
             ),
         )
-        result = await dispatch_agent_run(
-            thread_id=thread_id,
-            message_content=prompt,
-            project_id=project_id or None,
-            member_id=await TaskQueueService.resolve_member_id(t),
-            metadata={
-                "source": "duty",
-                "source_task_id": t.id,
-                "channel_name": str((t.source_ref or {}).get("channel") or ""),
-                "goal_prefix": "[Wakeup] ",
-                **(
-                    {
-                        "intent_hint": {
-                            "domain": domain,
-                            "intent": "domain_classified",
-                            "reason": hint_reason,
+        try:
+            result = await dispatch_agent_run(
+                thread_id=thread_id,
+                message_content=prompt,
+                project_id=project_id or None,
+                member_id=await TaskQueueService.resolve_member_id(t),
+                metadata={
+                    "source": "duty",
+                    "source_task_id": t.id,
+                    "channel_name": str((t.source_ref or {}).get("channel") or ""),
+                    "goal_prefix": "[Wakeup] ",
+                    **(
+                        {
+                            "intent_hint": {
+                                "domain": domain,
+                                "intent": "domain_classified",
+                                "reason": hint_reason,
+                            }
                         }
-                    }
-                    if domain
-                    else {}
-                ),
-            },
-        )
+                        if domain
+                        else {}
+                    ),
+                },
+            )
+        except Exception:
+            # 派发异常：回滚认领占位再上抛（supervisor 记录 drain failed），
+            # 任务回队由下一拍重试；dispatch_count 已累计，反复失败会走熔断。
+            await TaskQueueService.release_dispatch_claim(t.id, thread_id)
+            raise
         if result.status == DispatchStatus.FAILED:
             logger.error(
                 f"[DutyDispatcher] wakeup dispatch failed for task {t.id}: {result.error}"
             )
+            # 派发失败：回滚认领（pending），60s 兜底重试；连续失败由熔断收敛。
+            await TaskQueueService.release_dispatch_claim(t.id, thread_id)
             return  # avoid tight-loop redispatching a broken dispatch
         if result.inputs:
             logger.info(

@@ -7,7 +7,7 @@
 
 执行模型：串行队列 + 按种类判定。
 - 所有轮巡任务串行执行（同一时刻只处理一个，不同种类排队等执行）；
-- 任务带"种类"（企微线 wecom / 商城客服线 kf）；
+- 任务带"种类"（企微线 wecom）；
 - 同种类：上一个还没处理完时，新到同类任务直接跳过；
 - 不同种类：互不跳过，按序排队执行。
 """
@@ -24,9 +24,7 @@ from app.core.channel.duty.config import load_duty_config
 from app.core.channel.duty.constants import (
     CHANNEL_KIND_MAP,
     DUTY_PARAM_MARKER,
-    KF_POLL_HARD_TIMEOUT,
     KIND_CHANNEL_MAP,
-    KIND_KF,
     KIND_WECOM,
 )
 
@@ -87,12 +85,11 @@ async def _run_kind(
     到达即占用 kind：同种类上一个还没处理完时，新到同类任务直接跳过；
     不同种类不互斥，排队等全局串行锁执行。
 
-    ``skip_if_active=False``：不整轮跳过（排全局锁等待）。客服(kf)用此模式，
-    配合渠道内「按客户隔离在飞」，让不同客户的消息互不阻塞。
+    ``skip_if_active=False``：不整轮跳过（排全局锁等待）。
 
     ``run_timeout``：整个轮巡的硬超时（电路断路器）。即使轮巡内部有未知卡点
     （外部工具/MCP 挂起），超过时限也强制取消并释放全局锁，避免拖死整个
-    值守调度器。客服轮巡用它兜底。
+    值守调度器。
     """
     if skip_if_active and kind in _active_kinds:
         logger.info("[duty] 同种类任务仍在进行（kind=%s），跳过", kind)
@@ -136,21 +133,7 @@ async def _run_duty_poll_impl(project_id: int, kind: str | None = None) -> int:
     cfg["project_id"] = project_id
     total = 0
     if kind is not None:
-        # 指定种类：只跑该线（wecom / mcp_message）
-        if kind == KIND_KF:
-            # 商城客服线：McpMessageChannel.poll_once（拉取→逐条入队，
-            # 与 push 同一归一化路径；队列语义在 domain/tasks）。
-            from app.core.channel.input.mcp_message import mcp_message_channel
-
-            handled = await _run_kind(
-                KIND_KF,
-                lambda: mcp_message_channel.poll_once(project_id),
-                skip_if_active=False,
-                run_timeout=KF_POLL_HARD_TIMEOUT,
-            )
-            total += handled or 0
-            return total
-
+        # 指定种类：只跑该线（wecom）
         cls_name = KIND_CHANNEL_MAP.get(kind)
         if cls_name is None:
             logger.warning("[duty] 未知值守种类 %s，跳过", kind)
@@ -171,17 +154,6 @@ async def _run_duty_poll_impl(project_id: int, kind: str | None = None) -> int:
     for channel_name in active:
         kind_name = CHANNEL_KIND_MAP.get(channel_name)
         if kind_name is None:
-            continue
-        if kind_name == KIND_KF:
-            from app.core.channel.input.mcp_message import mcp_message_channel
-
-            handled = await _run_kind(
-                KIND_KF,
-                lambda: mcp_message_channel.poll_once(project_id),
-                skip_if_active=False,
-                run_timeout=KF_POLL_HARD_TIMEOUT,
-            )
-            total += handled or 0
             continue
         cls_name = KIND_CHANNEL_MAP.get(kind_name)
         if cls_name is None:
@@ -212,7 +184,6 @@ async def run_duty_poll_with_release(project_id: int, kind: str | None) -> int:
         # kind=None 兼容旧调度（同时跑多线），所有线都释放。
         if kind is None:
             release_inflight(project_id, KIND_WECOM)
-            release_inflight(project_id, KIND_KF)
         else:
             release_inflight(project_id, kind)
 

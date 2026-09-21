@@ -15,6 +15,8 @@ import {
 } from "@/components/Chat/ChatTitleSlot"
 import { useProjectStore } from "@/stores/projectStore"
 import { useUIStore } from "@/stores/uiStore"
+import { useDutyStore } from "@/stores/dutyStore"
+import { DutyStartStopButton } from "@evoloop/workbench"
 
 export function AppTitleBar() {
   const { t } = useTranslation()
@@ -31,6 +33,11 @@ export function AppTitleBar() {
 
   // Chat context slot: only on /chat with an active project
   const hasChatContext = pathname.startsWith("/chat") && !!currentProject
+
+  // 自主值守启停按钮：在自主值守页面始终呈现；或在后台值守运行中时全端常驻以便随时暂停
+  const globalDutyEnabled = useDutyStore((s) => s.globalEnabled)
+  const isDutyPage = pathname.startsWith("/duty-autonomous")
+  const showDutyButton = isDutyPage || globalDutyEnabled
 
   // Map routes to human readable title & icons
   const getPageInfo = () => {
@@ -126,9 +133,10 @@ export function AppTitleBar() {
         )}
       </div>
 
-      {/* Right: Chat contextual actions (compact window entry points) */}
-      <div className="flex items-center gap-2 shrink-0">
+      {/* Right: Contextual actions & Global Duty Start/Stop Switch */}
+      <div className="flex items-center gap-2 shrink-0" style={noDragStyle}>
         {hasChatContext && <ChatTitleActions />}
+        {showDutyButton && <DutyStartStopButton variant="inline" />}
       </div>
     </div>
   )

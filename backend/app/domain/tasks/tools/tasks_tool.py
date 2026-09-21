@@ -58,6 +58,9 @@ async def tasks(
     due_at: str | None = None,
     trigger_spec: str | None = None,
     source: Literal["user", "agent", "external"] | None = None,
+    parent_id: str | None = None,
+    dependencies: list[str] | None = None,
+    root_only: bool = False,
     result: str | None = None,
     self_check: str | None = None,
     limit: int = 20,
@@ -66,9 +69,10 @@ async def tasks(
     """Autonomous task queue (single entry, action dispatch).
 
     Actions:
-    - list: view the queue. status/category/due filters; default = executable set.
+    - list: view the queue. status/category/due/root_only filters; default = executable set.
     - create: create a task. source=agent creates a PROPOSED task (user confirms
       in the task list); source=user creates directly as pending.
+      Supports parent_id and dependencies for subtask decomposition and DAG ordering.
     - take: claim a pending task (pending → in_progress). First action of a run
       working a task; binds the workspace thread.
     - update_status: advance status (in_progress → self_checked → waiting_acceptance,
@@ -116,16 +120,20 @@ async def tasks(
                 status=status,
                 category=category,
                 project_id=ContextManager.current().project_id,
+                root_only=root_only,
                 limit=limit,
             )
             items = [
                 {
                     "id": t.id,
+                    "task_no": (t.task_data or {}).get("task_no"),
                     "title": (t.task_data or {}).get("title"),
                     "status": t.status,
                     "category": (t.task_data or {}).get("category"),
                     "priority": (t.task_data or {}).get("priority"),
                     "risk": t.risk_level,
+                    "parent_id": t.parent_id,
+                    "dependencies": (t.task_data or {}).get("dependencies") or [],
                     "due_at": (t.due_at or t.next_run_at).isoformat()
                     if (t.due_at or t.next_run_at)
                     else None,
@@ -153,6 +161,10 @@ async def tasks(
                 origin_task_id = getattr(
                     ContextManager.current(), "current_task_id", None
                 )
+            resolved_parent_id = parent_id
+            if not resolved_parent_id and src == "agent" and origin_task_id:
+                resolved_parent_id = origin_task_id
+
             parsed_due = None
             if due_at:
                 parsed_due = datetime.fromisoformat(due_at)
@@ -181,12 +193,15 @@ async def tasks(
                 risk_level=risk_level,
                 due_at=parsed_due,
                 trigger_spec=trigger_spec,
+                parent_id=resolved_parent_id,
+                dependencies=dependencies,
             )
             return json.dumps(
                 {
                     "success": True,
                     "id": task.id,
                     "task_no": (task.task_data or {}).get("task_no"),
+                    "parent_id": task.parent_id,
                     "status": task.status,
                     "note": "proposed: awaiting user confirmation"
                     if task.status == "proposed"

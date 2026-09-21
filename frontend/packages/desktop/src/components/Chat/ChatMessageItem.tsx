@@ -1,16 +1,9 @@
-import { Badge } from "@evoloop/shared/components/ui/badge"
 import { Button } from "@evoloop/shared/components/ui/button"
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@evoloop/shared/components/ui/collapsible"
+import { ToolCallItem, ThinkingBlock } from "@evoloop/shared"
 import { motion } from "framer-motion"
 import {
   Brain,
-  ChevronRight,
   Copy,
-  Loader2,
   Quote,
   RotateCcw,
   Undo,
@@ -82,31 +75,6 @@ export interface Message {
   effective_content?: string
   turnDuration?: string
 }
-
-// 后端 summary 模板会把这些 input 字段内嵌进 display_name 单行摘要；
-// 长/多行值需要剥离成块渲染（顺序即优先级，命中第一个即停）
-const TOOL_DETAIL_KEYS = [
-  "command",
-  "pattern",
-  "sql",
-  "query",
-  "prompt",
-  "question",
-  "content",
-]
-
-// 语义化标签下通用参数呈现的候选键：短值内联、长值成块
-const TOOL_INLINE_PARAM_KEYS = [
-  "prompt",
-  "url",
-  "path",
-  "source",
-  "pattern",
-  "query",
-  "name",
-  "identifier",
-  "content",
-]
 
 const formatSmartTimestamp = (timestamp?: string) => {
   if (!timestamp) return ""
@@ -269,9 +237,6 @@ const ChatMessageItem = memo(
       const toolInput = proposalInput
       const rawAction = typeof toolInput.action === "string" ? toolInput.action : ""
 
-      // 语义化命名：action 级（facade 工具）优先，退回工具级；
-      // 均未配置时保留后端 display_name。替代"图像：analyze"这类
-      // 工具名+原始参数的生硬展示
       const actionLabel =
         rawAction && msg.tool_name
           ? t(`chat.toolAction.${msg.tool_name}.${rawAction}`, {
@@ -283,140 +248,18 @@ const ChatMessageItem = memo(
         : ""
       const semanticLabel = actionLabel || toolLabel
 
-      let header = rawDisplayName
-      let detail: string | null = null
-      if (semanticLabel) {
-        header = semanticLabel
-        // 长参数/多行参数 → 多行块
-        for (const key of TOOL_INLINE_PARAM_KEYS) {
-          const value = toolInput[key]
-          if (typeof value === "string") {
-            const trimmed = value.trim()
-            if (
-              trimmed &&
-              (trimmed.length > 48 || trimmed.includes("\n"))
-            ) {
-              detail = value
-              break
-            }
-          }
-        }
-        // 短参数 → 内联第一个非空值
-        if (!detail) {
-          for (const key of TOOL_INLINE_PARAM_KEYS) {
-            const value = toolInput[key]
-            if (typeof value === "string") {
-              const trimmed = value.trim()
-              if (trimmed) {
-                header = `${semanticLabel} '${trimmed}'`
-                break
-              }
-            }
-          }
-        }
-        // analyze 类的自定义长问题（question 不做内联，默认问题无展示价值）
-        if (!detail) {
-          const question = toolInput.question
-          if (typeof question === "string") {
-            const trimmed = question.trim()
-            if (
-              trimmed &&
-              (trimmed.length > 48 || trimmed.includes("\n"))
-            ) {
-              detail = question
-            }
-          }
-        }
-      } else {
-        let stripFromHeader = false
-        for (const key of TOOL_DETAIL_KEYS) {
-          const value = toolInput[key]
-          if (typeof value === "string") {
-            const trimmed = value.trim()
-            if (
-              !trimmed ||
-              !(trimmed.length > 48 || trimmed.includes("\n"))
-            ) {
-              continue
-            }
-            if (rawDisplayName.includes(trimmed)) {
-              detail = value
-              stripFromHeader = true
-              break
-            }
-            if (key === "question") {
-              detail = value
-              stripFromHeader = false
-              break
-            }
-          }
-        }
-        if (detail && stripFromHeader) {
-          header = rawDisplayName
-            .split(detail.trim())
-            .join(" ")
-            .replace(/'\s*'/g, "")
-            .replace(/\([^):]*:\s*\)/g, "")
-            .replace(/\s{2,}/g, " ")
-            .trim()
-        } else {
-          header = rawDisplayName
-            .replace(/'\s*'/g, "")
-            .replace(/\s{2,}/g, " ")
-            .trim()
-        }
-      }
-
       return (
-        <motion.div
-          className={`group relative flex w-full py-1 px-3 my-0.5 rounded transition-colors font-mono text-[12px] text-muted-foreground/70 hover:text-muted-foreground bg-muted/10 hover:bg-muted/25 ${
-            detail ? "flex-col items-stretch gap-1" : "items-center gap-2.5"
-          }`}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.1 }}
-        >
-          <div className="flex items-center gap-2.5 min-w-0 w-full">
-            <div
-              className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                msg.status === "running" || msg.status === "streaming"
-                  ? "bg-primary shadow-[0_0_6px_var(--primary)]"
-                  : msg.status === "failed"
-                    ? "bg-destructive"
-                    : msg.status === "waiting_human"
-                      ? "bg-warning"
-                      : "bg-foreground/25"
-              }`}
-            />
-            <span
-              className="truncate flex-1"
-              title={detail || header}
-            >
-              {header}
-            </span>
-            {msg.status === "running" && (
-              <Loader2 className="h-3 w-3 animate-spin text-primary ml-2 shrink-0" />
-            )}
-            {msg.status === "failed" && (
-              <span className="ml-2 shrink-0 text-[10px] text-destructive">
-                {t("chat.toolMessage.failed", { defaultValue: "failed" })}
-              </span>
-            )}
-            {msg.changeset_count !== undefined && msg.changeset_count > 0 && (
-              <Badge
-                variant="secondary"
-                className="h-4 px-1.5 text-[9px] bg-primary/10 text-primary border-none shrink-0 ml-auto"
-              >
-                {msg.changeset_count} {t("chat.interface.files")}
-              </Badge>
-            )}
-          </div>
-          {detail && (
-            <pre className="pl-4 max-h-40 overflow-y-auto font-mono text-[11px] leading-[1.6] whitespace-pre-wrap break-all text-muted-foreground/55">
-              {detail}
-            </pre>
-          )}
-        </motion.div>
+        <ToolCallItem
+          data={{
+            toolName: msg.tool_name || "",
+            displayName: semanticLabel || rawDisplayName,
+            input: toolInput,
+            output: msg.output,
+            status: msg.status,
+            changesetCount: msg.changeset_count,
+          }}
+          variant="compact"
+        />
       )
     }
 
@@ -573,43 +416,19 @@ const ChatMessageItem = memo(
         className="group relative flex flex-col mx-4 my-1 text-foreground text-[14px] transition-all"
         data-run-id={msg.run_id}
       >
-        {/* Thinking section (tight margin) */}
+        {/* Thinking section */}
         {msg.thinking && (
-          <Collapsible className="mb-2 overflow-hidden">
-            <CollapsibleTrigger
-              asChild
-              disabled={!msg.content && isCurrentlyStreaming}
-            >
-              <Button
-                variant="ghost"
-                size="sm"
-                className="group/trigger h-6 px-2 rounded text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors hover:bg-muted/40 flex items-center gap-1.5"
-              >
-                <Brain className="h-3 w-3 text-primary/70" />
-                <span>
-                  {!msg.content && isCurrentlyStreaming
-                    ? t("chat.interface.thinking")
-                    : t("chat.interface.thinkingProcess")}
-                </span>
-                {!msg.content && isCurrentlyStreaming ? (
-                  <Loader2 className="h-3 w-3 animate-spin text-muted-foreground/50" />
-                ) : (
-                  <ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]/trigger:rotate-90 text-muted-foreground/50" />
-                )}
-              </Button>
-            </CollapsibleTrigger>
-            {(msg.content || !isCurrentlyStreaming) && (
-              <CollapsibleContent className="mt-1 pl-3 py-1 border-l-1 border-border/60 text-[12px] text-muted-foreground/80 leading-relaxed font-mono whitespace-pre-wrap">
-                <MessageContent
-                  content={
-                    typeof msg.thinking === "string"
-                      ? msg.thinking
-                      : JSON.stringify(msg.thinking, null, 2)
-                  }
-                />
-              </CollapsibleContent>
-            )}
-          </Collapsible>
+          <ThinkingBlock
+            data={{
+              thinking:
+                typeof msg.thinking === "string"
+                  ? msg.thinking
+                  : JSON.stringify(msg.thinking, null, 2),
+              isStreaming: !msg.content && isCurrentlyStreaming,
+              duration: msg.turnDuration,
+            }}
+            renderContent={(content) => <MessageContent content={content} />}
+          />
         )}
 
         {/* AI Main Content */}

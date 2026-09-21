@@ -9,7 +9,8 @@ const LAST_PROJECT_ID_KEY = "evoloop_last_project_id"
 const getLastSelectedProjectId = (): number | null => {
   try {
     const stored = localStorage.getItem(LAST_PROJECT_ID_KEY)
-    if (stored) {
+    // 注意：0 是合法值（0 = 全局工作空间），不能用 if (stored) 的 falsy 判断
+    if (stored !== null) {
       const id = parseInt(stored, 10)
       return Number.isNaN(id) ? null : id
     }
@@ -255,12 +256,23 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         // 后端真数据源优先
         saveLastSelectedProjectId(backendInList.id)
         set({ currentProject: backendInList, isGlobalMode: false })
+      } else if (current && current.id === 0) {
+        // 会话内全局：GLOBAL_PROJECT 是虚拟项不在 switchable 列表里，
+        // 若不在此拦截，会掉进 current && !currentInList 分支被换成第一个本地项目
+        saveLastSelectedProjectId(0)
+        set({ currentProject: GLOBAL_PROJECT, isGlobalMode: true })
       } else if (current && currentInList) {
         set({ currentProject: currentInList })
         // 后端暂无权威 project_id（0）时，把当前项目回填给后端
         if (backendPid == null || backendPid <= 0) {
           syncProjectToBackend(currentInList)
         }
+      } else if (lastSelectedId === 0 && (backendPid == null || backendPid <= 0)) {
+        // 用户上次明确选择了全局（localStorage=0），且后端无具体项目权威。
+        // GLOBAL_PROJECT 不在 projects 列表中（虚拟项），lastSelectedInList 会落空，
+        // 必须在此恢复全局，否则会落到"选第一个本地项目"的兜底分支丢失全局模式。
+        saveLastSelectedProjectId(0)
+        set({ currentProject: GLOBAL_PROJECT, isGlobalMode: true })
       } else if (lastSelectedInList) {
         set({
           currentProject: lastSelectedInList,

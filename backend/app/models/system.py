@@ -67,6 +67,7 @@ class McpServer(Base):
     args: Mapped[str] = mapped_column(Text)  # Stored as JSON string list
     env: Mapped[str] = mapped_column(Text)  # Stored as JSON string dict
     headers: Mapped[str] = mapped_column(Text, default="{}")  # Stored as JSON string dict
+    transport: Mapped[str | None] = mapped_column(String(50), nullable=True)  # stdio / sse / streamable_http
 
     enabled: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

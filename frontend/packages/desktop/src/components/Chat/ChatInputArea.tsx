@@ -441,11 +441,7 @@ export const ChatInputArea = memo(
       const processFiles = async (files: FileList | File[]) => {
         if (files.length === 0) return
 
-        const projectId = isGlobalMode ? 0 : currentProject?.id
-        if (!isGlobalMode && !projectId) {
-          toast.error(t("chat.interface.selectProject"))
-          return
-        }
+        const projectId = isGlobalMode || !currentProject?.id ? 0 : currentProject.id
 
         // 1. Create uploading files immediately for fast UI feedback
         const newUploadingFiles = Array.from(files).map((file) => {
@@ -536,7 +532,7 @@ export const ChatInputArea = memo(
         e.stopPropagation()
         setIsDragging(false)
 
-        if (disabled || (!currentProject && !isGlobalMode)) return
+        if (disabled) return
 
         if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
           await processFiles(e.dataTransfer.files)
@@ -545,7 +541,7 @@ export const ChatInputArea = memo(
 
       const handlePaste = async (e: React.ClipboardEvent) => {
         if (e.clipboardData.files && e.clipboardData.files.length > 0) {
-          if (disabled || (!currentProject && !isGlobalMode)) return
+          if (disabled) return
 
           const files = Array.from(e.clipboardData.files)
           if (files.length > 0) {
@@ -847,15 +843,13 @@ export const ChatInputArea = memo(
                         })
                       : disabled
                         ? t("chat.interface.inputDisabled")
-                        : isGlobalMode
+                        : isGlobalMode || !currentProject
                           ? t("chat.interface.askGlobal")
-                          : currentProject
-                            ? t("chat.interface.askProject", {
-                                project: currentProject.name,
-                              })
-                            : t("chat.interface.selectProject")
+                          : t("chat.interface.askProject", {
+                              project: currentProject.name,
+                            })
                 }
-                disabled={(!currentProject && !isGlobalMode) || disabled}
+                disabled={disabled}
                 className="flex w-full bg-transparent border-none focus:ring-0 text-sm placeholder:text-muted-foreground/60 resize-none focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 min-h-[44px] max-h-[300px] py-1"
                 rows={1}
                 style={{ height: "auto", minHeight: "44px" }}
@@ -1172,7 +1166,6 @@ export const ChatInputArea = memo(
                       pickedFiles.length === 0 &&
                       !isAgentWorking) ||
                     isSending ||
-                    (!currentProject && !isGlobalMode) ||
                     isUploading
                   }
                   size="icon"

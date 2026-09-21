@@ -89,6 +89,11 @@ async def update_project_duty(
                         "errors": result.get("errors", []),
                     },
                 )
+            try:
+                from app.domain.tasks.runtime.wakeup import notify_duty_wakeup
+                notify_duty_wakeup()
+            except Exception:
+                pass
         else:
             await provision.stop_project(project_id)
 

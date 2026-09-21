@@ -39,8 +39,7 @@ async def validate_global_duty() -> list[str]:
     """校验全局值守是否具备开启条件（渠道就绪检测），返回失败原因列表。
 
     校验项：已全局启用的各渠道各自就绪检测——wecom（本地 GUI）要求企微
-    客户端已安装/登录/会话列表可读；callback（MCP 接入商城）不依赖本地
-    企微客户端，跳过客户端检测。
+    客户端已安装/登录/会话列表可读。
     全局开启值守或启用渠道前调用，条件不满足则阻止开启。
     """
     errors: list[str] = []
@@ -64,9 +63,9 @@ async def validate_global_duty() -> list[str]:
 async def validate_project_duty(project_id: int) -> list[str]:
     """校验某项目能否开启值守，返回失败原因列表（空 = 全部通过）。
 
-    校验项：全局总开关、项目启用的各渠道均已全局启用（wecom → 企微渠道；
-    callback → 商城微信客服渠道 + MCP server 已注册）。不做 GUI 就绪检测——
-    企微就绪已在"全局启用企微渠道"时校验过，项目开启依赖渠道已启用。
+    校验项：全局总开关、项目启用的各渠道均已全局启用（wecom → 企微渠道）。
+    不做 GUI 就绪检测——企微就绪已在"全局启用企微渠道"时校验过，
+    项目开启依赖渠道已启用。
 
     企微交互由商城侧负责，客户端不保存/校验任何企微凭据。
     """
@@ -86,36 +85,8 @@ async def validate_project_duty(project_id: int) -> list[str]:
         if channel_name == "wecom":
             if "wecom" not in global_channels:
                 errors.append("企微渠道未在全局启用")
-        elif channel_name == "callback":
-            if "callback" not in global_channels:
-                errors.append("商城微信客服渠道未在全局启用")
-            if not (cfg.get("channels") or {}).get("callback", {}).get("mcp_server"):
-                errors.append("商城微信客服渠道未配置 callback.mcp_server")
-            elif not await _mcp_server_ready(cfg):
-                errors.append("商城微信客服渠道依赖的 MCP server 未注册或不可用")
 
     return errors
-
-
-async def _mcp_server_ready(cfg: dict) -> bool:
-    """校验 callback 渠道依赖的 MCP server 是否已注册（连不连得上不强求）。
-
-    只校验 mcp_servers 表里有记录（连接失败会在轮巡时告警并跳过本轮）。
-    server 名从 callback.mcp_server 读取（不在代码写死）。
-    """
-    from app.core.mcp.client.manager import mcp_client_manager
-
-    channels = cfg.get("channels") or {}
-    callback_cfg = channels.get("callback") or {}
-    server = callback_cfg.get("mcp_server")
-    if not server:
-        return False
-    try:
-        servers = await mcp_client_manager.list_servers()
-        return any(s.name == server for s in servers)
-    except Exception as e:
-        logger.warning("[wecom_provision] MCP server 列表获取失败: %s", e)
-        return False
 
 
 # ── 启动 ──────────────────────────────────────────────────
@@ -249,14 +220,15 @@ async def _upsert_tasks(project_id: int) -> None:
             project_id,
             kind=kind,
             interval_seconds=poll_interval,
-            channel_name=channel_name,
         )
+
+
 async def _upsert_task_by_kind(
-    project_id: int, kind: str, interval_seconds: int, channel_name: str | None
+    project_id: int, kind: str, interval_seconds: int
 ) -> None:
     """upsert 某项目某一类值守 AutonomousTask。"""
     trigger_spec = f"interval:{interval_seconds}"
-    duty_channel = "mcp_message" if channel_name == "callback" else "wecom_duty"
+    duty_channel = "wecom_duty"
     params_template = {"duty_channel": duty_channel, "kind": kind}
     async with session_scope() as session:
         stmt = select(AutonomousTask).where(AutonomousTask.project_id == project_id)
@@ -369,16 +341,18 @@ async def _thread_status(thread_id: str) -> str:
 
 
 async def _duty_thread_ids(project_id: int) -> list[str]:
-    """查该项目的值守 thread_id（客服轮巡 duty_{project}_% + 任务队列 wakeup_{project}_%）。"""
+    """查该项目的值守 thread_id（客服轮巡 duty_{project}_% + 任务队列 wakeup_{project}_% + 商城客服会话 kf_{project}_%）。"""
     async with session_scope() as session:
         rows = await session.execute(
             text(
                 "SELECT DISTINCT thread_id FROM messages "
-                "WHERE thread_id LIKE :duty_prefix OR thread_id LIKE :wakeup_prefix"
+                "WHERE thread_id LIKE :duty_prefix OR thread_id LIKE :wakeup_prefix "
+                "OR thread_id LIKE :kf_prefix"
             ),
             {
                 "duty_prefix": f"duty_{project_id}_%",
                 "wakeup_prefix": f"wakeup_{project_id}_%",
+                "kf_prefix": f"kf_{project_id}_%",
             },
         )
         return [r[0] for r in rows.all()]

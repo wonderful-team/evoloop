@@ -10,6 +10,7 @@ Awakening/Environment domain. Values that are shared with other subsystems
 from enum import Enum
 from pathlib import Path
 
+from app.constants import CACHE_KEY_DYNAMIC_APPS_PREFIX
 from app.core.config import settings
 
 # ---------------------------------------------------------------------------
@@ -191,3 +192,20 @@ W_RUNNING = 0.2  # Is it currently running?
 
 # Maximum age in days for recency scoring (older -> score = 0)
 MAX_AGE_DAYS = 30
+
+
+# --- Dynamic App Triage 缓存键（explorer 与 worker 任务共用，单一事实源） ---
+
+def processed_apps_key(platform: str) -> str:
+    """已分诊应用集合（未标记者下个扫描周期会重试）。"""
+    return f"system:processed_apps:{platform}"
+
+
+def dynamic_apps_key(platform: str) -> str:
+    """判定为动态（坐标不稳定）的应用集合。"""
+    return f"{CACHE_KEY_DYNAMIC_APPS_PREFIX}:{platform}"
+
+
+def app_reasoning_key(platform: str) -> str:
+    """app_id -> LLM 判定理由。"""
+    return f"{CACHE_KEY_APP_REASONING_PREFIX}:{platform}"

@@ -41,6 +41,9 @@ export interface QueueTask {
   origin_thread_id?: string | null
   due_at: string | null
   last_thread_id: string | null
+  parent_id?: string | null
+  subtasks_count?: number
+  subtasks_completed?: number
   project_id?: number | null
   dependencies?: string[] | null
   trigger_spec?: string | null
@@ -109,10 +112,12 @@ export const TasksQueueApi = {
   list(
     status?: string,
     projectId?: number,
+    rootOnly?: boolean,
   ): Promise<{ items: QueueTask[]; count: number }> {
     const qs = new URLSearchParams()
     if (status) qs.set("status", status)
     if (projectId != null) qs.set("project_id", String(projectId))
+    if (rootOnly != null) qs.set("root_only", String(rootOnly))
     const q = qs.toString() ? `?${qs.toString()}` : ""
     return request(`/api/v1/tasks/queue${q}`)
   },
@@ -126,7 +131,9 @@ export const TasksQueueApi = {
     trigger_spec?: string
     due_at?: string
     project_id: number
-  }): Promise<{ success: boolean; id: string; status: string }> {
+    parent_id?: string | null
+    dependencies?: string[]
+  }): Promise<{ success: boolean; id: string; parent_id?: string | null; status: string }> {
     return request("/api/v1/tasks/queue", {
       method: "POST",
       body: JSON.stringify(body),

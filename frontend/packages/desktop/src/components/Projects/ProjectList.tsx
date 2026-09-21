@@ -185,9 +185,6 @@ export function ProjectList() {
                     {t("wiki.nav")}
                   </Badge>
                 )}
-                <Badge variant="outline">
-                  {proj.status_text || t("projects.active")}
-                </Badge>
                 <div onClick={(e) => e.stopPropagation()}>
                   <ProjectActions project={proj} />
                 </div>

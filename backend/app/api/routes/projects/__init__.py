@@ -322,7 +322,10 @@ async def switch_project(req: SwitchProjectRequest) -> dict:
     from app.core.project.event.publishers import publish_project_switched
     from app.core.project.utils import get_project_path
 
-    resolved_path = await get_project_path(req.project_id) if req.project_id else None
+    # 0（全局工作空间）同样要解析根路径：get_project_path 对 0 特判返回
+    # member workspace root。切全局时 path 不能为空——否则订阅者会跳过
+    # thread working_directory 重置，Agent 工具根残留上一个项目。
+    resolved_path = await get_project_path(req.project_id)
     path = str(resolved_path) if resolved_path else ""
 
     await publish_project_switched(

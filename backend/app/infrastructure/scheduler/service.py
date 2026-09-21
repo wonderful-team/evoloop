@@ -145,6 +145,20 @@ class SchedulerService:
             )
 
             kind = task.params_template.get("kind")
+
+            from app.core.channel.duty.constants import KIND_CHANNEL_MAP
+
+            if kind not in KIND_CHANNEL_MAP:
+                # 已下线的值守线（如 mcp_message 轮巡已删，改纯 push）→
+                # 僵尸任务行一次性停用，不再空转
+                task.is_active = False
+                logger.info(
+                    "[Scheduler] duty kind=%s retired; deactivated task %s",
+                    kind,
+                    task.id,
+                )
+                return
+
             # 防积压：该 (project_id, kind) 已在飞（排队中或执行中）→ 跳过本轮
             # 投递，只推进 next_run_at，不重复执行。执行结束由
             # run_duty_poll_with_release finally 释放登记。

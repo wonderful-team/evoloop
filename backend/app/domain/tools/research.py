@@ -129,9 +129,17 @@ async def _search_wikipedia(query: str) -> list[str] | None:
         "srprop": "snippet|timestamp|wordcount",
     }
 
+    headers = {
+        "User-Agent": "EvoLoop/1.0 (research-automation; contact@example.com)",
+        "Accept": "application/json",
+    }
+
     try:
         loop = asyncio.get_running_loop()
-        response = await loop.run_in_executor(None, lambda: requests.get(api_url, params=params, timeout=15))
+        response = await loop.run_in_executor(
+            None,
+            lambda: requests.get(api_url, params=params, headers=headers, timeout=15),
+        )
         response.raise_for_status()
         data = response.json()
 

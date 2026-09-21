@@ -26,6 +26,7 @@ class McpPrompt(DynamicBaseModel):
 class McpServerSummary(DynamicBaseModel):
     name: str
     command: str | None = None
+    transport: str | None = None
     status: str
     tools_count: int
     enabled: bool

@@ -1,0 +1,83 @@
+import { useQueryClient } from "@tanstack/react-query"
+import { TaskProposalCard } from "@evoloop/shared"
+import { TasksQueueApi, type QueueTask } from "@/lib/tasksQueueApi"
+
+export function ProposalCard({
+  task,
+  sourceTask,
+  onChanged,
+  onConfirmed,
+}: {
+  task: QueueTask
+  sourceTask?: QueueTask | null
+  onChanged: () => void | Promise<void>
+  onConfirmed: () => void | Promise<void>
+}) {
+  async function handleConfirm() {
+    await TasksQueueApi.confirm(task.id)
+    await onChanged()
+    await onConfirmed()
+  }
+
+  async function handleReject(feedback?: string) {
+    if (!feedback?.trim()) return
+    await TasksQueueApi.reject(task.id, feedback.trim())
+    await onChanged()
+  }
+
+  return (
+    <TaskProposalCard
+      id={task.id}
+      title={task.title}
+      description={task.description}
+      status={task.status}
+      priority={task.priority}
+      riskLevel={task.risk_level}
+      category={task.category}
+      sourceTaskTitle={sourceTask?.title}
+      variant="default"
+      requireFeedbackOnReject={true}
+      allowScheduleEdit={false}
+      onConfirm={handleConfirm}
+      onReject={handleReject}
+    />
+  )
+}
+
+export function InlineProposal({
+  proposal,
+  onChanged,
+}: {
+  proposal: QueueTask
+  onChanged: () => void | Promise<void>
+}) {
+  const qc = useQueryClient()
+
+  async function handleConfirm() {
+    await TasksQueueApi.confirm(proposal.id)
+    await qc.invalidateQueries({ queryKey: ["dutyQueue"] })
+    await qc.invalidateQueries({ queryKey: ["dutyDashboard"] })
+    await onChanged()
+  }
+
+  async function handleReject(feedback?: string) {
+    if (!feedback?.trim()) return
+    await TasksQueueApi.reject(proposal.id, feedback.trim())
+    await qc.invalidateQueries({ queryKey: ["dutyQueue"] })
+    await qc.invalidateQueries({ queryKey: ["dutyDashboard"] })
+    await onChanged()
+  }
+
+  return (
+    <TaskProposalCard
+      id={proposal.id}
+      title={proposal.title}
+      description={proposal.description}
+      status={proposal.status}
+      variant="inline"
+      requireFeedbackOnReject={true}
+      onConfirm={handleConfirm}
+      onReject={handleReject}
+    />
+  )
+}

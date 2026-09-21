@@ -201,13 +201,23 @@ async def reconcile_stranded(*, startup: bool = False) -> int:
             )
 
 
-    # 1) 悬挂 running 判死
+    # 1) 悬挂 running/stopping 判死
+    #    stopping = 协作取消已请求、等待 run_scope 收尾出终态；若进程死亡
+    #    （重启/崩溃）收尾永远不会发生 → 僵尸 stopping 既不匹配 running 判死
+    #    也不匹配终态回队，任务永久悬挂（2026-09-21 实测：值守急停后重启，
+    #    4 个 stopping 僵尸卡死 4 条 in_progress 任务）。陈旧 stopping 与
+    #    陈旧 running 同权判死。
     async with session_scope() as session:
         rows = (
             (
                 await session.execute(
                     select(AgentActivity).where(
-                        AgentActivity.status == ActivityStatus.RUNNING.value,
+                        AgentActivity.status.in_(
+                            [
+                                ActivityStatus.RUNNING.value,
+                                ActivityStatus.STOPPING.value,
+                            ]
+                        ),
                         AgentActivity.thread_id.like("wakeup_%"),
                     )
                 )
@@ -224,7 +234,8 @@ async def reconcile_stranded(*, startup: bool = False) -> int:
     ]
     for act in stale:
         logger.warning(
-            "[DutyReconciler] 判死悬挂 running: thread=%s (updated_at=%s)",
+            "[DutyReconciler] 判死悬挂 %s: thread=%s (updated_at=%s)",
+            act.status,
             act.thread_id,
             act.updated_at,
         )

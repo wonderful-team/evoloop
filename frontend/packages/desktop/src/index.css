@@ -135,47 +135,47 @@
 
 .dark {
   color-scheme: dark;
-  /* Canvas — 近黑画布，非纯黑 */
-  --background: #050507;
-  --background-soft: #0a0a0d;
+  /* 现代工程级深色阶梯：Base #0e0f14, Panel #171821, Card #1a1b24, Floating #252736 */
+  --background: #0e0f14;
+  --background-soft: #171821;
   --foreground: #ededef;
-  --card: rgba(255, 255, 255, 0.024);
+  --card: #1a1b24;
   --card-foreground: #ededef;
-  --popover: #0b0b0e;
+  --popover: #181922;
   --popover-foreground: #ededef;
   --primary: #2dd4bf;
-  --primary-foreground: #050507;
-  --secondary: rgba(255, 255, 255, 0.06);
+  --primary-foreground: #0e0f14;
+  --secondary: #222430;
   --secondary-foreground: #ededef;
-  --muted: rgba(255, 255, 255, 0.04);
-  --muted-foreground: #a1a1aa;
-  --accent: rgba(255, 255, 255, 0.06);
+  --muted: rgba(255, 255, 255, 0.05);
+  --muted-foreground: #9ca3af;
+  --accent: #252736;
   --accent-foreground: #ededef;
   --destructive: #f87171;
-  --border: rgba(255, 255, 255, 0.08);
-  --input: rgba(255, 255, 255, 0.1);
+  --border: rgba(255, 255, 255, 0.09);
+  --input: rgba(255, 255, 255, 0.12);
   --ring: rgba(45, 212, 191, 0.5);
   --chart-1: #2dd4bf;
   --chart-2: #3b82f6;
   --chart-3: #a78bfa;
   --chart-4: #fbbf24;
   --chart-5: #4ade80;
-  --sidebar: #0a0a0d;
+  --sidebar: #13141b;
   --sidebar-foreground: #ededef;
   --sidebar-primary: #2dd4bf;
-  --sidebar-primary-foreground: #050507;
+  --sidebar-primary-foreground: #0e0f14;
   --sidebar-accent: rgba(255, 255, 255, 0.06);
   --sidebar-accent-foreground: #ededef;
-  --sidebar-border: rgba(255, 255, 255, 0.06);
+  --sidebar-border: rgba(255, 255, 255, 0.07);
   --sidebar-ring: rgba(45, 212, 191, 0.5);
 
   /* 滚动条颜色 - 暗色模式 */
-  --scrollbar-thumb: rgba(255, 255, 255, 0.12);
-  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.22);
+  --scrollbar-thumb: rgba(255, 255, 255, 0.14);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.24);
 
   /* Engineering Premium signals */
   --cta: #ededef;
-  --cta-foreground: #050507;
+  --cta-foreground: #0e0f14;
   --cta-glow: 0 8px 30px rgba(255, 255, 255, 0.12);
   --success: #4ade80;
   --warning: #fbbf24;
@@ -184,17 +184,17 @@
   --signal-purple: #a78bfa;
 
   /* Chat Refinement Tokens */
-  --chat-timeline-line: rgba(255, 255, 255, 0.06);
-  --chat-action-stream-bg: rgba(255, 255, 255, 0.02);
-  --chat-user-bg: rgba(255, 255, 255, 0.035);
-  --chat-user-border: rgba(255, 255, 255, 0.09);
+  --chat-timeline-line: rgba(255, 255, 255, 0.08);
+  --chat-action-stream-bg: rgba(255, 255, 255, 0.03);
+  --chat-user-bg: rgba(255, 255, 255, 0.045);
+  --chat-user-border: rgba(255, 255, 255, 0.1);
   --chat-user-fg: #ededef;
 
   /* Document Layout Tokens */
   --doc-spine: rgba(45, 212, 191, 0.5);
-  --doc-header-user: rgba(255, 255, 255, 0.03);
-  --doc-header-ai: rgba(45, 212, 191, 0.045);
-  --doc-border: rgba(255, 255, 255, 0.07);
+  --doc-header-user: rgba(255, 255, 255, 0.04);
+  --doc-header-ai: rgba(45, 212, 191, 0.06);
+  --doc-border: rgba(255, 255, 255, 0.08);
 }
 
 @layer components {

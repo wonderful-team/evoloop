@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import re
 from datetime import datetime, timedelta, timezone
@@ -41,6 +42,27 @@ class InboundMessageSubscriber:
 
     @event_subscribe(SystemEventType.INBOUND_MESSAGE)
     async def on_inbound_message(self, event: InboundMessageEvent) -> None:
+        # 会话类客服消息（有 contact）→ 值守对话直通：不落任务队列，
+        # 独立 kf_ 线程即时推理（画布/任务列表不可见，智能体对话可见）。
+        # 纯工作项（无 contact）与其他 source 照旧入任务队列。
+        if str(event.channel or "") == "mcp_message" and str(
+            event.contact or ""
+        ).strip():
+            from app.domain.tasks.runtime.conversation import (
+                dispatch_conversation_message,
+            )
+
+            await dispatch_conversation_message(
+                source_system=event.source_system,
+                event_id=event.event_id,
+                project_id=event.project_id,
+                title=event.title,
+                content=event.content,
+                contact=str(event.contact).strip(),
+                channel=str(event.channel),
+            )
+            return
+
         spec: dict[str, Any] = {
             "title": event.title,
             "description": event.content,
@@ -131,6 +153,57 @@ class SessionReplyRouter:
 
 
 @event_register()
+class KfReplyRouter:
+    """kf_ 值守会话终态 → 回复路由（会话直通链路的完成侧）。
+
+    线程无 ProjectTask，路由元数据取自 SharedState（dispatch 时写入的
+    ``kf_route:{thread_id}``）；成功终态才回复（失败/取消不回，语义与
+    任务车道、企微值守一致）。
+    """
+
+    @event_subscribe(SystemEventType.SESSION_COMPLETED)
+    async def on_session_completed(self, event: Any) -> None:
+        data = getattr(event, "data", None)
+        if data is None:
+            return
+        thread_id = str(getattr(data, "thread_id", "") or "")
+        if not thread_id.startswith("kf_"):
+            return
+        summary = str(getattr(data, "summary", "") or "").strip()
+        if not summary:
+            return
+
+        from app.core.state import shared_state
+
+        try:
+            raw = await shared_state.get(f"kf_route:{thread_id}", "")
+            meta = json.loads(raw) if raw else {}
+        except Exception:  # noqa: BLE001
+            logger.exception("[KfReplyRouter] route meta read failed")
+            meta = {}
+        contact = str(meta.get("contact") or "").strip()
+        channel = str(meta.get("channel") or "").strip()
+        if not contact or not channel:
+            return
+
+        await system_bus.publish(OutboundReplyEvent(
+            source="domain.tasks",
+            channel=channel,
+            recipient=contact,
+            content=summary,
+            project_id=int(meta.get("project_id") or 0),
+            source_system=str(meta.get("source_system") or ""),
+            thread_id=thread_id,
+        ))
+        logger.info(
+            "[KfReplyRouter] reply routed (thread=%s, channel=%s, contact=%s)",
+            thread_id,
+            channel,
+            contact,
+        )
+
+
+@event_register()
 class DutyWakeupSubscriber:
     """AgentRunCompletedEvent（`wakeup_` 线程）→ 唤醒 supervisor 任务切换。
 
@@ -184,6 +257,7 @@ def _quota_reset_time(event: Any) -> datetime | None:
 
 inbound_message_subscriber = InboundMessageSubscriber()
 session_reply_router = SessionReplyRouter()
+kf_reply_router = KfReplyRouter()
 duty_wakeup_subscriber = DutyWakeupSubscriber()
 
 

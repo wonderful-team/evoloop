@@ -35,6 +35,11 @@ PRIORITY_ORDER = {"urgent": 0, "high": 1, "medium": 2, "low": 3}
 # reconcile 回队上限：超过即转 failed（防毒任务无限循环）
 REQUEUE_LIMIT = 3
 
+# 派发熔断上限：系统认领次数达到阈值仍未推进终态 → 强制 failed。
+# 覆盖不经 reconcile 的重试环（如派发失败回滚→下一拍重认领）；
+# 经 reconcile 的环由 REQUEUE_LIMIT 先行收敛（正常序列下 4 次认领即达终态）。
+DISPATCH_CLAIM_CIRCUIT_LIMIT = 5
+
 # ── 外部事件摄取 ──────────────────────────────────────────
 
 # spec 必填字段（缺失即 EventSpecError）

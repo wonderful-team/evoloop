@@ -14,7 +14,7 @@ import {
   useTour,
 } from "@/components/Common/SpotlightTour"
 import { desktopTourSteps } from "@/components/Common/tourSteps"
-import { CustomerServiceDutyManager } from "@/components/Duty/CustomerServiceDutyManager"
+import { CustomerServiceDutyManager } from "@evoloop/workbench"
 import { GlobalRecorderManager } from "@/components/Learning/GlobalRecorderManager"
 import AppSidebar from "@/components/Sidebar/AppSidebar"
 import { SetupWizard, useSetupRequired } from "@/components/Wizard"
@@ -51,7 +51,7 @@ function Layout() {
   const pageVariants = {
     enter: (dir: number) =>
       dir === 0 ? { opacity: 0 } : { x: dir > 0 ? "100%" : "-100%" },
-    center: { x: 0, opacity: 1 },
+    center: { x: 0, opacity: 1, transitionEnd: { transform: "none" } },
     exit: (dir: number) =>
       dir === 0
         ? { opacity: 0, transition: { duration: 0.12 } }

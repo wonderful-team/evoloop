@@ -287,16 +287,6 @@ export function ProjectSwitcher({
                     </Badge>
                   )
                 }
-                if (currentProject?.status_text) {
-                  return (
-                    <Badge
-                      variant="secondary"
-                      className="ml-2 h-5 text-[10px] px-1.5 font-normal text-muted-foreground hidden sm:inline-flex"
-                    >
-                      {currentProject.status_text}
-                    </Badge>
-                  )
-                }
                 return null
               })()}
             </div>
@@ -380,20 +370,6 @@ export function ProjectSwitcher({
                           <h3 className="font-semibold leading-none tracking-tight truncate">
                             {project.name}
                           </h3>
-                          <Badge
-                            variant={
-                              project.status === 1 ? "default" : "secondary"
-                            }
-                            className={cn(
-                              "shrink-0 capitalize text-[10px] px-1.5 py-0 h-5",
-                              project.status === 1
-                                ? "bg-success/15 text-success hover:bg-success/25"
-                                : "",
-                            )}
-                          >
-                            {project.status_text ||
-                              t("projectSwitcher.unknown")}
-                          </Badge>
                           {/* Indexing Status */}
                           {(() => {
                             const idxStatus = getIndexingStatusDisplay(

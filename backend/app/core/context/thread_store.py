@@ -96,7 +96,12 @@ class ThreadContextStore:
                 )
                 return
             normalized = os.path.realpath(path)
-            if not normalized.startswith(os.path.realpath(member_root) + os.sep):
+            member_root_real = os.path.realpath(member_root)
+            # member root 自身是合法值——全局工作空间(0)的工作目录就是它
+            if not (
+                normalized == member_root_real
+                or normalized.startswith(member_root_real + os.sep)
+            ):
                 logger.warning(
                     f"[ThreadStore] refuse working directory {path!r} for thread "
                     f"{thread_id}: outside member workspace {member_root!r}"

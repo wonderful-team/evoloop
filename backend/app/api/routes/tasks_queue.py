@@ -89,8 +89,10 @@ async def create_task(body: dict[str, Any], current_user: CurrentUser) -> dict[s
         due_at=due_at,
         trigger_spec=body.get("trigger_spec"),
         member_id=_member_id(current_user),
+        parent_id=body.get("parent_id"),
+        dependencies=body.get("dependencies") if isinstance(body.get("dependencies"), list) else None,
     )
-    return {"success": True, "id": task.id, "status": task.status}
+    return {"success": True, "id": task.id, "parent_id": task.parent_id, "status": task.status}
 
 
 @router.get("/queue/{task_id}/artifacts")
@@ -331,10 +333,16 @@ async def hitl_pending_tasks(current_user: CurrentUser) -> dict[str, Any]:
 
 
 @router.get("/queue")
-async def list_queue(current_user: CurrentUser, status: str | None = None, project_id: int | None = None) -> dict[str, Any]:
+async def list_queue(
+    current_user: CurrentUser,
+    status: str | None = None,
+    project_id: int | None = None,
+    root_only: bool = False,
+    limit: int = 50,
+) -> dict[str, Any]:
     """Queue listing for the task board (stage 4 UI reads the same data)."""
     rows = await TaskQueueService.list_tasks(
-        status=status, project_id=project_id, limit=50
+        status=status, project_id=project_id, root_only=root_only, limit=limit
     )
     if settings.MULTI_TENANT_MODE:
         rows = [
@@ -349,7 +357,9 @@ async def list_queue(current_user: CurrentUser, status: str | None = None, proje
     artifacts_by_task: dict[str, list[TaskArtifact]] = {}
     metrics_by_thread: dict[str, AgentActivity] = {}
     elapsed_by_thread: dict[str, int] = {}
+    subtasks_counts: dict[str, dict[str, int]] = {}
     if task_ids:
+        subtasks_counts = await TaskQueueService.get_subtasks_counts(task_ids)
         async with session_scope() as session:
             result = await session.execute(
                 select(TaskArtifact)
@@ -392,6 +402,9 @@ async def list_queue(current_user: CurrentUser, status: str | None = None, proje
         "items": [
             {
                 "project_id": t.project_id,
+                "parent_id": t.parent_id,
+                "subtasks_count": subtasks_counts.get(t.id, {}).get("total", 0),
+                "subtasks_completed": subtasks_counts.get(t.id, {}).get("completed", 0),
                 "elapsed_sec": elapsed_by_thread.get(t.last_thread_id),
                 "workflow_id": (t.task_data or {}).get("workflow_id"),
                 "dependencies": (t.task_data or {}).get("dependencies") or [],

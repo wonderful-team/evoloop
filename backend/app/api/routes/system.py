@@ -321,6 +321,14 @@ async def update_customer_service_duty(cfg: dict) -> dict:
     elif enabled and not old.get("enabled"):
         await provision.resume_global()
 
+    # 若开启全局值守，立即发射自主值守域内唤醒信号，0ms 瞬间唤醒 Supervisor 派发就绪任务
+    if enabled:
+        try:
+            from app.domain.tasks.runtime.wakeup import notify_duty_wakeup
+            notify_duty_wakeup()
+        except Exception:
+            pass
+
     # 值守状态变更 → system:events 广播（托盘管理器即时同步，替代 15s 盲轮）。
     # system 频道走 onmessage + payload.event 分发，需带 SystemEvent 形状。
     try:

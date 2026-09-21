@@ -17,6 +17,7 @@ class McpServerBase(DynamicBaseModel):
     env: dict[str, str] | None = {}
     headers: dict[str, str] | None = {}
     enabled: bool = True
+    transport: str | None = None  # stdio / sse / streamable_http / streamable-http
 
 
 class McpServerCreate(McpServerBase):

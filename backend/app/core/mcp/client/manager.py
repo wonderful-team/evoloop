@@ -20,6 +20,7 @@ from app.core.mcp.config import (
     TransportType,
     is_sse_url,
     is_streamable_http_url,
+    normalize_transport,
 )
 from app.core.mcp.features.prompts import McpPromptsFeature
 from app.core.mcp.features.resources import McpResourcesFeature
@@ -352,8 +353,13 @@ class McpClientManager:
                 getattr(server, "headers", None), {}
             )
 
-            # Determine transport type
-            if is_streamable_http_url(server.command):
+            # Determine transport type: explicit DB value wins, then URL heuristic
+            explicit_transport = normalize_transport(
+                getattr(server, "transport", None)
+            )
+            if explicit_transport != TransportType.STDIO:
+                transport = explicit_transport
+            elif is_streamable_http_url(server.command):
                 transport = TransportType.STREAMABLE_HTTP
             elif is_sse_url(server.command):
                 transport = TransportType.SSE
@@ -765,6 +771,7 @@ class McpClientManager:
                 db_server.env = env_json
                 db_server.headers = headers_json
                 db_server.enabled = enabled
+                db_server.transport = details.get("transport")
             else:
                 db_server = McpServer(
                     name=name,
@@ -773,6 +780,7 @@ class McpClientManager:
                     env=env_json,
                     headers=headers_json,
                     enabled=enabled,
+                    transport=details.get("transport"),
                 )
                 session.add(db_server)
 
@@ -787,7 +795,10 @@ class McpClientManager:
             )
 
         # Connect
-        if is_streamable_http_url(details.get("command")):
+        explicit_transport = normalize_transport(details.get("transport"))
+        if explicit_transport != TransportType.STDIO:
+            transport = explicit_transport
+        elif is_streamable_http_url(details.get("command")):
             transport = TransportType.STREAMABLE_HTTP
         elif is_sse_url(details.get("command")):
             transport = TransportType.SSE
@@ -837,6 +848,7 @@ class McpClientManager:
                     McpServerSummary(
                         name=s.name,
                         command=s.command,
+                        transport=s.transport,
                         status="connected" if is_connected else "available",
                         tools_count=tools_count,
                         enabled=s.enabled,
