@@ -29,7 +29,6 @@ REJECTED = "REJECTED"
 @pytest.fixture
 async def _hitl_db(monkeypatch):
     """In-memory aiosqlite engine patched into db_resource_manager."""
-    from sqlalchemy.ext.asyncio import create_async_engine
 
     from app.models import Message
     from app.models.conversation import HumanRequest
