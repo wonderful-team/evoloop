@@ -48,9 +48,8 @@ class TestRequestAuthorization:
         在 engine runtime 边界断言元数据。"""
         runtime = MagicMock()
         runtime.push_hitl_request = MagicMock()
-        mock_sink = patch("app.core.hitl.core.get_activity_sink").start()
-        mock_sink.return_value.set_human_request = AsyncMock()
-        patch("app.core.hitl.orchestrator.raise_hitl_interrupt", side_effect=RuntimeError("interrupt")).start()
+        sink = MagicMock()
+        sink.set_human_request = AsyncMock()
         with (
             patch(
                 "app.core.hitl.orchestrator.create_request",
@@ -59,6 +58,14 @@ class TestRequestAuthorization:
             patch(
                 "app.core.hitl.core.get_runtime",
                 return_value=runtime,
+            ),
+            patch(
+                "app.core.hitl.core.get_activity_sink",
+                return_value=sink,
+            ),
+            patch(
+                "app.core.hitl.orchestrator.raise_hitl_interrupt",
+                side_effect=RuntimeError("interrupt"),
             ),
         ):
             with pytest.raises(RuntimeError):
@@ -86,7 +93,7 @@ class TestRequestAuthorization:
         ]
 
         # 前端按钮判定标记：payload.resource_path 在场 = 授权门控请求
-        request_data = mock_sink.return_value.set_human_request.await_args.kwargs[
+        request_data = sink.set_human_request.await_args.kwargs[
             "request_data"
         ]
         assert request_data["payload"]["resource_path"] == "/a"

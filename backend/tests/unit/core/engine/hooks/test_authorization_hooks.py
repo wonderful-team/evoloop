@@ -358,6 +358,52 @@ class TestAuthorizationGateCommandPaths:
         service.request_authorization.assert_not_awaited()
 
     @pytest.mark.asyncio
+    async def test_prefix_granted_parent_covers_child_command(self, project_env):
+        """prefix 授权（grant_mode=dir 落盘）：门控对授权父目录的子路径放行。"""
+        project, sibling_secret = project_env
+        parent_dir = sibling_secret.parent
+        child = parent_dir / "child.txt"
+        child.write_text("x")
+        grant = SimpleNamespace(
+            action="read",
+            path=str(parent_dir),
+            scope_type="prefix",
+            is_expired=lambda now: False,
+        )
+        ctx = self._make_ctx(f"cat {child}")
+        service = _StubAuthService()
+        service._granted = [grant]
+        p1, p2, p3 = self._patch_common(project)
+        with p1 as mock_cls, p2, p3:
+            mock_cls.return_value = service
+            result = await authorization_gate(ctx)
+
+        assert result.success is True
+        assert result.block is False
+        service.request_authorization.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_action_mismatch_grant_does_not_bypass(self, project_env):
+        """read 授权不放行 rm（write 动作）——读写严格分离。"""
+        project, sibling_secret = project_env
+        grant = SimpleNamespace(
+            action="read",
+            path=str(sibling_secret),
+            is_expired=lambda now: False,
+        )
+        ctx = self._make_ctx(f"rm -f {sibling_secret}")
+        service = _StubAuthService()
+        service._granted = [grant]
+        p1, p2, p3 = self._patch_common(project)
+        with p1 as mock_cls, p2, p3:
+            mock_cls.return_value = service
+            await authorization_gate(ctx)
+
+        service.request_authorization.assert_awaited_once()
+        kwargs = service.request_authorization.await_args.kwargs
+        assert kwargs["decision"].action == "write"
+
+    @pytest.mark.asyncio
     async def test_duty_thread_command_outside_still_hitl(self, project_env):
         """值守线程命令越界同样走 HITL（不静默、不 auto-reject）。"""
         project, sibling_secret = project_env
@@ -451,7 +497,7 @@ class TestAuthorizationGateCommandPaths:
         ctx = self._make_ctx(f"cat {sibling_secret}", thread_id="t-reexec")
         service = _StubAuthService()
 
-        async def _approved(thread_id, tool_call_id, window_seconds=None):
+        async def _approved(_thread_id, tool_call_id, _window_seconds=None):
             return tool_call_id == "call-cmd"
 
         p1, p2, p3 = self._patch_common(project)

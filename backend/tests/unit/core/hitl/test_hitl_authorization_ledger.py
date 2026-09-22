@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 from datetime import timedelta
+from unittest.mock import MagicMock
 
 import pytest
 from sqlalchemy.ext.asyncio import create_async_engine
@@ -306,6 +307,97 @@ async def test_was_call_recently_approved_unknown_call(_hitl_db):
     assert await HITLOrchestrator.was_call_recently_approved("t-1", "call-none") is False
     assert await HITLOrchestrator.was_call_recently_approved("", "call-1") is False
     assert await HITLOrchestrator.was_call_recently_approved("t-1", "") is False
+
+
+# ============ handle_resume：双轨定局 + 兄弟请求合并关闭（真实 DB） ============
+
+
+async def _add_pending_hitl(
+    factory,
+    thread_id: str,
+    tool_call_id: str,
+    request_id: str,
+    original_tool: dict,
+):
+    """一次 Agent 重试可能为同一工具+同参数产生多条 pending approval：
+    每条 = 一行 human_requests(pending) + 一行 hitl_request 消息(waiting_human)。"""
+    from app.models import Message
+    from app.models.conversation import HumanRequest
+    from app.utils.id import gen_uuid
+
+    async with factory() as session:
+        session.add(
+            HumanRequest(
+                id=request_id,
+                thread_id=thread_id,
+                type="approval",
+                description=f"读取 {original_tool.get('args', {}).get('path', '')}",
+                status="pending",
+                resource_path=original_tool.get("args", {}).get("path"),
+                resource_action="read",
+            )
+        )
+        session.add(
+            Message(
+                id=gen_uuid(),
+                thread_id=thread_id,
+                role="system",
+                category="hitl_request",
+                tool_call_id=tool_call_id,
+                tool_name=original_tool.get("name"),
+                status="waiting_human",
+                meta_data={
+                    "hitl_request_id": request_id,
+                    "original_tool": original_tool,
+                },
+                content='{"type": "approval"}',
+            )
+        )
+        await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_handle_resume_finalizes_and_closes_sibling_requests(_hitl_db):
+    """Agent 重试同一工具产生重复 pending：批准其中一条时，双轨原子关闭
+    被批准请求，同工具+同参数的兄弟 pending 一并关闭（不留孤儿审批卡）。"""
+    from unittest.mock import AsyncMock, patch
+
+    from sqlalchemy import select
+
+    from app.core.hitl.orchestrator import HITLOrchestrator
+    from app.models import Message
+    from app.models.conversation import HumanRequest
+
+    tool = {"name": "bash", "args": {"command": "ls /outside"}}
+    await _add_pending_hitl(_hitl_db, "t-1", "call-1", "req-1", original_tool=tool)
+    await _add_pending_hitl(_hitl_db, "t-1", "call-2", "req-2", original_tool=tool)
+
+    pending_tool = await HITLOrchestrator.get_pending_request("t-1", "m")
+    assert pending_tool is not None
+    sink = MagicMock()
+    sink.clear_human_request = AsyncMock()
+    with patch("app.core.hitl.orchestrator.get_activity_sink", return_value=sink):
+        normalized, claimed = await HITLOrchestrator.handle_resume(
+            "t-1", pending_tool, "yes"
+        )
+    assert normalized == "APPROVED"
+    assert claimed is True
+
+    async with _hitl_db() as session:
+        rows = (await session.execute(select(HumanRequest))).scalars().all()
+        by_id = {r.id: r for r in rows}
+        # 被批准的那条双轨完成（result=APPROVED），兄弟条合并关闭（status 完成）
+        approved_id = pending_tool["request_id"]
+        assert by_id[approved_id].status == "completed"
+        assert by_id[approved_id].result == "APPROVED"
+        for rid, row in by_id.items():
+            assert row.status == "completed", f"pending 残留: {rid}"
+        msgs = (
+            (await session.execute(select(Message).filter_by(thread_id="t-1")))
+            .scalars()
+            .all()
+        )
+        assert msgs and all(m.status == "completed" for m in msgs)
 
 
 # ============ 模型契约（防列漂移） ============
