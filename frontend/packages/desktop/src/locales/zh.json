@@ -2749,7 +2749,8 @@
       "confirmationPrompt": "检测到 node_modules 异常，是否执行强制清理？",
       "projectSwitchPrompt": "当前操作跨越了多个目录，建议切换到更合适的项目上下文：",
       "fileSelectPrompt": "请选择需要作为上下文参考的本地源代码文件：",
-      "context": "此请求来自 Agent 的核心安全策略校验。"
+      "context": "此请求来自 Agent 的核心安全策略校验。",
+      "approveParentDir": "授权父目录"
     },
     "hitlInjected": "{{type}} 类型的 HITL 已注入",
     "clearMessages": "清空当前消息",
@@ -2770,7 +2771,8 @@
   },
   "hitl": {
     "approveOnce": "仅本次",
-    "approveAlways": "总是允许"
+    "approveAlways": "总是允许",
+    "approveParentDir": "授权父目录"
   },
   "dutyBoard": {
     "title": "任务队列",

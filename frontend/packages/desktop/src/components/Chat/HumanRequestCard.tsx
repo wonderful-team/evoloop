@@ -23,7 +23,7 @@ export function HumanRequestCard({ request }: HumanRequestCardProps) {
 
   const handleResponse = async (
     response: string,
-    grantMode?: "once" | "always" | "default",
+    grantMode?: "once" | "always" | "dir" | "default",
   ) => {
     await resumeAgent(response, grantMode)
   }

@@ -24,6 +24,9 @@ export interface HumanRequestItem {
     temporary?: boolean
     multiple?: boolean
     file_types?: string[]
+    /** 授权门控请求标记：在场 = 审批卡显示「授权父目录」（grant_mode=dir） */
+    resource_path?: string
+    action?: string
     [key: string]: unknown
   }
   status?: "waiting_human" | "completed" | "cancelled" | "rejected" | string
@@ -31,10 +34,10 @@ export interface HumanRequestItem {
 
 export interface HumanRequestCardProps {
   request: HumanRequestItem
-  /** 响应提交回调 (response: 用户输入或选定项, grantMode?: once|always|default) */
+  /** 响应提交回调 (response: 用户输入或选定项, grantMode?: once|always|dir|default) */
   onRespond?: (
     response: string,
-    grantMode?: "once" | "always" | "default",
+    grantMode?: "once" | "always" | "dir" | "default",
   ) => Promise<void> | void
   /** 取消/终止回调 */
   onCancel?: () => Promise<void> | void

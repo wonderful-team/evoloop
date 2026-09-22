@@ -119,7 +119,7 @@ export interface AgentState {
   stopAgent: () => Promise<void>
   resumeAgent: (
     userInput?: string,
-    grantMode?: "once" | "always" | "default",
+    grantMode?: "once" | "always" | "dir" | "default",
   ) => Promise<void>
   cancelHumanRequest: (reason?: string) => Promise<void>
 }

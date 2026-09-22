@@ -6036,7 +6036,7 @@ export const ResumeRequestSchema = {
             anyOf: [
                 {
                     type: 'string',
-                    enum: ['once', 'always', 'default']
+                    enum: ['once', 'always', 'dir', 'default']
                 },
                 {
                     type: 'null'

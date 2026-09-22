@@ -93,6 +93,7 @@ async def authorization_gate(context: HookContext) -> HookResult:
     # command path arguments（缺陷 SECURITY_execute_command_path_bypass：Agent
     # 可用 execute_command 的 grep/ls/cat + 绝对路径绕过文件工具边界）。
     candidates: list[tuple[str, str]] = []
+    extra_paths: list[tuple[str, str]] | None = None
     extracted = _extract_path_from_input(context.tool_name or "", context.tool_input)
     if extracted is not None:
         candidates.append(extracted)
@@ -131,6 +132,9 @@ async def authorization_gate(context: HookContext) -> HookResult:
             # Make sure we load granted permissions
             await auth_service._load()
             now = datetime.now(timezone.utc)
+            # 同一次调用的全部待授权候选（复合命令多路径）：审批须覆盖全量，
+            # 只授权首个路径会让重执行在下一个未授权路径上再次弹审批。
+            pending_paths: list[tuple[str, str]] = []
             for resource_path, action in candidates:
                 if _is_path_safe(resource_path, project_path, working_directory):
                     continue
@@ -138,18 +142,32 @@ async def authorization_gate(context: HookContext) -> HookResult:
                 # Check if this permission was already granted previously
                 is_already_granted = False
                 for grant in auth_service._granted or []:
-                    # Check match
-                    # Try relative paths as well
-                    check_paths = [resource_path]
-                    if project_path and os.path.isabs(resource_path):
-                        try:
-                            rel = os.path.relpath(resource_path, project_path)
-                            if not rel.startswith(".."):
-                                check_paths.append(rel)
-                        except Exception as e:
-                            logger.debug("Suppressed error: %s", e, exc_info=True)
-                    if grant.action == action and grant.path in check_paths:
-                        if not grant.is_expired(now):
+                    if grant.action != action:
+                        continue
+                    if not grant.is_expired(now):
+                        # 作用域匹配：prefix 授权命中目录及全部子路径
+                        # （grant_mode=dir 落盘）；exact 精确相等（含相对路径变换）。
+                        scope = getattr(grant, "scope_type", "exact") or "exact"
+                        if scope == "prefix":
+                            import os as _os
+
+                            base = _os.path.realpath(_os.path.expanduser(grant.path))
+                            target = _os.path.realpath(
+                                _os.path.expanduser(resource_path)
+                            )
+                            if target == base or target.startswith(base + os.sep):
+                                is_already_granted = True
+                                break
+                            continue
+                        check_paths = [resource_path]
+                        if project_path and os.path.isabs(resource_path):
+                            try:
+                                rel = os.path.relpath(resource_path, project_path)
+                                if not rel.startswith(".."):
+                                    check_paths.append(rel)
+                            except Exception as e:
+                                logger.debug("Suppressed error: %s", e, exc_info=True)
+                        if grant.path in check_paths:
                             is_already_granted = True
                             break
 
@@ -202,18 +220,24 @@ async def authorization_gate(context: HookContext) -> HookResult:
                         resource_path=resource_path,
                     ),
                 )
-                decision = AuthorizationDecision(
-                    approved=False,
-                    requires_hitl=True,
-                    reason=i18n.get(
-                        "engine.authorization.outside_workspace_reason",
+                if not pending_paths:
+                    decision = AuthorizationDecision(
+                        approved=False,
+                        requires_hitl=True,
+                        reason=i18n.get(
+                            "engine.authorization.outside_workspace_reason",
+                            resource_path=resource_path,
+                        ),
+                        policy=policy,
                         resource_path=resource_path,
-                    ),
-                    policy=policy,
-                    resource_path=resource_path,
-                    action=action,
-                )
-                break
+                        action=action,
+                    )
+                pending_paths.append((resource_path, action))
+
+            if pending_paths and decision.requires_hitl:
+                # 单一事实源：all_paths 含全部越界路径（含首路径），
+                # resolve 批准/拒绝只认这一份列表。
+                extra_paths = list(pending_paths)
 
     if decision.approved and not decision.requires_hitl:
         return HookResult(success=True)
@@ -248,6 +272,25 @@ async def authorization_gate(context: HookContext) -> HookResult:
         # 旧图架构的 pending_approvals 记账已删：现行精简版 AgentState 无该字段
         # （曾致 AttributeError 被 hook 系统吞掉 → HITL 静默失效、工具照常执行）。
         # HumanRequest 由 request_authorization 落库，resume 从 DB 恢复，无需 state 记账。
+        # 重执行的跨进程认领：同一 tool_call 在窗口内已被批准（finalize 双轨
+        # COMPLETED+APPROVED）→ 直接放行本次重执行，不重复发起审批。
+        # （grant_mode=once / grant 落盘失败时 grant 表不命中，此查询兜底防死循环。）
+        try:
+            if context.tool_use_id and await HITLOrchestrator.was_call_recently_approved(
+                context.thread_id, context.tool_use_id
+            ):
+                logger.info(
+                    "[AuthorizationGate] re-execution of approved call %s allowed (recent approval)",
+                    context.tool_use_id,
+                )
+                return HookResult(success=True)
+        except Exception:
+            logger.exception(
+                "[AuthorizationGate] recent-approval lookup failed (thread=%s, call=%s)",
+                context.thread_id,
+                context.tool_use_id,
+            )
+
         tool_args = {}
         if context.tool_input is not None:
             tool_args = context.tool_input.args or {}
@@ -270,6 +313,7 @@ async def authorization_gate(context: HookContext) -> HookResult:
             run_id=context.run_id,
             original_tool_name=context.tool_name or "",
             original_tool_args=tool_args,
+            extra_paths=extra_paths if decision.requires_hitl else None,
         )
         # request_authorization raises AgentHumanInterruptException; the blocked tool
         # itself is never executed. On approval the resume handler re-invokes the tool.

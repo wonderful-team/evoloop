@@ -25,6 +25,11 @@ MESSAGE_ACTION_TYPE_HUMAN_REQUEST = "human_request"
 DEFAULT_DECISION = HITLDecision.REJECTED.value
 DEFAULT_GRANTED_BY = "hitl-approval"
 DEFAULT_AUTHORIZATION_TTL_DAYS = 7
+#: 拒绝判死 TTL（小时）：到期后允许再次发起审批，防止误拒永久 poison 线程。
+REJECTION_TTL_HOURS = 24
+#: 近期放行窗口（秒）：门控查询"该 tool_call 最近已批准"的认领窗口，
+#  覆盖 resolve → 重执行的正常间隔；跨进程（API/Worker）成立。
+RECENT_APPROVAL_WINDOW_SECONDS = 600
 
 #: 标准风险等级 → emoji（与前端 HumanRequestCard 展示一致）
 RISK_EMOJI = {

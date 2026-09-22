@@ -72,7 +72,7 @@ export function ReviewProgressCard({
   const handleRespond = async (
     threadId: string,
     response: string,
-    grantMode?: "once" | "always" | "default",
+    grantMode?: "once" | "always" | "dir" | "default",
   ) => {
     await AgentService.resumeChat({
       requestBody: {

@@ -395,9 +395,18 @@ async def resume_chat(
         )
 
     if pending_tool:
-        normalized_input = await HITLOrchestrator.handle_resume(
+        normalized_input, claimed = await HITLOrchestrator.handle_resume(
             req.thread_id, pending_tool, req.user_input, grant_mode=req.grant_mode
         )
+        if not claimed:
+            # 并发 resume 竞态：pending 已被其他端（手机/桌面/CLI）消费，
+            # 重执行与 agent 恢复由消费方负责，此处不得重复执行（副作用×2）。
+            logger.info(
+                "[Chat] resume lost race for pending request (thread=%s, call=%s)",
+                req.thread_id,
+                pending_tool.get("id"),
+            )
+            return ResumeChatResponse(status="resuming", thread_id=req.thread_id)
         # 授权门控工具：审批后记录授权并用原始参数重执行，返回真实结果；
         # confirmation 类工具则直接使用归一化输入（APPROVED）。
         resume_config = {

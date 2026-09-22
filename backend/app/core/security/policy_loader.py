@@ -64,11 +64,15 @@ class GrantedPermission:
     approved_at: datetime
     expires_at: datetime | None  # None = 永久（allow always）
     granted_by: str | None = None
+    # 作用域："exact" 精确路径（默认/历史记录）；"prefix" 目录级递归授权
+    # （grant_mode=dir 落盘）。历史 project.json 无此字段 → 默认 exact。
+    scope_type: str = "exact"
 
     def to_dict(self) -> dict:
         return {
             "path": self.path,
             "action": self.action,
+            "scope_type": self.scope_type,
             "approved_at": self.approved_at.isoformat(),
             "expires_at": self.expires_at.isoformat() if self.expires_at else None,
             "granted_by": self.granted_by,
@@ -80,6 +84,7 @@ class GrantedPermission:
         return cls(
             path=data["path"],
             action=data.get("action", "read"),
+            scope_type=data.get("scope_type") or "exact",
             approved_at=datetime.fromisoformat(data["approved_at"]),
             expires_at=datetime.fromisoformat(raw_expiry) if raw_expiry else None,
             granted_by=data.get("granted_by"),

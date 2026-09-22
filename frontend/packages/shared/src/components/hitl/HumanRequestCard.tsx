@@ -52,7 +52,7 @@ export function HumanRequestCard({
 
   const handleResponse = async (
     response: string,
-    grantMode?: "once" | "always" | "default",
+    grantMode?: "once" | "always" | "dir" | "default",
   ) => {
     if (!onRespond) return
     setIsSubmitting(true)
@@ -432,6 +432,19 @@ export function HumanRequestCard({
                         <CheckCircle2 className="mr-1 h-3 w-3 text-primary" />
                         {t("hitl.approveOnce", "仅本次允许")}
                       </Button>
+                      {/* 授权父目录（仅授权门控请求显示）：prefix 递归放行该目录树 */}
+                      {request.payload?.resource_path && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleResponse(t("common.approve", "允许"), "dir")}
+                          disabled={isSubmitting}
+                          className="h-7 px-3 text-xs font-medium"
+                        >
+                          <FolderGit2 className="mr-1 h-3 w-3 text-primary/80" />
+                          {t("hitl.approveParentDir", "授权父目录")}
+                        </Button>
+                      )}
                       <Button
                         size="sm"
                         onClick={() => handleResponse(t("common.approve", "允许"), "always")}

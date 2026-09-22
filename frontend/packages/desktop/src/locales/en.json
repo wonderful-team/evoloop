@@ -2748,7 +2748,8 @@
       "confirmationPrompt": "node_modules anomaly detected. Force clean?",
       "projectSwitchPrompt": "This operation spans multiple directories. Switch to a more suitable project context:",
       "fileSelectPrompt": "Please select local source files as context references:",
-      "context": "This request comes from the Agent's core security policy check."
+      "context": "This request comes from the Agent's core security policy check.",
+      "approveParentDir": "Parent dir"
     },
     "hitlInjected": "{{type}} HITL injected",
     "clearMessages": "Clear Current Messages",
@@ -2769,7 +2770,8 @@
   },
   "hitl": {
     "approveOnce": "Once",
-    "approveAlways": "Always allow"
+    "approveAlways": "Always allow",
+    "approveParentDir": "Parent dir"
   },
   "dutyBoard": {
     "title": "Task Queue",

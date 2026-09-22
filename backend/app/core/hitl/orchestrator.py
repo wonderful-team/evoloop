@@ -6,6 +6,7 @@ Previously located in app.core.engine.hitl.
 
 import json
 import logging
+import os
 
 from sqlalchemy import select
 
@@ -27,6 +28,8 @@ from app.core.hitl.types import HITLDecision, HITLRequestStatus, HumanRequestTyp
 from app.i18n.service import i18n
 from app.infrastructure.database import session_scope
 from app.models import Message
+from app.utils.id import gen_uuid
+from app.utils.time import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -291,6 +294,8 @@ class HITLOrchestrator:
             prompt=prompt,
             context=context,
             default_value=HITLDecision.REJECTED.value,
+            resource_path=resource_path,
+            resource_action=action,
         )
 
         if response_text_factory is not None:
@@ -335,8 +340,13 @@ class HITLOrchestrator:
     @staticmethod
     async def handle_resume(
         thread_id: str, tool_call: dict, user_input: str | None, grant_mode: str | None = None
-    ) -> str:
-        """Processes resume logic: normalization, atomic dual-track closure, activity cleanup."""
+    ) -> tuple[str, bool]:
+        """Processes resume logic: normalization, atomic dual-track closure, activity cleanup.
+
+        Returns ``(normalized_input, claimed)``：``claimed=False`` 表示并发场景下
+        本请求已被其他端（手机/桌面/CLI）抢先消费——调用方必须跳过重执行与
+        agent 恢复，避免同一工具被执行两次（副作用×2）。
+        """
         from app.core.hitl.core import finalize_request
 
         normalized = normalize_hitl_input(
@@ -350,7 +360,7 @@ class HITLOrchestrator:
             "name": tool_call.get("name"),
             "args": tool_call.get("args") or {},
         }
-        await finalize_request(
+        claimed = await finalize_request(
             thread_id=thread_id,
             request_id=request_id,
             tool_call_id=tool_call["id"],
@@ -359,7 +369,7 @@ class HITLOrchestrator:
             sibling_key=sibling_key,
         )
         await get_activity_sink().clear_human_request(thread_id)
-        return normalized
+        return normalized, claimed
 
     @staticmethod
     async def handle_cancel(thread_id: str, tool_call: dict) -> str:
@@ -435,9 +445,17 @@ class HITLOrchestrator:
         )
         if not pending_tool:
             return False
-        normalized_input = await HITLOrchestrator.handle_resume(
+        normalized_input, claimed = await HITLOrchestrator.handle_resume(
             thread_id, pending_tool, user_input, grant_mode=grant_mode
         )
+        if not claimed:
+            # 并发 resume 竞态：pending 已被其他端消费，重执行由消费方负责。
+            logger.info(
+                "[HITL] resume lost race for pending request (thread=%s, call=%s) — skip re-execution",
+                thread_id,
+                pending_tool.get("id"),
+            )
+            return False
         final_result = await HITLOrchestrator.resolve_approved_tool_result(
             pending_tool,
             config,
@@ -483,7 +501,17 @@ class HITLOrchestrator:
         tool_args = pending_tool.get("args") or {}
         tool_call_id = pending_tool.get("id")
 
-        authorization = pending_tool.get("authorization")
+        authorization = pending_tool.get("authorization") or {}
+        # 授权目标单一事实源：authorization.all_paths（含首路径）是权威列表；
+        # 旧数据（迁移前创建的 pending）无 all_paths 时回退单路径。
+        all_paths: list[tuple[str, str]] = []
+        for entry in authorization.get("all_paths") or []:
+            if isinstance(entry, (list, tuple)) and len(entry) == 2:
+                all_paths.append((str(entry[0]), str(entry[1])))
+        if not all_paths and authorization.get("resource_path"):
+            all_paths = [
+                (authorization["resource_path"], authorization.get("action", "read"))
+            ]
 
         # 自由文本类型（无 authorization）：原样返回用户输入，不触发任何
         # APPROVED/REJECTED 判定——"REJECTED" 作为文本输入是合法内容。
@@ -521,17 +549,20 @@ class HITLOrchestrator:
             action = authorization.get("action", "read")
             # 拒绝即判死（防 ping-pong）：把拒绝落库，authorization_gate 查询后
             # 对同线程同资源的后续访问直接硬拒绝，不再重复弹审批打扰用户。
+            # 拒绝覆盖该调用的全部路径候选，避免逐路径 ping-pong。
             if thread_id:
-                try:
-                    await HITLOrchestrator.mark_thread_resource_rejected(
-                        thread_id=thread_id, resource_path=resource_path
-                    )
-                except Exception:
-                    logger.exception(
-                        "[HITL] mark_thread_resource_rejected failed (thread=%s, path=%s)",
-                        thread_id,
-                        resource_path,
-                    )
+                reject_targets = list(dict.fromkeys([(resource_path, action)] + all_paths))
+                for r_path, _r_action in reject_targets:
+                    try:
+                        await HITLOrchestrator.mark_thread_resource_rejected(
+                            thread_id=thread_id, resource_path=r_path
+                        )
+                    except Exception:
+                        logger.exception(
+                            "[HITL] mark_thread_resource_rejected failed (thread=%s, path=%s)",
+                            thread_id,
+                            r_path,
+                        )
             return (
                 f"[AUTHORIZATION REJECTED] 用户拒绝了工具 {tool_name or ''} "
                 f"对 {resource_path} 的 {action} 访问。该操作未执行；"
@@ -561,12 +592,26 @@ class HITLOrchestrator:
         )
         if not skip_grant:
             try:
-                await AuthorizationService(project_id).grant_permission(
-                    resource_path=authorization.get("resource_path", ""),
-                    action=authorization.get("action", "read"),
-                    granted_by=DEFAULT_GRANTED_BY,
-                    ttl_days=None if grant_mode == "always" else DEFAULT_AUTHORIZATION_TTL_DAYS,
-                )
+                auth_service = AuthorizationService(project_id)
+                # 作用域模型：grant_mode=dir → 授权父目录（prefix 递归命中），
+                # 否则精确路径。always → 无 TTL；default → 7 天 TTL。
+                if grant_mode == "dir":
+                    grant_targets = [
+                        (os.path.dirname(p) or p, a, "prefix")
+                        for p, a in dict.fromkeys(all_paths)
+                    ]
+                else:
+                    grant_targets = [
+                        (p, a, "exact") for p, a in dict.fromkeys(all_paths)
+                    ]
+                for g_path, g_action, g_scope in grant_targets:
+                    await auth_service.grant_permission(
+                        resource_path=g_path,
+                        action=g_action,
+                        scope_type=g_scope,
+                        granted_by=DEFAULT_GRANTED_BY,
+                        ttl_days=None if grant_mode == "always" else DEFAULT_AUTHORIZATION_TTL_DAYS,
+                    )
             except Exception as e:
                 logger.warning(f"[HITL] grant_permission failed for approval: {e}")
 
@@ -577,6 +622,10 @@ class HITLOrchestrator:
         args_override = resume.get("args") or {}
         if args_override:
             tool_args = {**tool_args, **args_override}
+
+        # 重执行的门控放行是 DB 认领：finalize 已把该 call 的双轨定局为
+        # COMPLETED+APPROVED，门控经 was_call_recently_approved 查询放行
+        # （跨进程、重启成立），无需进程内标记。
 
         try:
             return await get_runtime().execute_tool(
@@ -596,30 +645,70 @@ class HITLOrchestrator:
 
         authorization_gate 在发起新审批前查询此标记：同线程同资源已被用户
         拒绝过的，后续访问直接硬拒绝，不再重复弹审批（防 ping-pong）。
-        历史遗留的 pending 行一并关闭（用户已表达拒绝，不再需要响应）。
+        终态语义：
+        - 匹配走 resource_path 列的**精确归一化路径相等**，禁止文本子串匹配；
+        - 拒绝带 TTL（REJECTION_TTL_HOURS）：误拒不会永久 poison 线程；
+        - 历史遗留的 pending 行一并关闭（用户已表达拒绝，不再需要响应）。
         """
+        from datetime import timedelta
+
         from sqlalchemy import update
 
+        from app.core.hitl.constants import REJECTION_TTL_HOURS
         from app.models import HumanRequest
 
+        expires_at = utcnow() + timedelta(hours=REJECTION_TTL_HOURS)
         async with session_scope() as session:
+            # pending 行：一并判死收口（用户已拒绝，不再等待响应）
             await session.execute(
                 update(HumanRequest)
                 .where(
                     HumanRequest.thread_id == thread_id,
                     HumanRequest.type == HumanRequestType.APPROVAL.value,
                     HumanRequest.status == HITLRequestStatus.PENDING.value,
-                    HumanRequest.description.contains(resource_path),
+                    HumanRequest.resource_path == resource_path,
                 )
                 .values(
                     status=HITLRequestStatus.COMPLETED.value,
                     result=HITLDecision.REJECTED.value,
+                    resource_path=resource_path,
+                    expires_at=expires_at,
                 )
             )
+            # 判死记录：结构化列 + TTL。已有同 key 判死行时续期即可，
+            # 否则插入台账行（一次审批只对应一行 HumanRequest，复合命令的
+            # 其余路径没有自己的请求行——台账行是判死的结构化数据源）。
+            renewed = await session.execute(
+                update(HumanRequest)
+                .where(
+                    HumanRequest.thread_id == thread_id,
+                    HumanRequest.type == HumanRequestType.APPROVAL.value,
+                    HumanRequest.result == HITLDecision.REJECTED.value,
+                    HumanRequest.resource_path == resource_path,
+                )
+                .values(expires_at=expires_at, updated_at=utcnow())
+            )
+            if not renewed.rowcount:
+                session.add(
+                    HumanRequest(
+                        id=gen_uuid(),
+                        thread_id=thread_id,
+                        type=HumanRequestType.APPROVAL.value,
+                        description=f"[authorization rejected] {resource_path}",
+                        status=HITLRequestStatus.COMPLETED.value,
+                        result=HITLDecision.REJECTED.value,
+                        resource_path=resource_path,
+                        expires_at=expires_at,
+                    )
+                )
 
     @staticmethod
     async def has_thread_resource_rejection(thread_id: str, resource_path: str) -> bool:
-        """查询本线程是否已有对某资源的拒绝记录（gate 判死查询）。"""
+        """查询本线程是否已有对某资源的有效拒绝记录（gate 判死查询）。
+
+        结构化列精确匹配 + TTL 过滤：拒绝记录过期后返回 False，
+        gate 会重新走 HITL（误拒的自动解封出口）。
+        """
         if not thread_id or not resource_path:
             return False
 
@@ -634,12 +723,72 @@ class HITLOrchestrator:
                     HumanRequest.thread_id == thread_id,
                     HumanRequest.type == HumanRequestType.APPROVAL.value,
                     HumanRequest.result == HITLDecision.REJECTED.value,
-                    HumanRequest.description.contains(resource_path),
+                    HumanRequest.resource_path == resource_path,
+                    (HumanRequest.expires_at.is_(None)) | (HumanRequest.expires_at > utcnow()),
                 )
                 .limit(1)
             )
             found = (await session.execute(stmt)).scalars().first()
             return found is not None
+
+    @staticmethod
+    async def was_call_recently_approved(
+        thread_id: str, tool_call_id: str, window_seconds: int | None = None
+    ) -> bool:
+        """该 tool_call 是否在窗口内被批准过（门控放行重执行的跨进程认领）。
+
+        终态语义（替代进程内放行注册表）：
+        - 数据源 = messages 轨的 hitl_request 行（tool_call_id 精确匹配、
+          status=completed、窗口内更新）+ human_requests 轨的 APPROVED 结果，
+          双轨原子定局由 finalize_request 保证，两轨读到即为已批准；
+        - DB 共享存储 → API / Worker 双进程、重启后均成立；
+        - 窗口由 RECENT_APPROVAL_WINDOW_SECONDS 约束（覆盖 resolve → 重执行
+          的正常间隔），同一 call_id 之后的新调用拿全新 tool_call_id，
+          不会命中此窗口。
+        """
+        if not thread_id or not tool_call_id:
+            return False
+
+        from datetime import timedelta
+
+        from sqlalchemy import select
+
+        from app.core.hitl.constants import (
+            MESSAGE_CATEGORY_HITL_REQUEST,
+            RECENT_APPROVAL_WINDOW_SECONDS,
+        )
+        from app.models import HumanRequest
+
+        if window_seconds is None:
+            window_seconds = RECENT_APPROVAL_WINDOW_SECONDS
+        cutoff = utcnow() - timedelta(seconds=window_seconds)
+
+        async with session_scope() as session:
+            res = await session.execute(
+                select(Message.meta_data).where(
+                    Message.thread_id == thread_id,
+                    Message.category == MESSAGE_CATEGORY_HITL_REQUEST,
+                    Message.tool_call_id == tool_call_id,
+                    Message.status == MessageStatus.COMPLETED.value,
+                    Message.updated_at >= cutoff,
+                )
+            )
+            for (meta,) in res.all():
+                req_id = (meta or {}).get("hitl_request_id")
+                if not req_id:
+                    continue
+                req = (
+                    await session.execute(
+                        select(HumanRequest).where(
+                            HumanRequest.id == req_id,
+                            HumanRequest.status == HITLRequestStatus.COMPLETED.value,
+                            HumanRequest.result == HITLDecision.APPROVED.value,
+                        )
+                    )
+                ).scalar_one_or_none()
+                if req is not None:
+                    return True
+        return False
 
     @staticmethod
     async def request_authorization(
@@ -655,6 +804,7 @@ class HITLOrchestrator:
         original_tool_name: str | None = None,
         original_tool_args: dict | None = None,
         action: str | None = None,
+        extra_paths: list[tuple[str, str]] | None = None,
     ) -> HumanInputRequest:
         """
         Trigger an authorization-style HITL request.
@@ -662,6 +812,9 @@ class HITLOrchestrator:
         This method is intended to be called from the authorization gate hook, not
         from an explicit tool. It reuses the `approval` request type so the existing
         frontend UI (Approve/Reject) works without changes.
+
+        ``extra_paths``：同一次工具调用的其余待授权 (path, action) 候选，批准后
+        一次性全量授权（见 push_hitl_notification）。
         """
         from app.core.hitl.prompts import build_approval_context
 
@@ -678,6 +831,8 @@ class HITLOrchestrator:
             prompt=action_description,
             context=context,
             default_value=HITLDecision.REJECTED.value,
+            resource_path=resource_path,
+            resource_action=action or (action_description.split(" ", 1)[0] if action_description else ""),
         )
 
         response_text = i18n.get(
@@ -696,6 +851,12 @@ class HITLOrchestrator:
                 "default_value": HITLDecision.REJECTED.value,
                 "risk_level": risk_level,
                 "resource_path": resource_path,
+                # 前端按钮判定标记：payload.resource_path 在场 = 授权门控请求，
+                # 审批卡据此显示「授权父目录」（grant_mode=dir）。
+                "payload": {
+                    "resource_path": resource_path,
+                    "action": action or (action_description.split(" ", 1)[0] if action_description else ""),
+                },
             },
             project_id=project_id,
             run_id=run_id,
@@ -709,6 +870,7 @@ class HITLOrchestrator:
             # 否则 grant 存的 action（如 "读取"）与授权钩子比对的规范 action（"read"）
             # 永不匹配，导致敏感路径批准后重执行再次触发审批 → 无限循环。
             action=action or (action_description.split(" ", 1)[0] if action_description else ""),
+            extra_paths=extra_paths,
         )
 
         raise_hitl_interrupt(request.id, response_text)

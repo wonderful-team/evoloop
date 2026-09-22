@@ -240,5 +240,12 @@ class HumanRequest(Base):
     default_value: Mapped[str | None] = mapped_column(String(255))
     status: Mapped[str] = mapped_column(String(50), default="pending")  # pending, completed, cancelled, timeout
     result: Mapped[str | None] = mapped_column(Text)  # JSON string of user response
+    # 授权门控的机器可读资源锚点（拒绝判死 / 近期放行查询的数据源）。
+    # 终态约定：路径判断只允许查这两列（归一化绝对路径），
+    # 禁止再对 description 文本做 contains/endswith 之类的子串匹配。
+    resource_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    resource_action: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    # 判死/授权的自然过期时间（如拒绝 TTL 到期后允许再次发起审批）。
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)

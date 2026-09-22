@@ -123,6 +123,8 @@ async def create_request(
     options: list[str] | None = None,
     context: str | None = None,
     default_value: str | None = None,
+    resource_path: str | None = None,
+    resource_action: str | None = None,
 ) -> HumanInputRequest:
     """Create and store a human input request in the database."""
     # Fail-fast: validate request_type against the canonical enum (fail-fast
@@ -144,6 +146,10 @@ async def create_request(
             context=context,
             default_value=default_value,
             status=HITLRequestStatus.PENDING.value,
+            # 授权门控请求的结构化资源锚点：拒绝判死 / 近期放行查询的数据源，
+            # 终态约定路径判断只查这两列（归一化绝对路径），不碰 description 文本。
+            resource_path=resource_path,
+            resource_action=resource_action,
         )
         session.add(db_request)
         await session.flush()
@@ -464,6 +470,7 @@ async def push_hitl_notification(
     action: str | None = None,
     skip_grant: bool = False,
     resume_override: dict | None = None,
+    extra_paths: list[tuple[str, str]] | None = None,
 ) -> None:
     """
     Push a HITL request to the activity monitor and the message handler.
@@ -473,6 +480,10 @@ async def push_hitl_notification(
 
     ``resume_override``：审批后重执行时的门控豁免声明，由发起端（如宏确认）
     在发起时声明，resume 端按声明注入 ``{"args": {...}}``，避免按工具名特判。
+
+    ``extra_paths``：同一次工具调用的其余待授权 (path, action) 候选，随
+    authorization 元数据下发（``all_paths``），批准后一次性全量授权，避免
+    复合命令逐路径连环弹审批。
     """
     # 1. Notify Activity Monitor with structured data
     await get_activity_sink().set_human_request(
@@ -493,6 +504,11 @@ async def push_hitl_notification(
             "action": action,
             "project_id": project_id,
         }
+    if extra_paths:
+        metadata["authorization"] = metadata.get("authorization") or {}
+        metadata["authorization"]["all_paths"] = [
+            [path, path_action] for path, path_action in extra_paths
+        ]
     if skip_grant:
         metadata["authorization"] = metadata.get("authorization") or {}
         metadata["authorization"]["skip_grant"] = True

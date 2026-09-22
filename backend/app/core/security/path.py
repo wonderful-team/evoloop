@@ -223,6 +223,41 @@ _REDIRECT_OPS = frozenset({">", ">>", "1>", "2>", "&>"})
 _ENV_ASSIGN_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 _TRAILING_SHELL_CHARS = ";&|"
 
+# 段级写动词：这些命令（或经 xargs/sudo 透传）的路径参数是写/删语义，
+# 不能再按 read 门控——否则 `rm /outside/x` 的审批卡显示"读取"，
+# 用户按只读批准后实际执行删除（审批语义倒挂）。
+_WRITE_VERB_COMMANDS = frozenset(
+    {"rm", "mv", "cp", "rmdir", "chmod", "chown", "chgrp", "dd", "tee",
+     "truncate", "shred", "unlink", "ln", "install", "mkdir", "touch"}
+)
+
+
+def _segment_effective_verb(tokens: list[str]) -> str:
+    """取分段的有效命令动词：跳过 prelude（sudo/env/…）与 VAR=val 赋值。
+
+    xargs 归入 prelude 但透传动词：``find … | xargs rm -rf /x`` 的有效动词
+    是 rm（xargs 仅转发参数），因此 prelude 跳过后第一个真实命令字生效。
+    """
+    for tok in tokens:
+        if tok in _COMMAND_WORD_PRELUDE:
+            continue
+        if _ENV_ASSIGN_RE.match(tok):
+            continue
+        return tok
+    return ""
+
+
+def _segment_writes(verb: str, tokens: list[str]) -> bool:
+    """该分段是否为写/删语义（决定其路径参数的 action）。"""
+    if not verb:
+        return False
+    if verb in _WRITE_VERB_COMMANDS:
+        return True
+    # sed 原地修改（-i / -i.bak）是写；普通 sed 是读。
+    if verb == "sed":
+        return any(t == "-i" or (t.startswith("-i") and len(t) > 2) for t in tokens)
+    return False
+
 
 def _clean_command_token(token: str) -> str:
     """剥除 token 两侧引号与尾部 shell 分隔符。"""
@@ -261,7 +296,7 @@ def extract_command_paths(
         return []
 
     candidates: list[tuple[str, str]] = []
-    seen: set[str] = set()
+    actions: dict[str, str] = {}
 
     def _add(raw_token: str, action: str) -> None:
         cleaned = _clean_command_token(raw_token)
@@ -270,9 +305,18 @@ def extract_command_paths(
         resolved = _resolve_command_path(cleaned, base_dir)
         if resolved is None:
             return
-        if resolved not in seen:
-            seen.add(resolved)
+        existing = actions.get(resolved)
+        if existing is None:
+            actions[resolved] = action
             candidates.append((resolved, action))
+        elif existing == "read" and action == "write":
+            # 同一路径先读后写（cat /x && rm /x）：取更严格的 write，
+            # 不得把已有的 write 降级回 read。
+            actions[resolved] = "write"
+            for idx, (path, _) in enumerate(candidates):
+                if path == resolved:
+                    candidates[idx] = (resolved, "write")
+                    break
 
     for segment in _COMMAND_SEGMENT_SPLIT_RE.split(command):
         segment = segment.strip()
@@ -285,6 +329,21 @@ def extract_command_paths(
         if not tokens:
             continue
 
+        # 段级读写判定：破坏性命令（rm/cp/sed -i/…）的路径参数按 write 门控。
+        segment_verb = _segment_effective_verb(tokens)
+        segment_writes = _segment_writes(segment_verb, tokens)
+        # 有效命令动词的位置（VAR=val 仅在其之前视为环境赋值——
+        # dd 的 if=/of= 操作数出现在动词之后，是路径而非赋值）。
+        verb_index = next(
+            (
+                i
+                for i, tok in enumerate(tokens)
+                if tok not in _COMMAND_WORD_PRELUDE
+                and not _ENV_ASSIGN_RE.match(tok)
+            ),
+            len(tokens),
+        )
+
         skip_next_as_command = False
         after_double_dash = False
         for index, token in enumerate(tokens):
@@ -294,8 +353,8 @@ def extract_command_paths(
             # 段首与 prelude（sudo/env/…）后的 token 视为命令字，跳过
             if index == 0 or tokens[index - 1] in _COMMAND_WORD_PRELUDE:
                 continue
-            # env 后的 VAR=val 赋值不是路径
-            if _ENV_ASSIGN_RE.match(token):
+            # 动词之前的 VAR=val 是环境赋值，不是路径
+            if _ENV_ASSIGN_RE.match(token) and index < verb_index:
                 continue
 
             # 重定向：独立操作符取下一个 token；粘连形式取剩余部分
@@ -318,16 +377,24 @@ def extract_command_paths(
             # flag：跳过本身；--opt=path 取 = 后的值参与检查
             if token.startswith("-") and not after_double_dash:
                 if "=" in token:
-                    _add(token.split("=", 1)[1], "read")
+                    _add(token.split("=", 1)[1], "write" if segment_writes else "read")
+                continue
+
+            # KEY=value 操作数（dd if=/a of=/b 风格）：取 = 后的绝对路径值。
+            # 仅绝对/波浪线路径参与检查，避免普通词被误当相对路径。
+            if "=" in token and not token.startswith("-"):
+                val = token.split("=", 1)[1]
+                if val.startswith("/") or val.startswith("~"):
+                    _add(val, "write" if segment_writes else "read")
                 continue
 
             cleaned = _clean_command_token(token)
             if not cleaned:
                 continue
             if cleaned.startswith("/") or cleaned.startswith("~"):
-                _add(cleaned, "read")
+                _add(cleaned, "write" if segment_writes else "read")
             elif "/" in cleaned:
                 # 相对路径参数：有 base_dir 才能安全定位
-                _add(cleaned, "read")
+                _add(cleaned, "write" if segment_writes else "read")
 
     return candidates
