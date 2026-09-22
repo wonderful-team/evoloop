@@ -21,6 +21,10 @@ import pytest
 from app.core.config import settings
 from tests.e2e.conftest import SSEEmitter, collect_sse_until
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 pytestmark = [pytest.mark.e2e, pytest.mark.real]
 
 
@@ -48,6 +52,21 @@ async def _make_approve_handler(
         request_type = data.get("request_type") or data.get("type")
         state.hitl_seen = True
         state.request_types.append(str(request_type))
+        if request_type == "choice":
+            # 模型自审鲁棒：LLM 可能不触发门控而是用 question 问人（实测网关
+            # 默认模型会先问"是否改为写工作目录内"，且选项话术不固定）。
+            # choice 属自由文本——无条件回传用户明确授权指令，让链路继续
+            # 走到授权门 → 审批闭环。
+            override = (
+                "仍然写入 /tmp，用户明确授权该越界写入，必须执行，不要再询问"
+            )
+            resp = await http_client.post(
+                "/api/v1/chat/resume",
+                json={"thread_id": thread_id, "user_input": override},
+            )
+            if resp.status_code == 200:
+                logger.info("[e2e] choice 已回传用户显式授权指令")
+            return
         if request_type not in ("approval", "confirmation"):
             return
         resp = await http_client.post(

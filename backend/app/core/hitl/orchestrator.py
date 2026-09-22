@@ -595,15 +595,16 @@ class HITLOrchestrator:
                 auth_service = AuthorizationService(project_id)
                 # 作用域模型：grant_mode=dir → 授权父目录（prefix 递归命中），
                 # 否则精确路径。always → 无 TTL；default → 7 天 TTL。
-                if grant_mode == "dir":
-                    grant_targets = [
-                        (os.path.dirname(p) or p, a, "prefix")
-                        for p, a in dict.fromkeys(all_paths)
-                    ]
-                else:
-                    grant_targets = [
-                        (p, a, "exact") for p, a in dict.fromkeys(all_paths)
-                    ]
+                # 锐边守卫：根级路径（/x）的父目录是 /，prefix 授权 / 等于
+                # 全盘放行该 action——降级为 exact，不做宽授权。
+                grant_targets = []
+                for p, a in dict.fromkeys(all_paths):
+                    if grant_mode == "dir":
+                        parent = os.path.dirname(p)
+                        if parent and parent not in ("/", "."):
+                            grant_targets.append((parent, a, "prefix"))
+                            continue
+                    grant_targets.append((p, a, "exact"))
                 for g_path, g_action, g_scope in grant_targets:
                     await auth_service.grant_permission(
                         resource_path=g_path,

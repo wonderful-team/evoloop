@@ -68,7 +68,7 @@
 - `grant_mode` 四档（`ResumeRequest.grant_mode: Literal["once","always","dir","default"]`）：
   - `once` → 不落盘（靠 2.5 的 DB 认领放行一次重执行）；
   - `always` → 无 TTL 永久授权；
-  - `dir` → 授权**父目录**（`resolve` 中 `grant_mode == "dir"` → `grant(dirname(path), scope_type="prefix")`）；
+  - `dir` → 授权**父目录**（`resolve` 中 `grant_mode == "dir"` → `grant(dirname(path), scope_type="prefix")`）；根级路径（`/x`，父目录为 `/`）锐边守卫：**降级为 exact**，prefix 授权 `/` 等于全盘放行该 action（`test_dir_mode_root_level_path_falls_back_to_exact` 锁定）；
   - `default`/None → exact + 7 天 TTL。
 - 前端：`@evoloop/shared` 的 `HumanRequestCard` 在 `request.payload.resource_path` 在场（授权门控请求标记，由 `request_authorization` 的 `request_data.payload` 经 SSE `HumanRequestEvent` 透传）时显示「授权父目录」按钮；desktop/agentStore/workbench/i18n/SDK 生成类型同步 `dir`。
 
@@ -89,9 +89,10 @@
 | 单元（门控） | `tests/unit/core/engine/hooks/test_authorization_hooks.py` | 复合命令单次审批、rm→write、prefix 放行子路径、动作不匹配拦截、DB 认领放行/无记录、越界/判死/值守/docker |
 | 单元（提取器） | `tests/unit/core/security/test_path.py` | 写动词分类、读写升级不降级、dd/tee/sed -i.bak、env 赋值豁免 |
 | 单元（迁移） | `tests/unit/infrastructure/test_alembic_migration_smoke.py` | 空库回放 base→head、终态列/索引/版本断言（子进程 + 临时 APP_DATA_DIR） |
-| E2E | `tests/e2e/test_29_hitl_resume_chain.py` | 批准：HTTP→双轨定局→工具真实重执行；拒绝：REJECTED+TTL 台账→不重执行（真实 HTTP + 直插种子，无 LLM） |
+| E2E（无 LLM） | `tests/e2e/test_29_hitl_resume_chain.py` | 批准：HTTP→双轨定局→工具真实重执行；拒绝：REJECTED+TTL 台账→不重执行（真实 HTTP + 直插种子） |
+| E2E（真实 LLM 环回） | `tests/e2e/real/test_real_hitl_approval.py` | 完整环回：Agent 写越界路径→门控→自动批准→工具重注入执行→文件存在。审批回调对模型自审鲁棒（choice 型 question 无条件回传用户显式授权指令，实测网关默认模型会先问人再写） |
 
-全量回归基线：`pytest tests/unit -q` = **1798 passed**（2 skipped 存量）；前端 `vitest` 118 passed（含审批卡四档按钮用例）+ `tsc --noEmit` 全绿。改动模块行覆盖率 93%。
+全量回归基线：`pytest tests/unit -q` = **1799 passed**（2 skipped 存量）；前端 `vitest` 118 passed（含审批卡四档按钮用例）+ `tsc --noEmit` 全绿 + `npm run build` 通过。改动模块行覆盖率 93%。
 
 ## 5. 部署与运维
 

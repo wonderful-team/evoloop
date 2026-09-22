@@ -138,6 +138,38 @@ async def test_dir_mode_grants_parent_prefix():
 
 
 @pytest.mark.asyncio
+async def test_dir_mode_root_level_path_falls_back_to_exact():
+    """锐边守卫：根级路径（/x）的父目录是 / → prefix 授权 / 等于全盘放行，
+    dir 模式必须降级为 exact。"""
+    with (
+        patch("app.core.hitl.authorization.AuthorizationService") as mock_auth_cls,
+        patch("app.core.hitl.orchestrator.get_runtime") as mock_get_runtime,
+    ):
+        mock_auth = AsyncMock()
+        mock_auth_cls.return_value = mock_auth
+        mock_get_runtime.return_value.execute_tool = AsyncMock(return_value="done")
+
+        pending = _pending_tool(
+            authorization={
+                "resource_path": "/rootfile",
+                "action": "read",
+                "all_paths": [["/rootfile", "read"]],
+            }
+        )
+        await HITLOrchestrator.resolve_approved_tool_result(
+            pending,
+            {"configurable": {"thread_id": "t-1"}, "metadata": {"project_id": 120}},
+            "APPROVED",
+            state=None,
+            grant_mode="dir",
+        )
+
+    call = mock_auth.grant_permission.await_args
+    assert call.kwargs["resource_path"] == "/rootfile"
+    assert call.kwargs["scope_type"] == "exact"
+
+
+@pytest.mark.asyncio
 async def test_rejected_marks_all_paths_dead():
     """复合命令拒绝：判死覆盖全部路径候选（拒绝一次，不再逐路径 ping-pong）。"""
     with (
