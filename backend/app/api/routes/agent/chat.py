@@ -158,6 +158,16 @@ async def stop_chat(req: ChatRequest):
     from app.core.engine.session.manager import session_manager
 
     await session_manager.stop_agent(req.thread_id, "web_stop")
+    try:
+        from app.domain.tasks.service import TaskQueueService
+
+        task = await TaskQueueService.get_task_by_thread(req.thread_id)
+        if task and task.status == "in_progress":
+            await TaskQueueService.edit_task(task.id, cancel=True)
+    except Exception:
+        logger.warning(
+            "[stop_chat] cancel associated task failed for %s", req.thread_id, exc_info=True
+        )
     return StopChatResponse(status="stopping", thread_id=req.thread_id)
 
 

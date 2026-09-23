@@ -7,7 +7,12 @@ from sqlalchemy import select
 
 from app.domain.tasks.events import publish_workflow_event
 from app.domain.tasks.roles import GROWTH_WORKFLOW_ROLES, workflow_role
-from app.domain.tasks.service import TaskQueueService
+from app.domain.tasks.service import (
+    TaskQueueService,
+    task_dependencies,
+    task_title,
+    task_workflow_id,
+)
 from app.infrastructure.database.sql.database import session_scope
 from app.models.planning import Plan as PlanRow
 from app.models.planning import PlanStep as PlanStepRow
@@ -65,10 +70,6 @@ class WorkflowService:
                     progress=0,
                     description=goal,
                     task_data={
-                        "title": role.title,
-                        "priority": "high",
-                        "category": "growth_workflow",
-                        "workflow_id": workflow.id,
                         "workflow_stage": role.stage,
                         "workflow_role": role.role,
                         "workflow_runtime": "evoloop",
@@ -77,6 +78,11 @@ class WorkflowService:
                         "allowed_packages": list(role.allowed_packages),
                         "candidate_id": str(safe_inputs.get("candidate_id") or "default"),
                     },
+                    title=role.title,
+                    priority="high",
+                    category="growth_workflow",
+                    dependencies=dependencies,
+                    workflow_id=workflow.id,
                     source="user",
                     source_ref={
                         "kind": "workflow",
@@ -130,15 +136,12 @@ class WorkflowService:
             stmt = select(ProjectTask).order_by(
                 ProjectTask.created_at.asc(), ProjectTask.id.asc()
             )
+            stmt = stmt.where(ProjectTask.workflow_id == workflow_id)
             if project_id is not None:
                 stmt = stmt.where(ProjectTask.project_id == project_id)
             result = await session.execute(stmt)
             rows = list(result.scalars().all())
-        return [
-            row
-            for row in rows
-            if (row.task_data or {}).get("workflow_id") == workflow_id
-        ]
+        return [row for row in rows if row.workflow_id == workflow_id]
 
     @staticmethod
     async def list_artifacts(
@@ -156,10 +159,10 @@ class WorkflowService:
     @staticmethod
     async def build_task_prompt(task: ProjectTask) -> str:
         task_data = task.task_data or {}
-        workflow_id = str(task_data.get("workflow_id") or "")
+        workflow_id = str(task_workflow_id(task) or "")
         stage = str(task_data.get("workflow_stage") or "")
         role = workflow_role(stage)
-        dependencies = list(task_data.get("dependencies") or [])
+        dependencies = task_dependencies(task)
 
         upstream: list[dict[str, Any]] = []
         if dependencies:
@@ -208,7 +211,7 @@ class WorkflowService:
             ).scalar_one_or_none()
             if existing:
                 return
-            title = str((task.task_data or {}).get("title") or task.id)
+            title = str(task_title(task) or task.id)
             plan_id = gen_uuid()
             steps = [
                 ("加载上游 Artifact 与工作流输入", "读取依赖产物并合并工作流目标。"),
@@ -271,7 +274,7 @@ class WorkflowService:
         thread_id: str | None = None,
     ) -> TaskArtifact:
         task_data = task.task_data or {}
-        workflow_id = str(task_data.get("workflow_id") or "")
+        workflow_id = str(task_workflow_id(task) or "")
         if not isinstance(output, dict):
             raise WorkflowError("structured output must be a JSON object")
         required_keys = ("summary", "data", "risks", "recommendation")
@@ -295,6 +298,7 @@ class WorkflowService:
                 ],
                 "deviations": [],
             },
+            thread_id=thread_id or task.last_thread_id,
         )
 
         artifact_id = gen_uuid()

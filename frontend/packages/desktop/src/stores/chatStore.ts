@@ -236,6 +236,18 @@ export const useChatStore = create<ChatState>((set, get) => {
         })
       } else {
         ChatConnection.getInstance().disconnect()
+        // 进入"未选会话"（欢迎页/新对话）：清掉上一个会话遗留的 run 级状态。
+        // 否则 quota_exhausted / interrupted(HITL) 钉在全局 status 上，欢迎页
+        // 会显示配额/HITL 横幅并隐藏输入框（与当前无会话的语境不符）。
+        // SSE 已断开，不会再有 run_end 收尾；真实运行态在重新进入原会话时
+        // 由 fetchActivity 活动快照恢复。unauthorized 属全局登录态，不清。
+        if (useAgentStore.getState().status !== "unauthorized") {
+          useAgentStore.setState({
+            status: "idle",
+            humanRequest: null,
+            quotaExhaustedInfo: null,
+          })
+        }
       }
     },
 

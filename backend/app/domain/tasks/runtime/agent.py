@@ -6,7 +6,7 @@ from typing import Any
 
 from app.domain.tasks.constants import WAKEUP_RUN_DEADLINE_SECONDS
 from app.domain.tasks.events import publish_workflow_event
-from app.domain.tasks.service import TaskQueueService
+from app.domain.tasks.service import TaskQueueService, task_workflow_id
 from app.domain.tasks.workflows import WorkflowService
 from app.models.project import ProjectTask
 
@@ -133,7 +133,7 @@ class EvoloopAgentRuntimeAdapter:
 
         task_data = task.task_data or {}
         stage = str(task_data.get("workflow_stage") or "")
-        workflow_id = str(task_data.get("workflow_id") or "")
+        workflow_id = str(task_workflow_id(task) or "")
         thread_id = f"agent_{task.project_id}_{task.id}"
 
         await TaskQueueService.take_task(task.id, thread_id)

@@ -46,6 +46,17 @@ async def user_prompt_submit_handler(context: HookContext) -> HookResult:
     if existing:
         return HookResult(success=True, message="intent_hint already provided")
 
+    # 值守唤醒（source=duty）不做兜底域分类：任务域已由 dispatcher 的
+    # resolve_wakeup_domain 权威解析（pid=0 fail-open 全量面）。此处再跑 L1
+    # 会按措辞猜域，把任务误装进项目受限 profile——2026-09-23 实测事故：
+    # Upwork 侦察轮被猜成 ecommerce → 商城 profile 的 native_tools 白名单
+    # 裁掉 bash/文件工具，Agent Reach 被域过滤藏出 <available_skills>，
+    # Agent 只剩 webfetch/websearch 死循环。
+    if context.metadata.get("source") == "duty":
+        return HookResult(
+            success=True, message="duty wakeup: skip L0 (dispatcher-authoritative)"
+        )
+
     # L0 classification is best-effort; failures must not block the request.
     try:
         decision = await command_router.resolve(

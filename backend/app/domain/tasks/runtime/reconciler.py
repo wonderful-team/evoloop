@@ -1,12 +1,13 @@
 """Duty reconciler — 值守死亡现场收敛（domain 层）。
 
 职责：把"run 已死但任务/活动还悬着"的世界状态收敛回队列语义：
-1) `wakeup_` 线程悬挂 running → 判死（startup 时一律判死，稳态超期 + 无等人豁免）；
-2) `wakeup_` 线程已终态但任务仍 in_progress → 回队（requeue_count 上限防毒任务）。
+1) `wakeup_`/`agent_` 线程悬挂 running → 判死（startup 时一律判死，稳态超期 + 无等人豁免）；
+2) `wakeup_`/`agent_` 线程已终态但任务仍 in_progress → 回队（requeue_count 上限防毒任务）。
 
-只碰 `wakeup_` 前缀线程：进程内死亡判定仅对本进程语义成立，严禁触碰
-用户/其他通道线程。等人决策（pending HumanRequest / HUMAN_INTERRUPT 挂起）
-是合法状态，一律豁免。
+只碰 `wakeup_`（wakeup run）与 `agent_`（workflow 阶段 run）前缀线程：两者
+均为本进程 supervisor/workflow 引擎派生的值守 run，进程内死亡判定对本进程
+语义成立；严禁触碰用户/其他通道线程。等人决策（pending HumanRequest /
+HUMAN_INTERRUPT 挂起）是合法状态，一律豁免。
 """
 
 from __future__ import annotations
@@ -24,6 +25,13 @@ from app.domain.tasks.constants import (
     RUN_TERMINAL_STATUSES,
     STALE_RUNNING_MINUTES,
 )
+from app.domain.tasks.service import (
+    TaskQueueService,
+    task_number,
+    task_review_pending,
+    task_title,
+)
+from app.infrastructure.database.sql.database import session_scope
 
 logger = logging.getLogger(__name__)
 
@@ -42,15 +50,23 @@ async def _supervisor_end_run(thread_id: str, status: ActivityStatus, **kwargs):
 
 
 async def _pending_hitl_threads() -> set[str]:
-    """有 pending HumanRequest 的值守线程集合（等人决策，豁免判死/回队）。"""
-    from app.infrastructure.database.sql.database import session_scope
+    """有 pending HumanRequest 的值守线程集合（等人决策，豁免判死/回队）。
+
+    wakeup_（wakeup run）与 agent_（workflow 阶段 run）同为本进程派生的
+    值守线程——两者的 HITL 挂起都应豁免判死。
+    """
+    from sqlalchemy import or_
+
     from app.models import HumanRequest
 
     async with session_scope() as session:
         rows = await session.execute(
             select(HumanRequest.thread_id).where(
                 HumanRequest.status == "pending",
-                HumanRequest.thread_id.like("wakeup_%"),
+                or_(
+                    HumanRequest.thread_id.like("wakeup_%"),
+                    HumanRequest.thread_id.like("agent_%"),
+                ),
             )
         )
         return {r[0] for r in rows}
@@ -71,8 +87,9 @@ async def _expire_stale_hitl_requests(max_age_hours: int = 24) -> int:
     """
     from datetime import datetime, timedelta, timezone
 
-    from app.models import HumanRequest
     from sqlalchemy import select, update
+
+    from app.models import HumanRequest
 
     cutoff = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
     async with session_scope() as session:
@@ -108,7 +125,6 @@ async def _expire_stale_hitl_requests(max_age_hours: int = 24) -> int:
 
 async def reconcile_stranded(*, startup: bool = False) -> int:
     """收敛死亡现场，返回处置的任务数。"""
-    from app.domain.tasks.service import TaskQueueService
     from app.infrastructure.database.sql.database import session_scope
     from app.models import AgentActivity, ProjectTask
 
@@ -118,6 +134,17 @@ async def reconcile_stranded(*, startup: bool = False) -> int:
         if startup
         else timedelta(minutes=STALE_RUNNING_MINUTES)
     )
+    # -1) 审批时效兜底：pending HumanRequest 超 24h 自动取消（默认拒绝），
+    #     让挂起任务在本轮就走判死/回队——先过期再算豁免集合，同一轮收敛。
+    try:
+        expired = await _expire_stale_hitl_requests()
+        if expired:
+            logger.info(
+                "[DutyReconciler] 过期 HITL 请求自动取消 %s 条（>24h 无人应答）",
+                expired,
+            )
+    except Exception:
+        logger.exception("[DutyReconciler] HITL 过期清理失败（下一轮重试）")
     hitl_threads = await _pending_hitl_threads()
     handled = 0
 
@@ -143,7 +170,7 @@ async def reconcile_stranded(*, startup: bool = False) -> int:
     signoff_rows = [
         t
         for t in review_rows
-        if not (t.task_data or {}).get("review_pending")
+        if not task_review_pending(t)
         and t.updated_at
         and (now - t.updated_at) > timedelta(hours=24)
     ]
@@ -152,9 +179,9 @@ async def reconcile_stranded(*, startup: bool = False) -> int:
         if td.get("signoff_reminded"):
             continue
         td["signoff_reminded"] = True
-        from app.infrastructure.database.sql.database import session_scope as _ss
         from sqlalchemy import update as _u
 
+        from app.infrastructure.database.sql.database import session_scope as _ss
         from app.models.project import ProjectTask as _PT
 
         async with _ss() as session:
@@ -167,12 +194,12 @@ async def reconcile_stranded(*, startup: bool = False) -> int:
             from app.core.config import settings as _settings
 
             if _settings.MOBILE_SYNC_ENABLED:
-                no = td.get("task_no")
+                no = task_number(t)
                 label = f"#T-{no}" if no else t.id[:8]
                 await MobileChannel().send_hitl_request(
                     request_id=f"signoff-remind-{t.id}",
                     request_type="confirmation",
-                    prompt=f"提醒：任务 {label}「{td.get('title', '')[:36]}」已等你拍板超过 24 小时，链路下游全部停摆",
+                    prompt=f"提醒：任务 {label}「{(task_title(t) or '')[:36]}」已等你拍板超过 24 小时，链路下游全部停摆",
                     ctx=ChannelContext(thread_id=t.origin_thread_id or t.id, project_id=t.project_id),
                     metadata={"kind": "signoff_reminder", "task_id": t.id},
                 )
@@ -180,7 +207,7 @@ async def reconcile_stranded(*, startup: bool = False) -> int:
             logger.exception("[DutyReconciler] signoff remind push failed")
 
     for t in review_rows:
-        if not (t.task_data or {}).get("review_pending"):
+        if not task_review_pending(t):
             continue
         stale = t.updated_at and (now - t.updated_at) > review_timeout
         if not stale:
@@ -201,12 +228,16 @@ async def reconcile_stranded(*, startup: bool = False) -> int:
             )
 
 
-    # 1) 悬挂 running/stopping 判死
+    # 1) 悬挂 running/stopping 判死（wakeup_ 与 agent_ 同权：workflow 阶段
+    #    run 同为本进程派生，进程死亡后其 activity 永久悬挂、任务永久
+    #    in_progress——审计 F-05 实锤缺口）
     #    stopping = 协作取消已请求、等待 run_scope 收尾出终态；若进程死亡
     #    （重启/崩溃）收尾永远不会发生 → 僵尸 stopping 既不匹配 running 判死
     #    也不匹配终态回队，任务永久悬挂（2026-09-21 实测：值守急停后重启，
     #    4 个 stopping 僵尸卡死 4 条 in_progress 任务）。陈旧 stopping 与
     #    陈旧 running 同权判死。
+    from sqlalchemy import or_
+
     async with session_scope() as session:
         rows = (
             (
@@ -218,7 +249,10 @@ async def reconcile_stranded(*, startup: bool = False) -> int:
                                 ActivityStatus.STOPPING.value,
                             ]
                         ),
-                        AgentActivity.thread_id.like("wakeup_%"),
+                        or_(
+                            AgentActivity.thread_id.like("wakeup_%"),
+                            AgentActivity.thread_id.like("agent_%"),
+                        ),
                     )
                 )
             )
@@ -262,7 +296,11 @@ async def reconcile_stranded(*, startup: bool = False) -> int:
             .scalars()
             .all()
         )
-    duty_tasks = [t for t in tasks if str(t.last_thread_id).startswith("wakeup_")]
+    duty_tasks = [
+        t
+        for t in tasks
+        if str(t.last_thread_id).startswith(("wakeup_", "agent_"))
+    ]
     if not duty_tasks:
         return handled
 

@@ -9,8 +9,10 @@
 
 import React from "react"
 import type { DutyTask } from "../core/types"
+import { stripMarkdownTokens } from "../core/mdText"
 import { ArrowDownLeft } from "lucide-react"
 import { DutyNodePageContent } from "./DutyNodePageContent"
+import { PlanProgressInline } from "../detail/PlanPanel"
 
 export const EXPANDED_CARD_WIDTH = 1040
 export const EXPANDED_CARD_HEIGHT = 660
@@ -205,24 +207,31 @@ export const DutyNodeCard = ({
       {isExpanded ? (
         /* ──────────────────────────────────────────────────────────
            分支 A：展开态 (Card IS Page) · 现场双栏全景工作页面
+           若当前为全屏状态，画布底层仅保留占位符，由全屏浮层专属挂载
            ────────────────────────────────────────────────────────── */
-        <DutyNodePageContent
-          task={task}
-          allTasks={allTasks}
-          stepIndex={stepIndex}
-          onClose={onUnfocus}
-          isFullscreen={isFullscreen}
-          onToggleFullscreen={onToggleFullscreen}
-          onPickOption={onPickOption}
-          onApprove={onApprove}
-          onReject={onReject}
-          onArbitrate={onArbitrate}
-          onConfirmHitl={onConfirmHitl}
-          onCancelHitl={onCancelHitl}
-          onSubmitTextHitl={onSubmitTextHitl}
-          onSubmitChoiceHitl={onSubmitChoiceHitl}
-          onSubmitMultiChoiceHitl={onSubmitMultiChoiceHitl}
-        />
+        isFullscreen ? (
+          <div className="flex items-center justify-center h-full text-xs text-muted-foreground/60 select-none bg-background/50 backdrop-blur-xs rounded-xl border border-dashed border-border/40">
+            <span>已在全屏工作台视图呈现</span>
+          </div>
+        ) : (
+          <DutyNodePageContent
+            task={task}
+            allTasks={allTasks}
+            stepIndex={stepIndex}
+            onClose={onUnfocus}
+            isFullscreen={false}
+            onToggleFullscreen={onToggleFullscreen}
+            onPickOption={onPickOption}
+            onApprove={onApprove}
+            onReject={onReject}
+            onArbitrate={onArbitrate}
+            onConfirmHitl={onConfirmHitl}
+            onCancelHitl={onCancelHitl}
+            onSubmitTextHitl={onSubmitTextHitl}
+            onSubmitChoiceHitl={onSubmitChoiceHitl}
+            onSubmitMultiChoiceHitl={onSubmitMultiChoiceHitl}
+          />
+        )
       ) : (
         /* ──────────────────────────────────────────────────────────
            分支 B：常态卡片 (Unfocused) · 脑图标准紧凑卡片 (420px × 280px)
@@ -244,7 +253,11 @@ export const DutyNodeCard = ({
                 ? "🤖 提案"
                 : task.source === "cron"
                 ? "⏰ 巡检"
-                : "⛓ 派生"}
+                : task.source === "event"
+                ? "🔗 事件"
+                : task.source === "chain"
+                ? "⛓ 派生"
+                : "👤 手动"}
             </span>
 
             <span className={`dc-badge-risk risk-${(task.riskLevel || "T3").toLowerCase()}`}>
@@ -273,8 +286,20 @@ export const DutyNodeCard = ({
             {task.title}
           </div>
 
-          {/* ── 流入数据（Inputs Payload）明晰呈现 ── */}
-          {upstreamPayloads.length > 0 ? (
+          {/* ── 计划推进进度条 (核心要素：计划；仅活任务拉取，防 N+1) ── */}
+          {task.rawQueueTask && (
+            <div className="px-3 py-0.5">
+              <PlanProgressInline
+                task={task.rawQueueTask as any}
+                enabled={["in_progress", "confirm", "suspended"].includes(
+                  task.status,
+                )}
+              />
+            </div>
+          )}
+
+          {/* ── 流入数据（Inputs Payload）：仅在有真实上游依赖时精美展示，杜绝冗余空占位 ── */}
+          {upstreamPayloads.length > 0 && (
             <div
               className="dc-card-inflow"
               title={`上游流入数据：${upstreamPayloads
@@ -287,13 +312,6 @@ export const DutyNodeCard = ({
               <span className="dc-inflow-val">
                 {upstreamPayloads.map((p) => `#T-${p.taskNo} ${p.title}`).join(" · ")}
               </span>
-            </div>
-          ) : (
-            <div className="dc-card-inflow" style={{ opacity: 0.65 }}>
-              <span className="dc-inflow-label" style={{ color: "var(--text-muted)" }}>
-                💬 源头起点:
-              </span>
-              <span className="dc-inflow-val">{task.provenance.sourceRef}</span>
             </div>
           )}
 
@@ -360,7 +378,7 @@ export const DutyNodeCard = ({
 
               {!task.humanRequest && !task.signoff && !task.artifact?.matrixData && !task.artifact?.images && (
                 <div className="dc-preview-text">
-                  {task.artifact?.summary || task.description || "任务已由调度引擎接入脑图拓扑"}
+                  {stripMarkdownTokens(task.artifact?.summary || task.description) || "任务已由调度引擎接入脑图拓扑"}
                 </div>
               )}
             </div>
@@ -384,6 +402,8 @@ export const DutyNodeCard = ({
                 ? "🔒 断链锁定"
                 : task.status === "failed"
                 ? "⛔ 异常"
+                : task.status === "cancelled"
+                ? "⊘ 已取消"
                 : "○ 待调度"}
             </span>
           </div>

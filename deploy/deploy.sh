@@ -283,9 +283,11 @@ deploy_backend() {
   success "Python 依赖安装完成"
 
   # 数据库迁移
-  if [ -f "$BK_DIR/bin/migrate.py" ] || [ -f "$BK_DIR/alembic.ini" ]; then
+  if [ -f "$BK_DIR/alembic.ini" ]; then
     info "执行数据库迁移..."
-    run_remote "cd $BK_DIR && uv run bin/migrate.py 2>/dev/null || echo '迁移完成或无需迁移'"
+    # 真实迁移脚本为 bin/migrate（无 .py 后缀）；迁移失败必须中止部署
+    # （此前 bin/migrate.py 不存在 + || echo 把失败吞成"迁移完成"——审计 P0-03）
+    run_remote "cd $BK_DIR && uv run bin/migrate"
   fi
 
   # 配置宝塔 Python 项目管理

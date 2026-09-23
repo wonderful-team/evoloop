@@ -7,21 +7,32 @@ performed via this API (TaskQueueService enforces the status machine).
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import select
 
 from app.api.deps import CurrentUser
+from app.api.schemas.tasks_queue import TaskCreateRequest, TaskEditRequest
 from app.core.config import settings
-from app.domain.tasks.service import TaskQueueError, TaskQueueService
+from app.domain.tasks.service import (
+    TaskQueueError,
+    TaskQueueService,
+    task_category,
+    task_dependencies,
+    task_last_error,
+    task_priority,
+    task_review_pending,
+    task_title,
+    task_version,
+    task_workflow_id,
+    task_workflow_retry_count,
+)
 from app.domain.tasks.workflows import WorkflowError, WorkflowService
 from app.infrastructure.database.sql.database import session_scope
 from app.models import User
-from app.models.conversation import Message
 from app.models.codebase import Repository
-from app.models.conversation import AgentActivity
+from app.models.conversation import AgentActivity, Message
 from app.models.project import ProjectTask
 from app.models.task_workflow import TaskArtifact, TaskWorkflow
 
@@ -56,48 +67,50 @@ async def _ensure_project_access(project_id: int, user: User) -> None:
 
 async def _refresh_task_workflow(task: ProjectTask) -> None:
     """Recompute workflow status after a user-side task transition."""
-    workflow_id = (task.task_data or {}).get("workflow_id")
+    workflow_id = task_workflow_id(task)
     if workflow_id:
         await WorkflowService.refresh_status(str(workflow_id))
 
 
 @router.post("/queue")
-async def create_task(body: dict[str, Any], current_user: CurrentUser) -> dict[str, Any]:
+async def create_task(
+    body: TaskCreateRequest, current_user: CurrentUser
+) -> dict[str, Any]:
     """User creates a task (board form: title/description/type/priority...)."""
-    title = str(body.get("title") or "").strip()
-    if not title:
+    if not body.title.strip():
         raise HTTPException(status_code=422, detail="title is required")
-    project_id = int(body.get("project_id") or 0)
+    project_id = body.project_id
     await _ensure_project_access(project_id, current_user)
     try:
-        due_at = (
-            datetime.fromisoformat(str(body["due_at"]))
-            if body.get("due_at") is not None
-            else None
+        task = await TaskQueueService.create_task(
+            project_id=project_id,
+            title=body.title,
+            description=body.description or "",
+            type=body.type.value,
+            source="user",
+            category=body.category,
+            priority=body.priority.value,
+            risk_level=body.risk_level.value if body.risk_level else None,
+            due_at=body.due_at,
+            trigger_spec=body.trigger_spec,
+            member_id=_member_id(current_user),
+            parent_id=body.parent_id,
+            dependencies=body.dependencies,
         )
-    except ValueError as e:
-        raise HTTPException(status_code=422, detail="invalid due_at") from e
-    task = await TaskQueueService.create_task(
-        project_id=project_id,
-        title=title,
-        description=str(body.get("description") or ""),
-        type=str(body.get("type") or "once"),
-        source="user",
-        category=body.get("category"),
-        priority=str(body.get("priority") or "medium"),
-        risk_level=body.get("risk_level"),
-        due_at=due_at,
-        trigger_spec=body.get("trigger_spec"),
-        member_id=_member_id(current_user),
-        parent_id=body.get("parent_id"),
-        dependencies=body.get("dependencies") if isinstance(body.get("dependencies"), list) else None,
-    )
+    except TaskQueueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
     return {"success": True, "id": task.id, "parent_id": task.parent_id, "status": task.status}
 
 
 @router.get("/queue/{task_id}/artifacts")
-async def list_task_artifacts(task_id: str) -> dict[str, Any]:
+async def list_task_artifacts(
+    task_id: str, current_user: CurrentUser
+) -> dict[str, Any]:
     """Structured artifacts produced by this task (task_artifacts table)."""
+    task = await TaskQueueService.get_task(task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="task not found")
+    await _ensure_task_access(task, current_user)
     async with session_scope() as session:
         rows = (
             (
@@ -128,7 +141,7 @@ async def list_task_artifacts(task_id: str) -> dict[str, Any]:
 
 
 @router.post("/queue/{task_id}/rerun")
-async def rerun_failed_task(task_id: str) -> dict[str, Any]:
+async def rerun_failed_task(task_id: str, current_user: CurrentUser) -> dict[str, Any]:
     """Re-queue a failed task: failed → pending, clear retry bookkeeping.
 
     Unblocks a dependent workflow chain (children stay pending until this
@@ -137,59 +150,55 @@ async def rerun_failed_task(task_id: str) -> dict[str, Any]:
     task = await TaskQueueService.get_task(task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="task not found")
+    await _ensure_task_access(task, current_user)
     if task.status != "failed":
         raise HTTPException(
             status_code=409, detail=f"task is {task.status}, not failed"
         )
-    td = task.task_data or {}
-    td.pop("last_error", None)
-    td.pop("last_result", None)
     from sqlalchemy import update as sa_update
 
     async with session_scope() as session:
-        await session.execute(
+        result_update = await session.execute(
             sa_update(ProjectTask)
-            .where(ProjectTask.id == task_id)
-            .values(task_data=td)
+            .where(
+                ProjectTask.id == task_id,
+                ProjectTask.status == "failed",
+                ProjectTask.version == task_version(task),
+            )
+            .values(last_error=None, last_result=None, version=task_version(task) + 1)
         )
+        if result_update.rowcount == 0:
+            raise HTTPException(status_code=409, detail="task version conflict")
     updated = await TaskQueueService.advance_task(task_id, "pending")
     return {"success": True, "id": updated.id, "status": updated.status}
 
 
 @router.put("/queue/{task_id}")
-async def edit_task(task_id: str, body: dict[str, Any], current_user: CurrentUser) -> dict[str, Any]:
+async def edit_task(
+    task_id: str, body: TaskEditRequest, current_user: CurrentUser
+) -> dict[str, Any]:
     """User edits task fields (title/description/priority/risk/type/trigger)."""
     task = await TaskQueueService.get_task(task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="task not found")
     await _ensure_task_access(task, current_user)
     try:
-        due_at = (
-            datetime.fromisoformat(str(body["due_at"]))
-            if body.get("due_at") is not None
-            else None
-        )
         fresh = await TaskQueueService.edit_task(
             task_id,
-            title=str(body["title"]) if body.get("title") is not None else None,
-            description=(
-                str(body["description"]) if body.get("description") is not None else None
-            ),
-            priority=str(body["priority"]) if body.get("priority") is not None else None,
-            risk_level=body.get("risk_level"),
-            task_type=str(body["type"]) if body.get("type") is not None else None,
-            due_at=due_at,
-            clear_due_at=bool(body.get("clear_due_at")),
-            trigger_spec=(
-                str(body["trigger_spec"]) if body.get("trigger_spec") is not None else None
-            ),
-            clear_trigger_spec=bool(body.get("clear_trigger_spec")),
-            cancel=body.get("status") == "cancelled",
+            title=body.title,
+            description=body.description,
+            priority=body.priority.value if body.priority else None,
+            risk_level=body.risk_level.value if body.risk_level else None,
+            task_type=body.type.value if body.type else None,
+            due_at=body.due_at,
+            clear_due_at=body.clear_due_at,
+            trigger_spec=body.trigger_spec,
+            clear_trigger_spec=body.clear_trigger_spec,
+            dependencies=body.dependencies,
+            cancel=body.cancel or body.status == "cancelled",
         )
     except TaskQueueError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
-    except ValueError as e:
-        raise HTTPException(status_code=422, detail="invalid due_at") from e
     return {"success": True, "id": fresh.id, "status": fresh.status}
 
 
@@ -249,7 +258,10 @@ async def queue_dashboard(current_user: CurrentUser, project_id: int | None = No
     """Aggregated KPIs for the autonomous duty dashboard (counts + tokens + state)."""
     if project_id is not None:
         await _ensure_project_access(project_id, current_user)
-    return (await TaskQueueService.dashboard(project_id)).model_dump()
+    member_id = (
+        _member_id(current_user) if settings.MULTI_TENANT_MODE and project_id is None else None
+    )
+    return (await TaskQueueService.dashboard(project_id, member_id=member_id)).model_dump()
 
 
 @router.get("/queue/hitl-pending")
@@ -258,6 +270,8 @@ async def hitl_pending_tasks(current_user: CurrentUser) -> dict[str, Any]:
 
     Surfaces approvals the operator must make while away — the workbench
     aggregates them here; the chat page owns the interactive approval card.
+    Multi-tenant: fail-closed — only requests whose task resolves to the
+    caller are returned (unattributable requests are dropped, not exposed).
     """
     from app.models.conversation import HumanRequest
 
@@ -292,10 +306,11 @@ async def hitl_pending_tasks(current_user: CurrentUser) -> dict[str, Any]:
             .all()
         )
         for t in review_pending:
-            if (t.task_data or {}).get("review_pending"):
+            if task_review_pending(t):
                 origin_map[str(t.origin_thread_id)] = t
 
         items = []
+        member_scope = _member_id(current_user) if settings.MULTI_TENANT_MODE else None
         for r in rows:
             is_origin_thread = str(r.thread_id) in origin_map
             if not str(r.thread_id).startswith(prefixes) and not is_origin_thread:
@@ -315,6 +330,12 @@ async def hitl_pending_tasks(current_user: CurrentUser) -> dict[str, Any]:
                     .scalars()
                     .first()
                 )
+            if member_scope is not None:
+                if task is None:
+                    continue  # fail-closed：无法归属的请求不暴露
+                owner = task.member_id or await TaskQueueService.resolve_member_id(task)
+                if owner != member_scope:
+                    continue
             items.append(
                 {
                     "request_id": r.id,
@@ -325,7 +346,7 @@ async def hitl_pending_tasks(current_user: CurrentUser) -> dict[str, Any]:
                     "options": r.options or [],
                     "created_at": r.created_at.isoformat() if r.created_at else None,
                     "task_id": task.id if task else None,
-                    "task_title": (task.task_data or {}).get("title") if task else None,
+                     "task_title": task_title(task) if task else None,
                     "task_no": task.task_no if task else None,
                 }
             )
@@ -339,27 +360,73 @@ async def list_queue(
     project_id: int | None = None,
     root_only: bool = False,
     limit: int = 50,
+    offset: int = 0,
 ) -> dict[str, Any]:
-    """Queue listing for the task board (stage 4 UI reads the same data)."""
-    rows = await TaskQueueService.list_tasks(
-        status=status, project_id=project_id, root_only=root_only, limit=limit
+    """Queue listing for the task board (stage 4 UI reads the same data).
+
+    分页：``limit``（≤200）+ ``offset``；多取 1 行探测 ``has_more``——
+    此前超 50 条静默消失（审计 9.4）。
+    """
+    if project_id is not None:
+        await _ensure_project_access(project_id, current_user)
+    member_id = (
+        _member_id(current_user)
+        if settings.MULTI_TENANT_MODE and project_id is None
+        else None
     )
-    if settings.MULTI_TENANT_MODE:
-        rows = [
-            task
-            for task in rows
-            if task.member_id == _member_id(current_user)
-            or await TaskQueueService.resolve_member_id(task)
-            == _member_id(current_user)
-        ]
+    limit = max(1, min(limit, 200))
+    offset = max(0, offset)
+    rows = await TaskQueueService.list_tasks(
+        status=status,
+        project_id=project_id,
+        root_only=root_only,
+        limit=limit + 1,
+        offset=offset,
+        member_id=member_id,
+        order="recent",
+    )
+    has_more = len(rows) > limit
+    rows = rows[:limit]
     task_ids = [task.id for task in rows]
     thread_ids = [task.last_thread_id for task in rows if task.last_thread_id]
     artifacts_by_task: dict[str, list[TaskArtifact]] = {}
     metrics_by_thread: dict[str, AgentActivity] = {}
     elapsed_by_thread: dict[str, int] = {}
     subtasks_counts: dict[str, dict[str, int]] = {}
+    runs_by_task: dict[str, list[dict[str, Any]]] = {}
     if task_ids:
         subtasks_counts = await TaskQueueService.get_subtasks_counts(task_ids)
+        # attempt 历史（task_runs 过程记录层）：每任务最近 5 次尝试
+        from app.models.task_run import TaskRun
+
+        async with session_scope() as session:
+            run_rows = (
+                await session.execute(
+                    select(TaskRun)
+                    .where(TaskRun.task_id.in_(task_ids))
+                    .order_by(TaskRun.attempt.desc())
+                )
+            ).scalars().all()
+        for run in run_rows:
+            runs_by_task.setdefault(run.task_id, []).append(
+                {
+                    "id": run.id,
+                    "thread_id": run.thread_id,
+                    "attempt": run.attempt,
+                    "status": run.status,
+                    "started_at": run.started_at.isoformat()
+                    if run.started_at
+                    else None,
+                    "finished_at": run.finished_at.isoformat()
+                    if run.finished_at
+                    else None,
+                    "error_code": run.error_code,
+                    "error_message": run.error_message,
+                    "result_summary": run.result_summary,
+                }
+            )
+        for task_id in runs_by_task:
+            runs_by_task[task_id] = runs_by_task[task_id][:5]
         async with session_scope() as session:
             result = await session.execute(
                 select(TaskArtifact)
@@ -395,10 +462,11 @@ async def list_queue(
                     elapsed_by_thread[str(tid)] = max(
                         0, int((mx - mn).total_seconds())
                     )
-    rows.sort(key=lambda task: task.updated_at or task.created_at, reverse=True)
     return {
         "success": True,
         "count": len(rows),
+        "has_more": has_more,
+        "next_offset": offset + len(rows) if has_more else None,
         "items": [
             {
                 "project_id": t.project_id,
@@ -406,23 +474,23 @@ async def list_queue(
                 "subtasks_count": subtasks_counts.get(t.id, {}).get("total", 0),
                 "subtasks_completed": subtasks_counts.get(t.id, {}).get("completed", 0),
                 "elapsed_sec": elapsed_by_thread.get(t.last_thread_id),
-                "workflow_id": (t.task_data or {}).get("workflow_id"),
-                "dependencies": (t.task_data or {}).get("dependencies") or [],
+                 "workflow_id": task_workflow_id(t),
+                 "dependencies": task_dependencies(t),
                 "id": t.id,
                 "task_no": t.task_no,
-                "title": (t.task_data or {}).get("title"),
+                 "title": task_title(t),
                 "description": t.description,
                 "type": t.type,
                 "status": t.status,
-                "category": (t.task_data or {}).get("category"),
-                "priority": (t.task_data or {}).get("priority"),
+                 "category": task_category(t),
+                 "priority": task_priority(t),
                 "risk_level": t.risk_level,
                 "source": t.source,
                 "provenance": t.source_ref,
                 "self_check": t.self_check,
                 "acceptance": t.acceptance,
                 "review_count": t.review_count,
-                "review_pending": bool((t.task_data or {}).get("review_pending")),
+                 "review_pending": task_review_pending(t),
                 "escalated": bool((t.acceptance or {}).get("escalated")),
                 "origin_thread_id": t.origin_thread_id,
                 "due_at": t.due_at.isoformat() if t.due_at else None,
@@ -430,10 +498,10 @@ async def list_queue(
                     t.next_run_at.isoformat() if t.next_run_at else None
                 ),
                 "last_thread_id": t.last_thread_id,
+                "runs": runs_by_task.get(t.id, []),
                 "created_at": t.created_at.isoformat() if t.created_at else None,
                 "updated_at": t.updated_at.isoformat() if t.updated_at else None,
-                "workflow_id": (t.task_data or {}).get("workflow_id"),
-                "workflow_stage": (t.task_data or {}).get("workflow_stage"),
+                 "workflow_stage": (t.task_data or {}).get("workflow_stage"),
                 "run": (
                     {
                         "thread_id": activity.thread_id,
@@ -539,10 +607,10 @@ def _workflow_payload(workflow: TaskWorkflow, tasks: list[ProjectTask]) -> dict[
                 "runtime": (task.task_data or {}).get("workflow_runtime"),
                 "status": task.status,
                 "risk_level": task.risk_level,
-                "dependencies": (task.task_data or {}).get("dependencies") or [],
+                "dependencies": task_dependencies(task),
                 "allowed_packages": (task.task_data or {}).get("allowed_packages") or [],
-                "last_error": (task.task_data or {}).get("last_error"),
-                "retry_count": (task.task_data or {}).get("workflow_retry_count", 0),
+                "last_error": task_last_error(task),
+                "retry_count": task_workflow_retry_count(task),
             }
             for task in tasks
         ],

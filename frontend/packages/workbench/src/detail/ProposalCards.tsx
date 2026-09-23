@@ -21,7 +21,9 @@ export function ProposalCard({
 
   async function handleReject(feedback?: string) {
     if (!feedback?.trim()) return
-    await TasksQueueApi.reject(task.id, feedback.trim())
+    // 提案驳回 = 不采纳（cancel 语义）；acceptance reject 只接受
+    // waiting_acceptance，对 proposed 会 409
+    await TasksQueueApi.rejectProposed(task.id, feedback.trim())
     await onChanged()
   }
 
@@ -62,7 +64,7 @@ export function InlineProposal({
 
   async function handleReject(feedback?: string) {
     if (!feedback?.trim()) return
-    await TasksQueueApi.reject(proposal.id, feedback.trim())
+    await TasksQueueApi.rejectProposed(proposal.id, feedback.trim())
     await qc.invalidateQueries({ queryKey: ["dutyQueue"] })
     await qc.invalidateQueries({ queryKey: ["dutyDashboard"] })
     await onChanged()

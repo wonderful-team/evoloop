@@ -1,6 +1,15 @@
 from datetime import datetime
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.infrastructure.database.sql.database import Base
@@ -21,6 +30,16 @@ class ProjectTask(Base):
     """
 
     __tablename__ = "project_tasks"
+    # 并发收敛（审计 F-09）：项目内短编号唯一。max+1 竞态在 DB 层炸
+    # IntegrityError → create_task 捕获重试，不再静默产生重复编号
+    __table_args__ = (
+        Index(
+            "uq_project_tasks_project_task_no",
+            "project_id",
+            "task_no",
+            unique=True,
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
 
@@ -74,6 +93,21 @@ class ProjectTask(Base):
     origin_thread_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     # Times the reviewer rejected the result (cap 2 → failed, human arbitration)
     review_count: Mapped[int] = mapped_column(Integer, default=0)
+
+    # ---- Queue contract fields (first-class; task_data is legacy read-only) ----
+    title: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    priority: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    category: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
+    tags: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    dependencies: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    acceptance_criteria: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    workflow_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    dispatch_count: Mapped[int] = mapped_column(Integer, default=0)
+    last_result: Mapped[str | None] = mapped_column(Text, nullable=True)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    review_pending: Mapped[bool] = mapped_column(Boolean, default=False)
+    workflow_retry_count: Mapped[int] = mapped_column(Integer, default=0)
+    version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
 
 
     # Task data (JSON)

@@ -69,6 +69,38 @@ export type AnnotationResponse = {
     [key: string]: unknown | boolean | string | number;
 };
 
+export type app__api__schemas__tasks__TaskCreateRequest = {
+    project_id: number;
+    thread_id?: (string | null);
+    task_title: string;
+    task_desc?: (string | null);
+    priority?: number;
+    match_score?: (number | null);
+    relevance_analysis?: (string | null);
+    key_modules?: (unknown | null);
+    technical_challenges?: (unknown | null);
+    implementation_complexity?: (string | null);
+    deliverables?: (unknown | null);
+};
+
+/**
+ * POST /tasks/queue — 用户建任务（看板表单 / 提案确认后的正式任务）。
+ */
+export type app__api__schemas__tasks_queue__TaskCreateRequest = {
+    title: string;
+    description?: string;
+    type?: TaskType;
+    project_id?: number;
+    category?: (string | null);
+    priority?: TaskPriority;
+    risk_level?: (TaskRiskLevel | null);
+    trigger_spec?: (string | null);
+    due_at?: (string | null);
+    parent_id?: (string | null);
+    dependencies?: (Array<(string)> | null);
+    [key: string]: unknown | string | TaskType | number | TaskPriority;
+};
+
 export type AppMapGenerateRequest = {
     project_id: number;
     entity: string;
@@ -1089,6 +1121,7 @@ export type McpServerCreate = {
     [key: string]: (string);
 } | null);
     enabled?: boolean;
+    transport?: (string | null);
     [key: string]: unknown | string | boolean;
 };
 
@@ -1261,18 +1294,6 @@ export type MoveFileRequest = {
     source_path: string;
     target_path: string;
     [key: string]: unknown | string;
-};
-
-/**
- * Response for next executable task.
- */
-export type NextTaskResponse = {
-    success?: boolean;
-    message?: string;
-    task: ({
-    [key: string]: unknown;
-} | null);
-    [key: string]: unknown | boolean | string;
 };
 
 export type OpenFileRequest = {
@@ -1670,17 +1691,6 @@ export type StopRecordingResponse = {
     [key: string]: unknown | boolean | string | number;
 };
 
-/**
- * Subtask creation request.
- */
-export type SubtaskCreate = {
-    title: string;
-    description?: string;
-    priority?: string;
-    estimated_hours?: number;
-    [key: string]: unknown | string | number;
-};
-
 export type SwitchProjectRequest = {
     project_id: number;
     project_name?: string;
@@ -1792,79 +1802,30 @@ export type TaskAcceptedResponse = {
     task_id: string;
 };
 
-export type TaskCreateRequest = {
-    project_id: number;
-    thread_id?: (string | null);
-    task_title: string;
-    task_desc?: (string | null);
-    priority?: number;
-    match_score?: (number | null);
-    relevance_analysis?: (string | null);
-    key_modules?: (unknown | null);
-    technical_challenges?: (unknown | null);
-    implementation_complexity?: (string | null);
-    deliverables?: (unknown | null);
-};
-
 /**
- * Response after creating a task with subtasks.
+ * PUT /tasks/queue/{id} — 字段编辑 + 取消（status=cancelled）。
+ *
+ * 全字段可选（PATCH 语义）：None = 不改；clear_* 显式清空。
  */
-export type TaskCreateResponse = {
-    success?: boolean;
-    message?: string;
-    task: {
-        [key: string]: unknown;
-    };
-    [key: string]: unknown | boolean | string;
-};
-
-/**
- * Response for flattened task tree.
- */
-export type TaskFlatResponse = {
-    success?: boolean;
-    message?: string;
-    count: number;
-    tasks: Array<{
-        [key: string]: unknown;
-    }>;
-    [key: string]: unknown | boolean | string | number;
-};
-
-/**
- * Item in root task list.
- */
-export type TaskListItem = {
-    id: string;
-    title: string;
-    status: string;
-    progress: number;
-    priority: string;
-    has_subtasks: boolean;
-    created_at: (string | null);
-    [key: string]: unknown | string | number | boolean;
-};
-
-/**
- * Response for listing root tasks.
- */
-export type TaskListResponse = {
-    success?: boolean;
-    message?: string;
-    count: number;
-    tasks: Array<TaskListItem>;
-    [key: string]: unknown | boolean | string | number | TaskListItem;
-};
-
-/**
- * Task progress update.
- */
-export type TaskProgressUpdate = {
+export type TaskEditRequest = {
+    title?: (string | null);
+    description?: (string | null);
+    priority?: (TaskPriority | null);
+    risk_level?: (TaskRiskLevel | null);
+    type?: (TaskType | null);
+    due_at?: (string | null);
+    clear_due_at?: boolean;
+    trigger_spec?: (string | null);
+    clear_trigger_spec?: boolean;
+    dependencies?: (Array<(string)> | null);
     status?: (string | null);
-    progress?: (number | null);
-    result?: (string | null);
-    [key: string]: unknown;
+    cancel?: boolean;
+    [key: string]: unknown | boolean;
 };
+
+export type TaskPriority = 'urgent' | 'high' | 'medium' | 'low';
+
+export type TaskRiskLevel = 'T1' | 'T2' | 'T3' | 'T4';
 
 export type TaskStatusUpdate = {
     status: number;
@@ -1872,17 +1833,7 @@ export type TaskStatusUpdate = {
     [key: string]: unknown | number;
 };
 
-/**
- * Response wrapping a task tree.
- */
-export type TaskTreeWrapperResponse = {
-    success?: boolean;
-    message?: string;
-    task: {
-        [key: string]: unknown;
-    };
-    [key: string]: unknown | boolean | string;
-};
+export type TaskType = 'once' | 'recurring';
 
 export type TaskUpdateRequest = {
     task_title?: (string | null);
@@ -1897,19 +1848,6 @@ export type TaskUpdateRequest = {
     implementation_complexity?: (string | null);
     deliverables?: (unknown | null);
     [key: string]: unknown;
-};
-
-/**
- * Create parent task with subtasks.
- */
-export type TaskWithSubtasksCreate = {
-    title: string;
-    description?: string;
-    priority?: string;
-    estimated_hours?: number;
-    subtasks?: Array<SubtaskCreate>;
-    analysis_id?: (string | null);
-    [key: string]: unknown | string | number | SubtaskCreate;
 };
 
 export type TerminalCancelRequest = {
@@ -3242,6 +3180,29 @@ export type StreamStreamChatData = {
 
 export type StreamStreamChatResponse = (unknown);
 
+export type StreamStreamWorkflowData = {
+    token?: (string | null);
+    workflowId: string;
+};
+
+export type StreamStreamWorkflowResponse = (unknown);
+
+export type StreamStreamTasksData = {
+    projectId?: (number | null);
+    token?: (string | null);
+};
+
+export type StreamStreamTasksResponse = (unknown);
+
+export type StreamStreamThreadData = {
+    guestId?: (string | null);
+    threadId: string;
+    token?: (string | null);
+    xGuestId?: (string | null);
+};
+
+export type StreamStreamThreadResponse = (unknown);
+
 export type StreamStreamSystemData = {
     guestId?: (string | null);
     token?: (string | null);
@@ -3298,52 +3259,6 @@ export type SubscriptionHandleBenefitsUpdateWebhookData = {
 
 export type SubscriptionHandleBenefitsUpdateWebhookResponse = (unknown);
 
-export type SubtasksCreateTaskWithSubtasksData = {
-    projectId: number;
-    requestBody: TaskWithSubtasksCreate;
-    token?: unknown;
-};
-
-export type SubtasksCreateTaskWithSubtasksResponse = (TaskCreateResponse);
-
-export type SubtasksGetTaskTreeData = {
-    maxDepth?: number;
-    projectId: number;
-    taskId: string;
-};
-
-export type SubtasksGetTaskTreeResponse = (TaskTreeWrapperResponse);
-
-export type SubtasksUpdateTaskProgressData = {
-    projectId: number;
-    requestBody: TaskProgressUpdate;
-    taskId: string;
-};
-
-export type SubtasksUpdateTaskProgressResponse = (BaseAPIResponse);
-
-export type SubtasksGetNextExecutableTaskData = {
-    projectId: number;
-};
-
-export type SubtasksGetNextExecutableTaskResponse = (NextTaskResponse);
-
-export type SubtasksFlattenTaskTreeData = {
-    projectId: number;
-    taskId: string;
-};
-
-export type SubtasksFlattenTaskTreeResponse = (TaskFlatResponse);
-
-export type SubtasksListRootTasksData = {
-    limit?: number;
-    projectId: number;
-    status?: (string | null);
-    token?: unknown;
-};
-
-export type SubtasksListRootTasksResponse = (TaskListResponse);
-
 export type SymbolsSearchSymbolsData = {
     limit?: number;
     projectId: number;
@@ -3392,6 +3307,10 @@ export type SystemTestLightningConnectionResponse = (LightningTestResponse);
 export type SystemDiscoverModelsResponse = (ModelDiscoveryResponse);
 
 export type SystemHealthCheckResponse = (HealthCheckResponse);
+
+export type SystemDbDebugResponse = ({
+    [key: string]: unknown;
+});
 
 export type SystemGetCustomerServiceDutyResponse = ({
     [key: string]: unknown;
@@ -3470,7 +3389,7 @@ export type TasksGetProjectTasksResponse = (unknown);
 
 export type TasksCreateTaskData = {
     authorization?: (string | null);
-    requestBody: TaskCreateRequest;
+    requestBody: app__api__schemas__tasks__TaskCreateRequest;
 };
 
 export type TasksCreateTaskResponse = (unknown);
@@ -3512,9 +3431,7 @@ export type TasksExecuteTaskData = {
 export type TasksExecuteTaskResponse = (unknown);
 
 export type TasksQueueCreateTaskData = {
-    requestBody: {
-        [key: string]: unknown;
-    };
+    requestBody: app__api__schemas__tasks_queue__TaskCreateRequest;
 };
 
 export type TasksQueueCreateTaskResponse = ({
@@ -3522,7 +3439,10 @@ export type TasksQueueCreateTaskResponse = ({
 });
 
 export type TasksQueueListQueueData = {
+    limit?: number;
+    offset?: number;
     projectId?: (number | null);
+    rootOnly?: boolean;
     status?: (string | null);
 };
 
@@ -3530,10 +3450,24 @@ export type TasksQueueListQueueResponse = ({
     [key: string]: unknown;
 });
 
+export type TasksQueueListTaskArtifactsData = {
+    taskId: string;
+};
+
+export type TasksQueueListTaskArtifactsResponse = ({
+    [key: string]: unknown;
+});
+
+export type TasksQueueRerunFailedTaskData = {
+    taskId: string;
+};
+
+export type TasksQueueRerunFailedTaskResponse = ({
+    [key: string]: unknown;
+});
+
 export type TasksQueueEditTaskData = {
-    requestBody: {
-        [key: string]: unknown;
-    };
+    requestBody: TaskEditRequest;
     taskId: string;
 };
 
@@ -3573,6 +3507,44 @@ export type TasksQueueQueueDashboardData = {
 };
 
 export type TasksQueueQueueDashboardResponse = ({
+    [key: string]: unknown;
+});
+
+export type TasksQueueHitlPendingTasksResponse = ({
+    [key: string]: unknown;
+});
+
+export type TasksQueueCreateGrowthWorkflowData = {
+    requestBody: {
+        [key: string]: unknown;
+    };
+};
+
+export type TasksQueueCreateGrowthWorkflowResponse = ({
+    [key: string]: unknown;
+});
+
+export type TasksQueueListWorkflowsData = {
+    projectId: number;
+};
+
+export type TasksQueueListWorkflowsResponse = ({
+    [key: string]: unknown;
+});
+
+export type TasksQueueGetWorkflowData = {
+    workflowId: string;
+};
+
+export type TasksQueueGetWorkflowResponse = ({
+    [key: string]: unknown;
+});
+
+export type TasksQueueListWorkflowArtifactsData = {
+    workflowId: string;
+};
+
+export type TasksQueueListWorkflowArtifactsResponse = ({
     [key: string]: unknown;
 });
 

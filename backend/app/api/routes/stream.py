@@ -389,6 +389,13 @@ async def stream_tasks(
     user = await _workflow_stream_user(current_user, token)
     if project_id is not None and project_id > 0:
         await _ensure_workflow_access(project_id, user)
+    elif settings.MULTI_TENANT_MODE:
+        # 多租户 fail-closed：无项目归属的全局任务事件流会跨成员泄露
+        # （标题/状态/结果摘要），要求显式 project_id（已过 404 校验）
+        raise HTTPException(
+            status_code=400,
+            detail="project_id is required for the task stream in multi-tenant mode",
+        )
 
     channel = (
         f"tasks:{project_id}:events"

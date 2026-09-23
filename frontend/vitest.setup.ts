@@ -105,6 +105,8 @@ vi.mock("react-i18next", () => ({
   }),
   Trans: ({ children }: { children: React.ReactNode }) => children,
   I18nextProvider: ({ children }: { children: React.ReactNode }) => children,
+  initReactI18next: { type: "3rdParty", init: vi.fn() },
+  withTranslation: () => (Component: React.ComponentType) => Component,
 }))
 
 // Clean up after each test

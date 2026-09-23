@@ -54,3 +54,5 @@ export * from "./components/trace/types"
 export { ToolCallItem } from "./components/trace/ToolCallItem"
 export { ThinkingBlock } from "./components/trace/ThinkingBlock"
 export { AgentExecutionTimeline } from "./components/trace/AgentExecutionTimeline"
+
+export { MarkdownText } from "./components/markdown/MarkdownText"

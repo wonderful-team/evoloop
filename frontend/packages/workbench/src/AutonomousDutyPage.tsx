@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { motion } from "framer-motion"
 import { useNavigate } from "@tanstack/react-router"
 import { useChatStore } from "@/stores/chatStore"
-import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
+  AlertTriangle,
   Inbox,
   Plus,
 } from "lucide-react"
@@ -13,7 +14,7 @@ import AutonomousDutyCanvasApp from "./canvas/AutonomousDutyCanvasApp"
 import { adaptQueueTasksToDutyTasks } from "./core/taskAdapter"
 
 import { OpenAPI } from "@/client/core/OpenAPI"
-import { AgentService, SystemService } from "@/client"
+import { AgentService } from "@/client"
 
 import { Button } from "@evoloop/shared/components/ui/button"
 import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
@@ -36,7 +37,8 @@ import {
   type DashboardKpis,
 } from "@/lib/tasksQueueApi"
 import { DEMO } from "./core/demoData"
-import { getDemoDashboard, getDemoTasks, setDemoRunning } from "./core/demoRuntime"
+import { handleTaskQueueEvent, parseTaskQueueEvent } from "./core/dutySse"
+import { getDemoDashboard, getDemoTasks } from "./core/demoRuntime"
 import { ExperimentNotice } from "./core/ExperimentNotice"
 import { PulseWave } from "./queue/AgentPulse"
 import { DutyRitualOverlay } from "./queue/DutyStartStopButton"
@@ -59,9 +61,9 @@ const TABS: {
     statuses: ["in_progress", "pending"],
     dotCls: "bg-primary",
     groups: [
-      { label: "进行中", statuses: ["in_progress"], dotCls: "bg-primary" },
+      { label: "执行中", statuses: ["in_progress"], dotCls: "bg-primary" },
       { label: "已挂起", statuses: ["__suspended__"], dotCls: "bg-amber-500" },
-      { label: "待执行", statuses: ["pending"], dotCls: "bg-amber-500" },
+      { label: "待执行", statuses: ["pending"], dotCls: "bg-slate-400 dark:bg-slate-500" },
     ],
   },
   { key: "proposed", label: "提案", statuses: ["proposed"], dotCls: "bg-violet-500" },
@@ -123,13 +125,33 @@ export function AutonomousDutyPage() {
     // onopen 对账收敛断线窗口，不设周期轮询。
   })
 
-  const queue = useQuery<{ items: QueueTask[]; count: number }>({
+  // 分页队列：每页 50 条 + "加载更多"（此前超 50 条静默消失——审计 9.4）。
+  // SSE invalidate 默认只刷首页（active tab 语义），加载更多后翻页保留。
+  const queue = useInfiniteQuery<
+    { items: QueueTask[]; count: number; has_more: boolean; next_offset: number | null },
+    Error
+  >({
     queryKey: ["dutyQueue", projectId ?? "global"],
-    queryFn: () =>
+    queryFn: ({ pageParam }) =>
       DEMO
-        ? Promise.resolve(getDemoTasks())
-        : TasksQueueApi.list(undefined, scopedProjectId),
+        ? Promise.resolve({
+            ...getDemoTasks(),
+            has_more: false,
+            next_offset: null,
+          })
+        : TasksQueueApi.list(
+            undefined,
+            scopedProjectId,
+            undefined,
+            50,
+            Number(pageParam ?? 0),
+          ),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage) => lastPage.next_offset ?? undefined,
   })
+  const queueIsError = queue.isError
+  const queueIsLoading = queue.isLoading
+  const queueRefetch = () => void queue.refetch()
 
   useEffect(() => {
     if (DEMO) return
@@ -164,42 +186,16 @@ export function AutonomousDutyPage() {
         void qc.invalidateQueries({ queryKey: ["dutyDashboard"] })
       }
       source.addEventListener("task_queue_updated", (ev) => {
-        try {
-          const payload = JSON.parse((ev as MessageEvent).data) as {
-            event?: string
-            title?: string | null
-            status?: string
-            at?: string
-            tokens?: number
-            thread_id?: string
-          }
-          if (payload.event === "task_taken") {
-            setLiveRun({
-              title: payload.title ?? "",
-              at: payload.at ?? new Date().toISOString(),
-            })
-          } else if (
-            payload.event === "task_updated" &&
-            ["completed", "failed", "cancelled"].includes(
-              payload.status ?? "",
-            )
-          ) {
-            setLiveRun(null)
-          }
-          if (
-            payload.event === "hitl_resolved" ||
-            payload.event === "hitl_created"
-          ) {
-            void qc.invalidateQueries({ queryKey: ["dutyHitl"] })
-          }
-          
-        } catch {
-          /* payload optional */
+        // 事件解析与处置逻辑抽至 core/dutySse.ts（纯函数，可回归测试）
+        const payload = parseTaskQueueEvent((ev as MessageEvent).data)
+        if (payload) {
+          handleTaskQueueEvent(payload, {
+            setLiveRun,
+            invalidate: (...keys) => {
+              for (const key of keys) void qc.invalidateQueries({ queryKey: [key] })
+            },
+          })
         }
-        void qc.invalidateQueries({ queryKey: ["dutyQueue"] })
-        void qc.invalidateQueries({ queryKey: ["dutyDashboard"] })
-        void qc.invalidateQueries({ queryKey: ["dutyPlan"] })
-        void qc.invalidateQueries({ queryKey: ["dutyExec"] })
       })
     }
 
@@ -210,7 +206,10 @@ export function AutonomousDutyPage() {
     }
   }, [DEMO, qc, scopedProjectId])
 
-  const allTasks = useMemo(() => queue.data?.items ?? [], [queue.data])
+  const allTasks = useMemo(
+    () => queue.data?.pages.flatMap((p) => p.items) ?? [],
+    [queue.data],
+  )
   const dutyTasks = useMemo(() => {
     if (!allTasks || allTasks.length === 0) return undefined
     return adaptQueueTasksToDutyTasks(allTasks, hitlPending.data?.items)
@@ -276,25 +275,6 @@ export function AutonomousDutyPage() {
   async function invalidate() {
     await qc.invalidateQueries({ queryKey: ["dutyQueue"] })
     await qc.invalidateQueries({ queryKey: ["dutyDashboard"] })
-  }
-
-  const handleToggleDuty = async () => {
-    const current = dash.data?.duty_enabled === true
-    const next = !current
-    setRitual(next ? "start" : "stop")
-    try {
-      if (DEMO) {
-        setDemoRunning(next)
-      } else {
-        await SystemService.updateCustomerServiceDuty({
-          requestBody: { enabled: next, channels: [] },
-        })
-      }
-      setTimeout(() => setRitual(null), next ? 1500 : 900)
-      await invalidate()
-    } catch (e) {
-      console.error("Failed to toggle duty:", e)
-    }
   }
 
   const storeReady = !storeLoading || projects.length > 0
@@ -418,114 +398,157 @@ export function AutonomousDutyPage() {
           </div>
           <TabsContent
             value={activeTabDef.key}
-            className="flex-1 flex flex-col min-h-0 mt-0 data-[state=inactive]:hidden"
+            className="flex-1 flex flex-col min-h-0 min-w-0 w-full mt-0 data-[state=inactive]:hidden overflow-hidden"
           >
-          <ScrollArea className="flex-1">
+          <ScrollArea className="flex-1 w-full min-w-0 [&_[data-radix-scroll-area-viewport]]:!overflow-x-hidden [&_[data-radix-scroll-area-viewport]>div]:!block [&_[data-radix-scroll-area-viewport]>div]:!w-full [&_[data-radix-scroll-area-viewport]>div]:!min-w-0 [&_[data-radix-scroll-area-viewport]>div]:!max-w-full">
           <div
             key={activeTab}
-            className="pl-1 pr-2.5 py-1.5 space-y-3 animate-in fade-in slide-in-from-bottom-1 duration-200"
+            className="px-2 py-2 space-y-4 w-full min-w-0 box-border animate-in fade-in slide-in-from-bottom-1 duration-200"
           >
               {activeTabDef.groups
-                ? activeTabDef.groups.map((g) => {
+                ? (() => {
                     const suspendedIds = new Set(
                       (hitlPending.data?.items ?? [])
                         .map((h) => h.task_id)
                         .filter(Boolean) as string[],
                     )
-                    const items = allTasks.filter((t) => {
-                      // 任务面板的“进行时”中只显示主干根任务（无 parent_id 且无前置依赖）
-                      const isRoot =
-                        !t.parent_id && (!t.dependencies || t.dependencies.length === 0)
-                      if (!isRoot) return false
+                    const renderedGroups = activeTabDef.groups
+                      .map((g) => {
+                        const items = allTasks.filter((t) => {
+                          const isRoot =
+                            !t.parent_id && (!t.dependencies || t.dependencies.length === 0)
+                          if (!isRoot) return false
 
-                      if (g.statuses[0] === "__suspended__") {
-                        // 已挂起组：进行中且有 pending 审批的任务
-                        return (
-                          t.status === "in_progress" && suspendedIds.has(t.id)
-                        )
-                      }
-                      if (g.statuses.includes("in_progress")) {
-                        // 进行中组：排除已挂起的
-                        return (
-                          t.status === "in_progress" &&
-                          !suspendedIds.has(t.id)
-                        )
-                      }
-                      return g.statuses.includes(t.status)
-                    })
-                    if (items.length === 0) return null
-                    return (
-                      <div key={g.label} className="space-y-2">
-                        <div className="flex items-center gap-1.5 px-0.5 text-[11px] font-medium text-muted-foreground">
-                          <span
-                            className={`inline-block h-1 w-1 rounded-full ${g.dotCls}`}
-                          />
-                          {g.label}
-                          <span className="font-mono text-[10px] opacity-70">
+                          if (g.statuses[0] === "__suspended__") {
+                            return t.status === "in_progress" && suspendedIds.has(t.id)
+                          }
+                          if (g.statuses.includes("in_progress")) {
+                            return t.status === "in_progress" && !suspendedIds.has(t.id)
+                          }
+                          return g.statuses.includes(t.status)
+                        })
+                        return { g, items }
+                      })
+                      .filter((x) => x.items.length > 0)
+
+                    return renderedGroups.map(({ g, items }, idx) => (
+                      <div
+                        key={g.label}
+                        className={`space-y-2.5 w-full min-w-0 ${
+                          idx > 0 ? "pt-4 mt-2 border-t border-border/40" : ""
+                        }`}
+                      >
+                        <div className="flex items-center justify-between px-1 py-0.5 text-[11px] font-medium text-muted-foreground select-none">
+                          <div className="flex items-center gap-1.5">
+                            <span
+                              className={`inline-block h-1.5 w-1.5 rounded-full ${g.dotCls}`}
+                            />
+                            <span className="font-semibold text-foreground/85 tracking-tight text-[11.5px]">
+                              {g.label}
+                            </span>
+                          </div>
+                          <span className="font-mono text-[10px] px-1.5 py-0.5 rounded-full bg-muted/70 text-muted-foreground font-medium">
                             {items.length}
                           </span>
                         </div>
-                        {items.map((t) => (
-                          <motion.div
-                            key={t.id}
-                            initial={{ opacity: 0, y: 6 }}
-                            animate={{ opacity: 1, y: 0, transitionEnd: { transform: "none" } }}
-                            transition={{ duration: 0.2 }}
-                          >
-                            <TaskRow
-                              task={t}
-                              suspended={g.statuses[0] === "__suspended__"}
-                              selected={t.id === selectedId}
-                              onSelect={() => setSelectedId(t.id)}
-                              onDoubleClick={() => {
-                                window.dispatchEvent(
-                                  new CustomEvent("canvas:advance-task-state", {
-                                    detail: { taskId: t.id },
-                                  }),
-                                )
-                              }}
-                              showProject={!scopedProjectId}
-                              projectName={
-                                projects?.find(
-                                  (pr) => pr.id === t.project_id,
-                                )?.project_name
-                              }
-                            />
-                          </motion.div>
-                        ))}
+                        <div className="space-y-2 w-full min-w-0">
+                          {items.map((t) => (
+                            <motion.div
+                              key={t.id}
+                              className="w-full min-w-0"
+                              initial={{ opacity: 0, y: 6 }}
+                              animate={{ opacity: 1, y: 0, transitionEnd: { transform: "none" } }}
+                              transition={{ duration: 0.2 }}
+                            >
+                              <TaskRow
+                                task={t}
+                                suspended={g.statuses[0] === "__suspended__"}
+                                selected={t.id === selectedId}
+                                onSelect={() => setSelectedId(t.id)}
+                                onDoubleClick={() => {
+                                  window.dispatchEvent(
+                                    new CustomEvent("canvas:advance-task-state", {
+                                      detail: { taskId: t.id },
+                                    }),
+                                  )
+                                }}
+                                showProject={!scopedProjectId}
+                                projectName={
+                                  projects?.find(
+                                    (pr) => pr.id === t.project_id,
+                                  )?.project_name
+                                }
+                              />
+                            </motion.div>
+                          ))}
+                        </div>
                       </div>
-                    )
-                  })
-                : tasks.map((t) => (
-                    <motion.div
-                      key={t.id}
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0, transitionEnd: { transform: "none" } }}
-                      transition={{ duration: 0.2 }}
-                    >
-                      <TaskRow
-                        task={t}
-                        selected={t.id === selectedId}
-                        onSelect={() => setSelectedId(t.id)}
-                        onDoubleClick={() => {
-                          window.dispatchEvent(
-                            new CustomEvent("canvas:advance-task-state", {
-                              detail: { taskId: t.id },
-                            }),
-                          )
-                        }}
-                        showProject={!scopedProjectId}
-                        projectName={
-                          projects?.find((pr) => pr.id === t.project_id)
-                            ?.project_name
-                        }
-                      />
-                    </motion.div>
-                  ))}
-            {tasks.length === 0 && !queue.isLoading && (
+                    ))
+                  })()
+                : (
+                  <div className="space-y-2 w-full min-w-0">
+                    {tasks.map((t) => (
+                      <motion.div
+                        key={t.id}
+                        className="w-full min-w-0"
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0, transitionEnd: { transform: "none" } }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        <TaskRow
+                          task={t}
+                          selected={t.id === selectedId}
+                          onSelect={() => setSelectedId(t.id)}
+                          onDoubleClick={() => {
+                            window.dispatchEvent(
+                              new CustomEvent("canvas:advance-task-state", {
+                                detail: { taskId: t.id },
+                              }),
+                            )
+                          }}
+                          showProject={!scopedProjectId}
+                          projectName={
+                            projects?.find((pr) => pr.id === t.project_id)
+                              ?.project_name
+                          }
+                        />
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+            {queueIsError && (
+              <div className="text-center text-xs py-12 space-y-2">
+                <AlertTriangle className="h-6 w-6 mx-auto text-destructive/70" />
+                <p className="text-destructive font-medium">
+                  任务队列加载失败（服务不可用或登录过期）
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 px-3 text-xs cursor-pointer"
+                  onClick={queueRefetch}
+                >
+                  重试
+                </Button>
+              </div>
+            )}
+            {tasks.length === 0 && !queueIsLoading && !queueIsError && (
               <div className="text-center text-xs text-muted-foreground py-12 space-y-1.5">
                 <Inbox className="h-6 w-6 mx-auto opacity-40" />
                 <p>{t("dutyBoard.empty")}</p>
+              </div>
+            )}
+            {queue.hasNextPage && (
+              <div className="pt-1 pb-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full h-7 text-xs text-muted-foreground cursor-pointer"
+                  disabled={queue.isFetchingNextPage}
+                  onClick={() => void queue.fetchNextPage()}
+                >
+                  {queue.isFetchingNextPage ? "加载中…" : "加载更多任务"}
+                </Button>
               </div>
             )}
           </div>
@@ -572,11 +595,7 @@ export function AutonomousDutyPage() {
         <AutonomousDutyCanvasApp
           key={projectId ?? "global"}
           tasks={dutyTasks}
-          isLoading={queue.isLoading}
-          hideSidebar={true}
-          hideTopBar={true}
-          dutyEnabled={dash.data?.duty_enabled === true}
-          onToggleDuty={handleToggleDuty}
+          isLoading={queueIsLoading}
           externalSelectedTaskId={selectedId}
           highlightStatuses={activeTabDef.statuses}
           onTaskSelect={handleTaskSelectFromCanvas}

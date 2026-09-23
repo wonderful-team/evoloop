@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from app.core.engine.message.native_classes import RunnableConfig
 from app.core.tools import evoloop_tool
@@ -19,6 +19,11 @@ from app.core.tools.base import InjectedToolArg
 from app.domain.tasks.service import (
     TaskQueueError,
     TaskQueueService,
+    task_category,
+    task_dependencies,
+    task_number,
+    task_priority,
+    task_title,
 )
 
 logger = logging.getLogger(__name__)
@@ -60,6 +65,8 @@ async def tasks(
     source: Literal["user", "agent", "external"] | None = None,
     parent_id: str | None = None,
     dependencies: list[str] | None = None,
+    tags: list[Any] | None = None,
+    acceptance_criteria: list[Any] | None = None,
     root_only: bool = False,
     result: str | None = None,
     self_check: str | None = None,
@@ -126,14 +133,14 @@ async def tasks(
             items = [
                 {
                     "id": t.id,
-                    "task_no": (t.task_data or {}).get("task_no"),
-                    "title": (t.task_data or {}).get("title"),
+                    "task_no": task_number(t),
+                    "title": task_title(t),
                     "status": t.status,
-                    "category": (t.task_data or {}).get("category"),
-                    "priority": (t.task_data or {}).get("priority"),
+                    "category": task_category(t),
+                    "priority": task_priority(t),
                     "risk": t.risk_level,
                     "parent_id": t.parent_id,
-                    "dependencies": (t.task_data or {}).get("dependencies") or [],
+                    "dependencies": task_dependencies(t),
                     "due_at": (t.due_at or t.next_run_at).isoformat()
                     if (t.due_at or t.next_run_at)
                     else None,
@@ -195,12 +202,14 @@ async def tasks(
                 trigger_spec=trigger_spec,
                 parent_id=resolved_parent_id,
                 dependencies=dependencies,
+                tags=tags,
+                acceptance_criteria=acceptance_criteria,
             )
             return json.dumps(
                 {
                     "success": True,
                     "id": task.id,
-                    "task_no": (task.task_data or {}).get("task_no"),
+                    "task_no": task_number(task),
                     "parent_id": task.parent_id,
                     "status": task.status,
                     "note": "proposed: awaiting user confirmation"
@@ -248,7 +257,7 @@ async def tasks(
                     "success": True,
                     "id": task.id,
                     "status": task.status,
-                    "title": (task.task_data or {}).get("title"),
+                    "title": task_title(task),
                     "instruction": task.description or "",
                 },
                 ensure_ascii=False,
@@ -266,11 +275,17 @@ async def tasks(
                 status,
                 result=result,
                 self_check=parsed_check,
+                thread_id=thread_id,
             )
-            return json.dumps(
-                {"success": True, "id": task.id, "status": task.status},
-                ensure_ascii=False,
-            )
+            payload: dict[str, Any] = {"success": True, "id": task.id, "status": task.status}
+            if task.trigger_spec and task.status == "pending":
+                # recurring 自检回队：本轮已完结，防止 agent 把 pending 误读为
+                # 失败而反复硬推（实测 33 次 illegal transition 烧轮次）
+                payload["note"] = (
+                    "recurring 任务本轮已完结并回队——self_checked 是本轮终态，"
+                    "下次执行由 trigger_spec(next_run_at) 推进，请勿再 update_status"
+                )
+            return json.dumps(payload, ensure_ascii=False)
 
         if action == "submit_acceptance":
             # acceptance belongs to the user API, never the agent

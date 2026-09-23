@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next"
 import { Badge } from "@evoloop/shared/components/ui/badge"
 import type { QueueTask } from "@/lib/tasksQueueApi"
 import { RISK_STYLES } from "../core/styleConstants"
+import { stripMarkdownTokens } from "../core/mdText"
 
 export const TaskRow = memo(function TaskRow({
   task,
@@ -30,6 +31,7 @@ export const TaskRow = memo(function TaskRow({
   const isProposal = task.status === "proposed"
   const isWaiting = task.status === "waiting_acceptance"
   const isFailed = task.status === "failed"
+  const isCancelled = task.status === "cancelled"
   const isReviewing = isWaiting && !!task.review_pending
   const isArbitration = isFailed && !!task.escalated
 
@@ -41,7 +43,9 @@ export const TaskRow = memo(function TaskRow({
   const created = task.created_at ? new Date(task.created_at) : null
   const updated = task.updated_at ? new Date(task.updated_at) : null
   const ended =
-    (task.status === "completed" || task.status === "failed") &&
+    (task.status === "completed" ||
+      task.status === "failed" ||
+      task.status === "cancelled") &&
     created &&
     updated
   const timeSpan = ended
@@ -57,7 +61,7 @@ export const TaskRow = memo(function TaskRow({
       id={`duty-task-row-${task.id}`}
       onClick={onSelect}
       onDoubleClick={onDoubleClick}
-      className={`group rounded-md p-2.5 cursor-pointer transition-all space-y-1.5 border ${
+      className={`group rounded-md p-2.5 cursor-pointer transition-all space-y-1.5 border w-full min-w-0 box-border ${
         selected
           ? "bg-primary/10 border-primary/40 shadow-xs"
           : "bg-card/40 border-border/40 hover:bg-card/80 hover:border-border/80 shadow-2xs"
@@ -71,11 +75,13 @@ export const TaskRow = memo(function TaskRow({
               ? "border-l-2 border-l-amber-400"
               : isFailed
                 ? "border-l-2 border-l-destructive/70"
-                : ""}`}
+                : isCancelled
+                  ? "border-l-2 border-l-muted-foreground/40 opacity-70"
+                  : ""}`}
     >
       {/* 头：编号 + 徽标 */}
-      <div className="flex items-center justify-between gap-2">
-        <span className="font-mono text-[10px] text-muted-foreground/60">
+      <div className="flex items-center justify-between gap-2 w-full min-w-0">
+        <span className="font-mono text-[10px] text-muted-foreground/60 shrink-0">
           {task.task_no != null ? `#T-${task.task_no}` : "\u00a0"}
         </span>
         <div className="flex items-center gap-1.5 shrink-0">
@@ -98,28 +104,28 @@ export const TaskRow = memo(function TaskRow({
       </div>
 
       {/* 标题 */}
-      <div className="text-[13px] font-medium leading-snug break-words flex items-start gap-1.5">
+      <div className="text-[13px] font-medium leading-snug break-words flex items-start gap-1.5 w-full min-w-0">
         {suspended ? (
           <PauseCircle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
         ) : isRunning ? (
           <Loader2 className="h-3 w-3 animate-spin text-primary shrink-0 mt-0.5" />
         ) : null}
-        <span className="min-w-0">{task.title}</span>
+        <span className="min-w-0 flex-1 break-words break-all">{task.title}</span>
       </div>
 
-      {/* 描述放宽到两行 */}
+      {/* 描述放宽到两行（摘要脱壳：markdown 符号不进列表行） */}
       {task.description && (
-        <div className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
-          {task.description}
+        <div className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed break-words break-all w-full min-w-0">
+          {stripMarkdownTokens(task.description)}
         </div>
       )}
 
       {/* 底部：归属与状态，各占一行，宽松 */}
-      <div className="pt-1.5 border-t border-border/50 space-y-1">
+      <div className="pt-1.5 border-t border-border/50 space-y-1 w-full min-w-0">
         {(task.subtasks_count ?? 0) > 0 && (
-          <div className="flex items-center gap-1.5 text-[10px] font-mono text-primary/90 bg-primary/5 rounded px-1.5 py-0.5">
-            <span className="text-[11px]">⛓</span>
-            <span>
+          <div className="flex items-center gap-1.5 text-[10px] font-mono text-primary/90 bg-primary/5 rounded px-1.5 py-0.5 w-full min-w-0">
+            <span className="text-[11px] shrink-0">⛓</span>
+            <span className="truncate">
               {task.subtasks_completed != null && task.subtasks_completed > 0
                 ? `${task.subtasks_completed}/${task.subtasks_count} 个子步骤已完成`
                 : `含 ${task.subtasks_count} 个执行子步骤`}
@@ -127,12 +133,12 @@ export const TaskRow = memo(function TaskRow({
           </div>
         )}
         {(task.dependencies?.length ?? 0) > 0 && !(task.subtasks_count && task.subtasks_count > 0) && (
-          <div className="flex items-center gap-1.5 text-[10px] font-mono text-muted-foreground/80">
+          <div className="flex items-center gap-1.5 text-[10px] font-mono text-muted-foreground/80 w-full min-w-0">
             <ArrowRight className="h-3 w-3 shrink-0 rotate-90" />
-            依赖 {task.dependencies!.length} 项 · 上游完成后自动推进
+            <span className="truncate">依赖 {task.dependencies!.length} 项 · 上游完成后自动推进</span>
           </div>
         )}
-        <div className="flex items-center justify-between gap-2 text-[10px] font-mono text-muted-foreground whitespace-nowrap">
+        <div className="flex items-center justify-between gap-2 text-[10px] font-mono text-muted-foreground whitespace-nowrap overflow-hidden w-full min-w-0">
           <span className="shrink-0">{timeSpan}</span>
           {isReviewing ? (
             <span className="text-violet-500 font-sans font-medium shrink-0 flex items-center gap-1">
@@ -164,13 +170,17 @@ export const TaskRow = memo(function TaskRow({
             </button>
           ) : isFailed ? (
             <span className="text-destructive font-sans shrink-0">失败</span>
+          ) : isCancelled ? (
+            <span className="text-muted-foreground/80 font-sans shrink-0">
+              已取消
+            </span>
           ) : (
             <span className="shrink-0 opacity-0 group-hover:opacity-60 transition-opacity text-[10px]">
               查看 →
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-mono whitespace-nowrap overflow-hidden">
+        <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-mono whitespace-nowrap overflow-hidden w-full min-w-0">
           {showProject && task.project_id != null && task.project_id > 0 && (
             <span className="text-primary/70 min-w-0 truncate">
               {projectName ?? `#${task.project_id}`}

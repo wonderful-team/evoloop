@@ -181,7 +181,9 @@ def _ensure_scanned():
         REGISTRY.scan("app.core.learning.tools")
         REGISTRY.scan("app.core.mcp.tools")
         REGISTRY.scan("app.core.memory.tools")
-        REGISTRY.scan("app.core.project.tools")
+        # app.core.project.tools 已退役（2026-09 任务系统收敛）：旧
+        # create_project_task / subtask 工具与新 tasks facade 平行注册，
+        # 是三套任务语义并存的一环——本地任务 SSOT 唯一入口 = domain/tasks
         REGISTRY.scan("app.core.vision.tools")
 
         # Validate critical tools are present; retry if necessary

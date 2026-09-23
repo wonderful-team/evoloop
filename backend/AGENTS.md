@@ -112,7 +112,7 @@ pytest tests/e2e/test_02_routing.py -v  # 仅测试 L0 路由模块
 
 ### 关卡三：方案 = 假设，代码 = 事实
 
-- 方案文档中的实现性断言，只有标注**本人验证过的 `文件:行号`** 才可作为实现依据；docstring/注释一律不算。`docs/autonomous-task-loop.md` 已遗失，自主值守（任务队列）的现状以代码 + `tests/unit/domain/tasks/` 为准（见下文「自主值守（任务队列）关键事实」）。
+- 方案文档中的实现性断言，只有标注**本人验证过的 `文件:行号`** 才可作为实现依据；docstring/注释一律不算。`docs/autonomous-task-loop.md` 曾遗失、已于 2026-09-21 恢复并按代码事实校订（派发架构/状态机/调度护栏以代码 + `tests/unit/domain/tasks/` 为准，见下文「自主值守（任务队列）关键事实」）。
 - 实现时发现方案与代码事实冲突：**改方案，不硬实现**，并在方案中记录冲突点。
 - 每轮方案修正后，回查其推翻的实现假设清单（数据模型/通道/工具面/提示词），同步修订，不带病进入下一阶段。
 
@@ -146,9 +146,19 @@ pytest tests/e2e/test_02_routing.py -v  # 仅测试 L0 路由模块
 - **收尾管线**：`engine/react/completion.py` 在 run 结束时发布 SESSION_COMPLETED，并触发 episodic 记忆、宏资格判定、skill 候选生成（代码层，非 prompt 规则）。运行终态事件全貌（AgentRunCompletedEvent 全终态发布、HITL 挂起是唯一例外）见下文「自主值守（任务队列）关键事实」。
 - **数据库迁移**：模型变更后用 `alembic revision --autogenerate -m "描述"` 生成迁移
 
-## 自主值守（任务队列）关键事实（2026-09-13 全量代码审计后固化）
+## 自主值守（任务队列）关键事实（2026-09-13 全量代码审计后固化；2026-09-23 全局收敛增补见下节）
 
 两套"值守"语义不同，禁止混用：**客服值守** = `app/core/channel/duty/`（企微/微信客服轮巡，启停入口 `PUT /projects/{id}/duty` → `provision.py`）；**自主值守** = `app/domain/tasks/` 任务队列（ProjectTask SSOT）：状态机 `service.py`、外部事件摄取 `TaskQueueService.ingest_event`（event/ 只放订阅者，全仓范式）、常量 `constants.py`、跨边界模型 `schemas.py`、Agent 工具面 `tools/`（薄封装，业务在 service）、派发编排 `runtime/dispatcher.py`、死亡收敛 `runtime/reconciler.py`、唤醒信号 `runtime/wakeup.py`、主循环宿主 `runtime/supervisor.py`（连续运行时收进 runtime/ 子包）。**分层红线：infrastructure 是底层，严禁 import app.domain（业务在上、基础设施在下，domain → infrastructure 才是合法方向）**——值守的全部业务逻辑住 domain，main.py lifespan 只负责拉起 `domain/tasks/runtime/supervisor.py::run_supervisor_forever`。
+
+### 2026-09-23 全局收敛后的新不变量（细节以 docs/autonomous-task-loop.md 阶段八为准）
+
+- **一等列，不再读 task_data**：title/priority/category/tags/dependencies/acceptance_criteria/workflow_id/dispatch_count/last_result/last_error/review_pending/workflow_retry_count/version 全部是 `project_tasks` 列；读用 `service.py` 顶部 `task_title()/task_priority()/…` 兼容函数（列优先、存量 JSON 兜底）。新代码**禁止**往 `task_data` 写这些键。
+- **version 乐观锁**：take/claim/advance/acceptance/requeue/edit 全部 `WHERE version=?` + 递增；`advance_task(thread_id=…)` 校验执行权归属。
+- **fail-closed 三则**：external → proposed；缺 risk 的 one-shot self_check → waiting_acceptance（不默认 T3）；accept 必须有 result。recurring 轮次完成优先回队（不走验收）。
+- **单一 SSOT**：`/api/v1/tasks/*` 只有队列面；EvoCloud 代理在 `/api/v1/evocloud/tasks/*`；subtasks API/subtask_service/旧任务工具岛已删除（`REGISTRY.scan("app.core.project.tools")` 已摘）。
+- **task_runs 过程记录层**（`models/task_run.py`）：claim 开行、终态收行，只做审计观测，不参与状态机判定；`list_task_runs` 供队列 API 内联。
+- **reconciler 覆盖 `wakeup_` + `agent_`**（workflow 崩溃恢复）；HITL 24h 过期在 `reconcile_stranded` 开头接线（先过期再算豁免）。
+- 评审派发失败**保持 waiting_acceptance**（绝不 fallback auto-accept），30min 超时兜底。
 
 ### 运行终态与事件（做连续运行 / 看门狗 / reconcile 设计的唯一事实源）
 
@@ -172,7 +182,9 @@ pytest tests/e2e/test_02_routing.py -v  # 仅测试 L0 路由模块
 3. **事件入口接线**：`domain/tasks/__init__.py` 导入 `notification_subscriber` 触发注册——MCP `task_event` 通知现可入队。
 4. **watchdog/reconcile**：`domain/tasks/runtime/reconciler.py::reconcile_stranded`——启动时遗留 running 一律判死；稳态超期（35min）且无 pending HumanRequest 判死；终态线程上的悬置任务回队（requeue_count 上限 3 转failed，防毒任务）。`dispatcher.py` 对单 run 加 30min 硬截止（`asyncio.wait_for` 硬取消 → CANCELLED 终态事件照发）。任务归属解析 `TaskQueueService.resolve_member_id`（task.member_id → repositories 回填）。
 5. **单 drainer**：任务队列派发只发生在 supervisor（tick 已摘除），API/worker 双 tick 的跨进程双派发窗口关闭。
-6. **派发即认领（one-shot claim-then-persist，2026-09-21）**：`dispatch_due_tasks` 派发前系统侧原子认领（pending→in_progress + last_thread_id + `task_data.dispatch_count` 递增），`DispatchStatus.FAILED` / 派发异常回滚 pending——与 recurring「认领即推进 next_run_at」的 claim-then-persist 语义对齐。**收敛不变式：每次 run 结束后任务必须已被系统认领（in_progress+绑线程）或已达终态，严禁出现「run 完成但任务仍 pending 且无认领占位」**——该态会经 DutyWakeupSubscriber（AgentRunCompletedEvent 必发）立即重派发形成热循环（2026-09-21 实测：探针任务未调 tasks 工具 → ≥12 次重复派发烧 LLM）。护栏分工：`take` 幂等（同线程重复 take 视为已绑定）；认领后 run 未推进的任务由 reconcile「线程终态+in_progress」回队网收敛（`REQUEUE_LIMIT=3`）；`dispatch_count ≥ 5`（`DISPATCH_CLAIM_CIRCUIT_LIMIT`）熔断强制 failed，覆盖派发失败回滚等不经 reconcile 的重试环。
+6. **派发即认领（one-shot claim-then-persist，2026-09-21）**：`dispatch_due_tasks` 派发前系统侧原子认领（pending→in_progress + last_thread_id + `task_data.dispatch_count` 递增），`DispatchStatus.FAILED` / 派发异常回滚 pending——与 recurring「认领即推进 next_run_at」的 claim-then-persist 语义对齐。**收敛不变式：每次 run 结束后任务必须已被系统认领（in_progress+绑线程）或已达终态，严禁出现「run 完成但任务仍 pending 且无认领占位」**——该态会经 DutyWakeupSubscriber（AgentRunCompletedEvent 必发）立即重派发形成热循环（2026-09-21 实测：探针任务未调 tasks 工具 → ≥12 次重复派发烧 LLM）。护栏分工：`take` 幂等（同线程重复 take 视为已绑定）；认领后 run 未推进的任务由 reconcile「线程终态+in_progress」回队网收敛（`REQUEUE_LIMIT=3`）；`dispatch_count ≥ 5`（`DISPATCH_CLAIM_CIRCUIT_LIMIT`）熔断强制 failed，覆盖派发失败回滚等不经 reconcile 的重试环——**计数在 `advance_task` 成功推进时清零**（否则 recurring 跨轮累计会把健康周期任务第 5 个 cron 误杀，2026-09-22 实测售后 5 轮真实巡检全成功仍被熔断）；recurring 自检回队（self_checked→pending）是本轮正确终态，`tasks` 工具返回已带显式 note 防 agent 误读（实测曾 33 次 illegal transition）。
+7. **recurring 的 next_run_at 门控修复（2026-09-21 实测）**：`claim_due_tasks` 原扫描条件 `due_at IS NULL` 分支对 recurring 任务恒命中（recurring 行 due_at 恒 NULL）——next_run_at 门控形同虚设，明日首跑的每日巡检被判"到期"，开闸后爆发式连跑。修复：one-shot（无 trigger_spec）走 due_at 门控，recurring 只认 `next_run_at <= now`；存量测试 `test_recurring_requeues_on_self_check` 依赖 bug 行为的"完成后立即再认领"断言已修正为正确契约（轮次间隔由 trigger 门控）。
+8. **stopping 僵尸判死（2026-09-21 实测）**：协作取消请求后进程死亡（急停/重启），activity 永久停在 `stopping`——既非 `running`（判死查询不匹配）也非终态（回队 `_SKIP_STATUSES` 显式跳过"停止中"），任务永久悬挂 in_progress（实测 4 条卡死，人工代运维判死后回队）。`reconciler.py` 判死查询扩为 `RUNNING+STOPPING`，陈旧 stopping 与陈旧 running 同权判死；`end_run(FAILED)` 后走标准回队语义。
 
 Supervisor 主循环（`domain/tasks/runtime/supervisor.py::run_supervisor_forever`，main.py lifespan 启动）：`reconcile(startup) → dispatch_due_tasks → wait(duty_wakeup, 60s)`。事件源：AgentRunCompletedEvent（仅 `wakeup_` 前缀线程，`DutyWakeupSubscriber`）+ 队列变更（create/advance 回队/acceptance rejected 直接 `notify_duty_wakeup`）。HITL 挂起现以 `human_interrupt` 终态落库并发布事件；dashboard 新增 `awaiting_human` 聚合（前端消费待接）。
 

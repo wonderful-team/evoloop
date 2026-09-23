@@ -102,7 +102,6 @@ async def execute_command(
 
     **禁止用 bash 做以下事：**
     - 读文件（用 read 工具）、写文件（用 write/edit）、搜索（用 glob/grep）、编辑（用 edit）。
-    - 查看手机/桌面/网页界面（用 mobile / desktop / browser 工具）。
     - 给用户发消息（直接用文本回复，不要用 echo/printf）。
 
     所有文件路径必须在当前会话工作目录内；不要写 /tmp 或项目路径之外。

@@ -6,10 +6,22 @@ import { OpenAPI } from "@/client"
 const BASE = () => OpenAPI.BASE
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  // 与生成客户端同源鉴权：OpenAPI.TOKEN（Bearer）+ Cookie 双通道，
+  // 缺一会让 token-only 登录会话下的看板全量 401（被误渲染成空队列）
+  const tokenRaw = OpenAPI.TOKEN
+  const token =
+    typeof tokenRaw === "function"
+      ? await tokenRaw({ method: "GET" } as never)
+      : tokenRaw
+  const headers = new Headers(init?.headers)
+  headers.set("Content-Type", "application/json")
+  if (token && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${token}`)
+  }
   const res = await fetch(`${BASE()}${path}`, {
     credentials: "include",
-    headers: { "Content-Type": "application/json" },
     ...init,
+    headers,
   })
   if (!res.ok) {
     const detail = await res.json().catch(() => null)
@@ -38,6 +50,8 @@ export interface QueueTask {
   review_pending?: boolean
   review_count?: number
   escalated?: boolean
+  last_error?: string | null
+  last_result?: string | null
   origin_thread_id?: string | null
   due_at: string | null
   last_thread_id: string | null
@@ -60,7 +74,21 @@ export interface QueueTask {
     output_tokens: number
     tool_errors: number
   } | null
+  runs?: TaskRunView[]
   artifacts?: QueueArtifact[]
+}
+
+/** attempt 历史（task_runs 过程记录层，每任务最近 5 次） */
+export interface TaskRunView {
+  id: string
+  thread_id: string | null
+  attempt: number
+  status: string
+  started_at: string | null
+  finished_at: string | null
+  error_code: string | null
+  error_message: string | null
+  result_summary: string | null
 }
 
 export interface QueueArtifact {
@@ -113,13 +141,21 @@ export const TasksQueueApi = {
     status?: string,
     projectId?: number,
     rootOnly?: boolean,
-  ): Promise<{ items: QueueTask[]; count: number }> {
+    limit = 50,
+    offset = 0,
+  ): Promise<{
+    items: QueueTask[]
+    count: number
+    has_more: boolean
+    next_offset: number | null
+  }> {
     const qs = new URLSearchParams()
     if (status) qs.set("status", status)
     if (projectId != null) qs.set("project_id", String(projectId))
     if (rootOnly != null) qs.set("root_only", String(rootOnly))
-    const q = qs.toString() ? `?${qs.toString()}` : ""
-    return request(`/api/v1/tasks/queue${q}`)
+    qs.set("limit", String(limit))
+    qs.set("offset", String(offset))
+    return request(`/api/v1/tasks/queue?${qs.toString()}`)
   },
   create(body: {
     title: string
@@ -192,6 +228,14 @@ export const TasksQueueApi = {
     return request(`/api/v1/tasks/queue/${taskId}/reject`, {
       method: "POST",
       body: JSON.stringify({ feedback }),
+    })
+  },
+  /** 驳回提案（proposed）：语义是"不采纳、撤下提案"= cancel，
+   *  与验收驳回（reject，仅 waiting_acceptance）是两个接口。 */
+  rejectProposed(taskId: string, feedback: string): Promise<{ success: boolean; status: string }> {
+    return request(`/api/v1/tasks/queue/${taskId}`, {
+      method: "PUT",
+      body: JSON.stringify({ cancel: true, description: feedback || undefined }),
     })
   },
   dashboard(projectId?: number): Promise<DashboardKpis> {

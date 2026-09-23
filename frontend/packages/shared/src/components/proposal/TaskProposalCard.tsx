@@ -2,6 +2,7 @@ import * as React from "react"
 import { Badge } from "../ui/badge"
 import { Button } from "../ui/button"
 import { Input } from "../ui/input"
+import { MarkdownText } from "../markdown/MarkdownText"
 import {
   BadgeCheck,
   CalendarClock,
@@ -119,8 +120,8 @@ export function TaskProposalCard({
           </span>
         </div>
         {description && (
-          <div className="mt-1 text-[11px] text-muted-foreground whitespace-pre-wrap break-words leading-relaxed">
-            {description}
+          <div className="mt-1 text-[11px] text-muted-foreground break-words leading-relaxed">
+            <MarkdownText content={description} />
           </div>
         )}
         {isProposed && (
@@ -227,8 +228,8 @@ export function TaskProposalCard({
 
       <div className="space-y-4 px-4 py-4">
         {description && (
-          <div className="rounded-lg border bg-muted/20 p-3 text-sm whitespace-pre-wrap text-muted-foreground">
-            {description}
+          <div className="rounded-lg border bg-muted/20 p-3 text-sm break-words min-w-0 text-muted-foreground">
+            <MarkdownText content={description} />
           </div>
         )}
 

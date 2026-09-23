@@ -12,8 +12,6 @@ export { default } from "./DutyWorkbench"
 // 画布领域导出
 export { default as AutonomousDutyCanvasApp } from "./canvas/AutonomousDutyCanvasApp"
 export { DutyCanvas } from "./canvas/DutyCanvas"
-export { DutyTopBar } from "./canvas/DutyTopBar"
-export { DutyLeftSidebar } from "./canvas/DutyLeftSidebar"
 export { DutyNodeCard } from "./canvas/DutyNodeCard"
 export { DutyNodePageContent } from "./canvas/DutyNodePageContent"
 export { layoutDutyTasks, deriveDutyEdges } from "./canvas/layoutEngine"

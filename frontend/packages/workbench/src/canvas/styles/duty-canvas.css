@@ -1157,11 +1157,10 @@
 .dc-card.expanded .dc-port-top { top: -5px; }
 .dc-card.expanded .dc-port-bottom { bottom: -5px; }
 
-/* 单击卡片选中高亮态 */
+/* 单击卡片选中高亮态：精致微光包络，告别生硬粗线 */
 .dc-card.selected:not(.expanded) {
   border-color: var(--pri) !important;
-  border-width: 2px !important;
-  box-shadow: 0 0 0 3px var(--pri-glow), var(--card-shadow-hover) !important;
+  box-shadow: 0 0 0 2px var(--pri-border), 0 8px 24px -4px var(--pri-glow), var(--card-shadow-hover) !important;
 }
 
 /* 卡片流入数据展示胶囊 */
@@ -1700,6 +1699,8 @@
   border-radius: 4px;
   display: inline-flex;
   align-items: center;
+  white-space: nowrap;
+  flex: none;
 }
 
 .dc-badge-chat { background: var(--cyan-light); color: var(--cyan); border: 1px solid var(--cyan-border); }
@@ -1775,8 +1776,14 @@
   font-size: 13.5px;
   font-weight: 700;
   color: var(--text-main);
-  line-height: 1.45;
+  line-height: 1.4;
   margin-bottom: 8px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: -0.15px;
 }
 
 /* 微缩预览区 */
@@ -1895,11 +1902,18 @@
 
 .dc-preview-text {
   background: var(--panel-subtle);
-  padding: 6px 8px;
-  border-radius: 6px;
+  padding: 8px 10px;
+  border-radius: 8px;
   font-size: 11px;
-  line-height: 1.45;
+  line-height: 1.5;
   color: var(--text-sub);
+  border: 1px solid var(--line-subtle);
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: break-word;
 }
 
 /* 卡片底栏 */
@@ -1909,7 +1923,15 @@
   justify-content: space-between;
   border-top: 1px solid var(--line-subtle);
   padding-top: 8px;
+  margin-top: auto;
   font-size: 11px;
+}
+.dc-footer-stage {
+  color: var(--text-sub);
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 .dc-footer-status { color: var(--text-muted); font-weight: 500; }
 .dc-footer-action { color: var(--pri); font-weight: 700; }
@@ -1994,6 +2016,8 @@
   cursor: pointer;
   transition: all 0.15s ease;
   user-select: none;
+  white-space: nowrap;
+  flex: none;
 }
 .dc-fullscreen-toggle-btn:hover {
   background: var(--panel-hover);
@@ -2017,12 +2041,18 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
+  flex: 1;
 }
 
 .dc-page-title {
   font-size: 15px;
   font-weight: 800;
   color: var(--text-main);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .dc-status-pill {
@@ -2032,12 +2062,15 @@
   border-radius: 999px;
   display: inline-flex;
   align-items: center;
+  white-space: nowrap;
+  flex: none;
 }
 .dc-status-pill.completed { background: var(--green-light); color: var(--green); border: 1px solid var(--green-border); }
 .dc-status-pill.in_progress { background: var(--pri-light); color: var(--pri); border: 1px solid var(--pri-border); }
 .dc-status-pill.proposed { background: var(--purple-light); color: var(--purple); border: 1px solid var(--purple-border); }
 .dc-status-pill.waiting_acceptance, .dc-status-pill.confirm { background: var(--amber-light); color: var(--amber); border: 1px solid var(--amber-border); }
 .dc-status-pill.failed, .dc-status-pill.blocked { background: var(--red-light); color: var(--red); border: 1px solid var(--red-border); }
+.dc-status-pill.cancelled { background: var(--panel-subtle); color: var(--text-sub); border: 1px dashed var(--line); opacity: 0.75; }
 .dc-status-pill.pending { background: var(--panel-hover); color: var(--text-muted); border: 1px solid var(--line); }
 
 /* 顶栏现场终止按钮 */
@@ -2932,12 +2965,76 @@
   font-size: 11.5px;
   font-weight: 500;
   cursor: pointer;
+  white-space: nowrap;
+  flex: none;
   transition: all 0.15s ease;
 }
 .dc-open-chat-btn:hover {
   background: var(--pri-light);
   border-color: var(--pri-border);
   color: var(--pri);
+}
+
+/* 顶栏下方任务描述条 */
+.dc-task-desc-strip {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 14px;
+  background: rgba(59, 130, 246, 0.04);
+  border-bottom: 1px solid var(--line);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-sub);
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+.dc-task-desc-strip .dc-desc-prefix {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  color: var(--text-main);
+  font-weight: 600;
+  margin-top: 1px;
+}
+.dc-task-desc-strip .dc-desc-content {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-sub);
+  word-break: break-word;
+  font-size: 13.5px;
+  line-height: 1.7;
+}
+/* markdown 描述：块级间距由 MessageContent 自带，压缩到紧凑档 */
+.dc-task-desc-strip .dc-desc-content p:first-child { margin-top: 0; }
+.dc-task-desc-strip .dc-desc-content p:last-child { margin-bottom: 0; }
+
+/* 顶栏任务终止按钮 */
+.dc-stop-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  flex: none;
+  transition: all 0.15s ease;
+}
+.dc-stop-btn:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.18);
+  border-color: #ef4444;
+  color: #dc2626;
+}
+.dc-stop-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 /* 思考链批量折叠切换 */

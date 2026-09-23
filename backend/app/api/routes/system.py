@@ -1,8 +1,7 @@
+import asyncio
 import json
 import logging
 import time
-
-import asyncio
 
 from fastapi import APIRouter, Depends, HTTPException
 

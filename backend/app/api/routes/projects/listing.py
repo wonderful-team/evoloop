@@ -98,9 +98,6 @@ async def _read_duty_status(project_id: int, local_path: str, task_or_tasks: Any
             result["last_run_at"] = channel_task.last_run_at.isoformat() if channel_task.last_run_at else None
             result["next_run_at"] = channel_task.next_run_at.isoformat() if channel_task.next_run_at else None
             result["last_failure"] = channel_task.last_failure_reason
-        if business_task is not None:
-            result["business_last_run_at"] = business_task.last_run_at.isoformat() if business_task.last_run_at else None
-            result["business_next_run_at"] = business_task.next_run_at.isoformat() if business_task.next_run_at else None
     except Exception as e:
         logger.warning("[ProjectsAPI] 读取值守状态失败 %s: %s", local_path, e)
     return result

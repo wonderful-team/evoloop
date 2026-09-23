@@ -103,8 +103,14 @@ def _capability_index(ctx: Any, domain_pkgs: set[str] | None = None) -> str:
                 return 3
 
             ordered = sorted(skills, key=_rank) if skills else []
-            dropped = max(0, len(ordered) - MAX_SKILLS)
-            ordered = ordered[:MAX_SKILLS]
+            # 无域会话（工作空间/全量面）不截断技能索引：域相关排序失去
+            # 意义时，前 20 条截断会把关键技能（如 Agent Reach）藏进
+            # 「另有 N 项未显示」，Agent 看不见就不会用（2026-09-23 实测
+            # 事故：Upwork 侦察轮因此退化为 webfetch 死循环）。有域会话
+            # 保持 20 条上限（域包已排到最前）。
+            cap = MAX_SKILLS if domain_pkgs else len(ordered)
+            dropped = max(0, len(ordered) - cap)
+            ordered = ordered[:cap]
             # 格式化为索引行，避免 str(list) 的 repr 垃圾进 prompt
             skill_lines = []
             for item in ordered:
@@ -351,5 +357,37 @@ async def build_system_prompt(state: Any, config: dict[str, Any]) -> str:
                 )
         else:
             main += '\n\n<duty_channel customer_facing="false" />'
+        # 任务值守：任务元信息走系统提示词块（human 消息保持任务描述原文，
+        # 不经模板包装）。wecom_duty 渠道轮巡无任务上下文，仅在携带
+        # duty_task 时注入。
+        duty_task = meta.get("duty_task") or config.get("metadata", {}).get(
+            "duty_task"
+        )
+        if duty_task and prompt_exists("core/agent/main.duty.task.txt"):
+            task_block = (
+                meta.get("duty_task")
+                if isinstance(meta.get("duty_task"), dict)
+                else dict(config.get("metadata", {}).get("duty_task") or {})
+            )
+            placeholders = {
+                "id": task_block.get("id", ""),
+                "status": task_block.get("status", ""),
+                "priority": task_block.get("priority", ""),
+                "risk": task_block.get("risk", ""),
+                "due": task_block.get("due", ""),
+                "category": task_block.get("category", ""),
+                "title": task_block.get("title", ""),
+                # render_prompt 仅做占位符替换（无条件语法），feedback 行在
+                # 此处条件组装；空反馈时整行消失避免残留空行噪声
+                "feedback_block": (
+                    f'- ⚠️ 上一轮尝试被用户驳回，评审反馈："{task_block.get("feedback", "")}"'
+                    "——先响应反馈，不要盲目重试。"
+                    if task_block.get("feedback")
+                    else ""
+                ),
+            }
+            main += "\n\n" + render_prompt(
+                "core/agent/main.duty.task.txt", placeholders
+            )
 
     return main

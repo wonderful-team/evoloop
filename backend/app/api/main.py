@@ -21,7 +21,6 @@ from app.api.routes import (
     sso,
     stream,
     subscription,
-    subtasks,
     symbols,
     system,
     tasks,
@@ -58,9 +57,12 @@ api_router.include_router(resources.router)
 api_router.include_router(vault.router)
 
 # Project Management Modules (Proxy)
+# 本地任务队列 SSOT：/tasks/queue（唯一本地任务写入面）
 api_router.include_router(tasks_queue.router, prefix="/tasks")
-api_router.include_router(tasks.router, prefix="/tasks")
-api_router.include_router(subtasks.router, tags=["subtasks"])
+# EvoCloud 云端任务代理：显式 /evocloud 命名空间（云透传契约保留，
+# 但不再与本地任务系统共用 /tasks 前缀——双系统同前缀是审计确认的
+# 认知与越权隐患）
+api_router.include_router(tasks.router, prefix="/evocloud/tasks")
 api_router.include_router(projects.modules_router, prefix="/project-modules", tags=["project-modules"])
 
 # Code Module Graph (Leiden)

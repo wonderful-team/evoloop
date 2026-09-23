@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react"
+import { useEffect } from "react"
 
-import { ConversationsService, AgentService } from "@/client"
-import { useQueryClient } from "@tanstack/react-query"
+import { ConversationsService, AgentService, OpenAPI } from "@/client"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Bot } from "lucide-react"
 import type { QueueTask } from "@/lib/tasksQueueApi"
 import { HumanRequestCard as SharedHumanRequestCard } from "@evoloop/shared"
@@ -9,11 +9,11 @@ import { HumanRequestCard as SharedHumanRequestCard } from "@evoloop/shared"
 /**
  * 监察评审进度卡（渲染在执行时间线下方）。
  *
- * 评审 run 生活在原对话（origin thread），本卡轮询该对话的最新进展，
- * 让看板上的"评审中"不再是干等：
+ * 评审 run 生活在原对话（origin thread），本卡订阅该对话的 SSE 事件流，
+ * 让看板上的"评审中"不再是干等（零周期轮询——SSE + onopen 对账）：
  * - 评审者最新发言（核验动作/结论行）实时摘要
  * - 评审者的审批请求直接在看板处理（复用 HitlApprovalCard）
- * 结论仍由 TaskReviewSubscriber 驱动状态机，本卡只做展示。
+ * - 结论仍由 TaskReviewSubscriber 驱动状态机，本卡只做展示。
  */
 export function ReviewProgressCard({
   task,
@@ -33,41 +33,67 @@ export function ReviewProgressCard({
   onChanged: () => void
 }) {
   const origin = task.origin_thread_id
-  const [latest, setLatest] = useState<string>("")
-  const [tick, setTick] = useState(0)
+  const qc = useQueryClient()
 
-  // 5s 轮询原对话最新 assistant 发言（评审者的动态）
+  // 评审动态 = 原对话最新 assistant 发言（react-query 承载，SSE 事件精准失效）
+  const reviewQ = useQuery({
+    queryKey: ["dutyReview", origin],
+    queryFn: async () => {
+      const res = (await ConversationsService.getConversationMessages({
+        threadId: origin as string,
+        limit: 3,
+        includeToolCalls: true,
+      })) as {
+        data?: Array<{ role?: string; category?: string; content?: string }>
+      }
+      return (res.data ?? []).filter(
+        (m) =>
+          m.category === "assistant_response" || m.category === "assistant_tool_call",
+      )
+    },
+    enabled: !!origin,
+  })
+  const reviewMsgs = reviewQ.data ?? []
+  const latest = (reviewMsgs[reviewMsgs.length - 1]?.content || "").trim()
+
+  // origin thread SSE：评审者每落一条消息 → invalidate 精准刷新；
+  // EventSource 不支持自定义 header，token 走 query（同 ChatConnection）
   useEffect(() => {
     if (!origin) return
-    let alive = true
-    const iv = setInterval(async () => {
-      try {
-        const res = (await ConversationsService.getConversationMessages({
-          threadId: origin,
-          limit: 3,
-          includeToolCalls: true,
-        })) as { data?: Array<{ role?: string; category?: string; content?: string }> }
-        if (!alive) return
-        msgs = (res.data ?? []).filter(
-          (m) => m.category === "assistant_response" || m.category === "assistant_tool_call",
-        )
-        const last = msgs[msgs.length - 1]
-        setLatest((last?.content || "").trim())
-        setTick((x) => x + 1)
-      } catch {
-        /* 后端不可达时静默 */
+    let source: EventSource | null = null
+    let cancelled = false
+
+    const connect = (token?: string) => {
+      if (cancelled) return
+      const qs = token ? `?token=${encodeURIComponent(token)}` : ""
+      source = new EventSource(
+        `${OpenAPI.BASE}/api/v1/stream/thread/${origin}${qs}`,
+        { withCredentials: true },
+      )
+      source.onopen = () => {
+        void qc.invalidateQueries({ queryKey: ["dutyReview", origin] })
       }
-    }, 5000)
-    return () => {
-      alive = false
-      clearInterval(iv)
+      source.addEventListener("thread_updated", () => {
+        void qc.invalidateQueries({ queryKey: ["dutyReview", origin] })
+      })
     }
-  }, [origin])
-  void tick
+
+    const tokenRaw = OpenAPI.TOKEN
+    if (typeof tokenRaw === "function") {
+      Promise.resolve(tokenRaw({ method: "GET" } as never))
+        .then((t) => connect(t || undefined))
+        .catch(() => connect())
+    } else {
+      connect(tokenRaw || undefined)
+    }
+
+    return () => {
+      cancelled = true
+      source?.close()
+    }
+  }, [origin, qc])
 
   const waitingApproval = hitlItems.length > 0
-
-  const qc = useQueryClient()
 
   const handleRespond = async (
     threadId: string,
@@ -140,4 +166,3 @@ export function ReviewProgressCard({
   )
 }
 
-let msgs: Array<{ role?: string; category?: string; content?: string }> = []

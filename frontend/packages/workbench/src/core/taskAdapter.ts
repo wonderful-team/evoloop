@@ -56,22 +56,27 @@ export function adaptQueueArtifactToDutyArtifact(
 /**
  * 将来源映射为标准 ProvenanceKind
  */
-function mapSourceKind(source: string, sourceRef: unknown): ProvenanceKind {
-  if (sourceRef && typeof sourceRef === "object" && (sourceRef as { kind?: string }).kind === "chain") {
-    return "chain"
-  }
-  switch (source) {
-    case "chat":
-      return "chat"
-    case "agent":
-      return "agent_proposal"
-    case "cron":
-      return "cron"
-    case "user":
-      return "manual"
-    default:
-      return "chain"
-  }
+function mapSourceKind(
+  source: string,
+  sourceRef: unknown,
+  triggerSpec?: string | null,
+): ProvenanceKind {
+  // 优先级（强→弱）：
+  // 1) trigger_spec 非空 = recurring → 周期巡检（无论谁建的）
+  // 2) source=agent → Agent 提案（即使绑定 origin，提案身份优先于链路）
+  // 3) source_ref.kind：message=对话产生 / event=外部事件 / chain=依赖派生
+  // 4) source 兜底：external=外部事件 / user=手动创建
+  if (triggerSpec) return "cron"
+  if (source === "agent") return "agent_proposal"
+  const ref =
+    sourceRef && typeof sourceRef === "object"
+      ? (sourceRef as { kind?: string })
+      : null
+  if (ref?.kind === "chain") return "chain"
+  if (ref?.kind === "event") return "event"
+  if (ref?.kind === "message") return "chat"
+  if (source === "external") return "event"
+  return "manual"
 }
 
 /**
@@ -205,13 +210,15 @@ export function adaptQueueTaskToDutyTask(
     task.description?.slice(0, 32) ||
     `任务 #${taskNo}`
 
+  // category 无值时保持空——UI 按缺省隐藏徽标，不再伪造"通用值守"假分类
   const category =
     task.category ||
     (task as unknown as { task_data?: { category?: string } }).task_data?.category ||
-    "通用值守"
+    ""
 
   const rawSourceRef = (task as unknown as { source_ref?: unknown }).source_ref
-  const source = mapSourceKind(task.source, rawSourceRef)
+  const triggerSpec = (task as unknown as { trigger_spec?: string | null }).trigger_spec
+  const source = mapSourceKind(task.source, rawSourceRef, triggerSpec)
   let status = mapStatus(task.status)
   const priority = (task.priority?.toLowerCase() as TaskPriority) || "medium"
   const riskLevel = ((task.risk_level || "T4").toUpperCase() as TaskRiskLevel) || "T4"

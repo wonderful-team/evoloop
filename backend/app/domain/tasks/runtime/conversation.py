@@ -91,7 +91,6 @@ async def dispatch_conversation_message(
     from app.core.engine.session.manager import session_manager
     from app.core.identity import identity_service
     from app.core.routing.dispatch_handler import command_router
-    from app.core.state import shared_state
 
     thread_id = f"{THREAD_PREFIX}{project_id}_{contact}"
     message_text = content.strip() or title

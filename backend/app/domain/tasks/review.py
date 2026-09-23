@@ -25,7 +25,12 @@ import logging
 
 from app.core.engine.agent import run_agent_background
 from app.core.engine.dispatch import DispatchStatus, dispatch_agent_run
-from app.domain.tasks.service import TaskQueueService
+from app.domain.tasks.service import (
+    TaskQueueService,
+    task_number,
+    task_review_pending,
+    task_title,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -94,12 +99,12 @@ async def trigger_review(task) -> None:
     origin = getattr(task, "origin_thread_id", None)
     if not origin:
         return
-    data = task.task_data or {}
-    task_no = data.get("task_no")
+    task_no = task_number(task)
     label = f"#T-{task_no}" if task_no else task.id[:8]
+    title = task_title(task) or ""
     reply = await _latest_executor_reply(task.last_thread_id or "")
     content = (
-        f"[值守系统代用户] 任务 {label}「{data.get('title') or ''}」已由值守执行完成。\n\n"
+        f"[值守系统代用户] 任务 {label}「{title}」已由值守执行完成。\n\n"
         f"执行者任务级会话的最终回复如下（这只是执行者的汇报，不代表我的意图）：\n"
         f"---\n{reply[:4000]}\n---\n\n"
         f"请你以我的立场评审核实该任务的完成情况（只评审，不实施；不要修改任何数据、"
@@ -113,19 +118,6 @@ async def trigger_review(task) -> None:
         f"或\n"
         f"结论：不通过：<具体证据与差距，指出必须修复项（限定范围，不扩大）>"
     )
-    task_data = dict(task.task_data or {})
-    task_data["review_pending"] = True
-    from app.infrastructure.database.sql.database import session_scope
-    from sqlalchemy import update
-
-    from app.models.project import ProjectTask
-
-    async with session_scope() as session:
-        await session.execute(
-            update(ProjectTask)
-            .where(ProjectTask.id == task.id)
-            .values(task_data=task_data)
-        )
     member_id = await TaskQueueService.resolve_member_id(task)
     ok = await _dispatch_to_thread(
         thread_id=origin,
@@ -135,13 +127,13 @@ async def trigger_review(task) -> None:
         source_task_id=task.id,
     )
     if not ok:
-        # 回灌失败（对话不存在/派发失败）：保持现状语义——system:auto 收尾，
-        # 避免任务卡死在 waiting_acceptance 无人处理
-        logger.warning(
-            "[TaskReview] dispatch failed; falling back to auto-accept for %s", task.id
-        )
-        await TaskQueueService.submit_acceptance(
-            task.id, by="reviewer:fallback-auto", verdict="accepted"
+        # 回灌失败（对话不存在/派发失败）：保持 waiting_acceptance——评审
+        # 闸门绝不放水（执行者结果不得因基础设施故障自我验收）。挂死由
+        # reconciler 的 30min 评审超时兜底收敛（空结论=不通过 → 2 轮上限）。
+        logger.error(
+            "[TaskReview] dispatch failed for %s; keeping waiting_acceptance "
+            "(30min review-timeout backstop will converge)",
+            task.id,
         )
 
 
@@ -150,11 +142,11 @@ async def notify_arbitration(task, feedback: str) -> None:
     origin = getattr(task, "origin_thread_id", None)
     if not origin:
         return
-    data = task.task_data or {}
-    task_no = data.get("task_no")
+    task_no = task_number(task)
     label = f"#T-{task_no}" if task_no else task.id[:8]
+    title = task_title(task) or ""
     content = (
-        f"[值守系统代用户] 任务 {label}「{data.get('title') or ''}」经两轮评审仍未通过，"
+        f"[值守系统代用户] 任务 {label}「{title}」经两轮评审仍未通过，"
         f"已停止自动返工，转人工仲裁。\n"
         f"最后一轮评审意见：{feedback[:600]}\n"
         f"请在对话里决定下一步（重新下任务 / 调整目标后重开 / 放弃）。"
@@ -202,8 +194,7 @@ async def resolve_review_verdict(task_id: str, reviewer_reply: str) -> None:
     task = await TaskQueueService.get_task(task_id)
     if task is None or task.status != "waiting_acceptance":
         return
-    data = dict(task.task_data or {})
-    if not data.get("review_pending"):
+    if not task_review_pending(task):
         return  # human acceptance path, reviewer arrives late — ignore
 
     await TaskQueueService.submit_acceptance(

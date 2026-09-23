@@ -20,7 +20,7 @@ from pathlib import Path
 import pytest
 
 BACKEND_ROOT = Path(__file__).resolve().parents[3]
-HEAD_REVISION = "b3e6f8a2c4d0"
+HEAD_REVISION = "d8e2f4b6a9c1"
 
 
 @pytest.mark.timeout(300)

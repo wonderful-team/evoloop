@@ -10,6 +10,10 @@ export interface Attachment {
   h: number
   duration?: number
   hue: number
+  /* 运行时消息 attachments JSON 可能携带的真实字段（终态卡引用构造用） */
+  id?: string
+  url?: string
+  name?: string
 }
 
 export interface PlanStep {
@@ -39,7 +43,7 @@ export type DutyTaskStatus =
 
 export type TaskPriority = "low" | "medium" | "high" | "urgent"
 export type TaskRiskLevel = "T1" | "T2" | "T3" | "T4"
-export type ProvenanceKind = "chat" | "agent_proposal" | "cron" | "chain" | "manual"
+export type ProvenanceKind = "chat" | "agent_proposal" | "cron" | "chain" | "manual" | "event"
 
 /* 选项勾选回流 */
 export interface ChoiceOption {

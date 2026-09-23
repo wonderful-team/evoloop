@@ -19,8 +19,19 @@ from app.domain.tasks.constants import (
 )
 from app.domain.tasks.events import publish_workflow_event
 from app.domain.tasks.runtime.agent import AgentRuntimeError, EvoloopAgentRuntimeAdapter
-from app.domain.tasks.schemas import WakeupTask
-from app.domain.tasks.service import TaskQueueService
+from app.domain.tasks.service import (
+    TaskQueueService,
+    task_category,
+    task_dependencies,
+    task_dispatch_count,
+    task_last_error,
+    task_last_result,
+    task_number,
+    task_priority,
+    task_title,
+    task_version,
+    task_workflow_id,
+)
 from app.domain.tasks.workflows import WorkflowError, WorkflowService
 
 logger = logging.getLogger(__name__)
@@ -29,6 +40,11 @@ logger = logging.getLogger(__name__)
 async def resolve_wakeup_domain(project_id: int, instruction: str) -> tuple[str | None, str]:
     """值守唤醒的域解析（供派发 hint）。
 
+    0. 工作空间任务（pid=0）不绑定任何项目域 → 直接 fail-open：L1 按
+       措辞猜域会把工作空间任务误装进某个项目的受限 profile（2026-09-23
+       实测事故：Upwork 侦察轮描述被 L1 高置信分类为 ecommerce，继承了
+       商城 profile 的 native_tools 白名单，bash/文件工具全被裁掉，
+       opencli/落盘全断 → HITL 挂起）。
     1. profile-first：项目工作目录恰好声明唯一域 → 直接采用（≈host 权威）；
     2. L1 域标注兜底：与文本消息 ``skip_l0`` 路径同源组件
        （``domain_classifier.predict``）、同置信度门槛——值守此前漏接了
@@ -36,6 +52,9 @@ async def resolve_wakeup_domain(project_id: int, instruction: str) -> tuple[str 
        即可按域装配。
     3. 分不出/低置信 → ``None``：fail-open（全量面 + 包反哺兜底），无回归。
     """
+    if project_id == 0:
+        return None, ""
+
     from app.core.engine.capability_profiles import list_domains
     from app.core.project.utils import get_project_path
 
@@ -102,8 +121,12 @@ def duty_paused(now: datetime | None = None) -> bool:
 async def _run_wakeup_with_deadline(thread_id: str, inputs: dict) -> None:
     """后台跑一个 wakeup run，超时硬取消（CancelledError → CANCELLED 终态）。"""
     from app.core.engine.agent import run_agent_background
+    from app.core.engine.agent_run_registry import agent_run_registry
 
     run_task = asyncio.create_task(run_agent_background(thread_id, inputs))
+    await agent_run_registry.register_run(
+        thread_id, run_task, description=f"wakeup:{thread_id}"
+    )
     try:
         await asyncio.wait_for(run_task, timeout=WAKEUP_RUN_DEADLINE_SECONDS)
     except asyncio.TimeoutError:
@@ -112,6 +135,22 @@ async def _run_wakeup_with_deadline(thread_id: str, inputs: dict) -> None:
             thread_id,
             WAKEUP_RUN_DEADLINE_SECONDS,
         )
+        run_task.cancel()
+        try:
+            await run_task
+        except (asyncio.CancelledError, Exception):
+            pass
+    except asyncio.CancelledError:
+        logger.info("[DutyDispatcher] wakeup run %s was cancelled by request", thread_id)
+        if not run_task.done():
+            run_task.cancel()
+            try:
+                await run_task
+            except (asyncio.CancelledError, Exception):
+                pass
+    finally:
+        async with agent_run_registry._lock:
+            agent_run_registry._records.pop(thread_id, None)
 
 
 async def auto_retry_failed_tasks() -> None:
@@ -136,11 +175,10 @@ async def auto_retry_failed_tasks() -> None:
         # 否则评审-返工循环重开，执行者会被无限加码
         if (t.acceptance or {}).get("escalated"):
             continue
-        last_error = str(td.get("last_error") or "")
+        last_error = task_last_error(t) or ""
         if any(marker in last_error for marker in NON_RETRYABLE_ERROR_MARKERS):
             continue
         td["workflow_auto_retry"] = tries + 1
-        td["last_result"] = f"auto retry {tries + 1}: {last_error[:80]}"
         from datetime import timedelta, timezone
 
         from app.infrastructure.database.sql.database import session_scope
@@ -150,16 +188,23 @@ async def auto_retry_failed_tasks() -> None:
 
             from app.models.project import ProjectTask
 
-            await session.execute(
+            result_update = await session.execute(
                 sa_update(ProjectTask)
-                .where(ProjectTask.id == t.id)
+                .where(
+                    ProjectTask.id == t.id,
+                    ProjectTask.version == task_version(t),
+                )
                 .values(
                     status="pending",
                     task_data=td,
+                    last_result=f"auto retry {tries + 1}: {last_error[:80]}",
+                    version=task_version(t) + 1,
                     due_at=datetime.now(timezone.utc)
                     + timedelta(seconds=FAILED_AUTO_RETRY_DELAY_SECONDS),
                 )
             )
+            if result_update.rowcount == 0:
+                continue
         logger.info(
             "[DutyDispatcher] auto-retry failed task %s (attempt %s)",
             t.id,
@@ -178,9 +223,9 @@ async def _notify_dep_failure(task, failed_up: list) -> None:
     if td.get("dep_failure_notified"):
         return
     td["dep_failure_notified"] = True
-    from app.infrastructure.database.sql.database import session_scope
     from sqlalchemy import update
 
+    from app.infrastructure.database.sql.database import session_scope
     from app.models.project import ProjectTask
 
     async with session_scope() as session:
@@ -193,10 +238,10 @@ async def _notify_dep_failure(task, failed_up: list) -> None:
         from app.core.config import settings as _settings
 
         if _settings.MOBILE_SYNC_ENABLED:
-            no = td.get("task_no")
+            no = task_number(task)
             label = f"#T-{no}" if no else task.id[:8]
             names = ", ".join(
-                f"#{(u.task_data or {}).get('task_no') or u.id[:8]}"
+                f"#{task_number(u) or u.id[:8]}"
                 for u in failed_up
             )
             await MobileChannel().send_hitl_request(
@@ -218,7 +263,7 @@ async def _deps_satisfied(task) -> bool:
     上游存在 failed 时触发断链告警（手机推送一次），下游保持 blocked 等
     人工裁决（rerun 修复上游 / 调整链路）。
     """
-    dep_ids = (task.task_data or {}).get("dependencies") or []
+    dep_ids = task_dependencies(task)
     if not dep_ids:
         return True
     from sqlalchemy import select
@@ -234,7 +279,7 @@ async def _deps_satisfied(task) -> bool:
                 )
             )
         ).all()
-    status_by_id = {rid: st for rid, st in rows}
+    status_by_id = dict(rows)
     failed_up = [t for t in rows if t[1] == "failed"]
     if failed_up and not (task.task_data or {}).get("dep_failure_notified"):
         objs = []
@@ -265,7 +310,7 @@ async def _build_upstream_context(task) -> str:
     upstream deps 的 last_result（结论摘要）+ task_artifacts 清单（产物
     文件路径，执行者可用 read 抽查全文）。失败静默（通知失败不影响派发）。
     """
-    dep_ids = (task.task_data or {}).get("dependencies") or []
+    dep_ids = task_dependencies(task)
     if not dep_ids:
         return ""
     dep_ids = [str(d) for d in dep_ids]
@@ -289,12 +334,12 @@ async def _build_upstream_context(task) -> str:
         for a in arts:
             arts_by_task.setdefault(str(a.task_id), []).append(a)
         lines = ["## 上游任务产出（本任务执行时应直接引用，勿重复调研）"]
-        for up in sorted(rows, key=lambda x: (x.task_no or 0)):
-            no = (up.task_data or {}).get("task_no")
+        for up in sorted(rows, key=lambda x: (task_number(x) or 0)):
+            no = task_number(up)
             label = f"#T-{no}" if no else up.id[:8]
-            result = (up.task_data or {}).get("last_result") or ""
+            result = task_last_result(up) or ""
             lines.append(
-                f"- {label}「{(up.task_data or {}).get('title', '')[:40]}」结论：{result[:300]}"
+                f"- {label}「{(task_title(up) or '')[:40]}」结论：{result[:300]}"
             )
             for a in arts_by_task.get(up.id, [])[:3]:
                 lines.append(f"  · 产物：{getattr(a, 'file_path', '') or getattr(a, 'name', '')}")
@@ -315,7 +360,6 @@ async def dispatch_due_tasks() -> None:
     """
     from app.core.engine.dispatch import DispatchStatus, dispatch_agent_run
     from app.utils.id import unique_id
-    from app.utils.template import render_template
 
     if duty_paused():
         logger.info("[DutyDispatcher] 配额熔断中，本轮暂停值守派发")
@@ -366,8 +410,14 @@ async def dispatch_due_tasks() -> None:
                         "[DutyDispatcher] non-retryable error, failing task %s directly",
                         t.id,
                     )
-                    await TaskQueueService.advance_task(t.id, "failed", result=reason)
-                    workflow_id = str((t.task_data or {}).get("workflow_id") or "")
+                    await TaskQueueService.advance_task(
+                        t.id,
+                        "failed",
+                        result=reason,
+                        thread_id=t.last_thread_id,
+                        by="system",
+                    )
+                    workflow_id = str(task_workflow_id(t) or "")
                     if workflow_id:
                         await WorkflowService.refresh_status(workflow_id)
                         await publish_workflow_event(
@@ -388,8 +438,10 @@ async def dispatch_due_tasks() -> None:
                         t.id,
                         "failed",
                         result=str(exc),
+                        thread_id=(fresh_task or t).last_thread_id,
+                        by="system",
                     )
-                workflow_id = str((t.task_data or {}).get("workflow_id") or "")
+                workflow_id = str(task_workflow_id(t) or "")
                 if workflow_id:
                     await WorkflowService.refresh_status(workflow_id)
                     await publish_workflow_event(
@@ -402,7 +454,7 @@ async def dispatch_due_tasks() -> None:
             continue
 
         project_id = t.project_id or 0
-        category = str((t.task_data or {}).get("category") or "default")
+        category = task_category(t) or "default"
         # 线程名强制 `wakeup_` 前缀：reconciler 豁免/判死、事件订阅过滤、
         # stop 切线程都依赖该前缀。
         # 会话连续性（contact 任务）：同一联系人固定线程 `wakeup_{pid}_{contact}`
@@ -426,7 +478,7 @@ async def dispatch_due_tasks() -> None:
         # 熔断（认领后判定，走合法转移 in_progress→failed）：认领次数达阈值
         # 仍无终态 = agent 未履约 take/update_status 或派发反复失败 → 强制
         # 终态，把毒任务显式炸出来而不是无限烧 LLM。
-        if int((claimed.task_data or {}).get("dispatch_count") or 0) >= (
+        if task_dispatch_count(claimed) >= (
             DISPATCH_CLAIM_CIRCUIT_LIMIT
         ):
             await TaskQueueService.advance_task(
@@ -437,6 +489,7 @@ async def dispatch_due_tasks() -> None:
                     "任务终态（未 take/未 update_status）"
                 ),
                 by="system",
+                thread_id=claimed.last_thread_id,
             )
             continue
 
@@ -454,33 +507,40 @@ async def dispatch_due_tasks() -> None:
         if upstream_note:
             instruction_text = f"{instruction_text}\n\n{upstream_note}"
 
-        prompt = render_template(
-            "core/engine/tasks/task_wakeup.prompt.j2",
-            category=category,
-            task=WakeupTask(
-                id=t.id,
-                status=t.status,
-                title=(t.task_data or {}).get("title", ""),
-                instruction=instruction_text,
-                priority=(t.task_data or {}).get("priority", "medium"),
-                risk=t.risk_level or "T3",
-                due=(t.due_at or t.next_run_at).isoformat()
-                if (t.due_at or t.next_run_at)
-                else "now",
-                feedback=(t.acceptance or {}).get("feedback") or "",
-            ),
-        )
+        # 任务描述即第一条 human 消息的全文（不经模板包装）；任务元信息
+        # （id/风险档/截止/评审反馈）走系统提示词层（main.duty.task.txt，
+        # 经 metadata.duty_task 注入，prompts.py 渲染）。
         try:
             result = await dispatch_agent_run(
                 thread_id=thread_id,
-                message_content=prompt,
-                project_id=project_id or None,
+                message_content=instruction_text,
+                # pid=0（工作空间任务）是合法值，勿用 `or None` 短路——
+                # 0 → None 会击穿 ConversationCreatedEvent 的 int 校验，
+                # 导致 drain failed 循环（2026-09-22 实测事故）。
+                project_id=project_id,
                 member_id=await TaskQueueService.resolve_member_id(t),
+                # source 必须显式传：dispatch_agent_run 的独立参数（默认
+                # None），USER_PROMPT_SUBMIT hook 依赖它跳过兜底 L1 域分类
+                # ——漏传会让 hook 按措辞猜域，把任务误装进项目受限
+                # profile（2026-09-23 实测事故第二注入点）。
+                source="duty",
                 metadata={
                     "source": "duty",
                     "source_task_id": t.id,
                     "channel_name": str((t.source_ref or {}).get("channel") or ""),
                     "goal_prefix": "[Wakeup] ",
+                    "duty_task": {
+                        "id": t.id,
+                        "status": t.status,
+                        "title": task_title(t) or "",
+                        "priority": task_priority(t),
+                        "risk": t.risk_level or "T3",
+                        "due": (t.due_at or t.next_run_at).isoformat()
+                        if (t.due_at or t.next_run_at)
+                        else "now",
+                        "category": category,
+                        "feedback": (t.acceptance or {}).get("feedback") or "",
+                    },
                     **(
                         {
                             "intent_hint": {

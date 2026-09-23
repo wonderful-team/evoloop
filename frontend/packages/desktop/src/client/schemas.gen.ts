@@ -4382,6 +4382,17 @@ export const McpServerCreateSchema = {
             type: 'boolean',
             title: 'Enabled',
             default: true
+        },
+        transport: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Transport'
         }
     },
     additionalProperties: true,
@@ -5084,38 +5095,6 @@ export const MoveFileRequestSchema = {
     type: 'object',
     required: ['source_path', 'target_path'],
     title: 'MoveFileRequest'
-} as const;
-
-export const NextTaskResponseSchema = {
-    properties: {
-        success: {
-            type: 'boolean',
-            title: 'Success',
-            default: true
-        },
-        message: {
-            type: 'string',
-            title: 'Message',
-            default: ''
-        },
-        task: {
-            anyOf: [
-                {
-                    additionalProperties: true,
-                    type: 'object'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Task'
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    required: ['task'],
-    title: 'NextTaskResponse',
-    description: 'Response for next executable task.'
 } as const;
 
 export const OpenFileRequestSchema = {
@@ -6666,37 +6645,6 @@ export const StopRecordingResponseSchema = {
     title: 'StopRecordingResponse'
 } as const;
 
-export const SubtaskCreateSchema = {
-    properties: {
-        title: {
-            type: 'string',
-            maxLength: 255,
-            minLength: 1,
-            title: 'Title'
-        },
-        description: {
-            type: 'string',
-            title: 'Description',
-            default: ''
-        },
-        priority: {
-            type: 'string',
-            title: 'Priority',
-            default: 'medium'
-        },
-        estimated_hours: {
-            type: 'integer',
-            title: 'Estimated Hours',
-            default: 0
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    required: ['title'],
-    title: 'SubtaskCreate',
-    description: 'Subtask creation request.'
-} as const;
-
 export const SwitchProjectRequestSchema = {
     properties: {
         project_id: {
@@ -7156,194 +7104,78 @@ export const TaskAcceptedResponseSchema = {
     title: 'TaskAcceptedResponse'
 } as const;
 
-export const TaskCreateRequestSchema = {
+export const TaskEditRequestSchema = {
     properties: {
-        project_id: {
-            type: 'integer',
-            title: 'Project Id'
-        },
-        thread_id: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Thread Id'
-        },
-        task_title: {
-            type: 'string',
-            title: 'Task Title'
-        },
-        task_desc: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Task Desc',
-            default: ''
-        },
-        priority: {
-            type: 'integer',
-            title: 'Priority',
-            default: 2
-        },
-        match_score: {
-            anyOf: [
-                {
-                    type: 'number'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Match Score'
-        },
-        relevance_analysis: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Relevance Analysis'
-        },
-        key_modules: {
-            anyOf: [
-                {},
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Key Modules'
-        },
-        technical_challenges: {
-            anyOf: [
-                {},
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Technical Challenges'
-        },
-        implementation_complexity: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Implementation Complexity'
-        },
-        deliverables: {
-            anyOf: [
-                {},
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Deliverables'
-        }
-    },
-    type: 'object',
-    required: ['project_id', 'task_title'],
-    title: 'TaskCreateRequest'
-} as const;
-
-export const TaskCreateResponseSchema = {
-    properties: {
-        success: {
-            type: 'boolean',
-            title: 'Success',
-            default: true
-        },
-        message: {
-            type: 'string',
-            title: 'Message',
-            default: ''
-        },
-        task: {
-            additionalProperties: true,
-            type: 'object',
-            title: 'Task'
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    required: ['task'],
-    title: 'TaskCreateResponse',
-    description: 'Response after creating a task with subtasks.'
-} as const;
-
-export const TaskFlatResponseSchema = {
-    properties: {
-        success: {
-            type: 'boolean',
-            title: 'Success',
-            default: true
-        },
-        message: {
-            type: 'string',
-            title: 'Message',
-            default: ''
-        },
-        count: {
-            type: 'integer',
-            title: 'Count'
-        },
-        tasks: {
-            items: {
-                additionalProperties: true,
-                type: 'object'
-            },
-            type: 'array',
-            title: 'Tasks'
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    required: ['count', 'tasks'],
-    title: 'TaskFlatResponse',
-    description: 'Response for flattened task tree.'
-} as const;
-
-export const TaskListItemSchema = {
-    properties: {
-        id: {
-            type: 'string',
-            title: 'Id'
-        },
         title: {
-            type: 'string',
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
             title: 'Title'
         },
-        status: {
-            type: 'string',
-            title: 'Status'
-        },
-        progress: {
-            type: 'integer',
-            title: 'Progress'
+        description: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Description'
         },
         priority: {
-            type: 'string',
-            title: 'Priority'
+            anyOf: [
+                {
+                    '$ref': '#/components/schemas/TaskPriority'
+                },
+                {
+                    type: 'null'
+                }
+            ]
         },
-        has_subtasks: {
+        risk_level: {
+            anyOf: [
+                {
+                    '$ref': '#/components/schemas/TaskRiskLevel'
+                },
+                {
+                    type: 'null'
+                }
+            ]
+        },
+        type: {
+            anyOf: [
+                {
+                    '$ref': '#/components/schemas/TaskType'
+                },
+                {
+                    type: 'null'
+                }
+            ]
+        },
+        due_at: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Due At'
+        },
+        clear_due_at: {
             type: 'boolean',
-            title: 'Has Subtasks'
+            title: 'Clear Due At',
+            default: false
         },
-        created_at: {
+        trigger_spec: {
             anyOf: [
                 {
                     type: 'string'
@@ -7352,49 +7184,27 @@ export const TaskListItemSchema = {
                     type: 'null'
                 }
             ],
-            title: 'Created At'
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    required: ['id', 'title', 'status', 'progress', 'priority', 'has_subtasks', 'created_at'],
-    title: 'TaskListItem',
-    description: 'Item in root task list.'
-} as const;
-
-export const TaskListResponseSchema = {
-    properties: {
-        success: {
+            title: 'Trigger Spec'
+        },
+        clear_trigger_spec: {
             type: 'boolean',
-            title: 'Success',
-            default: true
+            title: 'Clear Trigger Spec',
+            default: false
         },
-        message: {
-            type: 'string',
-            title: 'Message',
-            default: ''
+        dependencies: {
+            anyOf: [
+                {
+                    items: {
+                        type: 'string'
+                    },
+                    type: 'array'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Dependencies'
         },
-        count: {
-            type: 'integer',
-            title: 'Count'
-        },
-        tasks: {
-            items: {
-                '$ref': '#/components/schemas/TaskListItem'
-            },
-            type: 'array',
-            title: 'Tasks'
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    required: ['count', 'tasks'],
-    title: 'TaskListResponse',
-    description: 'Response for listing root tasks.'
-} as const;
-
-export const TaskProgressUpdateSchema = {
-    properties: {
         status: {
             anyOf: [
                 {
@@ -7406,35 +7216,30 @@ export const TaskProgressUpdateSchema = {
             ],
             title: 'Status'
         },
-        progress: {
-            anyOf: [
-                {
-                    type: 'integer',
-                    maximum: 100,
-                    minimum: 0
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Progress'
-        },
-        result: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Result'
+        cancel: {
+            type: 'boolean',
+            title: 'Cancel',
+            default: false
         }
     },
     additionalProperties: true,
     type: 'object',
-    title: 'TaskProgressUpdate',
-    description: 'Task progress update.'
+    title: 'TaskEditRequest',
+    description: `PUT /tasks/queue/{id} — 字段编辑 + 取消（status=cancelled）。
+
+全字段可选（PATCH 语义）：None = 不改；clear_* 显式清空。`
+} as const;
+
+export const TaskPrioritySchema = {
+    type: 'string',
+    enum: ['urgent', 'high', 'medium', 'low'],
+    title: 'TaskPriority'
+} as const;
+
+export const TaskRiskLevelSchema = {
+    type: 'string',
+    enum: ['T1', 'T2', 'T3', 'T4'],
+    title: 'TaskRiskLevel'
 } as const;
 
 export const TaskStatusUpdateSchema = {
@@ -7462,29 +7267,10 @@ export const TaskStatusUpdateSchema = {
     title: 'TaskStatusUpdate'
 } as const;
 
-export const TaskTreeWrapperResponseSchema = {
-    properties: {
-        success: {
-            type: 'boolean',
-            title: 'Success',
-            default: true
-        },
-        message: {
-            type: 'string',
-            title: 'Message',
-            default: ''
-        },
-        task: {
-            additionalProperties: true,
-            type: 'object',
-            title: 'Task'
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    required: ['task'],
-    title: 'TaskTreeWrapperResponse',
-    description: 'Response wrapping a task tree.'
+export const TaskTypeSchema = {
+    type: 'string',
+    enum: ['once', 'recurring'],
+    title: 'TaskType'
 } as const;
 
 export const TaskUpdateRequestSchema = {
@@ -7608,56 +7394,6 @@ export const TaskUpdateRequestSchema = {
     additionalProperties: true,
     type: 'object',
     title: 'TaskUpdateRequest'
-} as const;
-
-export const TaskWithSubtasksCreateSchema = {
-    properties: {
-        title: {
-            type: 'string',
-            maxLength: 255,
-            minLength: 1,
-            title: 'Title'
-        },
-        description: {
-            type: 'string',
-            title: 'Description',
-            default: ''
-        },
-        priority: {
-            type: 'string',
-            title: 'Priority',
-            default: 'medium'
-        },
-        estimated_hours: {
-            type: 'integer',
-            title: 'Estimated Hours',
-            default: 0
-        },
-        subtasks: {
-            items: {
-                '$ref': '#/components/schemas/SubtaskCreate'
-            },
-            type: 'array',
-            title: 'Subtasks',
-            default: []
-        },
-        analysis_id: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Analysis Id'
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    required: ['title'],
-    title: 'TaskWithSubtasksCreate',
-    description: 'Create parent task with subtasks.'
 } as const;
 
 export const TerminalCancelRequestSchema = {
@@ -8875,4 +8611,209 @@ export const WikiPageReadSchema = {
     type: 'object',
     required: ['project_id', 'title', 'slug', 'content', 'id', 'created_at', 'updated_at'],
     title: 'WikiPageRead'
+} as const;
+
+export const app__api__schemas__tasks__TaskCreateRequestSchema = {
+    properties: {
+        project_id: {
+            type: 'integer',
+            title: 'Project Id'
+        },
+        thread_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Thread Id'
+        },
+        task_title: {
+            type: 'string',
+            title: 'Task Title'
+        },
+        task_desc: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Task Desc',
+            default: ''
+        },
+        priority: {
+            type: 'integer',
+            title: 'Priority',
+            default: 2
+        },
+        match_score: {
+            anyOf: [
+                {
+                    type: 'number'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Match Score'
+        },
+        relevance_analysis: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Relevance Analysis'
+        },
+        key_modules: {
+            anyOf: [
+                {},
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Key Modules'
+        },
+        technical_challenges: {
+            anyOf: [
+                {},
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Technical Challenges'
+        },
+        implementation_complexity: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Implementation Complexity'
+        },
+        deliverables: {
+            anyOf: [
+                {},
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Deliverables'
+        }
+    },
+    type: 'object',
+    required: ['project_id', 'task_title'],
+    title: 'TaskCreateRequest'
+} as const;
+
+export const app__api__schemas__tasks_queue__TaskCreateRequestSchema = {
+    properties: {
+        title: {
+            type: 'string',
+            title: 'Title'
+        },
+        description: {
+            type: 'string',
+            title: 'Description',
+            default: ''
+        },
+        type: {
+            '$ref': '#/components/schemas/TaskType',
+            default: 'once'
+        },
+        project_id: {
+            type: 'integer',
+            title: 'Project Id',
+            default: 0
+        },
+        category: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Category'
+        },
+        priority: {
+            '$ref': '#/components/schemas/TaskPriority',
+            default: 'medium'
+        },
+        risk_level: {
+            anyOf: [
+                {
+                    '$ref': '#/components/schemas/TaskRiskLevel'
+                },
+                {
+                    type: 'null'
+                }
+            ]
+        },
+        trigger_spec: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Trigger Spec'
+        },
+        due_at: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Due At'
+        },
+        parent_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Parent Id'
+        },
+        dependencies: {
+            anyOf: [
+                {
+                    items: {
+                        type: 'string'
+                    },
+                    type: 'array'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Dependencies'
+        }
+    },
+    additionalProperties: true,
+    type: 'object',
+    required: ['title'],
+    title: 'TaskCreateRequest',
+    description: 'POST /tasks/queue — 用户建任务（看板表单 / 提案确认后的正式任务）。'
 } as const;

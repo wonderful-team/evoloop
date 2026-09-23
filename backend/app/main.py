@@ -23,15 +23,36 @@ logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
+def assert_safe_bind(host: str) -> None:
+    """语音通道 loopback 绑定守卫（防御纵深在 routing/deps.py 逐请求层）。
+
+    生产 Web 部署（nginx 反代后端）需要绑定 0.0.0.0——显式豁免开关
+    ALLOW_REMOTE_BIND=1，默认仍 fail-closed。逐请求 loopback 守卫
+    （routing/deps.py 的 require_loopback / enforce_loopback_ws）不依赖
+    绑定地址，语音路由在远程绑定下依然被 403/4403 拦截，防御纵深不因
+    豁免失效。
+    """
+    if is_loopback_host(host):
+        return
+    if os.getenv("ALLOW_REMOTE_BIND", "").strip().lower() in ("1", "true", "yes"):
+        logger.warning(
+            "ALLOW_REMOTE_BIND=1: binding on non-loopback HOST=%s — "
+            "voice routes stay guarded by per-request loopback checks",
+            host,
+        )
+        return
+    raise RuntimeError(
+        f"Voice channel requires loopback binding; got HOST={host}. "
+        "Run with HOST=127.0.0.1 (e.g. HOST=127.0.0.1 bin/evo dev), "
+        "or set ALLOW_REMOTE_BIND=1 for production web deploys "
+        "(voice routes remain per-request loopback-guarded)."
+    )
+
+
 async def lifespan(app: FastAPI):  # noqa: ARG001
 
     # Voice channel requires loopback binding (defence in depth lives in deps.py).
-    _host = os.getenv("HOST", "127.0.0.1")
-    if not is_loopback_host(_host):
-        raise RuntimeError(
-            f"Voice channel requires loopback binding; got HOST={_host}. "
-            "Run with HOST=127.0.0.1 (e.g. HOST=127.0.0.1 bin/evo dev)."
-        )
+    assert_safe_bind(os.getenv("HOST", "127.0.0.1"))
 
     # --- Startup ---
     startup_time = time.time()

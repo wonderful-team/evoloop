@@ -11,23 +11,17 @@
    ========================================================================== */
 
 import { useState, useRef, useEffect, useMemo } from "react"
-import type {
-  DutyTask,
-  DashboardKPIs,
-} from "../core/types"
+import type { DutyTask } from "../core/types"
 import { layoutDutyTasks, deriveDutyEdges, type LayoutDirection } from "./layoutEngine"
+import { TasksQueueApi } from "@/lib/tasksQueueApi"
 
 import { DutyCanvas } from "./DutyCanvas"
-import { DutyTopBar } from "./DutyTopBar"
-import { DutyLeftSidebar } from "./DutyLeftSidebar"
 import { toast } from "sonner"
 import "./styles/duty-canvas.css"
 
 export interface AutonomousDutyCanvasAppProps {
   tasks?: DutyTask[]
   isLoading?: boolean
-  hideTopBar?: boolean
-  hideSidebar?: boolean
   externalSelectedTaskId?: string | null
   onTaskSelect?: (taskId: string | null) => void
   onApproveTask?: (taskId: string, grantMode?: "once" | "always") => void | Promise<void>
@@ -39,8 +33,6 @@ export interface AutonomousDutyCanvasAppProps {
   onNodeChat?: (taskId: string, message: string, files?: any[]) => void
   highlightStatuses?: string[]
   className?: string
-  dutyEnabled?: boolean
-  onToggleDuty?: () => void | Promise<void>
   /**
    * Render prop：由外层（desktop）注入真实 ChatInputArea。
    * 参数携带画布当前节点上下文（selectedTask / selectedTaskIds 等）。
@@ -57,12 +49,8 @@ export interface AutonomousDutyCanvasAppProps {
 export default function AutonomousDutyCanvasApp({
   tasks: externalTasks,
   isLoading: _isLoading = false,
-  hideTopBar = false,
-  hideSidebar = false,
   externalSelectedTaskId = null,
   highlightStatuses,
-  dutyEnabled,
-  onToggleDuty,
   onTaskSelect,
   onApproveTask,
   onRejectTask,
@@ -116,56 +104,15 @@ export default function AutonomousDutyCanvasApp({
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set())
   const [focusTaskId, setFocusTaskId] = useState<string | null>(null)
-  const [activeFlowEdge, setActiveFlowEdge] = useState<string | null>(null)
+  const [activeFlowEdge] = useState<string | null>(null)
   const [stepIndexMap, setStepIndexMap] = useState<Record<string, number>>({})
 
-  const [isRunning, setIsRunning] = useState(false)
-  const [statusText, setStatusText] = useState("已就绪 · EvoLoop 自主值守待命中")
+  const [, setStatusText] = useState("已就绪 · EvoLoop 自主值守待命中")
   const [promptText, setPromptText] = useState("")
-
-  /* 门禁异步等待锁 */
-  const stopSignalRef = useRef(false)
-  const signoffResolverRef = useRef<((approved: boolean) => void) | null>(null)
-  const hitlResolverRef = useRef<(() => void) | null>(null)
-
-  const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
-
-  /* KPI 指标动态计算 */
-  const kpis: DashboardKPIs = useMemo(() => {
-    const completedCount = tasks.filter((t) => t.status === "completed").length
-    const inProgCount = tasks.filter((t) => t.status === "in_progress").length
-    const needsYouCount = tasks.filter(
-      (t) =>
-        t.status === "waiting_acceptance" ||
-        t.status === "confirm" ||
-        t.status === "proposed" ||
-        t.status === "failed" ||
-        t.status === "blocked",
-    ).length
-
-    return {
-      dutyState: isRunning ? "busy" : "idle",
-      tokenToday: {
-        input: completedCount * 4200,
-        output: completedCount * 980,
-        calls: completedCount * 3,
-      },
-      taskCounts: {
-        total: tasks.length,
-        inProgress: inProgCount,
-        needsYou: needsYouCount,
-        completed: completedCount,
-      },
-    }
-  }, [tasks, isRunning])
 
   /* 局部更新任务字段 */
   function patchTask(id: string, partial: Partial<DutyTask>) {
     setRawTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...partial } : t)))
-  }
-
-  function pushNotification(_notif: unknown) {
-    // 移动端相关逻辑统一在 evoloop/mobile 中实现
   }
 
   /* ── 展开节点进入页面态 (原地中心对称放大) ── */
@@ -223,138 +170,6 @@ export default function AutonomousDutyCanvasApp({
      镜头聚焦 → 节点在画布上原地放大为 1040px 页面 → Agent 现场思考与 MCP 执行
      → 门禁确认 → 节点平滑收缩回卡片 → 镜头拉远 → 贝塞尔连线粒子流动 → 镜头平移至下游卡片 → 原地放大进页面
      ========================================================================== */
-  async function runAutonomousDuty() {
-    setIsRunning(true)
-    stopSignalRef.current = false
-    setStatusText("Agent 自主巡航值守推进中 · 节点放大转场调度")
-
-    for (let i = 0; i < rawTasksRef.current.length; i++) {
-      const task = rawTasksRef.current[i]
-      if (stopSignalRef.current) break
-      if (task.status === "completed") continue
-
-      // 1. 镜头平滑拉近并居中聚焦当前任务节点 (画布摄像机放大，卡片尺寸绝对固定)
-      openTask(task.id)
-      patchTask(task.id, { status: "in_progress" })
-      setStatusText(`画布镜头聚焦 #T-${task.taskNo}「${task.title.slice(0, 14)}…」· 现场推进`)
-      await sleep(550)
-      if (stopSignalRef.current) break
-
-      // 3. 页面内点亮 Agent 思考时序与 MCP 工具链
-      const steps = task.steps || []
-      for (let s = 0; s < steps.length; s++) {
-        if (stopSignalRef.current) break
-        setStepIndexMap((m) => ({ ...m, [task.id]: s + 1 }))
-        await sleep(420)
-      }
-      if (stopSignalRef.current) break
-
-      // 4. 商业决策拍板门禁挂起 (若有)
-      if (task.signoff?.requiresHuman) {
-        patchTask(task.id, { status: "waiting_acceptance" })
-        setStatusText(`#T-${task.taskNo} 商业决策挂起：请在展开的节点内直接拍板`)
-        pushNotification({
-          taskId: task.id,
-          taskNo: task.taskNo,
-          type: "signoff",
-          title: `商业拍板待办：#T-${task.taskNo}`,
-          content: `${task.title} 方案已就绪，请在工作台确认。`,
-        })
-
-        const approved = await new Promise<boolean>((resolve) => {
-          signoffResolverRef.current = resolve
-        })
-
-        if (!approved) {
-          setStatusText(`#T-${task.taskNo} 已打回修改，链路暂停重做`)
-          break
-        }
-
-        patchTask(task.id, { status: "in_progress" })
-        setStatusText(`#T-${task.taskNo} 拍板通过 · 执行监察对账`)
-        await sleep(350)
-      }
-
-      // 5. HITL 资金与高危写操作安全门禁 (若有)
-      if (task.hitl?.pending) {
-        patchTask(task.id, { status: "confirm" })
-        setStatusText(`#T-${task.taskNo} 触发资金安全门禁，等待授权…`)
-        pushNotification({
-          taskId: task.id,
-          taskNo: task.taskNo,
-          type: "hitl",
-          title: "资金安全审批提醒",
-          content: `#T-${task.taskNo} 产生出账申请，请在工作台确认授权。`,
-        })
-
-        await new Promise<void>((resolve) => {
-          hitlResolverRef.current = resolve
-        })
-
-        patchTask(task.id, { status: "in_progress" })
-        await sleep(350)
-      }
-
-      // 6. Supervisor Agent 监察对账通过
-      patchTask(task.id, { status: "completed" })
-      pushNotification({
-        taskId: task.id,
-        taskNo: task.taskNo,
-        type: "completed",
-        title: `任务完成：#T-${task.taskNo}`,
-        content: `#T-${task.taskNo} 产物已通过对账入库。`,
-      })
-      await sleep(350)
-
-      // 7. ★ 核心转场：当前节点平滑缩小收回为画布普通卡片，镜头拉远
-      closeTask()
-      setStatusText(`#T-${task.taskNo} 完成，节点收缩回卡片，向下游调度流转`)
-      await sleep(400)
-      if (stopSignalRef.current) break
-
-      // 8. ★ 贝塞尔连线流光粒子流向下游目标节点
-      const outgoing = edges.filter((e) => e.from === task.id)
-      for (const e of outgoing) {
-        setActiveFlowEdge(`${e.from}>${e.to}`)
-        await sleep(550)
-      }
-      setActiveFlowEdge(null)
-      await sleep(180)
-      // 下一轮循环自动将镜头追踪至下游节点并原地放大为页面！
-    }
-
-    setIsRunning(false)
-    if (!stopSignalRef.current) {
-      setStatusText("全链路自主值守任务已圆满完成 · 全部归档！")
-    }
-  }
-
-  function stopDuty() {
-    stopSignalRef.current = true
-    setIsRunning(false)
-    setStatusText("自主值守工作台已暂停")
-    if (signoffResolverRef.current) {
-      signoffResolverRef.current(false)
-      signoffResolverRef.current = null
-    }
-    if (hitlResolverRef.current) {
-      hitlResolverRef.current()
-      hitlResolverRef.current = null
-    }
-  }
-
-  function resetDuty() {
-    stopDuty()
-    const { tasks: freshTasks } = layoutDutyTasks(rawTasksRef.current, undefined, layoutDirection)
-    setRawTasks(freshTasks)
-    setStepIndexMap({})
-    setActiveTaskId(null)
-    setSelectedTaskId(null)
-    setSelectedTaskIds(new Set())
-    setFocusTaskId(null)
-    setActiveFlowEdge(null)
-    setStatusText("值守任务链路已重置为初始待命状态")
-  }
 
   /* 节点位置由画布拖拽实时更新 */
   function handleUpdateTaskPosition(taskId: string, x: number, y: number) {
@@ -430,6 +245,22 @@ export default function AutonomousDutyCanvasApp({
         return t
       })
       const { tasks: freshTasks } = layoutDutyTasks(updated, undefined, layoutDirection)
+      // 持久化：本地拓扑只是乐观更新，依赖必须落到任务行（刷新/重连后仍在）
+      const persistTarget = updated.find((t) => t.id === toId)
+      void TasksQueueApi.update(toId, {
+        dependencies: persistTarget?.dependencies ?? [],
+      }).catch(() => {
+        setStatusText("⚠️ 连线保存失败：依赖未落库，已回滚本地拓扑")
+        setRawTasks((cur) => {
+          const reverted = cur.map((t) =>
+            t.id === toId
+              ? { ...t, dependencies: (t.dependencies || []).filter((d) => d !== fromId) }
+              : t,
+          )
+          const { tasks: freshTasks } = layoutDutyTasks(reverted, undefined, layoutDirection)
+          return freshTasks
+        })
+      })
       return freshTasks
     })
 
@@ -453,6 +284,22 @@ export default function AutonomousDutyCanvasApp({
         return t
       })
       const { tasks: freshTasks } = layoutDutyTasks(updated, undefined, layoutDirection)
+      // 持久化断连：失败回滚（重新挂上依赖）
+      const persistTarget = updated.find((t) => t.id === toId)
+      void TasksQueueApi.update(toId, {
+        dependencies: persistTarget?.dependencies ?? [],
+      }).catch(() => {
+        setStatusText("⚠️ 断连保存失败：依赖未落库，已回滚本地拓扑")
+        setRawTasks((cur) => {
+          const reverted = cur.map((t) =>
+            t.id === toId
+              ? { ...t, dependencies: [...(t.dependencies || []), fromId] }
+              : t,
+          )
+          const { tasks: freshTasks } = layoutDutyTasks(reverted, undefined, layoutDirection)
+          return freshTasks
+        })
+      })
       return freshTasks
     })
 
@@ -550,10 +397,6 @@ export default function AutonomousDutyCanvasApp({
     setStatusText(
       `✓ #T-${task?.taskNo || taskId} 方案已核准通过 ${grantMode === "always" ? "(总是允许)" : ""}`,
     )
-    if (signoffResolverRef.current) {
-      signoffResolverRef.current(true)
-      signoffResolverRef.current = null
-    }
   }
 
   /* 打回重做 (带反馈) */
@@ -587,10 +430,6 @@ export default function AutonomousDutyCanvasApp({
         : undefined,
     })
     setStatusText(`✕ #T-${task?.taskNo || taskId} 已打回修改：${feedback || "请重新调整"}`)
-    if (signoffResolverRef.current) {
-      signoffResolverRef.current(false)
-      signoffResolverRef.current = null
-    }
   }
 
   /* 资金/高危操作放行 (支持 grantMode: "once" | "always") */
@@ -618,14 +457,6 @@ export default function AutonomousDutyCanvasApp({
     setStatusText(
       `✓ #T-${task?.taskNo || taskId} 资金与写操作已授权放行 (${grantMode === "always" ? "已设为总是允许" : "仅放行本次"})`,
     )
-    if (hitlResolverRef.current) {
-      hitlResolverRef.current()
-      hitlResolverRef.current = null
-    }
-    if (signoffResolverRef.current) {
-      signoffResolverRef.current(true)
-      signoffResolverRef.current = null
-    }
   }
 
   /* HITL 取消任务 */
@@ -650,14 +481,6 @@ export default function AutonomousDutyCanvasApp({
         : undefined,
     })
     setStatusText(`⛔ #T-${task?.taskNo || taskId} 人机治理取消操作，任务终止`)
-    if (hitlResolverRef.current) {
-      hitlResolverRef.current()
-      hitlResolverRef.current = null
-    }
-    if (signoffResolverRef.current) {
-      signoffResolverRef.current(false)
-      signoffResolverRef.current = null
-    }
   }
 
   /* HITL 单选/多选/文本提交 */
@@ -680,10 +503,6 @@ export default function AutonomousDutyCanvasApp({
         : undefined,
     })
     setStatusText(`✓ #T-${task?.taskNo || taskId} 已确认选项：「${choice}」，链路继续推进`)
-    if (signoffResolverRef.current) {
-      signoffResolverRef.current(true)
-      signoffResolverRef.current = null
-    }
   }
 
   function handleSubmitMultiChoiceHitl(taskId: string, choices: string[]) {
@@ -704,10 +523,6 @@ export default function AutonomousDutyCanvasApp({
         : undefined,
     })
     setStatusText(`✓ #T-${task?.taskNo || taskId} 已提交多项选项 (${choices.length}项)，链路继续推进`)
-    if (signoffResolverRef.current) {
-      signoffResolverRef.current(true)
-      signoffResolverRef.current = null
-    }
   }
 
   function handleSubmitTextHitl(taskId: string, value: string) {
@@ -728,10 +543,6 @@ export default function AutonomousDutyCanvasApp({
         : undefined,
     })
     setStatusText(`✓ #T-${task?.taskNo || taskId} 已补充信息：「${value}」，Agent 恢复处理`)
-    if (signoffResolverRef.current) {
-      signoffResolverRef.current(true)
-      signoffResolverRef.current = null
-    }
   }
 
   /* 用户通过 Prompt 指令向 Agent 派发动态新任务或与节点对话 */
@@ -827,46 +638,8 @@ export default function AutonomousDutyCanvasApp({
 
   return (
     <div className={`dc-app ${className}`}>
-      {/* ── 顶栏主控制台 ── */}
-      {!hideTopBar && (
-        <DutyTopBar
-          isRunning={dutyEnabled !== undefined ? dutyEnabled : isRunning}
-          kpis={kpis}
-          statusText={
-            dutyEnabled !== undefined
-              ? dutyEnabled
-                ? "Agent 连续自主巡检推进中 · 链路就绪"
-                : "自主值守总闸已停止 · 现场待命中"
-              : statusText
-          }
-          promptText={promptText}
-          onChangePrompt={setPromptText}
-          onSendPrompt={() => handleSendPrompt()}
-          onToggleRun={() => {
-            if (onToggleDuty) {
-              void onToggleDuty()
-            } else {
-              if (isRunning) {
-                stopDuty()
-              } else {
-                void runAutonomousDuty()
-              }
-            }
-          }}
-          onReset={resetDuty}
-        />
-      )}
-
       {/* ── 主工作区 ── */}
       <div className="dc-main">
-        {/* 左侧任务索引与「需要你处理」侧栏 */}
-        {!hideSidebar && (
-          <DutyLeftSidebar
-            tasks={tasks}
-            activeTaskId={activeTaskId || selectedTaskId || focusTaskId}
-            onSelectTask={handleFocusAndOpenTask}
-          />
-        )}
 
         {/* 中央无限任务画布：节点卡片原地放大为页面 */}
         <DutyCanvas

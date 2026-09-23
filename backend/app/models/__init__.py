@@ -38,6 +38,7 @@ from .system import McpServer as McpServer
 from .system import ProjectResource as ProjectResource
 from .system import SystemConfig as SystemConfig
 from .system import Tool as Tool
+from .task_run import TaskRun as TaskRun
 from .task_workflow import TaskArtifact as TaskArtifact
 from .task_workflow import TaskWorkflow as TaskWorkflow
 from .wiki import WikiPage as WikiPage

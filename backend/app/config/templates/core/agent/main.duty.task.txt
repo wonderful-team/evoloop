@@ -1,0 +1,11 @@
+### 本次值守任务上下文
+
+任务元信息（执行前先 `tasks` take 绑定，`update_status` 时引用同一 id）：
+
+- id: {{id}}
+- 状态: {{status}} | 优先级: {{priority}} | 风险档: {{risk}} | 截止: {{due}} | 车道: {{category}}
+- 标题: {{title}}
+{{feedback_block}}
+任务指令见第一条用户消息。
+
+**收口要求（硬性）**：无论任务多简单，完成后必须调用 `tasks` update_status 推进终态（completed 需带 result），否则任务会因"run 结束未推进"被守夜进程判为悬置、回队重派——空烧一整轮。

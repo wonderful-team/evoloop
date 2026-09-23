@@ -28,6 +28,25 @@ from app.utils.id import gen_uuid
 logger = logging.getLogger(__name__)
 
 
+# 值守线程的项目频道解析：wakeup_{pid}_* / duty_{pid}_* / kf_{pid}_* /
+# agent_{pid}_* 前缀约定中 pid 是第二段。非值守线程（chat uuid 等）无
+# 项目频道，返回 None（调用方只发全局频道）。
+_DUTY_THREAD_PREFIXES = ("wakeup_", "duty_", "kf_", "agent_")
+
+
+def _task_channel_for_thread(thread_id: str) -> str | None:
+    if not thread_id:
+        return None
+    for prefix in _DUTY_THREAD_PREFIXES:
+        if thread_id.startswith(prefix):
+            rest = thread_id[len(prefix):]
+            pid = rest.split("_", 1)[0]
+            if pid.isdigit():
+                return f"tasks:{int(pid)}:events"
+            return None
+    return None
+
+
 # ============ Execution-mode guard ============
 
 
@@ -160,19 +179,23 @@ async def create_request(
     # 值守工作台实时感知：Agent 发起审批 → 任务频道广播 hitl_created
     # （桌面/手机工作台即时弹出"等待审批"，不再依赖 10s 盲轮）。
     # session_scope 正常退出即已提交，广播失败不影响创建本身。
+    # 项目频道同发：项目级订阅（/stream/tasks?project_id=N）此前收不到
+    # HITL 事件——值守页选定项目后审批计数不再实时（审计断层 6.2）。
     try:
         from app.core.engine.message.broker import get_message_broker
 
-        await get_message_broker().publish(
-            "tasks:all:events",
-            {
-                "type": "task_queue_updated",
-                "event": "hitl_created",
-                "thread_id": thread_id,
-                "request_id": request_id,
-                "request_type": request_type,
-            },
-        )
+        payload = {
+            "type": "task_queue_updated",
+            "event": "hitl_created",
+            "thread_id": thread_id,
+            "request_id": request_id,
+            "request_type": request_type,
+        }
+        broker = get_message_broker()
+        await broker.publish("tasks:all:events", payload)
+        project_channel = _task_channel_for_thread(thread_id)
+        if project_channel:
+            await broker.publish(project_channel, payload)
     except Exception:
         pass
 
@@ -281,16 +304,18 @@ async def finalize_request(
             try:
                 from app.core.engine.message.broker import get_message_broker
 
-                await get_message_broker().publish(
-                    "tasks:all:events",
-                    {
-                        "type": "task_queue_updated",
-                        "event": "hitl_resolved",
-                        "thread_id": thread_id,
-                        "request_id": request_id,
-                        "status": status,
-                    },
-                )
+                payload = {
+                    "type": "task_queue_updated",
+                    "event": "hitl_resolved",
+                    "thread_id": thread_id,
+                    "request_id": request_id,
+                    "status": status,
+                }
+                broker = get_message_broker()
+                await broker.publish("tasks:all:events", payload)
+                project_channel = _task_channel_for_thread(thread_id)
+                if project_channel:
+                    await broker.publish(project_channel, payload)
             except Exception:
                 pass  # 通知失败不影响定局本身
 

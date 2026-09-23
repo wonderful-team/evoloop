@@ -49,7 +49,7 @@ async def publish_task_queue_event(
         "task_id": task.id,
         "project_id": task.project_id or 0,
         "status": task.status,
-        "title": (task.task_data or {}).get("title"),
+        "title": task.title if task.title is not None else (task.task_data or {}).get("title"),
         "at": utcnow().isoformat(),
     }
     if extra:
