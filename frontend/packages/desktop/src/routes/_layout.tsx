@@ -1,31 +1,22 @@
-import {
-  SidebarInset,
-  SidebarProvider,
-} from "@evoloop/shared/components/ui/sidebar"
-import { createFileRoute, Outlet, useRouterState } from "@tanstack/react-router"
-import { AnimatePresence, motion } from "framer-motion"
-import { useEffect, useState } from "react"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
-import { AgentStopManager } from "@/components/Common/AgentStopManager"
-import { AppTitleBar } from "@/components/Common/AppTitleBar"
-import {
-  SpotlightTourProvider,
-  useTour,
-} from "@/components/Common/SpotlightTour"
-import { desktopTourSteps } from "@/components/Common/tourSteps"
-import { CustomerServiceDutyManager } from "@evoloop/workbench"
-import { GlobalRecorderManager } from "@/components/Learning/GlobalRecorderManager"
+import {SidebarInset, SidebarProvider,} from "@evoloop/shared/components/ui/sidebar"
+import {createFileRoute, Outlet, useRouterState} from "@tanstack/react-router"
+import {AnimatePresence, motion} from "framer-motion"
+import {useEffect, useState} from "react"
+import {useTranslation} from "react-i18next"
+import {toast} from "sonner"
+import {AgentStopManager} from "@/components/Common/AgentStopManager"
+import {AppTitleBar} from "@/components/Common/AppTitleBar"
+import {CustomerServiceDutyManager} from "@evoloop/workbench"
+import {GlobalRecorderManager} from "@/components/Learning/GlobalRecorderManager"
 import AppSidebar from "@/components/Sidebar/AppSidebar"
-import { SetupWizard, useSetupRequired } from "@/components/Wizard"
-import { useSetupWizard } from "@/components/Wizard/SetupWizardContext"
+import {SetupWizard, useSetupRequired} from "@/components/Wizard"
+import {useSetupWizard} from "@/components/Wizard/SetupWizardContext"
 import useAuth from "@/hooks/useAuth"
-import { useIsMultiTenant } from "@/hooks/useIsMultiTenant"
-import { useSystemEvent } from "@/hooks/useSystemEvent"
-import { useVoiceEvents } from "@/hooks/useVoiceEvents"
-import { isTauri } from "@/lib/tauri"
-import { useHostContextStore } from "@/stores/hostContextStore"
-import { useUIStore } from "@/stores/uiStore"
+import {useSystemEvent} from "@/hooks/useSystemEvent"
+import {useVoiceEvents} from "@/hooks/useVoiceEvents"
+import {isTauri} from "@/lib/tauri"
+import {useHostContextStore} from "@/stores/hostContextStore"
+import {useUIStore} from "@/stores/uiStore"
 
 export const Route = createFileRoute("/_layout")({
   component: Layout,
@@ -60,7 +51,6 @@ function Layout() {
   const { user } = useAuth()
   const { required: setupRequired, loading: setupLoading } = useSetupRequired()
   const { setIsWizardOpen } = useSetupWizard()
-  const isMultiTenant = useIsMultiTenant()
   const [showWizard, setShowWizard] = useState(false)
   const [hasShownWizard, setHasShownWizard] = useState(false)
 
@@ -152,10 +142,7 @@ function Layout() {
   })
 
   return (
-    <SpotlightTourProvider
-      steps={desktopTourSteps}
-      preventAutoStart={setupLoading || setupRequired || isMultiTenant}
-    >
+    <>
       <GlobalRecorderManager />
       <CustomerServiceDutyManager />
       <AgentStopManager />
@@ -202,7 +189,7 @@ function Layout() {
                   animate="center"
                   exit="exit"
                   transition={{ type: "tween", duration: 0.28, ease: [0.32, 0.72, 0, 1] }}
-                  className={isFullWidth ? "h-full w-full" : ""}
+                  className={isFullWidth ? "h-full w-full min-w-0" : ""}
                 >
                   <Outlet />
                 </motion.div>
@@ -213,11 +200,8 @@ function Layout() {
       </SidebarProvider>
 
       <SetupWizard open={showWizard} onOpenChange={setShowWizard} />
-    </SpotlightTourProvider>
+    </>
   )
 }
-
-// Export hook for settings page to replay tour
-export { useTour }
 
 export default Layout

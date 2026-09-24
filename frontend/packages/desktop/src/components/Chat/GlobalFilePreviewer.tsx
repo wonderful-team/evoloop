@@ -1,8 +1,8 @@
-import { FilePreviewModal } from "@/components/Files/FilePreviewModal"
-import { ProjectProfileDrawer } from "@/components/Files/ProjectProfileDrawer"
-import { useChatStore } from "@/stores/chatStore"
-import { useProjectStore } from "@/stores/projectStore"
-import { useUIStore } from "@/stores/uiStore"
+import {FilePreviewModal} from "@/components/Files/FilePreviewModal"
+import {ProjectProfileDrawer} from "@/components/Files/ProjectProfileDrawer"
+import {useChatStore} from "@/stores/chatStore"
+import {useProjectStore} from "@/stores/projectStore"
+import {useUIStore} from "@/stores/uiStore"
 
 export function GlobalFilePreviewer() {
   const previewFile = useUIStore((s) => s.previewFile)

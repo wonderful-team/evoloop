@@ -1,13 +1,10 @@
-import { useMemo, useState } from "react"
-import { toast } from "sonner"
-import { useNavigate } from "@tanstack/react-router"
-import { useQueryClient } from "@tanstack/react-query"
-import {
-  TaskProposalCard as SharedTaskProposalCard,
-  type ProposalScheduleParams,
-} from "@evoloop/shared"
+import {useMemo, useState} from "react"
+import {toast} from "sonner"
+import {useNavigate} from "@tanstack/react-router"
+import {useQueryClient} from "@tanstack/react-query"
+import {type ProposalScheduleParams, TaskProposalCard as SharedTaskProposalCard,} from "@evoloop/shared"
 
-import { TasksQueueApi } from "@/lib/tasksQueueApi"
+import {TasksQueueApi} from "@/lib/tasksQueueApi"
 
 interface ProposalMessage {
   id: string | number

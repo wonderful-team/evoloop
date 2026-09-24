@@ -1,11 +1,11 @@
-import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
+import {ScrollArea} from "@evoloop/shared/components/ui/scroll-area"
 import * as Diff2Html from "diff2html"
-import { ColorSchemeType } from "diff2html/lib/types"
-import { useEffect, useState } from "react"
+import {ColorSchemeType} from "diff2html/lib/types"
+import {useEffect, useState} from "react"
 import "diff2html/bundles/css/diff2html.min.css"
-import { FileDiff } from "lucide-react"
-import { useTranslation } from "react-i18next"
-import { AppSheet } from "@/components/Common/AppSheet"
+import {FileDiff} from "lucide-react"
+import {useTranslation} from "react-i18next"
+import {AppSheet} from "@/components/Common/AppSheet"
 
 interface DiffDrawerProps {
   isOpen: boolean

@@ -1,16 +1,10 @@
-import { Badge } from "@evoloop/shared/components/ui/badge"
-import { Button } from "@evoloop/shared/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@evoloop/shared/components/ui/card"
-import { AlertCircle, Crown } from "lucide-react"
-import { useTranslation } from "react-i18next"
+import {Badge} from "@evoloop/shared/components/ui/badge"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {Card, CardContent, CardFooter, CardHeader, CardTitle,} from "@evoloop/shared/components/ui/card"
+import {AlertCircle, Crown} from "lucide-react"
+import {useTranslation} from "react-i18next"
 
-import type { SubscriptionPlan } from "@/types/subscription"
+import type {SubscriptionPlan} from "@/types/subscription"
 
 type Benefits = Record<string, number | boolean | string>
 

@@ -2108,26 +2108,6 @@
       "visionModel": "视觉模型（可选）",
       "visionModelDesc": "用于图像分析的模型（例如 gpt-4o, claude-3-opus）。"
     },
-    "lightning": {
-      "title": "⚡ 轻量通道",
-      "description": "用于路由决策、分类和嵌入的轻量 LLM。与下方的重型通道使用不同的模型。",
-      "mode": "模式",
-      "none_hint": "轻量通道已关闭。本地路由和嵌入将不可用。适合低算力机器。",
-      "llmModel": "LLM 模型",
-      "llmModelPlaceholder": "/path/to/local-llm.gguf",
-      "embedModel": "嵌入模型",
-      "embedModelPlaceholder": "/path/to/bge-base-zh-v1.5-q4_k_m.gguf",
-      "contextWindow": "上下文窗口（tokens）",
-      "baseUrl": "Base URL",
-      "apiKey": "API Key",
-      "test_connection": "测试连接",
-      "connected": "连接成功 ✓",
-      "connection_failed": "LLM {{llm}} 嵌入 {{embed}}",
-      "connection_error": "连接错误：{{message}}",
-      "loadError": "加载轻量通道配置失败",
-      "channel_separator": "重型通道（复杂 Agent 任务）",
-      "gguf_hint": "请下载 GGUF 格式的本地 LLM 模型并填写路径"
-    },
     "models": {
       "default_view": {
         "title": "AI 助手",
@@ -2461,50 +2441,6 @@
       "previous": "上一页"
     }
   },
-  "tour": {
-    "finish": "完成",
-    "next": "下一步",
-    "prev": "上一步",
-    "replayDesc": "再次查看产品功能介绍",
-    "replayTitle": "重新播放引导",
-    "skipAriaLabel": "跳过引导",
-    "step1": {
-      "title": "欢迎使用 EvoLoop",
-      "content": "EvoLoop 是您的通用 AI 智能体助手，可以帮助您完成代码开发、项目管理等任务。"
-    },
-    "step2": {
-      "title": "对话",
-      "content": "在这里与 AI 进行对话，提出问题或请求协助。"
-    },
-    "step3": {
-      "title": "项目",
-      "content": "管理您的开发项目，组织代码文件和工作流。"
-    },
-    "step4": {
-      "title": "MCP 扩展",
-      "content": "通过 MCP 协议扩展 AI 的能力，连接更多工具和服务。"
-    },
-    "step5": {
-      "title": "设置",
-      "content": "配置模型、主题、快捷键等个性化选项。"
-    },
-    "step6": {
-      "title": "对话列表",
-      "content": "查看和管理您的历史对话记录。"
-    },
-    "step7": {
-      "title": "消息区域",
-      "content": "查看 AI 的回复和生成的内容。"
-    },
-    "step8": {
-      "title": "上下文面板",
-      "content": "管理当前对话的上下文信息，包括记忆和引用。"
-    },
-    "step9": {
-      "title": "输入框",
-      "content": "在这里输入您的问题或指令，与 AI 开始交互。"
-    }
-  },
   "updateNotification": {
     "forceUpdate": {
       "desc": "Desc",
@@ -2581,7 +2517,7 @@
       "chat": "智能对话",
       "projects": "项目管理",
       "start": "开始使用 EvoLoop",
-      "subtitle": "您已准备好使用 EvoLoop。接下来，让我们快速浏览一下产品功能。",
+      "subtitle": "您已准备好使用 EvoLoop，现在可以开始使用了。",
       "title": "配置完成！"
     },
     "description": "完成必要的系统配置",

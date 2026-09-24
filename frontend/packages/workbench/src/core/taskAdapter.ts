@@ -7,16 +7,16 @@
    ========================================================================== */
 
 import type {
-  DutyTask,
-  DutyTaskStatus,
-  TaskPriority,
-  TaskRiskLevel,
-  ProvenanceKind,
-  FourQuestions,
-  DutyArtifact,
-  SignoffSpec,
+    DutyArtifact,
+    DutyTask,
+    DutyTaskStatus,
+    FourQuestions,
+    ProvenanceKind,
+    SignoffSpec,
+    TaskPriority,
+    TaskRiskLevel,
 } from "./types"
-import type { QueueTask, QueueArtifact } from "@/lib/tasksQueueApi"
+import type {QueueArtifact, QueueTask} from "@/lib/tasksQueueApi"
 
 /**
  * 转换单个产物模型

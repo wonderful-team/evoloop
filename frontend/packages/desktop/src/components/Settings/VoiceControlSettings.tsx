@@ -1,42 +1,35 @@
-import { Button } from "@evoloop/shared/components/ui/button"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {Collapsible, CollapsibleContent, CollapsibleTrigger,} from "@evoloop/shared/components/ui/collapsible"
+import {Input} from "@evoloop/shared/components/ui/input"
+import {Label} from "@evoloop/shared/components/ui/label"
+import {Switch} from "@evoloop/shared/components/ui/switch"
+import {cn} from "@evoloop/shared/lib/utils"
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@evoloop/shared/components/ui/collapsible"
-import { Input } from "@evoloop/shared/components/ui/input"
-import { Label } from "@evoloop/shared/components/ui/label"
-import { Switch } from "@evoloop/shared/components/ui/switch"
-import { cn } from "@evoloop/shared/lib/utils"
-import {
-  AlertCircle,
-  CheckCircle2,
-  ChevronDown,
-  Cpu,
-  Download,
-  Keyboard,
-  Loader2,
-  Mic,
-  MousePointerClick,
-  Power,
-  Radio,
-  Sparkles,
-  Zap,
+    AlertCircle,
+    CheckCircle2,
+    ChevronDown,
+    Cpu,
+    Download,
+    Keyboard,
+    Loader2,
+    Mic,
+    MousePointerClick,
+    Power,
+    Radio,
+    Sparkles,
+    Zap,
 } from "lucide-react"
-import { useEffect, useState } from "react"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
-import { useModelManager } from "@/hooks/useModelManager"
-import {
-  useTauriVoiceShortcut,
-  useTauriVoiceShortcutSettings,
-} from "@/hooks/useTauriVoiceShortcut"
-import { useWakeWord, useWakeWordSettings } from "@/hooks/useWakeWord"
-import { isTauri as checkIsTauri } from "@/lib/tauri"
-import { ModelManager } from "./ModelManager"
-import { SettingsCard } from "./SettingsCard"
-import { useSettings } from "./SettingsContext"
-import { TTSSettings } from "./TTSSettings"
+import {useEffect, useState} from "react"
+import {useTranslation} from "react-i18next"
+import {toast} from "sonner"
+import {useModelManager} from "@/hooks/useModelManager"
+import {useTauriVoiceShortcut, useTauriVoiceShortcutSettings,} from "@/hooks/useTauriVoiceShortcut"
+import {useWakeWord, useWakeWordSettings} from "@/hooks/useWakeWord"
+import {isTauri as checkIsTauri} from "@/lib/tauri"
+import {ModelManager} from "./ModelManager"
+import {SettingsCard} from "./SettingsCard"
+import {useSettings} from "./SettingsContext"
+import {TTSSettings} from "./TTSSettings"
 
 export function VoiceControlSettings() {
   const { t } = useTranslation()

@@ -1,25 +1,19 @@
-import { Button } from "@evoloop/shared/components/ui/button"
-import { ToolCallItem, ThinkingBlock } from "@evoloop/shared"
-import { motion } from "framer-motion"
-import {
-  Brain,
-  Copy,
-  Quote,
-  RotateCcw,
-  Undo,
-} from "lucide-react"
-import { memo, useEffect, useState } from "react"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
-import { useAutoSpeak, useTTS } from "@/hooks/useTTS"
-import { previewFile } from "@/utils/fileLinkHandler"
-import { resolveReferencePreview } from "@/utils/fileUtils"
-import { ChangesetSnapshot } from "./ChangesetSnapshotView"
-import { ImageGalleryViewer, type GalleryImage } from "./ImageGalleryViewer"
-import { MessageContent } from "./MessageContent"
-import { MessageReferences } from "./MessageReferences"
-import { TaskProposalCard } from "./TaskProposalCard"
-import { TTSButton } from "./TTSButton"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {ThinkingBlock, ToolCallItem} from "@evoloop/shared"
+import {motion} from "framer-motion"
+import {Brain, Copy, Quote, RotateCcw, Undo,} from "lucide-react"
+import {memo, useEffect, useState} from "react"
+import {useTranslation} from "react-i18next"
+import {toast} from "sonner"
+import {useAutoSpeak, useTTS} from "@/hooks/useTTS"
+import {previewFile} from "@/utils/fileLinkHandler"
+import {resolveReferencePreview} from "@/utils/fileUtils"
+import {ChangesetSnapshot} from "./ChangesetSnapshotView"
+import {type GalleryImage, ImageGalleryViewer} from "./ImageGalleryViewer"
+import {MessageContent} from "./MessageContent"
+import {MessageReferences} from "./MessageReferences"
+import {TaskProposalCard} from "./TaskProposalCard"
+import {TTSButton} from "./TTSButton"
 
 export interface MessageReference {
   id: string

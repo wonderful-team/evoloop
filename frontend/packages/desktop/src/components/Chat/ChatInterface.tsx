@@ -1,50 +1,37 @@
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@evoloop/shared/components/ui/resizable"
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@evoloop/shared/components/ui/sheet"
-import {
-  useInfiniteQuery,
-  useMutation,
-  useQueryClient,
-} from "@tanstack/react-query"
-import { useLocation } from "@tanstack/react-router"
-import { ArrowLeft } from "lucide-react"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
-import { AgentService, ConversationsService, MemoryService } from "@/client"
-import { isLoggedIn } from "@/hooks/useAuth"
-import { useSystemEvent } from "@/hooks/useSystemEvent"
-import type { SystemEvent } from "@/lib/SystemSSEClient"
-import { safeListen } from "@/lib/tauri"
-import { HITL_STATUS } from "@/stores/agent/hitlConstants"
-import { useAgentStore } from "@/stores/agentStore"
-import { useChangesetStore } from "@/stores/changesetStore"
-import { useChatStore } from "@/stores/chatStore"
-import { useProjectStore } from "@/stores/projectStore"
-import { useUIStore } from "@/stores/uiStore"
-import { useUnreadCompletionsStore } from "@/stores/unreadCompletionsStore"
-import { ChatInputArea, type ChatInputAreaHandle } from "./ChatInputArea"
-import type { Message } from "./ChatMessageItem"
-import { ChatSidebar, type Thread } from "./ChatSidebar"
-import { ContextPanel } from "./ContextPanel"
-import { DebugManager } from "./DebugManager"
-import { HITLBanner } from "./HITLBanner"
-import { HumanRequestCard } from "./HumanRequestCard"
-import { useChatMutations } from "./hooks/useChatMutations"
-import { MessageList } from "./MessageList"
-import { QuotaExhaustedBanner } from "./QuotaExhaustedBanner"
-import { QuotaExhaustedCard } from "./QuotaExhaustedCard"
-import { RewindConfirmDialog } from "./RewindConfirmDialog"
-import { RunningTasksDock } from "./RunningTasksDock"
-import { TerminalCanvas } from "./TerminalCanvas"
+import {ResizableHandle, ResizablePanel, ResizablePanelGroup,} from "@evoloop/shared/components/ui/resizable"
+import {Sheet, SheetContent, SheetHeader, SheetTitle,} from "@evoloop/shared/components/ui/sheet"
+import {useInfiniteQuery, useMutation, useQueryClient,} from "@tanstack/react-query"
+import {useLocation} from "@tanstack/react-router"
+import {ArrowLeft} from "lucide-react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {useTranslation} from "react-i18next"
+import {toast} from "sonner"
+import {AgentService, ConversationsService, MemoryService} from "@/client"
+import {isLoggedIn} from "@/hooks/useAuth"
+import {useSystemEvent} from "@/hooks/useSystemEvent"
+import type {SystemEvent} from "@/lib/SystemSSEClient"
+import {safeListen} from "@/lib/tauri"
+import {HITL_STATUS} from "@/stores/agent/hitlConstants"
+import {useAgentStore} from "@/stores/agentStore"
+import {useChangesetStore} from "@/stores/changesetStore"
+import {useChatStore} from "@/stores/chatStore"
+import {useProjectStore} from "@/stores/projectStore"
+import {useUIStore} from "@/stores/uiStore"
+import {useUnreadCompletionsStore} from "@/stores/unreadCompletionsStore"
+import {ChatInputArea, type ChatInputAreaHandle} from "./ChatInputArea"
+import type {Message} from "./ChatMessageItem"
+import {ChatSidebar, type Thread} from "./ChatSidebar"
+import {ContextPanel} from "./ContextPanel"
+import {DebugManager} from "./DebugManager"
+import {HITLBanner} from "./HITLBanner"
+import {HumanRequestCard} from "./HumanRequestCard"
+import {useChatMutations} from "./hooks/useChatMutations"
+import {MessageList} from "./MessageList"
+import {QuotaExhaustedBanner} from "./QuotaExhaustedBanner"
+import {QuotaExhaustedCard} from "./QuotaExhaustedCard"
+import {RewindConfirmDialog} from "./RewindConfirmDialog"
+import {RunningTasksDock} from "./RunningTasksDock"
+import {TerminalCanvas} from "./TerminalCanvas"
 
 // 会话"已完成"的终态集合（后端 run_end / conversation.updated 携带的 status）
 const TERMINAL_STATUSES = [
@@ -977,10 +964,7 @@ export function ChatInterface() {
             <HITLBanner />
             <QuotaExhaustedBanner />
 
-            <div
-              className="flex-1 min-h-0 min-w-0 w-full flex flex-col"
-              data-tour="chat-messages"
-            >
+            <div className="flex-1 min-h-0 min-w-0 w-full flex flex-col">
               {isTerminalMode ? (
                 <TerminalCanvas />
               ) : (
@@ -1119,7 +1103,6 @@ export function ChatInterface() {
               className="min-w-0 overflow-hidden"
             >
               <div
-                data-tour="chat-context"
                 className="h-full w-full min-w-0 overflow-hidden flex flex-col"
                 style={{ contain: "content" }}
               >

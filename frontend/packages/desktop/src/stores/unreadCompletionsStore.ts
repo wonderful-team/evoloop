@@ -1,4 +1,4 @@
-import { create } from "zustand"
+import {create} from "zustand"
 
 interface UnreadCompletionsState {
   /** thread_id -> 是否有未读的"会话已完成"提示 */

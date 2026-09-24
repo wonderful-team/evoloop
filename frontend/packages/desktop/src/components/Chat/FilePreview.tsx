@@ -1,14 +1,6 @@
-import { cn } from "@evoloop/shared/lib/utils"
-import {
-  AlertCircle,
-  File as FileIcon,
-  Folder,
-  Loader2,
-  MessageSquare,
-  Music,
-  X,
-} from "lucide-react"
-import { useTranslation } from "react-i18next"
+import {cn} from "@evoloop/shared/lib/utils"
+import {AlertCircle, File as FileIcon, Folder, Loader2, MessageSquare, Music, X,} from "lucide-react"
+import {useTranslation} from "react-i18next"
 
 export interface PickedFile {
   id: string

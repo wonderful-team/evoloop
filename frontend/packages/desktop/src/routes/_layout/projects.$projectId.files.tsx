@@ -1,19 +1,15 @@
-import { Input } from "@evoloop/shared/components/ui/input"
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@evoloop/shared/components/ui/resizable"
-import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
-import { useQuery } from "@tanstack/react-query"
-import { createFileRoute } from "@tanstack/react-router"
-import { FileCode, Loader2, Search, X } from "lucide-react"
-import { useState } from "react"
-import { useTranslation } from "react-i18next"
-import { FilesService } from "@/client"
-import { FilePreview } from "@/components/Files/FilePreview"
-import { FileTree } from "@/components/Files/FileTree"
-import { CodeRelationGraph } from "@/components/Files/CodeRelationGraph"
+import {Input} from "@evoloop/shared/components/ui/input"
+import {ResizableHandle, ResizablePanel, ResizablePanelGroup,} from "@evoloop/shared/components/ui/resizable"
+import {ScrollArea} from "@evoloop/shared/components/ui/scroll-area"
+import {useQuery} from "@tanstack/react-query"
+import {createFileRoute} from "@tanstack/react-router"
+import {FileCode, Loader2, Search, X} from "lucide-react"
+import {useState} from "react"
+import {useTranslation} from "react-i18next"
+import {FilesService} from "@/client"
+import {FilePreview} from "@/components/Files/FilePreview"
+import {FileTree} from "@/components/Files/FileTree"
+import {CodeRelationGraph} from "@/components/Files/CodeRelationGraph"
 
 export const Route = createFileRoute("/_layout/projects/$projectId/files")({
   component: FilesPage,

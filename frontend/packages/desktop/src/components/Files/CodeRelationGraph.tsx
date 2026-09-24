@@ -1,18 +1,10 @@
-import { useQuery } from "@tanstack/react-query"
-import {
-  Code,
-  FileCode,
-  Folder,
-  Layers,
-  Search,
-  ZoomIn,
-  ZoomOut,
-} from "lucide-react"
-import React, { useEffect, useMemo, useRef, useState } from "react"
-import { useTranslation } from "react-i18next"
-import { FilesService, SymbolsService } from "@/client"
+import {useQuery} from "@tanstack/react-query"
+import {Code, FileCode, Folder, Layers, Search, ZoomIn, ZoomOut,} from "lucide-react"
+import React, {useEffect, useMemo, useRef, useState} from "react"
+import {useTranslation} from "react-i18next"
+import {FilesService, SymbolsService} from "@/client"
 
-import { useProjectStore } from "@/stores/projectStore"
+import {useProjectStore} from "@/stores/projectStore"
 
 const EMPTY_ARRAY: any[] = []
 

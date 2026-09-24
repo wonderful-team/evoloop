@@ -1,5 +1,5 @@
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
+import {useTranslation} from "react-i18next"
+import {toast} from "sonner"
 
 const useCustomToast = () => {
   const { t } = useTranslation()

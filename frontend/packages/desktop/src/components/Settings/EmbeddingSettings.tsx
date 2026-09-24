@@ -1,32 +1,16 @@
-import { Button } from "@evoloop/shared/components/ui/button"
-import { Input } from "@evoloop/shared/components/ui/input"
-import { Label } from "@evoloop/shared/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@evoloop/shared/components/ui/select"
-import {
-  CheckCircle2,
-  Cpu,
-  Globe,
-  Link2,
-  Loader2,
-  Server,
-  Settings2,
-  XCircle,
-  ZapOff,
-} from "lucide-react"
-import { useEffect, useState } from "react"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
-import { SystemService } from "@/client"
-import { useModelManager } from "@/hooks/useModelManager"
-import { ModelItem } from "./ModelManager"
-import { SettingsCard } from "./SettingsCard"
-import { useSettings } from "./SettingsContext"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {Input} from "@evoloop/shared/components/ui/input"
+import {Label} from "@evoloop/shared/components/ui/label"
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue,} from "@evoloop/shared/components/ui/select"
+import {CheckCircle2, Cpu, Globe, Link2, Loader2, Server, Settings2, XCircle, ZapOff,} from "lucide-react"
+import {useEffect, useState} from "react"
+import {useTranslation} from "react-i18next"
+import {toast} from "sonner"
+import {SystemService} from "@/client"
+import {useModelManager} from "@/hooks/useModelManager"
+import {ModelItem} from "./ModelManager"
+import {SettingsCard} from "./SettingsCard"
+import {useSettings} from "./SettingsContext"
 
 type EmbeddingForm = {
   mode: string

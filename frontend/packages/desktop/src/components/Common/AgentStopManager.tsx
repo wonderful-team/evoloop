@@ -1,12 +1,12 @@
-import { useEffect } from "react"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
-import { AgentService } from "@/client/sdk.gen"
-import { isTauri, safeInvoke, safeListen } from "@/lib/tauri"
-import { useDutyStore } from "@/stores/dutyStore"
-import { useAgentStore } from "@/stores/agentStore"
-import { useProjectStore } from "@/stores/projectStore"
-import { useChatStore } from "@/stores/chatStore"
+import {useEffect} from "react"
+import {useTranslation} from "react-i18next"
+import {toast} from "sonner"
+import {AgentService} from "@/client/sdk.gen"
+import {isTauri, safeInvoke, safeListen} from "@/lib/tauri"
+import {useDutyStore} from "@/stores/dutyStore"
+import {useAgentStore} from "@/stores/agentStore"
+import {useProjectStore} from "@/stores/projectStore"
+import {useChatStore} from "@/stores/chatStore"
 
 /**
  * 全局 Agent 停止管理器（headless，仿 GlobalRecorderManager / CustomerServiceDutyManager）。

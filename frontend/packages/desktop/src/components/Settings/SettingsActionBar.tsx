@@ -1,9 +1,9 @@
-import { Button } from "@evoloop/shared/components/ui/button"
-import { cn } from "@evoloop/shared/lib/utils"
-import { AlertCircle, Loader2, RotateCcw, Save } from "lucide-react"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {cn} from "@evoloop/shared/lib/utils"
+import {AlertCircle, Loader2, RotateCcw, Save} from "lucide-react"
 import type React from "react"
-import { useTranslation } from "react-i18next"
-import { useSettings } from "./SettingsContext"
+import {useTranslation} from "react-i18next"
+import {useSettings} from "./SettingsContext"
 
 export const SettingsActionBar: React.FC = () => {
   const { t } = useTranslation()

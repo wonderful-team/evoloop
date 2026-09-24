@@ -1,9 +1,9 @@
-import { createFileRoute, useParams } from "@tanstack/react-router"
-import { Code2, FolderTree, Network, ShieldCheck } from "lucide-react"
-import { useState } from "react"
-import { FilePreview } from "@/components/Files/FilePreview"
-import { FileTree } from "@/components/Files/FileTree"
-import { CognitionBar } from "@/components/Projects/Redesign/CognitionBar"
+import {createFileRoute, useParams} from "@tanstack/react-router"
+import {Code2, FolderTree, Network, ShieldCheck} from "lucide-react"
+import {useState} from "react"
+import {FilePreview} from "@/components/Files/FilePreview"
+import {FileTree} from "@/components/Files/FileTree"
+import {CognitionBar} from "@/components/Projects/Redesign/CognitionBar"
 
 export const Route = createFileRoute("/_layout/projects/$projectId/assets")({
   component: AssetsPage,

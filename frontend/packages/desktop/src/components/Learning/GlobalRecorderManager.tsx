@@ -1,19 +1,14 @@
-import { useNavigate } from "@tanstack/react-router"
-import { useEffect, useRef, useState } from "react"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
-import { LearningService } from "@/client/sdk.gen"
-import { useActionRecorder } from "@/hooks/useActionRecorder"
-import { useGlobalRecorder } from "@/hooks/useGlobalRecorder"
-import { useScreenRecordingPermission } from "@/hooks/useScreenRecordingPermission"
-import { handleApiError } from "@/interceptors"
-import {
-  safeEmit,
-  safeGetCurrentWindow,
-  safeInvoke,
-  safeListen,
-} from "@/lib/tauri"
-import { useRecordingStore } from "@/stores/recordingStore"
+import {useNavigate} from "@tanstack/react-router"
+import {useEffect, useRef, useState} from "react"
+import {useTranslation} from "react-i18next"
+import {toast} from "sonner"
+import {LearningService} from "@/client/sdk.gen"
+import {useActionRecorder} from "@/hooks/useActionRecorder"
+import {useGlobalRecorder} from "@/hooks/useGlobalRecorder"
+import {useScreenRecordingPermission} from "@/hooks/useScreenRecordingPermission"
+import {handleApiError} from "@/interceptors"
+import {safeEmit, safeGetCurrentWindow, safeInvoke, safeListen,} from "@/lib/tauri"
+import {useRecordingStore} from "@/stores/recordingStore"
 
 export function GlobalRecorderManager() {
   const { t, i18n } = useTranslation()

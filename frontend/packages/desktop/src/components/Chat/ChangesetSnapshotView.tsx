@@ -1,14 +1,9 @@
-import { Badge } from "@evoloop/shared/components/ui/badge"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@evoloop/shared/components/ui/tooltip"
-import { cn } from "@evoloop/shared/lib/utils"
-import { ChevronRight, Edit2, FileCode2, Minus, Plus } from "lucide-react"
-import { memo } from "react"
-import { useTranslation } from "react-i18next"
+import {Badge} from "@evoloop/shared/components/ui/badge"
+import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,} from "@evoloop/shared/components/ui/tooltip"
+import {cn} from "@evoloop/shared/lib/utils"
+import {ChevronRight, Edit2, FileCode2, Minus, Plus} from "lucide-react"
+import {memo} from "react"
+import {useTranslation} from "react-i18next"
 
 interface ChangesetFile {
   path: string
@@ -130,7 +125,7 @@ export const ChangesetSnapshot = memo(
             {totalCount > files.length && (
               <button
                 onClick={() => onViewDetails?.("")}
-                className="flex items-center gap-1 px-2 py-1 rounded-md border border-dashed border-border/60 
+                className="flex items-center gap-1 px-2 py-1 rounded-md border border-dashed border-border/60
                          text-muted-foreground hover:text-foreground hover:border-border transition-colors shrink-0"
               >
                 <span className="text-[11px] font-medium">

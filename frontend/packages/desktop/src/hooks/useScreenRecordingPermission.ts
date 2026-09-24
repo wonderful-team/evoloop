@@ -1,4 +1,4 @@
-import { useTauriPermission } from "./useTauriPermission"
+import {useTauriPermission} from "./useTauriPermission"
 
 export function useScreenRecordingPermission() {
   return useTauriPermission({

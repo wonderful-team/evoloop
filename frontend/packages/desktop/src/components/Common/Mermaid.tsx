@@ -1,6 +1,6 @@
 import mermaid from "mermaid"
-import { memo, useEffect, useRef } from "react"
-import { useTranslation } from "react-i18next"
+import {memo, useEffect, useRef} from "react"
+import {useTranslation} from "react-i18next"
 
 // Initialize mermaid
 // Initialize mermaid

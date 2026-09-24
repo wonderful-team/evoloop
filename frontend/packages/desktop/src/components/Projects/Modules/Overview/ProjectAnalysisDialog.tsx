@@ -1,32 +1,23 @@
 // 项目分析弹窗 — 包含指令(Macro)生成入口
 // 概念说明：前端显示"指令"，后端概念为 Macro/appmap
 
-import { Button } from "@evoloop/shared/components/ui/button"
-import { Checkbox } from "@evoloop/shared/components/ui/checkbox"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {Checkbox} from "@evoloop/shared/components/ui/checkbox"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
 } from "@evoloop/shared/components/ui/dialog"
-import {
-  AlertCircle,
-  CheckCircle2,
-  Clock,
-  FileText,
-  Loader2,
-  Search,
-  Shield,
-  Zap,
-} from "lucide-react"
-import { useEffect, useState, useRef } from "react"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
-import { ProjectsService } from "@/client"
-import { ProjectProfilesService } from "@/client/sdk.gen"
-import { useSystemEvent } from "@/hooks/useSystemEvent"
+import {AlertCircle, CheckCircle2, Clock, FileText, Loader2, Search, Shield, Zap,} from "lucide-react"
+import {useEffect, useRef, useState} from "react"
+import {useTranslation} from "react-i18next"
+import {toast} from "sonner"
+import {ProjectsService} from "@/client"
+import {ProjectProfilesService} from "@/client/sdk.gen"
+import {useSystemEvent} from "@/hooks/useSystemEvent"
 
 interface ProjectAnalysisDialogProps {
   projectId: number

@@ -1,5 +1,5 @@
-import { useQuery } from "@tanstack/react-query"
-import { SystemService } from "@/client"
+import {useQuery} from "@tanstack/react-query"
+import {SystemService} from "@/client"
 
 /**
  * Whether the current deployment is multi-tenant (hosted/cloud) mode.

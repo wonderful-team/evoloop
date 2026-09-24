@@ -10,9 +10,13 @@
    - 全局 Prompt 指令栏：动态向通用队列插入新任务并自适应拓扑布局
    ========================================================================== */
 
-import { useState, useRef, useEffect, useMemo } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import type { DutyTask } from "../core/types"
-import { layoutDutyTasks, deriveDutyEdges, type LayoutDirection } from "./layoutEngine"
+import {
+  deriveDutyEdges,
+  type LayoutDirection,
+  layoutDutyTasks,
+} from "./layoutEngine"
 import { TasksQueueApi } from "@/lib/tasksQueueApi"
 
 import { DutyCanvas } from "./DutyCanvas"
@@ -24,11 +28,17 @@ export interface AutonomousDutyCanvasAppProps {
   isLoading?: boolean
   externalSelectedTaskId?: string | null
   onTaskSelect?: (taskId: string | null) => void
-  onApproveTask?: (taskId: string, grantMode?: "once" | "always") => void | Promise<void>
+  onApproveTask?: (
+    taskId: string,
+    grantMode?: "once" | "always",
+  ) => void | Promise<void>
   onRejectTask?: (taskId: string, feedback: string) => void | Promise<void>
   onConfirmProposalTask?: (taskId: string) => void | Promise<void>
   onRerunTask?: (taskId: string) => void | Promise<void>
-  onConfirmHitl?: (taskId: string, grantMode?: "once" | "always") => void | Promise<void>
+  onConfirmHitl?: (
+    taskId: string,
+    grantMode?: "once" | "always",
+  ) => void | Promise<void>
   onCancelHitl?: (taskId: string) => void | Promise<void>
   onNodeChat?: (taskId: string, message: string, files?: any[]) => void
   highlightStatuses?: string[]
@@ -63,11 +73,13 @@ export default function AutonomousDutyCanvasApp({
   renderInputBar,
 }: AutonomousDutyCanvasAppProps = {}) {
   /* 布局方向：默认纵向瀑布排列（Top-to-Bottom，契合鼠标滚轮自然滚动） */
-  const [layoutDirection, setLayoutDirection] = useState<LayoutDirection>("vertical")
+  const [layoutDirection, setLayoutDirection] =
+    useState<LayoutDirection>("vertical")
 
   /* 原始任务队列与通用脑图拓扑结果：完全由外部真实任务驱动 */
   const [rawTasks, setRawTasks] = useState<DutyTask[]>(() => {
-    const initList = externalTasks && externalTasks.length > 0 ? externalTasks : []
+    const initList =
+      externalTasks && externalTasks.length > 0 ? externalTasks : []
     return layoutDutyTasks(initList, undefined, "vertical").tasks
   })
   const rawTasksRef = useRef(rawTasks)
@@ -112,7 +124,9 @@ export default function AutonomousDutyCanvasApp({
 
   /* 局部更新任务字段 */
   function patchTask(id: string, partial: Partial<DutyTask>) {
-    setRawTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...partial } : t)))
+    setRawTasks((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, ...partial } : t)),
+    )
   }
 
   /* ── 展开节点进入页面态 (原地中心对称放大) ── */
@@ -134,7 +148,9 @@ export default function AutonomousDutyCanvasApp({
     openTask(taskId)
     onTaskSelect?.(taskId)
     const task = rawTasksRef.current.find((t) => t.id === taskId)
-    setStatusText(`🎯 已聚焦导航至节点 #T-${task?.taskNo || taskId} 并放大为工作页面`)
+    setStatusText(
+      `🎯 已聚焦导航至节点 #T-${task?.taskNo || taskId} 并放大为工作页面`,
+    )
   }
 
   /* 同步外部选中的任务（如来自左侧任务队列栏的选中点击）：选中高亮并平滑飞镜平移定位 */
@@ -149,7 +165,10 @@ export default function AutonomousDutyCanvasApp({
   /* 监听来自 desktop ChatInputArea 的 CustomEvent 消息路由 */
   useEffect(() => {
     const onNodeChat = (e: Event) => {
-      const { taskId, message } = (e as CustomEvent).detail as { taskId: string; message: string }
+      const { taskId, message } = (e as CustomEvent).detail as {
+        taskId: string
+        message: string
+      }
       handleNodeChat(taskId, message)
     }
     const onGlobalPrompt = (e: Event) => {
@@ -162,8 +181,31 @@ export default function AutonomousDutyCanvasApp({
       window.removeEventListener("canvas:node-chat", onNodeChat)
       window.removeEventListener("canvas:global-prompt", onGlobalPrompt)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  /* ── 运行焦点自动跟随：任务进入 in_progress 时自动放大为页面 ──
+     设计上要求“视觉焦点自动跟随当前执行节点”，包括镜头平移 + 节点卡片
+     原地放大为工作页面。当外部任务列表出现新的 in_progress 任务时，自动
+     选中、对焦并展开为页面态。 */
+  const lastAutoFocusTaskIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!externalTasks) return
+    const running = externalTasks.find((t) => t.status === "in_progress")
+    if (running && running.id !== lastAutoFocusTaskIdRef.current) {
+      lastAutoFocusTaskIdRef.current = running.id
+      setSelectedTaskId(running.id)
+      setSelectedTaskIds(new Set([running.id]))
+      openTask(running.id)
+      onTaskSelect?.(running.id)
+      setStatusText(
+        `🎯 已自动跟随运行节点 #T-${running.taskNo || running.id} 并放大为工作页面`,
+      )
+    }
+    if (!running) {
+      lastAutoFocusTaskIdRef.current = null
+    }
+  }, [externalTasks])
 
   /* ==========================================================================
      ★ 核心空间转场流水线 (Spatial Transition Pipeline)：
@@ -173,11 +215,15 @@ export default function AutonomousDutyCanvasApp({
 
   /* 节点位置由画布拖拽实时更新 */
   function handleUpdateTaskPosition(taskId: string, x: number, y: number) {
-    setRawTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, x, y } : t)))
+    setRawTasks((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, x, y } : t)),
+    )
   }
 
   /* 框选多节点批量位移 (平移拖拽同步) */
-  function handleUpdateMultipleTaskPositions(positions: Map<string, { x: number; y: number }>) {
+  function handleUpdateMultipleTaskPositions(
+    positions: Map<string, { x: number; y: number }>,
+  ) {
     setRawTasks((prev) =>
       prev.map((t) => {
         const pos = positions.get(t.id)
@@ -188,16 +234,25 @@ export default function AutonomousDutyCanvasApp({
 
   /* 一键恢复纯正脑图对称排版 (一键整理) */
   function handleResetAutoLayout() {
-    const { tasks: freshTasks } = layoutDutyTasks(rawTasks, undefined, layoutDirection)
+    const { tasks: freshTasks } = layoutDutyTasks(
+      rawTasks,
+      undefined,
+      layoutDirection,
+    )
     setRawTasks(freshTasks)
     setStatusText("⚡ 已一键整理节点排版，所有节点已对称归位，无任何重叠")
   }
 
   /* 切换横向 / 纵向排列模式 */
   function handleToggleDirection() {
-    const nextDir: LayoutDirection = layoutDirection === "horizontal" ? "vertical" : "horizontal"
+    const nextDir: LayoutDirection =
+      layoutDirection === "horizontal" ? "vertical" : "horizontal"
     setLayoutDirection(nextDir)
-    const { tasks: freshTasks } = layoutDutyTasks(rawTasksRef.current, undefined, nextDir)
+    const { tasks: freshTasks } = layoutDutyTasks(
+      rawTasksRef.current,
+      undefined,
+      nextDir,
+    )
     setRawTasks(freshTasks)
     setStatusText(
       nextDir === "vertical"
@@ -244,7 +299,11 @@ export default function AutonomousDutyCanvasApp({
         }
         return t
       })
-      const { tasks: freshTasks } = layoutDutyTasks(updated, undefined, layoutDirection)
+      const { tasks: freshTasks } = layoutDutyTasks(
+        updated,
+        undefined,
+        layoutDirection,
+      )
       // 持久化：本地拓扑只是乐观更新，依赖必须落到任务行（刷新/重连后仍在）
       const persistTarget = updated.find((t) => t.id === toId)
       void TasksQueueApi.update(toId, {
@@ -254,10 +313,19 @@ export default function AutonomousDutyCanvasApp({
         setRawTasks((cur) => {
           const reverted = cur.map((t) =>
             t.id === toId
-              ? { ...t, dependencies: (t.dependencies || []).filter((d) => d !== fromId) }
+              ? {
+                  ...t,
+                  dependencies: (t.dependencies || []).filter(
+                    (d) => d !== fromId,
+                  ),
+                }
               : t,
           )
-          const { tasks: freshTasks } = layoutDutyTasks(reverted, undefined, layoutDirection)
+          const { tasks: freshTasks } = layoutDutyTasks(
+            reverted,
+            undefined,
+            layoutDirection,
+          )
           return freshTasks
         })
       })
@@ -283,7 +351,11 @@ export default function AutonomousDutyCanvasApp({
         }
         return t
       })
-      const { tasks: freshTasks } = layoutDutyTasks(updated, undefined, layoutDirection)
+      const { tasks: freshTasks } = layoutDutyTasks(
+        updated,
+        undefined,
+        layoutDirection,
+      )
       // 持久化断连：失败回滚（重新挂上依赖）
       const persistTarget = updated.find((t) => t.id === toId)
       void TasksQueueApi.update(toId, {
@@ -296,7 +368,11 @@ export default function AutonomousDutyCanvasApp({
               ? { ...t, dependencies: [...(t.dependencies || []), fromId] }
               : t,
           )
-          const { tasks: freshTasks } = layoutDutyTasks(reverted, undefined, layoutDirection)
+          const { tasks: freshTasks } = layoutDutyTasks(
+            reverted,
+            undefined,
+            layoutDirection,
+          )
           return freshTasks
         })
       })
@@ -305,7 +381,9 @@ export default function AutonomousDutyCanvasApp({
 
     const fromTask = rawTasksRef.current.find((t) => t.id === fromId)
     const toTask = rawTasksRef.current.find((t) => t.id === toId)
-    setStatusText(`✂️ 已断开数据依赖：#T-${fromTask?.taskNo || fromId} ↛ #T-${toTask?.taskNo || toId}`)
+    setStatusText(
+      `✂️ 已断开数据依赖：#T-${fromTask?.taskNo || fromId} ↛ #T-${toTask?.taskNo || toId}`,
+    )
   }
 
   /* 用户与选中节点进行交互对话/下达微调指令 */
@@ -339,11 +417,15 @@ export default function AutonomousDutyCanvasApp({
       },
     })
     setStepIndexMap((m) => ({ ...m, [taskId]: updatedSteps.length }))
-    setStatusText(`💬 已向 #T-${task.taskNo} 注入对话指令：「${message}」，节点已现场响应！`)
+    setStatusText(
+      `💬 已向 #T-${task.taskNo} 注入对话指令：「${message}」，节点已现场响应！`,
+    )
   }
 
   /* 仲裁三键操作 (闭环 D3) */
-  function handleArbitration(action: "retry_upstream" | "cancel_downstream" | "reopen_modified") {
+  function handleArbitration(
+    action: "retry_upstream" | "cancel_downstream" | "reopen_modified",
+  ) {
     if (action === "retry_upstream") {
       setStatusText("仲裁生效：重新调度上游执行，下游已复位")
     } else if (action === "cancel_downstream") {
@@ -429,11 +511,16 @@ export default function AutonomousDutyCanvasApp({
           }
         : undefined,
     })
-    setStatusText(`✕ #T-${task?.taskNo || taskId} 已打回修改：${feedback || "请重新调整"}`)
+    setStatusText(
+      `✕ #T-${task?.taskNo || taskId} 已打回修改：${feedback || "请重新调整"}`,
+    )
   }
 
   /* 资金/高危操作放行 (支持 grantMode: "once" | "always") */
-  function handleConfirmHitl(taskId: string, grantMode: "once" | "always" = "once") {
+  function handleConfirmHitl(
+    taskId: string,
+    grantMode: "once" | "always" = "once",
+  ) {
     if (onConfirmHitl) {
       void onConfirmHitl(taskId, grantMode)
     }
@@ -502,7 +589,9 @@ export default function AutonomousDutyCanvasApp({
           }
         : undefined,
     })
-    setStatusText(`✓ #T-${task?.taskNo || taskId} 已确认选项：「${choice}」，链路继续推进`)
+    setStatusText(
+      `✓ #T-${task?.taskNo || taskId} 已确认选项：「${choice}」，链路继续推进`,
+    )
   }
 
   function handleSubmitMultiChoiceHitl(taskId: string, choices: string[]) {
@@ -522,7 +611,9 @@ export default function AutonomousDutyCanvasApp({
           }
         : undefined,
     })
-    setStatusText(`✓ #T-${task?.taskNo || taskId} 已提交多项选项 (${choices.length}项)，链路继续推进`)
+    setStatusText(
+      `✓ #T-${task?.taskNo || taskId} 已提交多项选项 (${choices.length}项)，链路继续推进`,
+    )
   }
 
   function handleSubmitTextHitl(taskId: string, value: string) {
@@ -542,7 +633,9 @@ export default function AutonomousDutyCanvasApp({
           }
         : undefined,
     })
-    setStatusText(`✓ #T-${task?.taskNo || taskId} 已补充信息：「${value}」，Agent 恢复处理`)
+    setStatusText(
+      `✓ #T-${task?.taskNo || taskId} 已补充信息：「${value}」，Agent 恢复处理`,
+    )
   }
 
   /* 用户通过 Prompt 指令向 Agent 派发动态新任务或与节点对话 */
@@ -558,14 +651,22 @@ export default function AutonomousDutyCanvasApp({
     }
 
     // 如果包含裂变/拆解意图，且选中了节点，派生子任务
-    if (text.includes("裂变") || text.includes("拆解") || text.includes("子任务")) {
-      const parentTask = selectedTaskId ? rawTasksRef.current.find((t) => t.id === selectedTaskId) : null
+    if (
+      text.includes("裂变") ||
+      text.includes("拆解") ||
+      text.includes("子任务")
+    ) {
+      const parentTask = selectedTaskId
+        ? rawTasksRef.current.find((t) => t.id === selectedTaskId)
+        : null
       const newNo = Math.max(...rawTasksRef.current.map((t) => t.taskNo), 0) + 1
       const newId = `task-fission-${Date.now()}`
       const newTask: DutyTask = {
         id: newId,
         taskNo: newNo,
-        title: parentTask ? `[#T-${parentTask.taskNo} 派生] ${text}` : `子任务：${text}`,
+        title: parentTask
+          ? `[#T-${parentTask.taskNo} 派生] ${text}`
+          : `子任务：${text}`,
         category: parentTask?.category || "custom",
         stage: parentTask?.stage || "动态拆解",
         status: "pending",
@@ -580,8 +681,12 @@ export default function AutonomousDutyCanvasApp({
         dependencies: parentTask ? [parentTask.id] : [],
         steps: [],
         provenance: {
-          sourceRef: parentTask ? `#T-${parentTask.taskNo} 裂变拆解` : "用户指令动态派生",
-          upstreamSummary: parentTask ? `继承 #T-${parentTask.taskNo} 上下文` : "等待调度注入",
+          sourceRef: parentTask
+            ? `#T-${parentTask.taskNo} 裂变拆解`
+            : "用户指令动态派生",
+          upstreamSummary: parentTask
+            ? `继承 #T-${parentTask.taskNo} 上下文`
+            : "等待调度注入",
           downstreamTargets: [],
           endorsement: "Supervisor 监察评审",
         },
@@ -615,8 +720,15 @@ export default function AutonomousDutyCanvasApp({
         endorsement: "原对话 Agent 监察评审",
       },
       steps: [
-        { label: "take 任务 · 动态编排 Worker 调度", detail: "载入用户 Prompt 上下文" },
-        { label: "执行工具链求解与方案合成", tool: "mcp.custom_solve", detail: "自适应推理生成交付物" },
+        {
+          label: "take 任务 · 动态编排 Worker 调度",
+          detail: "载入用户 Prompt 上下文",
+        },
+        {
+          label: "执行工具链求解与方案合成",
+          tool: "mcp.custom_solve",
+          detail: "自适应推理生成交付物",
+        },
         { label: "输出执行报告并提交评审", detail: "完成事实对账" },
       ],
       artifact: {
@@ -628,7 +740,11 @@ export default function AutonomousDutyCanvasApp({
       },
     }
 
-    const { tasks: freshTasks } = layoutDutyTasks([...rawTasksRef.current, newTask], undefined, layoutDirection)
+    const { tasks: freshTasks } = layoutDutyTasks(
+      [...rawTasksRef.current, newTask],
+      undefined,
+      layoutDirection,
+    )
     setRawTasks(freshTasks)
     setStatusText(`🤖 Agent 收到指令：「${text}」，已自适应排入脑图！`)
     setSelectedTaskId(newId)
@@ -640,7 +756,6 @@ export default function AutonomousDutyCanvasApp({
     <div className={`dc-app ${className}`}>
       {/* ── 主工作区 ── */}
       <div className="dc-main">
-
         {/* 中央无限任务画布：节点卡片原地放大为页面 */}
         <DutyCanvas
           tasks={tasks}

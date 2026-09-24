@@ -1,17 +1,17 @@
-import { Button } from "@evoloop/shared/components/ui/button"
+import {Button} from "@evoloop/shared/components/ui/button"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
 } from "@evoloop/shared/components/ui/dropdown-menu"
-import { cn } from "@evoloop/shared/lib/utils"
-import { Loader2, Pause, Play, Settings2, Volume2, VolumeX } from "lucide-react"
-import { useEffect, useState } from "react"
-import { useTranslation } from "react-i18next"
-import { type TTSVoice, useAutoSpeak, useTTS } from "@/hooks/useTTS"
+import {cn} from "@evoloop/shared/lib/utils"
+import {Loader2, Pause, Play, Settings2, Volume2, VolumeX} from "lucide-react"
+import {useEffect, useState} from "react"
+import {useTranslation} from "react-i18next"
+import {type TTSVoice, useAutoSpeak, useTTS} from "@/hooks/useTTS"
 
 interface TTSButtonProps {
   text: string

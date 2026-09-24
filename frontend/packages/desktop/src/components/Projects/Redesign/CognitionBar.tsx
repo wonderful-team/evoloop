@@ -1,10 +1,10 @@
-import { Button } from "@evoloop/shared/components/ui/button"
-import { useParams } from "@tanstack/react-router"
-import { CheckCircle2, Cpu, Loader2, RefreshCw, Zap } from "lucide-react"
-import { useEffect, useState } from "react"
-import { toast } from "sonner"
-import { ProjectsService } from "@/client"
-import { systemSSEClient } from "@/lib/SystemSSEClient"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {useParams} from "@tanstack/react-router"
+import {CheckCircle2, Cpu, Loader2, RefreshCw, Zap} from "lucide-react"
+import {useEffect, useState} from "react"
+import {toast} from "sonner"
+import {ProjectsService} from "@/client"
+import {systemSSEClient} from "@/lib/SystemSSEClient"
 
 export function CognitionBar() {
   const { projectId } = useParams({ from: "/_layout/projects/$projectId" })

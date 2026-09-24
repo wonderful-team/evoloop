@@ -1,13 +1,7 @@
 import * as React from "react"
-import {
-  AlertTriangle,
-  BadgeCheck,
-  Brain,
-  ListTodo,
-  Package,
-} from "lucide-react"
-import type { TraceNodeItem, TraceNodeKind } from "./types"
-import { ToolCallItem } from "./ToolCallItem"
+import {AlertTriangle, BadgeCheck, Brain, ListTodo, Package,} from "lucide-react"
+import type {TraceNodeItem, TraceNodeKind} from "./types"
+import {ToolCallItem} from "./ToolCallItem"
 
 const NODE_STYLE: Record<
   TraceNodeKind,

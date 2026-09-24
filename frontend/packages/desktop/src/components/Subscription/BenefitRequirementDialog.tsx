@@ -1,14 +1,9 @@
-import { Badge } from "@evoloop/shared/components/ui/badge"
-import { Button } from "@evoloop/shared/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-} from "@evoloop/shared/components/ui/dialog"
-import { ArrowRight, Crown, Sparkles } from "lucide-react"
-import { useTranslation } from "react-i18next"
-import { PLAN_KEY_MAP, useBenefitStore } from "@/stores/benefitStore"
+import {Badge} from "@evoloop/shared/components/ui/badge"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {Dialog, DialogContent, DialogDescription, DialogTitle,} from "@evoloop/shared/components/ui/dialog"
+import {ArrowRight, Crown, Sparkles} from "lucide-react"
+import {useTranslation} from "react-i18next"
+import {PLAN_KEY_MAP, useBenefitStore} from "@/stores/benefitStore"
 
 export function BenefitRequirementDialog() {
   const { t } = useTranslation()

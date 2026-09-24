@@ -1,7 +1,7 @@
-import { useQueryClient } from "@tanstack/react-query"
-import { ArrowDown, Clock, FileText, ShieldAlert } from "lucide-react"
+import {useQueryClient} from "@tanstack/react-query"
+import {ArrowDown, Clock, FileText, ShieldAlert} from "lucide-react"
 
-import type { QueueTask } from "@/lib/tasksQueueApi"
+import type {QueueTask} from "@/lib/tasksQueueApi"
 import {MessageContent} from "@/components/Chat/MessageContent.tsx";
 
 /**

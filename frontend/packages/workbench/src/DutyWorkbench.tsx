@@ -1,4 +1,4 @@
-import { AutonomousDutyPage } from "./AutonomousDutyPage"
+import {AutonomousDutyPage} from "./AutonomousDutyPage"
 
 export { AutonomousDutyPage }
 export const DutyWorkbench = AutonomousDutyPage

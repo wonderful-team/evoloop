@@ -1,5 +1,5 @@
-import type { MessageReference } from "@/components/Chat/ChatMessageItem"
-import { OpenAPI } from "@/client"
+import type {MessageReference} from "@/components/Chat/ChatMessageItem"
+import {OpenAPI} from "@/client"
 
 export function isAbsolutePath(path: string): boolean {
   return (

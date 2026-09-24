@@ -1,5 +1,5 @@
 import * as React from "react"
-import { cn } from "@evoloop/shared/lib/utils"
+import {cn} from "@evoloop/shared/lib/utils"
 
 interface ProgressProps extends React.HTMLAttributes<HTMLDivElement> {
   value?: number

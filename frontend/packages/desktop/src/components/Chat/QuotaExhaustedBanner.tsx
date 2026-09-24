@@ -1,8 +1,8 @@
-import { cn } from "@evoloop/shared/lib/utils"
-import { AlertTriangle } from "lucide-react"
-import { memo } from "react"
-import { useTranslation } from "react-i18next"
-import { useAgentStore } from "@/stores/agentStore"
+import {cn} from "@evoloop/shared/lib/utils"
+import {AlertTriangle} from "lucide-react"
+import {memo} from "react"
+import {useTranslation} from "react-i18next"
+import {useAgentStore} from "@/stores/agentStore"
 
 /**
  * QuotaExhaustedBanner - Global banner when LLM quota is exhausted

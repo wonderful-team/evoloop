@@ -1,31 +1,22 @@
-import { Badge } from "@evoloop/shared/components/ui/badge"
-import { Button } from "@evoloop/shared/components/ui/button"
+import {Badge} from "@evoloop/shared/components/ui/badge"
+import {Button} from "@evoloop/shared/components/ui/button"
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
+    Card,
+    CardContent,
+    CardDescription,
+    CardFooter,
+    CardHeader,
+    CardTitle,
 } from "@evoloop/shared/components/ui/card"
-import { useNavigate } from "@tanstack/react-router"
-import {
-  BookOpen,
-  CheckCircle2,
-  Clock,
-  FolderOpen,
-  Layers,
-  ListTodo,
-  RefreshCw,
-  XCircle,
-} from "lucide-react"
-import { useEffect } from "react"
-import { useTranslation } from "react-i18next"
-import type { Project } from "@/stores/projectStore"
-import { useProjectStore } from "@/stores/projectStore"
+import {useNavigate} from "@tanstack/react-router"
+import {BookOpen, CheckCircle2, Clock, FolderOpen, Layers, ListTodo, RefreshCw, XCircle,} from "lucide-react"
+import {useEffect} from "react"
+import {useTranslation} from "react-i18next"
+import type {Project} from "@/stores/projectStore"
+import {useProjectStore} from "@/stores/projectStore"
 import AddProject from "./AddProject"
 import ImportProject from "./ImportProject"
-import { ProjectActions } from "./ProjectActions"
+import {ProjectActions} from "./ProjectActions"
 
 // Helper to get indexing status display info
 function getIndexingStatusDisplay(

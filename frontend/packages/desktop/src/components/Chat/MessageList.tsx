@@ -1,30 +1,16 @@
-import { Button } from "@evoloop/shared/components/ui/button"
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@evoloop/shared/components/ui/collapsible"
-import { motion } from "framer-motion"
-import { ChevronRight, Layers, Loader2 } from "lucide-react"
-import {
-  forwardRef,
-  memo,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react"
-import { useTranslation } from "react-i18next"
-import { Virtuoso, type VirtuosoHandle } from "react-virtuoso"
-import { type Message, SmartChatMessageItem } from "./ChatMessageItem"
-import {
-  ImageGalleryViewer,
-  type GalleryImage,
-} from "./ImageGalleryViewer"
-import { collectSessionImages } from "./galleryUtils"
-import { ChatWelcome } from "./ChatWelcome"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {Collapsible, CollapsibleContent, CollapsibleTrigger,} from "@evoloop/shared/components/ui/collapsible"
+import {motion} from "framer-motion"
+import {ChevronRight, Layers, Loader2} from "lucide-react"
+import {forwardRef, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState,} from "react"
+import {useTranslation} from "react-i18next"
+import {Virtuoso, type VirtuosoHandle} from "react-virtuoso"
+import {type Message, SmartChatMessageItem} from "./ChatMessageItem"
+import {type GalleryImage, ImageGalleryViewer,} from "./ImageGalleryViewer"
+import {collectSessionImages} from "./galleryUtils"
+import {ChatWelcome} from "./ChatWelcome"
+import {useAgentStore} from "@/stores/agentStore"
+import {useChatStore} from "@/stores/chatStore"
 
 interface MessageListProps {
   onAddToMemory?: (
@@ -196,9 +182,6 @@ const TurnStepsGroupView = memo(function TurnStepsGroupView({
     </Collapsible>
   )
 })
-
-import { useAgentStore } from "@/stores/agentStore"
-import { useChatStore } from "@/stores/chatStore"
 
 // --- Static Virtuoso Components ---
 const VirtuosoScroller = forwardRef((props: any, ref: any) => {

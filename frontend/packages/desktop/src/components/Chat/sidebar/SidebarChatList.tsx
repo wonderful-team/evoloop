@@ -1,21 +1,12 @@
-import { Button } from "@evoloop/shared/components/ui/button"
-import { Input } from "@evoloop/shared/components/ui/input"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {Input} from "@evoloop/shared/components/ui/input"
 import i18n from "@evoloop/shared/i18n"
-import { useMutation, useQueryClient } from "@tanstack/react-query"
-import {
-  Check,
-  Pencil,
-  Pin,
-  PinOff,
-  Plus,
-  Search,
-  Trash2,
-  X,
-} from "lucide-react"
-import { useEffect, useMemo, useRef, useState } from "react"
-import { useTranslation } from "react-i18next"
-import { ConversationsService } from "@/client"
-import { useUnreadCompletionsStore } from "@/stores/unreadCompletionsStore"
+import {useMutation, useQueryClient} from "@tanstack/react-query"
+import {Check, Pencil, Pin, PinOff, Plus, Search, Trash2, X,} from "lucide-react"
+import {useEffect, useMemo, useRef, useState} from "react"
+import {useTranslation} from "react-i18next"
+import {ConversationsService} from "@/client"
+import {useUnreadCompletionsStore} from "@/stores/unreadCompletionsStore"
 
 export interface Thread {
   thread_id: string

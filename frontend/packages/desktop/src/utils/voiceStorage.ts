@@ -1,4 +1,4 @@
-import { isTauri } from "@/lib/tauri"
+import {isTauri} from "@/lib/tauri"
 
 const VOICE_DIR = "voice/recordings"
 const MAX_LOCAL_STORAGE_DAYS = 7 // 本地缓存7天

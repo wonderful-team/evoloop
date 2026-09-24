@@ -1,21 +1,13 @@
-import { useState } from "react"
-import { useTranslation } from "react-i18next"
-import {
-  Ban,
-  CheckCircle2,
-  FolderGit2,
-  Play,
-  XCircle,
-  Loader2,
-  FileCheck2,
-} from "lucide-react"
+import {useState} from "react"
+import {useTranslation} from "react-i18next"
+import {Ban, CheckCircle2, FileCheck2, FolderGit2, Loader2, Play, XCircle,} from "lucide-react"
 
-import { Button } from "../ui/button"
-import { Checkbox } from "../ui/checkbox"
-import { Label } from "../ui/label"
-import { RadioGroup, RadioGroupItem } from "../ui/radio-group"
-import { Textarea } from "../ui/textarea"
-import type { HumanRequestCardProps } from "./types"
+import {Button} from "../ui/button"
+import {Checkbox} from "../ui/checkbox"
+import {Label} from "../ui/label"
+import {RadioGroup, RadioGroupItem} from "../ui/radio-group"
+import {Textarea} from "../ui/textarea"
+import type {HumanRequestCardProps} from "./types"
 
 /**
  * EvoLoop 通用人在回路协同治理卡片 (Universal HumanRequestCard)

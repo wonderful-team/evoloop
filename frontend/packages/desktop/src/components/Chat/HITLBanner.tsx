@@ -1,9 +1,9 @@
-import { cn } from "@evoloop/shared/lib/utils"
-import { AlertCircle } from "lucide-react"
-import { memo } from "react"
-import { useTranslation } from "react-i18next"
-import { HITL_STATUS } from "@/stores/agent/hitlConstants"
-import { useAgentStore } from "@/stores/agentStore"
+import {cn} from "@evoloop/shared/lib/utils"
+import {AlertCircle} from "lucide-react"
+import {memo} from "react"
+import {useTranslation} from "react-i18next"
+import {HITL_STATUS} from "@/stores/agent/hitlConstants"
+import {useAgentStore} from "@/stores/agentStore"
 
 /**
  * HITLBanner - Global banner when Agent is waiting for human input

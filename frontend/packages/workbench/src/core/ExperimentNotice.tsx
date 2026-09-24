@@ -1,13 +1,13 @@
-import { useState } from "react"
-import { useTranslation } from "react-i18next"
+import {useState} from "react"
+import {useTranslation} from "react-i18next"
 
-import { Button } from "@evoloop/shared/components/ui/button"
+import {Button} from "@evoloop/shared/components/ui/button"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
 } from "@evoloop/shared/components/ui/dialog"
 
 const ACK_KEY = "duty-experiment-notice-acked"

@@ -1,14 +1,12 @@
 import * as echarts from "echarts"
 import ReactECharts from "echarts-for-react"
-import React, {
-  Component,
-  type ReactNode,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react"
+import React, {Component, type ReactNode, useEffect, useMemo, useRef, useState,} from "react"
 import chinaMapData from "@/assets/maps/china.json"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {AlertCircle, Check, Copy, Download} from "lucide-react"
+import {useTranslation} from "react-i18next"
+import {toast} from "sonner"
+import {isTauri} from "@/lib/tauri"
 
 // 注册中国地图数据，解决 "Map china not exists" 报错
 echarts.registerMap("china", chinaMapData as any)
@@ -60,12 +58,6 @@ const themeDark = {
 
 echarts.registerTheme("evoloop-light", themeLight)
 echarts.registerTheme("evoloop-dark", themeDark)
-
-import { Button } from "@evoloop/shared/components/ui/button"
-import { AlertCircle, Check, Copy, Download } from "lucide-react"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
-import { isTauri } from "@/lib/tauri"
 
 interface EChartsArtifactProps {
   data: {

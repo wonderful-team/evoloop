@@ -1,20 +1,13 @@
-import { Button } from "@evoloop/shared/components/ui/button"
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@evoloop/shared/components/ui/form"
-import { Input } from "@evoloop/shared/components/ui/input"
-import { LoadingButton } from "@evoloop/shared/components/ui/loading-button"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { Loader2, Phone, ShieldCheck } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
-import { useForm } from "react-hook-form"
-import { useTranslation } from "react-i18next"
-import { z } from "zod"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {Form, FormControl, FormField, FormItem, FormLabel, FormMessage,} from "@evoloop/shared/components/ui/form"
+import {Input} from "@evoloop/shared/components/ui/input"
+import {LoadingButton} from "@evoloop/shared/components/ui/loading-button"
+import {zodResolver} from "@hookform/resolvers/zod"
+import {Loader2, Phone, ShieldCheck} from "lucide-react"
+import {useEffect, useRef, useState} from "react"
+import {useForm} from "react-hook-form"
+import {useTranslation} from "react-i18next"
+import {z} from "zod"
 import useAuth from "@/hooks/useAuth"
 
 const createSchema = (t: any) =>

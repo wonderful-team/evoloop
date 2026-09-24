@@ -1,34 +1,16 @@
-import { Badge } from "@evoloop/shared/components/ui/badge"
-import { Button } from "@evoloop/shared/components/ui/button"
-import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
-import { Separator } from "@evoloop/shared/components/ui/separator"
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@evoloop/shared/components/ui/sheet"
-import { useMutation, useQueryClient } from "@tanstack/react-query"
-import {
-  CheckCircle2,
-  Clock,
-  Edit,
-  Info,
-  Layout,
-  Play,
-  Sparkles,
-  Terminal,
-  Trash2,
-  TrendingUp,
-  Zap,
-} from "lucide-react"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
-import { LearningService } from "@/client/sdk.gen"
-import { MarkdownRenderer } from "@/components/Common/MarkdownRenderer"
-import type { LearnedSkill } from "@/types/skill"
-import { isSkillRoutable } from "./skillLifecycle"
+import {Badge} from "@evoloop/shared/components/ui/badge"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {ScrollArea} from "@evoloop/shared/components/ui/scroll-area"
+import {Separator} from "@evoloop/shared/components/ui/separator"
+import {Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle,} from "@evoloop/shared/components/ui/sheet"
+import {useMutation, useQueryClient} from "@tanstack/react-query"
+import {CheckCircle2, Clock, Edit, Info, Layout, Play, Sparkles, Terminal, Trash2, TrendingUp, Zap,} from "lucide-react"
+import {useTranslation} from "react-i18next"
+import {toast} from "sonner"
+import {LearningService} from "@/client/sdk.gen"
+import {MarkdownRenderer} from "@/components/Common/MarkdownRenderer"
+import type {LearnedSkill} from "@/types/skill"
+import {isSkillRoutable} from "./skillLifecycle"
 
 interface SkillDetailsPanelProps {
   skill: LearnedSkill | null

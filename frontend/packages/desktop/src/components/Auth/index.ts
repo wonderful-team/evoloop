@@ -1,1 +1,0 @@
-export { WechatLoginButton } from "./WechatLogin"

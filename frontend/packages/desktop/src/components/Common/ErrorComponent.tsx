@@ -1,6 +1,6 @@
-import { Button } from "@evoloop/shared/components/ui/button"
-import { Link } from "@tanstack/react-router"
-import { useTranslation } from "react-i18next"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {Link} from "@tanstack/react-router"
+import {useTranslation} from "react-i18next"
 
 const ErrorComponent = () => {
   const { t } = useTranslation()

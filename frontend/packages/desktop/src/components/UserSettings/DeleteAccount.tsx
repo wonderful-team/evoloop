@@ -1,6 +1,6 @@
-import { Trash2 } from "lucide-react"
-import { useTranslation } from "react-i18next"
-import { SettingsCard } from "@/components/Settings/SettingsCard"
+import {Trash2} from "lucide-react"
+import {useTranslation} from "react-i18next"
+import {SettingsCard} from "@/components/Settings/SettingsCard"
 import DeleteConfirmation from "./DeleteConfirmation"
 
 const DeleteAccount = () => {

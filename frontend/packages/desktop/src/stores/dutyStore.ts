@@ -1,4 +1,4 @@
-import { create } from "zustand"
+import {create} from "zustand"
 
 /**
  * 全局自主值守状态 store。

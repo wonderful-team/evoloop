@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react"
-import { isTauri, safeInvoke } from "@/lib/tauri"
+import {useCallback, useEffect, useRef, useState} from "react"
+import {isTauri, safeInvoke} from "@/lib/tauri"
 
 // Throttle interval: 10 seconds between permission checks
 const CHECK_THROTTLE_MS = 10000

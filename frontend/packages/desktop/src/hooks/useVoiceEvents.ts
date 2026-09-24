@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useRef } from "react"
-import { toast } from "sonner"
-import { useNavigate } from "@tanstack/react-router"
-import { isTauri, safeInvoke, safeListen } from "@/lib/tauri"
-import type { VoiceState } from "@/stores/voiceStore"
-import { useVoiceStore } from "@/stores/voiceStore"
+import {useCallback, useEffect, useRef} from "react"
+import {toast} from "sonner"
+import {useNavigate} from "@tanstack/react-router"
+import {isTauri, safeInvoke, safeListen} from "@/lib/tauri"
+import type {VoiceState} from "@/stores/voiceStore"
+import {useVoiceStore} from "@/stores/voiceStore"
 
 let listenersInitialized = false
 

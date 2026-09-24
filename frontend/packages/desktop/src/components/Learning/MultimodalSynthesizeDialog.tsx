@@ -1,36 +1,36 @@
-import { Badge } from "@evoloop/shared/components/ui/badge"
-import { Button } from "@evoloop/shared/components/ui/button"
+import {Badge} from "@evoloop/shared/components/ui/badge"
+import {Button} from "@evoloop/shared/components/ui/button"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
 } from "@evoloop/shared/components/ui/dialog"
-import { Input } from "@evoloop/shared/components/ui/input"
-import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
-import { Textarea } from "@evoloop/shared/components/ui/textarea"
+import {Input} from "@evoloop/shared/components/ui/input"
+import {ScrollArea} from "@evoloop/shared/components/ui/scroll-area"
+import {Textarea} from "@evoloop/shared/components/ui/textarea"
 import {
-  AlertTriangle,
-  Crosshair,
-  ExternalLink,
-  FileVideo,
-  Image as ImageIcon,
-  Info,
-  Loader2,
-  Settings2,
-  Sparkles,
-  Trash2,
+    AlertTriangle,
+    Crosshair,
+    ExternalLink,
+    FileVideo,
+    Image as ImageIcon,
+    Info,
+    Loader2,
+    Settings2,
+    Sparkles,
+    Trash2,
 } from "lucide-react"
-import { useCallback, useEffect, useState } from "react"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
-import { LearningService } from "@/client/sdk.gen"
-import type { AnnotationResponse } from "@/client/types.gen"
-import { type SynthesisResult, useMultimodalSynthesis } from "@/hooks"
-import { isTauri } from "@/lib/tauri"
-import { useRecordingStore } from "@/stores/recordingStore"
+import {useCallback, useEffect, useState} from "react"
+import {useTranslation} from "react-i18next"
+import {toast} from "sonner"
+import {LearningService} from "@/client/sdk.gen"
+import type {AnnotationResponse} from "@/client/types.gen"
+import {type SynthesisResult, useMultimodalSynthesis} from "@/hooks"
+import {isTauri} from "@/lib/tauri"
+import {useRecordingStore} from "@/stores/recordingStore"
 
 interface MultimodalSynthesizeDialogProps {
   open: boolean

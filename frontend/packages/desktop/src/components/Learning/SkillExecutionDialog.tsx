@@ -1,26 +1,26 @@
-import { Badge } from "@evoloop/shared/components/ui/badge"
-import { Button } from "@evoloop/shared/components/ui/button"
-import { Checkbox } from "@evoloop/shared/components/ui/checkbox"
+import {Badge} from "@evoloop/shared/components/ui/badge"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {Checkbox} from "@evoloop/shared/components/ui/checkbox"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
 } from "@evoloop/shared/components/ui/dialog"
-import { Input } from "@evoloop/shared/components/ui/input"
-import { Label } from "@evoloop/shared/components/ui/label"
-import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
-import { Switch } from "@evoloop/shared/components/ui/switch"
-import { Textarea } from "@evoloop/shared/components/ui/textarea"
-import { AlertCircle, Loader2, Play } from "lucide-react"
-import React, { useState } from "react"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
-import { LearningService } from "@/client/sdk.gen"
-import type { LearnedSkill } from "@/types/skill"
-import { executeSkillErrorMessage } from "./skillLifecycle"
+import {Input} from "@evoloop/shared/components/ui/input"
+import {Label} from "@evoloop/shared/components/ui/label"
+import {ScrollArea} from "@evoloop/shared/components/ui/scroll-area"
+import {Switch} from "@evoloop/shared/components/ui/switch"
+import {Textarea} from "@evoloop/shared/components/ui/textarea"
+import {AlertCircle, Loader2, Play} from "lucide-react"
+import React, {useState} from "react"
+import {useTranslation} from "react-i18next"
+import {toast} from "sonner"
+import {LearningService} from "@/client/sdk.gen"
+import type {LearnedSkill} from "@/types/skill"
+import {executeSkillErrorMessage} from "./skillLifecycle"
 
 interface SkillExecutionDialogProps {
   open: boolean

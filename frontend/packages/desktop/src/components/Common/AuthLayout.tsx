@@ -1,7 +1,7 @@
-import { useTranslation } from "react-i18next"
-import { Appearance } from "@/components/Common/Appearance"
+import {useTranslation} from "react-i18next"
+import {Appearance} from "@/components/Common/Appearance"
 import icon from "/assets/images/evoloop-icon.svg"
-import { Footer } from "./Footer"
+import {Footer} from "./Footer"
 
 interface AuthLayoutProps {
   children: React.ReactNode

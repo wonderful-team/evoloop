@@ -1,13 +1,9 @@
-import { Button } from "@evoloop/shared/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-} from "@evoloop/shared/components/ui/dialog"
-import { ChevronLeft, ChevronRight, X } from "lucide-react"
-import { useCallback, useEffect } from "react"
-import { useTranslation } from "react-i18next"
-import { resolveLocalFileSrc } from "@/utils/fileUtils"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {Dialog, DialogContent, DialogTitle,} from "@evoloop/shared/components/ui/dialog"
+import {ChevronLeft, ChevronRight, X} from "lucide-react"
+import {useCallback, useEffect} from "react"
+import {useTranslation} from "react-i18next"
+import {resolveLocalFileSrc} from "@/utils/fileUtils"
 
 export interface GalleryImage {
   url: string

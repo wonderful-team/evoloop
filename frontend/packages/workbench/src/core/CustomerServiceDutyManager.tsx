@@ -1,10 +1,10 @@
-import { useEffect } from "react"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
-import { SystemService } from "@/client/sdk.gen"
-import { isTauri, safeInvoke, safeListen } from "@/lib/tauri"
-import { systemSSEClient } from "@/lib/SystemSSEClient"
-import { useDutyStore } from "@/stores/dutyStore"
+import {useEffect} from "react"
+import {useTranslation} from "react-i18next"
+import {toast} from "sonner"
+import {SystemService} from "@/client/sdk.gen"
+import {isTauri, safeInvoke, safeListen} from "@/lib/tauri"
+import {systemSSEClient} from "@/lib/SystemSSEClient"
+import {useDutyStore} from "@/stores/dutyStore"
 
 /**
  * 托盘值守管理器（headless，仿 GlobalRecorderManager）。

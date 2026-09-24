@@ -1,16 +1,10 @@
-import { Button } from "@evoloop/shared/components/ui/button"
-import {
-  AlertCircle,
-  CheckCircle2,
-  Download,
-  HardDrive,
-  Loader2,
-} from "lucide-react"
-import { useEffect } from "react"
-import { useTranslation } from "react-i18next"
-import { type ModelStatus, useModelManager } from "@/hooks/useModelManager"
-import { isTauri, safeInvoke } from "@/lib/tauri"
-import { SettingsCard } from "./SettingsCard"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {AlertCircle, CheckCircle2, Download, HardDrive, Loader2,} from "lucide-react"
+import {useEffect} from "react"
+import {useTranslation} from "react-i18next"
+import {type ModelStatus, useModelManager} from "@/hooks/useModelManager"
+import {isTauri, safeInvoke} from "@/lib/tauri"
+import {SettingsCard} from "./SettingsCard"
 
 export function ModelManager() {
   const { t } = useTranslation()

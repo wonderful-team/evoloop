@@ -1,6 +1,6 @@
-import { useQueryClient } from "@tanstack/react-query"
-import { TaskProposalCard } from "@evoloop/shared"
-import { TasksQueueApi, type QueueTask } from "@/lib/tasksQueueApi"
+import {useQueryClient} from "@tanstack/react-query"
+import {TaskProposalCard} from "@evoloop/shared"
+import {type QueueTask, TasksQueueApi} from "@/lib/tasksQueueApi"
 
 export function ProposalCard({
   task,

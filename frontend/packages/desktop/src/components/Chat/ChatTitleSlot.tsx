@@ -1,23 +1,16 @@
-import { Button } from "@evoloop/shared/components/ui/button"
-import { cn } from "@evoloop/shared/lib/utils"
-import { useQuery } from "@tanstack/react-query"
-import {
-  Home,
-  Loader2,
-  Maximize2,
-  Minimize2,
-  PanelLeft,
-  PanelRight,
-} from "lucide-react"
-import { memo } from "react"
-import { useTranslation } from "react-i18next"
-import { PlanningService } from "@/client"
-import { enterMiniWindow, exitMiniWindow } from "@/lib/miniWindow"
-import { isTauri } from "@/lib/tauri"
-import { useAgentStore } from "@/stores/agentStore"
-import { useChatStore } from "@/stores/chatStore"
-import { useProjectStore } from "@/stores/projectStore"
-import { useUIStore } from "@/stores/uiStore"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {cn} from "@evoloop/shared/lib/utils"
+import {useQuery} from "@tanstack/react-query"
+import {Home, Loader2, Maximize2, Minimize2, PanelLeft, PanelRight,} from "lucide-react"
+import {memo} from "react"
+import {useTranslation} from "react-i18next"
+import {PlanningService} from "@/client"
+import {enterMiniWindow, exitMiniWindow} from "@/lib/miniWindow"
+import {isTauri} from "@/lib/tauri"
+import {useAgentStore} from "@/stores/agentStore"
+import {useChatStore} from "@/stores/chatStore"
+import {useProjectStore} from "@/stores/projectStore"
+import {useUIStore} from "@/stores/uiStore"
 
 /**
  * ChatTitleSlot — 聊天页在全局 AppTitleBar 中的上下文槽位。

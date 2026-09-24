@@ -1,10 +1,10 @@
-import { useEffect } from "react"
+import {useEffect} from "react"
 
-import { ConversationsService, AgentService, OpenAPI } from "@/client"
-import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { Bot } from "lucide-react"
-import type { QueueTask } from "@/lib/tasksQueueApi"
-import { HumanRequestCard as SharedHumanRequestCard } from "@evoloop/shared"
+import {AgentService, ConversationsService, OpenAPI} from "@/client"
+import {useQuery, useQueryClient} from "@tanstack/react-query"
+import {Bot} from "lucide-react"
+import type {QueueTask} from "@/lib/tasksQueueApi"
+import {HumanRequestCard as SharedHumanRequestCard} from "@evoloop/shared"
 
 /**
  * 监察评审进度卡（渲染在执行时间线下方）。

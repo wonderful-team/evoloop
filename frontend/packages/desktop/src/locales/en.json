@@ -2096,26 +2096,6 @@
       "providerPlaceholder": "openai",
       "visionModelPlaceholder": "gpt-4o"
     },
-    "lightning": {
-      "title": "⚡ Lightning Channel",
-      "description": "Lightweight LLM for routing, classification, and embeddings. Uses a separate model from the Heavy Channel below.",
-      "mode": "Mode",
-      "none_hint": "Lightning Channel is disabled. Local routing and embeddings will not work. Suitable for low-spec machines.",
-      "llmModel": "LLM Model",
-      "llmModelPlaceholder": "/path/to/local-llm.gguf",
-      "embedModel": "Embedding Model",
-      "embedModelPlaceholder": "/path/to/bge-base-zh-v1.5-q4_k_m.gguf",
-      "contextWindow": "Context Window (tokens)",
-      "baseUrl": "Base URL",
-      "apiKey": "API Key",
-      "test_connection": "Test Connection",
-      "connected": "Connected ✓",
-      "connection_failed": "LLM {{llm}} Embed {{embed}}",
-      "connection_error": "Connection error: {{message}}",
-      "loadError": "Failed to load Lightning config",
-      "channel_separator": "Heavy Channel (Complex Agent Tasks)",
-      "gguf_hint": "Download a GGUF model and enter its path here"
-    },
     "modelFields": {
       "apiKey": "API Key",
       "baseUrl": "Base URL",
@@ -2460,50 +2440,6 @@
       "previous": "Go to previous page"
     }
   },
-  "tour": {
-    "finish": "Finish",
-    "next": "Next",
-    "prev": "Previous",
-    "replayDesc": "View the product feature introduction again",
-    "replayTitle": "Replay Tour",
-    "skipAriaLabel": "Skip tour",
-    "step1": {
-      "title": "Welcome to EvoLoop",
-      "content": "EvoLoop is your universal AI agent assistant, helping you with code development, project management, and more."
-    },
-    "step2": {
-      "title": "Chat",
-      "content": "Chat with AI here, ask questions or request assistance."
-    },
-    "step3": {
-      "title": "Projects",
-      "content": "Manage your development projects, organize code files and workflows."
-    },
-    "step4": {
-      "title": "MCP Extensions",
-      "content": "Extend AI capabilities through the MCP protocol, connecting more tools and services."
-    },
-    "step5": {
-      "title": "Settings",
-      "content": "Configure models, themes, shortcuts, and other personalization options."
-    },
-    "step6": {
-      "title": "Chat List",
-      "content": "View and manage your conversation history."
-    },
-    "step7": {
-      "title": "Message Area",
-      "content": "View AI responses and generated content."
-    },
-    "step8": {
-      "title": "Context Panel",
-      "content": "Manage context information for the current conversation, including memory and references."
-    },
-    "step9": {
-      "title": "Input Box",
-      "content": "Type your questions or instructions here to start interacting with AI."
-    }
-  },
   "updateNotification": {
     "forceUpdate": {
       "desc": "Desc",
@@ -2580,7 +2516,7 @@
       "chat": "Smart Chat",
       "projects": "Projects",
       "start": "Start Using EvoLoop",
-      "subtitle": "You're all set to use EvoLoop. Next, let's take a quick tour of the features.",
+      "subtitle": "You're all set to use EvoLoop. Let's get started!",
       "title": "Setup Complete!"
     },
     "description": "Complete the necessary system configuration",

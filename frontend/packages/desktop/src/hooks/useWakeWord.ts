@@ -1,7 +1,7 @@
-import { invoke } from "@tauri-apps/api/core"
-import { listen } from "@tauri-apps/api/event"
-import { useCallback, useEffect, useRef, useState } from "react"
-import { isTauri } from "@/lib/tauri"
+import {invoke} from "@tauri-apps/api/core"
+import {listen} from "@tauri-apps/api/event"
+import {useCallback, useEffect, useRef, useState} from "react"
+import {isTauri} from "@/lib/tauri"
 
 interface UseWakeWordOptions {
   wakeWord?: string

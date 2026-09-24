@@ -1,8 +1,8 @@
-import { useState } from "react"
-import { Button } from "@evoloop/shared/components/ui/button"
-import { AgentService } from "@/client/sdk.gen"
-import { useQueryClient } from "@tanstack/react-query"
-import { Ban, CheckCircle2, CornerDownLeft, Loader2, Sparkles, X } from "lucide-react"
+import {useState} from "react"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {AgentService} from "@/client/sdk.gen"
+import {useQueryClient} from "@tanstack/react-query"
+import {Ban, CheckCircle2, CornerDownLeft, Loader2, Sparkles, X} from "lucide-react"
 
 export interface DutyHitlItem {
   request_id: string

@@ -1,14 +1,9 @@
 import useCustomToast from "@evoloop/shared/hooks/useCustomToast"
 import i18n from "@evoloop/shared/i18n"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useNavigate } from "@tanstack/react-router"
-import {
-  AccountService,
-  AuthService,
-  MemberService,
-  type UserPublic,
-} from "@/client"
-import { handleError } from "@/utils"
+import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query"
+import {useNavigate} from "@tanstack/react-router"
+import {AccountService, AuthService, MemberService, type UserPublic,} from "@/client"
+import {handleError} from "@/utils"
 
 const isLoggedIn = () => {
   return localStorage.getItem("access_token") !== null

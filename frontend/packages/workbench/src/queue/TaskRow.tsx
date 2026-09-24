@@ -1,12 +1,12 @@
-import { memo } from "react"
-import { useNavigate } from "@tanstack/react-router"
-import { ArrowRight, Bell, Bot, Loader2, PauseCircle, Scale } from "lucide-react"
-import { useTranslation } from "react-i18next"
+import {memo} from "react"
+import {useNavigate} from "@tanstack/react-router"
+import {ArrowRight, Bell, Bot, Loader2, PauseCircle, Scale} from "lucide-react"
+import {useTranslation} from "react-i18next"
 
-import { Badge } from "@evoloop/shared/components/ui/badge"
-import type { QueueTask } from "@/lib/tasksQueueApi"
-import { RISK_STYLES } from "../core/styleConstants"
-import { stripMarkdownTokens } from "../core/mdText"
+import {Badge} from "@evoloop/shared/components/ui/badge"
+import type {QueueTask} from "@/lib/tasksQueueApi"
+import {RISK_STYLES} from "../core/styleConstants"
+import {stripMarkdownTokens} from "../core/mdText"
 
 export const TaskRow = memo(function TaskRow({
   task,

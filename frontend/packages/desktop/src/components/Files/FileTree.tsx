@@ -1,42 +1,42 @@
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
 } from "@evoloop/shared/components/ui/alert-dialog"
-import { Button } from "@evoloop/shared/components/ui/button"
+import {Button} from "@evoloop/shared/components/ui/button"
 import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuTrigger,
+    ContextMenu,
+    ContextMenuContent,
+    ContextMenuItem,
+    ContextMenuSeparator,
+    ContextMenuTrigger,
 } from "@evoloop/shared/components/ui/context-menu"
-import { Input } from "@evoloop/shared/components/ui/input"
-import { cn } from "@evoloop/shared/lib/utils"
-import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { Link } from "@tanstack/react-router"
+import {Input} from "@evoloop/shared/components/ui/input"
+import {cn} from "@evoloop/shared/lib/utils"
+import {useQuery, useQueryClient} from "@tanstack/react-query"
+import {Link} from "@tanstack/react-router"
 import {
-  ChevronDown,
-  ChevronRight,
-  Edit2,
-  Eye,
-  FileCode,
-  Folder,
-  FolderPlus,
-  Loader2,
-  Quote,
-  Trash2,
+    ChevronDown,
+    ChevronRight,
+    Edit2,
+    Eye,
+    FileCode,
+    Folder,
+    FolderPlus,
+    Loader2,
+    Quote,
+    Trash2,
 } from "lucide-react"
-import { useEffect, useState } from "react"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
-import { FilesService } from "@/client"
-import { isLoggedIn } from "@/hooks/useAuth"
+import {useEffect, useState} from "react"
+import {useTranslation} from "react-i18next"
+import {toast} from "sonner"
+import {FilesService} from "@/client"
+import {isLoggedIn} from "@/hooks/useAuth"
 
 interface FileNode {
   name: string

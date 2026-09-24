@@ -1,9 +1,5 @@
-import {
-  LogicalSize,
-  PhysicalPosition,
-  PhysicalSize,
-} from "@tauri-apps/api/window"
-import { safeGetCurrentWindow } from "./tauri"
+import {LogicalSize, PhysicalPosition, PhysicalSize,} from "@tauri-apps/api/window"
+import {safeGetCurrentWindow} from "./tauri"
 
 /**
  * 迷你模式 — 将应用窗口收缩为小窗（并置顶），退出时还原。

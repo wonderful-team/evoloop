@@ -1,5 +1,5 @@
-import { GlobalDiffViewer } from "@/components/Chat/GlobalDiffViewer"
-import { GlobalFilePreviewer } from "@/components/Chat/GlobalFilePreviewer"
+import {GlobalDiffViewer} from "@/components/Chat/GlobalDiffViewer"
+import {GlobalFilePreviewer} from "@/components/Chat/GlobalFilePreviewer"
 
 export function GlobalOverlayManager() {
   // 审计清理：rewind 预留订阅删除（声明后从未使用，且订阅会让 uiStore

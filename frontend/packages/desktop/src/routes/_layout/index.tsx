@@ -1,5 +1,5 @@
-import { createFileRoute, Navigate, redirect } from "@tanstack/react-router"
-import { isLoggedIn } from "@/hooks/useAuth"
+import {createFileRoute, Navigate, redirect} from "@tanstack/react-router"
+import {isLoggedIn} from "@/hooks/useAuth"
 
 export const Route = createFileRoute("/_layout/")({
   component: () => <Navigate to="/chat" />,

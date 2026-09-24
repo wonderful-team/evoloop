@@ -10,12 +10,12 @@
    - Ctrl / ⌘ + 滚轮缩放，局部容器内部正常自然滚动
    ========================================================================== */
 
-import React, { useEffect, useRef, useState, useCallback, useMemo } from "react"
-import type { DutyTask, DutyEdge, CanvasViewport } from "../core/types"
-import { DutyNodeCard, EXPANDED_CARD_WIDTH, EXPANDED_CARD_HEIGHT } from "./DutyNodeCard"
-import { DutyNodePageContent } from "./DutyNodePageContent"
-import { X, BoxSelect, Hand, Workflow } from "lucide-react"
-import { cn } from "@evoloop/shared/lib/utils"
+import React, {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import type {CanvasViewport, DutyEdge, DutyTask} from "../core/types"
+import {DutyNodeCard, EXPANDED_CARD_HEIGHT, EXPANDED_CARD_WIDTH} from "./DutyNodeCard"
+import {DutyNodePageContent} from "./DutyNodePageContent"
+import {BoxSelect, Hand, Workflow, X} from "lucide-react"
+import {cn} from "@evoloop/shared/lib/utils"
 
 interface DutyCanvasProps {
   tasks: DutyTask[]
@@ -177,55 +177,9 @@ export const DutyCanvas = ({
     [],
   )
 
-  // 方案 A：首屏自适应水平居中 (100% 比例，对齐顶层根任务群)
   const hasInitializedRef = useRef(false)
   const lastDirectionRef = useRef(layoutDirection)
 
-  const centerInitialView = useCallback(() => {
-    const el = containerRef.current
-    if (!el || tasks.length === 0) return false
-    const rect = el.getBoundingClientRect()
-    if (rect.width === 0 || rect.height === 0) return false
-
-    const minX = Math.min(...tasks.map((t) => t.x))
-    const minY = Math.min(...tasks.map((t) => t.y))
-
-    if (layoutDirection === "vertical") {
-      // 纵向瀑布流：顶层根任务群水平居中，顶部留白 60px，100% 比例
-      const topRowTasks = tasks.filter((t) => Math.abs(t.y - minY) < 30)
-      const topMinX = Math.min(...topRowTasks.map((t) => t.x))
-      const topMaxX = Math.max(...topRowTasks.map((t) => t.x + t.w))
-      const topCenterX = (topMinX + topMaxX) / 2
-
-      const targetX = rect.width / 2 - topCenterX
-      const targetY = 60 - minY
-
-      setView({ x: targetX, y: targetY, k: 1.0 })
-      viewRef.current = { x: targetX, y: targetY, k: 1.0 }
-    } else {
-      // 横向排列：最左侧起点任务离左边 60px，垂直整体居中，100% 比例
-      const maxY = Math.max(...tasks.map((t) => t.y + (t.h || 280)))
-      const graphCenterY = (minY + maxY) / 2
-      const targetX = 60 - minX
-      const targetY = rect.height / 2 - graphCenterY
-
-      setView({ x: targetX, y: targetY, k: 1.0 })
-      viewRef.current = { x: targetX, y: targetY, k: 1.0 }
-    }
-    return true
-  }, [tasks, layoutDirection])
-
-  // 首屏挂载（或切换方向时）自动计算应用方案 A 居中
-  useEffect(() => {
-    if (tasks.length === 0) return
-    if (!hasInitializedRef.current || lastDirectionRef.current !== layoutDirection) {
-      const ok = centerInitialView()
-      if (ok) {
-        hasInitializedRef.current = true
-        lastDirectionRef.current = layoutDirection
-      }
-    }
-  }, [tasks, layoutDirection, centerInitialView])
 
   const animFrameRef = useRef<number | null>(null)
   const [autoFollow] = useState(true)
@@ -306,26 +260,64 @@ export const DutyCanvas = ({
     [],
   )
 
-  /* ★ 镜头放大聚焦指定卡片：居中对准展开后的 1040px 页面，自适应合适缩放比 */
+  /* ★ 镜头放大聚焦指定卡片：居中对准展开后的 1040px 页面，自适应合适缩放比，左边缘严格安全防线 */
   const flyToCard = useCallback(
-    (task: DutyTask, targetK?: number, durationMs = 480) => {
+    (task: DutyTask, targetK?: number, durationMs = 480, willExpand?: boolean) => {
       const el = containerRef.current
       if (!el) return
       const rect = el.getBoundingClientRect()
-      // 当视口宽裕时，锁定在原生 1.0 (100% 物理点阵)，杜绝非 1:1 亚像素拉伸引起的字体模糊
+      if (rect.width === 0 || rect.height === 0) return
+
+      const isExpandedCard = willExpand || task.id === activeTaskId
+      const cardW = isExpandedCard ? EXPANDED_CARD_WIDTH : task.w
+      const cardH = isExpandedCard ? EXPANDED_CARD_HEIGHT : (task.h || 280)
+
+      // 自适应计算缩放比例：
+      // 当视口宽裕时，锁定在原生 1.0 (100% 物理点阵)，杜绝非 1:1 亚像素拉伸引起的字体模糊；
+      // 当视口较窄时，自适应缩放到合理尺寸，绝不强制 clamp 到过大的 0.72 导致卡片被挤出视口左边缘
       const optimalK = clamp(
-        Math.min((rect.width * 0.90) / EXPANDED_CARD_WIDTH, (rect.height * 0.90) / EXPANDED_CARD_HEIGHT),
-        0.72,
+        Math.min((rect.width * 0.90) / cardW, (rect.height * 0.90) / cardH),
+        0.35,
         1.0, // 封顶 100%，绝不超比例虚化放大
       )
       const k = targetK ?? optimalK
       const centerX = task.x + task.w / 2
       const centerY = task.y + (task.h || 280) / 2
-      const targetX = Math.round(rect.width / 2 - centerX * k)
-      const targetY = Math.round(rect.height / 2 - centerY * k)
-      animateTo({ x: targetX, y: targetY, k }, durationMs)
+      let targetX = Math.round(rect.width / 2 - centerX * k)
+      let targetY = Math.round(rect.height / 2 - centerY * k)
+
+      // ★ 核心边界安全防线 (Left & Top Boundary Protection)：
+      // 展开卡片实际在画布坐标系中的左边界与顶边界：
+      const cardLeft = isExpandedCard
+        ? task.x - (EXPANDED_CARD_WIDTH - task.w) / 2
+        : task.x
+      const cardTop = isExpandedCard
+        ? task.y - (EXPANDED_CARD_HEIGHT - (task.h || 280)) / 2
+        : task.y
+      const screenCardLeft = cardLeft * k + targetX
+      const screenCardTop = cardTop * k + targetY
+
+      // 无论视口多窄，确保卡片左边缘距离视口左侧边栏至少保留 32px 舒适间距，绝不挤压到边栏底下
+      if (screenCardLeft < 32) {
+        targetX += Math.round(32 - screenCardLeft)
+      }
+      // 顶部至少保留 20px 间距
+      if (screenCardTop < 20) {
+        targetY += Math.round(20 - screenCardTop)
+      }
+
+      if (durationMs > 0) {
+        animateTo({ x: targetX, y: targetY, k }, durationMs)
+      } else {
+        if (animFrameRef.current !== null) {
+          cancelAnimationFrame(animFrameRef.current)
+          animFrameRef.current = null
+        }
+        viewRef.current = { x: targetX, y: targetY, k }
+        setView({ x: targetX, y: targetY, k })
+      }
     },
-    [animateTo],
+    [activeTaskId, animateTo],
   )
 
   /* 镜头平滑拉远回脑图全览视角 (仅供用户显式点击触发，收起卡片时绝不擅自调用) */
@@ -334,6 +326,7 @@ export const DutyCanvas = ({
       const el = containerRef.current
       if (!el || tasks.length === 0) return
       const rect = el.getBoundingClientRect()
+      if (rect.width === 0 || rect.height === 0) return
       const minX = Math.min(...tasks.map((t) => t.x))
       const maxX = Math.max(...tasks.map((t) => t.x + t.w))
       const minY = Math.min(...tasks.map((t) => t.y))
@@ -342,43 +335,189 @@ export const DutyCanvas = ({
       const graphW = maxX - minX + 260
       const graphH = maxY - minY + 260
 
-      const scale = clamp(Math.min(rect.width / graphW, rect.height / graphH), 0.22, 0.7)
-      const targetX = (rect.width - (maxX + minX) * scale) / 2
-      const targetY = (rect.height - (maxY + minY) * scale) / 2
+      const scale = clamp(Math.min(rect.width / graphW, rect.height / graphH), 0.18, 0.7)
+      let targetX = (rect.width - (maxX + minX) * scale) / 2
+      let targetY = (rect.height - (maxY + minY) * scale) / 2
+
+      // 安全边界防线：全览下最左/最上节点绝不超出边缘
+      if (minX * scale + targetX < 40) {
+        targetX = Math.round(40 - minX * scale)
+      }
+      if (minY * scale + targetY < 40) {
+        targetY = Math.round(40 - minY * scale)
+      }
 
       animateTo({ x: targetX, y: targetY, k: scale }, durationMs)
     },
     [tasks, animateTo],
   )
 
+  // 方案 A：首屏自适应对齐与安全边距 (100% 比例，对齐顶层根任务群)
+  const centerInitialView = useCallback(() => {
+    const el = containerRef.current
+    if (!el || tasks.length === 0) return false
+    const rect = el.getBoundingClientRect()
+    if (rect.width < 100 || rect.height < 100) return false
+
+    // 如果当前已有激活展开的卡片，优先安全对焦该卡片，绝不暴力打乱用户视野
+    if (activeTaskId) {
+      const activeTask = tasks.find((t) => t.id === activeTaskId)
+      if (activeTask) {
+        flyToCard(activeTask, undefined, 0, true)
+        return true
+      }
+    }
+
+    const minX = Math.min(...tasks.map((t) => t.x))
+    const minY = Math.min(...tasks.map((t) => t.y))
+
+    if (layoutDirection === "vertical") {
+      // 纵向瀑布流：顶层根任务群
+      const topRowTasks = tasks.filter((t) => Math.abs(t.y - minY) < 30)
+      const topMinX = Math.min(...topRowTasks.map((t) => t.x))
+      const topMaxX = Math.max(...topRowTasks.map((t) => t.x + t.w))
+      const rowWidth = topMaxX - topMinX
+
+      // 关键修复：当任务行宽度小于视口时居中对齐；当任务行超出视口时，靠左保留舒适留白 (60px)
+      // 绝对不能把超宽行强行居中而导致最前排的根节点被负坐标推移到左侧屏幕外！
+      let targetX: number
+      if (rowWidth + 120 <= rect.width) {
+        targetX = Math.round((rect.width - rowWidth) / 2 - topMinX)
+      } else {
+        targetX = Math.round(60 - topMinX)
+      }
+      const targetY = Math.round(60 - minY)
+
+      setView({ x: targetX, y: targetY, k: 1.0 })
+      viewRef.current = { x: targetX, y: targetY, k: 1.0 }
+    } else {
+      // 横向排列：最左侧起点任务离左边 60px
+      const maxY = Math.max(...tasks.map((t) => t.y + (t.h || 280)))
+      const graphHeight = maxY - minY
+      const targetX = Math.round(60 - minX)
+
+      let targetY: number
+      if (graphHeight + 120 <= rect.height) {
+        targetY = Math.round((rect.height - graphHeight) / 2 - minY)
+      } else {
+        targetY = Math.round(60 - minY)
+      }
+
+      setView({ x: targetX, y: targetY, k: 1.0 })
+      viewRef.current = { x: targetX, y: targetY, k: 1.0 }
+    }
+    return true
+  }, [tasks, layoutDirection, activeTaskId, flyToCard])
+
+  // 首屏挂载（或切换方向时）自动计算应用方案 A 居中
+  useEffect(() => {
+    if (tasks.length === 0) return
+    if (!hasInitializedRef.current || lastDirectionRef.current !== layoutDirection) {
+      if (activeTaskId) {
+        const task = tasks.find((t) => t.id === activeTaskId)
+        if (task) {
+          flyToCard(task, undefined, 0, true)
+          hasInitializedRef.current = true
+          lastDirectionRef.current = layoutDirection
+          return
+        }
+      }
+      const ok = centerInitialView()
+      if (ok) {
+        hasInitializedRef.current = true
+        lastDirectionRef.current = layoutDirection
+      }
+    }
+  }, [tasks, layoutDirection, centerInitialView, activeTaskId, flyToCard])
+
+  // 跟踪用户是否已主动平移/缩放/拖拽，若已主动交互则不强行覆盖用户视野
+  const hasUserInteractedRef = useRef<boolean>(false)
+  const lastViewportWidthRef = useRef<number>(0)
+
+  // 监听画布视口真实尺寸变化（窗口缩放、左侧任务面板拖动调节、页面路由切入滑入完成）
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el || typeof ResizeObserver === "undefined") return
+
+    let prevW = 0
+    let prevH = 0
+
+    const ro = new ResizeObserver((entries) => {
+      const entry = entries[0]
+      if (!entry) return
+      const { width, height } = entry.contentRect
+      if (width < 100 || height < 100) return
+
+      if (!hasInitializedRef.current && tasks.length > 0) {
+        if (activeTaskId) {
+          const task = tasks.find((t) => t.id === activeTaskId)
+          if (task) flyToCard(task, undefined, 0, true)
+        } else {
+          centerInitialView()
+        }
+        hasInitializedRef.current = true
+      } else if (activeTaskId && (Math.abs(width - prevW) > 8 || Math.abs(height - prevH) > 8)) {
+        const task = tasks.find((t) => t.id === activeTaskId)
+        if (task) {
+          flyToCard(task, undefined, 120, true)
+        }
+      } else if (
+        !activeTaskId &&
+        !hasUserInteractedRef.current &&
+        lastViewportWidthRef.current > 0 &&
+        Math.abs(width - lastViewportWidthRef.current) > 30
+      ) {
+        lastViewportWidthRef.current = width
+        centerInitialView()
+      }
+
+      if (lastViewportWidthRef.current === 0) {
+        lastViewportWidthRef.current = width
+      }
+      prevW = width
+      prevH = height
+    })
+
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [tasks, activeTaskId, centerInitialView, flyToCard])
+
+  // 页面路由转场入场阶段（0 ~ 300ms 滑动过渡）：
+  // 在滑动彻底结束（350ms）后执行一次精确视口尺寸对焦校准，确保 100% 居中无错位
+  useEffect(() => {
+    if (tasks.length === 0) return
+    const timer = setTimeout(() => {
+      if (!hasUserInteractedRef.current && !activeTaskId) {
+        centerInitialView()
+      }
+    }, 350)
+    return () => clearTimeout(timer)
+  }, [centerInitialView, activeTaskId, tasks.length])
+
   /* ★ 镜头焦点跟踪：在展开任务或聚焦目标切换时平滑对焦 */
   const lastActiveTaskIdRef = useRef<string | null>(null)
   const lastFocusTaskIdRef = useRef<string | null>(null)
 
   useEffect(() => {
-    if (activeTaskId && activeTaskId !== lastActiveTaskIdRef.current) {
-      lastActiveTaskIdRef.current = activeTaskId
+    if (activeTaskId) {
       const task = tasks.find((t) => t.id === activeTaskId)
-      if (task) {
-        flyToCard(task)
+      if (task && activeTaskId !== lastActiveTaskIdRef.current) {
+        lastActiveTaskIdRef.current = activeTaskId
+        flyToCard(task, undefined, 480, true)
       }
       return
     }
-    if (!activeTaskId) {
-      lastActiveTaskIdRef.current = null
-    }
+    lastActiveTaskIdRef.current = null
 
-    if (autoFollow && focusTaskId && focusTaskId !== lastFocusTaskIdRef.current) {
-      lastFocusTaskIdRef.current = focusTaskId
+    if (autoFollow && focusTaskId) {
       const task = tasks.find((t) => t.id === focusTaskId)
-      if (task) {
+      if (task && focusTaskId !== lastFocusTaskIdRef.current) {
+        lastFocusTaskIdRef.current = focusTaskId
         flyToCard(task)
       }
       return
     }
-    if (!focusTaskId) {
-      lastFocusTaskIdRef.current = null
-    }
+    lastFocusTaskIdRef.current = null
   }, [activeTaskId, focusTaskId, autoFollow, flyToCard, tasks])
 
   /* 全局键盘快捷键监听 (Spacebar 平移模式, Esc 原地关闭展开卡片) */
@@ -428,6 +567,7 @@ export const DutyCanvas = ({
       const isZoomGesture = e.ctrlKey || e.metaKey
 
       if (isZoomGesture) {
+        hasUserInteractedRef.current = true
         e.preventDefault()
         const rect = el.getBoundingClientRect()
         const px = e.clientX - rect.left
@@ -462,6 +602,7 @@ export const DutyCanvas = ({
       }
 
       // 画布空白处：平移画布
+      hasUserInteractedRef.current = true
       e.preventDefault()
       const deltaX = e.shiftKey ? e.deltaY : e.deltaX
       const deltaY = e.shiftKey ? 0 : e.deltaY
@@ -670,6 +811,7 @@ export const DutyCanvas = ({
       const dy = (e.clientY - nodeDrag.sy) / viewRef.current.k
       if (!nodeDrag.moved && Math.hypot(dx, dy) > 3) {
         nodeDrag.moved = true
+        hasUserInteractedRef.current = true
         setDraggingTaskId(nodeDrag.taskId)
       }
       if (nodeDrag.moved) {
@@ -700,6 +842,7 @@ export const DutyCanvas = ({
       const dy = e.clientY - pan.sy
       if (!pan.moved && Math.hypot(dx, dy) > 3) {
         pan.moved = true
+        hasUserInteractedRef.current = true
       }
       if (pan.moved) {
         updateView((prev) => ({
@@ -1067,7 +1210,7 @@ export const DutyCanvas = ({
               onSelectTask?.(task.id)
             }}
             onFocus={() => {
-              flyToCard(task)
+              flyToCard(task, undefined, 480, true)
               onTaskClick(task.id)
             }}
             onUnfocus={() => {
@@ -1154,7 +1297,7 @@ export const DutyCanvas = ({
             selectedTaskIds: selectedTaskIds ?? new Set(),
             isMultiSelected,
             onFocusTask: (task) => {
-              flyToCard(task)
+              flyToCard(task, undefined, 480, true)
               onTaskClick(task.id)
             },
             onClearSelection: () => {
@@ -1172,7 +1315,7 @@ export const DutyCanvas = ({
               <button
                 type="button"
                 onClick={() => {
-                  flyToCard(selectedTask)
+                  flyToCard(selectedTask, undefined, 480, true)
                   onTaskClick(selectedTask.id)
                 }}
                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium text-primary bg-primary/10 hover:bg-primary/20 transition-colors cursor-pointer"
@@ -1186,6 +1329,7 @@ export const DutyCanvas = ({
               <button
                 type="button"
                 onClick={() => {
+                  hasUserInteractedRef.current = false
                   onResetAutoLayout()
                   setTimeout(() => centerInitialView(), 30)
                 }}

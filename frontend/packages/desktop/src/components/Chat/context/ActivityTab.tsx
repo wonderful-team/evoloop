@@ -1,33 +1,29 @@
+import {Collapsible, CollapsibleContent, CollapsibleTrigger,} from "@evoloop/shared/components/ui/collapsible"
+import {ScrollArea} from "@evoloop/shared/components/ui/scroll-area"
+import {cn} from "@evoloop/shared/lib/utils"
+import {useQuery} from "@tanstack/react-query"
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@evoloop/shared/components/ui/collapsible"
-import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
-import { cn } from "@evoloop/shared/lib/utils"
-import { useQuery } from "@tanstack/react-query"
-import {
-  BrainCircuit,
-  ChevronDown,
-  ChevronRight,
-  Cpu,
-  GitBranch,
-  Loader2,
-  Map as MapIcon,
-  MonitorSmartphone,
-  Wrench,
+    BrainCircuit,
+    ChevronDown,
+    ChevronRight,
+    Cpu,
+    GitBranch,
+    Loader2,
+    Map as MapIcon,
+    MonitorSmartphone,
+    Wrench,
 } from "lucide-react"
-import { memo, useEffect, useMemo, useRef, useState } from "react"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
-import { PlanningService } from "@/client"
-import { LearningService } from "@/client/sdk.gen"
-import { SkillDetailsPanel } from "@/components/Learning/SkillDetailsPanel"
-import { executeSkillErrorMessage } from "@/components/Learning/skillLifecycle"
-import { useAgentStore } from "@/stores/agentStore"
-import { useChatStore } from "@/stores/chatStore"
-import type { LearnedSkill } from "@/types/skill"
-import { MessageContent } from "../MessageContent"
+import {memo, useEffect, useMemo, useRef, useState} from "react"
+import {useTranslation} from "react-i18next"
+import {toast} from "sonner"
+import {PlanningService} from "@/client"
+import {LearningService} from "@/client/sdk.gen"
+import {SkillDetailsPanel} from "@/components/Learning/SkillDetailsPanel"
+import {executeSkillErrorMessage} from "@/components/Learning/skillLifecycle"
+import {useAgentStore} from "@/stores/agentStore"
+import {useChatStore} from "@/stores/chatStore"
+import type {LearnedSkill} from "@/types/skill"
+import {MessageContent} from "../MessageContent"
 
 interface PlanStep {
   id: string

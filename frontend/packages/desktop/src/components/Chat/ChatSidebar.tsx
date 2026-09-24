@@ -1,18 +1,13 @@
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@evoloop/shared/components/ui/tabs"
-import { memo } from "react"
-import { useTranslation } from "react-i18next"
-import { ProjectSwitcher } from "@/components/Sidebar/ProjectSwitcher"
-import { SidebarChatList, type Thread } from "./sidebar/SidebarChatList"
-export type { Thread }
+import {Tabs, TabsContent, TabsList, TabsTrigger,} from "@evoloop/shared/components/ui/tabs"
+import {memo} from "react"
+import {useTranslation} from "react-i18next"
+import {ProjectSwitcher} from "@/components/Sidebar/ProjectSwitcher"
+import {SidebarChatList, type Thread} from "./sidebar/SidebarChatList"
+import {useChangesetStore} from "@/stores/changesetStore"
+import {useProjectStore} from "@/stores/projectStore"
+import {SidebarFilesTab} from "./sidebar/SidebarFilesTab"
 
-import { useChangesetStore } from "@/stores/changesetStore"
-import { useProjectStore } from "@/stores/projectStore"
-import { SidebarFilesTab } from "./sidebar/SidebarFilesTab"
+export type { Thread }
 
 interface ChatSidebarProps {
   threads: Thread[]
@@ -60,10 +55,7 @@ export const ChatSidebar = memo(
     ).length
 
     return (
-      <div
-        className="flex flex-col h-full w-full min-w-0 bg-background-soft overflow-hidden"
-        data-tour="chat-sidebar"
-      >
+      <div className="flex flex-col h-full w-full min-w-0 bg-background-soft overflow-hidden">
         <div className="p-2 shrink-0 w-full min-w-0 overflow-hidden">
           <ProjectSwitcher
             open={useProjectStore((s) => s.projectSwitcherOpen || undefined)}
@@ -87,8 +79,8 @@ export const ChatSidebar = memo(
                 {t("chat.sidebar.tabFiles")}
                 {unviewedCount > 0 && (
                   <span
-                    className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center 
-                                   rounded-full bg-destructive px-1 text-[10px] font-medium text-white 
+                    className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center
+                                   rounded-full bg-destructive px-1 text-[10px] font-medium text-white
                                    animate-in zoom-in duration-200"
                   >
                     {unviewedCount > 99 ? "99+" : unviewedCount}

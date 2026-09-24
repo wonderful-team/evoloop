@@ -1,14 +1,11 @@
-import { ThemeProvider } from "@evoloop/shared/components/theme-provider"
-import { Toaster } from "@evoloop/shared/components/ui/sonner"
+import {ThemeProvider} from "@evoloop/shared/components/theme-provider"
+import {Toaster} from "@evoloop/shared/components/ui/sonner"
 import i18n from "@evoloop/shared/i18n"
 import "@xterm/xterm/css/xterm.css"
 
 // Tell @monaco-editor/react to use local monaco-editor instead of jsdelivr CDN
-import { loader } from "@monaco-editor/react"
+import {loader} from "@monaco-editor/react"
 import * as monaco from "monaco-editor"
-
-loader.config({ monaco })
-
 // Configure Monaco Editor Web Workers globally for Vite/Tauri ESM compatibility.
 // Resolves warning and prevents UI freezes by executing editors syntax tree parsers inside workers.
 import editorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker"
@@ -16,6 +13,20 @@ import cssWorker from "monaco-editor/esm/vs/language/css/css.worker?worker"
 import htmlWorker from "monaco-editor/esm/vs/language/html/html.worker?worker"
 import jsonWorker from "monaco-editor/esm/vs/language/json/json.worker?worker"
 import tsWorker from "monaco-editor/esm/vs/language/typescript/ts.worker?worker"
+import {MutationCache, QueryCache, QueryClient, QueryClientProvider,} from "@tanstack/react-query"
+import {createHashHistory, createRouter, RouterProvider,} from "@tanstack/react-router"
+import {StrictMode} from "react"
+import ReactDOM from "react-dom/client"
+import {toast} from "sonner"
+import {ApiError, OpenAPI} from "./client"
+import {initApiInterceptors} from "./interceptors.ts"
+import enLocal from "./locales/en.json"
+import zhLocal from "./locales/zh.json"
+import {normalizeHostContext, useHostContextStore,} from "./stores/hostContextStore"
+import "./index.css"
+import {routeTree} from "./routeTree.gen"
+
+loader.config({ monaco })
 
 self.MonacoEnvironment = {
   getWorker(_, label) {
@@ -34,31 +45,6 @@ self.MonacoEnvironment = {
     return new editorWorker()
   },
 }
-
-import {
-  MutationCache,
-  QueryCache,
-  QueryClient,
-  QueryClientProvider,
-} from "@tanstack/react-query"
-import {
-  createHashHistory,
-  createRouter,
-  RouterProvider,
-} from "@tanstack/react-router"
-import { StrictMode } from "react"
-import ReactDOM from "react-dom/client"
-import { toast } from "sonner"
-import { ApiError, OpenAPI } from "./client"
-import { initApiInterceptors } from "./interceptors.ts"
-import enLocal from "./locales/en.json"
-import zhLocal from "./locales/zh.json"
-import {
-  normalizeHostContext,
-  useHostContextStore,
-} from "./stores/hostContextStore"
-import "./index.css"
-import { routeTree } from "./routeTree.gen"
 
 i18n.addResourceBundle("en", "translation", enLocal, true, true)
 i18n.addResourceBundle("zh", "translation", zhLocal, true, true)

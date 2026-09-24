@@ -1,30 +1,30 @@
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
 } from "@evoloop/shared/components/ui/alert-dialog"
-import { Button } from "@evoloop/shared/components/ui/button"
+import {Button} from "@evoloop/shared/components/ui/button"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuTrigger,
 } from "@evoloop/shared/components/ui/dropdown-menu"
 import useCustomToast from "@evoloop/shared/hooks/useCustomToast"
-import { useMutation } from "@tanstack/react-query"
-import { BookOpen, MoreVertical, Rocket, Trash2 } from "lucide-react"
-import { useState } from "react"
-import { Trans, useTranslation } from "react-i18next"
-import { ProjectsService, WikiService } from "@/client"
-import { useProjectStore } from "@/stores/projectStore"
-import { handleError } from "@/utils"
-import { DiscoverDialog } from "./Modules/Overview/DiscoverDialog"
+import {useMutation} from "@tanstack/react-query"
+import {BookOpen, MoreVertical, Rocket, Trash2} from "lucide-react"
+import {useState} from "react"
+import {Trans, useTranslation} from "react-i18next"
+import {ProjectsService, WikiService} from "@/client"
+import {useProjectStore} from "@/stores/projectStore"
+import {handleError} from "@/utils"
+import {DiscoverDialog} from "./Modules/Overview/DiscoverDialog"
 
 interface ProjectActionsProps {
   project: any

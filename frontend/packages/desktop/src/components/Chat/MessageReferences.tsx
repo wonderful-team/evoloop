@@ -1,28 +1,24 @@
-import { cn } from "@evoloop/shared/lib/utils"
+import {cn} from "@evoloop/shared/lib/utils"
 import {
-  Code2,
-  Download,
-  ExternalLink,
-  FileText,
-  Folder,
-  Image as ImageIcon,
-  MessageSquare,
-  Music,
-  Zap,
+    Code2,
+    Download,
+    ExternalLink,
+    FileText,
+    Folder,
+    Image as ImageIcon,
+    MessageSquare,
+    Music,
+    Zap,
 } from "lucide-react"
 import type React from "react"
-import { useTranslation } from "react-i18next"
-import { downloadFile } from "@/utils/fileLinkHandler"
-import {
-  cleanFileUrl,
-  isAbsolutePath,
-  resolveLocalFileSrc,
-} from "@/utils/fileUtils"
-import { EChartsArtifact } from "./Artifacts/EChartsArtifact"
-import { HtmlArtifact } from "./Artifacts/HtmlArtifact"
-import { MapArtifact } from "./Artifacts/MapArtifact"
-import { ReactArtifact } from "./Artifacts/ReactArtifact"
-import { TestReportCard } from "./Artifacts/TestReportCard"
+import {useTranslation} from "react-i18next"
+import {downloadFile} from "@/utils/fileLinkHandler"
+import {cleanFileUrl, isAbsolutePath, resolveLocalFileSrc,} from "@/utils/fileUtils"
+import {EChartsArtifact} from "./Artifacts/EChartsArtifact"
+import {HtmlArtifact} from "./Artifacts/HtmlArtifact"
+import {MapArtifact} from "./Artifacts/MapArtifact"
+import {ReactArtifact} from "./Artifacts/ReactArtifact"
+import {TestReportCard} from "./Artifacts/TestReportCard"
 
 interface Reference {
   id: string

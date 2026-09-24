@@ -1,4 +1,4 @@
-import { create } from "zustand"
+import {create} from "zustand"
 
 export type VoiceMode = "off" | "dictation" | "dialogue"
 export type VoiceState =

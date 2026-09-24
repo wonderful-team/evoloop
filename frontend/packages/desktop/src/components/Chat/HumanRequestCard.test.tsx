@@ -1,8 +1,8 @@
-import { render, screen } from "@testing-library/react"
+import {render, screen} from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { describe, expect, it, vi } from "vitest"
-import { HumanRequestCard as SharedHumanRequestCard } from "@evoloop/shared"
-import type { HumanRequestItem } from "@evoloop/shared"
+import {describe, expect, it, vi} from "vitest"
+import type {HumanRequestItem} from "@evoloop/shared"
+import {HumanRequestCard as SharedHumanRequestCard} from "@evoloop/shared"
 
 /**
  * 授权审批卡 grant_mode 四级治理动作（终态 v2）：

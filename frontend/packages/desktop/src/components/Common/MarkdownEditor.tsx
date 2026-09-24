@@ -2,12 +2,12 @@
  * MarkdownEditor - A markdown editor with live preview using Monaco Editor
  */
 
-import { Button } from "@evoloop/shared/components/ui/button"
-import { cn } from "@evoloop/shared/lib/utils"
-import { Edit3, Eye, SplitSquareHorizontal } from "lucide-react"
-import { useState } from "react"
-import { useTranslation } from "react-i18next"
-import { MarkdownRenderer } from "./MarkdownRenderer"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {cn} from "@evoloop/shared/lib/utils"
+import {Edit3, Eye, SplitSquareHorizontal} from "lucide-react"
+import {useState} from "react"
+import {useTranslation} from "react-i18next"
+import {MarkdownRenderer} from "./MarkdownRenderer"
 import MonacoEditor from "./MonacoEditor"
 
 // Markdown Preview Component

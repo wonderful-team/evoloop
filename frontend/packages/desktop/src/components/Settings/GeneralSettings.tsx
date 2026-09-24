@@ -1,36 +1,28 @@
-import { Button } from "@evoloop/shared/components/ui/button"
+import {Button} from "@evoloop/shared/components/ui/button"
 import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
+    Form,
+    FormControl,
+    FormDescription,
+    FormField,
+    FormItem,
+    FormLabel,
+    FormMessage,
 } from "@evoloop/shared/components/ui/form"
-import { Input } from "@evoloop/shared/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@evoloop/shared/components/ui/select"
-import { Textarea } from "@evoloop/shared/components/ui/textarea"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { useQueryClient } from "@tanstack/react-query"
-import { Languages, Monitor, PlayCircle } from "lucide-react"
-import { useEffect, useState } from "react"
-import { useForm } from "react-hook-form"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
-import { z } from "zod"
-import { type SystemConfig, SystemService } from "@/client"
-import { useTour } from "@/components/Common/SpotlightTour"
-import { useIsMultiTenant } from "@/hooks/useIsMultiTenant"
-import { isTauri } from "@/lib/tauri"
-import { SettingsCard } from "./SettingsCard"
-import { useSettings } from "./SettingsContext"
+import {Input} from "@evoloop/shared/components/ui/input"
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue,} from "@evoloop/shared/components/ui/select"
+import {Textarea} from "@evoloop/shared/components/ui/textarea"
+import {zodResolver} from "@hookform/resolvers/zod"
+import {useQueryClient} from "@tanstack/react-query"
+import {Languages, Monitor} from "lucide-react"
+import {useEffect, useState} from "react"
+import {useForm} from "react-hook-form"
+import {useTranslation} from "react-i18next"
+import {toast} from "sonner"
+import {z} from "zod"
+import {type SystemConfig, SystemService} from "@/client"
+import {isTauri} from "@/lib/tauri"
+import {SettingsCard} from "./SettingsCard"
+import {useSettings} from "./SettingsContext"
 
 const generalSettingsSchema = z.object({
   WORKSPACE_ROOT: z.string().min(1),
@@ -44,8 +36,6 @@ type GeneralSettingsValues = z.infer<typeof generalSettingsSchema>
 export default function GeneralSettings() {
   const { t, i18n } = useTranslation()
   const [loading, setLoading] = useState(false)
-  const { startTour } = useTour()
-  const isMultiTenant = useIsMultiTenant()
   const {
     setComponentDirty,
     registerSaveHandler,
@@ -163,11 +153,6 @@ export default function GeneralSettings() {
     } catch (_error) {
       toast.error(t("settings.general.browseError"))
     }
-  }
-
-  const handleReplayTour = () => {
-    localStorage.removeItem("evoloop_desktop_tour_seen")
-    startTour()
   }
 
   return (
@@ -310,20 +295,6 @@ export default function GeneralSettings() {
           </form>
         </Form>
       </SettingsCard>
-
-      {!isMultiTenant && (
-        <SettingsCard
-          icon={PlayCircle}
-          title={t("tour.replayTitle")}
-          description={t("tour.replayDesc")}
-          iconClassName="text-blue-500 bg-blue-500/10"
-        >
-          <Button variant="outline" onClick={handleReplayTour} className="gap-2">
-            <PlayCircle className="h-4 w-4" />
-            {t("tour.replayTitle")}
-          </Button>
-        </SettingsCard>
-      )}
     </div>
   )
 }

@@ -1,8 +1,8 @@
-import { useEffect } from "react"
-import { ProjectsService } from "@/client/sdk.gen"
-import { isLoggedIn } from "@/hooks/useAuth"
-import { useSystemEvent } from "@/hooks/useSystemEvent"
-import { isGlobalProject, useProjectStore } from "@/stores/projectStore"
+import {useEffect} from "react"
+import {ProjectsService} from "@/client/sdk.gen"
+import {isLoggedIn} from "@/hooks/useAuth"
+import {useSystemEvent} from "@/hooks/useSystemEvent"
+import {isGlobalProject, useProjectStore} from "@/stores/projectStore"
 
 const fetchStatus = async (projectId: number) => {
   try {

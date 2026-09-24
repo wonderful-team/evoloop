@@ -1,5 +1,5 @@
-import { create } from "zustand"
-import { isTauri, safeInvoke } from "@/lib/tauri"
+import {create} from "zustand"
+import {isTauri, safeInvoke} from "@/lib/tauri"
 
 interface RecordingState {
   isRecording: boolean

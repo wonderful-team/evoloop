@@ -1,34 +1,27 @@
-import { Button } from "@evoloop/shared/components/ui/button"
+import {Button} from "@evoloop/shared/components/ui/button"
 import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+    Dialog,
+    DialogClose,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
 } from "@evoloop/shared/components/ui/dialog"
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@evoloop/shared/components/ui/form"
-import { Input } from "@evoloop/shared/components/ui/input"
+import {Form, FormControl, FormField, FormItem, FormLabel, FormMessage,} from "@evoloop/shared/components/ui/form"
+import {Input} from "@evoloop/shared/components/ui/input"
 import useCustomToast from "@evoloop/shared/hooks/useCustomToast"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { useMutation } from "@tanstack/react-query"
-import { Plus } from "lucide-react"
-import { useState } from "react"
-import { useForm } from "react-hook-form"
-import { useTranslation } from "react-i18next"
-import { z } from "zod"
-import { ProjectsService } from "@/client"
-import { useProjectStore } from "@/stores/projectStore"
-import { handleError } from "@/utils"
+import {zodResolver} from "@hookform/resolvers/zod"
+import {useMutation} from "@tanstack/react-query"
+import {Plus} from "lucide-react"
+import {useState} from "react"
+import {useForm} from "react-hook-form"
+import {useTranslation} from "react-i18next"
+import {z} from "zod"
+import {ProjectsService} from "@/client"
+import {useProjectStore} from "@/stores/projectStore"
+import {handleError} from "@/utils"
 
 const createSchema = (t: any) =>
   z.object({

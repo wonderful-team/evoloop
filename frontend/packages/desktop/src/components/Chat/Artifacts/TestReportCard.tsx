@@ -1,17 +1,9 @@
-import { Button } from "@evoloop/shared/components/ui/button"
-import { cn } from "@evoloop/shared/lib/utils"
-import { AnimatePresence, motion } from "framer-motion"
-import {
-  Bug,
-  CheckCircle2,
-  ChevronDown,
-  ChevronRight,
-  Copy,
-  Wrench,
-  XCircle,
-} from "lucide-react"
-import { useState } from "react"
-import { useTranslation } from "react-i18next"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {cn} from "@evoloop/shared/lib/utils"
+import {AnimatePresence, motion} from "framer-motion"
+import {Bug, CheckCircle2, ChevronDown, ChevronRight, Copy, Wrench, XCircle,} from "lucide-react"
+import {useState} from "react"
+import {useTranslation} from "react-i18next"
 
 export interface TestReportData {
   status: "PASS" | "FAIL"

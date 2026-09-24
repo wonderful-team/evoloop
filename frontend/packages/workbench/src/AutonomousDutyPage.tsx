@@ -1,52 +1,34 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
-import { motion } from "framer-motion"
-import { useNavigate } from "@tanstack/react-router"
-import { useChatStore } from "@/stores/chatStore"
-import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query"
-import {
-  AlertTriangle,
-  Inbox,
-  Plus,
-} from "lucide-react"
-import { useTranslation } from "react-i18next"
+import {useCallback, useEffect, useMemo, useState} from "react"
+import {motion} from "framer-motion"
+import {useNavigate} from "@tanstack/react-router"
+import {useChatStore} from "@/stores/chatStore"
+import {useInfiniteQuery, useQuery, useQueryClient} from "@tanstack/react-query"
+import {AlertTriangle, Bot, Inbox, Plus, X,} from "lucide-react"
+import {useTranslation} from "react-i18next"
 
 import AutonomousDutyCanvasApp from "./canvas/AutonomousDutyCanvasApp"
-import { adaptQueueTasksToDutyTasks } from "./core/taskAdapter"
+import {adaptQueueTasksToDutyTasks} from "./core/taskAdapter"
 
-import { OpenAPI } from "@/client/core/OpenAPI"
-import { AgentService } from "@/client"
+import {OpenAPI} from "@/client/core/OpenAPI"
+import {AgentService} from "@/client"
 
-import { Button } from "@evoloop/shared/components/ui/button"
-import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@evoloop/shared/components/ui/tabs"
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@evoloop/shared/components/ui/resizable"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {ScrollArea} from "@evoloop/shared/components/ui/scroll-area"
+import {Tabs, TabsContent, TabsList, TabsTrigger,} from "@evoloop/shared/components/ui/tabs"
+import {ResizableHandle, ResizablePanel, ResizablePanelGroup,} from "@evoloop/shared/components/ui/resizable"
 
-import { TaskRow } from "./queue/TaskRow"
-import {
-  TasksQueueApi,
-  type QueueTask,
-  type DashboardKpis,
-} from "@/lib/tasksQueueApi"
-import { DEMO } from "./core/demoData"
-import { handleTaskQueueEvent, parseTaskQueueEvent } from "./core/dutySse"
-import { getDemoDashboard, getDemoTasks } from "./core/demoRuntime"
-import { ExperimentNotice } from "./core/ExperimentNotice"
-import { PulseWave } from "./queue/AgentPulse"
-import { DutyRitualOverlay } from "./queue/DutyStartStopButton"
-import { DutyHitlInputCard } from "./canvas/DutyHitlInputCard"
-import { ProjectSwitcher } from "@/components/Sidebar/ProjectSwitcher"
-import { useProjectStore } from "@/stores/projectStore"
-import { ChatInputArea } from "@/components/Chat/ChatInputArea"
-import { Bot, X } from "lucide-react"
+import {TaskRow} from "./queue/TaskRow"
+import {type DashboardKpis, type QueueTask, TasksQueueApi,} from "@/lib/tasksQueueApi"
+import {DEMO} from "./core/demoData"
+import {handleTaskQueueEvent, parseTaskQueueEvent} from "./core/dutySse"
+import {getDemoDashboard, getDemoTasks} from "./core/demoRuntime"
+import {ExperimentNotice} from "./core/ExperimentNotice"
+import {PulseWave} from "./queue/AgentPulse"
+import {DutyRitualOverlay} from "./queue/DutyStartStopButton"
+import {DutyHitlInputCard} from "./canvas/DutyHitlInputCard"
+import {ProjectSwitcher} from "@/components/Sidebar/ProjectSwitcher"
+import {useProjectStore} from "@/stores/projectStore"
+import {ChatInputArea} from "@/components/Chat/ChatInputArea"
 
 const TABS: {
   key: string
@@ -280,7 +262,7 @@ export function AutonomousDutyPage() {
   const storeReady = !storeLoading || projects.length > 0
 
   return (
-    <div className="h-full flex flex-col relative bg-background overflow-hidden subpixel-antialiased [transform:none]">
+    <div className="h-full w-full min-w-0 flex flex-col relative bg-background overflow-hidden subpixel-antialiased">
       <ExperimentNotice />
       {!storeReady && (
         <div className="absolute inset-0 z-30 flex items-center justify-center bg-background/60 backdrop-blur-xs">
@@ -289,7 +271,7 @@ export function AutonomousDutyPage() {
           </div>
         </div>
       )}
-      <div className="flex-1 min-h-0 w-full overflow-hidden relative">
+      <div className="flex-1 min-h-0 w-full min-w-0 overflow-hidden relative">
         <ResizablePanelGroup
           direction="horizontal"
           className="h-full w-full min-w-0 overflow-hidden"
@@ -301,9 +283,9 @@ export function AutonomousDutyPage() {
             defaultSize={23}
             minSize={15}
             maxSize={45}
-            className="min-w-[220px] overflow-hidden"
+            className="overflow-hidden"
           >
-            <div className="flex flex-col h-full w-full min-w-0 bg-sidebar border-r border-border/80 overflow-hidden">
+            <div className="flex flex-col h-full w-full min-w-[220px] bg-sidebar border-r border-border/80 overflow-hidden">
         <div className="p-2 shrink-0 w-full min-w-0 overflow-hidden">
           <ProjectSwitcher
             open={projectSwitcherOpen}
@@ -588,7 +570,7 @@ export function AutonomousDutyPage() {
             order={2}
             defaultSize={77}
             minSize={30}
-            className="min-w-0 overflow-hidden"
+            className="min-w-0 flex-1 overflow-hidden"
           >
             <div className="flex flex-col h-full w-full min-w-0 bg-background relative overflow-hidden">
 

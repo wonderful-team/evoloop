@@ -7,7 +7,7 @@
    - 支持节点任意拖拽后的坐标保留与一键脑图重排
    ========================================================================== */
 
-import type { DutyTask, DutyEdge } from "../core/types"
+import type {DutyEdge, DutyTask} from "../core/types"
 
 export const CARD_WIDTH = 420
 export const CARD_HEIGHT = 280

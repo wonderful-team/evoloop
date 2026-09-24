@@ -1,19 +1,12 @@
-import { createFileRoute } from "@tanstack/react-router"
-import { LogicalPosition } from "@tauri-apps/api/dpi"
-import { listen } from "@tauri-apps/api/event"
-import { getCurrentWindow, primaryMonitor } from "@tauri-apps/api/window"
-import { AnimatePresence, motion } from "framer-motion"
-import {
-  Check,
-  Loader2,
-  MessageSquare,
-  Mic,
-  Sparkles,
-  Volume2,
-} from "lucide-react"
-import { useEffect, useState } from "react"
-import { useTranslation } from "react-i18next"
-import { isTauri } from "@/lib/tauri"
+import {createFileRoute} from "@tanstack/react-router"
+import {LogicalPosition} from "@tauri-apps/api/dpi"
+import {listen} from "@tauri-apps/api/event"
+import {getCurrentWindow, primaryMonitor} from "@tauri-apps/api/window"
+import {AnimatePresence, motion} from "framer-motion"
+import {Check, Loader2, MessageSquare, Mic, Sparkles, Volume2,} from "lucide-react"
+import {useEffect, useState} from "react"
+import {useTranslation} from "react-i18next"
+import {isTauri} from "@/lib/tauri"
 
 export const Route = createFileRoute("/voice-hud")({
   component: () => {

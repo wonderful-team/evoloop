@@ -1,5 +1,5 @@
-import { useEffect } from "react"
-import { type SystemEvent, systemSSEClient } from "@/lib/SystemSSEClient"
+import {useEffect} from "react"
+import {type SystemEvent, systemSSEClient} from "@/lib/SystemSSEClient"
 
 export function useSystemEvent(
   eventType: string,

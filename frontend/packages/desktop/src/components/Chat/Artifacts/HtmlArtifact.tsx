@@ -1,9 +1,9 @@
-import { Button } from "@evoloop/shared/components/ui/button"
-import { useInView } from "framer-motion"
-import { Check, Copy, ExternalLink, Maximize2, Minimize2 } from "lucide-react"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {useInView} from "framer-motion"
+import {Check, Copy, ExternalLink, Maximize2, Minimize2} from "lucide-react"
 import React from "react"
 import ReactDOM from "react-dom"
-import { useTranslation } from "react-i18next"
+import {useTranslation} from "react-i18next"
 
 interface HtmlArtifactProps {
   data: {

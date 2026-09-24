@@ -1,13 +1,13 @@
-import { Alert, AlertDescription } from "@evoloop/shared/components/ui/alert"
-import { Badge } from "@evoloop/shared/components/ui/badge"
-import { createFileRoute } from "@tanstack/react-router"
-import { CreditCard, Info, Loader2, Smartphone } from "lucide-react"
-import { useState } from "react"
-import { useTranslation } from "react-i18next"
-import { PaymentDialog } from "@/components/Subscription/PaymentDialog"
-import { PlanComparison } from "@/components/Subscription/PlanComparison"
-import { SubscriptionStatus } from "@/components/Subscription/SubscriptionStatus"
-import { useSubscription } from "@/hooks/useSubscription"
+import {Alert, AlertDescription} from "@evoloop/shared/components/ui/alert"
+import {Badge} from "@evoloop/shared/components/ui/badge"
+import {createFileRoute} from "@tanstack/react-router"
+import {CreditCard, Info, Loader2, Smartphone} from "lucide-react"
+import {useState} from "react"
+import {useTranslation} from "react-i18next"
+import {PaymentDialog} from "@/components/Subscription/PaymentDialog"
+import {PlanComparison} from "@/components/Subscription/PlanComparison"
+import {SubscriptionStatus} from "@/components/Subscription/SubscriptionStatus"
+import {useSubscription} from "@/hooks/useSubscription"
 
 export const Route = createFileRoute("/_layout/subscription/")({
   component: SubscriptionDashboard,

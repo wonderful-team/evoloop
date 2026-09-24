@@ -1,10 +1,4 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
-} from "react"
+import {createContext, useCallback, useContext, useEffect, useState,} from "react"
 
 export type Theme = "dark" | "light" | "system"
 

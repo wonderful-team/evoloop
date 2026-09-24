@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react"
-import { useTranslation } from "react-i18next"
-import { AppSheet } from "@/components/Common/AppSheet"
-import { FilePreview, type FilePreviewProps } from "./FilePreview"
+import {useEffect, useState} from "react"
+import {useTranslation} from "react-i18next"
+import {AppSheet} from "@/components/Common/AppSheet"
+import {FilePreview, type FilePreviewProps} from "./FilePreview"
 
 export interface FilePreviewModalProps extends Omit<FilePreviewProps, "file"> {
   file: { path: string; name: string } | null

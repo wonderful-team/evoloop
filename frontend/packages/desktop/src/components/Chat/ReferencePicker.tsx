@@ -1,20 +1,11 @@
-import { Card } from "@evoloop/shared/components/ui/card"
-import {
-  ScrollArea,
-  ScrollBar,
-} from "@evoloop/shared/components/ui/scroll-area"
-import { Tabs } from "@evoloop/shared/components/ui/tabs"
-import { cn } from "@evoloop/shared/lib/utils"
-import { File, Folder, Loader2, MessageSquare } from "lucide-react"
-import {
-  forwardRef,
-  useEffect,
-  useImperativeHandle,
-  useRef,
-  useState,
-} from "react"
-import { useTranslation } from "react-i18next"
-import { ConversationsService, FilesService } from "@/client/sdk.gen"
+import {Card} from "@evoloop/shared/components/ui/card"
+import {ScrollArea, ScrollBar,} from "@evoloop/shared/components/ui/scroll-area"
+import {Tabs} from "@evoloop/shared/components/ui/tabs"
+import {cn} from "@evoloop/shared/lib/utils"
+import {File, Folder, Loader2, MessageSquare} from "lucide-react"
+import {forwardRef, useEffect, useImperativeHandle, useRef, useState,} from "react"
+import {useTranslation} from "react-i18next"
+import {ConversationsService, FilesService} from "@/client/sdk.gen"
 
 export interface ReferenceItem {
   type: "file" | "message" | "directory"

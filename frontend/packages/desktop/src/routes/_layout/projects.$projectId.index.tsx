@@ -1,38 +1,30 @@
-import { Badge } from "@evoloop/shared/components/ui/badge"
-import { Button } from "@evoloop/shared/components/ui/button"
+import {Badge} from "@evoloop/shared/components/ui/badge"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {Card, CardContent, CardHeader, CardTitle,} from "@evoloop/shared/components/ui/card"
+import {Input} from "@evoloop/shared/components/ui/input"
+import {Textarea} from "@evoloop/shared/components/ui/textarea"
+import {createFileRoute, useParams} from "@tanstack/react-router"
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@evoloop/shared/components/ui/card"
-import { Input } from "@evoloop/shared/components/ui/input"
-import { Textarea } from "@evoloop/shared/components/ui/textarea"
-import { createFileRoute, useParams } from "@tanstack/react-router"
-import {
-  AlertCircle,
-  Edit,
-  FileText,
-  Folder,
-  Globe,
-  Loader2,
-  RefreshCw,
-  Rocket,
-  Save,
-  Sparkles,
-  Tag,
-  X,
+    AlertCircle,
+    Edit,
+    FileText,
+    Folder,
+    Globe,
+    Loader2,
+    RefreshCw,
+    Rocket,
+    Save,
+    Sparkles,
+    Tag,
+    X,
 } from "lucide-react"
-import { useEffect, useState } from "react"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
-import {
-  ProjectProfilesService,
-  ProjectsService,
-} from "@/client/sdk.gen"
-import { MarkdownRenderer } from "@/components/Common/MarkdownRenderer"
-import { ProjectAnalysisDialog } from "@/components/Projects/Modules/Overview/ProjectAnalysisDialog"
-import { useProjectStore } from "@/stores/projectStore"
+import {useEffect, useState} from "react"
+import {useTranslation} from "react-i18next"
+import {toast} from "sonner"
+import {ProjectProfilesService, ProjectsService,} from "@/client/sdk.gen"
+import {MarkdownRenderer} from "@/components/Common/MarkdownRenderer"
+import {ProjectAnalysisDialog} from "@/components/Projects/Modules/Overview/ProjectAnalysisDialog"
+import {useProjectStore} from "@/stores/projectStore"
 
 interface ProfileData {
   content: string | null

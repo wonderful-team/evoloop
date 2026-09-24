@@ -1,25 +1,21 @@
-import { useState, useMemo } from "react"
-import { useNavigate } from "@tanstack/react-router"
+import {useMemo, useState} from "react"
+import {useNavigate} from "@tanstack/react-router"
 import {
-  BadgeCheck,
-  ExternalLink,
-  FileText,
-  Loader2,
-  MessageSquareX,
-  Package,
-  Play,
-  RotateCcw,
-  Scale,
+    BadgeCheck,
+    ExternalLink,
+    FileText,
+    Loader2,
+    MessageSquareX,
+    Package,
+    Play,
+    RotateCcw,
+    Scale,
 } from "lucide-react"
 
-import { Button } from "@evoloop/shared/components/ui/button"
-import { TasksQueueApi, type QueueTask } from "@/lib/tasksQueueApi"
-import {
-  ChatMessageItem,
-  type Message,
-  type MessageReference,
-} from "@/components/Chat/ChatMessageItem"
-import type { Attachment, ArtifactView } from "../core/types"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {type QueueTask, TasksQueueApi} from "@/lib/tasksQueueApi"
+import {ChatMessageItem, type Message, type MessageReference,} from "@/components/Chat/ChatMessageItem"
+import type {ArtifactView, Attachment} from "../core/types"
 
 export function ResultCard({
   task,

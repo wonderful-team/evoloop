@@ -42,13 +42,11 @@ export function AppSidebar() {
       icon: MessageSquare,
       title: t("sidebar.chat"),
       path: "/chat",
-      dataTour: "sidebar-chat",
     },
     {
       icon: FolderOpen,
       title: t("sidebar.projects"),
       path: "/projects",
-      dataTour: "sidebar-projects",
     },
   ]
 
@@ -57,13 +55,11 @@ export function AppSidebar() {
       icon: GraduationCap,
       title: t("sidebar.learning"),
       path: "/learning",
-      dataTour: "sidebar-learning",
     },
     {
       icon: Settings,
       title: t("sidebar.settings"),
       path: "/settings",
-      dataTour: "sidebar-settings",
     },
   ]
 
@@ -79,7 +75,6 @@ export function AppSidebar() {
         <div
           className="flex h-12 cursor-pointer items-center justify-center py-2 transition-opacity hover:opacity-80"
           style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-          data-tour="sidebar-logo"
           onClick={toggleSidebar}
         >
           <Logo variant="responsive" />

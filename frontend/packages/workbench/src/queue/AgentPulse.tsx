@@ -1,5 +1,5 @@
-import { useMemo } from "react"
-import type { DashboardKpis } from "@/lib/tasksQueueApi"
+import {useMemo} from "react"
+import type {DashboardKpis} from "@/lib/tasksQueueApi"
 
 function fmtK(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`

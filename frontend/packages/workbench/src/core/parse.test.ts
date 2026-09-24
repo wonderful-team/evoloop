@@ -1,11 +1,6 @@
-import { describe, expect, it } from "vitest"
+import {describe, expect, it} from "vitest"
 
-import {
-  classify,
-  stripMcpRepr,
-  textOf,
-  toolNameOf,
-} from "./parse"
+import {classify, stripMcpRepr, textOf, toolNameOf,} from "./parse"
 
 describe("stripMcpRepr", () => {
   it("extracts inner text from MCP TextContent repr with trailing kwargs", () => {

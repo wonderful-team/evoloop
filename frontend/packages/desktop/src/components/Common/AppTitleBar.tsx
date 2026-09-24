@@ -1,22 +1,13 @@
-import { SidebarTrigger } from "@evoloop/shared/components/ui/sidebar"
-import { useRouter, useRouterState } from "@tanstack/react-router"
-import {
-  Brain,
-  FolderOpen,
-  GraduationCap,
-  MessageSquare,
-  Settings,
-} from "lucide-react"
+import {SidebarTrigger} from "@evoloop/shared/components/ui/sidebar"
+import {useRouter, useRouterState} from "@tanstack/react-router"
+import {Brain, FolderOpen, GraduationCap, MessageSquare, Settings,} from "lucide-react"
 import type React from "react"
-import { useTranslation } from "react-i18next"
-import {
-  ChatTitleActions,
-  ChatTitleBreadcrumb,
-} from "@/components/Chat/ChatTitleSlot"
-import { useProjectStore } from "@/stores/projectStore"
-import { useUIStore } from "@/stores/uiStore"
-import { useDutyStore } from "@/stores/dutyStore"
-import { DutyStartStopButton } from "@evoloop/workbench"
+import {useTranslation} from "react-i18next"
+import {ChatTitleActions, ChatTitleBreadcrumb,} from "@/components/Chat/ChatTitleSlot"
+import {useProjectStore} from "@/stores/projectStore"
+import {useUIStore} from "@/stores/uiStore"
+import {useDutyStore} from "@/stores/dutyStore"
+import {DutyStartStopButton} from "@evoloop/workbench"
 
 export function AppTitleBar() {
   const { t } = useTranslation()

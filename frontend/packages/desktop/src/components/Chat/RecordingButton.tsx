@@ -1,18 +1,13 @@
-import { Badge } from "@evoloop/shared/components/ui/badge"
-import { Button } from "@evoloop/shared/components/ui/button"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@evoloop/shared/components/ui/tooltip"
-import { Circle, ShieldAlert, Square, Video } from "lucide-react"
-import { useCallback } from "react"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
-import { useAccessibilityPermission } from "@/hooks/useAccessibilityPermission"
-import { useScreenRecordingPermission } from "@/hooks/useScreenRecordingPermission"
-import { useRecordingStore } from "@/stores/recordingStore"
+import {Badge} from "@evoloop/shared/components/ui/badge"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,} from "@evoloop/shared/components/ui/tooltip"
+import {Circle, ShieldAlert, Square, Video} from "lucide-react"
+import {useCallback} from "react"
+import {useTranslation} from "react-i18next"
+import {toast} from "sonner"
+import {useAccessibilityPermission} from "@/hooks/useAccessibilityPermission"
+import {useScreenRecordingPermission} from "@/hooks/useScreenRecordingPermission"
+import {useRecordingStore} from "@/stores/recordingStore"
 
 interface RecordingButtonProps {
   threadId: string

@@ -1,7 +1,7 @@
 import i18n from "@evoloop/shared/i18n"
-import { OpenAPI } from "@/client"
-import { isTauri } from "@/lib/tauri"
-import { isAbsolutePath } from "./fileUtils"
+import {OpenAPI} from "@/client"
+import {isTauri} from "@/lib/tauri"
+import {isAbsolutePath} from "./fileUtils"
 
 export async function previewFile(path: string, name?: string): Promise<void> {
   const displayName = name || path.split("/").pop() || path

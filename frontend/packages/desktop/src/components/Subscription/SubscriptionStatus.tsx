@@ -1,10 +1,10 @@
-import { Badge } from "@evoloop/shared/components/ui/badge"
-import { Button } from "@evoloop/shared/components/ui/button"
-import { Card, CardContent } from "@evoloop/shared/components/ui/card"
-import { Progress } from "@evoloop/shared/components/ui/progress"
-import { AlertTriangle, Calendar, Crown, Zap } from "lucide-react"
-import { useTranslation } from "react-i18next"
-import type { AiQuota, SubscriptionDetail } from "@/types/subscription"
+import {Badge} from "@evoloop/shared/components/ui/badge"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {Card, CardContent} from "@evoloop/shared/components/ui/card"
+import {Progress} from "@evoloop/shared/components/ui/progress"
+import {AlertTriangle, Calendar, Crown, Zap} from "lucide-react"
+import {useTranslation} from "react-i18next"
+import type {AiQuota, SubscriptionDetail} from "@/types/subscription"
 
 interface SubscriptionStatusProps {
   detail?: SubscriptionDetail

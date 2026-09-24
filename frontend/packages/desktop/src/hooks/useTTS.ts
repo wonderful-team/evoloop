@@ -1,9 +1,9 @@
-import { invoke } from "@tauri-apps/api/core"
-import { useCallback, useEffect, useRef, useState } from "react"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
-import { isTauri } from "@/lib/tauri"
-import { useVoiceStore } from "@/stores/voiceStore"
+import {invoke} from "@tauri-apps/api/core"
+import {useCallback, useEffect, useRef, useState} from "react"
+import {useTranslation} from "react-i18next"
+import {toast} from "sonner"
+import {isTauri} from "@/lib/tauri"
+import {useVoiceStore} from "@/stores/voiceStore"
 
 function stripMarkdown(text: string): string {
   return text

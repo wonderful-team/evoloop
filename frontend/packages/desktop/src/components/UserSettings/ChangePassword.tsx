@@ -1,23 +1,16 @@
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@evoloop/shared/components/ui/form"
-import { LoadingButton } from "@evoloop/shared/components/ui/loading-button"
-import { PasswordInput } from "@evoloop/shared/components/ui/password-input"
+import {Form, FormControl, FormField, FormItem, FormLabel, FormMessage,} from "@evoloop/shared/components/ui/form"
+import {LoadingButton} from "@evoloop/shared/components/ui/loading-button"
+import {PasswordInput} from "@evoloop/shared/components/ui/password-input"
 import useCustomToast from "@evoloop/shared/hooks/useCustomToast"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { useMutation } from "@tanstack/react-query"
-import { Lock } from "lucide-react"
-import { useForm } from "react-hook-form"
-import { useTranslation } from "react-i18next"
-import { z } from "zod"
-import { MemberService } from "@/client"
-import { SettingsCard } from "@/components/Settings/SettingsCard"
-import { handleError } from "@/utils"
+import {zodResolver} from "@hookform/resolvers/zod"
+import {useMutation} from "@tanstack/react-query"
+import {Lock} from "lucide-react"
+import {useForm} from "react-hook-form"
+import {useTranslation} from "react-i18next"
+import {z} from "zod"
+import {MemberService} from "@/client"
+import {SettingsCard} from "@/components/Settings/SettingsCard"
+import {handleError} from "@/utils"
 
 const createSchema = (t: any) =>
   z

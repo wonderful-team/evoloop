@@ -1,50 +1,37 @@
-import { Button } from "@evoloop/shared/components/ui/button"
-import { Card, CardContent } from "@evoloop/shared/components/ui/card"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {Card, CardContent} from "@evoloop/shared/components/ui/card"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
 } from "@evoloop/shared/components/ui/dialog"
-import { Input } from "@evoloop/shared/components/ui/input"
-import { Label } from "@evoloop/shared/components/ui/label"
+import {Input} from "@evoloop/shared/components/ui/input"
+import {Label} from "@evoloop/shared/components/ui/label"
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue,} from "@evoloop/shared/components/ui/select"
+import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow,} from "@evoloop/shared/components/ui/table"
+import {Textarea} from "@evoloop/shared/components/ui/textarea"
+import {createFileRoute, useParams} from "@tanstack/react-router"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@evoloop/shared/components/ui/select"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@evoloop/shared/components/ui/table"
-import { Textarea } from "@evoloop/shared/components/ui/textarea"
-import { createFileRoute, useParams } from "@tanstack/react-router"
-import {
-  Check,
-  Copy,
-  Edit2,
-  Eye,
-  EyeOff,
-  Key,
-  Loader2,
-  Lock,
-  Plus,
-  ShieldAlert,
-  ShieldCheck,
-  Trash2,
+    Check,
+    Copy,
+    Edit2,
+    Eye,
+    EyeOff,
+    Key,
+    Loader2,
+    Lock,
+    Plus,
+    ShieldAlert,
+    ShieldCheck,
+    Trash2,
 } from "lucide-react"
-import { useEffect, useState } from "react"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
-import { type CredentialListItem as Credential, VaultService } from "@/client"
+import {useEffect, useState} from "react"
+import {useTranslation} from "react-i18next"
+import {toast} from "sonner"
+import {type CredentialListItem as Credential, VaultService} from "@/client"
 
 export const Route = createFileRoute("/_layout/projects/$projectId/vault")({
   component: VaultPage,

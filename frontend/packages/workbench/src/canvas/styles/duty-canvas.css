@@ -359,6 +359,8 @@
 .dc-main {
   flex: 1;
   display: flex;
+  width: 100%;
+  min-width: 0;
   position: relative;
   overflow: hidden;
 }
@@ -604,8 +606,12 @@
    ========================================================================== */
 .dc-canvas-viewport {
   flex: 1;
+  width: 100%;
+  min-width: 0;
   position: relative;
   overflow: hidden;
+  isolation: isolate;
+  contain: paint;
   user-select: none;
   cursor: grab;
   background: var(--bg);

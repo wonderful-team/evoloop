@@ -1,17 +1,10 @@
 import * as React from "react"
-import { Badge } from "../ui/badge"
-import { Button } from "../ui/button"
-import { Input } from "../ui/input"
-import { MarkdownText } from "../markdown/MarkdownText"
-import {
-  BadgeCheck,
-  CalendarClock,
-  CheckCircle2,
-  ExternalLink,
-  MessageSquareX,
-  XCircle,
-} from "lucide-react"
-import type { TaskProposalCardProps, ProposalScheduleParams } from "./types"
+import {Badge} from "../ui/badge"
+import {Button} from "../ui/button"
+import {Input} from "../ui/input"
+import {MarkdownText} from "../markdown/MarkdownText"
+import {BadgeCheck, CalendarClock, CheckCircle2, ExternalLink, MessageSquareX, XCircle,} from "lucide-react"
+import type {ProposalScheduleParams, TaskProposalCardProps} from "./types"
 
 function toDatetimeLocal(value?: string | null): string {
   if (!value) return ""

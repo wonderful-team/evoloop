@@ -1,8 +1,8 @@
 import i18n from "@evoloop/shared/i18n"
-import { useCallback, useState } from "react"
-import { useTranslation } from "react-i18next"
-import { LearningService } from "@/client/sdk.gen"
-import { safeInvoke } from "@/lib/tauri"
+import {useCallback, useState} from "react"
+import {useTranslation} from "react-i18next"
+import {LearningService} from "@/client/sdk.gen"
+import {safeInvoke} from "@/lib/tauri"
 
 export interface SynthesisResult {
   success: boolean

@@ -1,16 +1,11 @@
-import { Button } from "@evoloop/shared/components/ui/button"
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@evoloop/shared/components/ui/tabs"
-import { Activity, Database, LayoutDashboard, Loader2, X } from "lucide-react"
-import { memo, useEffect, useState } from "react"
-import { useTranslation } from "react-i18next"
-import { useAgentStore } from "@/stores/agentStore"
-import { ActivityTab } from "./context/ActivityTab"
-import { ContextGroupTab } from "./context/ContextGroupTab"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {Tabs, TabsContent, TabsList, TabsTrigger,} from "@evoloop/shared/components/ui/tabs"
+import {Activity, Database, LayoutDashboard, Loader2, X} from "lucide-react"
+import {memo, useEffect, useState} from "react"
+import {useTranslation} from "react-i18next"
+import {useAgentStore} from "@/stores/agentStore"
+import {ActivityTab} from "./context/ActivityTab"
+import {ContextGroupTab} from "./context/ContextGroupTab"
 
 interface ContextPanelProps {
   projectId?: number

@@ -1,24 +1,19 @@
 import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
+    Select,
+    SelectContent,
+    SelectGroup,
+    SelectItem,
+    SelectLabel,
+    SelectTrigger,
+    SelectValue,
 } from "@evoloop/shared/components/ui/select"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@evoloop/shared/components/ui/tooltip"
-import { cn } from "@evoloop/shared/lib/utils"
-import { Brain, Cpu, Eye, Globe, Loader2, Server } from "lucide-react"
-import { useEffect, useState } from "react"
-import { useTranslation } from "react-i18next"
-import { isLoggedIn } from "@/hooks/useAuth"
-import { type LLMModel, llmPlatformService } from "@/services/llmPlatform"
+import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,} from "@evoloop/shared/components/ui/tooltip"
+import {cn} from "@evoloop/shared/lib/utils"
+import {Brain, Cpu, Eye, Globe, Loader2, Server} from "lucide-react"
+import {useEffect, useState} from "react"
+import {useTranslation} from "react-i18next"
+import {isLoggedIn} from "@/hooks/useAuth"
+import {type LLMModel, llmPlatformService} from "@/services/llmPlatform"
 
 interface ModelSelectorProps {
   value: string | null

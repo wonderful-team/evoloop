@@ -1,18 +1,11 @@
 import i18n from "@evoloop/shared/i18n"
-import { createFileRoute } from "@tanstack/react-router"
-import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event"
-import {
-  getCurrentWindow,
-  LogicalPosition,
-  LogicalSize,
-} from "@tauri-apps/api/window"
-import { useCallback, useEffect, useRef, useState } from "react"
-import { LearningService } from "@/client/sdk.gen"
-import { isTauri } from "@/lib/tauri"
-import {
-  MarkerSelectionView,
-  type ExtractRegion,
-} from "@/components/Overlay/MarkerSelectionView"
+import {createFileRoute} from "@tanstack/react-router"
+import {emit, listen, type UnlistenFn} from "@tauri-apps/api/event"
+import {getCurrentWindow, LogicalPosition, LogicalSize,} from "@tauri-apps/api/window"
+import {useCallback, useEffect, useRef, useState} from "react"
+import {LearningService} from "@/client/sdk.gen"
+import {isTauri} from "@/lib/tauri"
+import {type ExtractRegion, MarkerSelectionView,} from "@/components/Overlay/MarkerSelectionView"
 
 export const Route = createFileRoute("/marker-overlay")({
   component: () => {

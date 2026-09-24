@@ -1,4 +1,4 @@
-import { OpenAPI } from "@/client/core/OpenAPI"
+import {OpenAPI} from "@/client/core/OpenAPI"
 
 export interface SystemEvent {
   type: string

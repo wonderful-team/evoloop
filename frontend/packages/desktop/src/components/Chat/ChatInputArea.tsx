@@ -1,66 +1,49 @@
-import { Button } from "@evoloop/shared/components/ui/button"
+import {Button} from "@evoloop/shared/components/ui/button"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
 } from "@evoloop/shared/components/ui/dropdown-menu"
+import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,} from "@evoloop/shared/components/ui/tooltip"
+import {cn} from "@evoloop/shared/lib/utils"
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@evoloop/shared/components/ui/tooltip"
-import { cn } from "@evoloop/shared/lib/utils"
-import {
-  ArrowUp,
-  BookOpen,
-  ChevronDown,
-  Ear,
-  FileText,
-  Film,
-  Image as ImageIcon,
-  MessageSquareQuote,
-  Wand2,
-  Loader2,
-  MessageCircle,
-  Mic,
-  Paperclip,
-  Square,
-  Terminal,
-  Volume2,
-  VolumeX,
-  X,
+    ArrowUp,
+    BookOpen,
+    ChevronDown,
+    Ear,
+    FileText,
+    Film,
+    Image as ImageIcon,
+    Loader2,
+    MessageCircle,
+    MessageSquareQuote,
+    Mic,
+    Paperclip,
+    Square,
+    Terminal,
+    Volume2,
+    VolumeX,
+    Wand2,
+    X,
 } from "lucide-react"
-import {
-  forwardRef,
-  memo,
-  useCallback,
-  useEffect,
-  useImperativeHandle,
-  useRef,
-  useState,
-} from "react"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
-import { FilesService } from "@/client/sdk.gen"
-import { SkillLibraryDialog } from "@/components/Learning/SkillLibraryDialog"
-import { useAutoSpeak } from "@/hooks/useTTS"
-import { useWakeWord, useWakeWordSettings } from "@/hooks/useWakeWord"
-import { isTauri, safeInvoke } from "@/lib/tauri"
-import { useChatStore } from "@/stores/chatStore"
-import { useHostContextStore } from "@/stores/hostContextStore"
-import { useVoiceStore } from "@/stores/voiceStore"
-import { FilePreview, type PickedFile } from "./FilePreview"
-import { ModelSelector } from "./ModelSelector"
-import { RecordingButton } from "./RecordingButton"
-import {
-  type ReferenceItem,
-  ReferencePicker,
-  type ReferencePickerHandle,
-} from "./ReferencePicker"
+import {forwardRef, memo, useCallback, useEffect, useImperativeHandle, useRef, useState,} from "react"
+import {useTranslation} from "react-i18next"
+import {toast} from "sonner"
+import {FilesService} from "@/client/sdk.gen"
+import {SkillLibraryDialog} from "@/components/Learning/SkillLibraryDialog"
+import {useAutoSpeak} from "@/hooks/useTTS"
+import {useWakeWord, useWakeWordSettings} from "@/hooks/useWakeWord"
+import {isTauri, safeInvoke} from "@/lib/tauri"
+import {useChatStore} from "@/stores/chatStore"
+import {useHostContextStore} from "@/stores/hostContextStore"
+import {useVoiceStore} from "@/stores/voiceStore"
+import {FilePreview, type PickedFile} from "./FilePreview"
+import {ModelSelector} from "./ModelSelector"
+import {RecordingButton} from "./RecordingButton"
+import {type ReferenceItem, ReferencePicker, type ReferencePickerHandle,} from "./ReferencePicker"
 
 
 // ── 输入区上下文模式（对话/生图/生视频/派任务）──────────────────

@@ -1,10 +1,10 @@
-import { cn } from "@evoloop/shared/lib/utils"
-import { useMemo } from "react"
+import {cn} from "@evoloop/shared/lib/utils"
+import {useMemo} from "react"
 import ReactMarkdown from "react-markdown"
 import rehypeRaw from "rehype-raw"
 import remarkGfm from "remark-gfm"
-import { CodeBlock } from "@/components/Chat/CodeBlock"
-import { Mermaid } from "@/components/Common/Mermaid"
+import {CodeBlock} from "@/components/Chat/CodeBlock"
+import {Mermaid} from "@/components/Common/Mermaid"
 
 export interface MarkdownRendererProps {
   content: string

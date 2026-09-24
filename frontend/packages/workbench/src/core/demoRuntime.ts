@@ -2,16 +2,16 @@
  * Reveals messages over time, advances plan steps, flows tasks through
  * the status machine, accumulates tokens — everything ticks. */
 
-import type { QueueTask } from "@/lib/tasksQueueApi"
+import type {QueueTask} from "@/lib/tasksQueueApi"
 import {
-  demoDashboard,
-  demoMessages,
-  demoMessagesOld2,
-  demoGenMessages,
-  demoPlanMap,
-  demoTasks,
-  demoHistoryTasks,
-  demoCreativeTasks,
+    demoCreativeTasks,
+    demoDashboard,
+    demoGenMessages,
+    demoHistoryTasks,
+    demoMessages,
+    demoMessagesOld2,
+    demoPlanMap,
+    demoTasks,
 } from "./demoData"
 
 type Msg = Record<string, unknown>

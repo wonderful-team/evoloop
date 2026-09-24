@@ -1,6 +1,6 @@
-import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router"
-import { SkillEditorPage } from "@/components/Learning/SkillEditorPage"
-import { isLoggedIn } from "@/hooks/useAuth"
+import {createFileRoute, redirect, useNavigate} from "@tanstack/react-router"
+import {SkillEditorPage} from "@/components/Learning/SkillEditorPage"
+import {isLoggedIn} from "@/hooks/useAuth"
 
 export const Route = createFileRoute("/_layout/learning/skills/$skillId/edit")({
   component: SkillEditorRoute,

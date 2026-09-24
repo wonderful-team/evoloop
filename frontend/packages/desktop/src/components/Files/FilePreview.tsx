@@ -1,24 +1,18 @@
-import { useTheme } from "@evoloop/shared/components/theme-provider"
-import { Button } from "@evoloop/shared/components/ui/button"
+import {useTheme} from "@evoloop/shared/components/theme-provider"
+import {Button} from "@evoloop/shared/components/ui/button"
 import i18n from "@evoloop/shared/i18n"
 import Editor from "@monaco-editor/react"
-import { useQuery } from "@tanstack/react-query"
-import { renderAsync } from "docx-preview"
-import {
-  ExternalLink,
-  FileCode,
-  FileSpreadsheet,
-  FileText,
-  Loader2,
-} from "lucide-react"
-import { useEffect, useRef } from "react"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
+import {useQuery} from "@tanstack/react-query"
+import {renderAsync} from "docx-preview"
+import {ExternalLink, FileCode, FileSpreadsheet, FileText, Loader2,} from "lucide-react"
+import {useEffect, useRef} from "react"
+import {useTranslation} from "react-i18next"
+import {toast} from "sonner"
 import * as XLSX from "xlsx"
-import { FilesService, OpenAPI } from "@/client"
-import { MarkdownRenderer } from "@/components/Common/MarkdownRenderer"
-import { downloadFile } from "@/utils/fileLinkHandler"
-import { getRawFileUrl } from "@/utils/fileUtils"
+import {FilesService, OpenAPI} from "@/client"
+import {MarkdownRenderer} from "@/components/Common/MarkdownRenderer"
+import {downloadFile} from "@/utils/fileLinkHandler"
+import {getRawFileUrl} from "@/utils/fileUtils"
 
 export interface FilePreviewProps {
   projectId: number

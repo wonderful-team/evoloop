@@ -1,13 +1,13 @@
 // 3D 木头机器人组件 - 精确移植自移动端 WoodenRobot.tsx
 // React Native StyleSheet → CSS 内联样式，数值 1:1 对应
 
-import { useNavigate } from "@tanstack/react-router"
-import { motion } from "framer-motion"
-import { LayoutGrid, Wand2 } from "lucide-react"
+import {useNavigate} from "@tanstack/react-router"
+import {motion} from "framer-motion"
+import {LayoutGrid, Wand2} from "lucide-react"
 import type React from "react"
-import { useEffect, useRef, useState } from "react"
-import { useTranslation } from "react-i18next"
-import { useHostContextStore } from "@/stores/hostContextStore"
+import {useEffect, useRef, useState} from "react"
+import {useTranslation} from "react-i18next"
+import {useHostContextStore} from "@/stores/hostContextStore"
 
 // ─────────────────────────────────────────────
 // WoodenRobot — 1:1 port from mobile

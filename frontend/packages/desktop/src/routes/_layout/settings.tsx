@@ -1,24 +1,19 @@
 import i18n from "@evoloop/shared/i18n"
-import { cn } from "@evoloop/shared/lib/utils"
-import { createFileRoute, redirect } from "@tanstack/react-router"
-import {
-  AlertTriangle,
-  Brain,
-  Mic,
-  Palette,
-  Settings,
-  User,
-} from "lucide-react"
-import { useEffect, useState } from "react"
-import { useTranslation } from "react-i18next"
+import {cn} from "@evoloop/shared/lib/utils"
+import {createFileRoute, redirect} from "@tanstack/react-router"
+import {AlertTriangle, Brain, Mic, Palette, Settings, User,} from "lucide-react"
+import {useEffect, useState} from "react"
+import {useTranslation} from "react-i18next"
 import GeneralSettings from "@/components/Settings/GeneralSettings"
-import { ModelSettings } from "@/components/Settings/ModelSettings"
-import { VoiceControlSettings } from "@/components/Settings/VoiceControlSettings"
-import { AccountSettings } from "@/components/UserSettings/AccountSettings"
+import {ModelSettings} from "@/components/Settings/ModelSettings"
+import {VoiceControlSettings} from "@/components/Settings/VoiceControlSettings"
+import {AccountSettings} from "@/components/UserSettings/AccountSettings"
 import AppearanceSettings from "@/components/UserSettings/AppearanceSettings"
 import DeleteAccount from "@/components/UserSettings/DeleteAccount"
-import useAuth, { isLoggedIn } from "@/hooks/useAuth"
-import { isTauri } from "@/lib/tauri"
+import useAuth, {isLoggedIn} from "@/hooks/useAuth"
+import {isTauri} from "@/lib/tauri"
+import {SettingsActionBar} from "@/components/Settings/SettingsActionBar"
+import {SettingsProvider} from "@/components/Settings/SettingsContext"
 
 const NavConfig = () => {
   const { t } = useTranslation()
@@ -84,9 +79,6 @@ export const Route = createFileRoute("/_layout/settings")({
     ],
   }),
 })
-
-import { SettingsActionBar } from "@/components/Settings/SettingsActionBar"
-import { SettingsProvider } from "@/components/Settings/SettingsContext"
 
 function UserSettings() {
   const { t } = useTranslation()

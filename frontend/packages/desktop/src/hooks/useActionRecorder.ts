@@ -5,11 +5,11 @@
  * for storage as TraceEvent records (unified with Android mirror recording).
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { LearningService } from "@/client/sdk.gen"
-import type { DomEventData } from "@/client/types.gen"
-import { isTauri } from "@/lib/tauri"
-import { useRecordingStore } from "@/stores/recordingStore"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {LearningService} from "@/client/sdk.gen"
+import type {DomEventData} from "@/client/types.gen"
+import {isTauri} from "@/lib/tauri"
+import {useRecordingStore} from "@/stores/recordingStore"
 
 declare global {
   interface Window {

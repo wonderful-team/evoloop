@@ -10,10 +10,10 @@
  *      server-side PTY receives Tab, arrow keys, Ctrl+C, etc.
  */
 
-import { useTheme } from "@evoloop/shared/components/theme-provider"
-import { useEffect, useRef } from "react"
-import { useTranslation } from "react-i18next"
-import { useChatStore } from "@/stores/chatStore"
+import {useTheme} from "@evoloop/shared/components/theme-provider"
+import {useEffect, useRef} from "react"
+import {useTranslation} from "react-i18next"
+import {useChatStore} from "@/stores/chatStore"
 
 const DARK_THEME = {
   background: "#1a1b26",

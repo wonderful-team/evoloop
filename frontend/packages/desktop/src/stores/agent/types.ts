@@ -1,4 +1,4 @@
-import type { MacroStepEntry } from "@/components/Learning/macroRun"
+import type {MacroStepEntry} from "@/components/Learning/macroRun"
 
 export interface AgentState {
   // Activity State

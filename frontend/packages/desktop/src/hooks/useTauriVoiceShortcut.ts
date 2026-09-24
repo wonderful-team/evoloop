@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from "react"
-import { useTranslation } from "react-i18next"
-import { isTauri, safeInvoke } from "@/lib/tauri"
+import {useCallback, useEffect, useState} from "react"
+import {useTranslation} from "react-i18next"
+import {isTauri, safeInvoke} from "@/lib/tauri"
 
 interface UseTauriVoiceShortcutReturn {
   isListening: boolean

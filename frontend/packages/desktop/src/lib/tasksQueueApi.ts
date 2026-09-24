@@ -1,7 +1,7 @@
 /* Tasks queue API client (autonomous duty board).
  * Hand-written until the OpenAPI codegen regenerates; mirrors sdk.gen patterns. */
 
-import { OpenAPI } from "@/client"
+import {OpenAPI} from "@/client"
 
 const BASE = () => OpenAPI.BASE
 

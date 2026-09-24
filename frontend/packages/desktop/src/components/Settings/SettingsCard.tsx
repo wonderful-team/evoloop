@@ -1,13 +1,7 @@
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@evoloop/shared/components/ui/card"
-import { cn } from "@evoloop/shared/lib/utils"
-import type { LucideIcon } from "lucide-react"
-import type { ReactNode } from "react"
+import {Card, CardContent, CardDescription, CardHeader, CardTitle,} from "@evoloop/shared/components/ui/card"
+import {cn} from "@evoloop/shared/lib/utils"
+import type {LucideIcon} from "lucide-react"
+import type {ReactNode} from "react"
 
 interface SettingsCardProps {
   icon?: LucideIcon

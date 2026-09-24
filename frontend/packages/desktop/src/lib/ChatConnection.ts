@@ -1,6 +1,6 @@
-import { toast } from "sonner"
+import {toast} from "sonner"
 import i18n from "@evoloop/shared/i18n"
-import { OpenAPI } from "@/client/core/OpenAPI"
+import {OpenAPI} from "@/client/core/OpenAPI"
 
 export interface ChatConnectionCallbacks {
   onConnectionChange: (connected: boolean, status: string) => void

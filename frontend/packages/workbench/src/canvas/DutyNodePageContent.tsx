@@ -8,29 +8,20 @@
      - 右栏：执行过程与交付工作台 (ExecutionPanel)，未派发任务自动呈现成熟的待执行简报
    ========================================================================== */
 
-import { useEffect, useMemo, useState } from "react"
-import {
-  X,
-  Maximize2,
-  Minimize2,
-  ListTodo,
-  ExternalLink,
-  Square,
-  FileText,
-  AlertTriangle,
-} from "lucide-react"
-import { useNavigate } from "@tanstack/react-router"
-import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { useChatStore } from "@/stores/chatStore"
-import { PlanningService, AgentService } from "@/client"
-import { DEMO } from "../core/demoData"
-import { getDemoPlan } from "../core/demoRuntime"
-import type { DutyTask } from "../core/types"
-import { TasksQueueApi, type QueueTask } from "@/lib/tasksQueueApi"
-import { PlanPanel } from "../detail/PlanPanel"
-import { ExecutionPanel } from "../detail/ExecutionPanel"
-import { MarkdownText } from "@evoloop/shared/components/markdown/MarkdownText"
-import { DutyHitlInputCard, type DutyHitlItem } from "./DutyHitlInputCard"
+import {useEffect, useMemo, useState} from "react"
+import {AlertTriangle, ExternalLink, FileText, ListTodo, Maximize2, Minimize2, Square, X,} from "lucide-react"
+import {useNavigate} from "@tanstack/react-router"
+import {useQuery, useQueryClient} from "@tanstack/react-query"
+import {useChatStore} from "@/stores/chatStore"
+import {AgentService, PlanningService} from "@/client"
+import {DEMO} from "../core/demoData"
+import {getDemoPlan} from "../core/demoRuntime"
+import type {DutyTask} from "../core/types"
+import {type QueueTask, TasksQueueApi} from "@/lib/tasksQueueApi"
+import {PlanPanel} from "../detail/PlanPanel"
+import {ExecutionPanel} from "../detail/ExecutionPanel"
+import {MarkdownText} from "@evoloop/shared/components/markdown/MarkdownText"
+import {DutyHitlInputCard, type DutyHitlItem} from "./DutyHitlInputCard"
 
 interface DutyNodePageContentProps {
   task: DutyTask

@@ -1,15 +1,12 @@
-import { useCallback, useEffect, useState } from "react"
-import { useQueryClient } from "@tanstack/react-query"
-import { Loader2, Play, Square } from "lucide-react"
-import { useTranslation } from "react-i18next"
+import {useCallback, useEffect, useState} from "react"
+import {useQueryClient} from "@tanstack/react-query"
+import {Loader2, Play, Square} from "lucide-react"
+import {useTranslation} from "react-i18next"
 
-import { Button } from "@evoloop/shared/components/ui/button"
-import { SystemService } from "@/client"
-import { DEMO } from "../core/demoData"
-import {
-  getDemoRunning,
-  setDemoRunning,
-} from "../core/demoRuntime"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {SystemService} from "@/client"
+import {DEMO} from "../core/demoData"
+import {getDemoRunning, setDemoRunning,} from "../core/demoRuntime"
 
 /**
  * Floating duty start/stop button (bottom-right FAB).

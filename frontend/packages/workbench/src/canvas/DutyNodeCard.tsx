@@ -8,11 +8,11 @@
    ========================================================================== */
 
 import React from "react"
-import type { DutyTask } from "../core/types"
-import { stripMarkdownTokens } from "../core/mdText"
-import { ArrowDownLeft } from "lucide-react"
-import { DutyNodePageContent } from "./DutyNodePageContent"
-import { PlanProgressInline } from "../detail/PlanPanel"
+import type {DutyTask} from "../core/types"
+import {stripMarkdownTokens} from "../core/mdText"
+import {ArrowDownLeft} from "lucide-react"
+import {DutyNodePageContent} from "./DutyNodePageContent"
+import {PlanProgressInline} from "../detail/PlanPanel"
 
 export const EXPANDED_CARD_WIDTH = 1040
 export const EXPANDED_CARD_HEIGHT = 660

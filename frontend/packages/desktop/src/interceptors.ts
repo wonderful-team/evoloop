@@ -1,8 +1,8 @@
 import i18n from "@evoloop/shared/i18n"
-import type { AxiosError, AxiosResponse } from "axios"
-import { toast } from "sonner"
-import { OpenAPI } from "@/client/core/OpenAPI.ts"
-import { useBenefitStore } from "@/stores/benefitStore"
+import type {AxiosError, AxiosResponse} from "axios"
+import {toast} from "sonner"
+import {OpenAPI} from "@/client/core/OpenAPI.ts"
+import {useBenefitStore} from "@/stores/benefitStore"
 
 /**
  * 初始化 API 拦截器

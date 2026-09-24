@@ -1,12 +1,8 @@
 import * as React from "react"
-import { Brain, ChevronRight, Loader2 } from "lucide-react"
-import { Button } from "../ui/button"
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "../ui/collapsible"
-import type { ThinkingTraceData } from "./types"
+import {Brain, ChevronRight, Loader2} from "lucide-react"
+import {Button} from "../ui/button"
+import {Collapsible, CollapsibleContent, CollapsibleTrigger,} from "../ui/collapsible"
+import type {ThinkingTraceData} from "./types"
 
 export interface ThinkingBlockProps {
   data: ThinkingTraceData

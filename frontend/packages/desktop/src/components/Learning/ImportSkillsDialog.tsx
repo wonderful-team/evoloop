@@ -1,26 +1,20 @@
-import { Button } from "@evoloop/shared/components/ui/button"
-import { Card } from "@evoloop/shared/components/ui/card"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {Card} from "@evoloop/shared/components/ui/card"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
 } from "@evoloop/shared/components/ui/dialog"
-import { Input } from "@evoloop/shared/components/ui/input"
-import { Label } from "@evoloop/shared/components/ui/label"
-import {
-  AlertCircle,
-  CheckCircle2,
-  FolderDown,
-  Info,
-  Loader2,
-} from "lucide-react"
-import { useState } from "react"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
-import { LearningService } from "@/client/sdk.gen"
+import {Input} from "@evoloop/shared/components/ui/input"
+import {Label} from "@evoloop/shared/components/ui/label"
+import {AlertCircle, CheckCircle2, FolderDown, Info, Loader2,} from "lucide-react"
+import {useState} from "react"
+import {useTranslation} from "react-i18next"
+import {toast} from "sonner"
+import {LearningService} from "@/client/sdk.gen"
 
 interface ImportSkillsDialogProps {
   isOpen: boolean

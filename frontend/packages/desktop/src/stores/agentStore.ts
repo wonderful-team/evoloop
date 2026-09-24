@@ -1,18 +1,11 @@
 import i18n from "@evoloop/shared/i18n"
-import { toast } from "sonner"
-import { create } from "zustand"
-import { AgentService } from "@/client"
-import {
-  appendMacroStep,
-  macroThoughtText,
-} from "@/components/Learning/macroRun"
-import {
-  AGENT_IDLE_STATUSES,
-  HITL_ENDED_STATUSES,
-  HITL_PENDING_STATUSES,
-} from "./agent/hitlConstants"
-import type { AgentState } from "./agent/types"
-import { useChatStore } from "./chatStore"
+import {toast} from "sonner"
+import {create} from "zustand"
+import {AgentService} from "@/client"
+import {appendMacroStep, macroThoughtText,} from "@/components/Learning/macroRun"
+import {AGENT_IDLE_STATUSES, HITL_ENDED_STATUSES, HITL_PENDING_STATUSES,} from "./agent/hitlConstants"
+import type {AgentState} from "./agent/types"
+import {useChatStore} from "./chatStore"
 
 export const useAgentStore = create<AgentState>((set, get) => ({
   // --- Data ---

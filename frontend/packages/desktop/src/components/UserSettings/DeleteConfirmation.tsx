@@ -1,17 +1,17 @@
-import { Button } from "@evoloop/shared/components/ui/button"
+import {Button} from "@evoloop/shared/components/ui/button"
 import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+    Dialog,
+    DialogClose,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
 } from "@evoloop/shared/components/ui/dialog"
-import { LoadingButton } from "@evoloop/shared/components/ui/loading-button"
-import { Trans, useTranslation } from "react-i18next"
-import { useMemberCancellation } from "@/hooks/useMemberCancellation"
+import {LoadingButton} from "@evoloop/shared/components/ui/loading-button"
+import {Trans, useTranslation} from "react-i18next"
+import {useMemberCancellation} from "@/hooks/useMemberCancellation"
 
 const DeleteConfirmation = () => {
   const { t } = useTranslation()

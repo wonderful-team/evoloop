@@ -1,12 +1,11 @@
-import { useQuery } from "@tanstack/react-query"
-import { motion } from "framer-motion"
-import { PauseCircle } from "lucide-react"
-import { CheckCircle2, Circle, Loader2 } from "lucide-react"
+import {useQuery} from "@tanstack/react-query"
+import {motion} from "framer-motion"
+import {CheckCircle2, Circle, Loader2, PauseCircle} from "lucide-react"
 
-import { PlanningService } from "@/client"
-import type { QueueTask } from "@/lib/tasksQueueApi"
-import { DEMO } from "../core/demoData"
-import { getDemoPlan } from "../core/demoRuntime"
+import {PlanningService} from "@/client"
+import type {QueueTask} from "@/lib/tasksQueueApi"
+import {DEMO} from "../core/demoData"
+import {getDemoPlan} from "../core/demoRuntime"
 
 /** Current plan steps for the selected task's thread (1:1 with the task). */
 export function PlanPanel({

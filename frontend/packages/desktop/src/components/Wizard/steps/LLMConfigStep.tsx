@@ -1,20 +1,14 @@
-import { Button } from "@evoloop/shared/components/ui/button"
-import { Input } from "@evoloop/shared/components/ui/input"
-import { Label } from "@evoloop/shared/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@evoloop/shared/components/ui/select"
-import { useQuery } from "@tanstack/react-query"
-import { motion } from "framer-motion"
-import { CheckCircle2, Eye, EyeOff, Loader2, XCircle } from "lucide-react"
-import { useEffect, useState } from "react"
-import { useTranslation } from "react-i18next"
-import { SystemService } from "@/client"
-import { useWizard } from "../WizardContext"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {Input} from "@evoloop/shared/components/ui/input"
+import {Label} from "@evoloop/shared/components/ui/label"
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue,} from "@evoloop/shared/components/ui/select"
+import {useQuery} from "@tanstack/react-query"
+import {motion} from "framer-motion"
+import {CheckCircle2, Eye, EyeOff, Loader2, XCircle} from "lucide-react"
+import {useEffect, useState} from "react"
+import {useTranslation} from "react-i18next"
+import {SystemService} from "@/client"
+import {useWizard} from "../WizardContext"
 
 // Preset model type from backend
 interface PresetModel {

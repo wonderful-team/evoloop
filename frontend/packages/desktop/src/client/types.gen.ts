@@ -882,57 +882,6 @@ export type IndexingRunResponse = {
     [key: string]: unknown | boolean | string | number;
 };
 
-export type LightningApplyResponse = {
-    success?: boolean;
-    message?: string;
-    status?: string;
-    [key: string]: unknown | boolean | string;
-};
-
-export type LightningConfigRequest = {
-    /**
-     * Lightning mode: none, llama.cpp, lm-studio, ollama
-     */
-    mode?: string;
-    /**
-     * LLM model name or GGUF path
-     */
-    llm_model?: (string | null);
-    /**
-     * Base URL for lm-studio/ollama
-     */
-    base_url?: (string | null);
-    /**
-     * API key for local endpoint
-     */
-    api_key?: (string | null);
-    /**
-     * Max context tokens
-     */
-    context_window?: (number | null);
-    [key: string]: unknown | string;
-};
-
-export type LightningStatusResponse = {
-    success?: boolean;
-    message?: string;
-    mode?: string;
-    llm_available?: boolean;
-    llama_cpp_available?: boolean;
-    llm_model?: string;
-    base_url?: string;
-    context_window?: number;
-    [key: string]: unknown | boolean | string | number;
-};
-
-export type LightningTestResponse = {
-    success?: boolean;
-    message?: string;
-    llm_ok?: boolean;
-    llm_reply?: (string | null);
-    [key: string]: unknown | boolean | string;
-};
-
 export type LLMApplyResponse = {
     success?: boolean;
     message?: string;
@@ -3289,20 +3238,6 @@ export type SystemUpdateSystemConfigData = {
 };
 
 export type SystemUpdateSystemConfigResponse = (SystemConfig);
-
-export type SystemGetLightningStatusResponse = (LightningStatusResponse);
-
-export type SystemApplyLightningConfigData = {
-    requestBody: LightningConfigRequest;
-};
-
-export type SystemApplyLightningConfigResponse = (LightningApplyResponse);
-
-export type SystemTestLightningConnectionData = {
-    requestBody: LightningConfigRequest;
-};
-
-export type SystemTestLightningConnectionResponse = (LightningTestResponse);
 
 export type SystemDiscoverModelsResponse = (ModelDiscoveryResponse);
 

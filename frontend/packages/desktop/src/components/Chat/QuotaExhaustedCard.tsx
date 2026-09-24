@@ -1,16 +1,10 @@
-import { Button } from "@evoloop/shared/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@evoloop/shared/components/ui/card"
-import { useNavigate } from "@tanstack/react-router"
-import { AlertTriangle, ExternalLink, RefreshCw } from "lucide-react"
-import { useTranslation } from "react-i18next"
-import { useAgentStore } from "@/stores/agentStore"
-import { useChatStore } from "@/stores/chatStore"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {Card, CardContent, CardFooter, CardHeader, CardTitle,} from "@evoloop/shared/components/ui/card"
+import {useNavigate} from "@tanstack/react-router"
+import {AlertTriangle, ExternalLink, RefreshCw} from "lucide-react"
+import {useTranslation} from "react-i18next"
+import {useAgentStore} from "@/stores/agentStore"
+import {useChatStore} from "@/stores/chatStore"
 
 /**
  * QuotaExhaustedCard - Interactive card when LLM quota is exhausted

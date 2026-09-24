@@ -1,9 +1,9 @@
-import { Button } from "@evoloop/shared/components/ui/button"
+import {Button} from "@evoloop/shared/components/ui/button"
 import i18n from "@evoloop/shared/i18n"
-import { AlertCircle, Check, Copy, MapPin } from "lucide-react"
+import {AlertCircle, Check, Copy, MapPin} from "lucide-react"
 import type React from "react"
-import { useEffect, useRef, useState } from "react"
-import { useTranslation } from "react-i18next"
+import {useEffect, useRef, useState} from "react"
+import {useTranslation} from "react-i18next"
 
 declare global {
   interface Window {

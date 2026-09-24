@@ -1,8 +1,8 @@
-import type { UnlistenFn } from "@tauri-apps/api/event"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { LearningService } from "@/client/sdk.gen"
-import type { GlobalEventData } from "@/client/types.gen"
-import { safeInvoke, safeListen } from "@/lib/tauri"
+import type {UnlistenFn} from "@tauri-apps/api/event"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {LearningService} from "@/client/sdk.gen"
+import type {GlobalEventData} from "@/client/types.gen"
+import {safeInvoke, safeListen} from "@/lib/tauri"
 
 interface GlobalEvent {
   timestamp: number

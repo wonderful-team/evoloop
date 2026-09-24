@@ -1,14 +1,11 @@
-import { useTheme } from "@evoloop/shared/components/theme-provider"
-import { Label } from "@evoloop/shared/components/ui/label"
-import {
-  RadioGroup,
-  RadioGroupItem,
-} from "@evoloop/shared/components/ui/radio-group"
-import { Switch } from "@evoloop/shared/components/ui/switch"
-import { Brain, Eye, Monitor, Moon, Palette, Sun } from "lucide-react"
-import { useEffect, useState } from "react"
-import { useTranslation } from "react-i18next"
-import { SettingsCard } from "../Settings/SettingsCard"
+import {useTheme} from "@evoloop/shared/components/theme-provider"
+import {Label} from "@evoloop/shared/components/ui/label"
+import {RadioGroup, RadioGroupItem,} from "@evoloop/shared/components/ui/radio-group"
+import {Switch} from "@evoloop/shared/components/ui/switch"
+import {Brain, Eye, Monitor, Moon, Palette, Sun} from "lucide-react"
+import {useEffect, useState} from "react"
+import {useTranslation} from "react-i18next"
+import {SettingsCard} from "../Settings/SettingsCard"
 
 const SHOW_THINKING_KEY = "evoloop:showThinking"
 

@@ -1,23 +1,13 @@
-import { Button } from "@evoloop/shared/components/ui/button"
-import {
-  CheckCircle2,
-  Database,
-  Layers,
-  Monitor,
-  Play,
-  Settings2,
-  Trash2,
-  X,
-  Zap,
-} from "lucide-react"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {CheckCircle2, Database, Layers, Monitor, Play, Settings2, Trash2, X, Zap,} from "lucide-react"
 import React from "react"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
-import { v4 as uuidv4 } from "uuid"
-import { AgentService } from "@/client/sdk.gen"
-import { useAgentStore } from "@/stores/agentStore"
-import { useChatStore } from "@/stores/chatStore"
-import { generateMockMessages } from "./debug/mockData"
+import {useTranslation} from "react-i18next"
+import {toast} from "sonner"
+import {v4 as uuidv4} from "uuid"
+import {AgentService} from "@/client/sdk.gen"
+import {useAgentStore} from "@/stores/agentStore"
+import {useChatStore} from "@/stores/chatStore"
+import {generateMockMessages} from "./debug/mockData"
 
 interface DebugManagerPanelProps {
   onClose: () => void

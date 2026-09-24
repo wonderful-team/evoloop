@@ -1,49 +1,33 @@
-import { useEffect, useMemo, useRef, useState } from "react"
-import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { OpenAPI } from "@/client"
-import { MessageContent } from "@/components/Chat/MessageContent"
-import { linkifyText } from "@evoloop/shared/lib/linkify"
-import { useNavigate } from "@tanstack/react-router"
+import {useEffect, useMemo, useRef, useState} from "react"
+import {useQuery, useQueryClient} from "@tanstack/react-query"
+import {AgentService, ConversationsService, PlanningService} from "@/client"
+import {MessageContent} from "@/components/Chat/MessageContent"
+import {linkifyText} from "@evoloop/shared/lib/linkify"
+import {useNavigate} from "@tanstack/react-router"
 import {
-  PauseCircle,
-  ExternalLink,
-  Loader2,
-  Square,
-  Wrench,
-  CheckCircle2,
-  BadgeCheck,
-  Package,
-  Sparkles,
-  Activity,
+    Activity,
+    BadgeCheck,
+    CheckCircle2,
+    ExternalLink,
+    Loader2,
+    Package,
+    PauseCircle,
+    Sparkles,
+    Square,
+    Wrench,
 } from "lucide-react"
 
-import { Button } from "@evoloop/shared/components/ui/button"
-import { ConversationsService, PlanningService, AgentService } from "@/client"
-import { TasksQueueApi, type QueueTask } from "@/lib/tasksQueueApi"
-import {
-  classify,
-  textOf,
-  toolNameOf,
-  type Msg,
-} from "../core/parse"
-import { DEMO } from "../core/demoData"
-import { ResultCard, AttachmentStrip } from "./ResultCard"
-import { ProposalCard, InlineProposal } from "./ProposalCards"
-import { hitlRequestFromMsg } from "../core/parse"
-import {
-  AgentExecutionTimeline,
-  type TraceNodeItem,
-} from "@evoloop/shared"
-import { ReviewProgressCard } from "./ReviewProgressCard"
-import { PendingTaskBrief } from "./PendingTaskBrief"
-import type { Attachment, ArtifactView, PlanStep } from "../core/types"
-import {
-  getDemoMessages,
-  getDemoPlan,
-} from "../core/demoRuntime"
-
-
-
+import {Button} from "@evoloop/shared/components/ui/button"
+import {type QueueTask, TasksQueueApi} from "@/lib/tasksQueueApi"
+import {classify, hitlRequestFromMsg, type Msg, textOf, toolNameOf,} from "../core/parse"
+import {DEMO} from "../core/demoData"
+import {AttachmentStrip, ResultCard} from "./ResultCard"
+import {InlineProposal, ProposalCard} from "./ProposalCards"
+import {AgentExecutionTimeline, type TraceNodeItem,} from "@evoloop/shared"
+import {ReviewProgressCard} from "./ReviewProgressCard"
+import {PendingTaskBrief} from "./PendingTaskBrief"
+import type {ArtifactView, Attachment, PlanStep} from "../core/types"
+import {getDemoMessages, getDemoPlan,} from "../core/demoRuntime"
 
 
 /** Execution workbench: NOW card + timeline + artifacts/cost strip. */
@@ -174,47 +158,15 @@ export function ExecutionPanel({
     }
   }, [hasResult])
 
-  // thread-level SSE: message landed → refresh timeline & plan (no polling gap)
+  // thread 级实时刷新：复用页面级 /stream/tasks 单连接（dutySse 对每个
+  // 事件 invalidate dutyExec/dutyPlan 前缀，task_pulse 带 thread_id）。
+  // 此前本组件为每个 wakeup 线程独立开 SSE——每次派发换新线程 id，画布
+  // 聚焦循环下每分钟开关 20+ 条连接，客户端断连取消正是连接池孤儿
+  // fairy 的主要制造者（sqlalchemy#12710，2026-09-24 探针实锤），故移除。
   useEffect(() => {
     if (DEMO || !threadId) return
-    // EventSource 不支持自定义 header：token 走 query（同 ChatConnection），
-    // 否则 token-only 会话下 verify_guest_access 直接 401、实时刷新全灭
-    let source: EventSource | null = null
-    let cancelled = false
-
-    const connect = (token?: string) => {
-      if (cancelled) return
-      const qs = token ? `?token=${encodeURIComponent(token)}` : ""
-      source = new EventSource(
-        `${OpenAPI.BASE}/api/v1/stream/thread/${threadId}${qs}`,
-        { withCredentials: true },
-      )
-      // 连接建立/每次重连 → 对账一次（收敛断线窗口漏掉的事件）
-      source.onopen = () => {
-        void qc.invalidateQueries({ queryKey: ["dutyHitl"] })
-        void qc.invalidateQueries({ queryKey: ["dutyExec", threadId] })
-        void qc.invalidateQueries({ queryKey: ["dutyPlan", threadId] })
-      }
-      source.addEventListener("thread_updated", () => {
-        void qc.invalidateQueries({ queryKey: ["dutyExec", threadId] })
-        void qc.invalidateQueries({ queryKey: ["dutyPlan", threadId] })
-        void qc.invalidateQueries({ queryKey: ["dutyHitl"] })
-      })
-    }
-
-    const tokenRaw = OpenAPI.TOKEN
-    if (typeof tokenRaw === "function") {
-      Promise.resolve(tokenRaw({ method: "GET" } as never))
-        .then((t) => connect(t || undefined))
-        .catch(() => connect()) // token 解析失败：回退 Cookie 通道
-    } else {
-      connect(tokenRaw || undefined)
-    }
-
-    return () => {
-      cancelled = true
-      source?.close()
-    }
+    void qc.invalidateQueries({ queryKey: ["dutyExec", threadId] })
+    void qc.invalidateQueries({ queryKey: ["dutyPlan", threadId] })
   }, [DEMO, threadId, qc])
 
   // 新步骤推进时平滑跟随滚动至最底部（最新步）

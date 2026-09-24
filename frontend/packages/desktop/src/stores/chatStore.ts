@@ -1,20 +1,16 @@
 import i18n from "@evoloop/shared/i18n"
-import { toast } from "sonner"
-import { create } from "zustand"
-import { AgentService, ConversationsService } from "@/client"
-import type { Message } from "@/components/Chat/ChatMessageItem"
-import { ChatConnection } from "@/lib/ChatConnection"
-import { llmPlatformService } from "@/services/llmPlatform"
-import { useAgentStore } from "./agentStore"
-import { useChangesetStore } from "./changesetStore"
-import {
-  commitThinkingBuffer,
-  normalizeMessage,
-  tryParseHumanRequest,
-} from "./chat/helpers"
-import type { ActiveTaskInfo, ActivitySnapshot, ChatState } from "./chat/types"
-import { useHostContextStore } from "./hostContextStore"
-import { useProjectStore } from "./projectStore"
+import {toast} from "sonner"
+import {create} from "zustand"
+import {AgentService, ConversationsService} from "@/client"
+import type {Message} from "@/components/Chat/ChatMessageItem"
+import {ChatConnection} from "@/lib/ChatConnection"
+import {llmPlatformService} from "@/services/llmPlatform"
+import {useAgentStore} from "./agentStore"
+import {useChangesetStore} from "./changesetStore"
+import {commitThinkingBuffer, normalizeMessage, tryParseHumanRequest,} from "./chat/helpers"
+import type {ActiveTaskInfo, ActivitySnapshot, ChatState} from "./chat/types"
+import {useHostContextStore} from "./hostContextStore"
+import {useProjectStore} from "./projectStore"
 
 // ---------------------------------------------------------------------------
 // Terminal input batching

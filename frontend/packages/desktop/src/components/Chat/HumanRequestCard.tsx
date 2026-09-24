@@ -1,12 +1,9 @@
-import { useState } from "react"
-import {
-  HumanRequestCard as SharedHumanRequestCard,
-  type HumanRequestItem,
-} from "@evoloop/shared"
-import { useAgentStore } from "@/stores/agentStore"
-import { useProjectStore, type Project } from "@/stores/projectStore"
-import { ProjectSwitcher } from "@/components/Sidebar/ProjectSwitcher"
-import { MessageContent } from "./MessageContent"
+import {useState} from "react"
+import {HumanRequestCard as SharedHumanRequestCard, type HumanRequestItem,} from "@evoloop/shared"
+import {useAgentStore} from "@/stores/agentStore"
+import {type Project, useProjectStore} from "@/stores/projectStore"
+import {ProjectSwitcher} from "@/components/Sidebar/ProjectSwitcher"
+import {MessageContent} from "./MessageContent"
 
 export interface HumanRequestCardProps {
   request: HumanRequestItem

@@ -1,30 +1,25 @@
-import { Badge } from "@evoloop/shared/components/ui/badge"
-import { Button } from "@evoloop/shared/components/ui/button"
+import {Badge} from "@evoloop/shared/components/ui/badge"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {Card, CardContent, CardHeader, CardTitle,} from "@evoloop/shared/components/ui/card"
+import {ScrollArea} from "@evoloop/shared/components/ui/scroll-area"
+import {useMutation, useQuery} from "@tanstack/react-query"
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@evoloop/shared/components/ui/card"
-import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
-import { useMutation, useQuery } from "@tanstack/react-query"
-import {
-  AlertTriangle,
-  CheckCircle2,
-  Loader2,
-  Monitor,
-  RefreshCcw,
-  Smartphone,
-  Sparkles,
-  StopCircle,
+    AlertTriangle,
+    CheckCircle2,
+    Loader2,
+    Monitor,
+    RefreshCcw,
+    Smartphone,
+    Sparkles,
+    StopCircle,
 } from "lucide-react"
-import { useEffect, useState } from "react"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
-import { LearningService } from "@/client/sdk.gen"
-import { useSystemEvent } from "@/hooks/useSystemEvent"
-import { isTauri, safeInvoke } from "@/lib/tauri"
-import { useRecordingStore } from "@/stores/recordingStore"
+import {useEffect, useState} from "react"
+import {useTranslation} from "react-i18next"
+import {toast} from "sonner"
+import {LearningService} from "@/client/sdk.gen"
+import {useSystemEvent} from "@/hooks/useSystemEvent"
+import {isTauri, safeInvoke} from "@/lib/tauri"
+import {useRecordingStore} from "@/stores/recordingStore"
 
 interface AndroidMirrorConsoleProps {
   onOpenEditor?: (skillId: number) => void

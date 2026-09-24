@@ -1,37 +1,20 @@
-import { Badge } from "@evoloop/shared/components/ui/badge"
-import { Button } from "@evoloop/shared/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@evoloop/shared/components/ui/dialog"
-import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
-import { Separator } from "@evoloop/shared/components/ui/separator"
-import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { useNavigate } from "@tanstack/react-router"
-import {
-  BookOpen,
-  Edit,
-  Info,
-  Layout,
-  Paperclip,
-  Play,
-  Sparkles,
-  Terminal,
-  Trash2,
-  TrendingUp,
-} from "lucide-react"
+import {Badge} from "@evoloop/shared/components/ui/badge"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,} from "@evoloop/shared/components/ui/dialog"
+import {ScrollArea} from "@evoloop/shared/components/ui/scroll-area"
+import {Separator} from "@evoloop/shared/components/ui/separator"
+import {useQuery, useQueryClient} from "@tanstack/react-query"
+import {useNavigate} from "@tanstack/react-router"
+import {BookOpen, Edit, Info, Layout, Paperclip, Play, Sparkles, Terminal, Trash2, TrendingUp,} from "lucide-react"
 import type React from "react"
-import { useState } from "react"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
-import { LearningService } from "@/client/sdk.gen"
-import type { PaginatedSkillsResponse } from "@/client/types.gen"
-import type { LearnedSkill } from "@/types/skill"
-import { SkillExecutionDialog } from "./SkillExecutionDialog"
-import { isSkillRoutable } from "./skillLifecycle"
+import {useState} from "react"
+import {useTranslation} from "react-i18next"
+import {toast} from "sonner"
+import {LearningService} from "@/client/sdk.gen"
+import type {PaginatedSkillsResponse} from "@/client/types.gen"
+import type {LearnedSkill} from "@/types/skill"
+import {SkillExecutionDialog} from "./SkillExecutionDialog"
+import {isSkillRoutable} from "./skillLifecycle"
 
 interface SkillLibraryDialogProps {
   open?: boolean

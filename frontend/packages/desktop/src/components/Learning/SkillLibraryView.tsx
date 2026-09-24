@@ -1,44 +1,38 @@
-import { Badge } from "@evoloop/shared/components/ui/badge"
-import { Button } from "@evoloop/shared/components/ui/button"
+import {Badge} from "@evoloop/shared/components/ui/badge"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {Card, CardContent, CardFooter, CardHeader, CardTitle,} from "@evoloop/shared/components/ui/card"
 import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@evoloop/shared/components/ui/card"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
 } from "@evoloop/shared/components/ui/dropdown-menu"
-import { Input } from "@evoloop/shared/components/ui/input"
-import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useNavigate } from "@tanstack/react-router"
+import {Input} from "@evoloop/shared/components/ui/input"
+import {ScrollArea} from "@evoloop/shared/components/ui/scroll-area"
+import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query"
+import {useNavigate} from "@tanstack/react-router"
 import {
-  BookOpen,
-  Clock,
-  Edit,
-  FolderDown,
-  MoreVertical,
-  Play,
-  Search,
-  Terminal,
-  Trash2,
-  TrendingUp,
+    BookOpen,
+    Clock,
+    Edit,
+    FolderDown,
+    MoreVertical,
+    Play,
+    Search,
+    Terminal,
+    Trash2,
+    TrendingUp,
 } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
-import { LearningService } from "@/client/sdk.gen"
-import type { PaginatedSkillsResponse } from "@/client/types.gen"
-import type { LearnedSkill } from "@/types/skill"
-import { ImportSkillsDialog } from "./ImportSkillsDialog"
-import { SkillDetailsPanel } from "./SkillDetailsPanel"
-import { SkillExecutionDialog } from "./SkillExecutionDialog"
-import { isSkillRoutable } from "./skillLifecycle"
+import {useEffect, useMemo, useState} from "react"
+import {useTranslation} from "react-i18next"
+import {toast} from "sonner"
+import {LearningService} from "@/client/sdk.gen"
+import type {PaginatedSkillsResponse} from "@/client/types.gen"
+import type {LearnedSkill} from "@/types/skill"
+import {ImportSkillsDialog} from "./ImportSkillsDialog"
+import {SkillDetailsPanel} from "./SkillDetailsPanel"
+import {SkillExecutionDialog} from "./SkillExecutionDialog"
+import {isSkillRoutable} from "./skillLifecycle"
 
 interface SkillLibraryViewProps {
   threadId: string

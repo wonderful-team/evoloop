@@ -1,19 +1,19 @@
-import { Button } from "@evoloop/shared/components/ui/button"
-import { Checkbox } from "@evoloop/shared/components/ui/checkbox"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {Checkbox} from "@evoloop/shared/components/ui/checkbox"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
 } from "@evoloop/shared/components/ui/dialog"
-import { Loader2, RefreshCw, Search, Shield } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
-import { OpenAPI } from "@/client/core/OpenAPI"
-import { ProjectProfilesService } from "@/client/sdk.gen"
+import {Loader2, RefreshCw, Search, Shield} from "lucide-react"
+import {useEffect, useRef, useState} from "react"
+import {useTranslation} from "react-i18next"
+import {toast} from "sonner"
+import {OpenAPI} from "@/client/core/OpenAPI"
+import {ProjectProfilesService} from "@/client/sdk.gen"
 
 interface DiscoverDialogProps {
   projectId: number

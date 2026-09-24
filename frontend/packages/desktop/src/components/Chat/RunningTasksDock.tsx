@@ -6,10 +6,10 @@
  * 点击某个 task 卡片切换到 Terminal Mode 以便查看实时输出。
  */
 
-import { Clock, Loader2, Square } from "lucide-react"
-import { useTranslation } from "react-i18next"
-import type { ActiveTaskInfo } from "@/stores/chat/types"
-import { useChatStore } from "@/stores/chatStore"
+import {Clock, Loader2, Square} from "lucide-react"
+import {useTranslation} from "react-i18next"
+import type {ActiveTaskInfo} from "@/stores/chat/types"
+import {useChatStore} from "@/stores/chatStore"
 
 function TaskPill({
   task,

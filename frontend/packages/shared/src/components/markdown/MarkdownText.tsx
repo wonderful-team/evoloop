@@ -1,4 +1,4 @@
-import ReactMarkdown, { defaultUrlTransform } from "react-markdown"
+import ReactMarkdown, {defaultUrlTransform} from "react-markdown"
 import remarkGfm from "remark-gfm"
 
 /**

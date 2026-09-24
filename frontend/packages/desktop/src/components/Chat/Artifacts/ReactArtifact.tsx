@@ -1,8 +1,8 @@
-import { Button } from "@evoloop/shared/components/ui/button"
-import { Atom, Check, Copy } from "lucide-react"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {Atom, Check, Copy} from "lucide-react"
 import React from "react"
-import { useTranslation } from "react-i18next"
-import { CodeBlock } from "@/components/Chat/CodeBlock"
+import {useTranslation} from "react-i18next"
+import {CodeBlock} from "@/components/Chat/CodeBlock"
 
 interface ReactArtifactProps {
   data: {

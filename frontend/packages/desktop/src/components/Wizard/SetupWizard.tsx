@@ -1,26 +1,25 @@
-import { Button } from "@evoloop/shared/components/ui/button"
+import {Button} from "@evoloop/shared/components/ui/button"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
 } from "@evoloop/shared/components/ui/dialog"
-import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { AnimatePresence } from "framer-motion"
-import { ChevronLeft, ChevronRight } from "lucide-react"
-import { useCallback, useMemo } from "react"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
-import { SystemService } from "@/client"
-import { useTour } from "@/components/Common/SpotlightTour"
-import { needsLlmStepForConfig } from "./llmConfig"
-import { CompletionStep } from "./steps/CompletionStep"
-import { LLMConfigStep } from "./steps/LLMConfigStep"
-import { ProjectsStep } from "./steps/ProjectsStep"
-import { WelcomeStep } from "./steps/WelcomeStep"
-import { markSetupCompleted } from "./useSetupRequired"
-import { useWizard, type WizardData, WizardProvider } from "./WizardContext"
+import {useQuery, useQueryClient} from "@tanstack/react-query"
+import {AnimatePresence} from "framer-motion"
+import {ChevronLeft, ChevronRight} from "lucide-react"
+import {useCallback, useMemo} from "react"
+import {useTranslation} from "react-i18next"
+import {toast} from "sonner"
+import {SystemService} from "@/client"
+import {needsLlmStepForConfig} from "./llmConfig"
+import {CompletionStep} from "./steps/CompletionStep"
+import {LLMConfigStep} from "./steps/LLMConfigStep"
+import {ProjectsStep} from "./steps/ProjectsStep"
+import {WelcomeStep} from "./steps/WelcomeStep"
+import {markSetupCompleted} from "./useSetupRequired"
+import {useWizard, type WizardData, WizardProvider} from "./WizardContext"
 
 // =====================
 // Step Components Map
@@ -108,7 +107,6 @@ interface SetupWizardProps {
 export function SetupWizard({ open, onOpenChange }: SetupWizardProps) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const { startTour } = useTour()
 
   // Determine whether the LLM step is required: platform mode routes through
   // the EvoLoop Gateway and has no default-model choice to make.
@@ -169,11 +167,6 @@ export function SetupWizard({ open, onOpenChange }: SetupWizardProps) {
 
         // Close wizard
         onOpenChange(false)
-
-        // Trigger product tour after a short delay
-        setTimeout(() => {
-          startTour()
-        }, 500)
       } catch (error) {
         toast.error(
           t("wizard.saveErrorWithMessage", {
@@ -183,7 +176,7 @@ export function SetupWizard({ open, onOpenChange }: SetupWizardProps) {
         )
       }
     },
-    [queryClient, onOpenChange, startTour, t, needsLlmStep],
+    [queryClient, onOpenChange, t, needsLlmStep],
   )
 
   const totalSteps = currentSteps.length

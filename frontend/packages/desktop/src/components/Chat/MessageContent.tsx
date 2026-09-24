@@ -1,23 +1,19 @@
-import { Button } from "@evoloop/shared/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-} from "@evoloop/shared/components/ui/dialog"
-import { Clapperboard, FileText, Loader2, Music, X } from "lucide-react"
-import { memo, useCallback, useDeferredValue, useRef, useState } from "react"
-import { useTranslation } from "react-i18next"
-import ReactMarkdown, { defaultUrlTransform } from "react-markdown"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {Dialog, DialogContent, DialogTitle,} from "@evoloop/shared/components/ui/dialog"
+import {Clapperboard, FileText, Loader2, Music, X} from "lucide-react"
+import {memo, useCallback, useDeferredValue, useRef, useState} from "react"
+import {useTranslation} from "react-i18next"
+import ReactMarkdown, {defaultUrlTransform} from "react-markdown"
 // TEMP: syntax-highlighter disabled for performance profiling
 import remarkGfm from "remark-gfm"
-import { Mermaid } from "@/components/Common/Mermaid"
-import { openExternalLink, previewFile } from "@/utils/fileLinkHandler"
-import { resolveHrefPreview, resolveLocalFileSrc } from "@/utils/fileUtils"
-import { EChartsArtifact } from "./Artifacts/EChartsArtifact"
-import { extractArtifactsFromContent } from "./Artifacts/utils"
-import { ChangesetSnapshot } from "./ChangesetSnapshotView"
-import { CodeBlock } from "./CodeBlock"
-import { MessageReferences } from "./MessageReferences"
+import {Mermaid} from "@/components/Common/Mermaid"
+import {openExternalLink, previewFile} from "@/utils/fileLinkHandler"
+import {resolveHrefPreview, resolveLocalFileSrc} from "@/utils/fileUtils"
+import {EChartsArtifact} from "./Artifacts/EChartsArtifact"
+import {extractArtifactsFromContent} from "./Artifacts/utils"
+import {ChangesetSnapshot} from "./ChangesetSnapshotView"
+import {CodeBlock} from "./CodeBlock"
+import {MessageReferences} from "./MessageReferences"
 
 function ImageViewer({
   src,

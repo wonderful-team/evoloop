@@ -1,13 +1,13 @@
-import { Button } from "@evoloop/shared/components/ui/button"
-import { Input } from "@evoloop/shared/components/ui/input"
-import { Label } from "@evoloop/shared/components/ui/label"
-import { motion } from "framer-motion"
-import { FolderOpen } from "lucide-react"
-import { useEffect } from "react"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
-import { isTauri } from "@/lib/tauri"
-import { useWizard } from "../WizardContext"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {Input} from "@evoloop/shared/components/ui/input"
+import {Label} from "@evoloop/shared/components/ui/label"
+import {motion} from "framer-motion"
+import {FolderOpen} from "lucide-react"
+import {useEffect} from "react"
+import {useTranslation} from "react-i18next"
+import {toast} from "sonner"
+import {isTauri} from "@/lib/tauri"
+import {useWizard} from "../WizardContext"
 
 export function ProjectsStep() {
   const { t } = useTranslation()

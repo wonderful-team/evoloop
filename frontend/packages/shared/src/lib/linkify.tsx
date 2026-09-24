@@ -1,4 +1,4 @@
-import type { ReactNode } from "react"
+import type {ReactNode} from "react"
 
 /**
  * 纯文本 → 可点链接：识别 http(s) URL 渲染为锚点（其余文本原样）。

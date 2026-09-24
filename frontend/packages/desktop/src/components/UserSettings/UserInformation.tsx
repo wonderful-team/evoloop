@@ -1,26 +1,19 @@
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@evoloop/shared/components/ui/form"
-import { Input } from "@evoloop/shared/components/ui/input"
+import {Form, FormControl, FormField, FormItem, FormLabel, FormMessage,} from "@evoloop/shared/components/ui/form"
+import {Input} from "@evoloop/shared/components/ui/input"
 import useCustomToast from "@evoloop/shared/hooks/useCustomToast"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { useQueryClient } from "@tanstack/react-query"
-import { Loader2, User } from "lucide-react"
-import { useEffect } from "react"
-import { useForm } from "react-hook-form"
-import { useTranslation } from "react-i18next"
-import { z } from "zod"
-import type { ApiError } from "@/client"
-import { MemberService } from "@/client"
+import {zodResolver} from "@hookform/resolvers/zod"
+import {useQueryClient} from "@tanstack/react-query"
+import {Loader2, User} from "lucide-react"
+import {useEffect} from "react"
+import {useForm} from "react-hook-form"
+import {useTranslation} from "react-i18next"
+import {z} from "zod"
+import type {ApiError} from "@/client"
+import {MemberService} from "@/client"
 import useAuth from "@/hooks/useAuth"
-import { handleError } from "@/utils"
-import { SettingsCard } from "../Settings/SettingsCard"
-import { useSettings } from "../Settings/SettingsContext"
+import {handleError} from "@/utils"
+import {SettingsCard} from "../Settings/SettingsCard"
+import {useSettings} from "../Settings/SettingsContext"
 
 const createSchema = (t: any) =>
   z.object({

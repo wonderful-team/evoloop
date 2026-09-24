@@ -1,9 +1,9 @@
-import { Button } from "@evoloop/shared/components/ui/button"
-import { motion } from "framer-motion"
-import { Rocket } from "lucide-react"
-import { useEffect } from "react"
-import { useTranslation } from "react-i18next"
-import { useWizard } from "../WizardContext"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {motion} from "framer-motion"
+import {Rocket} from "lucide-react"
+import {useEffect} from "react"
+import {useTranslation} from "react-i18next"
+import {useWizard} from "../WizardContext"
 
 export function WelcomeStep() {
   const { t } = useTranslation()

@@ -1,13 +1,9 @@
-import { Button } from "@evoloop/shared/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-} from "@evoloop/shared/components/ui/dialog"
-import { CheckCircle2, Loader2, RefreshCw, Timer } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
-import { useTranslation } from "react-i18next"
-import type { OrderData, OrderStatus } from "@/types/subscription"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {Dialog, DialogContent, DialogTitle,} from "@evoloop/shared/components/ui/dialog"
+import {CheckCircle2, Loader2, RefreshCw, Timer} from "lucide-react"
+import {useEffect, useRef, useState} from "react"
+import {useTranslation} from "react-i18next"
+import type {OrderData, OrderStatus} from "@/types/subscription"
 
 interface PaymentDialogProps {
   open: boolean

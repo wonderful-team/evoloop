@@ -1,6 +1,6 @@
-import { create } from "zustand"
-import { ConversationsService } from "@/client"
-import type { ChangesetState } from "./changeset/types"
+import {create} from "zustand"
+import {ConversationsService} from "@/client"
+import type {ChangesetState} from "./changeset/types"
 
 export const useChangesetStore = create<ChangesetState>((set) => ({
   // Data

@@ -1,14 +1,9 @@
 import useCustomToast from "@evoloop/shared/hooks/useCustomToast"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { SubscriptionService } from "@/client"
-import { useSystemEvent } from "@/hooks/useSystemEvent"
-import type {
-  AiQuota,
-  OrderStatus,
-  SubscriptionDetail,
-  SubscriptionPlan,
-} from "@/types/subscription"
-import { handleError } from "@/utils"
+import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query"
+import {SubscriptionService} from "@/client"
+import {useSystemEvent} from "@/hooks/useSystemEvent"
+import type {AiQuota, OrderStatus, SubscriptionDetail, SubscriptionPlan,} from "@/types/subscription"
+import {handleError} from "@/utils"
 
 export const useSubscription = () => {
   const queryClient = useQueryClient()

@@ -1,43 +1,39 @@
-import { Button } from "@evoloop/shared/components/ui/button"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {Collapsible, CollapsibleContent, CollapsibleTrigger,} from "@evoloop/shared/components/ui/collapsible"
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@evoloop/shared/components/ui/collapsible"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
 } from "@evoloop/shared/components/ui/dialog"
-import { Input } from "@evoloop/shared/components/ui/input"
-import { Label } from "@evoloop/shared/components/ui/label"
-import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import {Input} from "@evoloop/shared/components/ui/input"
+import {Label} from "@evoloop/shared/components/ui/label"
+import {ScrollArea} from "@evoloop/shared/components/ui/scroll-area"
+import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query"
 import {
-  Brain,
-  CheckCircle2,
-  ChevronDown,
-  ChevronRight,
-  ClipboardCheck,
-  ExternalLink,
-  FileText,
-  Layers,
-  Loader2,
-  Plus,
-  Target,
-  X,
-  XCircle,
+    Brain,
+    CheckCircle2,
+    ChevronDown,
+    ChevronRight,
+    ClipboardCheck,
+    ExternalLink,
+    FileText,
+    Layers,
+    Loader2,
+    Plus,
+    Target,
+    X,
+    XCircle,
 } from "lucide-react"
-import { useState } from "react"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
-import { MemoryService, ResourcesService } from "@/client"
-import { useAgentStore } from "@/stores/agentStore"
-import { MessageContent } from "../MessageContent"
+import {useState} from "react"
+import {useTranslation} from "react-i18next"
+import {toast} from "sonner"
+import {MemoryService, ResourcesService} from "@/client"
+import {useAgentStore} from "@/stores/agentStore"
+import {MessageContent} from "../MessageContent"
 
 interface ContextGroupTabProps {
   projectId?: number

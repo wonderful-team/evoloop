@@ -1,26 +1,14 @@
-import { Button } from "@evoloop/shared/components/ui/button"
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@evoloop/shared/components/ui/resizable"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { createFileRoute } from "@tanstack/react-router"
-import {
-  BookOpen,
-  ChevronDown,
-  ChevronRight,
-  FileText,
-  Folder,
-  Loader2,
-  RefreshCw,
-} from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
-import { ProjectsService, WikiService } from "@/client"
-import { MarkdownRenderer } from "@/components/Common/MarkdownRenderer"
-import { useSystemEvent } from "@/hooks/useSystemEvent"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {ResizableHandle, ResizablePanel, ResizablePanelGroup,} from "@evoloop/shared/components/ui/resizable"
+import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query"
+import {createFileRoute} from "@tanstack/react-router"
+import {BookOpen, ChevronDown, ChevronRight, FileText, Folder, Loader2, RefreshCw,} from "lucide-react"
+import {useEffect, useMemo, useState} from "react"
+import {useTranslation} from "react-i18next"
+import {toast} from "sonner"
+import {ProjectsService, WikiService} from "@/client"
+import {MarkdownRenderer} from "@/components/Common/MarkdownRenderer"
+import {useSystemEvent} from "@/hooks/useSystemEvent"
 
 export const Route = createFileRoute("/_layout/projects/$projectId/wiki")({
   component: WikiPage,

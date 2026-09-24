@@ -1,6 +1,6 @@
 import i18n from "@evoloop/shared/i18n"
-import { create } from "zustand"
-import { ProjectsService } from "@/client"
+import {create} from "zustand"
+import {ProjectsService} from "@/client"
 
 // localStorage key for persisting user's project selection
 const LAST_PROJECT_ID_KEY = "evoloop_last_project_id"

@@ -1,36 +1,25 @@
-import { Badge } from "@evoloop/shared/components/ui/badge"
-import { Button } from "@evoloop/shared/components/ui/button"
+import {Badge} from "@evoloop/shared/components/ui/badge"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {Collapsible, CollapsibleContent, CollapsibleTrigger,} from "@evoloop/shared/components/ui/collapsible"
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue,} from "@evoloop/shared/components/ui/select"
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@evoloop/shared/components/ui/collapsible"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@evoloop/shared/components/ui/select"
-import {
-  Brain,
-  CheckCircle2,
-  ChevronDown,
-  ChevronRight,
-  Cpu,
-  Globe,
-  Loader2,
-  Server,
-  Sparkles,
-  XCircle,
+    Brain,
+    CheckCircle2,
+    ChevronDown,
+    ChevronRight,
+    Cpu,
+    Globe,
+    Loader2,
+    Server,
+    Sparkles,
+    XCircle,
 } from "lucide-react"
-import { useEffect, useState } from "react"
-import { useTranslation } from "react-i18next"
-import { SystemService } from "@/client"
-import { EmbeddingSettings } from "./EmbeddingSettings"
-import { LightningSettings } from "./LightningSettings"
-import { LLMSettings } from "./LLMSettings"
-import { SettingsCard } from "./SettingsCard"
+import {useEffect, useState} from "react"
+import {useTranslation} from "react-i18next"
+import {SystemService} from "@/client"
+import {EmbeddingSettings} from "./EmbeddingSettings"
+import {LLMSettings} from "./LLMSettings"
+import {SettingsCard} from "./SettingsCard"
 
 interface ModelOption {
   id: string
@@ -334,7 +323,6 @@ export function ModelSettings() {
         <CollapsibleContent>
           <div className="space-y-6 px-4 pb-4">
             <LLMSettings />
-            <LightningSettings />
             <EmbeddingSettings />
           </div>
         </CollapsibleContent>

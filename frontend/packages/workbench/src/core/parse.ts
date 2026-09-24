@@ -163,9 +163,9 @@ export function classify(m: Msg): NodeKind {
   return "think"
 }
 
-export { ARTIFACT_RE, ERROR_RE }
+export { ARTIFACT_RE, ERROR_RE}
 
-import type { HumanRequestItem } from "@evoloop/shared"
+import type {HumanRequestItem} from "@evoloop/shared"
 
 export function hitlRequestFromMsg(
   m: Msg,

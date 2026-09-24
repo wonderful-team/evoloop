@@ -1,4 +1,4 @@
-import type { Message } from "@/components/Chat/ChatMessageItem"
+import type {Message} from "@/components/Chat/ChatMessageItem"
 
 export interface ActivitySnapshot {
   status: string

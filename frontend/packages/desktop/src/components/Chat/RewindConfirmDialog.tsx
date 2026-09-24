@@ -1,17 +1,17 @@
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
 } from "@evoloop/shared/components/ui/alert-dialog"
-import { Checkbox } from "@evoloop/shared/components/ui/checkbox"
-import { Label } from "@evoloop/shared/components/ui/label"
-import { useState } from "react"
-import { useTranslation } from "react-i18next"
+import {Checkbox} from "@evoloop/shared/components/ui/checkbox"
+import {Label} from "@evoloop/shared/components/ui/label"
+import {useState} from "react"
+import {useTranslation} from "react-i18next"
 
 interface RewindConfirmDialogProps {
   open: boolean

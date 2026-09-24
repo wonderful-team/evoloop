@@ -1,15 +1,15 @@
-import { Button } from "@evoloop/shared/components/ui/button"
+import {Button} from "@evoloop/shared/components/ui/button"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
 } from "@evoloop/shared/components/ui/dialog"
-import { CheckCircle2, Loader2, MessageCircle, RefreshCw } from "lucide-react"
-import { useCallback, useEffect, useRef, useState } from "react"
-import { useTranslation } from "react-i18next"
-import { AccountService } from "@/client"
+import {CheckCircle2, Loader2, MessageCircle, RefreshCw} from "lucide-react"
+import {useCallback, useEffect, useRef, useState} from "react"
+import {useTranslation} from "react-i18next"
+import {AccountService} from "@/client"
 
 interface WechatLoginProps {
   onSuccess?: () => void

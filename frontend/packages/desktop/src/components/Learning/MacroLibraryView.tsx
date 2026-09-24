@@ -1,47 +1,36 @@
 // 指令(Macro)列表视图 — 前端显示为"指令"，后端概念为 Macro
 // 当前仅展示系统内置指令，隐藏新建/编辑/删除/批量操作等编辑能力
 
-import { Badge } from "@evoloop/shared/components/ui/badge"
-import { Button } from "@evoloop/shared/components/ui/button"
+import {Badge} from "@evoloop/shared/components/ui/badge"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {Card,} from "@evoloop/shared/components/ui/card"
+import {Checkbox} from "@evoloop/shared/components/ui/checkbox"
 import {
-  Card,
-} from "@evoloop/shared/components/ui/card"
-import { Checkbox } from "@evoloop/shared/components/ui/checkbox"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
 } from "@evoloop/shared/components/ui/dialog"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
 } from "@evoloop/shared/components/ui/dropdown-menu"
-import { Input } from "@evoloop/shared/components/ui/input"
-import { Label } from "@evoloop/shared/components/ui/label"
-import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
-import { useMutation, useQuery } from "@tanstack/react-query"
-import {
-  ChevronDown,
-  ChevronRight,
-  Eye,
-  MoreVertical,
-  Play,
-  Search,
-  ShieldAlert,
-  Zap,
-} from "lucide-react"
-import { useMemo, useState } from "react"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
-import { MacrosService } from "@/client/sdk.gen"
-import type { MacroDetailDTO, MacroDTO } from "@/client/types.gen"
-import { useChatStore } from "@/stores/chatStore"
-import { useProjectStore } from "@/stores/projectStore"
+import {Input} from "@evoloop/shared/components/ui/input"
+import {Label} from "@evoloop/shared/components/ui/label"
+import {ScrollArea} from "@evoloop/shared/components/ui/scroll-area"
+import {useMutation, useQuery} from "@tanstack/react-query"
+import {ChevronDown, ChevronRight, Eye, MoreVertical, Play, Search, ShieldAlert, Zap,} from "lucide-react"
+import {useMemo, useState} from "react"
+import {useTranslation} from "react-i18next"
+import {toast} from "sonner"
+import {MacrosService} from "@/client/sdk.gen"
+import type {MacroDetailDTO, MacroDTO} from "@/client/types.gen"
+import {useChatStore} from "@/stores/chatStore"
+import {useProjectStore} from "@/stores/projectStore"
 
 interface MacroParam {
   name: string

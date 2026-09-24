@@ -1,34 +1,17 @@
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@evoloop/shared/components/ui/tabs"
-import {
-  createFileRoute,
-  Outlet,
-  redirect,
-  useRouterState,
-} from "@tanstack/react-router"
-import {
-  BookOpen,
-  GraduationCap,
-  Server,
-  Sparkles,
-  Square,
-  Zap,
-} from "lucide-react"
-import { useEffect, useState } from "react"
-import { useTranslation } from "react-i18next"
-import { RecordingButton } from "@/components/Chat/RecordingButton"
-import { AndroidMirrorConsole } from "@/components/Learning/AndroidMirrorConsole"
-import { MacroLibraryView } from "@/components/Learning/MacroLibraryView"
-import { McpView } from "@/components/Learning/McpView"
-import { MultimodalSynthesizeDialog } from "@/components/Learning/MultimodalSynthesizeDialog"
-import { SkillLibraryView } from "@/components/Learning/SkillLibraryView"
-import { isLoggedIn } from "@/hooks/useAuth"
-import { isTauri } from "@/lib/tauri"
-import { useRecordingStore } from "@/stores/recordingStore"
+import {Tabs, TabsContent, TabsList, TabsTrigger,} from "@evoloop/shared/components/ui/tabs"
+import {createFileRoute, Outlet, redirect, useRouterState,} from "@tanstack/react-router"
+import {BookOpen, GraduationCap, Server, Sparkles, Square, Zap,} from "lucide-react"
+import {useEffect, useState} from "react"
+import {useTranslation} from "react-i18next"
+import {RecordingButton} from "@/components/Chat/RecordingButton"
+import {AndroidMirrorConsole} from "@/components/Learning/AndroidMirrorConsole"
+import {MacroLibraryView} from "@/components/Learning/MacroLibraryView"
+import {McpView} from "@/components/Learning/McpView"
+import {MultimodalSynthesizeDialog} from "@/components/Learning/MultimodalSynthesizeDialog"
+import {SkillLibraryView} from "@/components/Learning/SkillLibraryView"
+import {isLoggedIn} from "@/hooks/useAuth"
+import {isTauri} from "@/lib/tauri"
+import {useRecordingStore} from "@/stores/recordingStore"
 
 export const Route = createFileRoute("/_layout/learning")({
   component: LearningPage,

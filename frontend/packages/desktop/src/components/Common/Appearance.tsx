@@ -1,18 +1,14 @@
-import { type Theme, useTheme } from "@evoloop/shared/components/theme-provider"
-import { Button } from "@evoloop/shared/components/ui/button"
+import {type Theme, useTheme} from "@evoloop/shared/components/theme-provider"
+import {Button} from "@evoloop/shared/components/ui/button"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
 } from "@evoloop/shared/components/ui/dropdown-menu"
-import {
-  SidebarMenuButton,
-  SidebarMenuItem,
-  useSidebar,
-} from "@evoloop/shared/components/ui/sidebar"
-import { Monitor, Moon, Sun } from "lucide-react"
-import { useTranslation } from "react-i18next"
+import {SidebarMenuButton, SidebarMenuItem, useSidebar,} from "@evoloop/shared/components/ui/sidebar"
+import {Monitor, Moon, Sun} from "lucide-react"
+import {useTranslation} from "react-i18next"
 
 type LucideIcon = React.FC<React.SVGProps<SVGSVGElement>>
 

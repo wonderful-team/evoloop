@@ -1,4 +1,4 @@
-import type { Message } from "./ChatMessageItem"
+import type {Message} from "./ChatMessageItem"
 
 export interface GalleryImage {
   url: string

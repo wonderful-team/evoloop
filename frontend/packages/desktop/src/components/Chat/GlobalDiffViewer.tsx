@@ -1,5 +1,5 @@
-import { useUIStore } from "@/stores/uiStore"
-import { DiffDrawer } from "./DiffDrawer"
+import {useUIStore} from "@/stores/uiStore"
+import {DiffDrawer} from "./DiffDrawer"
 
 export function GlobalDiffViewer() {
   const previewDiff = useUIStore((s) => s.previewDiff)

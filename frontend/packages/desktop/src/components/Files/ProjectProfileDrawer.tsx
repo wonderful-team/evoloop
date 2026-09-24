@@ -1,12 +1,12 @@
-import { Button } from "@evoloop/shared/components/ui/button"
-import { Textarea } from "@evoloop/shared/components/ui/textarea"
-import { AlertCircle, Edit, FileText, Loader2, Save, X } from "lucide-react"
-import { useEffect, useState } from "react"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
-import { ProjectProfilesService } from "@/client/sdk.gen"
-import { AppSheet } from "@/components/Common/AppSheet"
-import { MarkdownRenderer } from "@/components/Common/MarkdownRenderer"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {Textarea} from "@evoloop/shared/components/ui/textarea"
+import {AlertCircle, Edit, FileText, Loader2, Save, X} from "lucide-react"
+import {useEffect, useState} from "react"
+import {useTranslation} from "react-i18next"
+import {toast} from "sonner"
+import {ProjectProfilesService} from "@/client/sdk.gen"
+import {AppSheet} from "@/components/Common/AppSheet"
+import {MarkdownRenderer} from "@/components/Common/MarkdownRenderer"
 
 interface ProfileData {
   content: string | null

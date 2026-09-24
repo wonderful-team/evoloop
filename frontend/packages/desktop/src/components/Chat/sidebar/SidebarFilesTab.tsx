@@ -1,46 +1,38 @@
-import { Button } from "@evoloop/shared/components/ui/button"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {Collapsible, CollapsibleContent, CollapsibleTrigger,} from "@evoloop/shared/components/ui/collapsible"
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@evoloop/shared/components/ui/collapsible"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
 } from "@evoloop/shared/components/ui/dropdown-menu"
+import {Tooltip, TooltipContent, TooltipTrigger,} from "@evoloop/shared/components/ui/tooltip"
+import {cn} from "@evoloop/shared/lib/utils"
+import {useQuery, useQueryClient} from "@tanstack/react-query"
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@evoloop/shared/components/ui/tooltip"
-import { cn } from "@evoloop/shared/lib/utils"
-import { useQuery, useQueryClient } from "@tanstack/react-query"
-import {
-  BookOpen,
-  ChevronDown,
-  ChevronRight,
-  Edit,
-  Files,
-  FolderPlus,
-  Globe,
-  History,
-  RefreshCw,
-  Upload,
-  Wand2,
+    BookOpen,
+    ChevronDown,
+    ChevronRight,
+    Edit,
+    Files,
+    FolderPlus,
+    Globe,
+    History,
+    RefreshCw,
+    Upload,
+    Wand2,
 } from "lucide-react"
-import { useState } from "react"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
-import { FilesService, WikiService } from "@/client"
-import { FileTree } from "@/components/Files/FileTree"
-import { DiscoverDialog } from "@/components/Projects/Modules/Overview/DiscoverDialog"
-import { isGlobalProject, useProjectStore } from "@/stores/projectStore"
-import { useUIStore } from "@/stores/uiStore"
-import { ChangesetTreeSection } from "./ChangesetTreeSection"
+import {useState} from "react"
+import {useTranslation} from "react-i18next"
+import {toast} from "sonner"
+import {FilesService, WikiService} from "@/client"
+import {FileTree} from "@/components/Files/FileTree"
+import {DiscoverDialog} from "@/components/Projects/Modules/Overview/DiscoverDialog"
+import {isGlobalProject, useProjectStore} from "@/stores/projectStore"
+import {useUIStore} from "@/stores/uiStore"
+import {ChangesetTreeSection} from "./ChangesetTreeSection"
 
 interface SidebarFilesTabProps {
   projectId?: number

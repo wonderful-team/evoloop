@@ -8,8 +8,8 @@
  */
 
 import i18n from "@evoloop/shared/i18n"
-import { toast } from "sonner"
-import { SystemService } from "@/client"
+import {toast} from "sonner"
+import {SystemService} from "@/client"
 
 export interface LLMModel {
   id: string

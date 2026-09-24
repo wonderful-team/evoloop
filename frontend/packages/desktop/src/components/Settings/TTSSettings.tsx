@@ -1,21 +1,15 @@
-import { Button } from "@evoloop/shared/components/ui/button"
-import { Label } from "@evoloop/shared/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@evoloop/shared/components/ui/select"
-import { Switch } from "@evoloop/shared/components/ui/switch"
-import { Eye, EyeOff, Play, Volume2 } from "lucide-react"
-import { useEffect, useState } from "react"
-import { useTranslation } from "react-i18next"
-import { useModelManager } from "@/hooks/useModelManager"
-import { type TTSVoice, useAutoSpeak, useTTS } from "@/hooks/useTTS"
-import { isTauri, safeInvoke } from "@/lib/tauri"
-import { SettingsCard } from "./SettingsCard"
-import { useSettings } from "./SettingsContext"
+import {Button} from "@evoloop/shared/components/ui/button"
+import {Label} from "@evoloop/shared/components/ui/label"
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue,} from "@evoloop/shared/components/ui/select"
+import {Switch} from "@evoloop/shared/components/ui/switch"
+import {Eye, EyeOff, Play, Volume2} from "lucide-react"
+import {useEffect, useState} from "react"
+import {useTranslation} from "react-i18next"
+import {useModelManager} from "@/hooks/useModelManager"
+import {type TTSVoice, useAutoSpeak, useTTS} from "@/hooks/useTTS"
+import {isTauri, safeInvoke} from "@/lib/tauri"
+import {SettingsCard} from "./SettingsCard"
+import {useSettings} from "./SettingsContext"
 
 const TTS_ENGINES = [
   { id: "edge-tts", name: "Edge TTS", model: null },
