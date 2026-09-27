@@ -54,7 +54,6 @@ EvoLoop은 **자율 당직형 태스크 에이전트**입니다. 챗봇처럼 �
 - [설치 및 배포](#설치-및-배포)
 - [빌드 및 릴리스](#빌드-및-릴리스)
 - [개발 가이드](#개발-가이드)
-- [라이선스](#라이선스)
 
 ---
 
@@ -250,26 +249,17 @@ npm run lint && npm run typecheck
 
 ---
 
-## 📄 라이선스
-
-MIT 라이선스. 자세한 내용은 [LICENSE](../LICENSE) 참조.
-
----
-
-## ⚠️ 면책 조항
-
-1. 본 프로젝트는 [MIT 라이선스](../LICENSE) 하에 기술 연구 및 학습 목적으로만 제공됩니다.
-2. 에이전트 모드는 일반 채팅보다 훨씬 많은 토큰을 소모합니다. 비용을 모니터링하세요. 에이전트는 로컬 OS에 접근 가능하므로 신뢰할 수 있는 환경에서만 사용하세요.
-3. 고위험 작업은 사람 확인을 트리거합니다. EvoCloud 자격 증명과 로컬 데이터를 안전하게 관리하세요.
-
----
-
 ## 💬 커뮤니티 및 지원
 
 - **공식 사이트**: [evoloop.cn](https://evoloop.cn)
 - **GitHub**: [wonderful-team/evoloop](https://github.com/wonderful-team/evoloop)
 - **Issues**: [GitHub Issues](https://github.com/wonderful-team/evoloop/issues)
 - **이메일**: [preterchan@gmail.com](mailto:preterchan@gmail.com)
+- **微信**: QR 코드를 스캔하여 커뮤니티 그룹에 가입
+
+<p align="center">
+  <img src="https://www.evoloop.cn/assets/images/wechat.png" alt="EvoLoop WeChat" width="200" />
+</p>
 
 ---
 

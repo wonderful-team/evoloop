@@ -54,7 +54,6 @@ Web・デスクトップ・モバイルの 3 端末をカバーし、ウェイ�
 - [インストールとデプロイ](#インストールとデプロイ)
 - [ビルドとリリース](#ビルドとリリース)
 - [開発ガイド](#開発ガイド)
-- [ライセンス](#ライセンス)
 
 ---
 
@@ -250,26 +249,17 @@ npm run lint && npm run typecheck
 
 ---
 
-## 📄 ライセンス
-
-MIT ライセンス。詳細は [LICENSE](../LICENSE) を参照。
-
----
-
-## ⚠️ 免責事項
-
-1. 本プロジェクトは [MIT ライセンス](../LICENSE) の下、技術研究および学習目的でのみ提供されます。
-2. Agent モードは通常チャットより大幅に多くのトークンを消費します。コストを監視してください。Agent はローカル OS にアクセス可能です。信頼できる環境でのみ使用してください。
-3. 高リスク操作は人工確認をトリガーします。EvoCloud 認証情報とローカルデータを安全に管理してください。
-
----
-
 ## 💬 コミュニティとサポート
 
 - **公式サイト**: [evoloop.cn](https://evoloop.cn)
 - **GitHub**: [wonderful-team/evoloop](https://github.com/wonderful-team/evoloop)
 - **Issues**: [GitHub Issues](https://github.com/wonderful-team/evoloop/issues)
 - **メール**: [preterchan@gmail.com](mailto:preterchan@gmail.com)
+- **微信**: QRコードをスキャンして交流グループに参加
+
+<p align="center">
+  <img src="https://www.evoloop.cn/assets/images/wechat.png" alt="EvoLoop 微信群" width="200" />
+</p>
 
 ---
 

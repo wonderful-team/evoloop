@@ -54,7 +54,6 @@ Covers Web, desktop, and mobile, with wake-word-driven natural voice conversatio
 - [Installation & Deployment](#installation--deployment)
 - [Build & Release](#build--release)
 - [Development Guide](#development-guide)
-- [License](#license)
 
 ---
 
@@ -250,26 +249,17 @@ Add a tool: create a file in `backend/app/domain/tools/` and register with `@evo
 
 ---
 
-## 📄 License
-
-MIT License. See [LICENSE](../LICENSE) for details.
-
----
-
-## ⚠️ Disclaimer
-
-1. This project is licensed under the [MIT License](../LICENSE) for technical research and learning only.
-2. Agent mode consumes significantly more tokens than regular chat — monitor your costs. The Agent can access your local operating system; use only in trusted environments.
-3. High-risk operations trigger human confirmation. Keep your EvoCloud credentials and local data secure.
-
----
-
 ## 💬 Community & Support
 
 - **Website**: [evoloop.cn](https://evoloop.cn)
 - **GitHub**: [wonderful-team/evoloop](https://github.com/wonderful-team/evoloop)
 - **Issues**: [GitHub Issues](https://github.com/wonderful-team/evoloop/issues)
 - **Email**: [preterchan@gmail.com](mailto:preterchan@gmail.com)
+- **WeChat**: Scan to join community
+
+<p align="center">
+  <img src="https://www.evoloop.cn/assets/images/wechat.png" alt="EvoLoop WeChat" width="200" />
+</p>
 
 ---
 

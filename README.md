@@ -54,7 +54,6 @@ EvoLoop 是一个**自主值守式任务智能体**：它不像聊天机器人�
 - [安装部署](#安装部署)
 - [构建与发布](#构建与发布)
 - [开发指南](#开发指南)
-- [许可证](#许可证)
 
 ---
 
@@ -239,26 +238,17 @@ npm run lint && npm run typecheck
 
 ---
 
-## 📄 许可证
-
-本项目采用 MIT 许可证。详情请参阅 [LICENSE](./LICENSE) 文件。
-
----
-
-## ⚠️ 免责声明
-
-1. 本项目采用 [MIT 许可证](LICENSE)，仅供技术研究与学习使用。
-2. Agent 模式消耗的 Token 显著高于普通对话，请留意成本。Agent 可访问本地操作系统，请仅在可信环境中使用。
-3. 高风险操作会触发人工确认，请妥善保管 EvoCloud 凭证与本地数据。
-
----
-
 ## 💬 社区与支持
 
 - **官网**: [evoloop.cn](https://evoloop.cn)
 - **GitHub**: [wonderful-team/evoloop](https://github.com/wonderful-team/evoloop)
 - **Issues**: [GitHub Issues](https://github.com/wonderful-team/evoloop/issues)
 - **邮件**: [preterchan@gmail.com](mailto:preterchan@gmail.com)
+- **微信**: 扫码加入交流群
+
+<p align="center">
+  <img src="https://www.evoloop.cn/assets/images/wechat.png" alt="EvoLoop 微信群" width="200" />
+</p>
 
 ---
 
