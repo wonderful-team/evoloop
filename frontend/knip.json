@@ -1,0 +1,9 @@
+{
+  "$schema": "./node_modules/knip/schema.json",
+  "ignore": [
+    "eslint.mobile.config.mjs",
+    "tests/auth.setup.ts",
+    "packages/desktop/src/client/**"
+  ],
+  "ignoreDependencies": ["eslint", "@typescript-eslint/parser"]
+}

@@ -41,8 +41,6 @@ Covers Web, desktop, and mobile, with wake-word-driven natural voice conversatio
 | **Voice Conversation** | Say "Hi Evo" to wake; interrupt while it's speaking; dictate to type; audio never leaves your device |
 | **Operate on Your Behalf** | Works on the devices you already have — web pages in the browser, apps on the desktop, Android / iOS / HarmonyOS phones; away from the computer? Approve and accept from your phone |
 | **Finds Help (A2A)** | The Agent on this machine can hand off work to an Agent on another of your devices — the main flow waits automatically while the task is delegated, resumes instantly when the result returns; the entire delegation is visible in real time on the UI |
-| **Dynamic Tools + MCP** | Write Python tools at runtime and register instantly; mount/unmount MCP services natively |
-| **Deep Code Understanding** | Tree-sitter + vectors + code graphs for navigating large codebases |
 | **Safety Fuses** | Unsure? Pause and ask — never fabricate an answer. Dangerous ops are gated by permissions; secrets never appear in output; runaway loops are cut off decisively |
 | **Ecosystem Ready** | External tools plug in via MCP; domain knowledge packaged as capability packs — swap the takeover target today (mall) for another tomorrow (CRM) without touching core code |
 
@@ -158,7 +156,7 @@ EvoLoop has three deployment modes — choose what fits:
 | **Web Single-User** | Personal server | SQLite + LanceDB + Huey | `.env.prod.web.single` |
 | **Web Multi-User** | Team / enterprise production | PostgreSQL + Redis + Meilisearch + Neo4j + Celery | `.env.prod.web.multi` |
 
-### One-Click Dev Environment (Recommended)
+### Dev Mode (Recommended)
 
 ```bash
 git clone https://github.com/wonderful-team/evoloop.git

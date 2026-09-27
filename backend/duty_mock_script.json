@@ -1,0 +1,418 @@
+[
+  {
+    "when_contains": "以我的立场评审核实",
+    "delay_ms": 800,
+    "text": "经核查原始用户意图与执行汇报，目标全部达成，关键清单校验无误，无逻辑遗漏。\n\n结论：通过"
+  },
+  {
+    "when_contains": "规划成任务图谱",
+    "sequence": [
+      {
+        "delay_ms": 600,
+        "tool": {
+          "name": "tasks",
+          "arguments": {
+            "action": "create",
+            "title": "采集 HN 采购级线索",
+            "description": "监控 Hacker News Ask/Show 版块的高意向采购线索",
+            "risk_level": "T3",
+            "priority": "high",
+            "status": "pending"
+          }
+        }
+      },
+      {
+        "delay_ms": 600,
+        "tool": {
+          "name": "tasks",
+          "arguments": {
+            "action": "create",
+            "title": "抓取 Reddit 与 V2EX 需求帖",
+            "description": "抓取 r/SaaS 及 V2EX 酷工作与问与答采购需求",
+            "risk_level": "T3",
+            "priority": "high",
+            "status": "pending"
+          }
+        }
+      },
+      {
+        "delay_ms": 600,
+        "tool": {
+          "name": "tasks",
+          "arguments": {
+            "action": "create",
+            "title": "全网线索清洗与意向分层",
+            "description": "聚合清洗双源线索，按预估采购客单价进行分层聚类",
+            "parent_id": "{{created_1}}",
+            "dependencies": ["{{created_1}}", "{{created_2}}"],
+            "risk_level": "T3",
+            "priority": "medium",
+            "status": "pending"
+          }
+        }
+      },
+      {
+        "delay_ms": 600,
+        "tool": {
+          "name": "tasks",
+          "arguments": {
+            "action": "create",
+            "title": "高优线索外联方案与个性化草稿",
+            "description": "针对 A 级高意向采购线索定制痛点切入邮件草案与跟进话术",
+            "parent_id": "{{created_3}}",
+            "dependencies": ["{{created_3}}"],
+            "risk_level": "T3",
+            "priority": "medium",
+            "status": "pending"
+          }
+        }
+      },
+      {
+        "delay_ms": 600,
+        "tool": {
+          "name": "tasks",
+          "arguments": {
+            "action": "create",
+            "title": "线索分层反馈与评分规则校准",
+            "description": "根据历史线索转化反馈动态校准意向评分模型规则",
+            "parent_id": "{{created_4}}",
+            "dependencies": ["{{created_3}}", "{{created_4}}"],
+            "risk_level": "T3",
+            "priority": "low",
+            "status": "pending"
+          }
+        }
+      },
+      {
+        "delay_ms": 600,
+        "text": "我已经根据您的需求，在画布上建立了完整的需求挖掘任务图谱（包含 2 个采集根任务、2 个分层与外联子任务、1 个评分校准孙任务，共 5 个相互关联的待执行任务）。当前值守总闸处于关闭状态，任务已全员待命。您在值守界面开启总闸后，系统将立刻开始调度执行！"
+      }
+    ]
+  },
+  {
+    "when_contains": "帮我搭建一条需求挖掘流水线",
+    "when_not_contains": "规划成任务图谱",
+    "delay_ms": 600,
+    "tool": {
+      "name": "question",
+      "arguments": {
+        "prompt": "请问您希望重点监控哪些数据源平台（例如 HN、Reddit、V2EX 等）？采购线索需要按哪些维度进行分层或外联处理？",
+        "input_type": "text"
+      }
+    }
+  },
+  {
+    "when_contains": "【任务】采集 HN",
+    "sequence": [
+      {
+        "delay_ms": 1000,
+        "reasoning": "初始化任务执行计划，调用 plan 工具创建结构化执行清单...",
+        "tool": {
+          "name": "plan",
+          "arguments": {
+            "action": "create",
+            "title": "HN 采购级高优线索检索与结构化入库规划",
+            "steps": [
+              "1. 连接 Hacker News API 并检索 Ask/Show 商业信号",
+              "2. 过滤提取高意向线索并执行一致性校验",
+              "3. 结构化持久化并提交自检报告"
+            ]
+          }
+        }
+      },
+      {
+        "delay_ms": 1000,
+        "reasoning": "正在连接 Hacker News 数据源，检索 Ask HN 与 Show HN 中的企业采购与选型信号...",
+        "tool": {
+          "name": "bash",
+          "arguments": {
+            "command": "python3 -c \"print('[HN Crawler] Connected to API. Scanning latest 500 Ask/Show posts...')\""
+          }
+        }
+      },
+      {
+        "delay_ms": 1000,
+        "reasoning": "完成第一阶段数据扫描，调用 plan 工具更新步骤进度...",
+        "tool": {
+          "name": "plan",
+          "arguments": {
+            "action": "update_step",
+            "status": "completed",
+            "result": "已完成 API 连接与前 500 条 Ask/Show 帖子扫描"
+          }
+        }
+      },
+      {
+        "delay_ms": 1000,
+        "reasoning": "过滤近 24 小时内的帖子内容，识别包含 budget、looking for SaaS、procurement 的商业线索...",
+        "tool": {
+          "name": "bash",
+          "arguments": {
+            "command": "python3 -c \"print('[HN Filter] Parsed 45 candidate threads; extracted 15 verified commercial procurement inquiries.')\""
+          }
+        }
+      },
+      {
+        "delay_ms": 1000,
+        "reasoning": "提取发帖机构、预估预算与需求紧迫度，结构化写入临时数据存储并执行一致性校验...",
+        "tool": {
+          "name": "bash",
+          "arguments": {
+            "command": "python3 -c \"import json; data=[{'id': f'HN-{i+1:03d}', 'type': 'enterprise', 'urgency': 'high'} for i in range(15)]; print(f'[HN Store] Successfully buffered {len(data)} procurement leads.')\""
+          }
+        }
+      },
+      {
+        "delay_ms": 1000,
+        "reasoning": "完成线索提取与持久化，调用 plan 工具更新第二阶段执行结果...",
+        "tool": {
+          "name": "plan",
+          "arguments": {
+            "action": "update_step",
+            "status": "completed",
+            "result": "已提取 15 条已验证的企业采购线索并完成持久化"
+          }
+        }
+      },
+      {
+        "delay_ms": 1000,
+        "reasoning": "数据校验与自检报告生成完毕，调用 plan 工具更新第三阶段执行结果...",
+        "tool": {
+          "name": "plan",
+          "arguments": {
+            "action": "update_step",
+            "status": "completed",
+            "result": "已完成数据结构化持久化与自检指标比对，报告校验通过"
+          }
+        }
+      },
+      {
+        "delay_ms": 1000,
+        "reasoning": "数据采集与结构化处理完毕，各项指标自检通过，提交 self_checked 申请进入审核闭环...",
+        "tool": {
+          "name": "tasks",
+          "arguments": {
+            "action": "update_status",
+            "task_id": "{{task_id}}",
+            "target_status": "self_checked",
+            "result": "采集流程顺利结束，已结构化提取 15 条采购意向线索并完成自检。"
+          }
+        }
+      },
+      {
+        "text": "采集流程顺利结束，已结构化提取 15 条采购意向线索并完成自检，已提交审核。"
+      }
+    ]
+  },
+  {
+    "when_contains": "【任务】抓取 Reddit",
+    "sequence": [
+      {
+        "delay_ms": 1000,
+        "reasoning": "连接 Reddit r/SaaS 与 V2EX 讨论区，配置速率限制并初始化抓取任务...",
+        "tool": {
+          "name": "bash",
+          "arguments": {
+            "command": "python3 -c \"print('[Community Scraper] Connected to Reddit r/SaaS and V2EX API gateways.')\""
+          }
+        }
+      },
+      {
+        "delay_ms": 1000,
+        "reasoning": "拉取最新采购求购讨论帖，过滤灌水与招聘，提取真实业务采购意向...",
+        "tool": {
+          "name": "bash",
+          "arguments": {
+            "command": "python3 -c \"print('[Community Filter] Processed 68 raw threads; 28 high-intent commercial requests identified.')\""
+          }
+        }
+      },
+      {
+        "delay_ms": 1000,
+        "reasoning": "归一化字段：统一预算币种、业务场景标签及采购人联系方式，格式化输出...",
+        "tool": {
+          "name": "bash",
+          "arguments": {
+            "command": "python3 -c \"print('[Community Store] Normalized 28 enterprise inquiries into unified schema.')\""
+          }
+        }
+      },
+      {
+        "delay_ms": 1000,
+        "reasoning": "抓取数据落库完成，自检数据无缺失，提交 self_checked 报告...",
+        "tool": {
+          "name": "tasks",
+          "arguments": {
+            "action": "update_status",
+            "task_id": "{{task_id}}",
+            "target_status": "self_checked",
+            "result": "Reddit 与 V2EX 需求帖子已按时间戳与板块抓取落库，数据自检通过。"
+          }
+        }
+      },
+      {
+        "text": "Reddit 与 V2EX 需求帖子已按时间戳与板块抓取落库，数据自检通过，已提交审核。"
+      }
+    ]
+  },
+  {
+    "when_contains": "【任务】全网线索清洗",
+    "sequence": [
+      {
+        "delay_ms": 1000,
+        "reasoning": "读取上游 Task #T-1 与 #T-2 交付的 15 条 HN 线索与 28 条 Reddit/V2EX 线索...",
+        "tool": {
+          "name": "bash",
+          "arguments": {
+            "command": "python3 -c \"print('[Pipeline Ingest] Aggregated 43 raw procurement leads from upstream tasks #T-1 and #T-2.')\""
+          }
+        }
+      },
+      {
+        "delay_ms": 1000,
+        "reasoning": "执行跨平台实体归一与重复线索消除算法，合并同公司在多渠道发布的采购需求...",
+        "tool": {
+          "name": "bash",
+          "arguments": {
+            "command": "python3 -c \"print('[Pipeline Dedup] Deduplication completed: 43 raw items consolidated into 36 distinct company leads.')\""
+          }
+        }
+      },
+      {
+        "delay_ms": 1000,
+        "reasoning": "在清洗与实体分析过程中发现高频外部讨论源，向任务图谱动态挂载优化提案...",
+        "tool": {
+          "name": "tasks",
+          "arguments": {
+            "action": "create",
+            "source": "agent",
+            "title": "【优化提案】拓展 Twitter/X 线索抓取通道",
+            "description": "基于 HN 与 Reddit 线索清洗经验，发现 Twitter/X 上关于 SaaS 采购的技术决策人讨论热度极高，建议在下一轮迭代中接入 X Developer API 抓取相关求购推文",
+            "priority": "low",
+            "risk_level": "T3"
+          }
+        }
+      },
+      {
+        "delay_ms": 1000,
+        "reasoning": "应用采购客单价与意向紧迫度分层聚类模型，划定 Tier A、Tier B、Tier C 三级阶梯...",
+        "tool": {
+          "name": "bash",
+          "arguments": {
+            "command": "python3 -c \"print('[Pipeline Stratify] Tier distribution: Tier A (Immediate/High Budget): 8, Tier B (Evaluating): 16, Tier C: 12.')\""
+          }
+        }
+      },
+      {
+        "delay_ms": 1000,
+        "reasoning": "分层矩阵已构建，产物持久化就绪，自检无误，提交 self_checked...",
+        "tool": {
+          "name": "tasks",
+          "arguments": {
+            "action": "update_status",
+            "task_id": "{{task_id}}",
+            "target_status": "self_checked",
+            "result": "双源线索清洗去重完毕，已完成 A/B/C 三级采购意向分层，并已挂载优化提案。"
+          }
+        }
+      },
+      {
+        "text": "双源线索清洗去重完毕，已完成 A/B/C 三级采购意向分层，并挂出拓展 Twitter/X 抓取通道的新提案，已提交审核。"
+      }
+    ]
+  },
+  {
+    "when_contains": "【任务】高优线索外联",
+    "sequence": [
+      {
+        "delay_ms": 1000,
+        "reasoning": "加载上游 Task #T-3 产出的 8 条 Tier A 级头部高意向采购线索...",
+        "tool": {
+          "name": "bash",
+          "arguments": {
+            "command": "python3 -c \"print('[Outreach Ingest] Loaded 8 Tier A enterprise profiles and requirement dossiers.')\""
+          }
+        }
+      },
+      {
+        "delay_ms": 1000,
+        "reasoning": "深入分析每家企业的技术栈痛点与采购顾虑，检测到存在跨国团队需确认外联策略，发起 HITL 决策请求...",
+        "tool": {
+          "name": "question",
+          "arguments": {
+            "prompt": "已筛选出 8 条 Tier A 级高意向采购线索，其中 3 家为海外跨国团队。是否对这 3 家启用定制双语外联序列？",
+            "input_type": "confirmation",
+            "options": ["启用双语外联序列并继续", "使用通用英文序列", "暂不外联"]
+          }
+        }
+      },
+      {
+        "delay_ms": 1000,
+        "reasoning": "用户 HITL 决策已批准，启用双语外联序列，起草多触点外联跟进序列：包含首轮 Cold Email、LinkedIn 邀约话术与跟进邮件序列...",
+        "tool": {
+          "name": "bash",
+          "arguments": {
+            "command": "python3 -c \"print('[Outreach Draft] 8 sets of 3-touch outreach email sequences and bilingual templates drafted.')\""
+          }
+        }
+      },
+      {
+        "delay_ms": 1000,
+        "reasoning": "外联材料质量自检无逻辑漏洞，触达话术合规性审查通过，提交 self_checked...",
+        "tool": {
+          "name": "tasks",
+          "arguments": {
+            "action": "update_status",
+            "task_id": "{{task_id}}",
+            "target_status": "self_checked",
+            "result": "针对高优线索的个性化外联文案与双语触达话术均已撰写完毕，HITL 确认通过，质量自检通过。"
+          }
+        }
+      },
+      {
+        "text": "针对高优线索的个性化外联文案与触达话术均已撰写完毕，质量自检通过，已提交审核。"
+      }
+    ]
+  },
+  {
+    "when_contains": "【任务】线索分层反馈与评分规则校准",
+    "sequence": [
+      {
+        "delay_ms": 1000,
+        "reasoning": "加载历史外联转化率与上游各阶段漏斗指标，构建模型校准评估基线...",
+        "tool": {
+          "name": "bash",
+          "arguments": {
+            "command": "python3 -c \"print('[Model Eval] Evaluated scoring baseline against historical outreach conversion records.')\""
+          }
+        }
+      },
+      {
+        "delay_ms": 1000,
+        "reasoning": "执行模型回归测试套件，核验新评分模型在历史验证集上的准确率与稳定性...",
+        "tool": {
+          "name": "bash",
+          "arguments": {
+            "command": "python3 -c \"print('[Model Anomaly] Warning: sample variance delta=0.68 exceeds safety tolerance (0.35). Regression test failed.')\""
+          }
+        }
+      },
+      {
+        "delay_ms": 1000,
+        "reasoning": "历史转化样本方差超标（delta=0.68 > 0.35），触发安全防御机制，将任务标记为 failed 熔断...",
+        "tool": {
+          "name": "tasks",
+          "arguments": {
+            "action": "update_status",
+            "task_id": "{{task_id}}",
+            "target_status": "failed",
+            "result": "[DataInspectionFailed] 历史样本数据方差超标（delta=0.68 > 0.35），转化样本置信区间不满足回归条件，评分规则校准触发安全熔断。"
+          }
+        }
+      },
+      {
+        "text": "线索分层反馈与评分规则校准任务执行遇到数据异常，已按安全策略触发熔断并标记为失败状态。"
+      }
+    ]
+  }
+]

@@ -1,0 +1,49 @@
+# E2E 缺陷报告：test_ai_completed_voice_supervisor
+
+- **测试 ID**: `tests/e2e/test_22_channel_policy.py::TestAIMessageBlockRouting::test_ai_completed_voice_supervisor`
+- **发现时间**: 2026-08-05T18:54:19.568872
+- **测试阶段**: Class
+- **运行结果**: failed
+- **失败类型**: call
+
+## 预期行为
+
+测试应通过，对应链路按文档描述正常返回数据。
+
+## 实际行为
+
+```
+self = <tests.e2e.test_22_channel_policy.TestAIMessageBlockRouting object at 0x14fe89e10>
+
+    async def test_ai_completed_voice_supervisor(self) -> None:
+>       assert OutputChannelPolicy.resolve(_block("ai", "completed"), "voice", "supervisor") == {"sse", "mobile", "voice"}
+
+tests/e2e/test_22_channel_policy.py:52: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+role = 'ai', status = 'completed'
+
+    def _block(role: str, status: str) -> MessageBlock:
+>       return MessageBlock(role=role, content="x", status=status, thread_id="t")
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for MessageBlock
+E       id
+E         Field required [type=missing, input_value={'role': 'ai', 'content':...eted', 'thread_id': 't'}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+
+tests/e2e/test_22_channel_policy.py:20: ValidationError
+```
+
+## 环境信息
+
+- 服务地址: http://127.0.0.1:20160
+- 测试账号: preterchan
+- 测试会话 ID: 见测试日志
+
+## 复现步骤
+
+1. 启动后端服务: `cd evoloop/backend && ./bin/evo start`
+2. 运行测试: `uv run pytest tests/e2e/test_22_channel_policy.py::TestAIMessageBlockRouting::test_ai_completed_voice_supervisor -v`
+
+## 备注
+
+本报告由 E2E 测试自动生成，需人工确认根因并补充分类（如 API 契约 / 路由 / 引擎 / 语音 / 移动网关等）。

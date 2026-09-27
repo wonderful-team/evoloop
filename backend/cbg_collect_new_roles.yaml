@@ -1,0 +1,113 @@
+# ============================================================================
+# CBG 每日新上架角色采集宏
+# 格式：evoloop-macro（MacroEngine 原生格式）
+# 说明：打开藏宝阁 → 进入"角色"列表 → 使用 collect_loop(collect_mode=list)
+#       逐屏 dump_ui + 滚动 + 去重，收集新上架角色；最后用 bash 步骤把
+#       收集结果解析为结构化数据并落盘。
+# ============================================================================
+version: '1.0'
+metadata:
+  format: evoloop-macro
+  description: 每日采集藏宝阁新上架角色详细信息（含门派/等级/区服/成就/总修/总宠修/价格/上架时间/标签）
+  device: HYC5T19B11003570
+
+steps:
+  # ── 1. 冷启动藏宝阁 ──────────────────────────────────────────────
+  - step_number: 1
+    type: action
+    source: mobile
+    event_type: open_app
+    description: 打开藏宝阁 App
+    payload:
+      package_name: 'com.netease.cbg'
+      force_stop: true
+
+  # ── 2. 等待冷启动完成（loading → 首页）────────────────────────────
+  - step_number: 2
+    type: action
+    source: mobile
+    event_type: wait
+    payload:
+      seconds: 6
+
+  # ── 3. 点击底部导航"角色"Tab ─────────────────────────────────────
+  - step_number: 3
+    type: action
+    source: mobile
+    event_type: tap
+    description: 点击底部导航栏 角色 Tab
+    payload:
+      x: 335          # bounds [232,645][438,852] 中心
+      y: 748
+
+  - step_number: 4
+    type: action
+    source: mobile
+    event_type: wait
+    payload:
+      seconds: 4
+
+  # ── 5. 兜底：若未进入角色列表（用“总修:”特征判定）再点一次 ──────────
+  - step_number: 5
+    type: if
+    source: mobile
+    condition:
+      type: element_visible
+      target_selector: '总修:'
+    then_steps:
+      - type: action
+        source: mobile
+        event_type: wait
+        payload:
+          seconds: 1
+    else_steps:
+      - type: action
+        source: mobile
+        event_type: tap
+        payload:
+          x: 335
+          y: 748
+      - type: action
+        source: mobile
+        event_type: wait
+        payload:
+          seconds: 4
+
+  # ── 6. collect_loop LIST 阶段：逐屏收集角色卡片 ──────────────────
+  # 内部逻辑（engine/loops.py _handle_collect_loop）：
+  #   per screen: adb dump_ui → 按 anchor pattern 从 XML 提取节点内容
+  #               → signature 去重 → scroll down → 下一屏
+  - step_number: 6
+    type: loop
+    source: mobile
+    collect_mode: list
+    description: 扫描角色列表，收集全部新上架角色
+    payload:
+      state_file: /tmp/cbg_collect.json
+      list_config:
+        max_screens: 12                 # 最多扫描 12 屏（约 12*11≈120+ 候选）
+        swipe_distance: 900             # 每屏滑动距离 px
+        wait_after_swipe_ms: 1500
+        anchor_element:
+          type: price                   # 锚点：content-desc 含 ￥价格
+          pattern: '￥[0-9,.]+'
+          node_name: node
+        feature_region:
+          offset_y: -200
+          height: 200
+          max_features: 4
+
+  # ── 7. bash：解析 collect 结果 → 结构化角色数据 → 增量落盘 ─────────
+  - step_number: 7
+    type: bash
+    source: mobile
+    description: 解析采集结果并生成本批次结构化角色数据
+    payload:
+      command: >-
+        python3 /tmp/cbg_process_collected.py
+        /tmp/cbg_collect.json
+        /tmp/cbg_roles_collected.json
+        /tmp/cbg_roles_daily.jsonl
+        2>&1 | tail -20
+      key: cbg_report
+      timeout: 60
