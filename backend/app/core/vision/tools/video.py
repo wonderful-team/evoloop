@@ -257,9 +257,3 @@ async def _generate(
     except Exception as e:
         logger.exception(f"[Video] generate failed: {e}")
         return f"Error: video generation failed: {str(e)}"
-
-
-async def _download_video_bytes(client, video_id: str) -> bytes:
-    """Download a completed video's content and return its bytes."""
-    response = await client.with_raw_response.videos.download_content(video_id)
-    return await response.aread()

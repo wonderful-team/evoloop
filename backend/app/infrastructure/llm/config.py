@@ -1,7 +1,6 @@
 import json
 import logging
 
-from app.infrastructure.config.service import SystemConfigService
 from app.infrastructure.llm.thinking_adapter import (
     detect_model_family,
     extract_reasoning_from_kwargs,
@@ -86,52 +85,3 @@ class LLMConfigService:
             raise ValueError("Empty response from LLM")
 
         return True, content
-
-    @staticmethod
-    async def applied_llm_config(
-        provider: str,
-        base_url: str,
-        model: str,
-        vision_model: str = None,
-        vision_base_url: str = None,
-        vision_api_key: str = None,
-        vision_provider_type: str = None,
-        api_key: str = None,
-    ):
-        """
-        Updates System Config for LLM.
-        Non-destructive logic (unlike Embeddings).
-
-        Supports independent Vision endpoint configuration (e.g., local VLM).
-        """
-
-        # 1. Validate main LLM connection
-        await LLMConfigService.validate_connection(provider, base_url, model, api_key)
-
-        # 2. Validate Vision connection if independent endpoint is provided
-        if vision_base_url:
-            vision_provider = vision_provider_type or provider
-            vision_key = vision_api_key or api_key
-            await LLMConfigService.validate_connection(
-                vision_provider, vision_base_url, vision_model or model, vision_key
-            )
-
-        # 3. Update Config
-        SystemConfigService.set_value("LLM_PROVIDER", provider)
-        SystemConfigService.set_value("LLM_BASE_URL", base_url)
-        SystemConfigService.set_value("LLM_MODEL", model)
-
-        if vision_model:
-            SystemConfigService.set_value("VISION_MODEL", vision_model)
-
-        if vision_base_url:
-            SystemConfigService.set_value("VISION_BASE_URL", vision_base_url)
-
-        if vision_api_key:
-            SystemConfigService.set_value("VISION_API_KEY", vision_api_key)
-
-        if vision_provider_type:
-            SystemConfigService.set_value("VISION_PROVIDER_TYPE", vision_provider_type)
-
-        if api_key:
-            SystemConfigService.set_value("LLM_API_KEY", api_key)

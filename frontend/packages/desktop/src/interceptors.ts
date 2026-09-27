@@ -119,43 +119,6 @@ interface BenefitErrorInfo {
   upgradeUrl?: string
 }
 
-// 自定义权益错误类
-export class BenefitRequiredError extends Error {
-  public info: BenefitErrorInfo
-
-  constructor(info: BenefitErrorInfo) {
-    super(info.message || i18n.t("subscription.errors.subscriptionRequired"))
-    this.name = "BenefitRequiredError"
-    this.info = info
-  }
-}
-
-/**
- * 检查错误是否为权限错误
- */
-export function isBenefitRequiredError(error: unknown): boolean {
-  if (error instanceof BenefitRequiredError) {
-    return true
-  }
-  if (error instanceof Error) {
-    return (
-      error.message === "BENEFIT_REQUIRED" ||
-      error.name === "BenefitRequiredError"
-    )
-  }
-  return false
-}
-
-/**
- * 获取权益错误信息
- */
-export function getBenefitErrorInfo(error: unknown): BenefitErrorInfo | null {
-  if (error instanceof BenefitRequiredError) {
-    return error.info
-  }
-  return null
-}
-
 /**
  * 检查 API 错误是否为权益错误（只检查，不显示toast）
  * 用于组件中判断是否需要显示通用错误

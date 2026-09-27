@@ -1,4 +1,8 @@
-import { AgentExecutionTimeline, type TraceNodeItem } from "@evoloop/shared"
+import {
+  AgentExecutionTimeline,
+  HumanRequestCard as SharedHumanRequestCard,
+  type TraceNodeItem,
+} from "@evoloop/shared"
 import { Button } from "@evoloop/shared/components/ui/button"
 import { linkifyText } from "@evoloop/shared/lib/linkify"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
@@ -641,6 +645,40 @@ export function ExecutionPanel({
                 <Sparkles className="h-3.5 w-3.5 text-emerald-500" />
                 返回查看最终交付结果
               </Button>
+            </div>
+          )}
+
+          {hasHitl && !isReviewing && (
+            <div className="mt-2 space-y-2">
+              {taskHitl.map((h) => {
+                const actualThread = h.thread_id ?? threadId ?? task.last_thread_id ?? ""
+                return (
+                  <SharedHumanRequestCard
+                    key={h.request_id}
+                    request={{
+                      id: h.request_id,
+                      type: h.type,
+                      prompt: h.description ?? "",
+                      options: h.options ?? ([] as string[]),
+                      context: h.context ?? null,
+                      thread_id: actualThread,
+                    }}
+                    onRespond={async (res, mode) => {
+                      await AgentService.resumeChat({
+                        requestBody: {
+                          thread_id: actualThread,
+                          user_input: res,
+                          grant_mode: mode ?? "once",
+                        },
+                      })
+                      onChanged()
+                      void qc.invalidateQueries({ queryKey: ["dutyHitl"] })
+                      void qc.invalidateQueries({ queryKey: ["dutyQueue"] })
+                      void qc.invalidateQueries({ queryKey: ["dutyExec"] })
+                    }}
+                  />
+                )
+              })}
             </div>
           )}
 

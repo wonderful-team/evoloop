@@ -94,12 +94,49 @@ def run_api():
 
     from app.core.config import settings
 
+    # 硬闸 1（文件锁单例）：api 进程持有排他锁直到退出——比端口探针可靠
+    # （端口探针存在 macOS 双绑/竞态绕过，2026-09-25 实测两实例并存）。
+    # 锁随进程生死自动释放（含 SIGKILL），无残留。
+    import fcntl
+
+    _lock_path = PROJECT_DIR / "logs" / "api.lock"
+    _lock_path.parent.mkdir(parents=True, exist_ok=True)
+    _lock_fd = os.open(str(_lock_path), os.O_CREAT | os.O_RDWR)
+    try:
+        fcntl.flock(_lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        sys.stderr.write(
+            "[run.py] 单例锁已被持有：已有 API 实例在运行，拒绝启动"
+            "（幽灵 supervisor 会造成双派发并行）。如需重启请先 `evo stop`。\n"
+        )
+        sys.exit(2)
+    os.write(_lock_fd, f"pid={os.getpid()} started={datetime.now().isoformat()}\n".encode())
+
     _setup_log_redirect("api")
 
     host = os.getenv("HOST", "0.0.0.0")
     port = int(os.getenv("PORT", "20160"))
     workers = int(os.getenv("WORKERS", "1"))
     reload = os.getenv("RELOAD", "false").lower() == "true"
+
+    # 硬闸 2（端口探针，防御第二层）：端口已被占用 → 直接退出。否则会出现
+    # "无端口但 supervisor 照跑"的幽灵实例——两个 dispatcher 各自认领派发，
+    # 值守任务并行执行（2026-09-25 实测脑裂事故：执行中 2，串行失效）。
+    if not reload:
+        import socket
+
+        probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        probe.settimeout(1.0)
+        try:
+            probe.connect(("127.0.0.1", port))
+            probe.close()
+            sys.stderr.write(
+                f"[run.py] 端口 {port} 已被占用：已有 API 实例在运行，拒绝启动"
+                "（幽灵 supervisor 会造成双派发并行）。如需重启请先 `evo stop`。\n"
+            )
+            sys.exit(2)
+        except OSError:
+            probe.close()
 
     print(f"Starting API Server on {host}:{port} (workers={workers})")
     uvicorn.run(

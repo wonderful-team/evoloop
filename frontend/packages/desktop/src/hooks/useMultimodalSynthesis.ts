@@ -1,8 +1,6 @@
-import i18n from "@evoloop/shared/i18n"
 import {useCallback, useState} from "react"
 import {useTranslation} from "react-i18next"
 import {LearningService} from "@/client/sdk.gen"
-import {safeInvoke} from "@/lib/tauri"
 
 export interface SynthesisResult {
   success: boolean
@@ -15,7 +13,7 @@ export interface SynthesisResult {
   events_processed: number
 }
 
-export interface UseMultimodalSynthesisOptions {
+interface UseMultimodalSynthesisOptions {
   onSuccess?: (result: SynthesisResult) => void
   onError?: (error: Error) => void
 }
@@ -115,84 +113,5 @@ export function useMultimodalSynthesis(
     previewRecording,
     isSynthesizing,
     progress,
-  }
-}
-
-/**
- * 结合录制的完整 Hook
- *
- * 管理录制状态 + Skill 合成
- */
-export function useRecordingWithSynthesis() {
-  const [recordingState, setRecordingState] = useState<{
-    isRecording: boolean
-    sessionId: string | null
-    videoPath: string | null
-  }>({
-    isRecording: false,
-    sessionId: null,
-    videoPath: null,
-  })
-
-  const synthesis = useMultimodalSynthesis()
-
-  const startRecording = useCallback(async () => {
-    const sessionId = `rec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
-
-    await safeInvoke("start_screen_recording")
-
-    setRecordingState({
-      isRecording: true,
-      sessionId,
-      videoPath: null,
-    })
-
-    return sessionId
-  }, [])
-
-  const stopRecording = useCallback(async () => {
-    if (!recordingState.isRecording) return null
-
-    try {
-      const videoPath = await safeInvoke<string>("stop_screen_recording")
-
-      setRecordingState((prev) => ({
-        ...prev,
-        isRecording: false,
-        videoPath,
-      }))
-
-      return {
-        sessionId: recordingState.sessionId!,
-        videoPath,
-      }
-    } catch (error) {
-      console.error("Failed to stop recording:", error)
-      return null
-    }
-  }, [recordingState.isRecording, recordingState.sessionId])
-
-  const synthesizeFromRecording = useCallback(
-    async (taskDescription: string, threadId?: string) => {
-      if (!recordingState.videoPath || !recordingState.sessionId) {
-        throw new Error(i18n.t("learning.noRecordingAvailable"))
-      }
-
-      return synthesis.synthesize({
-        videoPath: recordingState.videoPath,
-        sessionId: recordingState.sessionId,
-        taskDescription,
-        threadId,
-      })
-    },
-    [recordingState, synthesis],
-  )
-
-  return {
-    ...recordingState,
-    startRecording,
-    stopRecording,
-    synthesizeFromRecording,
-    isSynthesizing: synthesis.isSynthesizing,
   }
 }

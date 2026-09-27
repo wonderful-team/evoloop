@@ -190,24 +190,3 @@ class ControllerResponse:
         else:
             message = "Failed to capture screenshot"
             return ControllerResponse.error(message=message, details=error)
-
-    @staticmethod
-    def screenshot_analysis(analysis_text: str, prompt_used: str | None = None) -> str:
-        """Render a screenshot analysis response."""
-        details = analysis_text
-        note = f"Analysis prompt: {prompt_used}" if prompt_used else None
-        return ControllerResponse.success(
-            message="Screenshot analysis completed",
-            details=details,
-            note=note
-        )
-
-    @staticmethod
-    def connection_result(
-        device_id: str, connected: bool = True, error: str | None = None
-    ) -> str:
-        """Render a device connection result response."""
-        if connected:
-            return ControllerResponse.success(f"Connected to device: {device_id}")
-        else:
-            return ControllerResponse.error(f"Failed to connect to device: {device_id}", details=error)

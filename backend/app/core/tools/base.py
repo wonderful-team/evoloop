@@ -108,10 +108,6 @@ class StructuredTool:
         self.metadata = {}
         self.handle_tool_error = True
 
-    @classmethod
-    def from_function(cls, func, name: str, description: str) -> "StructuredTool":
-        return cls(func, name, description)
-
     async def ainvoke(self, args: Any, config: dict | None = None) -> Any:
         kwargs = {}
         if isinstance(args, dict):

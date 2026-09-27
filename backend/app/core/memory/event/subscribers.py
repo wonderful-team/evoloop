@@ -408,10 +408,6 @@ class MemoryRewind:
         except Exception as e:
             logger.exception(f"[MemoryRewind] Failed to regenerate MEMORY.md: {e}")
 
-    def get_deleted_count(self) -> int:
-        """Get the count of memories deleted in the last operation."""
-        return self._deleted_count
-
 
 @event_register()
 class MemoryConversationCleanup:

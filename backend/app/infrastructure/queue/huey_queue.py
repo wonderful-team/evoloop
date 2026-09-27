@@ -31,7 +31,7 @@ except ImportError:
     Task = None
 
 
-from app.infrastructure.queue.base import SyncTaskMixin, TaskResult, TaskScheduler
+from app.infrastructure.queue.base import TaskResult, TaskScheduler
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +97,8 @@ class HueyTaskResult(TaskResult):
         return not isinstance(result, Exception)
 
 
-class HueyTaskScheduler(TaskScheduler, SyncTaskMixin):
+class HueyTaskScheduler(TaskScheduler):
+
     """
     Huey-based task scheduler for embedded mode.
 

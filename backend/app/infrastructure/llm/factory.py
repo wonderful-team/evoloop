@@ -14,7 +14,7 @@ from app.infrastructure.llm.thinking_adapter import (
     build_openai_reasoning_extra,
     detect_model_family,
 )
-from app.infrastructure.schemas import LLMCacheStats, LLMConfig, ThinkingConfig
+from app.infrastructure.schemas import LLMConfig, ThinkingConfig
 from app.utils.async_utils import LoopBoundResource
 
 logger = logging.getLogger(__name__)
@@ -432,18 +432,6 @@ class LLMFactory:
             http_async_client=HTTP_CLIENT_POOL.get(),
             extra_body=merged_extra,
             default_headers=final_headers if final_headers else None,
-        )
-
-    @staticmethod
-    def get_cache_stats() -> LLMCacheStats:
-        """Get LLM instance cache statistics."""
-        total = LLMFactory._cache_hits + LLMFactory._cache_misses
-        hit_rate = LLMFactory._cache_hits / total if total > 0 else 0
-        return LLMCacheStats(
-            cache_hits=LLMFactory._cache_hits,
-            cache_misses=LLMFactory._cache_misses,
-            hit_rate=f"{hit_rate:.1%}",
-            cached_instances=sum(len(c) for c in LLMFactory._instance_cache.values()),
         )
 
     @staticmethod

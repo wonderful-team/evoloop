@@ -843,6 +843,8 @@ class TaskQueueService:
         # 周期任务误杀（2026-09-22 实测：售后 5 轮真实巡检全成功仍被熔断）。
         if result is not None:
             values["last_result"] = _clamp_result(result)
+            if effective == "failed":
+                values["last_error"] = _clamp_result(result)
         if status == "self_checked":
             values["review_pending"] = review_requested
         if self_check is not None:
@@ -914,8 +916,8 @@ class TaskQueueService:
                     status="succeeded",
                     result_summary=result,
                 )
-        if effective != status:
-            # recurring 自检回队：立即唤醒 supervisor 接续下一轮
+        if effective != status or effective == "completed":
+            # 状态实质改变或完成（解锁下游依赖）：立即唤醒 supervisor 接续调度
             notify_duty_wakeup()
         updated = await TaskQueueService.get_task(task_id)
         assert updated is not None
@@ -1213,6 +1215,9 @@ class TaskQueueService:
                     extra={"by": by, "feedback": feedback},
                 )
                 return updated
+            notify_duty_wakeup()
+        else:
+            # 验收通过（任务 completed）：下游依赖立即满足，必须唤醒 supervisor 立即派发下游任务（杜绝 60s 超时兜底等待）
             notify_duty_wakeup()
         updated = await TaskQueueService.get_task(task_id)
         assert updated is not None

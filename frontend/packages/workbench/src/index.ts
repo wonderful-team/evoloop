@@ -7,7 +7,6 @@
 
 // Autonomous Duty Workbench 统一入口
 export { DutyWorkbench, AutonomousDutyPage } from "./DutyWorkbench"
-export { default } from "./DutyWorkbench"
 
 // 画布领域导出
 export { default as AutonomousDutyCanvasApp } from "./canvas/AutonomousDutyCanvasApp"

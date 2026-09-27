@@ -13,6 +13,7 @@ export type Item = {
   icon: LucideIcon
   title: string
   path: string
+  dataTour?: string
 }
 
 interface MainProps {
@@ -45,7 +46,11 @@ export function Main({ items }: MainProps) {
                   asChild
                   className="text-sidebar-foreground/50 hover:text-sidebar-foreground/90 data-[active=true]:text-sidebar-foreground/90 data-[active=true]:bg-sidebar-accent/60"
                 >
-                  <RouterLink to={item.path} onClick={handleMenuClick}>
+                  <RouterLink
+                    to={item.path}
+                    onClick={handleMenuClick}
+                    data-tour={item.dataTour}
+                  >
                     <item.icon />
                     <span>{item.title}</span>
                   </RouterLink>

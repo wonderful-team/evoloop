@@ -53,45 +53,6 @@ class CoordinateNormalizer:
             return None
         return (round(x / self.original[0], 4), round(y / self.original[1], 4))
 
-    def denormalize_to_compressed(
-        self,
-        norm_x: float,
-        norm_y: float,
-        compressed_width: int,
-        compressed_height: int,
-    ) -> tuple[int, int]:
-        return (int(norm_x * compressed_width), int(norm_y * compressed_height))
-
-    @staticmethod
-    def describe_position(norm_x: float, norm_y: float) -> str:
-        if norm_x < 0.15:
-            h = "far left"
-        elif norm_x < 0.35:
-            h = "left"
-        elif norm_x < 0.65:
-            h = "center"
-        elif norm_x < 0.85:
-            h = "right"
-        else:
-            h = "far right"
-        if norm_y < 0.15:
-            v = "top"
-        elif norm_y < 0.35:
-            v = "upper"
-        elif norm_y < 0.65:
-            v = "middle"
-        elif norm_y < 0.85:
-            v = "lower"
-        else:
-            v = "bottom"
-        if norm_x < 0.1 or norm_x > 0.9:
-            if norm_y < 0.1:
-                return f"top-{h} corner"
-            elif norm_y > 0.9:
-                return f"bottom-{h} corner"
-            return f"{v} edge ({h})"
-        return f"{v}-{h}"
-
 
 class FrameCompressor:
     TARGET_SIZE_KB = 100

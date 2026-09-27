@@ -277,10 +277,6 @@ class FileRewind:
 
         return count
 
-    def get_reverted_count(self) -> int:
-        """Get the count of files reverted in the last operation."""
-        return self._reverted_count
-
     @event_subscribe(RewindEventType.FILES_CLEANUP)
     async def _handle_files_cleanup(self, event) -> None:
         """Helper to test file reverting with a mock event list directly."""

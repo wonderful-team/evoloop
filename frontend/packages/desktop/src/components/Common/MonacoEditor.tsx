@@ -19,7 +19,7 @@ interface MonacoEditorProps {
   options?: monaco.editor.IStandaloneEditorConstructionOptions
 }
 
-export interface MonacoEditorRef {
+interface MonacoEditorRef {
   getValue: () => string
   setValue: (value: string) => void
 }
@@ -39,7 +39,7 @@ const loadMonaco = async () => {
   return monacoInstance
 }
 
-export const MonacoEditor = forwardRef<MonacoEditorRef, MonacoEditorProps>(
+const MonacoEditor = forwardRef<MonacoEditorRef, MonacoEditorProps>(
   function MonacoEditor(
     {
       value,

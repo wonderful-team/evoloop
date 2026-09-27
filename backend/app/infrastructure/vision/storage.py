@@ -537,26 +537,6 @@ class ScreenRecordingStorage:
 
         return stats
 
-    def check_storage_limits(self) -> dict[str, any]:
-        """
-        Check if storage limits are exceeded.
-
-        Returns:
-            Dict with limit status and details
-        """
-        stats = self.get_stats()
-        total_size_gb = (stats["videos"]["total_size_mb"] + stats["frames"]["total_size_mb"]) / 1024
-
-        result = {
-            "total_size_gb": round(total_size_gb, 2),
-            "max_size_gb": settings.SCREEN_RECORDING_MAX_SIZE_GB,
-            "size_limit_exceeded": total_size_gb > settings.SCREEN_RECORDING_MAX_SIZE_GB,
-            "videos_count": stats["videos"]["file_count"],
-            "frames_count": stats["frames"]["file_count"],
-        }
-
-        return result
-
 
 # Singleton instance
 screen_recording_storage = ScreenRecordingStorage()

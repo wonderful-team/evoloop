@@ -199,5 +199,3 @@ export function SetupWizard({ open, onOpenChange }: SetupWizardProps) {
     </Dialog>
   )
 }
-
-export default SetupWizard

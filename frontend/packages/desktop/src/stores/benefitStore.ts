@@ -1,6 +1,6 @@
 import {create} from "zustand"
 
-export interface BenefitRequirementInfo {
+interface BenefitRequirementInfo {
   feature?: string
   featureName?: string
   requiredPlan?: string

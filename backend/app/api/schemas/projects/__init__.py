@@ -34,12 +34,6 @@ class ImportProjectByPathResponse(BaseAPIResponse):
     name: str
 
 
-class UpdateProjectRequest(DynamicBaseModel):
-    name: str | None = None
-    description: str | None = None
-    path: str | None = None
-
-
 class ProjectStatusActivity(DynamicBaseModel):
     status: str = "idle"
     updated_at: float = 0.0
@@ -104,7 +98,6 @@ __all__ = [
     "CreateProjectRequest",
     "ImportProjectByPathRequest",
     "ImportProjectByPathResponse",
-    "UpdateProjectRequest",
     "ProjectStatusActivity",
     "ProjectStatusResponse",
     "ProjectDeleteResponse",

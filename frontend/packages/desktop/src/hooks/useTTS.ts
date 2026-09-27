@@ -31,7 +31,7 @@ function stripMarkdown(text: string): string {
     .trim()
 }
 
-export interface TTSOptions {
+interface TTSOptions {
   voiceId?: string
   speed?: number
   format?: "mp3" | "opus" | "aac" | "flac"
@@ -316,48 +316,4 @@ export function useAutoSpeak() {
   }, [])
 
   return { autoSpeak, toggleAutoSpeak, setAutoSpeak }
-}
-
-// Queue-based TTS for sequential playback
-export function useTTSQueue() {
-  const { speak, stop, isSpeaking, ...rest } = useTTS()
-  const queueRef = useRef<string[]>([])
-  const [queueLength, setQueueLength] = useState(0)
-
-  const speakNext = useCallback(async () => {
-    if (isSpeaking || queueRef.current.length === 0) return
-
-    const text = queueRef.current.shift()
-    setQueueLength(queueRef.current.length)
-
-    if (text) {
-      await speak(text)
-      // After speaking, try to speak next
-      speakNext()
-    }
-  }, [isSpeaking, speak])
-
-  const enqueue = useCallback(
-    (text: string) => {
-      queueRef.current.push(text)
-      setQueueLength(queueRef.current.length)
-      speakNext()
-    },
-    [speakNext],
-  )
-
-  const clearQueue = useCallback(() => {
-    queueRef.current = []
-    setQueueLength(0)
-    stop()
-  }, [stop])
-
-  return {
-    ...rest,
-    isSpeaking,
-    queueLength,
-    enqueue,
-    clearQueue,
-    stop,
-  }
 }

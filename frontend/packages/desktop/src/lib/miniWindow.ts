@@ -10,7 +10,7 @@ import {safeGetCurrentWindow} from "./tauri"
 
 const RESTORE_KEY = "chat.mini.restore"
 
-export const MINI_WIDTH = 400
+const MINI_WIDTH = 400
 
 interface RestoreSnapshot {
   w: number

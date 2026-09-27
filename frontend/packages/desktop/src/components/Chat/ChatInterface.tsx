@@ -323,10 +323,11 @@ export function ChatInterface() {
     if (initRanRef.current) return
     initRanRef.current = true
 
-    // Get initial thread ID from URL if present, or create new
+    // Get initial thread ID from URL if present, or retain current active thread, or create new
     const params = getChatSearchParams()
     const tid = params.get("thread_id")
-    const initId = tid && tid.trim() !== "" ? tid : null
+    const currentThreadId = useChatStore.getState().threadId
+    const initId = tid && tid.trim() !== "" ? tid : (currentThreadId || null)
 
     // Check for message intent
     const pendingMessage = params.get("message")

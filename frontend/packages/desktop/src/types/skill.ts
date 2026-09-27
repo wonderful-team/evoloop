@@ -24,7 +24,7 @@ export interface LearnedSkill {
   } | null
 }
 
-export interface SkillParameter {
+interface SkillParameter {
   name: string
   type: string
   description: string

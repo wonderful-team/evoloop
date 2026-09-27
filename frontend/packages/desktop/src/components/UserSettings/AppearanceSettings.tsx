@@ -9,7 +9,7 @@ import {SettingsCard} from "../Settings/SettingsCard"
 
 const SHOW_THINKING_KEY = "evoloop:showThinking"
 
-export function useShowThinking() {
+function useShowThinking() {
   const [showThinking, setShowThinking] = useState(() => {
     if (typeof window === "undefined") return true
     const stored = localStorage.getItem(SHOW_THINKING_KEY)

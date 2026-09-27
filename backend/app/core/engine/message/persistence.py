@@ -91,8 +91,3 @@ class MessagePersistencePolicy:
             result.content = ""
 
         return result
-
-    @classmethod
-    def get_persisted_categories(_cls) -> list[MessageCategory]:
-        """获取会持久化的分类列表"""
-        return [cat for cat in MessageCategory if cat.should_persist_to_db]

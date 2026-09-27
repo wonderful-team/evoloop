@@ -81,20 +81,3 @@ def parse_iso_timestamp(iso_string: str) -> datetime | None:
             return datetime.fromisoformat(iso_string)
         except (ValueError, AttributeError):
             return None
-
-
-def format_iso_timestamp(dt: datetime | None = None) -> str:
-    """
-    Format datetime as ISO 8601 string.
-
-    Args:
-        dt: Datetime to format (default: current UTC time)
-
-    Returns:
-        ISO 8601 formatted string
-    """
-    if dt is None:
-        dt = utcnow()
-    return dt.isoformat()
-
-

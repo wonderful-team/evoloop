@@ -1,4 +1,4 @@
-export interface ChangesetFile {
+interface ChangesetFile {
   path: string
   operation: "ADD" | "EDIT" | "DELETE"
   diff?: string

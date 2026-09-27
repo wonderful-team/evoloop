@@ -45,7 +45,6 @@ Usage:
 
 import asyncio
 import logging
-import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -435,56 +434,6 @@ class TwoTierMemoryManager:
                 lines.append(section_obj.to_markdown())
 
         return "\n".join(lines)
-
-    def _parse_memory_md(self, content: str) -> dict[str, dict[str, Any]]:
-        """Parse MEMORY.md into sections."""
-        sections = {}
-        current_section = None
-        current_entries = []
-
-        for line in content.split("\n"):
-            # Section header
-            if line.startswith("## "):
-                if current_section:
-                    sections[current_section] = {
-                        "title": self.SECTIONS.get(current_section, current_section),
-                        "entries": current_entries,
-                    }
-
-                section_title = line[3:].strip()
-                # Find section name from title
-                current_section = None
-                for name, title in self.SECTIONS.items():
-                    if title.lower() in section_title.lower():
-                        current_section = name
-                        break
-
-                if not current_section:
-                    current_section = section_title.lower().replace(" ", "_")
-
-                current_entries = []
-
-            # Entry line
-            elif line.startswith("- **") and current_section:
-                # Parse: - **Title**: Description
-                match = re.match(r"- \*\*(.+?)\*\*: (.+)", line)
-                if match:
-                    title, desc = match.groups()
-                    current_entries.append(
-                        {
-                            "title": title,
-                            "description": desc,
-                        }
-                    )
-
-        # Don't forget last section
-        if current_section:
-            sections[current_section] = {
-                "title": self.SECTIONS.get(current_section, current_section),
-                "entries": current_entries,
-            }
-
-        return sections
 
     async def _write_memory_md(self, content: str) -> None:
         """Write to MEMORY.md."""

@@ -394,43 +394,54 @@ case "${1:-help}" in
             local name=$1
             local pid_file=$2
             local pattern=$3
-            
-            local pid=""
+
+            # 收集全部匹配进程：pid 文件优先，pgrep 兜底扫出所有残留
+            # （此前只 kill 第一个匹配，历史僵尸会存活并双开 supervisor）
+            local pids=""
             if [ -f "$pid_file" ]; then
-                pid=$(cat "$pid_file")
-                # pid 文件可能已失效（stale）：进程不存在时清空，回退到进程名查找
-                if [ -n "$pid" ] && ! kill -0 "$pid" 2>/dev/null; then
-                    pid=""
+                local filed_pid
+                filed_pid=$(cat "$pid_file")
+                if [ -n "$filed_pid" ] && kill -0 "$filed_pid" 2>/dev/null; then
+                    pids="$filed_pid"
                 fi
             fi
-            if [ -z "$pid" ]; then
-                # 尝试通过进程名查找
-                pid=$(pgrep -f "$pattern" | head -1)
+            local found
+            found=$(pgrep -f "$pattern" 2>/dev/null | grep -vx "$pids" || true)
+            if [ -n "$found" ]; then
+                pids="$pids $found"
             fi
-            
-            if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
-                info "正在停止 $name (PID: $pid)..."
-                kill "$pid" 2>/dev/null || true
-                
+
+            if [ -n "${pids// /}" ]; then
+                info "正在停止 $name (PIDs:$pids)..."
+                for pid in $pids; do
+                    kill "$pid" 2>/dev/null || true
+                done
+
                 # 等待优雅退出（可用 EVO_STOP_TIMEOUT 覆盖，默认 10 秒）
                 local wait_secs="${EVO_STOP_TIMEOUT:-10}"
                 local i=0
                 while (( i < wait_secs )); do
-                    if ! kill -0 "$pid" 2>/dev/null; then
+                    local alive=0
+                    for pid in $pids; do
+                        kill -0 "$pid" 2>/dev/null && alive=1
+                    done
+                    if (( ! alive )); then
                         break
                     fi
                     sleep 1
                     i=$((i + 1))
                 done
-                
+
                 # 如果 10 秒后仍在运行，使用 SIGKILL 强制杀掉
-                if kill -0 "$pid" 2>/dev/null; then
-                    warning "$name (PID: $pid) 拒绝停止，正在强制终止 (SIGKILL)..."
-                    kill -9 "$pid" 2>/dev/null || true
-                fi
+                for pid in $pids; do
+                    if kill -0 "$pid" 2>/dev/null; then
+                        warning "$name (PID: $pid) 拒绝停止，正在强制终止 (SIGKILL)..."
+                        kill -9 "$pid" 2>/dev/null || true
+                    fi
+                done
                 success "$name 已停止"
             fi
-            
+
             rm -f "$pid_file"
         }
 
@@ -846,15 +857,12 @@ case "${1:-help}" in
             storage)
                 .venv/bin/python bin/scripts/verify_storage.py
                 ;;
-            vector)
-                .venv/bin/python bin/scripts/verify_vector_opt.py
-                ;;
             peekaboo)
                 .venv/bin/python bin/scripts/verify_peekaboo.py
                 ;;
             *)
                 error "未知验证命令: ${2:-}"
-                echo "可用命令: storage, vector, peekaboo"
+                echo "可用命令: storage, peekaboo"
                 exit 1
                 ;;
         esac

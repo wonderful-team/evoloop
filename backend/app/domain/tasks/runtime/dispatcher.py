@@ -129,6 +129,11 @@ async def _run_wakeup_with_deadline(thread_id: str, inputs: dict) -> None:
     """后台跑一个 wakeup run，超时硬取消（CancelledError → CANCELLED 终态）。"""
     from app.core.engine.agent import run_agent_background
     from app.core.engine.agent_run_registry import agent_run_registry
+    from app.core.engine.session.manager import session_manager
+    from app.core.engine.session.session import AgentSession
+
+    session = AgentSession(thread_id)
+    session_manager._sessions[thread_id] = session
 
     run_task = asyncio.create_task(run_agent_background(thread_id, inputs))
     await agent_run_registry.register_run(
@@ -164,6 +169,7 @@ async def _run_wakeup_with_deadline(thread_id: str, inputs: dict) -> None:
             except (asyncio.CancelledError, Exception):
                 pass
     finally:
+        session_manager._sessions.pop(thread_id, None)
         async with agent_run_registry._lock:
             agent_run_registry._records.pop(thread_id, None)
 
@@ -191,7 +197,9 @@ async def auto_retry_failed_tasks() -> None:
         if (t.acceptance or {}).get("escalated"):
             continue
         last_error = task_last_error(t) or ""
-        if any(marker in last_error for marker in NON_RETRYABLE_ERROR_MARKERS):
+        last_result = t.last_result or ""
+        err_text = f"{last_error} {last_result}"
+        if any(marker in err_text for marker in NON_RETRYABLE_ERROR_MARKERS):
             continue
         td["workflow_auto_retry"] = tries + 1
         from datetime import timedelta, timezone
@@ -468,7 +476,7 @@ async def dispatch_due_tasks() -> None:
         # 熔断（认领后判定，走合法转移 in_progress→failed）：认领次数达阈值
         # 仍无终态 = agent 未履约 take/update_status 或派发反复失败 → 强制
         # 终态，把毒任务显式炸出来而不是无限烧 LLM。
-        if task_dispatch_count(claimed) >= (DISPATCH_CLAIM_CIRCUIT_LIMIT):
+        if task_dispatch_count(claimed) >= DISPATCH_CLAIM_CIRCUIT_LIMIT:
             await TaskQueueService.advance_task(
                 t.id,
                 "failed",
@@ -483,9 +491,7 @@ async def dispatch_due_tasks() -> None:
 
         # duty runs have no host page: 域解析 profile-first → L1 域标注兜底
         # （与文本消息路径同源；此前值守漏接 L1，跨项目任务首轮全量）
-        domain, hint_reason = await resolve_wakeup_domain(
-            project_id, t.description or ""
-        )
+        domain, hint_reason = await resolve_wakeup_domain(project_id, t.description or "")
 
         # 跨任务产出传递：依赖任务的结论摘要与产物链接注入唤醒 payload——
         # 链式任务的执行者（独立 wakeup 线程）拿不到上游 thread 的消息，

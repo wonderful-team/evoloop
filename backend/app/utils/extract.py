@@ -57,23 +57,6 @@ def extract_code_block(text: str, lang: str | None = None) -> str | None:
     return None
 
 
-def extract_json_block(text: str) -> dict | None:
-    """
-    Extract and parse JSON from markdown code block or raw text.
-
-    Args:
-        text: Text containing JSON (in code block or raw)
-
-    Returns:
-        Parsed JSON dict, or None if parsing fails
-    """
-    json_str = extract_code_block(text, "json") or extract_code_block(text)
-    if not json_str:
-        json_str = text.strip()
-
-    return safe_parse_json(json_str)
-
-
 def extract_yaml_block(text: str) -> str | None:
     """
     Extract YAML content from markdown code block.

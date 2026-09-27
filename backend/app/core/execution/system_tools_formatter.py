@@ -69,26 +69,6 @@ class SystemToolsFormatter:
         )
 
     @staticmethod
-    def task_health(task) -> str:
-        """Format single task health status."""
-        status = (
-            "Dead Letter (Disabled)"
-            if task.is_dead_letter
-            else ("Active" if task.is_active else "Paused")
-        )
-        cp_data = [
-            {
-                "id": task.id,
-                "status": status,
-                "name": task.intent_description,
-                "time": f"Last: {task.last_run_at} | Failure: {task.last_failure_reason or 'None'}",
-            }
-        ]
-        return render_template(
-            "common/events/system_tools.prompt.j2", checkpoints=cp_data
-        )
-
-    @staticmethod
     def signals(messages: list[str]) -> str:
         """Format signal messages for display."""
         signal_data = [{"message": m} for m in messages]

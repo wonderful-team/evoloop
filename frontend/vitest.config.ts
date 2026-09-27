@@ -44,6 +44,7 @@ export default defineConfig({
       "@mobile": path.resolve(__dirname, "./packages/mobile/src"),
       "@shared": path.resolve(__dirname, "./packages/shared/src"),
       "@evoloop/shared": path.resolve(__dirname, "./packages/shared/src"),
+      "@evoloop/workbench": path.resolve(__dirname, "./packages/workbench/src"),
     },
   },
   resolve: {
@@ -52,6 +53,7 @@ export default defineConfig({
       "@mobile": path.resolve(__dirname, "./packages/mobile/src"),
       "@shared": path.resolve(__dirname, "./packages/shared/src"),
       "@evoloop/shared": path.resolve(__dirname, "./packages/shared/src"),
+      "@evoloop/workbench": path.resolve(__dirname, "./packages/workbench/src"),
     },
   },
 })

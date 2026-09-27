@@ -31,6 +31,7 @@ export interface AgentState {
     actionText: string
   } | null
   agentState: {
+    run_id?: string
     mode: string
     task_name: string
     task_status: string

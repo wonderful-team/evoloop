@@ -3,7 +3,6 @@ import logging
 import openai
 
 from app.core.engine.schemas import ErrorClassification
-from app.core.exceptions import InferenceError
 
 logger = logging.getLogger(__name__)
 
@@ -171,26 +170,3 @@ class LLMErrorHandler:
             raw_error=error_full,
             is_terminal=is_terminal,
         )
-
-    @staticmethod
-    def raise_inference_error(e: Exception) -> None:
-        """
-        Classifies an exception and raises a standardized InferenceError.
-        This provides a unified entry point for low-level LLM callers (e.g. InferenceEngine).
-        """
-        classification = LLMErrorHandler.classify_exception(e)
-
-        # Combine message and hint for a better user experience
-        user_msg = classification.message
-        if classification.hint:
-            user_msg = f"{user_msg}\n\n💡 {classification.hint}"
-
-        raise InferenceError(
-            error_type=classification.error_type,
-            status_code=classification.status_code,
-            user_friendly_msg=user_msg,
-            raw_error=classification.raw_error,
-        )
-
-
-

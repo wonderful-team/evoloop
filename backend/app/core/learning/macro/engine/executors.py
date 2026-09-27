@@ -66,16 +66,20 @@ class ExecutorMixin:
             # Navigation skip: when the browser already sits on the exact
             # target URL (query string included — ?goods_id=2 vs 3 must NOT
             # skip), goto is pure waste (~2s per multi-turn step).
-            from app.infrastructure.drivers.browser import browser_manager
+            try:
+                from app.infrastructure.drivers.browser import browser_manager
 
-            page = await browser_manager.get_page()
-            if (
-                page is not None
-                and isinstance(target_url, str)
-                and page.url.rstrip("/") == target_url.rstrip("/")
-            ):
-                logger.info("[macro-engine] navigate skip: already on %s", target_url)
-                return True
+                if browser_manager._context is not None:
+                    page = await browser_manager.get_page()
+                    if (
+                        page is not None
+                        and isinstance(target_url, str)
+                        and page.url.rstrip("/") == target_url.rstrip("/")
+                    ):
+                        logger.info("[macro-engine] navigate skip: already on %s", target_url)
+                        return True
+            except Exception:
+                pass
             res = await BrowserController.execute(
                 action=tool_action,
                 url=target_url,

@@ -75,10 +75,38 @@ export function DutyStartStopButton({
         }, next ? 1500 : 900)
         return
       }
+
+      if (next) {
+        // 开启值守仪式感：先展示“值守启动中”全屏动画（1.5s），
+        // 待仪式结束（动画消失）后，才向后端真正下发开启指令，确保任务是在仪式消失后才起跑！
+        setTimeout(async () => {
+          onRitual?.("done")
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(
+              new CustomEvent("duty:ritual", { detail: { phase: "done" } })
+            )
+          }
+          try {
+            await SystemService.updateCustomerServiceDuty({
+              requestBody: { enabled: true, channels },
+            })
+            setEnabled(true)
+            await qc.invalidateQueries({ queryKey: ["dutyDashboard"] })
+            await qc.invalidateQueries({ queryKey: ["dutyQueue"] })
+          } catch (e) {
+            setError(String(e))
+          } finally {
+            setBusy(false)
+          }
+        }, 1500)
+        return
+      }
+
+      // 停止值守：立即生效后关闭仪式浮层
       await SystemService.updateCustomerServiceDuty({
-        requestBody: { enabled: next, channels },
+        requestBody: { enabled: false, channels },
       })
-      setEnabled(next)
+      setEnabled(false)
       setTimeout(() => {
         onRitual?.("done")
         if (typeof window !== "undefined") {
@@ -86,13 +114,15 @@ export function DutyStartStopButton({
             new CustomEvent("duty:ritual", { detail: { phase: "done" } })
           )
         }
-      }, next ? 1500 : 900)
+      }, 900)
       await qc.invalidateQueries({ queryKey: ["dutyDashboard"] })
       await qc.invalidateQueries({ queryKey: ["dutyQueue"] })
     } catch (e) {
       setError(String(e))
     } finally {
-      setBusy(false)
+      if (!next) {
+        setBusy(false)
+      }
     }
   }
 

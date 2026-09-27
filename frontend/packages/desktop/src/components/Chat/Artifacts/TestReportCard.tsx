@@ -5,7 +5,7 @@ import {Bug, CheckCircle2, ChevronDown, ChevronRight, Copy, Wrench, XCircle,} fr
 import {useState} from "react"
 import {useTranslation} from "react-i18next"
 
-export interface TestReportData {
+interface TestReportData {
   status: "PASS" | "FAIL"
   summary: string
   root_cause?: string

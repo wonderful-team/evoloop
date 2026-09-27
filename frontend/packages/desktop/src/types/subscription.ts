@@ -29,13 +29,13 @@ export interface AiQuota {
   is_unlimited: boolean
 }
 
-export interface UpgradeInfo {
+interface UpgradeInfo {
   pay_amount: string
   refund_amount: string
   net_amount: string
 }
 
-export interface OrderInfo {
+interface OrderInfo {
   order_id: string
   order_no: string
   level_id: number

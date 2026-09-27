@@ -444,8 +444,7 @@ export const useChatStore = create<ChatState>((set, get) => {
         skillIds: stateSkillIds,
       } = get()
       const currentProject = useProjectStore.getState().currentProject
-      const projectId = currentProject?.id ?? storeProjectId
-      if (projectId === null) return
+      const projectId = currentProject?.id ?? storeProjectId ?? 0
 
       const pickedSkillIds = (pickedFiles || [])
         .filter((f) => f.type === "skill" && f.metadata?.skill_id)
@@ -1016,3 +1015,7 @@ export const useChatStore = create<ChatState>((set, get) => {
     },
   }
 })
+
+if (import.meta.env.DEV && typeof window !== "undefined") {
+  ;(window as any).__useChatStore = useChatStore
+}

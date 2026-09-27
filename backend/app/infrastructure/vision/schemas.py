@@ -31,12 +31,3 @@ class CombinedCleanupResult(DynamicBaseModel):
     recordings: RecordingCleanupResult
     total_cleaned: int
     timestamp: str
-
-
-class StorageReport(DynamicBaseModel):
-    """Full storage statistics report."""
-
-    screenshots: dict
-    recordings: dict
-    total: dict
-    timestamp: str

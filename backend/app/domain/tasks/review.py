@@ -27,6 +27,7 @@ from app.core.engine.agent import run_agent_background
 from app.core.engine.dispatch import DispatchStatus, dispatch_agent_run
 from app.domain.tasks.service import (
     TaskQueueService,
+    task_last_result,
     task_number,
     task_review_pending,
     task_title,
@@ -85,6 +86,7 @@ async def _dispatch_to_thread(
     project_id: int,
     member_id: int,
     source_task_id: str,
+    references: list[dict] | None = None,
 ) -> bool:
     """Send a system-on-behalf-of-user message into the origin dialogue and
     start a reviewer run there. Reuses the duty dispatch path (same message
@@ -92,6 +94,7 @@ async def _dispatch_to_thread(
     result = await dispatch_agent_run(
         thread_id=thread_id,
         message_content=content,
+        references=references,
         project_id=project_id,
         member_id=member_id,
         metadata={
@@ -110,6 +113,108 @@ async def _dispatch_to_thread(
     return True
 
 
+async def _get_review_references(task) -> tuple[list[dict], str]:
+    """Gather structured references (execution thread + deliverables/artifacts)
+    and executor result summary for review decoupling.
+    """
+    from sqlalchemy import select
+
+    from app.infrastructure.database.sql.database import session_scope
+    from app.models.conversation import Message, MessageReference
+    from app.models.task_workflow import TaskArtifact
+
+    refs: list[dict] = []
+    seen_targets: set[str] = set()
+    latest_reply = ""
+
+    task_no = task_number(task)
+    label = f"#T-{task_no}" if task_no else task.id[:8]
+
+    try:
+        async with session_scope() as session:
+            # 1. Execution session reference: point to the executor thread's latest AI message
+            if task.last_thread_id:
+                msg_stmt = (
+                    select(Message.id, Message.content)
+                    .where(
+                        Message.thread_id == task.last_thread_id,
+                        Message.role == "ai",
+                        Message.category.in_(("assistant_response", "assistant_text")),
+                        Message.content.isnot(None),
+                        Message.content != "",
+                    )
+                    .order_by(Message.sequence_number.desc())
+                    .limit(1)
+                )
+                msg_row = (await session.execute(msg_stmt)).first()
+                if msg_row:
+                    msg_id, content = msg_row
+                    latest_reply = str(content or "")
+                    refs.append(
+                        {
+                            "type": "message",
+                            "target_id": str(msg_id),
+                            "target_name": f"执行会话 ({label})",
+                            "name": f"执行会话 ({label})",
+                            "metadata": {
+                                "thread_id": task.last_thread_id,
+                                "task_id": task.id,
+                                "snippet": latest_reply[:200],
+                            },
+                        }
+                    )
+                    seen_targets.add(str(msg_id))
+
+            # 2. Structured TaskArtifact rows
+            ta_stmt = select(TaskArtifact).where(TaskArtifact.task_id == task.id)
+            for ta in (await session.execute(ta_stmt)).scalars():
+                target = (
+                    (ta.data or {}).get("file_path")
+                    or (ta.data or {}).get("path")
+                    or (ta.data or {}).get("url")
+                    or ta.summary
+                )
+                name = (ta.data or {}).get("name") or ta.artifact_type or "交付产物"
+                if target and str(target) not in seen_targets:
+                    seen_targets.add(str(target))
+                    refs.append(
+                        {
+                            "type": "file",
+                            "target_id": str(target),
+                            "target_name": str(name),
+                            "name": str(name),
+                            "metadata": {"source_path": str(target), "artifact_id": ta.id},
+                        }
+                    )
+
+            # 3. File / image / artifact references produced during the executor run
+            if task.last_thread_id:
+                mr_stmt = (
+                    select(MessageReference)
+                    .join(Message, MessageReference.message_id == Message.id)
+                    .where(
+                        Message.thread_id == task.last_thread_id,
+                        MessageReference.type.in_(("file", "image", "artifact", "directory")),
+                    )
+                )
+                for mr in (await session.execute(mr_stmt)).scalars():
+                    if mr.target_id and mr.target_id not in seen_targets:
+                        seen_targets.add(mr.target_id)
+                        refs.append(
+                            {
+                                "type": mr.type,
+                                "target_id": mr.target_id,
+                                "target_name": mr.target_name or "交付物",
+                                "name": mr.target_name or "交付物",
+                                "metadata": mr.meta_data or {},
+                            }
+                        )
+    except Exception as e:
+        logger.warning("[TaskReview] failed to collect references: %s", e)
+
+    return refs, latest_reply
+
+
 async def trigger_review(task) -> None:
     """Entry: push the finished task's result back to its origin dialogue."""
     origin = getattr(task, "origin_thread_id", None)
@@ -118,16 +223,38 @@ async def trigger_review(task) -> None:
     task_no = task_number(task)
     label = f"#T-{task_no}" if task_no else task.id[:8]
     title = task_title(task) or ""
-    reply = await _latest_executor_reply(task.last_thread_id or "")
+
+    refs, latest_reply = await _get_review_references(task)
+
+    result_summary = task_last_result(task) or ""
+    if not result_summary:
+        if not latest_reply:
+            latest_reply = await _latest_executor_reply(task.last_thread_id or "")
+        result_summary = latest_reply[:500] if latest_reply else "执行已完成，未提供详细摘要。"
+
+    criteria_block = ""
+    criteria = getattr(task, "acceptance_criteria", None)
+    if criteria and isinstance(criteria, list) and criteria:
+        criteria_lines = "\n".join(f"- {c}" for c in criteria)
+        criteria_block = f"【验收基准】\n{criteria_lines}\n\n"
+
+    deliverables_block = ""
+    file_refs = [r for r in refs if r.get("type") in ("file", "image", "artifact")]
+    if file_refs:
+        paths = "\n".join(f"- {r.get('name')}: {r.get('target_id')}" for r in file_refs)
+        deliverables_block = f"【交付产物清单（请使用 view_file 等只读工具核查）】\n{paths}\n\n"
+
     content = (
-        f"[值守系统代用户] 任务 {label}「{title}」已由值守执行完成。\n\n"
-        f"执行者任务级会话的最终回复如下（这只是执行者的汇报，不代表我的意图）：\n"
-        f"---\n{reply[:4000]}\n---\n\n"
+        f"[值守系统代用户] 任务 {label}「{title}」已由值守执行完成，请核验交付结果。\n\n"
+        f"【执行交付简报】\n"
+        f"{result_summary}\n\n"
+        f"{criteria_block}"
+        f"{deliverables_block}"
         f"请你以我的立场评审核实该任务的完成情况（只评审，不实施；不要修改任何数据、"
-        f"不要执行任何写操作，只允许查询类工具用于抽查验证）：\n"
+        f"不要执行任何写操作，可通过只读文件工具查验关联交付物与执行记录）：\n"
         f"1) 回顾本对话中我最初提出这件事的意图与预期，以我的原始表述为准，"
         f"不要以执行报告的自我描述为准；\n"
-        f"2) 对照执行者的最终回复，逐条核对目标是否达成；关键数字与清单要交叉验证；\n"
+        f"2) 对照执行者的交付简报与关联产物，逐条核对目标是否达成；关键数据要交叉验证；\n"
         f"3) 有无遗漏、漂移或只完成了一部分的迹象。\n\n"
         f"最后一行必须是结论，格式严格如下：\n"
         f"结论：通过\n"
@@ -141,6 +268,7 @@ async def trigger_review(task) -> None:
         project_id=task.project_id,
         member_id=member_id,
         source_task_id=task.id,
+        references=refs or None,
     )
     if not ok:
         # 回灌失败（对话不存在/派发失败）：保持 waiting_acceptance——评审

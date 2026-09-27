@@ -36,11 +36,6 @@ class SQLPersister:
     - CodeRelations
     """
 
-    async def clear_old_data(self, source_file: SourceFile, session: AsyncSession):
-        """Clear existing chunks, entities, and relations for the file."""
-        batch_file_ids = [source_file.id]
-        await self._batch_clear(file_ids=batch_file_ids, session=session)
-
     async def batch_clear(
         self,
         source_files: list[SourceFile],

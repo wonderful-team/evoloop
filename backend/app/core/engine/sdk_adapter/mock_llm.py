@@ -123,9 +123,16 @@ def _text_of(content: Any) -> str:
     if isinstance(content, str):
         return content
     if isinstance(content, list):
-        return " ".join(
-            str(part.get("text", "")) for part in content if isinstance(part, dict)
-        )
+        parts: list[str] = []
+        for part in content:
+            if isinstance(part, str):
+                parts.append(part)
+            elif isinstance(part, dict):
+                if "text" in part and part["text"]:
+                    parts.append(str(part["text"]))
+                elif "content" in part and part["content"]:
+                    parts.append(_text_of(part["content"]))
+        return " ".join(parts)
     return ""
 
 
@@ -157,7 +164,7 @@ _UUID_RE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]
 # 环境块/技能索引/记忆块可能先于它出现 uuid（设备号、episode id），
 # 盲取首个 uuid 会把 update_status 打到不存在的 task 上——优先认这行。
 _DUTY_TASK_ID_RE = re.compile(
-    r"- id: ([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"
+    r"(?:- id:\s*|\(id:\s*|id=)([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"
 )
 
 
@@ -180,15 +187,29 @@ def _extract_created_ids(messages: list[dict[str, Any]]) -> list[str]:
     """按序提取历史中 tasks create 返回的任务 id（本序列已创建的血统链）。"""
     created: list[str] = []
     for msg in messages:
-        if not isinstance(msg, dict) or msg.get("role") != "tool":
+        if not isinstance(msg, dict):
             continue
         text = _text_of(msg.get("content"))
+        if not text:
+            continue
+        # 1. 结构化 JSON 解析
         try:
             payload = json.loads(text)
+            if isinstance(payload, dict) and payload.get("id"):
+                tid = str(payload["id"])
+                if tid not in created and _UUID_RE.fullmatch(tid):
+                    created.append(tid)
+                    continue
         except (ValueError, TypeError):
-            continue
-        if isinstance(payload, dict) and payload.get("success") and payload.get("id"):
-            created.append(str(payload["id"]))
+            pass
+        # 2. 文本正则兜底
+        for m in re.finditer(
+            r'"id":\s*"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"',
+            text,
+        ):
+            tid = m.group(1)
+            if tid not in created:
+                created.append(tid)
     return created
 
 
@@ -202,20 +223,20 @@ def _subst_placeholders(
     - {{prev_task_id}}：最近一次 create 的 id（= created_last）
     """
 
-    def find_uuid(text: str) -> str | None:
-        m = _UUID_RE.search(text)
-        return m.group(0) if m else None
-
     task_id = _extract_task_id(messages)
     created = _extract_created_ids(messages)
 
     def resolve(value: str) -> str:
         if task_id:
             value = value.replace(_TASK_ID_PLACEHOLDER, task_id)
-        for n in range(1, len(created) + 2):
+        for n in range(1, 10):
             token = "{{created_" + str(n) + "}}"
             if token in value:
-                src = created[n - 1] if n - 1 < len(created) else None
+                src = (
+                    created[n - 1]
+                    if n - 1 < len(created)
+                    else (created[-1] if created else None)
+                )
                 if src:
                     value = value.replace(token, src)
         if "{{prev_task_id}}" in value and created:
@@ -226,9 +247,17 @@ def _subst_placeholders(
         if isinstance(value, str):
             return resolve(value)
         if isinstance(value, list):
-            return [walk(item) for item in value]
+            res = [walk(item) for item in value]
+            # 过滤掉仍然包含未替换 {{created_ 的非法项
+            return [x for x in res if not (isinstance(x, str) and "{{" in x)]
         if isinstance(value, dict):
-            return {key: walk(item) for key, item in value.items()}
+            new_dict = {}
+            for key, item in value.items():
+                resolved_item = walk(item)
+                if key == "parent_id" and isinstance(resolved_item, str) and "{{" in resolved_item:
+                    continue
+                new_dict[key] = resolved_item
+            return new_dict
         return value
 
     return walk(args)
@@ -238,7 +267,8 @@ def _decide(messages: list[dict[str, Any]]) -> dict[str, Any]:
     """返回 {"text": str} 或 {"tool": {"name":…, "arguments":…}}，可含 reasoning。"""
     user_text = _last_user_text(messages)
     lowered = user_text.lower()
-    logger.debug(
+    all_text = _all_text(messages).lower()
+    logger.info(
         "[MockLLM] decide: roles=%s last_user[:80]=%r",
         [m.get("role") for m in messages if isinstance(m, dict)][-6:],
         user_text[:80],
@@ -246,12 +276,19 @@ def _decide(messages: list[dict[str, Any]]) -> dict[str, Any]:
 
     for rule in _load_script():
         needle = rule.get("when_contains")
-        if needle is not None and needle.lower() not in lowered:
-            logger.debug(
-                "[MockLLM] skip rule (needle=%r not in last user)",
-                needle[:30] if needle else None,
-            )
-            continue
+        if needle is not None:
+            n_low = needle.lower()
+            if n_low not in lowered and n_low not in all_text:
+                logger.debug(
+                    "[MockLLM] skip rule (needle=%r not in user or all text)",
+                    needle[:30],
+                )
+                continue
+        not_needle = rule.get("when_not_contains")
+        if not_needle is not None:
+            nn_low = not_needle.lower()
+            if nn_low in lowered or nn_low in all_text:
+                continue
         if rule.get("when_tool_result") and not _last_is_tool_result(messages):
             continue
         tool_needle = rule.get("when_tool_result_contains")
@@ -264,20 +301,43 @@ def _decide(messages: list[dict[str, Any]]) -> dict[str, Any]:
             continue
         if needle is None and not rule.get("when_tool_result") and tool_needle is None:
             continue
-        delay = rule.get("delay_ms")
-        if delay:
-            time.sleep(float(delay) / 1000.0)
         decision: dict[str, Any] = {}
         if rule.get("reasoning"):
             decision["reasoning"] = str(rule["reasoning"])
-        # 序列剧本：一次命中按 (规则, 任务) 计数回放多步——规划任务图谱
-        # 等多步编排场景的刚需。
+        # 序列剧本：按已完成的 tool 返回数量动态无状态索引多步
         seq = rule.get("sequence")
         if seq:
-            key = f"{needle}:{_extract_task_id(messages) or user_text[:40]}"
-            idx = _SEQUENCE_STEP.get(key, 0)
-            _SEQUENCE_STEP[key] = idx + 1
+            matched_idx = -1
+            for i, m in enumerate(messages):
+                if isinstance(m, dict):
+                    content = _text_of(m.get("content")).lower()
+                    if needle and needle.lower() in content:
+                        matched_idx = i
+
+            if matched_idx != -1:
+                idx = sum(
+                    1
+                    for m in messages[matched_idx:]
+                    if isinstance(m, dict) and m.get("role") == "tool"
+                )
+            else:
+                first_user = next(
+                    (
+                        _text_of(m.get("content"))
+                        for m in messages
+                        if isinstance(m, dict) and m.get("role") == "user"
+                    ),
+                    user_text,
+                )
+                key = f"{needle}:{first_user[:80]}"
+                idx = _SEQUENCE_STEP.get(key, 0)
+                _SEQUENCE_STEP[key] = idx + 1
+
             current = seq[min(idx, len(seq) - 1)]
+            logger.info("[MockLLM] sequence rule matched: needle=%s step=%d/%d", needle, idx + 1, len(seq))
+            delay = current.get("delay_ms") if "delay_ms" in current else rule.get("delay_ms")
+            if delay:
+                time.sleep(float(delay) / 1000.0)
             if current.get("tool"):
                 return {
                     "reasoning": current.get("reasoning") or rule.get("reasoning"),
@@ -290,7 +350,12 @@ def _decide(messages: list[dict[str, Any]]) -> dict[str, Any]:
                 }
             return {"text": str(current.get("text", "done"))}
 
+        delay = rule.get("delay_ms")
+        if delay:
+            time.sleep(float(delay) / 1000.0)
+
         if rule.get("tool"):
+            logger.info("[MockLLM] rule matched with tool: %s", rule["tool"].get("name"))
             decision["tool"] = {
                 "name": str(rule["tool"].get("name", "bash")),
                 "arguments": _subst_placeholders(
@@ -298,6 +363,7 @@ def _decide(messages: list[dict[str, Any]]) -> dict[str, Any]:
                 ),
             }
         else:
+            logger.info("[MockLLM] rule matched with text")
             decision["text"] = str(rule.get("text", "done"))
         return decision
 

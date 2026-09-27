@@ -7,16 +7,8 @@ from pydantic import Field
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
-class LLMCacheStats(DynamicBaseModel):
-    """Statistics for the LLM instance cache."""
-
-    cache_hits: int
-    cache_misses: int
-    hit_rate: str
-    cached_instances: int
-
-
 class PlatformModel(DynamicBaseModel):
+
     """平台模型配置"""
 
     model_id: str

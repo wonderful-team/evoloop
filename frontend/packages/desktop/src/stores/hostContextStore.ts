@@ -1,6 +1,6 @@
 import {create} from "zustand"
 
-export interface HostEntity {
+interface HostEntity {
   type: string
   id: string
 }

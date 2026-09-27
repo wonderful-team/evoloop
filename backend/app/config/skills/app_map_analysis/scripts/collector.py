@@ -150,7 +150,7 @@ def find_files(root: str, patterns: list[str]) -> list[str]:
     return results
 
 
-def extract_actions(filepath: str, entity: str) -> list[dict]:
+def extract_actions(filepath: str) -> list[dict]:
     """Extract action methods from a controller file."""
     actions = []
     try:
@@ -415,7 +415,7 @@ async def collect(
                 "db_tables": [],
                 "extra": {},
             }
-        actions = extract_actions(cf, entity)
+        actions = extract_actions(cf)
         entities[entity]["actions"].extend(actions)
         entities[entity]["routes"].extend(build_routes(entity, actions))
 

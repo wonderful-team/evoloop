@@ -114,67 +114,6 @@ class AtlasConfigManager:
             logger.debug(f"[AtlasConfig] Failed to get strategy: {e}", exc_info=True)
         return None
 
-    @staticmethod
-    async def initialize_defaults():
-        """Initialize default configurations (called on startup)."""
-        logger.info("[AtlasConfig] Initializing default configurations...")
-
-        # 1. Initialize app name mappings (minimal defaults)
-        default_mappings = {
-            "WeChat": "com.tencent.xinWeChat",
-            "微信": "com.tencent.xinWeChat",
-            "Safari": "com.apple.Safari",
-            "Chrome": "com.google.Chrome",
-            "TencentMeeting": "com.tencent.meeting",
-            "腾讯会议": "com.tencent.meeting",
-        }
-
-        try:
-            # Check if mappings already exist
-            existing = await cache.hlen(CACHE_KEY_APP_NAME_MAP)
-            if existing == 0:
-                await cache.hset(CACHE_KEY_APP_NAME_MAP, mapping=default_mappings)
-                logger.info(
-                    f"[AtlasConfig] Initialized {len(default_mappings)} app name mappings"
-                )
-
-            # 2. Initialize minimal dynamic app safeguards
-            # Check macOS dynamic apps
-            existing_dynamic_macos = await cache.scard(
-                AtlasConfigManager._get_dynamic_apps_key("macos")
-            )
-            if existing_dynamic_macos == 0:
-                # Add macOS WeChat as minimal safeguard
-                await cache.sadd(
-                    AtlasConfigManager._get_dynamic_apps_key("macos"),
-                    "com.tencent.xinWeChat",
-                )
-                logger.info(
-                    "[AtlasConfig] Initialized minimal dynamic app safeguard for macOS (WeChat)"
-                )
-
-            # Check Android dynamic apps
-            existing_dynamic_android = await cache.scard(
-                AtlasConfigManager._get_dynamic_apps_key("android")
-            )
-            if existing_dynamic_android == 0:
-                # Add Android WeChat as minimal safeguard
-                await cache.sadd(
-                    AtlasConfigManager._get_dynamic_apps_key("android"),
-                    "com.tencent.mm",
-                )
-                logger.info(
-                    "[AtlasConfig] Initialized minimal dynamic app safeguard for Android (WeChat)"
-                )
-
-            # 3. Initialize default strategies
-            from app.core.atlas.strategy import AtlasStrategyStore
-
-            await AtlasStrategyStore.init_default_strategies()
-
-        except Exception as e:
-            logger.exception(f"[AtlasConfig] Failed to initialize defaults: {e}")
-
 
 # Convenience functions for direct use
 async def get_bundle_id(app_name: str) -> str | None:

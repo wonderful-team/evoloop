@@ -167,7 +167,7 @@ function EyeOpen({ primaryColor }: { primaryColor: string }) {
   )
 }
 
-export function WoodenRobot({
+function WoodenRobot({
   primaryColor = "#109C8F",
   mood = "neutral",
 }: WoodenRobotProps) {

@@ -186,6 +186,7 @@ async def tasks(
             # 被 Agent 调用 → 一律 source=agent（proposed 待确认）。模型传
             # source="user" 伪装人工通道绕过提案闸的口子就此封死。
             src = "agent"
+
             origin_task_id = None
             if src == "agent":
                 origin_task_id = getattr(

@@ -172,7 +172,7 @@ export const TasksQueueApi = {
     parent_id?: string | null
     status: string
   }> {
-    return unwrap(TasksQueueService.createTask({ requestBody: body })) as never
+    return unwrap(TasksQueueService.createTask({ requestBody: body as any })) as never
   },
   update(
     taskId: string,

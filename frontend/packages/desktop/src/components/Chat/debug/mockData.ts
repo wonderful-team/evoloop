@@ -492,16 +492,3 @@ export const generateMockMessages = import.meta.env.DEV
       return mockMessages
     }
   : (): Message[] => []
-
-export const simulateStreaming = import.meta.env.DEV
-  ? async (onUpdate: (content: string) => void) => {
-      const fullText =
-        '### 实时多模态流式响应模拟\n\n正在根据你的多模态上下文生成智能诊断...\n\n- **解析速度**: 极致的响应速度 (毫秒级分发)\n- **协议对齐**: 完美统一为 References 引用\n\n```typescript\nexport function verifyParity() {\n    console.log("All 5 categories & 21 forms successfully verified!");\n    return { status: "PASSED", crossPlatform: true };\n}\n```\n\n希望这次全景重构与对齐演示能给你带来极致的体验！'
-      let current = ""
-      for (const char of fullText) {
-        current += char
-        onUpdate(current)
-        await new Promise((r) => setTimeout(r, 20))
-      }
-    }
-  : async () => {}

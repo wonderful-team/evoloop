@@ -50,7 +50,7 @@ const syncProjectToBackend = (project: Project | null) => {
     .catch(() => {})
 }
 
-export interface TaskStats {
+interface TaskStats {
   total: number
   pending: number
   in_progress: number

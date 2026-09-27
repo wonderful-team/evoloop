@@ -132,5 +132,3 @@ export function AppTitleBar() {
     </div>
   )
 }
-
-export default AppTitleBar

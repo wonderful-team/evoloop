@@ -12,7 +12,7 @@ export interface MacroStepEntry {
   ts: number
 }
 
-export const MACRO_FEED_LIMIT = 50
+const MACRO_FEED_LIMIT = 50
 
 /** Append a step, keeping only the newest MACRO_FEED_LIMIT entries. */
 export function appendMacroStep(

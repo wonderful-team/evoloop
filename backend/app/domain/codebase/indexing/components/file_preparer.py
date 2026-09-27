@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.file import compute_md5, get_file_ext
 from app.core.file.document_reader import document_reader_service
-from app.domain.codebase.constants import SCAN_STATUS_COMPLETED, SCAN_STATUS_FAILED
+from app.domain.codebase.constants import SCAN_STATUS_COMPLETED
 from app.domain.codebase.filter import FileFilter
 from app.domain.codebase.indexing.dirty_check import is_file_changed_since_last_index
 from app.domain.codebase.schemas import PreparedFile
@@ -131,16 +131,3 @@ class FilePreparer:
             await session.flush()
 
         return source_file
-
-    async def mark_source_file_failed(
-        self,
-        source_file: SourceFile | None,
-        session: AsyncSession,
-    ) -> None:
-        """Mark a SourceFile as failed when parsing/indexing fails."""
-        if source_file is None:
-            return
-        source_file.scan_status = SCAN_STATUS_FAILED
-        source_file.parsed_at = datetime.now(timezone.utc)
-        session.add(source_file)
-        await session.flush()

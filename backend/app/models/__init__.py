@@ -22,7 +22,6 @@ from .file_operation import FileOperation as FileOperation
 from .learning import LearnedSkill as LearnedSkill
 from .learning import TraceEvent as TraceEvent
 from .macro import Macro as Macro
-from .memory import MemoryConcept as MemoryConcept
 from .planning import Plan as Plan
 from .planning import PlanStep as PlanStep
 from .project import ProjectTask as ProjectTask
@@ -62,7 +61,6 @@ __all__ = [
     "LearnedSkill",
     "SecureCredential",
     "TraceEvent",
-    "MemoryConcept",
     "Plan",
     "PlanStep",
     "Job",
@@ -74,12 +72,9 @@ __all__ = [
     "WikiPage",
     "ProjectTask",
     "Message",
-    "GenericMessage",
     "Token",
-    "TokenPayload",
     "User",
     "UserPublic",
-    "UsersPublic",
     "EvoCloudProxyResponse",
     "LoginResult",
     "MemberBenefitsResponse",
@@ -87,19 +82,10 @@ __all__ = [
 ]
 
 
-# Generic message
-class GenericMessage(SQLModel):
-    message: str
-
-
 # JSON payload containing access token
 class Token(SQLModel):
     access_token: str
     token_type: str = "bearer"
-
-
-class TokenPayload(SQLModel):
-    sub: str | None = None
 
 
 # User model reflecting Member Center /api/member/info response structure
@@ -164,8 +150,3 @@ class User(SQLModel):
 
 class UserPublic(User):
     pass
-
-
-class UsersPublic(SQLModel):
-    data: list[UserPublic]
-    count: int

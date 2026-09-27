@@ -115,17 +115,3 @@ class SandboxFactory:
             except Exception as e:
                 logger.warning(f"Sandbox teardown failed: {e}", exc_info=True)
         cls._instances.clear()
-
-    @classmethod
-    def reset_member(cls, member_id: int):
-        """Tear down the sandbox of a single member (logout / logout events)."""
-        try:
-            key = int(member_id)
-        except (TypeError, ValueError):
-            return
-        instance = cls._instances.pop(key, None)
-        if instance:
-            try:
-                instance.teardown()
-            except Exception as e:
-                logger.warning(f"Sandbox teardown failed: {e}", exc_info=True)

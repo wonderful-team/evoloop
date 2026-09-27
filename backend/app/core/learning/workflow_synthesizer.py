@@ -269,12 +269,3 @@ class WorkflowSynthesizer:
             source_session_id=self.session_id,
             tools_used=list(set(sequence.tools_used)),
         )
-
-    def _parse_yaml(
-        self, yaml_str: str, sequence: TraceSequence | None
-    ) -> SynthesizedSkill | SynthesizedMacro:
-        """Backward-compatible dispatcher; kept for existing unit tests."""
-        if self.mode == SynthesisMode.MACRO:
-            return self._parse_yaml_macro(yaml_str)
-        seq = sequence or TraceSequence(thread_id=self.thread_id)
-        return self._parse_yaml_skill(yaml_str, seq)

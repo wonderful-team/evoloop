@@ -10,7 +10,7 @@ const isLoggedIn = () => {
 }
 
 // Define local UserRegister type or import MemberRegisterUsernameData
-export interface UserRegister {
+interface UserRegister {
   [key: string]: unknown // Required by generated MemberService type
   username?: string
   password?: string

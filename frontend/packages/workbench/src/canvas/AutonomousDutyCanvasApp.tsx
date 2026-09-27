@@ -177,56 +177,92 @@ export default function AutonomousDutyCanvasApp({
         taskId: string
         status?: string
       }
-      if (!taskId || !status || status === "in_progress") return
-      // 任务离开执行态且其节点页正展开 → 收缩。（不用 rawTasks 的当前
-      // 状态做守卫：SSE invalidate 的 refetch 常先于事件回调完成，届时
-      // 状态已是终态，"曾经 in_progress"的信息已不可得——误伤面由
-      // "仅收缩展开中的节点"兜住：编辑空闲任务不触发收缩）
-      setActiveTaskId((cur) => (cur === taskId ? null : cur))
+      if (!taskId || !status || status === "in_progress" || status === "waiting_acceptance") return
+      // 现场审核通过打绿勾或失败红标：先就地定格，保留 500ms 视觉确认期后再平滑收缩
+      setRawTasks((prev) =>
+        prev.map((t) => (t.id === taskId ? { ...t, status: status as DutyTask["status"] } : t)),
+      )
+      setTimeout(() => {
+        setActiveTaskId((cur) => (cur === taskId ? null : cur))
+      }, 500)
+    }
+    const onQueueDrained = () => {
+      setActiveTaskId(null)
+      setFocusTaskId(null)
+      setSelectedTaskId(null)
+      setSelectedTaskIds(new Set())
+      setStatusText("🎉 本轮任务已全部排空完成 · 镜头平滑拉远回脑图全景全览")
     }
     window.addEventListener("canvas:node-chat", onNodeChat)
     window.addEventListener("canvas:task-finished", onTaskFinished)
+    window.addEventListener("canvas:queue-drained", onQueueDrained)
     return () => {
       window.removeEventListener("canvas:node-chat", onNodeChat)
       window.removeEventListener("canvas:task-finished", onTaskFinished)
+      window.removeEventListener("canvas:queue-drained", onQueueDrained)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  /* ── 运行焦点自动跟随：任务进入 in_progress 时自动放大为页面 ──
-     设计上要求“视觉焦点自动跟随当前执行节点”，包括镜头平移 + 节点卡片
-     原地放大为工作页面。当外部任务列表出现新的 in_progress 任务时，自动
-     选中、对焦并展开为页面态。
-
-     注意：跳过首次加载（刷新/进入页面），避免首屏因“已有运行中任务”
-     而突然向左/向右跳动；只跟随运行期间新进入 in_progress 的任务。 */
+  /* ── 运行焦点自动跟随：任务进入 in_progress 时镜头先对焦跟随节点，随后再原地展开为页面 ──
+     电影级两段式转场 (Two-stage Cinematic Transition)：
+     阶段 1：镜头平移聚焦 (Pan & Focus) —— 镜头滑向目标节点（卡片保持普通未展开形态，展示全局连线与就位状态）；
+     阶段 2：原地展开放大 (Expand into Page) —— 经过 300ms 运镜滑达后，卡片在视口正中原地平滑放大为 1040px 工作页面。
+  */
   const lastAutoFocusTaskIdRef = useRef<string | null>(null)
-  const hasSeenInitialTasksRef = useRef(false)
-  // biome-ignore lint/correctness/useExhaustiveDependencies: openTask/onTaskSelect are stable local callbacks; adding them would re-run this effect every render while the ref guard makes it harmless but noisy.
+  const autoExpandTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const runningTaskId = useMemo(() => {
+    return externalTasks?.find((t) => t.status === "in_progress")?.id ?? null
+  }, [externalTasks])
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: onTaskSelect is stable local callback; rawTasksRef is a ref
   useEffect(() => {
-    if (!externalTasks) return
-    if (!hasSeenInitialTasksRef.current) {
-      hasSeenInitialTasksRef.current = true
-      // 记录当前运行中任务，避免它后续从 in_progress 变回再进入时误触发
-      const running = externalTasks.find((t) => t.status === "in_progress")
-      lastAutoFocusTaskIdRef.current = running?.id ?? null
+    if (!runningTaskId) {
+      lastAutoFocusTaskIdRef.current = null
+      if (autoExpandTimerRef.current) {
+        clearTimeout(autoExpandTimerRef.current)
+        autoExpandTimerRef.current = null
+      }
+      setFocusTaskId(null)
       return
     }
-    const running = externalTasks.find((t) => t.status === "in_progress")
-    if (running && running.id !== lastAutoFocusTaskIdRef.current) {
-      lastAutoFocusTaskIdRef.current = running.id
-      setSelectedTaskId(running.id)
-      setSelectedTaskIds(new Set([running.id]))
-      openTask(running.id)
-      onTaskSelect?.(running.id)
+
+    if (runningTaskId === lastAutoFocusTaskIdRef.current) return
+    lastAutoFocusTaskIdRef.current = runningTaskId
+
+    // 选中当前运行任务
+    setSelectedTaskId(runningTaskId)
+    setSelectedTaskIds(new Set([runningTaskId]))
+    onTaskSelect?.(runningTaskId)
+
+    // 阶段 1：先收拢所有卡片为未展开普通形态，镜头平滑滑向目标节点正中（Pan & Focus）
+    setActiveTaskId(null)
+    setFocusTaskId(runningTaskId)
+
+    const task = rawTasksRef.current.find((t) => t.id === runningTaskId)
+    setStatusText(
+      `🎯 镜头聚焦跟随至节点 #T-${task?.taskNo || runningTaskId}...`,
+    )
+
+    // 阶段 2：等待镜头平移到位后（300ms），在视口正中原地放大展开为 1040px 工作页面
+    if (autoExpandTimerRef.current) {
+      clearTimeout(autoExpandTimerRef.current)
+    }
+    autoExpandTimerRef.current = setTimeout(() => {
+      setActiveTaskId(runningTaskId)
       setStatusText(
-        `🎯 已自动跟随运行节点 #T-${running.taskNo || running.id} 并放大为工作页面`,
+        `🎯 已自动跟随运行节点 #T-${task?.taskNo || runningTaskId} 并放大为工作页面`,
       )
+    }, 300)
+
+    return () => {
+      if (autoExpandTimerRef.current) {
+        clearTimeout(autoExpandTimerRef.current)
+        autoExpandTimerRef.current = null
+      }
     }
-    if (!running) {
-      lastAutoFocusTaskIdRef.current = null
-    }
-  }, [externalTasks])
+  }, [runningTaskId, onTaskSelect])
 
   /* ==========================================================================
      ★ 核心空间转场流水线 (Spatial Transition Pipeline)：

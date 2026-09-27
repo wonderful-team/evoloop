@@ -387,14 +387,21 @@ export const DutyCanvas = ({
     [tasks, animateTo],
   )
 
+  const isDrainedRef = useRef(false)
+
   /* 值守排空（本轮全部任务终态）→ 镜头回到全览：战报时刻用户该看到的是
      整张作战图，而不是停留在某个局部。若有展开的节点页先原地收起。 */
   useEffect(() => {
     const onQueueDrained = () => {
+      isDrainedRef.current = true
+      lastActiveTaskIdRef.current = null
+      lastFocusTaskIdRef.current = null
       if (activeTaskId) {
         onCloseTask()
       }
-      flyToOverview(600)
+      setTimeout(() => {
+        flyToOverview(700)
+      }, 50)
     }
     window.addEventListener("canvas:queue-drained", onQueueDrained)
     return () => {
@@ -561,20 +568,22 @@ export const DutyCanvas = ({
 
   useEffect(() => {
     if (activeTaskId) {
+      isDrainedRef.current = false
       const task = tasks.find((t) => t.id === activeTaskId)
       if (task && activeTaskId !== lastActiveTaskIdRef.current) {
         lastActiveTaskIdRef.current = activeTaskId
-        flyToCard(task, undefined, 480, true)
+        lastFocusTaskIdRef.current = null
+        flyToCard(task, undefined, 400, true)
       }
       return
     }
     lastActiveTaskIdRef.current = null
 
-    if (autoFollow && focusTaskId) {
+    if (autoFollow && focusTaskId && !isDrainedRef.current) {
       const task = tasks.find((t) => t.id === focusTaskId)
       if (task && focusTaskId !== lastFocusTaskIdRef.current) {
         lastFocusTaskIdRef.current = focusTaskId
-        flyToCard(task)
+        flyToCard(task, 0.85, 280, false)
       }
       return
     }

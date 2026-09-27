@@ -30,7 +30,7 @@ import useAuth from "@/hooks/useAuth"
 import { type Item, Main } from "./Main"
 import { User } from "./User"
 
-export function AppSidebar() {
+function AppSidebar() {
   const { t } = useTranslation()
   const { user: currentUser } = useAuth()
   const { toggleSidebar } = useSidebar()
@@ -42,11 +42,13 @@ export function AppSidebar() {
       icon: MessageSquare,
       title: t("sidebar.chat"),
       path: "/chat",
+      dataTour: "sidebar-chat",
     },
     {
       icon: FolderOpen,
       title: t("sidebar.projects"),
       path: "/projects",
+      dataTour: "sidebar-projects",
     },
   ]
 
@@ -55,11 +57,13 @@ export function AppSidebar() {
       icon: GraduationCap,
       title: t("sidebar.learning"),
       path: "/learning",
+      dataTour: "sidebar-learning",
     },
     {
       icon: Settings,
       title: t("sidebar.settings"),
       path: "/settings",
+      dataTour: "sidebar-settings",
     },
   ]
 

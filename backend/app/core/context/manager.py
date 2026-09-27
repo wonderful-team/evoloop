@@ -196,28 +196,6 @@ class ContextManager:
             "No project context available. Please specify a project_id or switch to a project."
         )
 
-    @staticmethod
-    def resolve_tool_project_id(
-        explicit_id: int | None, default: int | None = None
-    ) -> int | None:
-        """Resolve project_id from explicit parameter, then context, then default.
-
-        Common pattern for tool layer: explicit project_id if provided,
-        otherwise fall back to current context's project_id, then to ``default``.
-
-        Args:
-            explicit_id: The explicitly provided project_id (may be None).
-            default: The fallback value if neither explicit_id nor context's project_id is available.
-
-        Returns:
-            The resolved project_id, or ``default`` if neither source provides a value.
-        """
-        if explicit_id is not None:
-            return explicit_id
-        ctx = ContextManager.current()
-        ctx_pid = ctx.project_id if ctx and ctx.project_id is not None else None
-        return ctx_pid if ctx_pid is not None else default
-
     async def save(thread_id: str) -> None:
         """
         Persist the current context to cache using the thread_id.

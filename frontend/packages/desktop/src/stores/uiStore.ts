@@ -1,11 +1,11 @@
 import {create} from "zustand"
 
-export interface PreviewDiffState {
+interface PreviewDiffState {
   path: string
   diff: string
 }
 
-export interface PreviewFileState {
+interface PreviewFileState {
   path: string
   name: string
 }

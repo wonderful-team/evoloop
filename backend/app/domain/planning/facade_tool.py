@@ -157,17 +157,46 @@ async def plan(
             publish_kwargs = {"thread_id": thread_id, "plan_id": plan_id}
 
     elif action == "update_step":
-        if not plan_id or not step_id or not status:
-            return "Error: update_step 需要 plan_id、step_id、status。"
-        if status == "completed" and not (result or "").strip():
-            return (
-                "Error: completed 步骤必须填写 result（这步做了什么、结果如何）。"
-                "请补充后再标记 completed。"
-            )
-        if result and len(result) > 500:
-            result = result[:500]
-
         async with session_scope() as session:
+            if not plan_id and thread_id:
+                stmt = (
+                    select(DBPlan)
+                    .where(DBPlan.thread_id == thread_id)
+                    .order_by(DBPlan.created_at.desc())
+                )
+                db_p = (await session.execute(stmt)).scalars().first()
+                if db_p:
+                    plan_id = db_p.id
+
+            if not step_id and plan_id:
+                stmt = (
+                    select(DBPlanStep)
+                    .where(DBPlanStep.plan_id == plan_id)
+                    .order_by(DBPlanStep.order)
+                )
+                steps_list = (await session.execute(stmt)).scalars().all()
+                target_step = next(
+                    (s for s in steps_list if s.status == PlanStepStatus.IN_PROGRESS.value),
+                    None,
+                )
+                if not target_step:
+                    target_step = next(
+                        (s for s in steps_list if s.status == PlanStepStatus.PENDING.value),
+                        None,
+                    )
+                if target_step:
+                    step_id = target_step.id
+
+            if not plan_id or not step_id or not status:
+                return "Error: update_step 需要 plan_id、step_id、status。"
+            if status == "completed" and not (result or "").strip():
+                return (
+                    "Error: completed 步骤必须填写 result（这步做了什么、结果如何）。"
+                    "请补充后再标记 completed。"
+                )
+            if result and len(result) > 500:
+                result = result[:500]
+
             step = await session.get(DBPlanStep, step_id)
             if not step:
                 return f"Error: Step {step_id} not found.", {"status": "error"}

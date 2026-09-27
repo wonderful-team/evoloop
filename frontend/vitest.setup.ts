@@ -49,6 +49,31 @@ Element.prototype.setPointerCapture ??= () => {}
 Element.prototype.releasePointerCapture ??= () => {}
 Element.prototype.scrollIntoView ??= () => {}
 
+// Mock EventSource for SSE testing
+class MockEventSource {
+  url: string
+  onopen: (() => void) | null = null
+  onmessage: ((ev: MessageEvent) => void) | null = null
+  onerror: ((err: any) => void) | null = null
+  listeners: Record<string, Function[]> = {}
+
+  constructor(url: string) {
+    this.url = url
+  }
+  addEventListener(event: string, handler: Function) {
+    this.listeners[event] = [...(this.listeners[event] || []), handler]
+  }
+  removeEventListener(event: string, handler: Function) {
+    this.listeners[event] = (this.listeners[event] || []).filter((h) => h !== handler)
+  }
+  close() {}
+}
+Object.defineProperty(window, "EventSource", {
+  writable: true,
+  value: MockEventSource,
+})
+global.EventSource = MockEventSource as any
+
 // Mock localStorage
 const localStorageMock = {
   getItem: vi.fn(),

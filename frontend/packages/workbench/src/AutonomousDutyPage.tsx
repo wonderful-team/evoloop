@@ -22,7 +22,7 @@ import { AlertTriangle, Bot, Inbox, Plus, X } from "lucide-react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import { AgentService, TasksQueueService } from "@/client"
+import { AgentService, ConversationsService, TasksQueueService } from "@/client"
 import { OpenAPI } from "@/client/core/OpenAPI"
 import { ChatInputArea } from "@/components/Chat/ChatInputArea"
 import { ProjectSwitcher } from "@/components/Sidebar/ProjectSwitcher"
@@ -31,6 +31,7 @@ import {
   type QueueTask,
   TasksQueueApi,
 } from "@/lib/tasksQueueApi"
+import { useAgentStore } from "@/stores/agentStore"
 import { useChatStore } from "@/stores/chatStore"
 import { useProjectStore } from "@/stores/projectStore"
 import AutonomousDutyCanvasApp from "./canvas/AutonomousDutyCanvasApp"
@@ -98,9 +99,17 @@ export function AutonomousDutyPage() {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const navigate = useNavigate()
+  const projectId = useProjectStore((state) => state.currentProject?.id ?? null)
+  const currentProject = useProjectStore(
+    (state) => state.currentProject ?? null,
+  )
+  const scopedProjectId = projectId && projectId > 0 ? projectId : undefined
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState("active")
   const [ritual, setRitual] = useState<"start" | "stop" | null>(null)
+  const [isSendingPrompt, setIsSendingPrompt] = useState(false)
+  const [isEvaluating, setIsEvaluating] = useState(false)
+  const [evaluatingThreadId, setEvaluatingThreadId] = useState<string | null>(null)
 
   useEffect(() => {
     const handleRitual = (e: Event) => {
@@ -111,6 +120,98 @@ export function AutonomousDutyPage() {
     window.addEventListener("duty:ritual", handleRitual)
     return () => window.removeEventListener("duty:ritual", handleRitual)
   }, [])
+
+  // 监听值守需求评估反馈：
+  // 1. 若检测到该评估线程发起了需用户决策的澄清请求（HITL/question），
+  //    说明需求需要深入交互澄清：转场至 /chat！
+  // 2. 若画布检测到新任务落地生成，说明 Agent 评估清晰且图谱就绪：
+  //    停留在当前画布，提示生成完成，不转场！
+  useEffect(() => {
+    if (!isEvaluating || !evaluatingThreadId) return
+    let active = true
+
+    const checkStatus = async () => {
+      if (!active) return
+      try {
+        // 1. 检查是否存在需交互澄清的 HITL / 对话追问请求
+        const agentState = useAgentStore.getState()
+        const hasAgentHitl =
+          agentState.status === "interrupted" || !!agentState.humanRequest
+
+        let hasThreadActivityHitl = false
+        try {
+          const act = (await ConversationsService.getThreadActivity({
+            threadId: evaluatingThreadId,
+          })) as any
+          if (act && (act.human_request || act.status === "interrupted")) {
+            hasThreadActivityHitl = true
+          }
+        } catch {
+          // 静默
+        }
+
+        const hitl = await TasksQueueApi.hitlPending().catch(() => null)
+        const hasQueueHitl = (hitl?.items ?? []).some(
+          (req: any) =>
+            req.thread_id === evaluatingThreadId &&
+            (!req.status || req.status === "pending"),
+        )
+
+        if ((hasAgentHitl || hasThreadActivityHitl || hasQueueHitl) && active) {
+          active = false
+          setIsEvaluating(false)
+          setEvaluatingThreadId(null)
+          toast.info("需求需要进一步澄清，正在前往会话...", { duration: 2500 })
+          navigate({
+            to: "/chat",
+            search: { thread_id: evaluatingThreadId } as any,
+          })
+          return
+        }
+
+        // 2. 检查图谱是否已有从该评估会话产出的新任务生成
+        const truth = await TasksQueueApi.list(
+          undefined,
+          scopedProjectId,
+          undefined,
+          50,
+          0,
+          "queue",
+        ).catch(() => null)
+        const createdFromThread = (truth?.items ?? []).filter(
+          (t) => t.origin_thread_id === evaluatingThreadId,
+        )
+        if (createdFromThread.length > 0 && active) {
+          active = false
+          setIsEvaluating(false)
+          setEvaluatingThreadId(null)
+          void qc.invalidateQueries({ queryKey: ["dutyQueue"] })
+          void qc.invalidateQueries({ queryKey: ["dutyDashboard"] })
+          toast.success("需求评估完成，任务图谱已在画布生成！", { duration: 3000 })
+          return
+        }
+      } catch {
+        // 轮询异常静默兜底
+      }
+    }
+
+    void checkStatus()
+    const pollInterval = setInterval(checkStatus, 1500)
+
+    const timer = setTimeout(() => {
+      if (active) {
+        active = false
+        setIsEvaluating(false)
+        setEvaluatingThreadId(null)
+      }
+    }, 60_000)
+
+    return () => {
+      active = false
+      clearInterval(pollInterval)
+      clearTimeout(timer)
+    }
+  }, [isEvaluating, evaluatingThreadId, scopedProjectId, qc, navigate])
 
   const [drained, setDrained] = useState<{
     completed: number
@@ -124,11 +225,7 @@ export function AutonomousDutyPage() {
   const projectSwitcherOpen = useProjectStore(
     (state) => state.projectSwitcherOpen || undefined,
   )
-  const projectId = useProjectStore((state) => state.currentProject?.id ?? null)
-  const currentProject = useProjectStore(
-    (state) => state.currentProject ?? null,
-  )
-  const scopedProjectId = projectId && projectId > 0 ? projectId : undefined
+
 
   // 项目切换时重置选中的任务
   useEffect(() => {
@@ -245,12 +342,14 @@ export function AutonomousDutyPage() {
           })
           // 新活动开始 → 清除上一轮"值守完成"战报
           if (payload.event === "task_taken") setDrained(null)
-          // 执行结束（任务离开执行态）→ 通知画布：若该任务正以节点页
-          // 展开，播放原地收缩转场（终态/回队/待验收均是"现场执行结束"）
+          // 现场执行与审核闭环：
+          // - waiting_acceptance（审核中）：保持卡片展开，在卡片内现场展示原对话审核进度
+          // - 终态（completed/failed/cancelled）或回队（pending）：派发 task-finished，由画布延迟展示绿标通过后平滑收缩
           if (
             payload.task_id &&
             payload.status &&
-            payload.status !== "in_progress"
+            payload.status !== "in_progress" &&
+            payload.status !== "waiting_acceptance"
           ) {
             window.dispatchEvent(
               new CustomEvent("canvas:task-finished", {
@@ -496,6 +595,11 @@ export function AutonomousDutyPage() {
                         成功 {drained.completed} · 失败 {drained.failed} ·
                         待验收 {drained.waiting} · 待执行 {drained.pending}
                       </span>
+                    </span>
+                  ) : isEvaluating ? (
+                    <span className="text-[11px] text-primary font-medium truncate flex items-center gap-1.5 animate-pulse">
+                      <Bot className="h-3.5 w-3.5 shrink-0" />
+                      Agent 正在评估需求并规划任务图谱...
                     </span>
                   ) : allTasks.length === 0 ? (
                     <span className="text-[11px] text-muted-foreground truncate">
@@ -926,110 +1030,155 @@ export function AutonomousDutyPage() {
                   }
 
                   return (
-                    <ChatInputArea
-                      className="p-0"
-                      cardClassName="bg-[var(--panel,#ffffff)] dark:bg-[#15161b] shadow-md border-border/80"
-                      currentProject={currentProject}
-                      isGlobalMode={!currentProject}
-                      hideTerminal={true}
-                      hideVoice={true}
-                      hideAutoSpeak={true}
-                      hideRecording={true}
-                      contextSlot={
-                        selectedTask ? (
-                          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20 select-none max-w-[380px]">
-                            <Bot className="h-3.5 w-3.5 shrink-0" />
-                            <span className="truncate">
-                              #T-{selectedTask.taskNo} {selectedTask.title}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={onClearSelection}
-                              className="hover:opacity-70 ml-0.5 cursor-pointer"
-                              title="退出节点对话，返回全局值守"
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          </div>
-                        ) : isMultiSelected ? (
-                          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20 select-none">
-                            <Bot className="h-3.5 w-3.5 shrink-0" />
-                            <span>已多选 {selectedTaskIds.size} 个任务</span>
-                            <button
-                              type="button"
-                              onClick={onClearSelection}
-                              className="hover:opacity-70 ml-0.5 cursor-pointer"
-                              title="取消多选"
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          </div>
-                        ) : null
-                      }
-                      onSend={async (text) => {
-                        if (selectedTask) {
-                          // 选中卡片 = 与该卡"当前所属会话"对话：
-                          //   执行过 → lastThreadId（执行 Agent 线程）
-                          //   proposed/未执行 → origin_thread_id（建提案的
-                          //     原规划会话——Agent 挂这个提案的地方）
-                          //   两者皆无（未执行的用户卡）→ 诚实提示，不假装
-                          //   收到。回应面统一转场智能体对话（会话之家）。
-                          // （此前这里先派发 canvas:node-chat 假动画：假
-                          // step + "Agent 已现场调优"fiction + 无线程任务
-                          // 消息黑洞——2026-09-25 产品语义修正）
-                          const threadId =
-                            selectedTask.lastThreadId ||
-                            (
-                              selectedTask.rawQueueTask as
-                                | { origin_thread_id?: string }
-                                | undefined
-                            )?.origin_thread_id
-                          if (!threadId) {
-                            toast.error(
-                              `#T-${selectedTask.taskNo} 尚未开始执行，暂无对话对象；确认提案或等派发后再对话`,
-                            )
-                            return
-                          }
-                          const store = useChatStore.getState()
-                          await store.setThread(
-                            threadId,
-                            scopedProjectId ?? null,
-                          )
-                          try {
-                            await store.sendMessage(text)
-                            navigate({ to: "/chat" })
-                          } catch (err) {
-                            console.warn("Failed to send message:", err)
-                          }
-                        } else {
-                          // 无选中 = 与值守 Agent 对话（对话式规划）：需求进
-                          // 值守 Agent 会话（每条需求独立线程），Agent 对话中
-                          // 规划并以 tasks 工具挂图谱提案（proposed，等人确认）。
-                          // 此前这里是静默 TasksQueueApi.create 建卡——违背
-                          // "输入框=与 Agent 对话"设计（2026-09-25 用户指正）。
-                          // 无选中 = 与值守 Agent 对话：消息进值守 Agent 会话
-                          // （每条需求独立线程），随后转场到智能体对话界面——
-                          // 那里是会话的家（会话列表/线程管理/纯聊天 UI），
-                          // Agent 回复与后续追问都在那边进行。画布侧的图谱
-                          // 提案由 Agent 挂出后仍以任务节点回到值守画布。
-                          const store = useChatStore.getState()
-                          await store.setThread(null, scopedProjectId ?? null)
-                          try {
-                            await store.sendMessage(text)
-                            navigate({ to: "/chat" })
-                          } catch (err) {
-                            console.warn(
-                              "Failed to start duty agent conversation:",
-                              err,
-                            )
-                          }
+                    <div className="relative flex flex-col items-center w-full">
+                      {/* ── 输入区上方浮动胶囊状态栏 ── */}
+                      {isEvaluating && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: 8, scale: 0.96 }}
+                          className="mb-2 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-background/95 dark:bg-[#181920]/95 backdrop-blur-md border border-primary/30 shadow-lg text-xs font-medium text-primary select-none z-30"
+                        >
+                          <Bot className="h-3.5 w-3.5 animate-pulse text-primary shrink-0" />
+                          <span>Agent 正在分析需求并规划任务图谱...</span>
+                          <span className="flex h-2 w-2 rounded-full bg-primary/25 items-center justify-center">
+                            <span className="h-1.5 w-1.5 rounded-full bg-primary animate-ping" />
+                          </span>
+                        </motion.div>
+                      )}
+
+                      <ChatInputArea
+                        className="p-0 w-full"
+                        cardClassName="bg-[var(--panel,#ffffff)] dark:bg-[#15161b] shadow-md border-border/80"
+                        currentProject={currentProject}
+                        isGlobalMode={!currentProject}
+                        hideTerminal={true}
+                        hideVoice={true}
+                        hideAutoSpeak={true}
+                        hideRecording={true}
+                        contextSlot={
+                          selectedTask ? (
+                            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20 select-none max-w-[380px]">
+                              <Bot className="h-3.5 w-3.5 shrink-0" />
+                              <span className="truncate">
+                                #T-{selectedTask.taskNo} {selectedTask.title}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={onClearSelection}
+                                className="hover:opacity-70 ml-0.5 cursor-pointer"
+                                title="退出节点对话，返回全局值守"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          ) : isMultiSelected ? (
+                            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20 select-none">
+                              <Bot className="h-3.5 w-3.5 shrink-0" />
+                              <span>已多选 {selectedTaskIds.size} 个任务</span>
+                              <button
+                                type="button"
+                                onClick={onClearSelection}
+                                className="hover:opacity-70 ml-0.5 cursor-pointer"
+                                title="取消多选"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          ) : null
                         }
-                      }}
-                      onStop={() => {}}
-                      isAgentWorking={false}
-                      isSending={false}
-                      isStopPending={false}
-                    />
+                        onSend={async (text) => {
+                          if (selectedTask) {
+                            // 选中卡片 = 与该卡"当前所属会话"对话：
+                            //   执行过 → lastThreadId（执行 Agent 线程）
+                            //   proposed/未执行 → origin_thread_id（建提案的
+                            //     原规划会话——Agent 挂这个提案的地方）
+                            //   两者皆无（未执行的用户卡）→ 诚实提示，不假装
+                            //   收到。回应面统一转场智能体对话（会话之家）。
+                            const threadId =
+                              selectedTask.lastThreadId ||
+                              (
+                                selectedTask.rawQueueTask as
+                                  | { origin_thread_id?: string }
+                                  | undefined
+                              )?.origin_thread_id
+                            if (!threadId) {
+                              toast.error(
+                                `#T-${selectedTask.taskNo} 尚未开始执行，暂无对话对象；确认提案或等派发后再对话`,
+                              )
+                              return
+                            }
+                            const store = useChatStore.getState()
+                            await store.setThread(
+                              threadId,
+                              scopedProjectId ?? null,
+                            )
+                            try {
+                              await store.sendMessage(text)
+                              navigate({ to: "/chat" })
+                            } catch (err) {
+                              console.warn("Failed to send message:", err)
+                            }
+                          } else {
+                            // 无选中 = 针对全局画布发掘需求，交由值守 Agent 智能评估：
+                            // 核心交互哲学：
+                            // 1. 若需求明确清晰，Agent 自主规划并在画布上实时生成任务节点，
+                            //    用户停留在值守画布，直接见证任务图谱在眼前实时成型，不转场！
+                            // 2. 只有当需求含糊/需要深入交互澄清（如发起 HITL 疑问或追问），
+                            //    才由监听器平滑转场至 /chat 进行深入对话。
+                            const store = useChatStore.getState()
+                            await store.setThread(null, scopedProjectId ?? null)
+                            setIsSendingPrompt(true)
+                            setIsEvaluating(true)
+                            toast.info("需求已送达，Agent 正在分析并评估任务规划...", { duration: 3000 })
+                            try {
+                              await store.sendMessage(text)
+                              const currentThreadId =
+                                useChatStore.getState().threadId
+                              if (currentThreadId) {
+                                // 立即探测：若 Agent 判定需求含糊并直接发起了交互澄清/追问（触发 HITL/question），
+                                // 零延迟平滑转场至会话，无需等待后续轮询
+                                const agentState = useAgentStore.getState()
+                                const act = (await ConversationsService.getThreadActivity({
+                                  threadId: currentThreadId,
+                                }).catch(() => null)) as any
+                                if (
+                                  agentState.status === "interrupted" ||
+                                  !!agentState.humanRequest ||
+                                  act?.human_request ||
+                                  act?.status === "interrupted"
+                                ) {
+                                  setIsEvaluating(false)
+                                  setEvaluatingThreadId(null)
+                                  toast.info("需求需要进一步澄清，正在前往会话...", {
+                                    duration: 2500,
+                                  })
+                                  navigate({
+                                    to: "/chat",
+                                    search: { thread_id: currentThreadId } as any,
+                                  })
+                                  return
+                                }
+                                setEvaluatingThreadId(currentThreadId)
+                              }
+                            } catch (err) {
+                              console.warn(
+                                "Failed to start duty agent conversation:",
+                                err,
+                              )
+                              toast.error("需求发送失败，请重试")
+                              setIsEvaluating(false)
+                            } finally {
+                              setIsSendingPrompt(false)
+                            }
+                          }
+                        }}
+                        onStop={() => {}}
+                        isAgentWorking={isEvaluating}
+                        isSending={isSendingPrompt}
+                        isStopPending={false}
+                      />
+                    </div>
                   )
                 }}
               />

@@ -85,4 +85,5 @@ NON_RETRYABLE_ERROR_MARKERS = (
     "DataInspectionFailed",
     "must provide a model parameter",
     "invalid_request_error",
+    "安全熔断",
 )
