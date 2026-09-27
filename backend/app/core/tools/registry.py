@@ -40,12 +40,6 @@ class AutoDiscoveryRegistry:
         logger.debug(f"Manually registered tool: {tool.name}")
         _invalidate_caches()
 
-    def register_runtime(self, tool: BaseTool):
-        """Register a dynamically created runtime tool (overrides static by name)."""
-        self._runtime_tools[tool.name] = tool
-        logger.debug(f"Registered runtime tool: {tool.name}")
-        _invalidate_caches()
-
     def scan(self, package_name: str):
         """
         Recursively scan a package for tools.
@@ -171,15 +165,24 @@ def _ensure_scanned():
         # Scan all domain-specific application logic for @evoloop_tool
         REGISTRY.scan("app.domain")
 
-        REGISTRY.scan("app.core.atlas.tools")
+        # app.core.atlas.tools 已退役（2026-09 工具面收敛）：6 个 Atlas 工具
+        # （app_atlas/app_maps 读写查）零内部接线，整体删除；Atlas 底层引擎与
+        # HTTP API（app/api/routes/atlas.py）不受影响。
         REGISTRY.scan("app.core.engine.tools")
+        # app.core.environment.tools 保留 browser/mobile/desktop facade 注册。
         REGISTRY.scan("app.core.environment.tools")
         REGISTRY.scan("app.core.execution.terminal.tools")
-        REGISTRY.scan("app.core.learning.macro.tools")
+        # app.core.learning.macro.tools 已退役（2026-09 工具面收敛）：run_macro/
+        # create_macro 独立工具删除，实现体并入 macro facade（react_macro.py）——
+        # 宏的增删改查/执行经统一入口 macro(action=...) 分发。
         REGISTRY.scan("app.core.file.tools")
         REGISTRY.scan("app.core.hitl")
-        REGISTRY.scan("app.core.learning.tools")
-        REGISTRY.scan("app.core.mcp.tools")
+        # app.core.learning.tools 已退役（2026-09 工具面收敛）：6 个 Skill CRUD
+        # 工具（list/get/update/delete/reconcile/harvest）零内部接线，整体删除；
+        # skill facade（react_skill.py）与 skill 服务层不受影响。
+        # app.core.mcp.tools 已退役（2026-09 产品决策）：5 个 MCP 客户端运行时
+        # 管理工具（use_mcp_server/prompts/resources）删除——Agent 不再具备运行时
+        # 增删/探查 MCP 连接的能力，连接由 DB 配置启动时自动拉起（connect_from_db）。
         REGISTRY.scan("app.core.memory.tools")
         # app.core.project.tools 已退役（2026-09 任务系统收敛）：旧
         # create_project_task / subtask 工具与新 tasks facade 平行注册，

@@ -30,7 +30,6 @@ class ToolManager:
         Get tools for a specific agent role, handling Progressive Disclosure automatically.
         Nodes no longer need to manually parse tickets or talk to MCP.
         """
-        from app.core.mcp import mcp_client_manager
         from app.core.tools.registry import get_agent_tools
 
         # 0. 域驱动能力面：按当前会话域解析 capability profile（缺失 = 现状全量）

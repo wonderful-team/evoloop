@@ -148,13 +148,15 @@ async def save_app_map(
     existing row is returned unchanged (short-circuit). Otherwise the old map
     is marked superseded and a new row with map_version+1 is inserted.
     """
-    content_hash = compute_content_hash({
-        "routes": routes,
-        "actions": actions,
-        "elements": elements,
-        "db_tables": db_tables,
-        "extra": extra or {},
-    })
+    content_hash = compute_content_hash(
+        {
+            "routes": routes,
+            "actions": actions,
+            "elements": elements,
+            "db_tables": db_tables,
+            "extra": extra or {},
+        }
+    )
 
     async with session_scope() as db:
         stmt = select(AppMap).where(
@@ -227,17 +229,6 @@ async def save_app_map(
     return new_id, new_version, True
 
 
-async def get_active_app_map(project_id: int, entity: str) -> AppMap | None:
-    async with session_scope() as db:
-        stmt = select(AppMap).where(
-            AppMap.project_id == project_id,
-            AppMap.entity == entity,
-            AppMap.status == "active",
-        )
-        result = await db.execute(stmt)
-        return result.scalars().first()
-
-
 async def list_app_maps(project_id: int, status: str | None = "active") -> list[AppMap]:
     async with session_scope() as db:
         stmt = select(AppMap).where(AppMap.project_id == project_id)
@@ -245,28 +236,3 @@ async def list_app_maps(project_id: int, status: str | None = "active") -> list[
             stmt = stmt.where(AppMap.status == status)
         result = await db.execute(stmt)
         return list(result.scalars().all())
-
-
-async def operation_map_summary(project_id: int) -> str:
-    """Compact text summary of active AppMaps for Agent context injection.
-
-    One block per entity: routes + actions (with kind/risk), so the Agent knows
-    which business operations the project exposes without reading full maps.
-    """
-    maps = await list_app_maps(project_id, status="active")
-    if not maps:
-        return ""
-    blocks: list[str] = []
-    for m in maps:
-        lines = [f"### {m.entity} (platform: {m.platform}, map v{m.map_version})"]
-        for r in m.routes or []:
-            lines.append(
-                f"- Route: {r.get('method', 'GET')} {r.get('url', '')} ({r.get('name', '')})"
-            )
-        for a in m.actions or []:
-            rule = f" — {a['business_rule']}" if a.get("business_rule") else ""
-            lines.append(
-                f"- Action: {a.get('name', '')} [{a.get('kind', '?')}/{a.get('risk_tier', 'ui')}]{rule}"
-            )
-        blocks.append("\n".join(lines))
-    return "\n\n".join(blocks)

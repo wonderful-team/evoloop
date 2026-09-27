@@ -523,7 +523,7 @@ class ExecutorMixin:
 
     @classmethod
     async def _execute_mobile_step(
-        cls, event_type, selector, payload, disable_ocr=True, expected_pkg=None
+        cls, event_type, selector, payload, disable_ocr=True
     ):
         from app.core.environment.controllers import MobileController
 

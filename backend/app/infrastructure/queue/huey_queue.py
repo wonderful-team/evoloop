@@ -231,7 +231,7 @@ class HueyTaskScheduler(TaskScheduler, SyncTaskMixin):
             huey_wrapper.delay = lambda *a, **kw: self._create_result(
                 huey_wrapper(*a, **kw)
             )
-            huey_wrapper.apply_async = lambda args=None, kwargs=None, **opts: (
+            huey_wrapper.apply_async = lambda args=None, kwargs=None: (
                 self._create_result(huey_wrapper(*(args or ()), **(kwargs or {})))
             )
 
@@ -275,7 +275,7 @@ class HueyTaskScheduler(TaskScheduler, SyncTaskMixin):
         async def _execute():
             from app.infrastructure.database.resource_manager import db_resource_manager
 
-            await db_resource_manager.initialize(create_tables=False, seed_data=False)
+            await db_resource_manager.initialize(create_tables=False)
             if bind:
                 return await func(None, *args, **kwargs)
             else:

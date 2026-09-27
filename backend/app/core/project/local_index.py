@@ -152,10 +152,6 @@ class LocalProjectIndex:
         entry = self.get_entry(project_id, workspace_root)
         return entry.path if entry else None
 
-    def get_project_id(self, path: str, workspace_root: str) -> int | None:
-        """Return project_id for a given local absolute path, or None."""
-        self.refresh(workspace_root)
-        return self._path_to_id.get(os.path.abspath(path))
 
 
 # Global instance

@@ -19,8 +19,9 @@ class AppMapEvent(BaseEvent):
     superseded_by: int | None = None
     action: str = "created"
 
-    # Bridged to frontend: users see "新地图已保存" notifications.
-    is_public: bool = True
+    # No frontend consumer currently listens for app_map events. Keep the schema
+    # but do not bridge to SSE until a UI component actually subscribes.
+    is_public: bool = False
     broadcast_channel: str = "system"
 
     def model_post_init(self, __context: Any) -> None:

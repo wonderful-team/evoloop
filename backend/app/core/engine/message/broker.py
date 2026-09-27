@@ -41,12 +41,12 @@ class EventReplayBuffer:
 
     @staticmethod
     def thread_id_of(channel: str) -> str | None:
-        # channel 形如 chat:{thread_id}:events、workflow:{workflow_id}:events
-        # 或 tasks:{project_id}:events
+        # channel 形如 chat:{thread_id}:events、workflow:{workflow_id}:events、
+        # tasks:{project_id}:events、thread:{thread_id}:events、system:events
         prefix = next(
             (
                 prefix
-                for prefix in ("chat:", "workflow:", "tasks:")
+                for prefix in ("chat:", "workflow:", "tasks:", "thread:", "system:")
                 if channel.startswith(prefix)
             ),
             None,

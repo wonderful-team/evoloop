@@ -69,6 +69,28 @@ class RouteCatalogCache:
         self._rebuild_lock = asyncio.Lock()
         self._rebuild_task: asyncio.Task | None = None
 
+
+    async def diagnose(self, text: str, project_id: int | None = None) -> dict:
+        """L0 miss triage: in-process matcher state vs shared cache vs live match."""
+        cached_version = None
+        cached_count = None
+        cached = await _load_spec_from_cache()
+        if cached is not None:
+            cached_version = cached.version
+            cached_count = len(cached.templates)
+        in_proc_version = self._spec.version if self._spec else None
+        in_proc_count = len(self._spec.templates) if self._spec else 0
+        live_hit = None
+        if self._matcher is not None:
+            live_hit = self._matcher.match(text, project_id=project_id)
+        return {
+            "in_proc_version": in_proc_version,
+            "in_proc_templates": in_proc_count,
+            "shared_version": cached_version,
+            "shared_templates": cached_count,
+            "live_match": str(live_hit),
+        }
+
     async def get_local_matcher(self) -> LocalMatcher | None:
         """Return a deterministic template matcher over the current spec.
 

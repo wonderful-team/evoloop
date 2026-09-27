@@ -293,8 +293,12 @@ async def authorization_gate(context: HookContext) -> HookResult:
 
         tool_args = {}
         if context.tool_input is not None:
-            tool_args = context.tool_input.args or {}
             inp = context.tool_input
+            # args 字段只承载显式传入的 args dict；edit 的 target/replacement
+            # 等未声明参数在 ToolInput（extra="allow"）里是 model_extra——不并入
+            # 的话审批存档丢参数，批准后重执行会报缺参（write/bash 恰好被下方
+            # 白名单覆盖才显得"部分工具正常"）。
+            tool_args = {**(inp.model_extra or {}), **(inp.args or {})}
             if inp.command is not None:
                 tool_args["command"] = inp.command
             if inp.path is not None:

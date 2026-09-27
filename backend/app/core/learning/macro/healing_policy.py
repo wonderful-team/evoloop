@@ -22,11 +22,13 @@ Usage:
         logger.info(f"Self-healing disabled: {decision.reason}")
 """
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from app.core.config import settings
 from app.core.learning.macro.schemas import HealingDecision
-from app.models.macro import Macro
+
+if TYPE_CHECKING:
+    from app.models.macro import Macro
 
 
 class SelfHealingPolicy:
@@ -153,8 +155,7 @@ class SelfHealingPolicy:
         base_msg = (
             "[HINT] Macro step failed. "
             "Since perceptual self-healing is enabled, you should now attempt to recover manually "
-            "using basic tools (browser, desktop, etc.) to complete the mission. "
-            "After successful recovery, you may call `reconcile_skill` to fix this macro permanently."
+            "using basic tools (browser, desktop, etc.) to complete the mission."
         )
 
         if macro_name and error_message:

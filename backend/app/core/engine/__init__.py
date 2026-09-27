@@ -1,36 +1,13 @@
-"""
-AgentEngine - EvoLoop Agent Execution Engine.
-
-Usage:
-    from app.core.engine import AgentEngine
-
-    engine = AgentEngine()
-    result = await engine.run_react_loop(state, config, system_prompt, tools)
-
-With dependency injection (for testing):
-    engine = AgentEngine(llm_factory=mock_llm)
-    result = await engine.run_react_loop(...)
-"""
+"""EvoLoop engine package — OpenHands SDK kernel (see docs/openhands-sdk-integration.md)."""
 
 # Use lazy imports to avoid triggering heavy module loads on
 # submodule imports (e.g., app.core.engine.rewind.events).
-# This is critical for test environments where heavy deps are mocked.
 
 __all__ = [
-    "AgentEngine",
-    "EngineResult",
-    "get_default_engine",
-    "set_default_engine",
-    "ContextTrimmer",
     "EvoMessageConverter",
 ]
 
 _import_map = {
-    "AgentEngine": ("app.core.engine.engine", "AgentEngine"),
-    "EngineResult": ("app.core.engine.engine", "EngineResult"),
-    "get_default_engine": ("app.core.engine.engine", "get_default_engine"),
-    "set_default_engine": ("app.core.engine.engine", "set_default_engine"),
-    "ContextTrimmer": ("app.core.engine.context_trimmer", "ContextTrimmer"),
     "EvoMessageConverter": ("app.core.engine.message.converter", "EvoMessageConverter"),
 }
 

@@ -20,11 +20,9 @@ import asyncio
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from app.core.channel.base import IncomingMessage, InputChannel
-from app.core.identity import identity_service
 
 logger = logging.getLogger(__name__)
 

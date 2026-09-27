@@ -35,11 +35,15 @@ class MonitoringLifecycleSubscriber:
         try:
             from app.core.monitoring.activity import activity_monitor
 
+            # SessionCompleted 事件本身会经桥接层转成 SSE 的 session_completed；
+            # run_end / status 应由 run_scope.__aexit__ 统一发布。此处只把 activity
+            # 状态收敛到终态，避免重复发送 terminal SSE。
             await activity_monitor.end_run(
                 thread_id=data.thread_id,
                 status=ActivityStatus.DONE,
                 final_outcome=data.outcome,
                 run_id=data.run_id,
+                publish_events=False,
             )
             logger.debug(f"[Monitoring] ✓ Observability run finalized for {data.thread_id}")
         except Exception as e:

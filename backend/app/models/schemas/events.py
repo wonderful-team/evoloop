@@ -62,14 +62,7 @@ class ProgressEvent(BaseStreamEvent):
     metadata: dict[str, Any] = {}  # 扩展信息：如 tool_name, call_id
 
 
-# --- 4. 状态同步流：通用 UI 状态更新 ---
-class StatusEvent(BaseStreamEvent):
-    type: Literal["status"] = "status"
-    status: str  # 内部状态码
-    message: str | None = None  # 显示消息
-
-
-# --- 5. 资源流：Artifacts (Files, Shell, etc.) ---
+# --- 4. 资源流：Artifacts (Files, Shell, etc.) ---
 class ArtifactEvent(BaseStreamEvent):
     type: Literal["artifact"] = "artifact"
     id: str
@@ -139,15 +132,12 @@ class LLMAuthErrorEvent(BaseStreamEvent):
     hint: str | None = None
 
 
-# Rebuild models that use forward references
-def rebuild_event_models():
+# Rebuild models that use forward references at import time.
+# Import is deferred to avoid a circular dependency during startup.
+try:
     from app.core.engine.message.schemas import MessageBlock  # noqa: F401
 
     MessageSyncEvent.model_rebuild()
-
-
-try:
-    rebuild_event_models()
 except ImportError:
     # This might happen during initialization if schemas.py is not yet available
     pass

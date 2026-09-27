@@ -45,7 +45,6 @@ parameters: []
 - `get_html`: 页面或 `selector` 的 outerHTML。
 - `get_attribute`: `selector` 的 `attribute` 属性值。
 - `get_links`: 所有 href 链接（可限定在 `selector` 内）。
-- `find_element`: 检查 `selector`/`text` 是否存在并返回位置。
 
 **感知**
 - `screenshot`: 截图（`full_page=True` 整页滚动）；`ocr=True` 立即跑 OCR 返回

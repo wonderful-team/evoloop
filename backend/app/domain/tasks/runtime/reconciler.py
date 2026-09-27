@@ -19,6 +19,7 @@ from sqlalchemy import select
 
 from app.core.monitoring.constants import ActivityStatus
 from app.domain.tasks.constants import (
+    NO_ACTIVITY_GRACE_SECONDS,
     QUOTA_COOLDOWN_MINUTES,
     RESTART_GRACE_SECONDS,
     RUN_SKIP_STATUSES,
@@ -27,7 +28,6 @@ from app.domain.tasks.constants import (
 )
 from app.domain.tasks.service import (
     TaskQueueService,
-    task_number,
     task_review_pending,
     task_title,
 )
@@ -35,9 +35,7 @@ from app.infrastructure.database.sql.database import session_scope
 
 logger = logging.getLogger(__name__)
 
-_TERMINAL_STATUSES = frozenset(
-    ActivityStatus(v) for v in RUN_TERMINAL_STATUSES
-)
+_TERMINAL_STATUSES = frozenset(ActivityStatus(v) for v in RUN_TERMINAL_STATUSES)
 # 这些状态下任务现场仍在推进/等待，不得回队
 _SKIP_STATUSES = frozenset(ActivityStatus(v) for v in RUN_SKIP_STATUSES)
 
@@ -171,8 +169,8 @@ async def reconcile_stranded(*, startup: bool = False) -> int:
         t
         for t in review_rows
         if not task_review_pending(t)
-        and t.updated_at
-        and (now - t.updated_at) > timedelta(hours=24)
+        and _aware(t.updated_at) is not None
+        and now - _aware(t.updated_at) > timedelta(hours=24)
     ]
     for t in signoff_rows:
         td = t.task_data or {}
@@ -185,31 +183,27 @@ async def reconcile_stranded(*, startup: bool = False) -> int:
         from app.models.project import ProjectTask as _PT
 
         async with _ss() as session:
-            await session.execute(
-                _u(_PT).where(_PT.id == t.id).values(task_data=td)
-            )
-        try:
-            from app.core.channel.base import ChannelContext
-            from app.core.channel.output.mobile_channel import MobileChannel
-            from app.core.config import settings as _settings
+            await session.execute(_u(_PT).where(_PT.id == t.id).values(task_data=td))
+        from app.domain.tasks.notify import push_hitl_notice, task_label
 
-            if _settings.MOBILE_SYNC_ENABLED:
-                no = task_number(t)
-                label = f"#T-{no}" if no else t.id[:8]
-                await MobileChannel().send_hitl_request(
-                    request_id=f"signoff-remind-{t.id}",
-                    request_type="confirmation",
-                    prompt=f"提醒：任务 {label}「{(task_title(t) or '')[:36]}」已等你拍板超过 24 小时，链路下游全部停摆",
-                    ctx=ChannelContext(thread_id=t.origin_thread_id or t.id, project_id=t.project_id),
-                    metadata={"kind": "signoff_reminder", "task_id": t.id},
-                )
-        except Exception:
-            logger.exception("[DutyReconciler] signoff remind push failed")
+        label = task_label(t)
+        await push_hitl_notice(
+            t,
+            request_id=f"signoff-remind-{t.id}",
+            kind="signoff_reminder",
+            prompt=f"提醒：任务 {label}「{(task_title(t) or '')[:36]}」已等你拍板超过 24 小时，链路下游全部停摆",
+        )
 
     for t in review_rows:
         if not task_review_pending(t):
             continue
-        stale = t.updated_at and (now - t.updated_at) > review_timeout
+        # sqlite 驱动返回 naive datetime（UTC 语义）：直接与 aware now 相减
+        # 会 TypeError 并整个 reconcile 中断（HITL 过期/判死/回队全灭），
+        # 必须经 _aware 归一（2026-09-24 实测事故）。
+        stale = (
+            _aware(t.updated_at) is not None
+            and now - _aware(t.updated_at) > review_timeout
+        )
         if not stale:
             continue
         logger.warning(
@@ -226,7 +220,6 @@ async def reconcile_stranded(*, startup: bool = False) -> int:
             logger.exception(
                 "[DutyReconciler] review timeout resolution failed for %s", t.id
             )
-
 
     # 1) 悬挂 running/stopping 判死（wakeup_ 与 agent_ 同权：workflow 阶段
     #    run 同为本进程派生，进程死亡后其 activity 永久悬挂、任务永久
@@ -297,9 +290,7 @@ async def reconcile_stranded(*, startup: bool = False) -> int:
             .all()
         )
     duty_tasks = [
-        t
-        for t in tasks
-        if str(t.last_thread_id).startswith(("wakeup_", "agent_"))
+        t for t in tasks if str(t.last_thread_id).startswith(("wakeup_", "agent_"))
     ]
     if not duty_tasks:
         return handled
@@ -328,6 +319,17 @@ async def reconcile_stranded(*, startup: bool = False) -> int:
             status = None
 
         if status is None:
+            # 认领（in_progress + 绑线程）→ run 启动（activity 落库）之间有
+            # 秒级窗口：reconciler 恰好扫过窗口时，"无 activity 记录"不代表
+            # run 已死。稳态下给宽限期，防止刚认领的任务被误杀回队（然后
+            # 重派→再误杀→熔断 failed，2026-09-24 实测事故链）。
+            # startup 时进程刚死，宽限期无意义（遗留 running 一律判死）。
+            if not startup:
+                claimed_at = _aware(t.updated_at)
+                if claimed_at is not None and now - claimed_at < timedelta(
+                    seconds=NO_ACTIVITY_GRACE_SECONDS
+                ):
+                    continue
             reason = "run lost (no activity record); auto-requeued by duty reconciler"
         elif status is ActivityStatus.HUMAN_INTERRUPT and tid not in hitl_threads:
             # 孤儿中断：Agent 挂起等人，但 pending 请求已不存在（被关/丢失）——

@@ -169,23 +169,6 @@ class ToolStateStore:
                 return thread_tools.pop(run_id, None)
             return None
 
-    def get_tool(self, thread_id: str, run_id: str) -> ToolState | None:
-        """
-        Get current state for a tool execution.
-
-        Args:
-            thread_id: The thread/session ID
-            run_id: The run_id for this tool execution
-
-        Returns:
-            ToolState if found, None otherwise
-        """
-        with self._store_lock:
-            thread_tools = self._tools.get(thread_id)
-            if thread_tools:
-                return thread_tools.get(run_id)
-            return None
-
     def clear_thread(self, thread_id: str):
         """
         Clear all tool states for a thread.

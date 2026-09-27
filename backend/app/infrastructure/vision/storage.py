@@ -20,7 +20,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 
 from app.core.config import settings
-from app.core.file import compute_file_hash, ensure_dir
+from app.core.file import ensure_dir
 from app.infrastructure.vision.types import PlatformType
 
 logger = logging.getLogger(__name__)
@@ -177,41 +177,6 @@ class ScreenshotStorage:
             logger.exception(f"[ScreenshotStorage] Failed to save screenshot: {e}")
             raise
 
-    def copy_to_purpose(
-        self,
-        source_path: str,
-        purpose: ScreenshotPurpose,
-        platform: PlatformType = PlatformType.MACOS,
-        bundle_id: str | None = None,
-        suffix: str | None = None,
-    ) -> str | None:
-        """
-        Copy an existing screenshot to another purpose category.
-        Useful for promoting temp screenshots to atlas/debug.
-
-        Args:
-            source_path: Original screenshot path
-            purpose: Target purpose category
-            platform: Target platform
-            bundle_id: App identifier
-            suffix: Additional identifier
-
-        Returns:
-            New path or None if failed
-        """
-        if not os.path.exists(source_path):
-            logger.warning(f"[ScreenshotStorage] Source not found: {source_path}")
-            return None
-
-        try:
-            dest_path = self.get_path(purpose, platform, bundle_id, suffix)
-            shutil.copy2(source_path, dest_path)
-            logger.info(f"[ScreenshotStorage] Copied to {purpose}: {dest_path}")
-            return dest_path
-        except Exception as e:
-            logger.exception(f"[ScreenshotStorage] Copy failed: {e}")
-            return None
-
     def cleanup_expired(self, dry_run: bool = False) -> dict[str, int]:
         """
         Clean up expired screenshots based on retention policy.
@@ -233,7 +198,7 @@ class ScreenshotStorage:
             if not os.path.exists(base_dir):
                 continue
 
-            for root, dirs, files in os.walk(base_dir):
+            for root, _dirs, files in os.walk(base_dir):
                 for file in files:
                     if not file.endswith((".png", ".jpg", ".jpeg")):
                         continue
@@ -260,8 +225,8 @@ class ScreenshotStorage:
 
     def _remove_empty_dirs(self, base_dir: str):
         """Remove empty directories recursively."""
-        for root, dirs, files in os.walk(base_dir, topdown=False):
-            for dir_name in dirs:
+        for root, _dirs, _files in os.walk(base_dir, topdown=False):
+            for dir_name in _dirs:
                 dir_path = os.path.join(root, dir_name)
                 try:
                     if os.path.exists(dir_path) and not os.listdir(dir_path):
@@ -280,7 +245,7 @@ class ScreenshotStorage:
             file_count = 0
 
             if os.path.exists(base_dir):
-                for root, dirs, files in os.walk(base_dir):
+                for root, _dirs, files in os.walk(base_dir):
                     for file in files:
                         if file.endswith((".png", ".jpg", ".jpeg")):
                             filepath = os.path.join(root, file)
@@ -300,10 +265,6 @@ class ScreenshotStorage:
 
         return stats
 
-    def compute_hash(self, filepath: str) -> str:
-        """Compute MD5 hash of screenshot for deduplication."""
-        result = compute_file_hash(filepath, algo="md5")
-        return result[:16] if result else ""
 
 
 # Singleton instance
@@ -463,7 +424,7 @@ class ScreenRecordingStorage:
 
         # Clean video files
         if os.path.exists(settings.SCREEN_RECORDINGS_DIR):
-            for root, dirs, files in os.walk(settings.SCREEN_RECORDINGS_DIR):
+            for root, _dirs, files in os.walk(settings.SCREEN_RECORDINGS_DIR):
                 for file in files:
                     if not file.endswith((".mp4", ".mov", ".avi", ".mkv")):
                         continue

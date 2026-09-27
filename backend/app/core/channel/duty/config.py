@@ -23,7 +23,6 @@ from app.core.channel.duty.constants import (
 from app.core.project.utils import (
     get_project_path,
     read_project_json,
-    write_project_json,
 )
 from app.infrastructure.config.service import SystemConfigService
 

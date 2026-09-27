@@ -49,7 +49,7 @@ class MemoryManager:
 
     def __init__(
         self,
-        config: "MemoryConfig | None" = None,
+        config: MemoryConfig | None = None,
         storage: MemoryStore | None = None,
         short_term: IShortTermMemory | None = None,
     ):
@@ -61,9 +61,6 @@ class MemoryManager:
             storage: Storage backend. If None, creates based on EMBEDDED_MODE.
             short_term: Short-term memory backend. If None, creates SqlShortTermMemory.
         """
-        # Import here to avoid circular imports at module level
-        from app.core.memory.config import MemoryConfig
-
         self.config = config or MemoryConfig.from_settings()
 
         # Short-term memory (always SQL)
@@ -116,11 +113,7 @@ class MemoryManager:
         """
         await self.short_term.add_message(thread_id, message)
 
-    async def get_context(
-        self,
-        thread_id: str,
-        limit: int = 50,
-    ) -> list[BaseMessage]:
+    async def get_context(self, thread_id: str, limit: int = 50) -> list[BaseMessage]:
         """
         Retrieve recent conversation context.
 
@@ -136,28 +129,6 @@ class MemoryManager:
     # ========================================================================
     # User Preferences (Direct Methods)
     # ========================================================================
-
-    async def save_preference(
-        self,
-        member_id: int,
-        key: str,
-        value: str,
-        description: str = "",
-        project_id: int | None = None,
-    ) -> None:
-        """Save a user preference as a MemoryEntry."""
-        entry = MemoryEntry(
-            id=f"pref_{member_id}_{key}",
-            type=MemoryType.USER,
-            privacy=PrivacyLevel.PRIVATE,
-            title=f"Preference: {key}",
-            content=f"{key}: {value}\n\n{description}",
-            description=f"{key} = {value}",
-            project_id=project_id,
-            member_id=member_id,
-            tags=["preference", key],
-        )
-        await self.save_memory(entry)
 
     async def get_merged_preferences(
         self, member_id: int, project_id: int | None = None

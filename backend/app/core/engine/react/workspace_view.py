@@ -33,16 +33,3 @@ def to_agent_view_path(path: str | None) -> str | None:
         return "/workspace" + normalized[len(root):]
     return None
 
-
-def sanitize_agent_output(text: str | None) -> str | None:
-    """把文本中的宿主 member 根路径前缀替换为容器视角（尽力而为）。
-
-    用于工具输出/命令回显的兜底清洗；换不出映射的宿主路径保持原样
-    （真实隔离由沙箱与授权承担，本函数只是降噪）。
-    """
-    if not text or not settings.MULTI_TENANT_MODE:
-        return text
-    member_root = resolve_member_workspace_root(current_member_id())
-    if member_root and member_root in text:
-        text = text.replace(member_root, "/workspace")
-    return text

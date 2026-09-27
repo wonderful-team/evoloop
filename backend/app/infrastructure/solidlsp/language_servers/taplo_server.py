@@ -14,9 +14,6 @@ import threading
 import urllib.request
 from typing import Any
 
-# Download timeout in seconds (prevents indefinite hangs)
-DOWNLOAD_TIMEOUT_SECONDS = 120
-
 from app.infrastructure.solidlsp.ls import SolidLanguageServer
 from app.infrastructure.solidlsp.ls_config import LanguageServerConfig
 from app.infrastructure.solidlsp.ls_utils import PathUtils
@@ -25,6 +22,9 @@ from app.infrastructure.solidlsp.lsp_protocol_handler.server import ProcessLaunc
 from app.infrastructure.solidlsp.settings import SolidLSPSettings
 
 log = logging.getLogger(__name__)
+
+# Download timeout in seconds (prevents indefinite hangs)
+DOWNLOAD_TIMEOUT_SECONDS = 120
 
 # Taplo release version and download URLs
 TAPLO_VERSION = "0.10.0"
@@ -272,10 +272,10 @@ class TaploServer(SolidLanguageServer):
         Starts the Taplo Language Server and initializes it.
         """
 
-        def register_capability_handler(params: Any) -> None:
+        def register_capability_handler(_params: Any) -> None:
             return
 
-        def do_nothing(params: Any) -> None:
+        def do_nothing(_params: Any) -> None:
             return
 
         def window_log_message(msg: dict) -> None:

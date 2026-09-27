@@ -8,11 +8,17 @@
 
 export interface TaskQueueEventPayload {
   event?: string
+  task_id?: string
   title?: string | null
   status?: string
   at?: string
   tokens?: number
   thread_id?: string
+  /** queue_drained 战报计数（本轮值守完成汇总） */
+  completed?: number
+  failed?: number
+  waiting?: number
+  pending?: number
 }
 
 export interface DutySseActions {
@@ -24,14 +30,44 @@ export interface DutySseActions {
 const TERMINAL_STATUSES = ["completed", "failed", "cancelled"]
 const HITL_EVENTS = new Set(["hitl_created", "hitl_resolved"])
 
-export function parseTaskQueueEvent(data: unknown): TaskQueueEventPayload | null {
+export function parseTaskQueueEvent(
+  data: unknown,
+): TaskQueueEventPayload | null {
   try {
-    const parsed = JSON.parse(typeof data === "string" ? data : String(data ?? ""))
+    const parsed = JSON.parse(
+      typeof data === "string" ? data : String(data ?? ""),
+    )
     return typeof parsed === "object" && parsed !== null
       ? (parsed as TaskQueueEventPayload)
       : null
   } catch {
     return null
+  }
+}
+
+/**
+ * 事件突发合并器：任务执行期事件连发（taken/advanced/终态…每条 4 个
+ * query），逐条 invalidate 会形成 refetch+重渲染风暴，主线程被压死后
+ * 后续 SSE 回调饿死（实测负载高时事件计数掉 0）。改为 250ms 尾沿合并：
+ * 突发窗口内 N 条事件只触发一次批量 invalidate，配合 react-query 的
+ * inflight 去重，风暴消失。窗口只是合并调度，不改变状态收敛语义
+ * （事件是加速器，最坏损失 250ms 实时性）。
+ */
+export function createCoalescedInvalidate(
+  invalidate: (...keys: string[]) => void,
+  windowMs = 250,
+): (...keys: string[]) => void {
+  const pending = new Set<string>()
+  let timer: ReturnType<typeof setTimeout> | null = null
+  return (...keys: string[]) => {
+    for (const key of keys) pending.add(key)
+    if (timer) return
+    timer = setTimeout(() => {
+      timer = null
+      const batch = Array.from(pending)
+      pending.clear()
+      if (batch.length) invalidate(...batch)
+    }, windowMs)
   }
 }
 

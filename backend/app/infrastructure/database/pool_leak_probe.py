@@ -23,15 +23,12 @@ Enabled only when ``EVOLOOP_POOL_LEAK_PROBE=1``:
 """
 
 import asyncio
-import functools
 import gc
 import logging
 import os
 import threading
 import time
 import traceback
-import weakref
-from typing import Any
 
 import sqlalchemy.pool.base as pool_base
 from sqlalchemy import event
@@ -48,37 +45,6 @@ _by_task: dict[int, set[int]] = {}  # task id -> set of record ids it checked ou
 _lock = threading.Lock()
 _finalize_patched = False
 _gc_tasks: set[asyncio.Task] = set()
-# per-fairy 追踪：record 级 stack 会被后续 checkout 覆盖（StaticPool/队列池连接
-# 复用场景抓不到真泄漏者）。以 fairy 为粒度登记 weakref + 借用栈，fairy 被 GC
-# 时若仍未 checkin → 点名泄漏点。
-_fairy_watch: dict[int, dict] = {}
-_checkin_patched = False
-
-
-def _on_fairy_gc(fairy_id: int, _ref: weakref.ref) -> None:
-    entry = _fairy_watch.pop(fairy_id, None)
-    if entry is None:
-        return  # 正常 checkin 过
-    logger.warning(
-        "[PoolLeakProbe] FAIRY GC'd WITHOUT CHECKIN (LEAKED SESSION)\n%s",
-        entry["stack"],
-    )
-
-
-def _patch_fairy_checkin() -> None:
-    global _checkin_patched
-    if _checkin_patched:
-        return
-
-    fairy_cls = pool_base._ConnectionFairy
-    orig_checkin = fairy_cls._checkin
-
-    def _traced_checkin(self, *args: Any, **kwargs: Any):
-        _fairy_watch.pop(id(self), None)
-        return orig_checkin(self, *args, **kwargs)
-
-    fairy_cls._checkin = _traced_checkin
-    _checkin_patched = True
 _LINGER_THRESHOLD = float(
     os.environ.get("EVOLOOP_POOL_LEAK_PROBE_LINGER", "30") or 30
 )
@@ -366,14 +332,3 @@ def _start_periodic_gc() -> None:
     task.add_done_callback(_gc_tasks.discard)
 
 
-def _watch_fairy(fairy: Any, record_id: int, stack: str) -> None:
-    _patch_fairy_checkin()
-    fid = id(fairy)
-    stale = _fairy_watch.pop(fid, None)
-    if stale is not None:
-        stale["ref"] = None
-    try:
-        ref = weakref.ref(fairy, functools.partial(_on_fairy_gc, fid))
-    except TypeError:
-        return
-    _fairy_watch[fid] = {"ref": ref, "record": record_id, "stack": stack}

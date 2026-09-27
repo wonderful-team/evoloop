@@ -1,6 +1,6 @@
-import {toast} from "sonner"
 import i18n from "@evoloop/shared/i18n"
-import {OpenAPI} from "@/client/core/OpenAPI"
+import { toast } from "sonner"
+import { OpenAPI } from "@/client/core/OpenAPI"
 
 export interface ChatConnectionCallbacks {
   onConnectionChange: (connected: boolean, status: string) => void
@@ -45,6 +45,9 @@ export class ChatConnection {
   private currentThreadId: string | null = null
   private callbacks: ChatConnectionCallbacks | null = null
   private _reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  // Track the last seen SSE event id so manual reconnects / thread switches can
+  // resume from the correct replay point instead of replaying the whole window.
+  private lastEventId: string | null = null
 
   private constructor() {}
 
@@ -80,6 +83,8 @@ export class ChatConnection {
     this.disconnect()
 
     this.currentThreadId = threadId
+    // New thread: no previous event id to resume from.
+    this.lastEventId = null
     this.notifyConnectionChange(false, "connecting")
 
     // Consolidated Token-based Auth for SSE (EventSource doesn't support headers)
@@ -107,6 +112,12 @@ export class ChatConnection {
     const params = new URLSearchParams()
     if (token) {
       params.append("token", token)
+    }
+
+    // Resume from the last seen event id to avoid replaying the full buffer
+    // on manual reconnect / thread switch.
+    if (this.lastEventId) {
+      params.append("last_event_id", this.lastEventId)
     }
 
     // Also try to attach guest_id from localStorage if present as fallback
@@ -154,6 +165,14 @@ export class ChatConnection {
   }
 
   private setupListeners(sse: EventSource) {
+    // Capture event ids for resumable reconnects.
+    const captureEventId = (e: MessageEvent) => {
+      const id = (e as any).lastEventId as string | undefined
+      if (id) {
+        this.lastEventId = id
+      }
+    }
+
     sse.onopen = () => {
       console.log("[ChatConnection] Connected")
       if (this._reconnectTimer) {
@@ -190,6 +209,7 @@ export class ChatConnection {
 
     // Custom Events
     sse.addEventListener("token", (e) => {
+      captureEventId(e)
       try {
         const data = JSON.parse(e.data)
         // Backend sends structured token events
@@ -247,16 +267,18 @@ export class ChatConnection {
     })
 
     sse.addEventListener("status", (e) => {
+      captureEventId(e)
       try {
         const data = JSON.parse(e.data)
         this.callbacks?.onStatus(data)
       } catch (err) {
-        console.error("[ChatConnection] Failed to parse status", err)
+        console.error("[ChatConnection] Failed to parse status event", err)
       }
     })
 
     // Real-time Message Sync
     sse.addEventListener("message", (e) => {
+      captureEventId(e)
       try {
         const data = JSON.parse(e.data)
         this.callbacks?.onMessage(data)
@@ -312,7 +334,9 @@ export class ChatConnection {
 
     sse.addEventListener("max_steps_reached", (e) => {
       try {
-        const data = JSON.parse((e as MessageEvent).data) as { max_steps?: number }
+        const data = JSON.parse((e as MessageEvent).data) as {
+          max_steps?: number
+        }
         toast.warning(
           i18n.t(
             "chat.maxStepsReached",
@@ -321,7 +345,10 @@ export class ChatConnection {
           ),
         )
       } catch (err) {
-        console.warn("[ChatConnection] Failed to parse max_steps_reached event", err)
+        console.warn(
+          "[ChatConnection] Failed to parse max_steps_reached event",
+          err,
+        )
       }
     })
     sse.addEventListener("quota_exhausted", (e) => {
@@ -349,6 +376,7 @@ export class ChatConnection {
     })
 
     sse.addEventListener("run_start", (e) => {
+      captureEventId(e)
       try {
         const data = JSON.parse(e.data)
         this.callbacks?.onRunStart(data)
@@ -358,6 +386,7 @@ export class ChatConnection {
     })
 
     sse.addEventListener("run_end", (e) => {
+      captureEventId(e)
       try {
         const data = JSON.parse(e.data)
         this.callbacks?.onRunEnd(data)
@@ -367,6 +396,7 @@ export class ChatConnection {
     })
 
     sse.addEventListener("session_completed", (e) => {
+      captureEventId(e)
       try {
         const data = JSON.parse(e.data)
         this.callbacks?.onSessionCompleted?.(data)

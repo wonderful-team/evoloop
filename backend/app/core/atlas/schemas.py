@@ -76,7 +76,7 @@ class ElementMetadata(DynamicBaseModel):
         known_fields = {f.alias or name for name, f in cls.model_fields.items()}
 
         extra = values.get("extra", {})
-        for k, v in list(values.items()):
+        for k, _v in list(values.items()):
             if k not in known_fields and k != "extra":
                 extra[k] = values.pop(k)
 

@@ -1,16 +1,20 @@
 import i18n from "@evoloop/shared/i18n"
-import {toast} from "sonner"
-import {create} from "zustand"
-import {AgentService, ConversationsService} from "@/client"
-import type {Message} from "@/components/Chat/ChatMessageItem"
-import {ChatConnection} from "@/lib/ChatConnection"
-import {llmPlatformService} from "@/services/llmPlatform"
-import {useAgentStore} from "./agentStore"
-import {useChangesetStore} from "./changesetStore"
-import {commitThinkingBuffer, normalizeMessage, tryParseHumanRequest,} from "./chat/helpers"
-import type {ActiveTaskInfo, ActivitySnapshot, ChatState} from "./chat/types"
-import {useHostContextStore} from "./hostContextStore"
-import {useProjectStore} from "./projectStore"
+import { toast } from "sonner"
+import { create } from "zustand"
+import { AgentService, ConversationsService } from "@/client"
+import type { Message } from "@/components/Chat/ChatMessageItem"
+import { ChatConnection } from "@/lib/ChatConnection"
+import { llmPlatformService } from "@/services/llmPlatform"
+import { useAgentStore } from "./agentStore"
+import { useChangesetStore } from "./changesetStore"
+import {
+  commitThinkingBuffer,
+  normalizeMessage,
+  tryParseHumanRequest,
+} from "./chat/helpers"
+import type { ActiveTaskInfo, ActivitySnapshot, ChatState } from "./chat/types"
+import { useHostContextStore } from "./hostContextStore"
+import { useProjectStore } from "./projectStore"
 
 // ---------------------------------------------------------------------------
 // Terminal input batching
@@ -291,8 +295,9 @@ export const useChatStore = create<ChatState>((set, get) => {
 
           const merged = [...msgs, ...localMsgsToKeep].sort(
             (a, b) =>
+              (a.sequence_number ?? 0) - (b.sequence_number ?? 0) ||
               new Date(a.timestamp || 0).getTime() -
-              new Date(b.timestamp || 0).getTime(),
+                new Date(b.timestamp || 0).getTime(),
           )
           return {
             messages: merged,
@@ -785,12 +790,15 @@ export const useChatStore = create<ChatState>((set, get) => {
     _finalizeMessages: () => {
       set((state) => {
         const updates: any = commitThinkingBuffer(state)
-        updates.messages = (updates.messages || state.messages).map((m: any) => {
-          if (m.status === "streaming") return { ...m, status: "completed" }
-          // 工具失败行：run 结束时仍在 running（后端 FAILED 已推/将补拉）则置 failed
-          if (m.status === "running" && m.role === "tool") return { ...m, status: "failed" }
-          return m
-        })
+        updates.messages = (updates.messages || state.messages).map(
+          (m: any) => {
+            if (m.status === "streaming") return { ...m, status: "completed" }
+            // 工具失败行：run 结束时仍在 running（后端 FAILED 已推/将补拉）则置 failed
+            if (m.status === "running" && m.role === "tool")
+              return { ...m, status: "failed" }
+            return m
+          },
+        )
         return updates
       })
     },
@@ -836,8 +844,13 @@ export const useChatStore = create<ChatState>((set, get) => {
       // ErrorEmitter 单出口契约：system + category==="error" 是系统级错误块，
       // 必须可见（渲染为错误消息），其余非 HITL system 消息仍丢弃。
       const isErrorSystem =
-        payload.role === "system" && (payload as { category?: string }).category === "error"
-      if (!threadId || (payload.role === "system" && !humanReq && !isErrorSystem)) return
+        payload.role === "system" &&
+        (payload as { category?: string }).category === "error"
+      if (
+        !threadId ||
+        (payload.role === "system" && !humanReq && !isErrorSystem)
+      )
+        return
 
       if (humanReq) {
         set((state) => {
@@ -891,7 +904,7 @@ export const useChatStore = create<ChatState>((set, get) => {
             ...ex,
             thinking: msg.thinking || ex.thinking,
             content:
-              ex.status === "streaming"
+              msg.status === "streaming" && ex.status === "completed"
                 ? ex.content
                 : msg.content || ex.content,
             status:

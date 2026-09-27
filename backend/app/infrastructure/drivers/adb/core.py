@@ -64,7 +64,7 @@ class CoreMixin:
             import uiautomator2 as u2
 
             d = u2.connect(device_id) if device_id else u2.connect()
-            d.info
+            _ = d.info  # verify connection
             return True
         except Exception:
             return False

@@ -80,7 +80,6 @@ async def _resolve_wiki_project_id() -> int | None:
     pid = ContextManager.resolve_project_id(allow_global=False, request_temp=True)
     if pid == 0:
         result = await require_project_for_tool(
-            tool_name="wiki",
             tool_category="wiki",
             prompt="Please select a project to use Wiki:",
         )

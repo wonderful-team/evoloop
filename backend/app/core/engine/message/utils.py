@@ -14,7 +14,6 @@ from app.core.engine.message.native_classes import (
     ToolMessage,
 )
 from app.utils.extract import safe_parse_json, safe_parse_json_value
-from app.utils.token import estimate_tokens
 
 logger = logging.getLogger(__name__)
 
@@ -201,55 +200,4 @@ def normalize_tool_calls(tool_calls: Any) -> list[dict[str, Any]]:
     return [normalize_tool_call(tc) for tc in tool_calls]
 
 
-def get_message_text(message: Any) -> str:
-    """
-    Robustly extract text content from message dict, object or string.
-    """
-    if isinstance(message, str):
-        return message
-    if isinstance(message, dict):
-        content = message.get("content", "")
-    elif hasattr(message, "content"):
-        content = message.content
-    else:
-        content = ""
 
-    if isinstance(content, str):
-        return content
-
-    if isinstance(content, list):
-        text_parts = []
-        for block in content:
-            if isinstance(block, str):
-                text_parts.append(block)
-            elif isinstance(block, dict):
-                if block.get("type") == "text":
-                    text_parts.append(block.get("text", ""))
-        return "\n".join(text_parts)
-
-    return ""
-
-
-def estimate_message_tokens(msg: Any) -> int:
-    """
-    Estimate token count for a single message.
-    """
-    text = get_message_text(msg)
-    base = estimate_tokens(text)
-    overhead = 4
-
-    if isinstance(msg, dict):
-        role = msg.get("role")
-        tool_calls = msg.get("tool_calls")
-    else:
-        role = getattr(msg, "type", "user")
-        tool_calls = getattr(msg, "tool_calls", None)
-
-    if role in ("assistant", "ai") and tool_calls:
-        overhead += 8
-    return base + overhead
-
-
-def count_total_tokens(messages: list) -> int:
-    """Sum estimated tokens for all messages."""
-    return sum(estimate_message_tokens(m) for m in messages)

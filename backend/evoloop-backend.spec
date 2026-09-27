@@ -218,7 +218,6 @@ _task_modules = [
     'app.core.project.sync_tasks',
     'app.core.routing.tasks',
     'app.domain.codebase.indexing.tasks',
-    'app.infrastructure.vision.cleanup',
 ]
 for _mod in _task_modules:
     hiddenimports.append(_mod)

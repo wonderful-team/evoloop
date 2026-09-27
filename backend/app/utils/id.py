@@ -13,11 +13,6 @@ def gen_uuid_hex() -> str:
     return uuid.uuid4().hex
 
 
-def gen_short_id() -> str:
-    """Generate a short unique ID (first 8 chars of UUID)."""
-    return gen_uuid()[:8]
-
-
 def unique_id(label: str, *parts: object, use_ms: bool = False) -> str:
     """Build a collision-resistant ID: ``<label>[-<part>...]-<epoch>``.
 

@@ -200,19 +200,6 @@ class MemoryEntry(DynamicBaseModel):
             source="imported",
         )
 
-    def to_search_result(self) -> "MemorySearchResult":
-        """Convert to search result (without full content)."""
-        return MemorySearchResult(
-            id=self.id,
-            type=self.type,
-            tier=self.tier,
-            utility_score=self.utility_score,
-            title=self.title,
-            description=self.description,
-            created_at=self.created_at,
-            updated_at=self.updated_at,
-            confidence=self.confidence,
-        )
 
 
 class MemorySearchResult(DynamicBaseModel):

@@ -90,9 +90,10 @@ async def wait_until(
 class SSEEmitter:
     """解析 /stream/chat/{thread_id} 的 SSE 文本块。"""
 
-    def __init__(self, event: str, data: str) -> None:
+    def __init__(self, event: str, data: str, seq: str | None = None) -> None:
         self.event = event
         self.data = data
+        self.seq = int(seq) if seq and seq.isdigit() else None
 
     @property
     def json(self) -> dict[str, Any]:
@@ -108,14 +109,21 @@ async def _read_sse_stream(
     handler: Callable[[SSEEmitter], Awaitable[Any]],
     *,
     timeout: float = 90.0,
+    after_seq: int | None = None,
 ) -> None:
-    """流式读取 SSE 端点并同步调用 handler；handler 返回 _SSE_STOP 时立即结束。"""
+    """流式读取 SSE 端点并同步调用 handler；handler 返回 _SSE_STOP 时立即结束。
+
+    ``after_seq``：Last-Event-ID 断点续传——只重放该 seq 之后的事件，用于
+    跨 run 观察时跳过上一 run 缓冲的旧终态。
+    """
     deadline = time.monotonic() + timeout
+    headers = {"Last-Event-ID": str(after_seq)} if after_seq is not None else {}
     async with client.stream(
-        "GET", url, timeout=httpx.Timeout(timeout, read=timeout)
+        "GET", url, timeout=httpx.Timeout(timeout, read=timeout), headers=headers
     ) as resp:
         resp.raise_for_status()
         event_name = ""
+        current_seq: str | None = None
         data_lines: list[str] = []
         line_iter = resp.aiter_lines()
         try:
@@ -128,18 +136,26 @@ async def _read_sse_stream(
                     raise TimeoutError(f"SSE 读取超时({timeout}s)")
                 if not line:
                     if event_name or data_lines:
-                        control = await handler(
-                            SSEEmitter(event_name, "\n".join(data_lines))
+                        emitter = SSEEmitter(
+                            event_name, "\n".join(data_lines), current_seq
                         )
+                        control = await handler(emitter)
                         if control is _SSE_STOP:
                             return
+                    emitter = SSEEmitter(event_name, "\n".join(data_lines), current_seq)
                     event_name = ""
+                    current_seq = None
                     data_lines = []
+                    control = await handler(emitter)
+                    if control is _SSE_STOP:
+                        return
                     continue
                 if line.startswith(":"):
                     continue
                 if line.startswith("event: "):
                     event_name = line[len("event: ") :].strip()
+                elif line.startswith("id: "):
+                    current_seq = line[len("id: ") :].strip()
                 elif line.startswith("data: "):
                     data_lines.append(line[len("data: ") :].strip())
         finally:
@@ -496,11 +512,13 @@ class AgentLoopResult:
         run_end: SSEEmitter | None,
         message_blocks: list[SSEEmitter],
         all_events: list[SSEEmitter],
+        last_seq: int | None = None,
     ) -> None:
         self.run_start = run_start
         self.run_end = run_end
         self.message_blocks = message_blocks
         self.all_events = all_events
+        self.last_seq = last_seq
 
     @property
     def run_end_status(self) -> str | None:
@@ -518,6 +536,7 @@ async def observe_agent_run(
     *,
     timeout: float = 120.0,
     expect_start: bool = True,
+    after_seq: int | None = None,
 ) -> AgentLoopResult:
     """订阅 SSE 直到 run_end（或 timeout），汇总事件链。"""
     run_start: SSEEmitter | None = None
@@ -538,13 +557,24 @@ async def observe_agent_run(
         return None
 
     await _read_sse_stream(
-        client, f"/api/v1/stream/chat/{tid}", _handler, timeout=timeout
+        client,
+        f"/api/v1/stream/chat/{tid}",
+        _handler,
+        timeout=timeout,
+        after_seq=after_seq,
     )
     if run_end is None:
         raise TimeoutError(f"未等到 run_end 终态事件(timeout={timeout}s)，thread={tid}")
     if expect_start and run_start is None:
         raise AssertionError(f"run_end 之前未收到 run_start 事件，thread={tid}")
-    return AgentLoopResult(run_start, run_end, message_blocks, all_events)
+    seqs = [ev.seq for ev in all_events if ev.seq is not None]
+    return AgentLoopResult(
+        run_start,
+        run_end,
+        message_blocks,
+        all_events,
+        last_seq=max(seqs) if seqs else None,
+    )
 
 
 def verify_quota_exhausted_feedback(events: list[SSEEmitter]) -> None:

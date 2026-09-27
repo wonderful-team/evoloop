@@ -49,34 +49,34 @@ async def list_conversations(
         result = await session.execute(stmt)
         conversations = result.scalars().all()
 
-        thread_ids = [c.id for c in conversations]
-        activity_map = await activity_monitor.get_statuses(thread_ids)
+    thread_ids = [c.id for c in conversations]
+    activity_map = await activity_monitor.get_statuses(thread_ids)
 
-        items = [
-            ConversationListItem(
-                thread_id=c.id,
-                title=c.title or "Untitled",
-                project_id=c.project_id,
-                updated_at=c.updated_at,
-                status=activity_map.get(c.id, {}).get("status", "idle"),
-                is_pinned=c.is_pinned,
-                goal=activity_map.get(c.id, {}).get("main_goal"),
-                parent_thread_id=c.parent_thread_id,
-                root_thread_id=c.root_thread_id,
-                caller_device_key=c.caller_device_key,
-                executor_device_key=c.executor_device_key,
-                executor_device_name=c.executor_device_name,
-            ) for c in conversations
-        ]
+    items = [
+        ConversationListItem(
+            thread_id=c.id,
+            title=c.title or "Untitled",
+            project_id=c.project_id,
+            updated_at=c.updated_at,
+            status=activity_map.get(c.id, {}).get("status", "idle"),
+            is_pinned=c.is_pinned,
+            goal=activity_map.get(c.id, {}).get("main_goal"),
+            parent_thread_id=c.parent_thread_id,
+            root_thread_id=c.root_thread_id,
+            caller_device_key=c.caller_device_key,
+            executor_device_key=c.executor_device_key,
+            executor_device_name=c.executor_device_name,
+        ) for c in conversations
+    ]
 
-        return ConversationListResponse(
-            data=items,
-            total=total_count,
-            page=page,
-            page_size=page_size,
-            success=True,
-            message="Successfully retrieved conversations",
-        )
+    return ConversationListResponse(
+        data=items,
+        total=total_count,
+        page=page,
+        page_size=page_size,
+        success=True,
+        message="Successfully retrieved conversations",
+    )
 
 
 @router.patch("/{thread_id}", response_model=ConversationUpdateResponse)
@@ -131,6 +131,15 @@ async def delete_conversation(
         from app.core.engine.event.publishers import publish_conversation_deleted
 
         await publish_conversation_deleted(thread_id)
+
+        # 会话删除连带清理 OpenHands SDK 会话存储（EventLog/persistence），
+        # 防止同名 thread 重建时继承旧上下文。
+        try:
+            from app.core.engine.sdk_adapter.reset import reset_conversation_store
+
+            reset_conversation_store(thread_id)
+        except Exception:  # noqa: BLE001 - 清理失败不阻断删除主流程
+            logger.exception("SDK conversation store cleanup failed for %s", thread_id)
 
         async with session_scope() as session:
             conversation = await session.get(Conversation, thread_id)

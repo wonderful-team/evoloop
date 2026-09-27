@@ -1,34 +1,38 @@
-import {useEffect, useMemo, useRef, useState} from "react"
-import {useQuery, useQueryClient} from "@tanstack/react-query"
-import {AgentService, ConversationsService, PlanningService} from "@/client"
-import {MessageContent} from "@/components/Chat/MessageContent"
-import {linkifyText} from "@evoloop/shared/lib/linkify"
-import {useNavigate} from "@tanstack/react-router"
+import { AgentExecutionTimeline, type TraceNodeItem } from "@evoloop/shared"
+import { Button } from "@evoloop/shared/components/ui/button"
+import { linkifyText } from "@evoloop/shared/lib/linkify"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { useNavigate } from "@tanstack/react-router"
 import {
-    Activity,
-    BadgeCheck,
-    CheckCircle2,
-    ExternalLink,
-    Loader2,
-    Package,
-    PauseCircle,
-    Sparkles,
-    Square,
-    Wrench,
+  Activity,
+  BadgeCheck,
+  CheckCircle2,
+  ExternalLink,
+  Loader2,
+  Package,
+  PauseCircle,
+  Sparkles,
+  Square,
+  Wrench,
 } from "lucide-react"
-
-import {Button} from "@evoloop/shared/components/ui/button"
-import {type QueueTask, TasksQueueApi} from "@/lib/tasksQueueApi"
-import {classify, hitlRequestFromMsg, type Msg, textOf, toolNameOf,} from "../core/parse"
-import {DEMO} from "../core/demoData"
-import {AttachmentStrip, ResultCard} from "./ResultCard"
-import {InlineProposal, ProposalCard} from "./ProposalCards"
-import {AgentExecutionTimeline, type TraceNodeItem,} from "@evoloop/shared"
-import {ReviewProgressCard} from "./ReviewProgressCard"
-import {PendingTaskBrief} from "./PendingTaskBrief"
-import type {ArtifactView, Attachment, PlanStep} from "../core/types"
-import {getDemoMessages, getDemoPlan,} from "../core/demoRuntime"
-
+import { useEffect, useMemo, useRef, useState } from "react"
+import { AgentService, ConversationsService, PlanningService } from "@/client"
+import { MessageContent } from "@/components/Chat/MessageContent"
+import { type QueueTask, TasksQueueApi } from "@/lib/tasksQueueApi"
+import { DEMO } from "../core/demoData"
+import { getDemoMessages, getDemoPlan } from "../core/demoRuntime"
+import {
+  classify,
+  hitlRequestFromMsg,
+  type Msg,
+  textOf,
+  toolNameOf,
+} from "../core/parse"
+import type { ArtifactView, Attachment, PlanStep } from "../core/types"
+import { PendingTaskBrief } from "./PendingTaskBrief"
+import { InlineProposal, ProposalCard } from "./ProposalCards"
+import { AttachmentStrip, ResultCard } from "./ResultCard"
+import { ReviewProgressCard } from "./ReviewProgressCard"
 
 /** Execution workbench: NOW card + timeline + artifacts/cost strip. */
 export interface DutyHitlPendingItem {
@@ -89,7 +93,9 @@ export function ExecutionPanel({
     queryKey: ["dutyPlan", threadId],
     queryFn: async () =>
       DEMO
-        ? (getDemoPlan(threadId) as unknown as Awaited<ReturnType<typeof PlanningService.getPlan>>)
+        ? (getDemoPlan(threadId) as unknown as Awaited<
+            ReturnType<typeof PlanningService.getPlan>
+          >)
         : await PlanningService.getPlan({ threadId: threadId as string }),
     enabled: DEMO || !!threadId,
   })
@@ -104,8 +110,12 @@ export function ExecutionPanel({
       const seqA = (a as any).sequence_number ?? (a as any).seq ?? 0
       const seqB = (b as any).sequence_number ?? (b as any).seq ?? 0
       if (seqA !== seqB) return seqA - seqB
-      const timeA = new Date((a as any).created_at || (a as any).timestamp || 0).getTime()
-      const timeB = new Date((b as any).created_at || (b as any).timestamp || 0).getTime()
+      const timeA = new Date(
+        (a as any).created_at || (a as any).timestamp || 0,
+      ).getTime()
+      const timeB = new Date(
+        (b as any).created_at || (b as any).timestamp || 0,
+      ).getTime()
       return timeA - timeB
     })
     return list.slice(-50)
@@ -121,12 +131,14 @@ export function ExecutionPanel({
     queryKey: ["dutyHitl"],
     queryFn: () => TasksQueueApi.hitlPending(),
   })
-  const allHitl: DutyHitlPendingItem[] = (hitlPending ?? hitlQ.data?.items ?? []) as DutyHitlPendingItem[]
+  const allHitl: DutyHitlPendingItem[] = (hitlPending ??
+    hitlQ.data?.items ??
+    []) as DutyHitlPendingItem[]
   const taskHitl = useMemo<DutyHitlPendingItem[]>(() => {
     return allHitl.filter(
       (h) =>
         (task.id && h.task_id === task.id) ||
-        (threadId && h.thread_id === threadId)
+        (threadId && h.thread_id === threadId),
     )
   }, [allHitl, task.id, threadId])
 
@@ -134,14 +146,19 @@ export function ExecutionPanel({
   const hasHitl = taskHitl.length > 0
   const isReviewing =
     task.status === "waiting_acceptance" && !!task.review_pending
-  const isTerminal = ["waiting_acceptance", "completed", "failed", "cancelled"].includes(
-    task.status,
-  )
+  const isTerminal = [
+    "waiting_acceptance",
+    "completed",
+    "failed",
+    "cancelled",
+  ].includes(task.status)
   const finalMsg =
     [...msgs].reverse().find((m) => m.category === "assistant_response") ??
     [...msgs]
       .reverse()
-      .find((m) => (m.role === "ai" || m.role === "assistant") && !toolNameOf(m))
+      .find(
+        (m) => (m.role === "ai" || m.role === "assistant") && !toolNameOf(m),
+      )
   const finalText = finalMsg ? textOf(finalMsg) : ""
 
   const isProposal = task.status === "proposed"
@@ -149,7 +166,7 @@ export function ExecutionPanel({
 
   // 🌟 Hooks 顶层无条件声明：严格遵循 React Rules of Hooks
   const [activeTab, setActiveTab] = useState<"result" | "timeline">(
-    hasResult ? "result" : "timeline"
+    hasResult ? "result" : "timeline",
   )
 
   useEffect(() => {
@@ -167,12 +184,12 @@ export function ExecutionPanel({
     if (DEMO || !threadId) return
     void qc.invalidateQueries({ queryKey: ["dutyExec", threadId] })
     void qc.invalidateQueries({ queryKey: ["dutyPlan", threadId] })
-  }, [DEMO, threadId, qc])
+  }, [threadId, qc])
 
   // 新步骤推进时平滑跟随滚动至最底部（最新步）
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })
-  }, [msgs.length])
+  }, [])
 
   // 统一构建时间线 items（必须置于任何条件 return 之前，遵守 React Hook 规则）
   const timelineItems = useMemo<TraceNodeItem[]>(() => {
@@ -180,16 +197,23 @@ export function ExecutionPanel({
       const kind = classify(m)
       const full = textOf(m)
       const toolName = kind === "tool" ? toolNameOf(m) : undefined
-      let toolData = undefined
+      let toolData
       if (kind === "tool") {
-        let inputObj = undefined
+        let inputObj
         const rawM = m as any
         try {
           if (typeof rawM.input === "object") inputObj = rawM.input
-          else if (typeof rawM.input === "string") inputObj = JSON.parse(rawM.input)
+          else if (typeof rawM.input === "string")
+            inputObj = JSON.parse(rawM.input)
         } catch {}
         toolData = {
           toolName: toolName || "tool",
+          // 后端 tool_meta.display_name（evoloop.tool_summary.* i18n，落库即有）
+          // ——与聊天流同一展示体系；键白名单降级为缺席时的兜底
+          displayName:
+            typeof rawM.tool_meta?.display_name === "string"
+              ? rawM.tool_meta.display_name
+              : undefined,
           input: inputObj as Record<string, unknown> | undefined,
           output: rawM.output,
           status: "success" as const,
@@ -197,7 +221,15 @@ export function ExecutionPanel({
       }
       return {
         id: m.id || i,
-        kind: (kind === "instruction" || kind === "think" || kind === "tool" || kind === "artifact" || kind === "error" || kind === "hitl" ? kind : "system"),
+        kind:
+          kind === "instruction" ||
+          kind === "think" ||
+          kind === "tool" ||
+          kind === "artifact" ||
+          kind === "error" ||
+          kind === "hitl"
+            ? kind
+            : "system",
         title: kind === "tool" ? `${toolName}()` : undefined,
         content: full,
         toolData,
@@ -215,13 +247,15 @@ export function ExecutionPanel({
     [...msgs].reverse().find((m) => m.category === "assistant_tool_call") ??
     [...msgs].reverse().find((m) => m.role === "tool" && toolNameOf(m))
 
-  const taskArtifacts: ArtifactView[] = (task.artifacts ?? []).map((artifact) => ({
-    id: artifact.id,
-    stage: artifact.stage,
-    type: artifact.type,
-    summary: artifact.summary,
-    data: artifact.data,
-  }))
+  const taskArtifacts: ArtifactView[] = (task.artifacts ?? []).map(
+    (artifact) => ({
+      id: artifact.id,
+      stage: artifact.stage,
+      type: artifact.type,
+      summary: artifact.summary,
+      data: artifact.data,
+    }),
+  )
   const artifacts: ArtifactView[] = taskArtifacts
 
   async function cancelTask() {
@@ -249,13 +283,16 @@ export function ExecutionPanel({
   // ── 必须在所有 Hooks 执行完毕之后，才执行条件分支返回（杜绝 Rules of Hooks 违背） ──
   if (isProposal) {
     return (
-      <div key={`prop-${task.id}`} className="animate-in fade-in slide-in-from-bottom-1 duration-300">
-      <ProposalCard
-        task={task}
-        sourceTask={sourceTask}
-        onChanged={onChanged}
-        onConfirmed={onConfirmed}
-      />
+      <div
+        key={`prop-${task.id}`}
+        className="animate-in fade-in slide-in-from-bottom-1 duration-300"
+      >
+        <ProposalCard
+          task={task}
+          sourceTask={sourceTask}
+          onChanged={onChanged}
+          onConfirmed={onConfirmed}
+        />
       </div>
     )
   }
@@ -271,7 +308,8 @@ export function ExecutionPanel({
   if (isLoading) {
     return (
       <div className="flex items-center gap-2 text-xs text-muted-foreground p-3">
-        <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" /> 加载执行过程…
+        <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />{" "}
+        加载执行过程…
       </div>
     )
   }
@@ -318,11 +356,17 @@ export function ExecutionPanel({
           </div>
 
           <div className="flex items-center gap-3 text-[11px] font-mono text-muted-foreground/80 tabular-nums">
-            {((task.run?.input_tokens ?? 0) + (task.run?.output_tokens ?? 0) > 0 || (runTokens ?? 0) > 0) && (
+            {((task.run?.input_tokens ?? 0) + (task.run?.output_tokens ?? 0) >
+              0 ||
+              (runTokens ?? 0) > 0) && (
               <span>
                 <span className="opacity-60 font-sans">燃耗:</span>{" "}
                 <span className="text-foreground/90 font-medium">
-                  {((task.run?.input_tokens ?? 0) + (task.run?.output_tokens ?? 0) || (runTokens ?? 0)).toLocaleString()}
+                  {(
+                    (task.run?.input_tokens ?? 0) +
+                      (task.run?.output_tokens ?? 0) ||
+                    (runTokens ?? 0)
+                  ).toLocaleString()}
                 </span>{" "}
                 Tokens
               </span>
@@ -330,13 +374,17 @@ export function ExecutionPanel({
             {(task.run?.llm_calls ?? 0) > 0 && (
               <span>
                 <span className="opacity-60 font-sans">LLM:</span>{" "}
-                <span className="text-foreground/90 font-medium">{task.run?.llm_calls}</span>
+                <span className="text-foreground/90 font-medium">
+                  {task.run?.llm_calls}
+                </span>
               </span>
             )}
             {task.elapsed_sec != null && (
               <span>
                 <span className="opacity-60 font-sans">耗时:</span>{" "}
-                <span className="text-foreground/90 font-medium">{task.elapsed_sec}s</span>
+                <span className="text-foreground/90 font-medium">
+                  {task.elapsed_sec}s
+                </span>
               </span>
             )}
           </div>
@@ -359,11 +407,17 @@ export function ExecutionPanel({
                 实时执行流
               </span>
             )}
-            {((task.run?.input_tokens ?? 0) + (task.run?.output_tokens ?? 0) > 0 || (runTokens ?? 0) > 0) && (
+            {((task.run?.input_tokens ?? 0) + (task.run?.output_tokens ?? 0) >
+              0 ||
+              (runTokens ?? 0) > 0) && (
               <span>
                 <span className="opacity-60 font-sans">燃耗:</span>{" "}
                 <span className="text-foreground/90 font-medium">
-                  {((task.run?.input_tokens ?? 0) + (task.run?.output_tokens ?? 0) || (runTokens ?? 0)).toLocaleString()}
+                  {(
+                    (task.run?.input_tokens ?? 0) +
+                      (task.run?.output_tokens ?? 0) ||
+                    (runTokens ?? 0)
+                  ).toLocaleString()}
                 </span>{" "}
                 Tokens
               </span>
@@ -371,7 +425,9 @@ export function ExecutionPanel({
             {task.elapsed_sec != null && (
               <span>
                 <span className="opacity-60 font-sans">耗时:</span>{" "}
-                <span className="text-foreground/90 font-medium">{task.elapsed_sec}s</span>
+                <span className="text-foreground/90 font-medium">
+                  {task.elapsed_sec}s
+                </span>
               </span>
             )}
           </div>
@@ -386,7 +442,9 @@ export function ExecutionPanel({
             onVerdictDone={onVerdictDone}
             finalText={finalText}
             finalMsg={finalMsg}
-            finalAttachments={(finalMsg?.attachments as Attachment[] | undefined) ?? []}
+            finalAttachments={
+              (finalMsg?.attachments as Attachment[] | undefined) ?? []
+            }
             artifacts={artifacts}
             threadId={threadId}
             steps={steps}
@@ -420,10 +478,12 @@ export function ExecutionPanel({
                   ) : (
                     <span className="inline-block h-2 w-2 rounded-full bg-muted-foreground/30 shrink-0" />
                   )}
-                  <span className="text-sm font-semibold truncate">{task.title}</span>
+                  <span className="text-sm font-semibold truncate">
+                    {task.title}
+                  </span>
                   <span className="flex-1" />
-                  {isRunning && (
-                    hasHitl ? (
+                  {isRunning &&
+                    (hasHitl ? (
                       <span className="font-mono text-xs text-amber-500 font-semibold flex items-center gap-1">
                         <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-ping" />
                         WAITING HITL
@@ -432,8 +492,7 @@ export function ExecutionPanel({
                       <span className="font-mono text-xs text-primary tabular-nums">
                         RUNNING
                       </span>
-                    )
-                  )}
+                    ))}
                 </div>
                 {task.description && (
                   <div className="mt-1 text-[11px] text-muted-foreground line-clamp-2">
@@ -443,7 +502,10 @@ export function ExecutionPanel({
                 {hasHitl && (
                   <div className="mt-2 flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-xs font-medium text-amber-600 dark:text-amber-400">
                     <span className="h-2 w-2 rounded-full bg-amber-500 animate-ping shrink-0" />
-                    <span>Agent 遇到待决策项 · 正在等待您的决策指示（请在下方卡片处理）</span>
+                    <span>
+                      Agent 遇到待决策项 ·
+                      正在等待您的决策指示（请在下方卡片处理）
+                    </span>
                   </div>
                 )}
                 {steps.length > 0 && (
@@ -529,7 +591,8 @@ export function ExecutionPanel({
               const kind = node.kind
               return (
                 <>
-                  {((m.attachments as Attachment[] | undefined)?.length ?? 0) > 0 && (
+                  {((m.attachments as Attachment[] | undefined)?.length ?? 0) >
+                    0 && (
                     <AttachmentStrip items={m.attachments as Attachment[]} />
                   )}
                   {kind === "hitl" &&
@@ -641,7 +704,9 @@ export function TaskExecutionOverviewCard({
     queryKey: ["dutyPlan", actualThreadId],
     queryFn: async () =>
       DEMO
-        ? (getDemoPlan(actualThreadId) as unknown as Awaited<ReturnType<typeof PlanningService.getPlan>>)
+        ? (getDemoPlan(actualThreadId) as unknown as Awaited<
+            ReturnType<typeof PlanningService.getPlan>
+          >)
         : await PlanningService.getPlan({ threadId: actualThreadId as string }),
     enabled: DEMO || !!actualThreadId,
   })
@@ -654,8 +719,12 @@ export function TaskExecutionOverviewCard({
       const seqA = (a as any).sequence_number ?? (a as any).seq ?? 0
       const seqB = (b as any).sequence_number ?? (b as any).seq ?? 0
       if (seqA !== seqB) return seqA - seqB
-      const timeA = new Date((a as any).created_at || (a as any).timestamp || 0).getTime()
-      const timeB = new Date((b as any).created_at || (b as any).timestamp || 0).getTime()
+      const timeA = new Date(
+        (a as any).created_at || (a as any).timestamp || 0,
+      ).getTime()
+      const timeB = new Date(
+        (b as any).created_at || (b as any).timestamp || 0,
+      ).getTime()
       return timeA - timeB
     })
     return list.slice(-50)
@@ -669,20 +738,25 @@ export function TaskExecutionOverviewCard({
     queryKey: ["dutyHitl"],
     queryFn: () => TasksQueueApi.hitlPending(),
   })
-  const allHitl: DutyHitlPendingItem[] = (hitlPending ?? hitlQ.data?.items ?? []) as DutyHitlPendingItem[]
+  const allHitl: DutyHitlPendingItem[] = (hitlPending ??
+    hitlQ.data?.items ??
+    []) as DutyHitlPendingItem[]
   const taskHitl = useMemo<DutyHitlPendingItem[]>(() => {
     return allHitl.filter(
       (h) =>
         (task.id && h.task_id === task.id) ||
-        (actualThreadId && h.thread_id === actualThreadId)
+        (actualThreadId && h.thread_id === actualThreadId),
     )
   }, [allHitl, task.id, actualThreadId])
 
   const isRunning = task.status === "in_progress"
   const hasHitl = taskHitl.length > 0
-  const isTerminal = ["waiting_acceptance", "completed", "failed", "cancelled"].includes(
-    task.status,
-  )
+  const isTerminal = [
+    "waiting_acceptance",
+    "completed",
+    "failed",
+    "cancelled",
+  ].includes(task.status)
   const steps = planSteps
   const doneSteps = steps.filter((s) => s.status === "completed").length
   const currentStep = steps.find((s) => s.status !== "completed")
@@ -691,13 +765,15 @@ export function TaskExecutionOverviewCard({
     [...msgs].reverse().find((m) => m.category === "assistant_tool_call") ??
     [...msgs].reverse().find((m) => m.role === "tool" && toolNameOf(m))
 
-  const taskArtifacts: ArtifactView[] = (task.artifacts ?? []).map((artifact) => ({
-    id: artifact.id,
-    stage: artifact.stage,
-    type: artifact.type,
-    summary: artifact.summary,
-    data: artifact.data,
-  }))
+  const taskArtifacts: ArtifactView[] = (task.artifacts ?? []).map(
+    (artifact) => ({
+      id: artifact.id,
+      stage: artifact.stage,
+      type: artifact.type,
+      summary: artifact.summary,
+      data: artifact.data,
+    }),
+  )
   const artifacts: ArtifactView[] = taskArtifacts
 
   async function cancelTask() {
@@ -787,14 +863,18 @@ export function TaskExecutionOverviewCard({
           {isRunning && currentStep?.title && (
             <div className="text-[11px] text-muted-foreground truncate max-w-[200px]">
               <span className="opacity-70">进行中:</span>{" "}
-              <span className="text-foreground font-medium">{currentStep.title}</span>
+              <span className="text-foreground font-medium">
+                {currentStep.title}
+              </span>
             </div>
           )}
 
           {isRunning && lastTool && (
             <div className="flex items-center gap-1 font-mono text-[11px] text-muted-foreground">
               <Wrench className="h-3 w-3 shrink-0 text-primary" />
-              <span className="truncate max-w-[160px]">{toolNameOf(lastTool)}()</span>
+              <span className="truncate max-w-[160px]">
+                {toolNameOf(lastTool)}()
+              </span>
             </div>
           )}
 
@@ -803,7 +883,8 @@ export function TaskExecutionOverviewCard({
             <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-muted/60 text-foreground text-[11px] font-medium border border-border/40">
               <Package className="h-3 w-3 text-emerald-500 shrink-0" />
               <span className="truncate max-w-[200px]">
-                交付物 ({artifacts.length}): {artifacts.map((a) => a.summary || a.type).join(" · ")}
+                交付物 ({artifacts.length}):{" "}
+                {artifacts.map((a) => a.summary || a.type).join(" · ")}
               </span>
             </div>
           )}
@@ -814,14 +895,18 @@ export function TaskExecutionOverviewCard({
           {task.elapsed_sec != null && (
             <span>
               <span className="opacity-60 font-sans">耗时:</span>{" "}
-              <span className="text-foreground font-medium">{task.elapsed_sec}s</span>
+              <span className="text-foreground font-medium">
+                {task.elapsed_sec}s
+              </span>
             </span>
           )}
 
           {runTokens != null && runTokens > 0 && (
             <span>
               <span className="opacity-60 font-sans">燃耗:</span>{" "}
-              <span className="text-primary font-medium">{runTokens.toLocaleString()}</span>
+              <span className="text-primary font-medium">
+                {runTokens.toLocaleString()}
+              </span>
             </span>
           )}
 

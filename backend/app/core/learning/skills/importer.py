@@ -4,7 +4,6 @@ from pathlib import Path
 from sqlalchemy import select
 
 from app.core.learning.schemas import SkillImportResult
-from app.core.learning.skills.lifecycle import apply_validation_result
 from app.core.learning.skills.validator import SkillValidator
 from app.infrastructure.database import session_scope
 from app.models.learning import LearnedSkill
@@ -97,6 +96,15 @@ class SkillImporter:
         # instructions are parsed inside SkillValidator's metadata-returning internal method, but SkillValidator also has _parse_skill_md
         _, instructions = SkillValidator._parse_skill_md(skill_folder / "SKILL.md")
 
+        # Pre-compute capability + lifecycle fields outside the DB session
+        capability = SkillValidator._normalize_capability(
+            metadata.get("capability"),
+            top_domain=metadata.get("domain"),
+            requires=metadata.get("requires"),
+        )
+        validation_report = validation.model_dump()
+        skill_status = "verified" if validation.status == "healthy" else "candidate"
+
         async with session_scope() as db:
             # Check if skill already exists
             stmt = select(LearnedSkill).where(LearnedSkill.name == metadata["name"])
@@ -123,12 +131,10 @@ class SkillImporter:
                 )
                 existing.parameters = metadata.get("parameters", [])
                 existing.tools_used = _extract_tools_required(metadata)
-                existing.capability = SkillValidator._normalize_capability(
-                    metadata.get("capability"),
-                    top_domain=metadata.get("domain"),
-                    requires=metadata.get("requires"),
-                )
-                await apply_validation_result(existing, validation)
+                existing.capability = capability
+                existing.validation_report = validation_report
+                existing.status = skill_status
+                existing.is_active = True
             else:
                 # Create new skill
                 new_skill = LearnedSkill(
@@ -141,15 +147,13 @@ class SkillImporter:
                     + (metadata.get("trigger_patterns", [])),
                     parameters=metadata.get("parameters", []),
                     tools_used=_extract_tools_required(metadata),
-                    capability=SkillValidator._normalize_capability(
-                        metadata.get("capability"),
-                        top_domain=metadata.get("domain"),
-                        requires=metadata.get("requires"),
-                    ),
+                    capability=capability,
+                    validation_report=validation_report,
+                    status=skill_status,
+                    is_active=True,
                     skill_source="imported",
                 )
                 db.add(new_skill)
-                await apply_validation_result(new_skill, validation)
 
             await db.flush()
             return True

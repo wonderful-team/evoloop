@@ -150,7 +150,7 @@ class DeviceInfoMixin:
                     }
                 else:
                     pkg_weights = {}
-                    for pkg, act, source, weight in results:
+                    for pkg, _act, _source, weight in results:
                         pkg_weights[pkg] = pkg_weights.get(pkg, 0) + weight
                     best_pkg = max(pkg_weights.keys(), key=lambda p: pkg_weights[p])
                     best_act = next(r[1] for r in results if r[0] == best_pkg)
@@ -167,28 +167,6 @@ class DeviceInfoMixin:
         except Exception as e:
             logger.exception(f"Failed to get current Android app: {e}")
             return {"package": "error", "activity": "error", "confidence": "none"}
-
-    def get_package_info(self, package, device_id=None):
-        try:
-            stdout, _ = self._run_adb(
-                ["shell", "dumpsys", "package", package],
-                device_id=device_id,
-                timeout=10,
-            )
-            info = {"package": package}
-            vc_match = re.search(r"versionCode=(\d+)", stdout)
-            if vc_match:
-                info["version_code"] = int(vc_match.group(1))
-            vn_match = re.search(r"versionName=([\d\.\w\-]+)", stdout)
-            if vn_match:
-                info["version_name"] = vn_match.group(1).strip()
-            lut_match = re.search(r"lastUpdateTime=([\d\-: ]+)", stdout)
-            if lut_match:
-                info["last_update_time"] = lut_match.group(1).strip()
-            return info
-        except Exception as e:
-            logger.exception(f"Failed to get package info for {package}: {e}")
-            return {"package": package, "error": str(e)}
 
     def check_app_status(self, package, device_id=None):
         try:

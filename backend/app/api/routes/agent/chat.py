@@ -125,31 +125,6 @@ async def chat_endpoint(
     }
 
 
-@router.post("/chat/mock", dependencies=[Depends(verify_guest_access)])
-async def mock_chat(req: ChatRequest):
-    if not req.thread_id:
-        raise HTTPException(status_code=400, detail="thread_id is required")
-
-    from app.api.routes.chat import SCENARIOS
-
-    scenario = req.scenario or "happy_path"
-    scenario_fn = SCENARIOS.get(scenario)
-    if not scenario_fn:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unknown scenario: {scenario}. Supported: {list(SCENARIOS.keys())}",
-        )
-
-    async def mock_publish():
-        try:
-            await scenario_fn(req.thread_id)
-        except Exception as e:
-            logger.error(f"Error in mock publishing: {e}", exc_info=True)
-
-    asyncio.create_task(mock_publish())
-    return {"status": "mocking", "thread_id": req.thread_id}
-
-
 @router.post("/chat/stop", response_model=StopChatResponse)
 async def stop_chat(req: ChatRequest):
     if not req.thread_id:

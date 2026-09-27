@@ -358,6 +358,12 @@ class MessageRepository:
         同步或创建消息的 changeset 引用。
         支持通过 message_id 或 tool_call_id 定位目标消息。
         """
+        new_file_entry = {
+            "path": file_path,
+            "operation": operation.lower(),
+            "diff": diff_content,
+        }
+
         try:
             async with session_scope() as session:
                 target_msg_id = message_id
@@ -387,12 +393,6 @@ class MessageRepository:
                 )
                 result = await session.execute(stmt)
                 ref = result.scalar_one_or_none()
-
-                new_file_entry = {
-                    "path": file_path,
-                    "operation": operation.lower(),
-                    "diff": diff_content,
-                }
 
                 if ref:
                     # 3. 更新现有引用
@@ -684,8 +684,8 @@ class MessageRepository:
         If False, only fetches visible messages (standard UI history).
         Returns (messages, has_more, total_count).
         """
+        # Phase 1: visible messages with cursor pagination (short session)
         async with session_scope() as session:
-            # 1. Query visible messages with cursor pagination
             visible_stmt = (
                 select(Message)
                 .where(
@@ -715,15 +715,16 @@ class MessageRepository:
             result = await session.execute(visible_stmt)
             visible_messages = result.scalars().all()
 
-            has_more = len(visible_messages) > limit
-            if has_more:
-                visible_messages = visible_messages[:limit]
+        has_more = len(visible_messages) > limit
+        if has_more:
+            visible_messages = visible_messages[:limit]
 
-            # 2. Fetch associated invisible messages for these runs
-            run_ids = {m.run_id for m in visible_messages if m.run_id}
+        # Phase 2: collect run IDs outside any session
+        run_ids = {m.run_id for m in visible_messages if m.run_id}
 
-            # Special case: include current active run even if its messages are invisible
-            if not before_id:
+        # Special case: include current active run even if its messages are invisible
+        if not before_id:
+            async with session_scope() as session:
                 latest_run_id = (
                     await session.execute(
                         select(Message.run_id)
@@ -738,8 +739,10 @@ class MessageRepository:
                 if latest_run_id:
                     run_ids.add(latest_run_id)
 
-            all_messages = list(visible_messages)
-            if include_invisible and run_ids:
+        # Phase 3: fetch associated invisible messages (short session)
+        all_messages = list(visible_messages)
+        if include_invisible and run_ids:
+            async with session_scope() as session:
                 invisible_stmt = (
                     select(Message)
                     .where(
@@ -754,11 +757,12 @@ class MessageRepository:
                 )
                 all_messages.extend(invisible_messages)
 
-            all_messages.sort(key=lambda m: m.sequence_number or 0)
+        all_messages.sort(key=lambda m: m.sequence_number or 0)
 
-            # 3. Total count for first load
-            total_count = None
-            if not before_id:
+        # Phase 4: total count for first load (short session)
+        total_count = None
+        if not before_id:
+            async with session_scope() as session:
                 total_count = (
                     await session.execute(
                         select(func.count(Message.id)).where(
@@ -773,4 +777,4 @@ class MessageRepository:
                     )
                 ).scalar()
 
-            return all_messages, has_more, total_count
+        return all_messages, has_more, total_count

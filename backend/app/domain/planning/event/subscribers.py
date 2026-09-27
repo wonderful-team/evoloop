@@ -12,6 +12,7 @@ from sqlalchemy import select
 from app.core.engine.rewind import REWIND_REQUESTED, RewindRequestedEvent
 from app.core.events.decorators import event_register, event_subscribe
 from app.domain.planning.constants import PlanStatus, PlanStepStatus
+from app.domain.planning.event import PlanUpdatedEvent
 from app.infrastructure.database import session_scope
 
 logger = logging.getLogger(__name__)
@@ -31,6 +32,7 @@ class PlanRewind:
 
     @event_subscribe(REWIND_REQUESTED)
     async def _handle_rewind_requested(self, event: RewindRequestedEvent) -> None:
+        publish_event = None
         try:
             async with session_scope() as session:
                 # Step 1: resolve target message timestamp
@@ -63,23 +65,11 @@ class PlanRewind:
                         plan.id,
                         event.thread_id,
                     )
-                    # Notify frontend that plan was updated (deleted)
-                    try:
-                        from app.core.events import system_bus
-                        from app.domain.planning.event import PlanUpdatedEvent
-
-                        await system_bus.publish(
-                            PlanUpdatedEvent(
-                                thread_id=event.thread_id,
-                                plan_id=plan.id,
-                                status=PlanStepStatus.DELETED.value,
-                            )
-                        )
-                    except Exception as e:
-                        logger.warning(
-                            "[PlanRewind] Failed to publish plan updated event for deletion: %s",
-                            e,
-                        )
+                    publish_event = PlanUpdatedEvent(
+                        thread_id=event.thread_id,
+                        plan_id=plan.id,
+                        status=PlanStepStatus.DELETED.value,
+                    )
                     return
 
                 # Step 4: load steps and determine which are stale
@@ -117,24 +107,27 @@ class PlanRewind:
                         plan.id,
                         event.thread_id,
                     )
-                    # Notify frontend plan panel to refresh
-                    try:
-                        from app.core.events import system_bus
-                        from app.domain.planning.event import PlanUpdatedEvent
-
-                        await system_bus.publish(
-                            PlanUpdatedEvent(thread_id=event.thread_id, plan_id=plan.id)
-                        )
-                    except Exception as e:
-                        logger.warning(
-                            "[PlanRewind] Failed to publish plan updated event: %s",
-                            e,
-                        )
+                    publish_event = PlanUpdatedEvent(
+                        thread_id=event.thread_id, plan_id=plan.id
+                    )
                 else:
                     logger.debug(
                         "[PlanRewind] No stale steps for plan %s in thread %s",
                         plan.id,
                         event.thread_id,
+                    )
+
+            # Notify frontend plan panel to refresh **outside** the DB session
+            # so the connection is returned to the pool before doing IO.
+            if publish_event:
+                try:
+                    from app.core.events import system_bus
+
+                    await system_bus.publish(publish_event)
+                except Exception as e:
+                    logger.warning(
+                        "[PlanRewind] Failed to publish plan updated event: %s",
+                        e,
                     )
         except Exception as e:
             logger.error("[PlanRewind] Plan cleanup failed: %s", e)
@@ -213,6 +206,4 @@ class PlanRewind:
             plan.status = PlanStatus.ACTIVE.value
             return len(steps)
 
-    def get_reset_count(self) -> int:
-        """Return the number of steps reset in the last operation."""
-        return self._reset_count
+

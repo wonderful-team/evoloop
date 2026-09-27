@@ -204,7 +204,7 @@ class KeyframeSelector:
     ) -> list[KeyframeCandidate]:
         candidates = []
         last_timestamp = -1
-        for i, event in enumerate(events):
+        for _i, event in enumerate(events):
             event_ts = getattr(event, "timestamp", 0)
             if not event_ts:
                 continue

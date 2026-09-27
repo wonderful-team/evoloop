@@ -8,7 +8,6 @@ including code blocks, JSON, YAML, and tagged sections.
 import ast
 import json
 import logging
-import re
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -86,30 +85,6 @@ def extract_yaml_block(text: str) -> str | None:
         The extracted YAML content, or None if not found
     """
     return extract_code_block(text, "yaml") or extract_code_block(text, "yml")
-
-
-def extract_tag_content(text: str, tag: str) -> str | None:
-    """
-    Extract content from XML/HTML-like tags.
-
-    Args:
-        text: The text containing tagged content
-        tag: The tag name (e.g., 'report', 'think', 'outcome')
-
-    Returns:
-        The extracted content, or None if tag not found
-
-    Examples:
-        >>> extract_tag_content("<evoloop_final_report>hello</evoloop_final_report>", "evoloop_final_report")
-        'hello'
-        >>> extract_tag_content("<audit>\\n  review\\n</audit>", "audit")
-        'review'
-    """
-    pattern = rf"<{tag}>(.*?)</{tag}>"
-    match = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
-    if match:
-        return match.group(1).strip()
-    return None
 
 
 def extract_section(text: str, markers: list[str]) -> str:
@@ -356,48 +331,3 @@ def safe_parse_json(text: str) -> dict | None:
     return value if isinstance(value, dict) else None
 
 
-def strip_markdown_code_markers(text: str) -> str:
-    """
-    Remove markdown code block markers from text.
-
-    Args:
-        text: Text potentially wrapped in ``` markers
-
-    Returns:
-        Clean text without markers
-    """
-    text = text.strip()
-
-    # Remove leading ```lang
-    if text.startswith("```"):
-        lines = text.split("\n", 1)
-        if len(lines) == 2:
-            text = lines[1]
-        else:
-            text = text[3:]
-
-    # Remove trailing ```
-    if text.endswith("```"):
-        text = text[:-3].strip()
-
-    return text
-
-
-def extract_all_code_blocks(text: str) -> list[tuple[str | None, str]]:
-    """
-    Extract all code blocks from text.
-
-    Args:
-        text: Text containing multiple code blocks
-
-    Returns:
-        List of (language, content) tuples
-    """
-    pattern = r"```(?P<lang>\w+)?\n(?P<code>.*?)```"
-    matches = re.findall(pattern, text, re.DOTALL)
-
-    results = []
-    for lang, code in matches:
-        results.append((lang.strip() if lang else None, code.strip()))
-
-    return results

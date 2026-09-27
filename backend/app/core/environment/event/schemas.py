@@ -7,8 +7,6 @@ Pydantic data classes for environment/awakening events.
 
 from typing import Any
 
-from pydantic import Field
-
 from app.core.events.base import BaseEvent, EventData
 from app.core.events.registry import SystemEventType
 
@@ -76,18 +74,3 @@ class BoundaryLearnedEvent(BaseEvent):
             description=self.description,
         )
 
-
-class UiTreeObservedEvent(BaseEvent):
-    """
-    Triggered when a UI tree is observed.
-    """
-
-    event_type: str = EventType.UI_TREE_OBSERVED
-    platform: str = ""
-    bundle_id: str = ""
-    window_title: str = ""
-    elements: list[dict[str, Any]] = Field(default_factory=list)
-    screenshot_hash: str = ""
-
-    # Usually NOT public (too large)
-    is_public: bool = False

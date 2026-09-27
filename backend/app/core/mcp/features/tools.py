@@ -87,7 +87,6 @@ class McpToolsFeature(McpFeature):
         native_tools = []
 
         for tool in self._tools:
-            feature = self
 
             async def _tool_func(*_args, tool_name: str = tool.name, **kwargs) -> Any:
                 # 多租户 MCP 收权（模块 5）：local DB / 运维类 MCP 是宿主级
@@ -98,25 +97,25 @@ class McpToolsFeature(McpFeature):
 
                 if _settings.MULTI_TENANT_MODE:
                     allowed = set(getattr(_settings, "OPS_ENABLED_MCP_SERVERS", []) or [])
-                    if feature._server_name not in allowed:
+                    if self._server_name not in allowed:
                         raise PermissionError(
-                            f"MCP server '{feature._server_name}' is admin-only in "
+                            f"MCP server '{self._server_name}' is admin-only in "
                             "multi-tenant mode"
                         )
                 # 会话保活检查：失联自动重连，用活会话调用（防僵尸会话挂死）。
-                session = feature._session
-                if feature._ensure_alive is not None:
-                    session = await feature._ensure_alive(feature._server_name)
+                session = self._session
+                if self._ensure_alive is not None:
+                    session = await self._ensure_alive(self._server_name)
                 if session is None:
-                    raise RuntimeError(f"MCP server '{feature._server_name}' 不可用")
+                    raise RuntimeError(f"MCP server '{self._server_name}' 不可用")
                 try:
                     return await session.call_tool(tool_name, arguments=kwargs)
                 except Exception:
                     # call 失败可能发生在"ping 通但会话已退化"的僵尸会话上
                     # （远程空闲关闭 SSE 后，ping 偶可成功、实际调用挂/失败）。
                     # 强制重连一次并重试，避免一直打到退化会话上拉不到数据。
-                    if feature._ensure_alive is not None:
-                        fresh = await feature._ensure_alive_force(feature._server_name)
+                    if self._ensure_alive is not None:
+                        fresh = await self._ensure_alive_force(self._server_name)
                         if fresh is not None and fresh is not session:
                             return await fresh.call_tool(tool_name, arguments=kwargs)
                     raise

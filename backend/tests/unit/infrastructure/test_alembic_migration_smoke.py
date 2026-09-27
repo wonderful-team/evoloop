@@ -20,7 +20,7 @@ from pathlib import Path
 import pytest
 
 BACKEND_ROOT = Path(__file__).resolve().parents[3]
-HEAD_REVISION = "d8e2f4b6a9c1"
+HEAD_REVISION = "e0eddec0eb48"  # drop_unused_maintenance_reports_table（2026-09-27，新增迁移时同步更新）
 
 
 @pytest.mark.timeout(300)

@@ -107,16 +107,4 @@ def resolve_subagent_type(name: str | None) -> SubagentType:
     return SUBTYPES.get(name or "", SUBTYPES["general"])
 
 
-def subagent_tool_face(name: str | None) -> list[str]:
-    """返回某子代理类型的工具面（visibleTools 语义）。"""
-    return list(resolve_subagent_type(name).tools)
 
-
-#: 兼容旧字段（spawner._SUBPROMPTS）：name → {prompt, description}
-SUBPROMPTS: dict[str, dict[str, str]] = {
-    name: {
-        "prompt": t.prompt,
-        "description": t.description,
-    }
-    for name, t in SUBTYPES.items()
-}

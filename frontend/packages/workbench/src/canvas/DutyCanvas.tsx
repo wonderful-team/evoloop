@@ -10,12 +10,16 @@
    - Ctrl / ⌘ + 滚轮缩放，局部容器内部正常自然滚动
    ========================================================================== */
 
-import React, {useCallback, useEffect, useMemo, useRef, useState} from "react"
-import type {CanvasViewport, DutyEdge, DutyTask} from "../core/types"
-import {DutyNodeCard, EXPANDED_CARD_HEIGHT, EXPANDED_CARD_WIDTH} from "./DutyNodeCard"
-import {DutyNodePageContent} from "./DutyNodePageContent"
-import {BoxSelect, Hand, Workflow, X} from "lucide-react"
-import {cn} from "@evoloop/shared/lib/utils"
+import { cn } from "@evoloop/shared/lib/utils"
+import { BoxSelect, Hand, Workflow, X } from "lucide-react"
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import type { CanvasViewport, DutyEdge, DutyTask } from "../core/types"
+import {
+  DutyNodeCard,
+  EXPANDED_CARD_HEIGHT,
+  EXPANDED_CARD_WIDTH,
+} from "./DutyNodeCard"
+import { DutyNodePageContent } from "./DutyNodePageContent"
 
 interface DutyCanvasProps {
   tasks: DutyTask[]
@@ -34,7 +38,9 @@ interface DutyCanvasProps {
   onToggleDirection?: () => void // 切换横向/纵向排列
   onCloseTask: () => void // 原地收缩卡片，绝不飞回全览
   onUpdateTaskPosition?: (taskId: string, x: number, y: number) => void
-  onUpdateMultipleTaskPositions?: (positions: Map<string, { x: number; y: number }>) => void
+  onUpdateMultipleTaskPositions?: (
+    positions: Map<string, { x: number; y: number }>,
+  ) => void
   onResetAutoLayout?: () => void
   onConnect?: (fromId: string, toId: string) => void
   onDisconnect?: (fromId: string, toId: string) => void
@@ -43,8 +49,11 @@ interface DutyCanvasProps {
   onSendGlobalPrompt?: (text: string) => void
   onPickOption?: (taskId: string, index: number) => void
   onApprove?: (taskId: string, grantMode?: "once" | "always") => void
+  onConfirmProposalTask?: (taskId: string) => void | Promise<void>
   onReject?: (taskId: string, reason?: string) => void
-  onArbitrate?: (action: "retry_upstream" | "cancel_downstream" | "reopen_modified") => void
+  onArbitrate?: (
+    action: "retry_upstream" | "cancel_downstream" | "reopen_modified",
+  ) => void
   onConfirmHitl?: (taskId: string, grantMode?: "once" | "always") => void
   onCancelHitl?: (taskId: string) => void
   onSubmitTextHitl?: (taskId: string, value: string) => void
@@ -64,7 +73,8 @@ interface DutyCanvasProps {
   }) => React.ReactNode
 }
 
-const clamp = (v: number, min: number, max: number) => Math.min(Math.max(v, min), max)
+const clamp = (v: number, min: number, max: number) =>
+  Math.min(Math.max(v, min), max)
 
 export const DutyCanvas = ({
   tasks,
@@ -92,6 +102,7 @@ export const DutyCanvas = ({
   onSendGlobalPrompt: _onSendGlobalPrompt,
   onPickOption,
   onApprove,
+  onConfirmProposalTask,
   onReject,
   onArbitrate,
   onConfirmHitl,
@@ -126,6 +137,19 @@ export const DutyCanvas = ({
     }
     return null
   }, [tasks, selectedTaskId, selectedTaskIds])
+
+  // 动态计算 SVG 连线层边界，避免任务多时连线被硬编码 12000×8000 裁掉
+  const svgBounds = useMemo(() => {
+    if (tasks.length === 0) {
+      return { minX: 0, minY: 0, width: 12000, height: 8000 }
+    }
+    const padding = 400
+    const minX = Math.min(...tasks.map((t) => t.x)) - padding
+    const minY = Math.min(...tasks.map((t) => t.y)) - padding
+    const maxX = Math.max(...tasks.map((t) => t.x + (t.w || 420))) + padding
+    const maxY = Math.max(...tasks.map((t) => t.y + (t.h || 280))) + padding
+    return { minX, minY, width: maxX - minX, height: maxY - minY }
+  }, [tasks])
 
   // 视口摄像机状态：默认 100% 缩放比例
   const [view, setView] = useState<CanvasViewport>({ x: 0, y: 0, k: 1.0 })
@@ -162,7 +186,10 @@ export const DutyCanvas = ({
 
     window.addEventListener("canvas:advance-task-state", handleAdvanceState)
     return () => {
-      window.removeEventListener("canvas:advance-task-state", handleAdvanceState)
+      window.removeEventListener(
+        "canvas:advance-task-state",
+        handleAdvanceState,
+      )
     }
   }, [activeTaskId, isNodeFullscreen, onTaskClick])
 
@@ -179,7 +206,6 @@ export const DutyCanvas = ({
 
   const hasInitializedRef = useRef(false)
   const lastDirectionRef = useRef(layoutDirection)
-
 
   const animFrameRef = useRef<number | null>(null)
   const [autoFollow] = useState(true)
@@ -241,7 +267,7 @@ export const DutyCanvas = ({
 
       const tick = (now: number) => {
         const progress = Math.min(1, (now - startTime) / durationMs)
-        const ease = 1 - Math.pow(1 - progress, 3)
+        const ease = 1 - (1 - progress) ** 3
         const curView: CanvasViewport = {
           x: fromView.x + (targetView.x - fromView.x) * ease,
           y: fromView.y + (targetView.y - fromView.y) * ease,
@@ -262,7 +288,12 @@ export const DutyCanvas = ({
 
   /* ★ 镜头放大聚焦指定卡片：居中对准展开后的 1040px 页面，自适应合适缩放比，左边缘严格安全防线 */
   const flyToCard = useCallback(
-    (task: DutyTask, targetK?: number, durationMs = 480, willExpand?: boolean) => {
+    (
+      task: DutyTask,
+      targetK?: number,
+      durationMs = 480,
+      willExpand?: boolean,
+    ) => {
       const el = containerRef.current
       if (!el) return
       const rect = el.getBoundingClientRect()
@@ -270,13 +301,13 @@ export const DutyCanvas = ({
 
       const isExpandedCard = willExpand || task.id === activeTaskId
       const cardW = isExpandedCard ? EXPANDED_CARD_WIDTH : task.w
-      const cardH = isExpandedCard ? EXPANDED_CARD_HEIGHT : (task.h || 280)
+      const cardH = isExpandedCard ? EXPANDED_CARD_HEIGHT : task.h || 280
 
       // 自适应计算缩放比例：
       // 当视口宽裕时，锁定在原生 1.0 (100% 物理点阵)，杜绝非 1:1 亚像素拉伸引起的字体模糊；
       // 当视口较窄时，自适应缩放到合理尺寸，绝不强制 clamp 到过大的 0.72 导致卡片被挤出视口左边缘
       const optimalK = clamp(
-        Math.min((rect.width * 0.90) / cardW, (rect.height * 0.90) / cardH),
+        Math.min((rect.width * 0.9) / cardW, (rect.height * 0.9) / cardH),
         0.35,
         1.0, // 封顶 100%，绝不超比例虚化放大
       )
@@ -335,7 +366,11 @@ export const DutyCanvas = ({
       const graphW = maxX - minX + 260
       const graphH = maxY - minY + 260
 
-      const scale = clamp(Math.min(rect.width / graphW, rect.height / graphH), 0.18, 0.7)
+      const scale = clamp(
+        Math.min(rect.width / graphW, rect.height / graphH),
+        0.18,
+        0.7,
+      )
       let targetX = (rect.width - (maxX + minX) * scale) / 2
       let targetY = (rect.height - (maxY + minY) * scale) / 2
 
@@ -351,6 +386,22 @@ export const DutyCanvas = ({
     },
     [tasks, animateTo],
   )
+
+  /* 值守排空（本轮全部任务终态）→ 镜头回到全览：战报时刻用户该看到的是
+     整张作战图，而不是停留在某个局部。若有展开的节点页先原地收起。 */
+  useEffect(() => {
+    const onQueueDrained = () => {
+      if (activeTaskId) {
+        onCloseTask()
+      }
+      flyToOverview(600)
+    }
+    window.addEventListener("canvas:queue-drained", onQueueDrained)
+    return () => {
+      window.removeEventListener("canvas:queue-drained", onQueueDrained)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTaskId, onCloseTask, flyToOverview])
 
   // 方案 A：首屏自适应对齐与安全边距 (100% 比例，对齐顶层根任务群)
   const centerInitialView = useCallback(() => {
@@ -412,7 +463,10 @@ export const DutyCanvas = ({
   // 首屏挂载（或切换方向时）自动计算应用方案 A 居中
   useEffect(() => {
     if (tasks.length === 0) return
-    if (!hasInitializedRef.current || lastDirectionRef.current !== layoutDirection) {
+    if (
+      !hasInitializedRef.current ||
+      lastDirectionRef.current !== layoutDirection
+    ) {
       if (activeTaskId) {
         const task = tasks.find((t) => t.id === activeTaskId)
         if (task) {
@@ -456,7 +510,10 @@ export const DutyCanvas = ({
           centerInitialView()
         }
         hasInitializedRef.current = true
-      } else if (activeTaskId && (Math.abs(width - prevW) > 8 || Math.abs(height - prevH) > 8)) {
+      } else if (
+        activeTaskId &&
+        (Math.abs(width - prevW) > 8 || Math.abs(height - prevH) > 8)
+      ) {
         const task = tasks.find((t) => t.id === activeTaskId)
         if (task) {
           flyToCard(task, undefined, 120, true)
@@ -487,7 +544,11 @@ export const DutyCanvas = ({
   useEffect(() => {
     if (tasks.length === 0) return
     const timer = setTimeout(() => {
-      if (!hasUserInteractedRef.current && !activeTaskId) {
+      if (
+        !hasUserInteractedRef.current &&
+        !activeTaskId &&
+        !hasInitializedRef.current
+      ) {
         centerInitialView()
       }
     }, 350)
@@ -525,7 +586,9 @@ export const DutyCanvas = ({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (
         e.code === "Space" &&
-        !(e.target as HTMLElement).closest("input, textarea, select, [contenteditable]")
+        !(e.target as HTMLElement).closest(
+          "input, textarea, select, [contenteditable]",
+        )
       ) {
         setSpacePressed(true)
       }
@@ -574,11 +637,7 @@ export const DutyCanvas = ({
         const py = e.clientY - rect.top
 
         const isPinch = Math.abs(e.deltaY) < 40 && !Number.isInteger(e.deltaY)
-        const factor = isPinch
-          ? Math.pow(0.993, e.deltaY)
-          : e.deltaY < 0
-          ? 1.12
-          : 0.89
+        const factor = isPinch ? 0.993 ** e.deltaY : e.deltaY < 0 ? 1.12 : 0.89
 
         const curK = viewRef.current.k
         const nextK = clamp(curK * factor, 0.15, 3.0)
@@ -628,9 +687,11 @@ export const DutyCanvas = ({
     if (!task) return
     const isExp = task.id === activeTaskId
     const w = isExp ? EXPANDED_CARD_WIDTH : task.w
-    const h = isExp ? EXPANDED_CARD_HEIGHT : (task.h || 280)
+    const h = isExp ? EXPANDED_CARD_HEIGHT : task.h || 280
     const x = isExp ? task.x - (EXPANDED_CARD_WIDTH - task.w) / 2 : task.x
-    const y = isExp ? task.y - (EXPANDED_CARD_HEIGHT - (task.h || 280)) / 2 : task.y
+    const y = isExp
+      ? task.y - (EXPANDED_CARD_HEIGHT - (task.h || 280)) / 2
+      : task.y
 
     let portX = x + w
     let portY = y + h / 2
@@ -693,7 +754,9 @@ export const DutyCanvas = ({
 
         // 处理 Shift / Cmd 多选反选
         if (e.shiftKey || e.metaKey || e.ctrlKey) {
-          const currentSet = new Set(selectedTaskIds || (selectedTaskId ? [selectedTaskId] : []))
+          const currentSet = new Set(
+            selectedTaskIds || (selectedTaskId ? [selectedTaskId] : []),
+          )
           if (currentSet.has(task.id)) {
             currentSet.delete(task.id)
           } else {
@@ -706,7 +769,10 @@ export const DutyCanvas = ({
 
         // 构建成组多选拖动集合
         const groupOrigins = new Map<string, { x: number; y: number }>()
-        const isCurrentInMulti = selectedTaskIds && selectedTaskIds.has(task.id) && selectedTaskIds.size > 1
+        const isCurrentInMulti =
+          selectedTaskIds &&
+          selectedTaskIds.has(task.id) &&
+          selectedTaskIds.size > 1
 
         if (isCurrentInMulti) {
           selectedTaskIds!.forEach((id) => {
@@ -775,7 +841,9 @@ export const DutyCanvas = ({
     if (wireDrag) {
       const curCanvasX = (e.clientX - viewRef.current.x) / viewRef.current.k
       const curCanvasY = (e.clientY - viewRef.current.y) / viewRef.current.k
-      setWireDrag((prev) => (prev ? { ...prev, curX: curCanvasX, curY: curCanvasY } : null))
+      setWireDrag((prev) =>
+        prev ? { ...prev, curX: curCanvasX, curY: curCanvasY } : null,
+      )
       return
     }
 
@@ -783,7 +851,9 @@ export const DutyCanvas = ({
     if (marquee) {
       const curCanvasX = (e.clientX - viewRef.current.x) / viewRef.current.k
       const curCanvasY = (e.clientY - viewRef.current.y) / viewRef.current.k
-      setMarquee((prev) => (prev ? { ...prev, currentX: curCanvasX, currentY: curCanvasY } : null))
+      setMarquee((prev) =>
+        prev ? { ...prev, currentX: curCanvasX, currentY: curCanvasY } : null,
+      )
 
       const minX = Math.min(marquee.startX, curCanvasX)
       const maxX = Math.max(marquee.startX, curCanvasX)
@@ -794,7 +864,12 @@ export const DutyCanvas = ({
         .filter((t) => {
           const tw = t.w || 420
           const th = t.h || 280
-          return !(t.x + tw < minX || t.x > maxX || t.y + th < minY || t.y > maxY)
+          return !(
+            t.x + tw < minX ||
+            t.x > maxX ||
+            t.y + th < minY ||
+            t.y > maxY
+          )
         })
         .map((t) => t.id)
 
@@ -896,7 +971,8 @@ export const DutyCanvas = ({
         // 点击画布纯空白处：取消选中
         // 【关键保护】：若点击目标在展开的卡片内部，绝不触发收起，避免误操作！
         const pointerTarget = e.target as HTMLElement
-        const isInsideExpandedCard = !!pointerTarget.closest?.(".dc-card.expanded")
+        const isInsideExpandedCard =
+          !!pointerTarget.closest?.(".dc-card.expanded")
 
         onSelectTasks?.(new Set())
         onSelectTask?.(null)
@@ -929,7 +1005,11 @@ export const DutyCanvas = ({
       onPointerCancel={handlePointerCancel}
       onDoubleClick={(e) => {
         const target = e.target as HTMLElement
-        if (!target.closest(".dc-card, .dc-canvas-controls, .dc-bottom-prompt-bar")) {
+        if (
+          !target.closest(
+            ".dc-card, .dc-canvas-controls, .dc-bottom-prompt-bar",
+          )
+        ) {
           flyToOverview()
         }
       }}
@@ -963,8 +1043,16 @@ export const DutyCanvas = ({
           transform: `translate(${Math.round(view.x)}px, ${Math.round(view.y)}px) scale(${view.k})`,
         }}
       >
-        {/* 全局 SVG 拓扑依赖连线图层 */}
-        <svg className="dc-canvas-svg-layer">
+        {/* 全局 SVG 拓扑依赖连线图层：动态边界，跟随任务坐标延展 */}
+        <svg
+          className="dc-canvas-svg-layer"
+          style={{
+            left: svgBounds.minX,
+            top: svgBounds.minY,
+            width: svgBounds.width,
+            height: svgBounds.height,
+          }}
+        >
           <defs>
             <marker
               id="dc-arrowhead"
@@ -975,7 +1063,10 @@ export const DutyCanvas = ({
               markerHeight="6"
               orient="auto-start-reverse"
             >
-              <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="var(--line-hover, #94a3b8)" />
+              <path
+                d="M 0 1.5 L 8 5 L 0 8.5 z"
+                fill="var(--line-hover, #94a3b8)"
+              />
             </marker>
             <marker
               id="dc-arrowhead-active"
@@ -1011,25 +1102,37 @@ export const DutyCanvas = ({
             const toExpanded = toTask.id === activeTaskId
 
             const fromW = fromExpanded ? EXPANDED_CARD_WIDTH : fromTask.w
-            const fromH = fromExpanded ? EXPANDED_CARD_HEIGHT : (fromTask.h || 280)
-            const fromX = fromExpanded ? fromTask.x - (EXPANDED_CARD_WIDTH - fromTask.w) / 2 : fromTask.x
-            const fromY = fromExpanded ? fromTask.y - (EXPANDED_CARD_HEIGHT - (fromTask.h || 280)) / 2 : fromTask.y
+            const fromH = fromExpanded
+              ? EXPANDED_CARD_HEIGHT
+              : fromTask.h || 280
+            const fromX = fromExpanded
+              ? fromTask.x - (EXPANDED_CARD_WIDTH - fromTask.w) / 2
+              : fromTask.x
+            const fromY = fromExpanded
+              ? fromTask.y - (EXPANDED_CARD_HEIGHT - (fromTask.h || 280)) / 2
+              : fromTask.y
 
             const toW = toExpanded ? EXPANDED_CARD_WIDTH : toTask.w
-            const toH = toExpanded ? EXPANDED_CARD_HEIGHT : (toTask.h || 280)
-            const toX = toExpanded ? toTask.x - (EXPANDED_CARD_WIDTH - toTask.w) / 2 : toTask.x
-            const toY = toExpanded ? toTask.y - (EXPANDED_CARD_HEIGHT - (toTask.h || 280)) / 2 : toTask.y
+            const toH = toExpanded ? EXPANDED_CARD_HEIGHT : toTask.h || 280
+            const toX = toExpanded
+              ? toTask.x - (EXPANDED_CARD_WIDTH - toTask.w) / 2
+              : toTask.x
+            const toY = toExpanded
+              ? toTask.y - (EXPANDED_CARD_HEIGHT - (toTask.h || 280)) / 2
+              : toTask.y
 
             const isVertical = layoutDirection === "vertical"
+            const bx = svgBounds.minX
+            const by = svgBounds.minY
             let x1: number, y1: number, x2: number, y2: number
             let pathD = ""
 
             if (isVertical) {
               // 纵向连接：从父节点底部中心到子节点顶部中心
-              x1 = fromX + fromW / 2
-              y1 = fromY + fromH
-              x2 = toX + toW / 2
-              y2 = toY
+              x1 = fromX + fromW / 2 - bx
+              y1 = fromY + fromH - by
+              x2 = toX + toW / 2 - bx
+              y2 = toY - by
 
               const deltaY = y2 - y1
               const dy = Math.max(50, Math.abs(deltaY) * 0.48)
@@ -1039,10 +1142,10 @@ export const DutyCanvas = ({
                   : `M ${x1} ${y1} C ${x1} ${y1 + 80}, ${x2} ${y2 - 80}, ${x2} ${y2}`
             } else {
               // 横向连接：从父节点右侧中心到子节点左侧中心
-              x1 = fromX + fromW
-              y1 = fromY + fromH / 2
-              x2 = toX
-              y2 = toY + toH / 2
+              x1 = fromX + fromW - bx
+              y1 = fromY + fromH / 2 - by
+              x2 = toX - bx
+              y2 = toY + toH / 2 - by
 
               const deltaX = x2 - x1
               const dx = Math.max(50, Math.abs(deltaX) * 0.48)
@@ -1053,12 +1156,15 @@ export const DutyCanvas = ({
             }
 
             const isFlowing = activeFlowEdge === `${edge.from}>${edge.to}`
-            const isBlocked = toTask.status === "blocked" || fromTask.status === "failed"
+            const isBlocked =
+              toTask.status === "blocked" || fromTask.status === "failed"
             const isEdgeSelected = selectedEdgeKey === `${edge.from}>${edge.to}`
 
             return (
               <g key={`${edge.from}-${edge.to}-${idx}`}>
-                {isFlowing && <path className="dc-bezier-path-glow" d={pathD} />}
+                {isFlowing && (
+                  <path className="dc-bezier-path-glow" d={pathD} />
+                )}
                 <path
                   className={`dc-bezier-path ${isFlowing ? "active-flow" : ""} ${
                     isBlocked ? "blocked-flow" : ""
@@ -1066,14 +1172,16 @@ export const DutyCanvas = ({
                   d={pathD}
                   onClick={(e) => {
                     e.stopPropagation()
-                    setSelectedEdgeKey(isEdgeSelected ? null : `${edge.from}>${edge.to}`)
+                    setSelectedEdgeKey(
+                      isEdgeSelected ? null : `${edge.from}>${edge.to}`,
+                    )
                   }}
                   markerEnd={
                     isBlocked
                       ? "url(#dc-arrowhead-blocked)"
                       : isFlowing || isEdgeSelected
-                      ? "url(#dc-arrowhead-active)"
-                      : "url(#dc-arrowhead)"
+                        ? "url(#dc-arrowhead-active)"
+                        : "url(#dc-arrowhead)"
                   }
                 />
                 {isFlowing && (
@@ -1091,15 +1199,15 @@ export const DutyCanvas = ({
               className="dc-ghost-wire"
               d={
                 layoutDirection === "vertical"
-                  ? `M ${wireDrag.sx} ${wireDrag.sy} C ${wireDrag.sx} ${
-                      wireDrag.sy + 60
-                    }, ${wireDrag.curX} ${wireDrag.curY - 60}, ${wireDrag.curX} ${
-                      wireDrag.curY
+                  ? `M ${wireDrag.sx - svgBounds.minX} ${wireDrag.sy - svgBounds.minY} C ${wireDrag.sx - svgBounds.minX} ${
+                      wireDrag.sy + 60 - svgBounds.minY
+                    }, ${wireDrag.curX - svgBounds.minX} ${wireDrag.curY - 60 - svgBounds.minY}, ${wireDrag.curX - svgBounds.minX} ${
+                      wireDrag.curY - svgBounds.minY
                     }`
-                  : `M ${wireDrag.sx} ${wireDrag.sy} C ${wireDrag.sx + 60} ${
-                      wireDrag.sy
-                    }, ${wireDrag.curX - 60} ${wireDrag.curY}, ${wireDrag.curX} ${
-                      wireDrag.curY
+                  : `M ${wireDrag.sx - svgBounds.minX} ${wireDrag.sy - svgBounds.minY} C ${wireDrag.sx + 60 - svgBounds.minX} ${
+                      wireDrag.sy - svgBounds.minY
+                    }, ${wireDrag.curX - 60 - svgBounds.minX} ${wireDrag.curY - svgBounds.minY}, ${wireDrag.curX - svgBounds.minX} ${
+                      wireDrag.curY - svgBounds.minY
                     }`
               }
             />
@@ -1116,14 +1224,22 @@ export const DutyCanvas = ({
           const toExpanded = toTask.id === activeTaskId
 
           const fromW = fromExpanded ? EXPANDED_CARD_WIDTH : fromTask.w
-          const fromH = fromExpanded ? EXPANDED_CARD_HEIGHT : (fromTask.h || 280)
-          const fromX = fromExpanded ? fromTask.x - (EXPANDED_CARD_WIDTH - fromTask.w) / 2 : fromTask.x
-          const fromY = fromExpanded ? fromTask.y - (EXPANDED_CARD_HEIGHT - (fromTask.h || 280)) / 2 : fromTask.y
+          const fromH = fromExpanded ? EXPANDED_CARD_HEIGHT : fromTask.h || 280
+          const fromX = fromExpanded
+            ? fromTask.x - (EXPANDED_CARD_WIDTH - fromTask.w) / 2
+            : fromTask.x
+          const fromY = fromExpanded
+            ? fromTask.y - (EXPANDED_CARD_HEIGHT - (fromTask.h || 280)) / 2
+            : fromTask.y
 
           const toW = toExpanded ? EXPANDED_CARD_WIDTH : toTask.w
-          const toH = toExpanded ? EXPANDED_CARD_HEIGHT : (toTask.h || 280)
-          const toX = toExpanded ? toTask.x - (EXPANDED_CARD_WIDTH - toTask.w) / 2 : toTask.x
-          const toY = toExpanded ? toTask.y - (EXPANDED_CARD_HEIGHT - (toTask.h || 280)) / 2 : toTask.y
+          const toH = toExpanded ? EXPANDED_CARD_HEIGHT : toTask.h || 280
+          const toX = toExpanded
+            ? toTask.x - (EXPANDED_CARD_WIDTH - toTask.w) / 2
+            : toTask.x
+          const toY = toExpanded
+            ? toTask.y - (EXPANDED_CARD_HEIGHT - (toTask.h || 280)) / 2
+            : toTask.y
 
           const isVertical = layoutDirection === "vertical"
           const x1 = isVertical ? fromX + fromW / 2 : fromX + fromW
@@ -1142,7 +1258,9 @@ export const DutyCanvas = ({
                 style={{ left: mx, top: my }}
                 onClick={(e) => {
                   e.stopPropagation()
-                  setSelectedEdgeKey(isEdgeSelected ? null : `${edge.from}>${edge.to}`)
+                  setSelectedEdgeKey(
+                    isEdgeSelected ? null : `${edge.from}>${edge.to}`,
+                  )
                 }}
                 title={`单击管理依赖：从 #T-${fromTask.taskNo} 注入 #T-${toTask.taskNo}`}
               >
@@ -1234,38 +1352,41 @@ export const DutyCanvas = ({
       </div>
 
       {/* ── 全屏节点工作页面（扩展到整个右侧面板） ── */}
-      {isNodeFullscreen && activeTaskId && (() => {
-        const currentActiveTask = tasks.find((t) => t.id === activeTaskId)
-        if (!currentActiveTask) return null
-        return (
-          <div
-            className="dc-node-fullscreen-overlay"
-            onClick={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-          >
-            <DutyNodePageContent
-              task={currentActiveTask}
-              allTasks={tasks}
-              stepIndex={stepIndexMap[currentActiveTask.id] ?? 0}
-              isFullscreen={true}
-              onToggleFullscreen={() => setIsNodeFullscreen(false)}
-              onClose={() => {
-                setIsNodeFullscreen(false)
-                onCloseTask()
-              }}
-              onPickOption={onPickOption}
-              onApprove={onApprove}
-              onReject={onReject}
-              onArbitrate={onArbitrate}
-              onConfirmHitl={onConfirmHitl}
-              onCancelHitl={onCancelHitl}
-              onSubmitTextHitl={onSubmitTextHitl}
-              onSubmitChoiceHitl={onSubmitChoiceHitl}
-              onSubmitMultiChoiceHitl={onSubmitMultiChoiceHitl}
-            />
-          </div>
-        )
-      })()}
+      {isNodeFullscreen &&
+        activeTaskId &&
+        (() => {
+          const currentActiveTask = tasks.find((t) => t.id === activeTaskId)
+          if (!currentActiveTask) return null
+          return (
+            <div
+              className="dc-node-fullscreen-overlay"
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              <DutyNodePageContent
+                task={currentActiveTask}
+                allTasks={tasks}
+                stepIndex={stepIndexMap[currentActiveTask.id] ?? 0}
+                isFullscreen={true}
+                onToggleFullscreen={() => setIsNodeFullscreen(false)}
+                onClose={() => {
+                  setIsNodeFullscreen(false)
+                  onCloseTask()
+                }}
+                onPickOption={onPickOption}
+                onApprove={onApprove}
+                onConfirmProposal={onConfirmProposalTask}
+                onReject={onReject}
+                onArbitrate={onArbitrate}
+                onConfirmHitl={onConfirmHitl}
+                onCancelHitl={onCancelHitl}
+                onSubmitTextHitl={onSubmitTextHitl}
+                onSubmitChoiceHitl={onSubmitChoiceHitl}
+                onSubmitMultiChoiceHitl={onSubmitMultiChoiceHitl}
+              />
+            </div>
+          )
+        })()}
 
       {/* ── 当画布无任何任务时的居中空状态引导（置于视口层，不随画布缩放漂移或被零宽压缩） ── */}
       {tasks.length === 0 && (
@@ -1351,7 +1472,9 @@ export const DutyCanvas = ({
                     : "切换为纵向展开排列 (从上向下，契合鼠标滚轮上下滚动)"
                 }
               >
-                <span>{layoutDirection === "vertical" ? "⇄ 横向" : "⇅ 纵向"}</span>
+                <span>
+                  {layoutDirection === "vertical" ? "⇄ 横向" : "⇅ 纵向"}
+                </span>
               </button>
             )}
           </div>
@@ -1364,7 +1487,7 @@ export const DutyCanvas = ({
                 "p-1 rounded-md transition-colors cursor-pointer",
                 toolMode === "hand"
                   ? "text-primary bg-primary/15 font-medium"
-                  : "hover:text-foreground hover:bg-muted/70"
+                  : "hover:text-foreground hover:bg-muted/70",
               )}
               onClick={() => setToolMode("hand")}
               title="抓手模式 (Hand)：在画布空白处拖拽平移视口"
@@ -1377,7 +1500,7 @@ export const DutyCanvas = ({
                 "p-1 rounded-md transition-colors cursor-pointer",
                 toolMode === "select"
                   ? "text-primary bg-primary/15 font-medium"
-                  : "hover:text-foreground hover:bg-muted/70"
+                  : "hover:text-foreground hover:bg-muted/70",
               )}
               onClick={() => setToolMode("select")}
               title="框选模式 (Marquee Select)：在画布空白处拉框多选节点"
@@ -1390,7 +1513,9 @@ export const DutyCanvas = ({
             <button
               type="button"
               className="px-1.5 py-0.5 rounded-md hover:text-foreground hover:bg-muted/70 transition-colors cursor-pointer font-bold"
-              onClick={() => updateView((v) => ({ ...v, k: clamp(v.k * 0.82, 0.18, 3.0) }))}
+              onClick={() =>
+                updateView((v) => ({ ...v, k: clamp(v.k * 0.82, 0.18, 3.0) }))
+              }
               title="缩小画布 (Zoom Out)"
             >
               −
@@ -1406,7 +1531,9 @@ export const DutyCanvas = ({
             <button
               type="button"
               className="px-1.5 py-0.5 rounded-md hover:text-foreground hover:bg-muted/70 transition-colors cursor-pointer font-bold"
-              onClick={() => updateView((v) => ({ ...v, k: clamp(v.k * 1.22, 0.18, 3.0) }))}
+              onClick={() =>
+                updateView((v) => ({ ...v, k: clamp(v.k * 1.22, 0.18, 3.0) }))
+              }
               title="放大画布 (Zoom In)"
             >
               ＋

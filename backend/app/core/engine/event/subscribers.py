@@ -516,6 +516,7 @@ class EngineCommandSubscriber:
 
         from app.core.engine.rewind import perform_rewind
 
+        target_msg = None
         async with session_scope() as session:
             if message_id:
                 stmt = (
@@ -535,21 +536,21 @@ class EngineCommandSubscriber:
             result = await session.execute(stmt)
             target_msg = result.scalar_one_or_none()
 
-            if not target_msg:
-                logger.error(
-                    f"[EngineCommand] No human message found for rewind thread {thread_id}"
-                )
-                if message_id and include_target:
-                    from app.core.engine.rewind import publish_messages_cleanup
+        if not target_msg:
+            logger.error(
+                f"[EngineCommand] No human message found for rewind thread {thread_id}"
+            )
+            if message_id and include_target:
+                from app.core.engine.rewind import publish_messages_cleanup
 
-                    await publish_messages_cleanup(
-                        thread_id=thread_id,
-                        message_ids=[message_id],
-                        delete_references=False,
-                        target_sequence=0,
-                        include_target=False,
-                    )
-                return
+                await publish_messages_cleanup(
+                    thread_id=thread_id,
+                    message_ids=[message_id],
+                    delete_references=False,
+                    target_sequence=0,
+                    include_target=False,
+                )
+            return
 
         rewind_result = await perform_rewind(
             thread_id=thread_id,
@@ -615,16 +616,16 @@ class ConversationLifecycleSubscriber:
 
         async with session_scope() as session:
             conv = await session.get(Conversation, thread_id)
-            if not conv:
-                # 非持久化会话（后台任务、值守等）不属于会话域，跳过
-                return
-            await publish_conversation_updated(
-                thread_id=thread_id,
-                project_id=conv.project_id,
-                member_id=conv.member_id,
-                title=conv.title or "",
-                status=status,
-            )
+        if not conv:
+            # 非持久化会话（后台任务、值守等）不属于会话域，跳过
+            return
+        await publish_conversation_updated(
+            thread_id=thread_id,
+            project_id=conv.project_id,
+            member_id=conv.member_id,
+            title=conv.title or "",
+            status=status,
+        )
 
     @event_subscribe(AgentEventType.RUN_COMPLETED)
     async def on_run_completed(self, event) -> None:

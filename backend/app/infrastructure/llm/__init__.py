@@ -9,11 +9,6 @@ from app.infrastructure.llm.anthropic_adapter import CompatibleChatAnthropic
 from app.infrastructure.llm.config import LLMConfigService
 from app.infrastructure.llm.factory import LLMFactory, get_default_llm
 from app.infrastructure.llm.internal_service import InternalLLMService
-from app.infrastructure.llm.lightning import (
-    LightningService,
-    get_lightning_service,
-    reset_lightning_service,
-)
 from app.infrastructure.llm.platform_service import (
     LLMPlatformService,
     PlatformModel,
@@ -48,8 +43,4 @@ __all__ = [
     "AdaptiveChatOpenAI",
     "CompatibleChatAnthropic",
     "InternalLLMService",
-    # Lightning
-    "LightningService",
-    "get_lightning_service",
-    "reset_lightning_service",
 ]

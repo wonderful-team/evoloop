@@ -202,3 +202,4 @@ class SyncTaskMixin:
         """
         result = self.send_task(task_name, args=args, kwargs=kwargs)
         return await result.get(timeout=timeout)
+

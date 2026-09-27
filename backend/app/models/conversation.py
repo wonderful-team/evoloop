@@ -14,9 +14,8 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.infrastructure.database.sql.database import Base
+from app.models.planning import Plan
 from app.utils.time import utcnow
-
-from .planning import Plan
 
 
 class ThreadSequence(Base):

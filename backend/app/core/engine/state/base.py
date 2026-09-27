@@ -43,7 +43,6 @@ class AgentStateBase(DynamicBaseModel):
         fields = {
             "tool_history": self.tool_history,
             "tool_memory": self.tool_memory,
-            "final_outcome": self.final_outcome if hasattr(self, "final_outcome") else None,
             "blocked_by_hook": self.blocked_by_hook,
         }
         return {k: v for k, v in fields.items() if v is not None}

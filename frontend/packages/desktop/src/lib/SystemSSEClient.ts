@@ -1,4 +1,4 @@
-import {OpenAPI} from "@/client/core/OpenAPI"
+import { OpenAPI } from "@/client/core/OpenAPI"
 
 export interface SystemEvent {
   type: string
@@ -15,10 +15,13 @@ class SystemSSEClient {
   private static instance: SystemSSEClient
   private eventSource: EventSource | null = null
   private listeners: Map<string, Set<EventHandler>> = new Map()
+  private esListeners: Map<string, (e: MessageEvent) => void> = new Map()
   private reconnectAttempts = 0
   private maxReconnectAttempts = 10
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private isDisposed = false
+  private lastEventId: string | null = null
+  private connecting = false
 
   private constructor() {
     this.connect()
@@ -32,7 +35,8 @@ class SystemSSEClient {
   }
 
   private async connect() {
-    if (this.isDisposed) return
+    if (this.isDisposed || this.connecting) return
+    this.connecting = true
 
     this.disconnect(false)
 
@@ -57,6 +61,12 @@ class SystemSSEClient {
       params.append("guest_id", guestId)
     }
 
+    // Manual reconnect / page remount: resume from the last seen event id so
+    // the server only replays events after the disconnect window.
+    if (this.lastEventId) {
+      params.append("last_event_id", this.lastEventId)
+    }
+
     const queryString = params.toString()
     if (queryString) {
       url += `?${queryString}`
@@ -70,6 +80,8 @@ class SystemSSEClient {
     } catch (e) {
       console.error("[SystemSSE] Failed to create EventSource", e)
       this.scheduleReconnect()
+    } finally {
+      this.connecting = false
     }
   }
 
@@ -92,13 +104,32 @@ class SystemSSEClient {
       }
     }
 
+    // Backend sends named events (event: <type>). Register a listener for each
+    // event type that currently has subscribers; new subscribers are wired
+    // dynamically in on().
+    this.esListeners.forEach((listener, eventType) => {
+      sse.addEventListener(eventType, listener)
+    })
+
+    // Legacy fallback: unnamed events (no event: field) go through onmessage.
     sse.onmessage = (e) => {
-      try {
-        const event: SystemEvent = JSON.parse(e.data)
-        this.emit(event.event, event)
-      } catch (err) {
-        console.error("[SystemSSE] Failed to parse event", err)
+      this.handleEventData(e.data, (e as any).lastEventId)
+    }
+  }
+
+  private handleEventData(rawData: string, lastEventId?: string) {
+    try {
+      const event: SystemEvent = JSON.parse(rawData)
+      if (lastEventId) {
+        this.lastEventId = lastEventId
       }
+      // Route by the semantic event name; fall back to type for direct payloads.
+      const eventType = event.event || event.type
+      if (eventType) {
+        this.emit(eventType, event)
+      }
+    } catch (err) {
+      console.error("[SystemSSE] Failed to parse event", err)
     }
   }
 
@@ -125,10 +156,27 @@ class SystemSSEClient {
       this.listeners.set(eventType, new Set())
     }
     this.listeners.get(eventType)!.add(handler)
+
+    // Wire a named EventSource listener the first time this event type is used.
+    if (!this.esListeners.has(eventType)) {
+      const listener = (e: MessageEvent) => {
+        this.handleEventData(e.data, (e as any).lastEventId)
+      }
+      this.esListeners.set(eventType, listener)
+      this.eventSource?.addEventListener(eventType, listener)
+    }
   }
 
   public off(eventType: string, handler: EventHandler) {
     this.listeners.get(eventType)?.delete(handler)
+    if (!this.listeners.get(eventType)?.size) {
+      this.listeners.delete(eventType)
+      const listener = this.esListeners.get(eventType)
+      if (listener) {
+        this.eventSource?.removeEventListener(eventType, listener)
+        this.esListeners.delete(eventType)
+      }
+    }
   }
 
   private emit(eventType: string, event: SystemEvent) {

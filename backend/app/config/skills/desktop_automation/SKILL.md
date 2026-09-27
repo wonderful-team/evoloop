@@ -100,8 +100,6 @@ batch 附加参数：`continue_on_error`（默认 True）、`delay_ms`（动作�
 - `dump_ui` 读 AX 树（JSON 数组），支持 `role_filter`（如 `AXButton`）、`name_filter`（部分
   匹配）、`max_depth`（默认 10）；比截图快且确定。
 - `gui_extract` 用 OCR 从区域或坐标 (x, y) 附近智能提取文本。
-- 配套快速验证工具（如在你的工具面上）：`verify_ui_state`（AX 查元素/文本）、
-  `quick_check_screen`（~500ms，无 LLM，代替 image analyze 的 ~12s）。
 
 ## 5. 输入与 App 控制
 

@@ -75,11 +75,7 @@ async def handle_list(
 
     if not tree:
         # Simple flat listing using core.file
-        entries = list(
-            core_list_directory(
-                target_path, recursive=False, filter_pattern=filter_pattern
-            )
-        )
+        entries = list(core_list_directory(target_path))
         # In flat mode with filter, only show directories whose names also match the filter
         if filter_pattern:
             entries = [

@@ -109,7 +109,7 @@ class SandboxFactory:
     @classmethod
     def reset(cls):
         """Tear down all cached sandbox instances (config change / shutdown)."""
-        for key, instance in list(cls._instances.items()):
+        for _key, instance in list(cls._instances.items()):
             try:
                 instance.teardown()
             except Exception as e:

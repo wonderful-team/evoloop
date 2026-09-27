@@ -121,7 +121,6 @@ async def sync_thread_to_graph(
     project_id: int,
     goal: str,
     result_summary: str | None = None,
-    concept_names: list[str] | None = None,
     source_message_id: str | None = None,
 ) -> None:
     """

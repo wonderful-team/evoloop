@@ -3,9 +3,8 @@ BlockMapper —— 各层 ↔ MessageBlock 的标准化转换器。
 
 职责：
 1. DB ORM ↔ MessageBlock
-2. Native BaseMessage ↔ MessageBlock
-3. MessageBlock → SSE BlockEvent
-4. MessageBlock → Mobile 推送字典
+2. MessageBlock → SSE BlockEvent
+3. MessageBlock → Mobile 推送字典
 
 规则：
 1. 所有转换必须是单向纯函数（无副作用）
@@ -21,12 +20,10 @@ if TYPE_CHECKING:
     from app.models.schemas.events import MessageSyncEvent
 
 from app.core.engine.message.constants import (
-    MessageActionType,
     MessageContentType,
     MessageRole,
     MessageStatus,
 )
-from app.core.engine.message.native_classes import BaseMessage
 from app.core.engine.message.schemas import MessageBlock, ToolCall
 from app.core.engine.message.utils import normalize_tool_calls
 from app.utils.time import parse_iso_timestamp, ts_from_dt
@@ -168,11 +165,6 @@ class BlockMapper:
 # ----------------------------------------------------------------------
 
 
-def _extract_lc_id(msg: BaseMessage) -> str:
-    """从消息中提取或生成 ID"""
-    return msg.id or msg.additional_kwargs.get("id") or f"lc-{id(msg)}"
-
-
 def _format_iso(dt: datetime | str | None) -> str:
     """统一时间戳格式为 ISO 8601"""
     if not dt:
@@ -180,12 +172,3 @@ def _format_iso(dt: datetime | str | None) -> str:
     if isinstance(dt, str):
         return dt
     return dt.isoformat()
-
-
-def _infer_action_type(msg: MessageBlock) -> MessageActionType:
-    """从 MessageBlock 推断 action_type（兼容旧系统）"""
-    if msg.thinking and not msg.content:
-        return MessageActionType.THINKING
-    if msg.role == MessageRole.TOOL:
-        return MessageActionType.TOOL_OUTPUT
-    return MessageActionType.TEXT

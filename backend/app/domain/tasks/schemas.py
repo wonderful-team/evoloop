@@ -10,17 +10,16 @@ from typing import Any
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
-class WakeupTask(DynamicBaseModel):
-    """唤醒 prompt 的单任务载荷（dispatcher → 模板渲染）。"""
+class WorkflowStageSpec(DynamicBaseModel):
+    """周期工作流的阶段模板（create_workflow 入参；deps 用阶段 key 引用）。"""
 
-    id: str
-    status: str
+    key: str
     title: str
-    instruction: str
-    priority: str
-    risk: str
-    due: str
-    feedback: str = ""
+    description: str = ""
+    category: str | None = None
+    priority: str = "medium"
+    risk_level: str | None = None
+    deps: list[str] = []
 
 
 class DashboardPayload(DynamicBaseModel):

@@ -8,20 +8,30 @@
      - 右栏：执行过程与交付工作台 (ExecutionPanel)，未派发任务自动呈现成熟的待执行简报
    ========================================================================== */
 
-import {useEffect, useMemo, useState} from "react"
-import {AlertTriangle, ExternalLink, FileText, ListTodo, Maximize2, Minimize2, Square, X,} from "lucide-react"
-import {useNavigate} from "@tanstack/react-router"
-import {useQuery, useQueryClient} from "@tanstack/react-query"
-import {useChatStore} from "@/stores/chatStore"
-import {AgentService, PlanningService} from "@/client"
-import {DEMO} from "../core/demoData"
-import {getDemoPlan} from "../core/demoRuntime"
-import type {DutyTask} from "../core/types"
-import {type QueueTask, TasksQueueApi} from "@/lib/tasksQueueApi"
-import {PlanPanel} from "../detail/PlanPanel"
-import {ExecutionPanel} from "../detail/ExecutionPanel"
-import {MarkdownText} from "@evoloop/shared/components/markdown/MarkdownText"
-import {DutyHitlInputCard, type DutyHitlItem} from "./DutyHitlInputCard"
+import { MarkdownText } from "@evoloop/shared/components/markdown/MarkdownText"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { useNavigate } from "@tanstack/react-router"
+import {
+  AlertTriangle,
+  ExternalLink,
+  FileText,
+  ListTodo,
+  Maximize2,
+  Minimize2,
+  Square,
+  X,
+} from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
+import { AgentService, PlanningService } from "@/client"
+import { type QueueTask, TasksQueueApi } from "@/lib/tasksQueueApi"
+import { useChatStore } from "@/stores/chatStore"
+import { DEMO } from "../core/demoData"
+import { getDemoPlan } from "../core/demoRuntime"
+import { statusMeta } from "../core/statusMeta"
+import type { DutyTask } from "../core/types"
+import { ExecutionPanel } from "../detail/ExecutionPanel"
+import { PlanPanel } from "../detail/PlanPanel"
+import { DutyHitlInputCard, type DutyHitlItem } from "./DutyHitlInputCard"
 
 interface DutyNodePageContentProps {
   task: DutyTask
@@ -32,8 +42,12 @@ interface DutyNodePageContentProps {
   onToggleFullscreen?: () => void
   onPickOption?: (taskId: string, index: number) => void
   onApprove?: (taskId: string, grantMode?: "once" | "always") => void
+  /** proposed 提案确认（加入执行队列）——此前 UI 无确认入口，唯一出口是裸 API */
+  onConfirmProposal?: (taskId: string) => void | Promise<void>
   onReject?: (taskId: string, reason?: string) => void
-  onArbitrate?: (action: "retry_upstream" | "cancel_downstream" | "reopen_modified") => void
+  onArbitrate?: (
+    action: "retry_upstream" | "cancel_downstream" | "reopen_modified",
+  ) => void
   onConfirmHitl?: (taskId: string, grantMode?: "once" | "always") => void
   onCancelHitl?: (taskId: string) => void
   onSubmitTextHitl?: (taskId: string, value: string) => void
@@ -47,6 +61,7 @@ export const DutyNodePageContent = ({
   onClose,
   isFullscreen,
   onToggleFullscreen,
+  onConfirmProposal,
 }: DutyNodePageContentProps) => {
   const navigate = useNavigate()
   const qc = useQueryClient()
@@ -83,7 +98,8 @@ export const DutyNodePageContent = ({
 
   /* 上游依赖源任务（用于在 ExecutionPanel 待执行简报中展示依赖项信息） */
   const sourceTask = useMemo<QueueTask | null>(() => {
-    if (!allTasks || !task.dependencies || task.dependencies.length === 0) return null
+    if (!allTasks || !task.dependencies || task.dependencies.length === 0)
+      return null
     const dep = allTasks.find((t) => t.id === task.dependencies[0])
     return (dep?.rawQueueTask as QueueTask) ?? null
   }, [allTasks, task.dependencies])
@@ -101,9 +117,13 @@ export const DutyNodePageContent = ({
   const provenance = useMemo(() => {
     const raw = task.provenance || (task as any).fourQuestions
     return {
-      sourceRef: raw?.sourceRef || (task.source === "chat" ? "用户对话派发" : "自主值守调度"),
+      sourceRef:
+        raw?.sourceRef ||
+        (task.source === "chat" ? "用户对话派发" : "自主值守调度"),
       upstreamSummary: raw?.upstreamSummary || "根任务 · 独立启动",
-      downstreamTargets: Array.isArray(raw?.downstreamTargets) ? raw.downstreamTargets : [],
+      downstreamTargets: Array.isArray(raw?.downstreamTargets)
+        ? raw.downstreamTargets
+        : [],
       endorsement: raw?.endorsement || "自动化安全审计",
       originMessageId: raw?.originMessageId,
     }
@@ -157,7 +177,9 @@ export const DutyNodePageContent = ({
     queryKey: ["dutyPlan", targetThreadId],
     queryFn: async () =>
       DEMO
-        ? (getDemoPlan(targetThreadId ?? null) as unknown as Awaited<ReturnType<typeof PlanningService.getPlan>>)
+        ? (getDemoPlan(targetThreadId ?? null) as unknown as Awaited<
+            ReturnType<typeof PlanningService.getPlan>
+          >)
         : await PlanningService.getPlan({ threadId: targetThreadId as string }),
     enabled: DEMO || !!targetThreadId,
   })
@@ -169,7 +191,10 @@ export const DutyNodePageContent = ({
   // 🌟 平滑加载：加载期间保持计划栏就位（由 PlanPanel 展示骨架），仅在确定无步骤项时才折叠为单栏，杜绝页面剧烈抖动
   const hasPlan = planQ.isLoading ? true : planSteps.length > 0
   const donePlanSteps = planSteps.filter((s) => s.status === "completed").length
-  const planPercent = planSteps.length > 0 ? Math.round((donePlanSteps / planSteps.length) * 100) : 0
+  const planPercent =
+    planSteps.length > 0
+      ? Math.round((donePlanSteps / planSteps.length) * 100)
+      : 0
 
   const handleDataRefresh = () => {
     qc.invalidateQueries({ queryKey: ["dutyQueue"] })
@@ -215,7 +240,10 @@ export const DutyNodePageContent = ({
       >
         <div className="dc-page-title-group">
           <span className="dc-badge-no">#T-{task.taskNo}</span>
-          <span className="dc-page-title" title={task.description || task.title}>
+          <span
+            className="dc-page-title"
+            title={task.description || task.title}
+          >
             {task.title}
           </span>
 
@@ -223,14 +251,14 @@ export const DutyNodePageContent = ({
             {task.source === "chat"
               ? "💬 对话产生"
               : task.source === "agent_proposal"
-              ? "🤖 Agent提案"
-              : task.source === "cron"
-              ? "⏰ 周期巡检"
-              : task.source === "event"
-              ? "🔗 外部事件"
-              : task.source === "chain"
-              ? "⛓ 依赖派生"
-              : "👤 用户创建"}
+                ? "🤖 Agent提案"
+                : task.source === "cron"
+                  ? "⏰ 周期巡检"
+                  : task.source === "event"
+                    ? "🔗 外部事件"
+                    : task.source === "chain"
+                      ? "⛓ 依赖派生"
+                      : "👤 用户创建"}
           </span>
 
           {task.category && (
@@ -238,30 +266,42 @@ export const DutyNodePageContent = ({
           )}
 
           {task.signoff && (task.signoff.rejectCount ?? 0) > 0 && (
-            <span className="dc-badge-reject">已打回 {task.signoff.rejectCount} 次</span>
+            <span className="dc-badge-reject">
+              已打回 {task.signoff.rejectCount} 次
+            </span>
           )}
         </div>
 
-        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
+        <div
+          style={{
+            marginLeft: "auto",
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+          }}
+        >
+          {/* 状态胶囊：词汇/图形统一走 statusMeta（节点页仅加长文案后缀） */}
           <span className={`dc-status-pill ${task.status}`}>
-            {task.status === "completed"
-              ? "✓ 监察评审通过"
-              : task.status === "in_progress"
-              ? "⟳ Agent 现场执行中"
-              : task.status === "proposed"
-              ? "💡 Agent 待确认提案"
-              : task.status === "waiting_acceptance"
-              ? "⏸ 等你商业拍板"
-              : task.status === "confirm"
-              ? "⏸ 资金安全授权"
-              : task.status === "blocked"
-              ? "🔒 上游断链锁定"
-              : task.status === "failed"
-              ? "⛔ 执行异常/打回"
-              : task.status === "cancelled"
-              ? "⊘ 已取消（不再执行）"
-              : "○ 待派发调度"}
+            {statusMeta(task.status).glyph} {statusMeta(task.status).label}
+            {task.status === "in_progress" && "（Agent 现场执行）"}
+            {task.status === "proposed" && "（Agent 待确认）"}
+            {task.status === "waiting_acceptance" && "（等你商业拍板）"}
+            {task.status === "completed" && "（监察评审通过）"}
+            {task.status === "failed" && "（执行异常/打回）"}
+            {task.status === "cancelled" && "（不再执行）"}
           </span>
+
+          {task.status === "proposed" && onConfirmProposal && (
+            <button
+              type="button"
+              className="dc-stop-btn"
+              data-test="confirm-proposal"
+              onClick={() => void onConfirmProposal(task.id)}
+              title="确认提案：任务加入执行队列，值守按依赖顺序派发"
+            >
+              <span>✓ 确认提案，加入执行队列</span>
+            </button>
+          )}
 
           {task.status === "in_progress" && (
             <button
@@ -282,7 +322,9 @@ export const DutyNodePageContent = ({
               className="dc-open-chat-btn"
               onClick={(e) => {
                 e.stopPropagation()
-                useChatStore.getState().setThread(targetThreadId, task.projectId ?? null)
+                useChatStore
+                  .getState()
+                  .setThread(targetThreadId, task.projectId ?? null)
                 navigate({ to: "/chat" })
               }}
               title="在对话面板中打开此任务并接管会话"
@@ -300,7 +342,9 @@ export const DutyNodePageContent = ({
                 e.stopPropagation()
                 onToggleFullscreen()
               }}
-              title={isFullscreen ? "恢复到现有画布放大效果" : "扩展到整个右侧面板"}
+              title={
+                isFullscreen ? "恢复到现有画布放大效果" : "扩展到整个右侧面板"
+              }
             >
               {isFullscreen ? (
                 <>
@@ -337,8 +381,8 @@ export const DutyNodePageContent = ({
               task.status === "completed" || donePlanSteps === planSteps.length
                 ? "bg-emerald-500"
                 : task.status === "failed"
-                ? "bg-destructive"
-                : "bg-primary"
+                  ? "bg-destructive"
+                  : "bg-primary"
             }`}
             style={{ width: `${planPercent}%` }}
           />
@@ -420,26 +464,47 @@ export const DutyNodePageContent = ({
         <div className="mt-auto pt-2 pb-0.5 border-t border-border/40 flex flex-wrap items-center justify-between gap-3 text-[11px] text-muted-foreground/80 select-none shrink-0">
           {/* 左侧：输入/输出与血统归属 */}
           <div className="flex items-center flex-wrap gap-x-4 gap-y-1 min-w-0">
-            <span className="truncate max-w-[200px]" title={`来源: ${provenance.sourceRef}`}>
+            <span
+              className="truncate max-w-[200px]"
+              title={`来源: ${provenance.sourceRef}`}
+            >
               <span className="opacity-60">来源:</span>{" "}
-              <span className="text-foreground/90 font-medium">{provenance.sourceRef}</span>
-            </span>
-            {provenance.upstreamSummary && provenance.upstreamSummary !== "根任务 · 独立启动" && (
-              <span className="truncate max-w-[220px]" title={`输入: ${provenance.upstreamSummary}`}>
-                <span className="opacity-60">输入:</span>{" "}
-                <span className="text-foreground/90 font-medium">{provenance.upstreamSummary}</span>
+              <span className="text-foreground/90 font-medium">
+                {provenance.sourceRef}
               </span>
-            )}
-            {provenance.downstreamTargets.length > 0 &&
-              provenance.downstreamTargets[0] !== "终局闭环 · 产物反哺资产" && (
-                <span className="truncate max-w-[220px]" title={`流向: ${provenance.downstreamTargets.join(" · ")}`}>
-                  <span className="opacity-60">流向:</span>{" "}
-                  <span className="text-foreground/90 font-medium">{provenance.downstreamTargets.join(" · ")}</span>
+            </span>
+            {provenance.upstreamSummary &&
+              provenance.upstreamSummary !== "根任务 · 独立启动" && (
+                <span
+                  className="truncate max-w-[220px]"
+                  title={`输入: ${provenance.upstreamSummary}`}
+                >
+                  <span className="opacity-60">输入:</span>{" "}
+                  <span className="text-foreground/90 font-medium">
+                    {provenance.upstreamSummary}
+                  </span>
                 </span>
               )}
-            <span className="truncate max-w-[200px]" title={`背书: ${provenance.endorsement}`}>
+            {provenance.downstreamTargets.length > 0 &&
+              provenance.downstreamTargets[0] !== "终局闭环 · 产物反哺资产" && (
+                <span
+                  className="truncate max-w-[220px]"
+                  title={`流向: ${provenance.downstreamTargets.join(" · ")}`}
+                >
+                  <span className="opacity-60">流向:</span>{" "}
+                  <span className="text-foreground/90 font-medium">
+                    {provenance.downstreamTargets.join(" · ")}
+                  </span>
+                </span>
+              )}
+            <span
+              className="truncate max-w-[200px]"
+              title={`背书: ${provenance.endorsement}`}
+            >
               <span className="opacity-60">背书:</span>{" "}
-              <span className="text-foreground/90 font-medium">{provenance.endorsement}</span>
+              <span className="text-foreground/90 font-medium">
+                {provenance.endorsement}
+              </span>
             </span>
           </div>
 
@@ -451,13 +516,21 @@ export const DutyNodePageContent = ({
                 异常 · {queueTask.run?.tool_errors}
               </span>
             )}
-            {((queueTask.run?.input_tokens ?? 0) + (queueTask.run?.output_tokens ?? 0) > 0 || queueTask.elapsed_sec != null) && (
+            {((queueTask.run?.input_tokens ?? 0) +
+              (queueTask.run?.output_tokens ?? 0) >
+              0 ||
+              queueTask.elapsed_sec != null) && (
               <>
-                {(queueTask.run?.input_tokens ?? 0) + (queueTask.run?.output_tokens ?? 0) > 0 && (
+                {(queueTask.run?.input_tokens ?? 0) +
+                  (queueTask.run?.output_tokens ?? 0) >
+                  0 && (
                   <span>
                     <span className="opacity-60 font-sans">燃耗:</span>{" "}
                     <span className="text-foreground/90 font-medium">
-                      {((queueTask.run?.input_tokens ?? 0) + (queueTask.run?.output_tokens ?? 0)).toLocaleString()}
+                      {(
+                        (queueTask.run?.input_tokens ?? 0) +
+                        (queueTask.run?.output_tokens ?? 0)
+                      ).toLocaleString()}
                     </span>{" "}
                     Tokens
                   </span>
@@ -465,7 +538,9 @@ export const DutyNodePageContent = ({
                 {queueTask.elapsed_sec != null && (
                   <span>
                     <span className="opacity-60 font-sans">耗时:</span>{" "}
-                    <span className="text-foreground/90 font-medium">{queueTask.elapsed_sec}s</span>
+                    <span className="text-foreground/90 font-medium">
+                      {queueTask.elapsed_sec}s
+                    </span>
                   </span>
                 )}
               </>

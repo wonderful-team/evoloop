@@ -219,9 +219,13 @@ async def incremental_sync_task(device_key: str, thread_ids: list[str]) -> dict:
     results = {"synced": 0, "failed": 0}
 
     try:
-        async with session_scope() as db:
-            for thread_id in thread_ids:
-                try:
+        for thread_id in thread_ids:
+            try:
+                # ---- Read phase: fetch data and release the connection ----
+                conv_data: SyncConversation | None = None
+                msgs_to_sync: list[tuple[str, dict]] = []
+                mobile_only_ids: list[str] = []
+                async with session_scope() as db:
                     result = await db.execute(
                         select(ConversationModel).where(
                             ConversationModel.id == thread_id
@@ -238,88 +242,90 @@ async def incremental_sync_task(device_key: str, thread_ids: list[str]) -> dict:
                             updated_at=ts_from_dt(conv.updated_at),
                         )
 
-                        api_result = await api.sync_conversation(device_key, conv_data.model_dump())
-                        if api_result.get("code") == 0:
-                            results["synced"] += 1
-                            # Update local sync status
-                            await db.execute(
-                                update(ConversationModel)
-                                .where(ConversationModel.id == thread_id)
-                                .values(sync_status=SYNC_STATUS_SYNCED, last_synced_at=datetime.now(timezone.utc))
+                        msg_result = await db.execute(
+                            select(MessageModel).where(
+                                MessageModel.thread_id == thread_id,
+                                MessageModel.sync_status != SYNC_STATUS_SYNCED,
                             )
-
-                            # Also check for unsynced messages in this conversation
-                            msg_result = await db.execute(
-                                select(MessageModel).where(
-                                    MessageModel.thread_id == thread_id,
-                                    MessageModel.sync_status != SYNC_STATUS_SYNCED,
-                                )
+                        )
+                        unsynced_msgs = msg_result.scalars().all()
+                        if unsynced_msgs:
+                            logger.info(f"[SyncTask] Found {len(unsynced_msgs)} unsynced messages in thread {thread_id}")
+                        for m in unsynced_msgs:
+                            # Skip mobile-originated human messages to avoid double-write
+                            # (Gateway already synced them to MC directly).
+                            if m.role == "human" and m.source == "mobile":
+                                mobile_only_ids.append(m.id)
+                                continue
+                            sm = SyncMessage(
+                                id=m.id, thread_id=m.thread_id, project_id=m.project_id if m.project_id is not None else DEFAULT_PROJECT_ID,
+                                role=m.role, content=m.content, thinking=m.thinking,
+                                created_at=ts_from_dt(m.created_at),
+                                sequence_number=m.sequence_number or 0,
+                                checkpoint_id=m.checkpoint_id or "",
+                                tool_calls=m.tool_calls,
+                                action_type=m.action_type or "text",
+                                is_visible=1 if m.is_visible else 0,
+                                run_id=m.run_id or "",
+                                status=m.status or "completed",
+                                parent_id=m.parent_id or 0,
+                                category=m.category or "",
+                                tool_call_id=m.tool_call_id or "",
+                                tool_name=m.tool_name or "",
+                                meta_data=m.meta_data if m.meta_data else None,
+                                content_type=m.content_type or "text",
                             )
-                            unsynced_msgs = msg_result.scalars().all()
-                            if unsynced_msgs:
-                                logger.info(f"[SyncTask] Found {len(unsynced_msgs)} unsynced messages in thread {thread_id}")
-                            formatted_msgs = []
-                            for m in unsynced_msgs:
-                                # Skip mobile-originated human messages to avoid double-write
-                                # (Gateway already synced them to MC directly).
-                                if m.role == "human" and m.source == "mobile":
-                                    continue
-                                sm = SyncMessage(
-                                    id=m.id, thread_id=m.thread_id, project_id=m.project_id if m.project_id is not None else DEFAULT_PROJECT_ID,
-                                    role=m.role, content=m.content, thinking=m.thinking,
-                                    created_at=ts_from_dt(m.created_at),
-                                    sequence_number=m.sequence_number or 0,
-                                    checkpoint_id=m.checkpoint_id or "",
-                                    tool_calls=m.tool_calls,
-                                    action_type=m.action_type or "text",
-                                    is_visible=1 if m.is_visible else 0,
-                                    run_id=m.run_id or "",
-                                    status=m.status or "completed",
-                                    parent_id=m.parent_id or 0,
-                                    category=m.category or "",
-                                    tool_call_id=m.tool_call_id or "",
-                                    tool_name=m.tool_name or "",
-                                    meta_data=m.meta_data if m.meta_data else None,
-                                    content_type=m.content_type or "text",
-                                )
-                                formatted_msgs.append(sm.model_dump())
+                            msgs_to_sync.append((m.id, sm.model_dump()))
 
-                            if formatted_msgs:
-                                msg_api_result = await api.sync_messages(device_key, str(thread_id), formatted_msgs)
-                                if msg_api_result.get("code") == 0:
-                                    await db.execute(
-                                        update(MessageModel)
-                                        .where(MessageModel.id.in_([m.id for m in unsynced_msgs]))
-                                        .values(sync_status=SYNC_STATUS_SYNCED, last_synced_at=datetime.now(timezone.utc))
-                                    )
-                                    logger.info(f"[SyncTask] Synced {len(unsynced_msgs)} backlogged messages for thread {thread_id}")
-                                else:
-                                    results["failed"] += 1
-                                    logger.warning(
-                                        f"[SyncTask] Failed to sync messages for thread {thread_id}: "
-                                        f"{msg_api_result.get('message')}"
-                                    )
-                            elif unsynced_msgs:
-                                # All unsynced messages are mobile-originated (skip-sync).
-                                # Mark them synced so they don't accumulate as "pending".
-                                await db.execute(
-                                    update(MessageModel)
-                                    .where(MessageModel.id.in_([m.id for m in unsynced_msgs]))
-                                    .values(sync_status=SYNC_STATUS_SYNCED, last_synced_at=datetime.now(timezone.utc))
-                                )
-                                logger.info(f"[SyncTask] Skipped {len(unsynced_msgs)} mobile-only messages for thread {thread_id}")
+                if conv_data is None:
+                    continue
 
-                            await db.commit()
-                        else:
-                            results["failed"] += 1
-                            logger.warning(
-                                f"[SyncTask] Failed to sync thread {thread_id}: "
-                                f"{api_result.get('message')}"
-                            )
-
-                except Exception as e:
+                # ---- API phase: HTTP calls happen outside any DB session ----
+                api_result = await api.sync_conversation(device_key, conv_data.model_dump())
+                if api_result.get("code") != 0:
                     results["failed"] += 1
-                    logger.exception(f"[SyncTask] Error syncing thread {thread_id}: {e}")
+                    logger.warning(
+                        f"[SyncTask] Failed to sync thread {thread_id}: "
+                        f"{api_result.get('message')}"
+                    )
+                    continue
+
+                results["synced"] += 1
+
+                mark_synced_ids = mobile_only_ids[:]
+                if msgs_to_sync:
+                    formatted_msgs = [sm for _, sm in msgs_to_sync]
+                    msg_api_result = await api.sync_messages(device_key, str(thread_id), formatted_msgs)
+                    if msg_api_result.get("code") == 0:
+                        mark_synced_ids.extend([mid for mid, _ in msgs_to_sync])
+                        logger.info(f"[SyncTask] Synced {len(msgs_to_sync)} backlogged messages for thread {thread_id}")
+                    else:
+                        results["failed"] += 1
+                        logger.warning(
+                            f"[SyncTask] Failed to sync messages for thread {thread_id}: "
+                            f"{msg_api_result.get('message')}"
+                        )
+                        mark_synced_ids = []
+                elif mobile_only_ids:
+                    logger.info(f"[SyncTask] Skipped {len(mobile_only_ids)} mobile-only messages for thread {thread_id}")
+
+                # ---- Write phase: mark synced rows with a short transaction ----
+                async with session_scope() as db:
+                    await db.execute(
+                        update(ConversationModel)
+                        .where(ConversationModel.id == thread_id)
+                        .values(sync_status=SYNC_STATUS_SYNCED, last_synced_at=datetime.now(timezone.utc))
+                    )
+                    if mark_synced_ids:
+                        await db.execute(
+                            update(MessageModel)
+                            .where(MessageModel.id.in_(mark_synced_ids))
+                            .values(sync_status=SYNC_STATUS_SYNCED, last_synced_at=datetime.now(timezone.utc))
+                        )
+
+            except Exception as e:
+                results["failed"] += 1
+                logger.exception(f"[SyncTask] Error syncing thread {thread_id}: {e}")
 
         logger.info(
             f"[SyncTask] Incremental sync completed: "

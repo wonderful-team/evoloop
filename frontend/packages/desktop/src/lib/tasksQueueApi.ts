@@ -1,36 +1,29 @@
-/* Tasks queue API client (autonomous duty board).
- * Hand-written until the OpenAPI codegen regenerates; mirrors sdk.gen patterns. */
+/* Tasks queue API facade (autonomous duty board).
+ *
+ * 单一来源收敛（2026-09-25）：HTTP 路径/鉴权/参数名全部由生成的
+ * `TasksQueueService`（@/client，sdk.gen.ts）承担；本文件只剩三件事：
+ * 1. 站内通用强类型（QueueTask/TaskRunView/QueueArtifact/DashboardKpis）——
+ *    生成端 response 类型是宽松 dict，消费方零感知；
+ * 2. 语义化方法名（reject/rejectProposed 的 cancel 语义分流等）；
+ * 3. 错误透传：ApiError 的 body.detail 提升为 Error.message（与旧手写
+ *    client 的 UX 契约一致，toast 能看到后端原因而非泛化状态码）。
+ * 新增端点一律先 generate-client 再在此补门面方法，禁止再手写 fetch/路径。
+ */
 
-import {OpenAPI} from "@/client"
+import type { TasksQueueEditTaskData } from "@/client"
+import { TasksQueueService } from "@/client"
+import { ApiError } from "@/client/core/ApiError"
 
-const BASE = () => OpenAPI.BASE
-
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  // 与生成客户端同源鉴权：OpenAPI.TOKEN（Bearer）+ Cookie 双通道，
-  // 缺一会让 token-only 登录会话下的看板全量 401（被误渲染成空队列）
-  const tokenRaw = OpenAPI.TOKEN
-  const token =
-    typeof tokenRaw === "function"
-      ? await tokenRaw({ method: "GET" } as never)
-      : tokenRaw
-  const headers = new Headers(init?.headers)
-  headers.set("Content-Type", "application/json")
-  if (token && !headers.has("Authorization")) {
-    headers.set("Authorization", `Bearer ${token}`)
+async function unwrap<T>(call: Promise<T>): Promise<T> {
+  try {
+    return await call
+  } catch (err) {
+    if (err instanceof ApiError) {
+      const body = err.body as { detail?: string } | null
+      throw new Error(body?.detail || err.statusText || String(err.status))
+    }
+    throw err
   }
-  const res = await fetch(`${BASE()}${path}`, {
-    credentials: "include",
-    ...init,
-    headers,
-  })
-  if (!res.ok) {
-    const detail = await res.json().catch(() => null)
-    throw new Error(
-      (detail as { detail?: string } | null)?.detail ||
-        `request failed: ${res.status}`,
-    )
-  }
-  return res.json() as Promise<T>
 }
 
 export interface QueueTask {
@@ -78,8 +71,8 @@ export interface QueueTask {
   artifacts?: QueueArtifact[]
 }
 
-/** attempt 历史（task_runs 过程记录层，每任务最近 5 次） */
-export interface TaskRunView {
+/** attempt 历史（task_runs 过程记录层，每任务最近 5 次；仅本文件 QueueTask 消费） */
+interface TaskRunView {
   id: string
   thread_id: string | null
   attempt: number
@@ -143,19 +136,23 @@ export const TasksQueueApi = {
     rootOnly?: boolean,
     limit = 50,
     offset = 0,
+    order?: "queue" | "recent",
   ): Promise<{
     items: QueueTask[]
     count: number
     has_more: boolean
     next_offset: number | null
   }> {
-    const qs = new URLSearchParams()
-    if (status) qs.set("status", status)
-    if (projectId != null) qs.set("project_id", String(projectId))
-    if (rootOnly != null) qs.set("root_only", String(rootOnly))
-    qs.set("limit", String(limit))
-    qs.set("offset", String(offset))
-    return request(`/api/v1/tasks/queue?${qs.toString()}`)
+    return unwrap(
+      TasksQueueService.listQueue({
+        status,
+        projectId,
+        rootOnly,
+        limit,
+        offset,
+        order,
+      }),
+    ) as never
   },
   create(body: {
     title: string
@@ -169,20 +166,24 @@ export const TasksQueueApi = {
     project_id: number
     parent_id?: string | null
     dependencies?: string[]
-  }): Promise<{ success: boolean; id: string; parent_id?: string | null; status: string }> {
-    return request("/api/v1/tasks/queue", {
-      method: "POST",
-      body: JSON.stringify(body),
-    })
+  }): Promise<{
+    success: boolean
+    id: string
+    parent_id?: string | null
+    status: string
+  }> {
+    return unwrap(TasksQueueService.createTask({ requestBody: body })) as never
   },
   update(
     taskId: string,
     body: Record<string, unknown>,
   ): Promise<{ success: boolean; id: string; status: string }> {
-    return request(`/api/v1/tasks/queue/${taskId}`, {
-      method: "PUT",
-      body: JSON.stringify(body),
-    })
+    return unwrap(
+      TasksQueueService.editTask({
+        taskId,
+        requestBody: body as TasksQueueEditTaskData["requestBody"],
+      }),
+    ) as never
   },
   artifacts(taskId: string): Promise<{
     success: boolean
@@ -196,7 +197,7 @@ export const TasksQueueApi = {
       created_at: string | null
     }[]
   }> {
-    return request(`/api/v1/tasks/queue/${taskId}/artifacts`)
+    return unwrap(TasksQueueService.listTaskArtifacts({ taskId })) as never
   },
   hitlPending(): Promise<{
     success: boolean
@@ -213,33 +214,42 @@ export const TasksQueueApi = {
       task_title: string | null
     }[]
   }> {
-    return request("/api/v1/tasks/queue/hitl-pending")
+    return unwrap(TasksQueueService.hitlPendingTasks()) as never
   },
   rerun(taskId: string): Promise<unknown> {
-    return request(`/api/v1/tasks/queue/${taskId}/rerun`, { method: "POST" })
+    return unwrap(TasksQueueService.rerunFailedTask({ taskId })) as never
   },
   confirm(taskId: string): Promise<{ success: boolean; status: string }> {
-    return request(`/api/v1/tasks/queue/${taskId}/confirm`, { method: "POST" })
+    return unwrap(TasksQueueService.confirmProposal({ taskId })) as never
   },
   accept(taskId: string): Promise<{ success: boolean; status: string }> {
-    return request(`/api/v1/tasks/queue/${taskId}/accept`, { method: "POST" })
+    return unwrap(TasksQueueService.acceptTask({ taskId })) as never
   },
-  reject(taskId: string, feedback: string): Promise<{ success: boolean; status: string }> {
-    return request(`/api/v1/tasks/queue/${taskId}/reject`, {
-      method: "POST",
-      body: JSON.stringify({ feedback }),
-    })
+  reject(
+    taskId: string,
+    feedback: string,
+  ): Promise<{ success: boolean; status: string }> {
+    return unwrap(
+      TasksQueueService.rejectTask({
+        taskId,
+        requestBody: { feedback },
+      }),
+    ) as never
   },
   /** 驳回提案（proposed）：语义是"不采纳、撤下提案"= cancel，
    *  与验收驳回（reject，仅 waiting_acceptance）是两个接口。 */
-  rejectProposed(taskId: string, feedback: string): Promise<{ success: boolean; status: string }> {
-    return request(`/api/v1/tasks/queue/${taskId}`, {
-      method: "PUT",
-      body: JSON.stringify({ cancel: true, description: feedback || undefined }),
-    })
+  rejectProposed(
+    taskId: string,
+    feedback: string,
+  ): Promise<{ success: boolean; status: string }> {
+    return unwrap(
+      TasksQueueService.editTask({
+        taskId,
+        requestBody: { cancel: true, description: feedback || undefined },
+      }),
+    ) as never
   },
   dashboard(projectId?: number): Promise<DashboardKpis> {
-    const q = projectId != null ? `?project_id=${projectId}` : ""
-    return request(`/api/v1/tasks/queue/dashboard${q}`)
+    return unwrap(TasksQueueService.queueDashboard({ projectId })) as never
   },
 }

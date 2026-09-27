@@ -72,8 +72,4 @@ GROWTH_WORKFLOW_ROLES: tuple[WorkflowRole, ...] = (
 )
 
 
-def workflow_role(stage: str) -> WorkflowRole:
-    for role in GROWTH_WORKFLOW_ROLES:
-        if role.stage == stage:
-            return role
-    raise ValueError(f"unknown workflow stage: {stage}")
+

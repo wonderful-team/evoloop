@@ -1,6 +1,6 @@
 
-# Base image: Python 3.11 (Debian Bookworm)
-FROM python:3.11-bookworm
+# Base image: Python 3.12 (Debian Bookworm)
+FROM python:3.12-bookworm
 
 # Prevent writing pyc files and buffering stdout
 ENV PYTHONDONTWRITEBYTECODE=1

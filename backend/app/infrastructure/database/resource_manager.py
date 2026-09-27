@@ -18,7 +18,6 @@ Thread-safety note:
 import asyncio
 import logging
 import threading
-from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 from weakref import WeakKeyDictionary
@@ -33,6 +32,9 @@ from sqlmodel import create_engine as create_sync_engine
 from app.core.config import settings
 from app.infrastructure.constants import AGENT_ACTIVITY_EXTRA_COLUMNS
 from app.infrastructure.database.guarded_session import LeakGuardAsyncSession
+from app.infrastructure.database.pool_instrumentation import (
+    install as install_pool_instrumentation,
+)
 from app.infrastructure.database.pool_leak_probe import maybe_install
 
 logger = logging.getLogger(__name__)
@@ -228,18 +230,26 @@ class DatabaseResourceManager:
         """True when any engine has been initialized (sync or current-loop async)."""
         return self._sync_engine is not None or self.engine is not None
 
+    def pool_status(self) -> dict[str, dict[str, int] | None]:
+        """Return pool statistics for the current-loop async engine and sync engine."""
+        from app.infrastructure.database.pool_instrumentation import pool_stats
+
+        async_engine = self.engine
+        return {
+            "async": pool_stats(async_engine.sync_engine) if async_engine is not None else None,
+            "sync": pool_stats(self._sync_engine) if self._sync_engine is not None else None,
+        }
+
     @property
     def vector_store(self):
         """Return the vector store for the current event loop."""
         return self._vector_stores.get(self._current_loop())
 
-    async def initialize(self, create_tables: bool = True, seed_data: bool = False):
+    async def initialize(self, create_tables: bool = True):
         """Initialize all database resources (SQL, Vector).
 
         Args:
             create_tables: Whether to create tables if they don't exist.
-            seed_data: Deprecated. Seeding is no longer automatic;
-                       run ``scripts/seed_system_config.py`` instead.
         """
         loop = self._current_loop()
         if loop is None:
@@ -275,6 +285,8 @@ class DatabaseResourceManager:
                     poolclass=AsyncAdaptedQueuePool,
                     pool_size=settings.DB_POOL_SIZE,
                     max_overflow=settings.DB_MAX_OVERFLOW,
+                    pool_timeout=settings.DB_POOL_TIMEOUT,
+                    pool_recycle=settings.DB_POOL_RECYCLE,
                     pool_pre_ping=True,
                     connect_args={
                         "check_same_thread": False,
@@ -288,6 +300,8 @@ class DatabaseResourceManager:
                         poolclass=QueuePool,
                         pool_size=settings.DB_POOL_SIZE,
                         max_overflow=settings.DB_MAX_OVERFLOW,
+                        pool_timeout=settings.DB_POOL_TIMEOUT,
+                        pool_recycle=settings.DB_POOL_RECYCLE,
                         pool_pre_ping=True,
                         connect_args={
                             "check_same_thread": False,
@@ -303,6 +317,8 @@ class DatabaseResourceManager:
                     future=True,
                     pool_size=settings.DB_POOL_SIZE,
                     max_overflow=settings.DB_MAX_OVERFLOW,
+                    pool_timeout=settings.DB_POOL_TIMEOUT,
+                    pool_recycle=settings.DB_POOL_RECYCLE,
                     connect_args={"connect_timeout": settings.DB_CONNECT_TIMEOUT},
                 )
                 if self._sync_engine is None:
@@ -310,6 +326,8 @@ class DatabaseResourceManager:
                         sync_db_uri,
                         pool_size=settings.DB_POOL_SIZE,
                         max_overflow=settings.DB_MAX_OVERFLOW,
+                        pool_timeout=settings.DB_POOL_TIMEOUT,
+                        pool_recycle=settings.DB_POOL_RECYCLE,
                         connect_args={"connect_timeout": settings.DB_CONNECT_TIMEOUT},
                     )
 
@@ -321,6 +339,9 @@ class DatabaseResourceManager:
             maybe_install(engine)
             # TODO(sqlalchemy#12710): remove once upstream fixes orphan fairies.
             install_async_pool_finalize_patch()
+            install_pool_instrumentation(engine.sync_engine, settings.DB_SLOW_CHECKOUT_THRESHOLD)
+            if self._sync_engine is not None:
+                install_pool_instrumentation(self._sync_engine, settings.DB_SLOW_CHECKOUT_THRESHOLD)
 
             self._session_factories[loop] = async_sessionmaker(
                 bind=engine, class_=LeakGuardAsyncSession, expire_on_commit=False
@@ -437,23 +458,6 @@ class DatabaseResourceManager:
     @property
     def placeholder(self) -> str:
         return "?" if settings.EMBEDDED_MODE else "%s"
-
-    @asynccontextmanager
-    async def get_raw_connection(self):
-        """Return a raw async DBAPI connection for the current event loop.
-
-        This is an async context manager. Tests and low-level utilities can use it
-        to execute statements directly against the underlying driver without going
-        through SQLAlchemy's ORM/session layer.
-        """
-        engine = self.engine
-        if engine is None:
-            raise RuntimeError("Database engine not initialized for this event loop")
-        raw = await engine.raw_connection()
-        try:
-            yield raw
-        finally:
-            await raw.close()
 
     async def run_pool_watchdog(self) -> None:
         """Self-heal the async pool when connections stay checked out too long.

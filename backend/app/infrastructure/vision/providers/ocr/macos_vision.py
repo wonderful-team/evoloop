@@ -31,13 +31,12 @@ class MacOSVisionOCRProvider(VisionProvider):
 
     async def is_available(self) -> bool:
         """Check if Vision framework is accessible."""
-        try:
-            import Quartz
-            import Vision
+        import importlib.util
 
-            return True
-        except ImportError:
-            return False
+        return (
+            importlib.util.find_spec("Quartz") is not None
+            and importlib.util.find_spec("Vision") is not None
+        )
 
     async def process(self, task: VisionTask, image_source: str, prompt: str | None = None, **kwargs) -> VisionResult:
         if task != VisionTask.OCR and task != VisionTask.DETECT:

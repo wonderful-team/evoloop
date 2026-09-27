@@ -179,6 +179,16 @@ async def perform_rewind(
         # Phase 2: Clear HITL requests and activity status
         await _clear_hitl(thread_id)
 
+        # Phase 2.5: Invalidate the OpenHands SDK conversation store so the next
+        # SDK-kernel run replays the rewound DB history instead of continuing on
+        # the pre-rewind EventLog (retry/rewind divergence guard).
+        try:
+            from app.core.engine.sdk_adapter.reset import reset_conversation_store
+
+            reset_conversation_store(thread_id)
+        except Exception as e:
+            logger.warning(f"[Rewind] SDK store reset failed (non-fatal): {e}")
+
         # Phase 3: Publish event for cross-domain cleanup (memory, file, learning, planning, evocloud)
         event = RewindRequestedEvent(
             thread_id=thread_id,
@@ -231,41 +241,45 @@ async def _compute_affected_message_ids(
     include_target: bool,
 ) -> tuple[list[str], list[str], int]:
     """Pre-compute the list of message IDs, run IDs, and target sequence number."""
-    async with session_scope() as session:
-        stmt = select(Message.id, Message.sequence_number, Message.run_id).where(
-            Message.thread_id == thread_id
-        )
 
-        if target_message_id:
-            stmt_target = select(Message.sequence_number, Message.thread_id).where(
-                Message.id == target_message_id
-            )
-            res_target = await session.execute(stmt_target)
-            target = res_target.one_or_none()
+    target_seq: int | None = None
+    if target_message_id:
+        async with session_scope() as session:
+            stmt_target = select(
+                Message.sequence_number, Message.thread_id
+            ).where(Message.id == target_message_id)
+            target = (await session.execute(stmt_target)).one_or_none()
             if target is None or target.thread_id != thread_id:
                 logger.warning(f"[Rewind] Target message {target_message_id} not found")
                 raise MessageNotFoundError(
                     f"Target message {target_message_id} not found in thread {thread_id}"
                 )
             target_seq = target.sequence_number
-            if include_target:
-                stmt = stmt.where(Message.sequence_number >= target_seq)
-            else:
-                stmt = stmt.where(Message.sequence_number > target_seq)
-        else:
+    else:
+        async with session_scope() as session:
             sub = (
                 select(Message.sequence_number)
                 .where(Message.thread_id == thread_id, Message.role == "human")
                 .order_by(Message.sequence_number.desc())
                 .limit(1)
             )
-            result = await session.execute(sub)
-            last_human_seq = result.scalar_one_or_none()
+            last_human_seq = (await session.execute(sub)).scalar_one_or_none()
             if last_human_seq is not None:
                 target_seq = last_human_seq
-                stmt = stmt.where(Message.sequence_number >= last_human_seq)
             else:
-                raise NoHumanMessageError(f"No human message found in thread {thread_id}")
+                raise NoHumanMessageError(
+                    f"No human message found in thread {thread_id}"
+                )
+
+    async with session_scope() as session:
+        stmt = select(Message.id, Message.sequence_number, Message.run_id).where(
+            Message.thread_id == thread_id
+        )
+
+        if include_target:
+            stmt = stmt.where(Message.sequence_number >= target_seq)
+        else:
+            stmt = stmt.where(Message.sequence_number > target_seq)
 
         result = await session.execute(stmt)
         rows = result.all()

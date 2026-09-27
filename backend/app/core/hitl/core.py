@@ -259,8 +259,9 @@ async def finalize_request(
     工具创建多条 approval 请求，运营批准一条后其余残留 pending。未传则跳过
     （无额外查询开销）。
     """
+    updated_request = False
+    updated_message = False
     async with session_scope() as session:
-        updated_request = False
         if request_id:
             req_stmt = (
                 update(HumanRequest)
@@ -298,28 +299,30 @@ async def finalize_request(
             updated_request,
             updated_message,
         )
-        # 值守工作台实时感知：审批定局 → 任务频道广播（任意端——桌面/手机——
-        # 做出响应，工作台的"等待审批"计数即时回落，无需轮询收敛）
-        if updated_request or updated_message:
-            try:
-                from app.core.engine.message.broker import get_message_broker
 
-                payload = {
-                    "type": "task_queue_updated",
-                    "event": "hitl_resolved",
-                    "thread_id": thread_id,
-                    "request_id": request_id,
-                    "status": status,
-                }
-                broker = get_message_broker()
-                await broker.publish("tasks:all:events", payload)
-                project_channel = _task_channel_for_thread(thread_id)
-                if project_channel:
-                    await broker.publish(project_channel, payload)
-            except Exception:
-                pass  # 通知失败不影响定局本身
+    # 值守工作台实时感知：审批定局 → 任务频道广播（任意端——桌面/手机——
+    # 做出响应，工作台的"等待审批"计数即时回落，无需轮询收敛）。
+    # 放在 session 外，避免 IO 期间占用连接池连接。
+    if updated_request or updated_message:
+        try:
+            from app.core.engine.message.broker import get_message_broker
 
-        return updated_request or updated_message
+            payload = {
+                "type": "task_queue_updated",
+                "event": "hitl_resolved",
+                "thread_id": thread_id,
+                "request_id": request_id,
+                "status": status,
+            }
+            broker = get_message_broker()
+            await broker.publish("tasks:all:events", payload)
+            project_channel = _task_channel_for_thread(thread_id)
+            if project_channel:
+                await broker.publish(project_channel, payload)
+        except Exception:
+            pass  # 通知失败不影响定局本身
+
+    return updated_request or updated_message
 
 
 async def _close_sibling_requests(

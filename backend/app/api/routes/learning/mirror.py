@@ -37,7 +37,7 @@ router = APIRouter()
 
 
 @router.get("/mirror/devices", response_model=MirrorDevicesResponse)
-async def list_mirror_devices(current_user: CurrentUserOptional = None):
+async def list_mirror_devices(_current_user: CurrentUserOptional = None):
     """List connected Android devices for mirroring."""
     devices = adb_driver.list_devices()
     scrcpy_available = False
@@ -76,7 +76,7 @@ async def start_mirror_recording(body: StartMirrorRecordingRequest):
 
 
 @router.post("/mirror/stop", response_model=StopMirrorResponse)
-async def stop_mirror_session(body: StopMirrorRequest, current_user: CurrentUserOptional = None):
+async def stop_mirror_session(body: StopMirrorRequest, _current_user: CurrentUserOptional = None):
     """Stop an active mirroring session."""
     result = mirror_manager.stop_session(body.session_id)
     if result is None:
@@ -97,7 +97,7 @@ async def stop_mirror_session(body: StopMirrorRequest, current_user: CurrentUser
 
 
 @router.get("/mirror/device/{device_id}/resolution", response_model=DeviceResolutionResponse)
-async def get_device_resolution(device_id: str, current_user: CurrentUserOptional = None):
+async def get_device_resolution(device_id: str, _current_user: CurrentUserOptional = None):
     """Get Android device screen resolution via ADB."""
     try:
         size = adb_driver.get_screen_size(device_id)
@@ -285,7 +285,7 @@ async def persist_dom_events(body: DomEventsRequest, current_user: CurrentUserOp
 
 
 @router.post("/assets/upload-screenshot", response_model=UploadScreenshotResponse)
-async def upload_screenshot(file: UploadFile = File(...), current_user: CurrentUserOptional = None):
+async def upload_screenshot(file: UploadFile = File(...), _current_user: CurrentUserOptional = None):
     """Upload a screenshot for a skill step."""
     try:
         from app.infrastructure.vision.storage import screenshot_storage

@@ -30,6 +30,12 @@ async def _safe_macro(http_client: httpx.AsyncClient) -> str:
     """
     macro_id = await _create_routable_macro(http_client, "ack", "麻烦对对对")
     await _wait_for_macro_in_spec(http_client, macro_id)
+    # L0 matcher 的防抖重建窗口（REBUILD_DEBOUNCE_SECONDS=0.2s）以最后一次
+    # 生命周期事件起算；夹具确认后立即 send_route 会落在窗口内导致稳定
+    # miss（实测 3/3）。等待一个防抖周期再观察。
+    import asyncio as _asyncio
+
+    await _asyncio.sleep(0.5)
     return macro_id
 
 

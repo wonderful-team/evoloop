@@ -16,7 +16,6 @@ from app.core.events.decorators import (
 from app.core.events.registry import SystemEventType
 
 from .schemas import (
-    AwakenEvent,
     DeviceConnectedEvent,
     DeviceDisconnectedEvent,
 )
@@ -155,43 +154,4 @@ class DeviceEventSubscriber:
         await _refresh_state()
 
 
-class SystemEventSubscriber:
-    """Handles system-level awakening events"""
 
-    @event_subscribe(SystemEventType.AWAKENING_COMPLETE)
-    async def on_awakening_complete(self, event: AwakenEvent) -> None:
-        """
-        Handle awakening completion.
-
-        Triggered when the agent awakening process is complete.
-        """
-        platforms = event.data.get("platforms", [])
-        project = event.data.get("project_id")
-
-        logger.info(
-            f"🧠 Awakening complete. Platforms: {platforms}, Project: {project}"
-        )
-
-    @event_subscribe(SystemEventType.STATE_REFRESHED)
-    async def on_state_refreshed(self, event: AwakenEvent) -> None:
-        """
-        Handle state refresh.
-
-        Triggered when the awakened state is manually refreshed.
-        """
-        logger.debug("🔄 Awakened state refreshed")
-
-    @event_subscribe(SystemEventType.BOUNDARY_LEARNED)
-    async def on_boundary_learned(self, event: AwakenEvent) -> None:
-        """
-        Handle learned boundary.
-
-        Triggered when the agent learns a new platform boundary (e.g., auth wall).
-        """
-        tool_name = event.data.get("tool_name")
-        category = event.data.get("category")
-        description = event.data.get("description")
-
-        logger.info(
-            f"🚧 Learned boundary: {category} for tool {tool_name}: {description}"
-        )

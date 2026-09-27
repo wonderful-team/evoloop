@@ -32,7 +32,6 @@ async def run_completion_pipeline(
     tasks = [
         _record_episode(thread_id, project_id, config, state, summary),
         _maybe_auto_macro(thread_id, project_id, config, state),
-        _maybe_skill_candidate(thread_id, project_id, state),
         _record_metrics(thread_id, state, config),
         notify_create_task(thread_id, config, state, summary),
     ]
@@ -218,43 +217,6 @@ async def _maybe_auto_macro(
         logger.warning(f"[ReactCompletion] auto-macro check failed: {e}", exc_info=True)
 
 
-def _session_has_reusable_path(state: Any) -> bool:
-    """启发式判定会话是否含非平凡可复用解题路径（skill 候选门槛）。
-
-    条件：工具消息数 >= 5，且至少包含一次写/编辑/命令执行（代码或文件改动）。
-    """
-    messages = getattr(state, "messages", None) or []
-    tool_msgs = [m for m in messages if getattr(m, "role", None) == "tool"]
-    if len(tool_msgs) < 5:
-        return False
-    mutating = {"edit", "write", "bash", "run_macro"}
-    names = {getattr(m, "name", None) for m in tool_msgs}
-    return bool(names & mutating)
-
-
-async def _maybe_skill_candidate(
-    thread_id: str, _project_id: int | None, state: Any
-) -> None:
-    """skill 候选生成（§3.7）：会话含非平凡可复用解题路径时，后台合成 candidate
-    skill（pending_review，不自动激活，语义与 finish.prompt.j2 提炼一致）。"""
-    try:
-        from app.core.config import settings
-
-        if not settings.ENABLE_SKILL_SYNTHESIS:
-            return
-        if not _session_has_reusable_path(state):
-            return
-        from app.core.engine.tools.learning import create_skill_from_session
-
-        await create_skill_from_session(
-            reason="会话含非平凡可复用解题路径，收尾管线自动生成 candidate skill",
-            thread_id=thread_id,
-        )
-        logger.info(f"[ReactCompletion] skill candidate synthesis queued for {thread_id}")
-    except Exception as e:
-        logger.warning(f"[ReactCompletion] skill candidate check failed: {e}", exc_info=True)
-
-
 async def publish_session_completed_react(
     thread_id: str,
     project_id: int | None,
@@ -262,6 +224,7 @@ async def publish_session_completed_react(
     state: Any,
     *,
     summary: str,
+    run_id: str | None = None,
 ) -> None:
     """发布 SESSION_COMPLETED 并触发收尾管线（react 模式替代 FinishNode 收尾）。"""
     from app.core.events.publishers import publish_session_completed
@@ -278,9 +241,14 @@ async def publish_session_completed_react(
         "metadata", {}
     ).get("source", "")
 
+    # Prefer an explicit run_id (e.g. from ActivityMonitor.run_scope via the
+    # execution context) over the config, so session_completed aligns with
+    # run_end for the same run.
+    resolved_run_id = run_id or (ctx.run_id if ctx else None) or config.get("configurable", {}).get("run_id")
+
     data = SessionCompletedData(
         thread_id=thread_id,
-        run_id=config.get("configurable", {}).get("run_id"),
+        run_id=resolved_run_id,
         project_id=project_id or (ctx.project_id if ctx else None),
         member_id=(ctx.member_id if ctx else None),
         messages=[],

@@ -267,7 +267,7 @@ class SkillDiscovery:
     # --- Phase 5: Deterministic "Yellow Pages" Discovery ---
 
     async def exact_search(
-        self, query: str, namespace_context: str | None = None, **kwargs
+        self, query: str, namespace_context: str | None = None
     ) -> tuple[SkillMatch | None, list[LearnedSkill], str]:
         """
         Deterministic Skill lookup based on ID or Exact Name.

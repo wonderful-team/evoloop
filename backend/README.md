@@ -6,7 +6,7 @@ EvoLoop 后端服务，基于 FastAPI 构建，提供 API 服务和异步任务�
 
 * [Docker](https://www.docker.com/) - 用于运行数据库等服务
 * [uv](https://docs.astral.sh/uv/) - Python 包管理和环境管理
-* Python 3.11+
+* Python 3.12+
 
 ## 快速开始
 

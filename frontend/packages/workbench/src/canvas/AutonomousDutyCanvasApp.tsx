@@ -11,16 +11,16 @@
    ========================================================================== */
 
 import { useEffect, useMemo, useRef, useState } from "react"
+import { toast } from "sonner"
+import { TasksQueueApi } from "@/lib/tasksQueueApi"
 import type { DutyTask } from "../core/types"
+
+import { DutyCanvas } from "./DutyCanvas"
 import {
   deriveDutyEdges,
   type LayoutDirection,
   layoutDutyTasks,
 } from "./layoutEngine"
-import { TasksQueueApi } from "@/lib/tasksQueueApi"
-
-import { DutyCanvas } from "./DutyCanvas"
-import { toast } from "sonner"
 import "./styles/duty-canvas.css"
 
 export interface AutonomousDutyCanvasAppProps {
@@ -64,7 +64,7 @@ export default function AutonomousDutyCanvasApp({
   onTaskSelect,
   onApproveTask,
   onRejectTask,
-  onConfirmProposalTask: _onConfirmProposalTask,
+  onConfirmProposalTask,
   onRerunTask: _onRerunTask,
   onConfirmHitl,
   onCancelHitl,
@@ -117,7 +117,7 @@ export default function AutonomousDutyCanvasApp({
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set())
   const [focusTaskId, setFocusTaskId] = useState<string | null>(null)
   const [activeFlowEdge] = useState<string | null>(null)
-  const [stepIndexMap, setStepIndexMap] = useState<Record<string, number>>({})
+  const [stepIndexMap, _setStepIndexMap] = useState<Record<string, number>>({})
 
   const [, setStatusText] = useState("已就绪 · EvoLoop 自主值守待命中")
   const [promptText, setPromptText] = useState("")
@@ -163,6 +163,7 @@ export default function AutonomousDutyCanvasApp({
   }, [externalSelectedTaskId])
 
   /* 监听来自 desktop ChatInputArea 的 CustomEvent 消息路由 */
+  // biome-ignore lint/correctness/useExhaustiveDependencies: handleNodeChat is a stable local callback; we only want to subscribe once on mount.
   useEffect(() => {
     const onNodeChat = (e: Event) => {
       const { taskId, message } = (e as CustomEvent).detail as {
@@ -171,15 +172,23 @@ export default function AutonomousDutyCanvasApp({
       }
       handleNodeChat(taskId, message)
     }
-    const onGlobalPrompt = (e: Event) => {
-      const { text } = (e as CustomEvent).detail as { text: string }
-      handleSendPrompt(text)
+    const onTaskFinished = (e: Event) => {
+      const { taskId, status } = (e as CustomEvent).detail as {
+        taskId: string
+        status?: string
+      }
+      if (!taskId || !status || status === "in_progress") return
+      // 任务离开执行态且其节点页正展开 → 收缩。（不用 rawTasks 的当前
+      // 状态做守卫：SSE invalidate 的 refetch 常先于事件回调完成，届时
+      // 状态已是终态，"曾经 in_progress"的信息已不可得——误伤面由
+      // "仅收缩展开中的节点"兜住：编辑空闲任务不触发收缩）
+      setActiveTaskId((cur) => (cur === taskId ? null : cur))
     }
     window.addEventListener("canvas:node-chat", onNodeChat)
-    window.addEventListener("canvas:global-prompt", onGlobalPrompt)
+    window.addEventListener("canvas:task-finished", onTaskFinished)
     return () => {
       window.removeEventListener("canvas:node-chat", onNodeChat)
-      window.removeEventListener("canvas:global-prompt", onGlobalPrompt)
+      window.removeEventListener("canvas:task-finished", onTaskFinished)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -187,10 +196,22 @@ export default function AutonomousDutyCanvasApp({
   /* ── 运行焦点自动跟随：任务进入 in_progress 时自动放大为页面 ──
      设计上要求“视觉焦点自动跟随当前执行节点”，包括镜头平移 + 节点卡片
      原地放大为工作页面。当外部任务列表出现新的 in_progress 任务时，自动
-     选中、对焦并展开为页面态。 */
+     选中、对焦并展开为页面态。
+
+     注意：跳过首次加载（刷新/进入页面），避免首屏因“已有运行中任务”
+     而突然向左/向右跳动；只跟随运行期间新进入 in_progress 的任务。 */
   const lastAutoFocusTaskIdRef = useRef<string | null>(null)
+  const hasSeenInitialTasksRef = useRef(false)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: openTask/onTaskSelect are stable local callbacks; adding them would re-run this effect every render while the ref guard makes it harmless but noisy.
   useEffect(() => {
     if (!externalTasks) return
+    if (!hasSeenInitialTasksRef.current) {
+      hasSeenInitialTasksRef.current = true
+      // 记录当前运行中任务，避免它后续从 in_progress 变回再进入时误触发
+      const running = externalTasks.find((t) => t.status === "in_progress")
+      lastAutoFocusTaskIdRef.current = running?.id ?? null
+      return
+    }
     const running = externalTasks.find((t) => t.status === "in_progress")
     if (running && running.id !== lastAutoFocusTaskIdRef.current) {
       lastAutoFocusTaskIdRef.current = running.id
@@ -387,38 +408,16 @@ export default function AutonomousDutyCanvasApp({
   }
 
   /* 用户与选中节点进行交互对话/下达微调指令 */
+  /* 节点对话的本地回执：真实提交由页面层完成（回应面=智能体对话），
+     此处不再伪造 step/artifact/“现场响应”。 */
   function handleNodeChat(taskId: string, message: string) {
     if (onNodeChat) {
       onNodeChat(taskId, message)
     }
-
     const task = rawTasksRef.current.find((t) => t.id === taskId)
     if (!task) return
-
-    const newStep = {
-      label: `用户协同对话指令：${message.slice(0, 14)}`,
-      detail: message,
-      tool: "chat.instruction",
-    }
-    const updatedSteps = [...(task.steps || []), newStep]
-    const updatedArtifact = task.artifact
-      ? {
-          ...task.artifact,
-          body: `${task.artifact.body}\n\n【用户协同对话响应】\n用户指令：「${message}」\nAgent 已现场调优参数并完成动态对齐。`,
-        }
-      : undefined
-
-    patchTask(taskId, {
-      steps: updatedSteps,
-      artifact: updatedArtifact,
-      provenance: {
-        ...task.provenance,
-        sourceRef: `用户对话指令调整：「${message}」`,
-      },
-    })
-    setStepIndexMap((m) => ({ ...m, [taskId]: updatedSteps.length }))
     setStatusText(
-      `💬 已向 #T-${task.taskNo} 注入对话指令：「${message}」，节点已现场响应！`,
+      `💬 消息已提交给 #T-${task.taskNo} 的 Agent，回应见智能体对话界面`,
     )
   }
 
@@ -639,117 +638,19 @@ export default function AutonomousDutyCanvasApp({
   }
 
   /* 用户通过 Prompt 指令向 Agent 派发动态新任务或与节点对话 */
+  /* 选中任务卡 = 与该任务的执行 Agent 对话（handleNodeChat）。
+     无选中直发需求已上移到页面层（值守 Agent 对话面板），此处只兜底。 */
   function handleSendPrompt(customText?: string) {
     const text = (customText || promptText).trim()
     if (!text) return
     if (!customText) setPromptText("")
 
-    // 如果选了任务节点，优先走定向对话
     if (selectedTaskId) {
       handleNodeChat(selectedTaskId, text)
       return
     }
 
-    // 如果包含裂变/拆解意图，且选中了节点，派生子任务
-    if (
-      text.includes("裂变") ||
-      text.includes("拆解") ||
-      text.includes("子任务")
-    ) {
-      const parentTask = selectedTaskId
-        ? rawTasksRef.current.find((t) => t.id === selectedTaskId)
-        : null
-      const newNo = Math.max(...rawTasksRef.current.map((t) => t.taskNo), 0) + 1
-      const newId = `task-fission-${Date.now()}`
-      const newTask: DutyTask = {
-        id: newId,
-        taskNo: newNo,
-        title: parentTask
-          ? `[#T-${parentTask.taskNo} 派生] ${text}`
-          : `子任务：${text}`,
-        category: parentTask?.category || "custom",
-        stage: parentTask?.stage || "动态拆解",
-        status: "pending",
-        priority: "high",
-        riskLevel: "T2",
-        source: "chain",
-        progress: 0,
-        x: 0,
-        y: 0,
-        w: 420,
-        h: 280,
-        dependencies: parentTask ? [parentTask.id] : [],
-        steps: [],
-        provenance: {
-          sourceRef: parentTask
-            ? `#T-${parentTask.taskNo} 裂变拆解`
-            : "用户指令动态派生",
-          upstreamSummary: parentTask
-            ? `继承 #T-${parentTask.taskNo} 上下文`
-            : "等待调度注入",
-          downstreamTargets: [],
-          endorsement: "Supervisor 监察评审",
-        },
-      }
-      setRawTasks((prev) => [...prev, newTask])
-      toast.success("已成功生成动态拆解任务")
-      return
-    }
-
-    const newNo = Math.max(...rawTasksRef.current.map((t) => t.taskNo), 0) + 1
-    const newId = `task-dyn-${Date.now()}`
-    const newTask: DutyTask = {
-      id: newId,
-      taskNo: newNo,
-      title: `动态任务：${text}`,
-      category: "custom",
-      status: "pending",
-      priority: "high",
-      riskLevel: "T2",
-      source: "chat",
-      stage: "动态扩展",
-      x: 0,
-      y: 0,
-      w: 420,
-      h: 280,
-      dependencies: ["task-4"], // 挂接在上游决策节点后
-      provenance: {
-        sourceRef: `来自用户对话下达指令：「${text}」`,
-        upstreamSummary: "注入 #T-4 核心决策产物",
-        downstreamTargets: ["#T-15 闭环反哺"],
-        endorsement: "原对话 Agent 监察评审",
-      },
-      steps: [
-        {
-          label: "take 任务 · 动态编排 Worker 调度",
-          detail: "载入用户 Prompt 上下文",
-        },
-        {
-          label: "执行工具链求解与方案合成",
-          tool: "mcp.custom_solve",
-          detail: "自适应推理生成交付物",
-        },
-        { label: "输出执行报告并提交评审", detail: "完成事实对账" },
-      ],
-      artifact: {
-        id: `art-dyn-${Date.now()}`,
-        type: "report",
-        title: `指令执行结果：${text}`,
-        summary: `已成功依据用户指令调度并合入任务拓扑。`,
-        body: `【动态指令执行成稿】\n用户指令：「${text}」\nAgent 已实时分析意图并与现有 DAG 拓扑挂接，相关数据依赖已无缝对齐。`,
-      },
-    }
-
-    const { tasks: freshTasks } = layoutDutyTasks(
-      [...rawTasksRef.current, newTask],
-      undefined,
-      layoutDirection,
-    )
-    setRawTasks(freshTasks)
-    setStatusText(`🤖 Agent 收到指令：「${text}」，已自适应排入脑图！`)
-    setSelectedTaskId(newId)
-    setSelectedTaskIds(new Set([newId]))
-    setFocusTaskId(newId)
+    toast.error("请先选中任务卡，或使用底部输入框直接与值守 Agent 对话")
   }
 
   return (
@@ -795,6 +696,7 @@ export default function AutonomousDutyCanvasApp({
           onConnect={handleConnect}
           onDisconnect={handleDisconnect}
           onNodeChat={handleNodeChat}
+          onConfirmProposalTask={onConfirmProposalTask}
           onSendGlobalPrompt={handleSendPrompt}
           onPickOption={handlePickOption}
           onApprove={handleApprove}

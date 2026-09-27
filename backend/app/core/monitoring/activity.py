@@ -26,7 +26,7 @@ from app.core.monitoring.schemas import (
 
 if TYPE_CHECKING:
     from app.core.execution.terminal.background.models import BackgroundTask
-from app.core.monitoring.activity_state import ActivityStateService
+from app.core.monitoring.activity_state import ActivityState, ActivityStateService
 from app.infrastructure.cache import cache
 from app.infrastructure.database import session_scope
 from app.models import AgentActivity
@@ -81,7 +81,7 @@ class ActivityMonitor:
         logger.info(
             f"[ActivityMonitor] 🚀 Starting lifecycle for thread {thread_id} (Run: {run_id})"
         )
-        await self._publish_session_started(thread_id, project_id)
+        await self._publish_session_started(thread_id, project_id, run_id=run_id)
 
         ctx = ContextManager.current()
         if ctx and ctx.thread_id == thread_id:
@@ -107,13 +107,14 @@ class ActivityMonitor:
                     logger.debug(
                         f"[ActivityMonitor] Skipping end_run for {thread_id}: already {activity.status}"
                     )
+                    result = ActivityState(status=activity.status)
                 else:
                     result = await self._state_service.end_run(
-                        thread_id, ActivityStatus.DONE, run_id=run_id
+                        thread_id, ActivityStatus.DONE, run_id=run_id, session=session
                     )
-                    await self._publish_run_completed(
-                        thread_id, result, run_id, task_type
-                    )
+            await self._publish_run_completed(
+                thread_id, result, run_id, task_type
+            )
 
         except AgentCancelledException:
             # 用户主动取消是预期流程，非错误，不打印 Traceback。
@@ -156,11 +157,11 @@ class ActivityMonitor:
             raise
 
     async def _publish_session_started(
-        self, thread_id: str, project_id: int | None = None
+        self, thread_id: str, project_id: int | None = None, run_id: str | None = None
     ):
         from app.core.engine.event.publishers import publish_agent_session_started
 
-        await publish_agent_session_started(thread_id=thread_id, project_id=project_id)
+        await publish_agent_session_started(thread_id=thread_id, project_id=project_id, run_id=run_id)
 
     async def _publish_run_completed(
         self, thread_id: str, result, run_id: str, task_type: str | None
@@ -196,7 +197,7 @@ class ActivityMonitor:
         # Publish internal AgentSessionStartedEvent (automated bridge will handle UI RunStartEvent)
         from app.core.engine.event.publishers import publish_agent_session_started
 
-        await publish_agent_session_started(thread_id=thread_id, project_id=project_id)
+        await publish_agent_session_started(thread_id=thread_id, project_id=project_id, run_id=run_id)
 
     async def end_run(
         self,
@@ -205,11 +206,35 @@ class ActivityMonitor:
         final_outcome: str = None,
         run_id: str = None,
         task_type: str = None,
+        publish_events: bool = True,
     ):
-        """Mark run as ended and publish status change."""
+        """Mark run as ended and optionally publish status change.
+
+        幂等：若 activity 已是终态，则不再重复发布 run_end / status 事件。
+        这避免了 run_scope 与 MonitoringLifecycleSubscriber 等多处终结调用
+        产生重复 SSE。
+        """
+        current = await self._state_service.get_state(thread_id)
+        if current.status in (
+            ActivityStatus.DONE,
+            ActivityStatus.FAILED,
+            ActivityStatus.CANCELLED,
+            ActivityStatus.QUOTA_EXHAUSTED,
+            ActivityStatus.HUMAN_INTERRUPT,
+        ):
+            logger.debug(
+                "[ActivityMonitor] end_run skipped for %s: already %s",
+                thread_id,
+                current.status,
+            )
+            return current
+
         result = await self._state_service.end_run(
             thread_id, status, final_outcome, run_id=run_id
         )
+
+        if not publish_events:
+            return result
 
         # 1. Publish internal AgentRunCompletedEvent (automated bridge handles UI RunEndEvent)
         from app.core.engine.event.publishers import publish_agent_run_completed
@@ -223,7 +248,6 @@ class ActivityMonitor:
                 "task_type": task_type,
             },
         )
-
         # 2. Publish SystemStatusEvent (system_bus: Python subscribers + bridge → SSE)
         await system_bus.publish(
             SystemStatusEvent(thread_id=thread_id, status=result.status)

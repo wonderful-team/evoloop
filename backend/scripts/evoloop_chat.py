@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 EvoLoop 对话客户端（供 Agent/脚本持续使用）
 
@@ -27,6 +26,7 @@ EvoLoop 对话客户端（供 Agent/脚本持续使用）
 
 import argparse
 import json
+import logging
 import os
 import sys
 import time
@@ -34,6 +34,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
+
+logger = logging.getLogger("evoloop_chat")
 
 CONFIG_PATH = Path.home() / ".evoloop_chat.conf"
 STATE_PATH = Path.home() / ".evoloop_chat.state.json"
@@ -192,10 +194,18 @@ def send_message(cfg: dict, token: str, message: str, thread_id: str, project_id
         raise SystemExit(f"[错误] 发送消息失败: {raw[:300]}")
 
 
-def stream_reply(cfg: dict, token: str, thread_id: str, verbose: bool = False) -> None:
+def stream_reply(cfg: dict, token: str, thread_id: str, state: dict, verbose: bool = False) -> None:
     url = f"{cfg['EVOLOOP_API'].rstrip('/')}/api/v1/stream/chat/{urllib.parse.quote(thread_id)}"
-    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
+    seq_key = f"last_seq:{thread_id}"
+    headers = {"Authorization": f"Bearer {token}"}
+    # Last-Event-ID 断点续传：跳过上一轮已消费的缓冲事件（旧 run 的终态
+    # 重放会把"上一次的 cancelled"误当成本轮结果）。
+    after_seq = state.get(seq_key)
+    if after_seq is not None:
+        headers["Last-Event-ID"] = str(after_seq)
+    req = urllib.request.Request(url, headers=headers)
     event_name = None
+    current_seq = None
     buffer = ""
     deadline = time.time() + 600
     done_at = None
@@ -213,6 +223,8 @@ def stream_reply(cfg: dict, token: str, thread_id: str, verbose: bool = False) -
                     buffer = ""
                     if event_data:
                         handle_event(event_name, event_data, verbose)
+                        if current_seq:
+                            state[seq_key] = int(current_seq)
                         if _STREAM_PRINTED["run_done"] and done_at is None:
                             done_at = time.time()
                         if _STREAM_PRINTED["resumed"]:
@@ -225,7 +237,7 @@ def stream_reply(cfg: dict, token: str, thread_id: str, verbose: bool = False) -
                 elif line.startswith("data:"):
                     buffer += line[len("data:"):].strip()
                 elif line.startswith("id:"):
-                    continue  # SSE 事件序号（Last-Event-ID 断点续传），脚本无需处理
+                    current_seq = line[len("id:"):].strip()
                 elif line.startswith(":"):
                     continue  # 心跳
                 elif line.strip():
@@ -296,7 +308,6 @@ def handle_event(event_name: str, data: str, verbose: bool) -> None:
             _STREAM_PRINTED["token_buf"] = (_STREAM_PRINTED.get("token_buf", "") + tok)[-8000:]
             print(tok, end="", flush=True)
     elif etype == "human_request":
-        desc = obj.get("prompt") or obj.get("description") or obj.get("context") or ""
         print(f"\n[待审批] {json.dumps(obj, ensure_ascii=False)[:300]}", flush=True)
         # 仅对 create（真正的审批请求）自动批准/拒绝；clear 等生命周期事件
         # 是前端清卡片信号，对其 resume 会被当成"新消息"注入（双发根因）。
@@ -525,7 +536,8 @@ def main():
         import json as _json
         host_ctx = _json.loads(args.host_context)
     send_message(cfg, token, args.message, thread_id, project_id, args.skill_ids, args.working_directory, host_ctx, model=args.model)
-    stream_reply(cfg, token, thread_id, args.verbose)
+    stream_reply(cfg, token, thread_id, state, args.verbose)
+    save_state(state)
     fetch_reply(cfg, token, thread_id, args.verbose)
     if args.diagnose:
         diagnose_thread(cfg, token, thread_id)

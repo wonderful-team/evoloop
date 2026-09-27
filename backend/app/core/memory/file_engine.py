@@ -114,7 +114,7 @@ class _FileEngine:
 
     async def _rebuild_index(self) -> None:
         await self._db_clear()
-        for entry_id, (path, category) in self._id_index.items():
+        for _entry_id, (path, _category) in self._id_index.items():
             try:
                 text = path.read_text(encoding="utf-8")
                 entry = MemoryEntry.from_frontmatter(text, str(path))
@@ -530,9 +530,6 @@ class _FileEngine:
     async def get_all_concept_counts(self) -> dict[str, int]:
         return {}
 
-    async def _db_initialize(self):
-        self._db_initialized = True
-
     async def _db_upsert(self, entry: MemoryEntry, file_path: str):
         async with session_scope() as session:
             stmt = select(MemoryIndex).where(MemoryIndex.id == entry.id)
@@ -576,9 +573,6 @@ class _FileEngine:
             db_index = res.scalar_one_or_none()
             if db_index:
                 await session.delete(db_index)
-
-    async def _db_close(self) -> None:
-        self._db_initialized = False
 
     async def _db_delete_by_column(self, column, value: str) -> int:
         async with session_scope() as session:

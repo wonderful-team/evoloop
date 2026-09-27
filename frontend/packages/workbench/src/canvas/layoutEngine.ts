@@ -83,7 +83,119 @@ export function deriveDutyEdges(tasks: DutyTask[]): DutyEdge[] {
   })
 }
 
+/**
+ * 计算任务在派发队列中的相对顺序键，与后端 _queue_ordering 对齐：
+ * priority → coalesce(due_at, created_at) → category → created_at → id
+ * 用于让同一拓扑层内的卡片按执行顺序排列，减少高亮移动时的跳跃感。
+ */
+function executionOrderKey(t: DutyTask): [number, number, string, number, string] {
+  const priorityRank =
+    t.priority === "urgent" ? 0
+    : t.priority === "high" ? 1
+    : t.priority === "medium" ? 2
+    : t.priority === "low" ? 3
+    : 2
+  const dueTs = t.dueAt ? Date.parse(t.dueAt) : NaN
+  const createdTs = t.createdAt ? Date.parse(t.createdAt) : 0
+  const effectiveDue = Number.isFinite(dueTs) ? dueTs : createdTs
+  return [priorityRank, effectiveDue, t.category || "", createdTs, t.id]
+}
+
+function compareExecutionOrder(a: DutyTask, b: DutyTask): number {
+  const ka = executionOrderKey(a)
+  const kb = executionOrderKey(b)
+  if (ka[0] !== kb[0]) return ka[0] - kb[0]
+  if (ka[1] !== kb[1]) return ka[1] - kb[1]
+  if (ka[2] !== kb[2]) return ka[2].localeCompare(kb[2])
+  if (ka[3] !== kb[3]) return ka[3] - kb[3]
+  return ka[4].localeCompare(kb[4])
+}
+
+/**
+ * 流水线 (Pipeline) 布局：按拓扑序 + 执行优先级键把任务排成一条直线。
+ * 所有依赖边都朝前，高亮切换时从一张卡自然移动到相邻的下一张卡。
+ */
+function layoutPipelineTasks(
+  rawTasks: DutyTask[],
+  direction: LayoutDirection,
+): { tasks: DutyTask[]; edges: DutyEdge[] } {
+  if (rawTasks.length === 0) return { tasks: [], edges: [] }
+
+  const taskMap = new Map<string, DutyTask>()
+  rawTasks.forEach((t) => taskMap.set(t.id, { ...t }))
+
+  const inDegree = new Map<string, number>()
+  const downstream = new Map<string, string[]>()
+
+  rawTasks.forEach((t) => {
+    const deps = (t.dependencies || []).filter((d) => taskMap.has(d))
+    inDegree.set(t.id, deps.length)
+    deps.forEach((d) => {
+      downstream.set(d, [...(downstream.get(d) || []), t.id])
+    })
+  })
+
+  const available: DutyTask[] = []
+  const order: string[] = []
+
+  rawTasks.forEach((t) => {
+    if ((inDegree.get(t.id) || 0) === 0) available.push(t)
+  })
+
+  while (available.length > 0) {
+    available.sort(compareExecutionOrder)
+    const t = available.shift()!
+    order.push(t.id)
+    for (const downId of downstream.get(t.id) || []) {
+      const newDeg = (inDegree.get(downId) || 0) - 1
+      inDegree.set(downId, newDeg)
+      if (newDeg === 0) {
+        const downTask = taskMap.get(downId)
+        if (downTask) available.push(downTask)
+      }
+    }
+  }
+
+  // 兜底：循环依赖或孤立节点直接按执行顺序追加
+  const seen = new Set(order)
+  rawTasks
+    .filter((t) => !seen.has(t.id))
+    .sort(compareExecutionOrder)
+    .forEach((t) => order.push(t.id))
+
+  const positions = new Map<string, { x: number; y: number }>()
+  order.forEach((id, idx) => {
+    if (direction === "vertical") {
+      positions.set(id, {
+        x: PADDING_LEFT,
+        y: PADDING_TOP + idx * (CARD_HEIGHT + VERTICAL_ROW_GAP),
+      })
+    } else {
+      positions.set(id, {
+        x: PADDING_LEFT + idx * (CARD_WIDTH + HORIZONTAL_GAP),
+        y: PADDING_TOP,
+      })
+    }
+  })
+
+  const positionedTasks: DutyTask[] = rawTasks.map((t) => {
+    const pos = positions.get(t.id) || { x: PADDING_LEFT, y: PADDING_TOP }
+    return {
+      ...t,
+      x: pos.x,
+      y: pos.y,
+      w: CARD_WIDTH,
+      h: CARD_HEIGHT,
+    }
+  })
+
+  const edges = deriveDutyEdges(positionedTasks)
+  positionedTasks.sort((a, b) => a.taskNo - b.taskNo)
+  return { tasks: positionedTasks, edges }
+}
+
 export type LayoutDirection = "horizontal" | "vertical"
+export type LayoutStrategy = "mindmap" | "pipeline"
 
 export const VERTICAL_ROW_GAP = 140
 export const VERTICAL_COL_GAP = 60
@@ -96,7 +208,12 @@ export function layoutDutyTasks(
   rawTasks: DutyTask[],
   customEdges?: DutyEdge[],
   direction: LayoutDirection = "horizontal",
+  strategy: LayoutStrategy = "mindmap",
 ): { tasks: DutyTask[]; edges: DutyEdge[] } {
+  if (strategy === "pipeline") {
+    return layoutPipelineTasks(rawTasks, direction)
+  }
+
   if (rawTasks.length === 0) return { tasks: [], edges: [] }
 
   const taskMap = new Map<string, DutyTask>()
@@ -138,6 +255,9 @@ export function layoutDutyTasks(
     const r = rankMap.get(t.id) ?? 0
     groups[r].push(taskMap.get(t.id)!)
   })
+
+  // 2.5 同一拓扑层内按执行顺序排列，使高亮在派发时尽可能顺滑移动
+  groups.forEach((g) => g.sort(compareExecutionOrder))
 
   // 3. 计算坐标 (根据 direction 分支：横向 LR vs 纵向 TB)
   const positions = new Map<string, { x: number; y: number }>()

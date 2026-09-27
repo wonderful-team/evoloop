@@ -216,7 +216,7 @@ class ModuleGraphService:
                 .where(CodeRelation.confidence.in_(["EXTRACTED", "INFERRED"]))
             )
             edges = []
-            for rel, src, tgt in rows.all():
+            for _rel, src, tgt in rows.all():
                 if not src or not tgt:
                     continue
                 edges.append((src.name, tgt.name))

@@ -20,12 +20,22 @@ from .servers import (
     McpServerBase,
     McpServerCreate,
 )
-from .tools import (
-    GetMcpPromptInput,
-    ListMcpPromptsInput,
-    ListMcpResourcesInput,
-    ReadMcpResourceInput,
-    UseMcpServerSchema,
-)
 
-# Models with business methods — re-exported from their original modules
+__all__ = [
+    "AuthConfig",
+    "AuthToken",
+    "ElicitationField",
+    "ElicitationRequest",
+    "ElicitationValues",
+    "McpPrompt",
+    "McpPromptArgument",
+    "McpResource",
+    "McpServerSummary",
+    "McpFeatureCapabilities",
+    "McpPromptMessage",
+    "McpPromptResult",
+    "McpResourceContent",
+    "HealthStatus",
+    "McpServerBase",
+    "McpServerCreate",
+]

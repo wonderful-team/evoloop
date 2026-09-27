@@ -2083,6 +2083,45 @@ export type WikiPageRead = {
     updated_at: string;
 };
 
+/**
+ * POST /tasks/workflows — 通用周期工作流提案（编排/触发上移到本层）。
+ *
+ * 创建后 status=proposed，需 POST /workflows/{id}/confirm 上膛触发器；
+ * 每轮由 supervisor 按模板实例化阶段任务（dedup 幂等，skip-on-busy）。
+ */
+export type WorkflowCreateRequest = {
+    project_id?: number;
+    title: string;
+    goal: string;
+    trigger_spec?: (string | null);
+    origin_thread_id?: (string | null);
+    stages: Array<WorkflowStageSpecRequest>;
+    [key: string]: unknown | number | string | WorkflowStageSpecRequest;
+};
+
+/**
+ * PUT /tasks/workflows/{id} — 取消（唯一合法写操作）/ 改触发器。
+ */
+export type WorkflowEditRequest = {
+    trigger_spec?: (string | null);
+    cancel?: boolean;
+    [key: string]: unknown | boolean;
+};
+
+/**
+ * 周期工作流阶段模板项（deps 用阶段 key 引用，须为拓扑序）。
+ */
+export type WorkflowStageSpecRequest = {
+    key: string;
+    title: string;
+    description?: string;
+    category?: (string | null);
+    priority?: TaskPriority;
+    risk_level?: (TaskRiskLevel | null);
+    deps?: Array<(string)>;
+    [key: string]: unknown | string | TaskPriority;
+};
+
 export type AccountLoginAccessTokenData = {
     formData: Body_account_login_access_token;
 };
@@ -3376,6 +3415,7 @@ export type TasksQueueCreateTaskResponse = ({
 export type TasksQueueListQueueData = {
     limit?: number;
     offset?: number;
+    order?: 'queue' | 'recent';
     projectId?: (number | null);
     rootOnly?: boolean;
     status?: (string | null);
@@ -3449,21 +3489,36 @@ export type TasksQueueHitlPendingTasksResponse = ({
     [key: string]: unknown;
 });
 
-export type TasksQueueCreateGrowthWorkflowData = {
-    requestBody: {
-        [key: string]: unknown;
-    };
+export type TasksQueueCreateWorkflowAnyData = {
+    requestBody: WorkflowCreateRequest;
 };
 
-export type TasksQueueCreateGrowthWorkflowResponse = ({
+export type TasksQueueCreateWorkflowAnyResponse = ({
     [key: string]: unknown;
 });
 
 export type TasksQueueListWorkflowsData = {
-    projectId: number;
+    projectId?: (number | null);
 };
 
 export type TasksQueueListWorkflowsResponse = ({
+    [key: string]: unknown;
+});
+
+export type TasksQueueConfirmWorkflowData = {
+    workflowId: string;
+};
+
+export type TasksQueueConfirmWorkflowResponse = ({
+    [key: string]: unknown;
+});
+
+export type TasksQueueEditWorkflowData = {
+    requestBody: WorkflowEditRequest;
+    workflowId: string;
+};
+
+export type TasksQueueEditWorkflowResponse = ({
     [key: string]: unknown;
 });
 
@@ -3472,6 +3527,16 @@ export type TasksQueueGetWorkflowData = {
 };
 
 export type TasksQueueGetWorkflowResponse = ({
+    [key: string]: unknown;
+});
+
+export type TasksQueueCreateGrowthWorkflowData = {
+    requestBody: {
+        [key: string]: unknown;
+    };
+};
+
+export type TasksQueueCreateGrowthWorkflowResponse = ({
     [key: string]: unknown;
 });
 

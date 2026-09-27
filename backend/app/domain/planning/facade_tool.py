@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from sqlalchemy import delete, select
 
@@ -85,16 +85,20 @@ async def plan(
             description = str(description).strip() or None
         return title[:255], description
 
-    async with session_scope() as session:
-        if action == "create":
-            if not thread_id:
-                return json.dumps({"error": "Missing thread_id in config"})
-            if not title or not steps:
-                return "Error: create 需要 title 和 steps。"
-            try:
-                normalized_steps = [_normalize_step(step) for step in steps]
-            except ValueError as exc:
-                return f"Error: {exc}"
+    outcome: str | tuple[str, dict] | None = None
+    publish_kwargs: dict[str, Any] | None = None
+
+    if action == "create":
+        if not thread_id:
+            return json.dumps({"error": "Missing thread_id in config"})
+        if not title or not steps:
+            return "Error: create 需要 title 和 steps。"
+        try:
+            normalized_steps = [_normalize_step(step) for step in steps]
+        except ValueError as exc:
+            return f"Error: {exc}"
+
+        async with session_scope() as session:
             stmt = select(DBPlan).where(DBPlan.thread_id == thread_id)
             existing = (await session.execute(stmt)).scalar_one_or_none()
             if existing:
@@ -145,31 +149,32 @@ async def plan(
             for s in db_steps:
                 lines.append(f"| `{s['id']}` | {s['title']} | {s['status']} |")
             lines.append("\n*Tip: 用 plan(action='update_step', ...) 更新每步状态。*")
-            await _publish_plan_updated(thread_id, plan_id)
-            return "\n".join(lines), {
+            outcome = "\n".join(lines), {
                 "id": plan_id,
                 "steps": db_steps,
                 "is_complete": False,
             }
+            publish_kwargs = {"thread_id": thread_id, "plan_id": plan_id}
 
-        if action == "update_step":
-            if not plan_id or not step_id or not status:
-                return "Error: update_step 需要 plan_id、step_id、status。"
-            if status == "completed" and not (result or "").strip():
-                return (
-                    "Error: completed 步骤必须填写 result（这步做了什么、结果如何）。"
-                    "请补充后再标记 completed。"
-                )
-            if result and len(result) > 500:
-                result = result[:500]
+    elif action == "update_step":
+        if not plan_id or not step_id or not status:
+            return "Error: update_step 需要 plan_id、step_id、status。"
+        if status == "completed" and not (result or "").strip():
+            return (
+                "Error: completed 步骤必须填写 result（这步做了什么、结果如何）。"
+                "请补充后再标记 completed。"
+            )
+        if result and len(result) > 500:
+            result = result[:500]
+
+        async with session_scope() as session:
             step = await session.get(DBPlanStep, step_id)
             if not step:
                 return f"Error: Step {step_id} not found.", {"status": "error"}
             step.status = status
             if result:
                 step.result = result
-            await _publish_plan_updated(plan_id=plan_id, step_id=step_id, status=status)
-            return (
+            outcome = (
                 f"Successfully updated step {step_id} status to '{status}'.",
                 {
                     "action": "update_step",
@@ -178,10 +183,12 @@ async def plan(
                     "status": status,
                 },
             )
+            publish_kwargs = {"plan_id": plan_id, "step_id": step_id, "status": status}
 
-        if action == "status":
-            if not plan_id:
-                return "Error: status 需要 plan_id。"
+    elif action == "status":
+        if not plan_id:
+            return "Error: status 需要 plan_id。"
+        async with session_scope() as session:
             db_plan = await session.get(DBPlan, plan_id)
             if not db_plan:
                 return f"Error: Plan {plan_id} not found."
@@ -196,9 +203,14 @@ async def plan(
             lines.append("| :--- | :--- | :--- |")
             for s in db_steps:
                 lines.append(f"| `{s.id}` | {s.title} | {s.status} |")
-            return "\n".join(lines), {"id": plan_id, "count": len(db_steps)}
+            outcome = "\n".join(lines), {"id": plan_id, "count": len(db_steps)}
 
-        return f"Error: unknown plan action '{action}'."
+    else:
+        outcome = f"Error: unknown plan action '{action}'."
+
+    if publish_kwargs:
+        await _publish_plan_updated(**publish_kwargs)
+    return outcome
 
 
 async def _publish_plan_updated(

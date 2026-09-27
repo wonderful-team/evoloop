@@ -3,9 +3,6 @@ File Type Configuration Module - Defines file types and document type configurat
 Ported from evoloop-engineer.
 """
 
-import os
-from enum import Enum
-
 # ====================== Engine Constants ======================
 DEFAULT_PROJECT_ID = 0
 
@@ -24,24 +21,6 @@ MESSAGES_CLEANUP = "rewind.messages.cleanup"
 # ====================== Cross-subsystem Cache Keys ======================
 #: Prefix for platform-specific dynamic app bundle ID sets (atlas + environment)
 CACHE_KEY_DYNAMIC_APPS_PREFIX = "system:dynamic_apps"
-
-
-# ====================== Document Type Enum ======================
-class DocumentType(Enum):
-    """Document type enumeration"""
-
-    UNKNOWN = "unknown"
-    TEXT = "text"
-    PDF = "pdf"
-    DOCX = "docx"
-    CODE = "code"
-    MARKDOWN = "markdown"
-    EXCEL = "excel"
-    CSV = "csv"
-    HTML = "html"
-    JUPYTER = "jupyter"
-    JSON = "json"
-    XML = "xml"
 
 
 # ====================== File Type Configuration ======================
@@ -97,87 +76,6 @@ BINARY_EXTENSIONS = [
     ".lib",
     ".db",
     ".class",
-]
-
-# System and low-level programming languages
-LOW_LEVEL_EXTENSIONS = [
-    ".c",
-    ".cpp",
-    ".h",
-    ".cs",
-    ".go",
-    ".java",
-    ".m",
-    ".rs",
-]
-
-# Scripting and dynamic languages
-SCRIPT_EXTENSIONS = [
-    ".py",
-    ".rb",
-    ".js",
-    ".mjs",
-    ".php",
-    ".pl",
-    ".pm",
-    ".lua",
-    ".sh",
-    ".swift",
-]
-# Common Testing Related Patterns
-TEST_FILE_PATTERNS = {
-    "python": ["test_", "_test.py"],
-    "javascript": [".test.js", ".spec.js", ".test.ts", ".spec.ts"],
-    "go": ["_test.go"],
-    "java": ["Test.java"],
-}
-
-# Functional programming languages
-FUNCTIONAL_EXTENSIONS = [
-    ".el",
-    ".ex",
-    ".exs",
-    ".elm",
-    ".hs",
-    ".ml",
-    ".mli",
-    ".scala",
-]
-
-# Web development related
-WEB_EXTENSIONS = [
-    ".html",
-    ".htm",
-    ".css",
-    ".less",
-    ".scss",
-    ".jsx",
-    ".ts",
-    ".tsx",
-    ".vue",
-]
-
-# Configuration files
-CONFIG_EXTENSIONS = [
-    ".cfg",
-    ".conf",
-    ".ini",
-    ".json",
-    ".properties",
-    ".toml",
-    ".xml",
-    ".yaml",
-    ".yml",
-]
-
-# Documentation and text files
-DOC_TEXT_EXTENSIONS = [
-    ".md",
-    ".mdx",
-    ".rst",
-    ".txt",
-    ".sql",
-    ".xsq",
 ]
 
 # Source map files
@@ -246,21 +144,10 @@ BLACKLIST_FILE_EXTENSIONS = (
     IMAGE_EXTENSIONS + VIDEO_EXTENSIONS + AUDIO_EXTENSIONS + BINARY_EXTENSIONS
 )
 
-# All whitelist file extensions
-WHITELIST_FILE_EXTENSIONS = (
-    LOW_LEVEL_EXTENSIONS
-    + SCRIPT_EXTENSIONS
-    + FUNCTIONAL_EXTENSIONS
-    + WEB_EXTENSIONS
-    + CONFIG_EXTENSIONS
-    + DOC_TEXT_EXTENSIONS
-)
-
 # Default excluded directories and files
 DEFAULT_EXCLUDED_DIRS = BLACKLIST_DIRS
 DEFAULT_EXCLUDED_FILES = BLACKLIST_FILES
 DEFAULT_EXCLUDED_EXTENSIONS = BLACKLIST_FILE_EXTENSIONS
-DEFAULT_INCLUDED_EXTENSIONS = WHITELIST_FILE_EXTENSIONS
 
 # Directories likely to contain compressed code
 LIKELY_COMPRESSED_CODE_DIRS = [
@@ -299,49 +186,6 @@ SOFTWARE_DIRECTORIES = {
     "cmd",
 }
 
-# Identification patterns for main files: Entry point patterns
-ENTRY_PATTERNS = [
-    "main.py",
-    "app.py",
-    "index.js",
-    "server.js",
-    "main.go",
-    "Main.java",
-    "Program.cs",
-    "index.php",
-    "main.rs",
-]
-
-# Identification patterns for main files: Configuration patterns
-CONFIG_PATTERNS = [
-    "config",
-    "settings",
-    ".env",
-    ".gitignore",
-    "dockerfile",
-    "docker-compose",
-    "requirements.txt",
-    "package.json",
-    "setup.py",
-    "pyproject.toml",
-    "Cargo.toml",
-]
-
-IMPORTANT_PATTERNS = [
-    "/api/",
-    "controller",
-    "service",
-    "model",
-    "main",
-    "app",
-    "core",
-    "index",
-    "base",
-    "utils",
-    "common",
-    "component",
-]
-
 # Compressed/Obfuscated file identification
 COMPRESSED_FILE_PATTERNS = [
     r"\.min\.(js|css|html)$",  # Minified JS/CSS
@@ -368,9 +212,6 @@ CODE_QUALITY_THRESHOLDS = {
     "max_file_size_mb": 1.0,  # Maximum file size (MB)
     "sample_size": 4096,  # Content sampling size (bytes)
 }
-
-# File encoding attempt order
-FILE_ENCODINGS = ["utf-8", "latin-1", "utf-16", "ascii"]
 
 # Merged from document_reader.py
 EXTENSION_MAP = {
@@ -430,13 +271,6 @@ EXTENSION_MAP = {
     ".dart": "dart",
     ".vue": "vue",
     ".svelte": "svelte",
-}
-
-# Mapping shebang patterns to language
-SHEBANG_MAP = {
-    "python": ["python"],
-    "bash": ["bash", "sh"],
-    "javascript": ["node"],
 }
 
 # ====================== Semantic / Structural Analysis Constants ======================
@@ -508,9 +342,4 @@ LANGUAGE_MAP = {
     "zh": "Mandarin Chinese (中文)",
 }
 
-# ====================== Config / Template Constants ======================
-# Absolute path to the prompt templates directory (app/config/templates)
-CONFIG_TEMPLATE_DIR = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "config", "templates")
-)
 

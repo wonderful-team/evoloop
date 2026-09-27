@@ -52,35 +52,6 @@ class FileFilter:
         while len(self._file_inclusion_cache) > self._CACHE_MAX_SIZE:
             self._file_inclusion_cache.popitem(last=False)
 
-    def parse_file(self, file_path: str) -> dict:
-        """Parse inclusion or exclusion file.
-
-        The format for each line should be:
-        # Comments start with #
-        ext:.my-extension  for extensions
-        file:my-file.py    for filenames
-        dir:my-directory   for directories
-        """
-        result = read_file(file_path)
-        if result.status != FileStatus.SUCCESS:
-            return {"ext": [], "file": [], "dir": []}
-
-        lines = result.content.splitlines()
-        parsed_data = {"ext": [], "file": [], "dir": []}
-        for line in lines:
-            if line.startswith("#"):
-                continue
-            try:
-                key, value = line.strip().split(":")
-                if key in parsed_data:
-                    parsed_data[key].append(value)
-                else:
-                    logging.error("Unrecognized key in line: %s, skipping.", line)
-            except ValueError:
-                pass  # Skip malformed lines
-
-        return parsed_data
-
     def should_include(
         self,
         file_path: str,

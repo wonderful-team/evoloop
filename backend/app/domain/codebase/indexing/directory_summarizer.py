@@ -1,55 +1,18 @@
 import json
-import logging
 import os
 
-from sqlalchemy import select
-
-from app.core.file import FileStatus, read_file, write_file
-from app.infrastructure.database import session_scope
-from app.models.codebase import CodeChunk, Repository, SourceFile
-
-logger = logging.getLogger(__name__)
+from app.core.file import FileStatus, read_file
 
 _SUMMARY_DIR = ".evoloop/directory_summaries"
 
 
 class DirectorySummarizer:
-    """Summarizes directories using SQL data and persists to JSON files."""
+    """Provides cached directory summaries persisted as JSON files."""
 
     @staticmethod
     def _summary_path(project_path: str, dir_path: str) -> str:
         safe = dir_path.strip("/").replace("/", "_") or "root"
         return os.path.join(project_path, _SUMMARY_DIR, f"{safe}.json")
-
-    async def summarize_directory(
-        self,
-        project_path: str,
-        project_id: int,
-        dir_path: str,
-        recursive: bool = True,
-        model: str | None = None,
-    ) -> str:
-        existing = await self.get_summary(project_path, dir_path)
-        if existing:
-            return existing
-
-        children = await self._load_children(project_id, dir_path)
-        if not children:
-            return "Empty Directory"
-
-        summary_text = await self.generate_summary(dir_path, children, model=model)
-
-        summary_path = self._summary_path(project_path, dir_path)
-        write_result = write_file(
-            summary_path,
-            json.dumps({"path": dir_path, "summary": summary_text}),
-        )
-        if not write_result.success:
-            logger.error(
-                f"Failed to write summary to {summary_path}: {write_result.error_message}"
-            )
-
-        return summary_text
 
     @staticmethod
     async def get_summary(project_path: str, dir_path: str = "") -> str | None:
@@ -59,59 +22,6 @@ class DirectorySummarizer:
             try:
                 data = json.loads(read_result.content)
                 return data.get("summary")
-            except (json.JSONDecodeError, TypeError, ValueError) as e:
-                logger.debug("Suppressed error: %s", e, exc_info=True)
+            except (json.JSONDecodeError, TypeError, ValueError):
+                return None
         return None
-
-    async def _load_children(self, project_id: int, dir_path: str) -> list[dict]:
-        prefix = dir_path.rstrip("/") + "/" if dir_path else ""
-        async with session_scope() as session:
-            stmt = (
-                select(SourceFile.path, CodeChunk.content)
-                .join(
-                    CodeChunk, CodeChunk.source_file_id == SourceFile.id, isouter=True
-                )
-                .where(
-                    SourceFile.repository_id.in_(
-                        select(Repository.id).where(Repository.project_id == project_id)
-                    ),
-                    SourceFile.path.startswith(prefix),
-                    CodeChunk.chunk_type == "file",
-                )
-            )
-            rows = (await session.execute(stmt)).all()
-        children = []
-        seen_dirs = set()
-        for path, content in rows:
-            rel = path[len(prefix) :] if prefix else path
-            if "/" in rel:
-                subdir = rel.split("/")[0]
-                if subdir not in seen_dirs:
-                    seen_dirs.add(subdir)
-                    children.append({"type": "directory", "name": subdir})
-            else:
-                preview = (content or "")[:1000]
-                children.append({"type": "file", "name": path, "content": preview})
-        return children
-
-    async def generate_summary(
-        self, dir_path: str, child_summaries: list[dict], model: str | None = None
-    ) -> str:
-        from app.utils.template import render_template
-
-        prompt_text = render_template(
-            "domain/codebase/directory_summary.prompt.j2",
-            directory_path=dir_path,
-            child_summaries=child_summaries,
-        )
-        from app.infrastructure.llm import InternalLLMService
-
-        response = await InternalLLMService.invoke(
-            messages=[{"role": "user", "content": prompt_text}],
-            purpose="skill_synthesis",
-            model_name=model,
-        )
-        return response.content
-
-
-directory_summarizer = DirectorySummarizer()

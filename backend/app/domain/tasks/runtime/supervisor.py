@@ -27,6 +27,7 @@ from app.domain.tasks.runtime.dispatcher import (
 )
 from app.domain.tasks.runtime.reconciler import reconcile_stranded
 from app.domain.tasks.runtime.wakeup import wait_duty_wakeup
+from app.domain.tasks.workflows import WorkflowService
 
 logger = logging.getLogger(__name__)
 
@@ -46,21 +47,57 @@ async def run_supervisor_forever() -> None:
         await reconcile_stranded(startup=True)
     except Exception:
         # 启动收敛失败不得杀死值守主循环：稳态周期 reconcile 会重试收敛
-        logger.exception("[DutySupervisor] startup reconcile 失败（循环继续，稳态兜底）")
+        logger.exception(
+            "[DutySupervisor] startup reconcile 失败（循环继续，稳态兜底）"
+        )
     last_reconcile = time.monotonic()
     while True:
+        loop_start = time.monotonic()
         try:
+            t0 = time.monotonic()
             await auto_retry_failed_tasks()
+            logger.debug(
+                "[DutySupervisor] auto-retry took %.3fs", time.monotonic() - t0
+            )
         except Exception:
             logger.exception("[DutySupervisor] auto-retry failed tasks error")
         try:
+            t0 = time.monotonic()
+            # 周期工作流轮次实例化：先 spawn（产生阶段任务）再 drain，
+            # 同一拍内新轮即可被认领（skip-on-busy 保证轮次不并发）
+            await WorkflowService.spawn_due_rounds()
+            logger.debug(
+                "[DutySupervisor] spawn rounds took %.3fs", time.monotonic() - t0
+            )
+        except Exception:
+            logger.exception("[DutySupervisor] spawn workflow rounds error")
+        try:
+            t0 = time.monotonic()
             await dispatch_due_tasks()
+            logger.info(
+                "[DutySupervisor] drain cycle took %.3fs", time.monotonic() - t0
+            )
         except Exception:
             logger.exception("[DutySupervisor] drain failed")
+        t0 = time.monotonic()
         await wait_duty_wakeup(DRAIN_IDLE_TIMEOUT_SECONDS)
+        wait_dt = time.monotonic() - t0
+        if wait_dt >= DRAIN_IDLE_TIMEOUT_SECONDS * 0.9:
+            logger.info("[DutySupervisor] wakeup wait timed out (%.3fs)", wait_dt)
+        else:
+            logger.info(
+                "[DutySupervisor] wakeup wait took %.3fs (event-driven)", wait_dt
+            )
         if time.monotonic() - last_reconcile >= RECONCILE_INTERVAL_SECONDS:
             try:
+                t0 = time.monotonic()
                 await reconcile_stranded()
+                logger.info(
+                    "[DutySupervisor] reconcile took %.3fs", time.monotonic() - t0
+                )
             except Exception:
                 logger.exception("[DutySupervisor] reconcile failed")
             last_reconcile = time.monotonic()
+        logger.debug(
+            "[DutySupervisor] full loop took %.3fs", time.monotonic() - loop_start
+        )

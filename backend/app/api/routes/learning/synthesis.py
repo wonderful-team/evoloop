@@ -67,6 +67,26 @@ async def synthesize_from_recording(
         macro_script = result.get("macro_script")
         metadata = result["metadata"]
 
+        # Structural validation only — never execute the macro here.
+        # Compute verification **outside** the DB session to avoid holding a
+        # connection during CPU-only parsing.
+        verification = {"status": "skipped"}
+        if macro_script:
+            from app.core.learning.macro.authoring import validate_macro_structure
+
+            ok, error, step_count = validate_macro_structure(macro_script)
+            verification = (
+                {
+                    "status": "structure_valid",
+                    "step_count": step_count,
+                }
+                if ok
+                else {
+                    "status": "structure_invalid",
+                    "error_message": error,
+                }
+            )
+
         async with session_scope() as db:
             db_skill = await create_from_synthesis(
                 db,
@@ -84,7 +104,7 @@ async def synthesize_from_recording(
             )
             skill_data["name"] = db_skill.name
 
-            verification = {"status": "skipped"}
+            macro = None
             if macro_script:
                 macro = await MacroService.create_for_skill(
                     db,
@@ -95,28 +115,13 @@ async def synthesize_from_recording(
                     source_thread_id=skill_data.get("source_thread_id"),
                 )
 
-                # Structural validation only — never execute the macro here
-                from app.core.learning.macro.authoring import validate_macro_structure
-
-                ok, error, step_count = validate_macro_structure(macro_script)
-                verification = (
-                    {
-                        "status": "structure_valid",
-                        "step_count": step_count,
-                    }
-                    if ok
-                    else {
-                        "status": "structure_invalid",
-                        "error_message": error,
-                    }
-                )
                 from app.core.learning.skills.lifecycle import patch_skill
 
                 await patch_skill(db_skill, validation_report=verification)
                 await db.flush()
 
         await publish_skill_mutated(skill_id=db_skill.id, action="create")
-        if macro_script:
+        if macro_script and macro is not None:
             await publish_macro_mutated(macro.id, action="create")
 
         skill_yaml = f"""---
@@ -167,7 +172,7 @@ parameters: {json.dumps(normalize_parameters(skill_data.get("parameters", [])))}
     response_model=PreviewRecordingDataResponse,
 )
 async def preview_recording_data(
-    session_id: str, video_path: str, current_user: CurrentUserOptional = None
+    session_id: str, video_path: str, _current_user: CurrentUserOptional = None
 ):
     """Preview recording data (debug) — returns keyframe plan without calling LLM."""
     from app.infrastructure.vision.video.compressor import KeyframeSelector

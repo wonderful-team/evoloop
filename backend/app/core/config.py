@@ -110,10 +110,6 @@ class Settings(BaseSettings):
         False  # Enable automatic macro creation after successful sessions
     )
 
-    # Skill Sedimentation Settings（§3.7）：会话含非平凡可复用解题路径时，
-    # 收尾管线自动触发 skill 候选合成（pending_review，不自动激活）。
-    ENABLE_SKILL_SYNTHESIS: bool = False
-
     # 工具级权限（对齐 OpenCode Permission ruleset）：{tool_name: "allow"|"ask"|"deny"}。
     # "ask" 时该工具调用走授权门控 → HITL 审批（approve/reject，批准后 grant 落盘）。
     # 由 engine/hooks/authorization.py 的 PRE_TOOL_USE 门控消费；空 = 全部允许。
@@ -129,9 +125,19 @@ class Settings(BaseSettings):
     AGENT_MAX_STEPS: int = 100
     AGENT_MAX_STEPS_MIN: int = 25
     AGENT_MAX_STEPS_MAX: int = 500
-    # 单次 run 内允许的 steer（运行中注入新消息并重置步数预算）次数上限，
-    # 超限后新消息回落 session 队列由下一轮 delivery 处理（防无限续期）。
+    # Legacy kernel only. The SDK kernel uses its per-run iteration budget instead.
     AGENT_MAX_STEERS: int = 50
+
+    # OpenHands SDK 上下文压缩（LLMSummarizingCondenser）。EventLog 事件数超过
+    # max_size 时用 LLM 总结压缩历史（keep_first 条头部事件永不压缩）。
+    # 整合教训：legacy ContextTrimmer 删除后未配置 condenser，长对话必然撞
+    # context window。max_size=0 表示禁用压缩（不推荐，仅排障用）。
+    SDK_CONDENSER_MAX_SIZE: int = 240
+    SDK_CONDENSER_KEEP_FIRST: int = 2
+    # Agent LLM 的输入 token 上限：网关自定义模型名不在 litellm 价目表，
+    # SDK 拿不到 context window——不显式配置则压缩器的 TOKENS 硬触发永远
+    # 禁用（只剩事件数软触发）。0 表示禁用该护栏。
+    SDK_LLM_MAX_INPUT_TOKENS: int = 128000
 
     BACKEND_CORS_ORIGINS: Annotated[
         list[AnyUrl] | str, BeforeValidator(parse_cors)
@@ -167,8 +173,11 @@ class Settings(BaseSettings):
     DB_ECHO: bool = False  # Added for EvoLoop compatibility
     DB_ECHO_POOL: bool = False  # Debug: log pool checkout/checkin lifecycle
     DB_CONNECT_TIMEOUT: float = 99.5  # Strategic: unified timeout for unstable networks
-    DB_POOL_SIZE: int = 5  # Base connection pool size per engine
-    DB_MAX_OVERFLOW: int = 10  # Max overflow connections per pool beyond pool_size
+    DB_POOL_SIZE: int = 20  # Base connection pool size per engine
+    DB_MAX_OVERFLOW: int = 30  # Max overflow connections per pool beyond pool_size
+    DB_POOL_TIMEOUT: float = 30.0  # Seconds to wait for a connection from the pool
+    DB_POOL_RECYCLE: int = 3600  # Recycle connections after N seconds
+    DB_SLOW_CHECKOUT_THRESHOLD: float = 5.0  # Log warning if a connection is checked out longer than this
 
     # --- Vector Database Configuration (PostgreSQL + pgvector, separate instance) ---
     # Defaults to the same server as the main database, but with a different DB name.
@@ -257,8 +266,6 @@ class Settings(BaseSettings):
 
     # Embedding Configuration
     EMBEDDING_DIMENSIONS: int = 768  # Nomic / Local Default
-    # Lightning Channel default GGUF directory
-    LIGHTNING_GGUF_DIR: str = Field(default="")
 
     # Search Optimization
     ENABLE_QUERY_REWRITING: bool = True  # P1: Cross-Lingual Query Rewriting
@@ -383,12 +390,6 @@ class Settings(BaseSettings):
     #   - 设备注册与 Mobile 客户端绑定
     # 适用场景：纯服务器部署，不需要移动端接入时（MOBILE_SYNC_ENABLED=false）。
     MOBILE_SYNC_ENABLED: bool = Field(True, validation_alias="MOBILE_SYNC_ENABLED")
-
-    # --- Deprecated Configuration (Phase 4 Cleanup) ---
-    USE_CLIENT_FOR_TOOLS: bool = False  # @deprecated: Will be replaced by dynamic transport selection
-    CLOUD_ONLY_MODE: bool = False  # @deprecated: Will be replaced by hybrid execution mode
-    CLIENT_CALLBACK_URL: str | None = None  # @deprecated: Managed by WebSocket handshake
-    CLIENT_TOOL_TIMEOUT: float = 300.0  # Default timeout for client tool execution
 
     # Project Management
     # 启用/禁用项目自动发现（默认禁用）—— 已迁移到 SystemConfigService (DB)，不再通过 .env 配置
@@ -522,9 +523,6 @@ class Settings(BaseSettings):
             os.environ["HF_HOME"] = os.path.join(
                 self.MODELS_DIR, ".cache", "huggingface"
             )
-            gguf_dir = os.path.join(self.MODELS_DIR, "gguf")
-            os.makedirs(gguf_dir, exist_ok=True)
-            os.environ["LIGHTNING_GGUF_DIR"] = gguf_dir
         # Ensure huggingface_hub and other download helpers use the configured mirror.
         os.environ["HF_ENDPOINT"] = self.HF_ENDPOINT.rstrip("/")
         return self

@@ -1,11 +1,18 @@
 import i18n from "@evoloop/shared/i18n"
-import {toast} from "sonner"
-import {create} from "zustand"
-import {AgentService} from "@/client"
-import {appendMacroStep, macroThoughtText,} from "@/components/Learning/macroRun"
-import {AGENT_IDLE_STATUSES, HITL_ENDED_STATUSES, HITL_PENDING_STATUSES,} from "./agent/hitlConstants"
-import type {AgentState} from "./agent/types"
-import {useChatStore} from "./chatStore"
+import { toast } from "sonner"
+import { create } from "zustand"
+import { AgentService } from "@/client"
+import {
+  appendMacroStep,
+  macroThoughtText,
+} from "@/components/Learning/macroRun"
+import {
+  AGENT_IDLE_STATUSES,
+  HITL_ENDED_STATUSES,
+  HITL_PENDING_STATUSES,
+} from "./agent/hitlConstants"
+import type { AgentState } from "./agent/types"
+import { useChatStore } from "./chatStore"
 
 export const useAgentStore = create<AgentState>((set, get) => ({
   // --- Data ---
@@ -33,6 +40,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
 
   isConnected: false,
   connectionStatus: "disconnected",
+  _finalizedRunIds: new Set<string>(),
 
   // Internal Handlers
   _setConnectionStatus: (connected, status) => {
@@ -202,23 +210,34 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     else if (HITL_PENDING_STATUSES.includes(raw)) normalized = "interrupted"
 
     const state = get()
+    const isTerminal = AGENT_IDLE_STATUSES.includes(normalized)
+
+    // If a terminal status refers to an already-finalized run, skip the side
+    // effects (finalize, clear buffers) but still update display state.
+    const runId = ev.run_id || state.agentState?.run_id || "unknown"
+    const alreadyFinalized = isTerminal && state._finalizedRunIds.has(runId)
+
     const updates: Partial<AgentState> = {
       status: normalized,
       activeMemories: ev.active_memories || state.activeMemories,
       agentState: ev.agent_state || state.agentState,
     }
 
-    if (AGENT_IDLE_STATUSES.includes(normalized)) {
+    if (isTerminal && !alreadyFinalized) {
       updates.streamingThinking = ""
       updates._thinkingBuffer = ""
     }
 
     const chatStore = useChatStore.getState()
 
-    if (normalized === "idle") {
+    if (normalized === "idle" && !alreadyFinalized) {
       chatStore._finalizeMessages()
     }
-    if (state.status === "running" && normalized !== "running") {
+    if (
+      state.status === "running" &&
+      normalized !== "running" &&
+      !alreadyFinalized
+    ) {
       chatStore._finalizeMessages()
     }
     if (normalized !== "interrupted" && state.humanRequest) {
@@ -338,6 +357,9 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       _thinkingBuffer: "",
       finalOutcome: null,
       macroSteps: [],
+      // New run begins; clear finalized set so terminal events for this run
+      // are processed exactly once.
+      _finalizedRunIds: new Set<string>(),
     })
     useChatStore.getState()._handleRunStart(ev)
     console.log(`[AgentStore] Run started: ${ev.run_id}`)
@@ -345,6 +367,14 @@ export const useAgentStore = create<AgentState>((set, get) => ({
 
   _handleRunEnd: (ev) => {
     const state = get()
+    const runId = ev.run_id || "unknown"
+
+    // Terminal event deduplication: ignore duplicate run_end for the same run.
+    if (state._finalizedRunIds.has(runId)) {
+      console.log(`[AgentStore] Duplicate run_end ignored: ${runId}`)
+      return
+    }
+
     const normalized =
       ev.status === "done" ||
       ev.status === "failed" ||
@@ -352,12 +382,16 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         ? "idle"
         : (ev.status as any) || "idle"
 
+    const nextFinalized = new Set(state._finalizedRunIds)
+    nextFinalized.add(runId)
+
     const updates: Partial<AgentState> = {
       status: normalized,
       finalOutcome: ev.final_outcome || state.finalOutcome,
       agentState: state.agentState
         ? { ...state.agentState, activeSkills: null }
         : state.agentState,
+      _finalizedRunIds: nextFinalized,
     }
 
     // failed 收尾：具体错误由 system 消息块/专用事件承载，这里给轻量提示
@@ -367,18 +401,29 @@ export const useAgentStore = create<AgentState>((set, get) => ({
 
     useChatStore.getState()._finalizeMessages()
     set(updates)
-    console.log(`[AgentStore] Run ended: ${ev.run_id}, status: ${ev.status}`)
+    console.log(`[AgentStore] Run ended: ${runId}, status: ${ev.status}`)
   },
 
   _handleSessionCompleted: (ev) => {
     const state = get()
+    const runId = ev.data?.run_id || "unknown"
+
+    if (state._finalizedRunIds.has(runId)) {
+      console.log(`[AgentStore] Duplicate session_completed ignored: ${runId}`)
+      return
+    }
+
+    const nextFinalized = new Set(state._finalizedRunIds)
+    nextFinalized.add(runId)
+
     set({
       status: "idle",
       finalOutcome: ev.data?.outcome || state.finalOutcome,
+      _finalizedRunIds: nextFinalized,
     })
     useChatStore.getState()._finalizeMessages()
     console.log(
-      `[AgentStore] Session completed - final state cleaned and finalized: run_id=${ev.data?.run_id}`,
+      `[AgentStore] Session completed - final state cleaned and finalized: run_id=${runId}`,
     )
   },
 

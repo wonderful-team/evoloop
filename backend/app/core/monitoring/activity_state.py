@@ -312,28 +312,6 @@ class ActivityStateService:
             activity.output_tokens = output_tokens
         return True
 
-    async def get_field(self, thread_id: str, field: str) -> Any | None:
-        """Get a single field from activity state."""
-        field_map = {
-            "status": "status",
-            "main_goal": "main_goal",
-            "artifacts": "artifacts_json",
-            "agent_state": "agent_state_json",
-            "active_memories": "active_memories_json",
-            "human_request": "human_request_json",
-            "final_outcome": "final_outcome",
-        }
-
-        db_field = field_map.get(field)
-        if db_field is None:
-            return None
-
-        async with self._get_session_scope()() as session:
-            activity = await session.get(AgentActivity, thread_id)
-            if activity is None:
-                return None
-            return getattr(activity, db_field)
-
     async def signal_stop(self, thread_id: str) -> bool:
         """Signal a run to stop."""
         async with self._get_session_scope()() as session:

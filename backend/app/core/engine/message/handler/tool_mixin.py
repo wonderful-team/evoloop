@@ -205,18 +205,21 @@ class ToolMessageMixin:
                     message_id=message_id,
                 )
 
-        if stream_data.should_stream:
+        # 持久化后的 completed 块已经把 summary + metadata（含完整 output）
+        # 一起推给前端；再发一次 action="update" 的完整 content 会导致同一
+        # seq 的 tool 消息在 SSE 里重复出现。
+        # 纯流式（不持久化）场景需要补推一次 completed，让前端能看到结果。
+        if stream_data.should_stream and not persist_data.should_persist:
             await self._dispatch_block(
                 role=MessageRole.TOOL,
                 content=content,
                 category=category.value,
                 tool_name=tool_name,
                 tool_call_id=tool_call_id,
-                sequence_number=seq if persist_data.should_persist else 0,
+                sequence_number=0,
                 status=MessageStatus.COMPLETED,
                 metadata=metadata,
                 message_id=message_id,
-                action="update",
             )
 
         return MessageHandlerResult(

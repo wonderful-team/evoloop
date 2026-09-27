@@ -277,6 +277,23 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
 
         logger.info(f"[LLM Error] {error}")
 
+    async def flush_stream_buffers(self, run_id: str = "") -> None:
+        """Flush residual thinking/token buffers at the end of an LLM turn.
+
+        The legacy loop flushes via ``on_llm_end``; the OpenHands SDK bridge
+        persists complete AI messages from events instead, so it calls this
+        explicitly after each persisted agent message to avoid losing the
+        tail below the char/time flush limits.
+        """
+        if self._thinking_buffer:
+            await self.emit_thinking(self._thinking_buffer, message_id=run_id)
+            self._thinking_buffer = ""
+        remaining = self._token_filter.flush()
+        if remaining:
+            await MessageHandler.stream_token(
+                self.thread_id, remaining, message_id=run_id
+            )
+
     async def on_tool_start(
         self, serialized: dict[str, Any], input_str: str, **kwargs: Any
     ) -> None:

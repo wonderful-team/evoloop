@@ -148,6 +148,13 @@ class CommandRouter:
         #    regardless of embedding margin.  Anchoring guarantees the whole
         #    utterance must be the command; anything else falls through to BERT.
         template_matcher = await matcher_cache.get_local_matcher()
+        if logger.isEnabledFor(logging.INFO):
+            _diag = await matcher_cache.diagnose(text, project_id)
+            logger.info(
+                "[L0] voice template probe: text=%r diag=%s",
+                text[:40],
+                _diag,
+            )
         if template_matcher is not None:
             template_hit = template_matcher.match(text, project_id=project_id)
             if template_hit is not None:

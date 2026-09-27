@@ -1,9 +1,8 @@
 import logging
 import time
 
-from app.core.environment import get_current_app_context
 from app.infrastructure.vision.router import get_vision_router
-from app.infrastructure.vision.types import PlatformType, VisionResult, VisionTask
+from app.infrastructure.vision.types import VisionResult, VisionTask
 from app.utils.time import elapsed_ms
 
 logger = logging.getLogger(__name__)
@@ -25,10 +24,6 @@ class VisionEngine:
         """
         start_time = time.time()
 
-        # 1. Publish Start Event
-        from app.core.vision.event.publishers import publish_vision_process_started
-        await publish_vision_process_started(task.value, image_source)
-
         # Specialized Logic: DETECTION (Multiple Providers)
         if task == VisionTask.DETECT:
             from app.infrastructure.vision.pipeline.manager import pipeline_manager
@@ -44,24 +39,6 @@ class VisionEngine:
                 summary=f"Detected {len(elements)} items using PipelineManager.",
             )
 
-            # --- Passive Atlas Learning ---
-            try:
-                # 1. Get current context for metadata
-                app_info = get_current_app_context()
-
-                # 2. Publish to Awakening Event Bus for AppAtlasService to consume
-                from app.core.environment.event.publishers import publish_ui_tree_observed
-
-                await publish_ui_tree_observed(
-                    platform=PlatformType.MACOS.value,
-                    bundle_id=app_info.bundle_id or "unknown",
-                    window_title=app_info.title or "unknown",
-                    elements=[e.model_dump() for e in elements],
-                    screenshot_hash="",
-                )
-                logger.debug(f"[VisionEngine] Emitted UiTreeObservedEvent for {app_info.bundle_id}")
-            except Exception as e:
-                logger.warning(f"[VisionEngine] Failed to emit Atlas event: {e}", exc_info=True)
         else:
             # Standard Routing for single-provider tasks
             provider = await self.router.get_provider(task, **kwargs)
@@ -80,11 +57,6 @@ class VisionEngine:
 
         # 4. Finalize
         result.latency_ms = elapsed_ms(start_time)
-
-        # 5. Publish Completion Event
-        provider_name = provider.name if task != VisionTask.DETECT else "pipeline_manager"
-        from app.core.vision.event.publishers import publish_vision_process_completed
-        await publish_vision_process_completed(result, task.value, provider_name)
 
         return result
 

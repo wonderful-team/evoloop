@@ -58,6 +58,7 @@ export function normalizeMessage(rawMsg: any): any {
     has_file_operations: changesetCount > 0,
     category: rawMsg.category,
     status: rawMsg.status,
+    sequence_number: rawMsg.sequence_number,
     run_id: rawMsg.run_id,
     parent_id: rawMsg.parent_id,
 

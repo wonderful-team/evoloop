@@ -568,7 +568,7 @@ async def get_skill_yaml(skill_id: int, current_user: CurrentUserOptional = None
 async def update_skill_yaml(
     skill_id: int,
     yaml_content: str = Body(..., media_type="text/yaml"),
-    current_user: CurrentUserOptional = None,
+    _current_user: CurrentUserOptional = None,
 ):
     """Update skill macro from YAML content."""
     try:

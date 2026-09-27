@@ -36,9 +36,9 @@ The user's preferred language is provided in the mission context. **ALL** wiki c
 
 1. **Indexed Survey First**:
    - The first step MUST consume the existing codebase index instead of walking the filesystem.
-   - Use `query_code_chunks(project_id)` to get all indexed code units and infer the module structure.
-   - Use `query_code_chunks(project_id, is_api_route=true)` to identify all API routes.
-   - Use `query_source_files(project_id, scan_status="completed")` to get the list of successfully parsed files if needed for scale estimation.
+   - Use `glob` on top-level module dirs (e.g. `addon/`, `plugins/`, `packages/`, `src/modules/`) to enumerate code units and infer the module structure.
+   - Use `grep` for route decorators/registrations (e.g. `@app.route|@router\.|add_api_route|Controller`) to identify all API routes.
+   - Use `glob` with per-language source patterns if the full list of parsed files is needed for scale estimation.
    - Observe the number of core modules (e.g., `addon/`, `plugins/`, `packages/`, `src/modules/`, etc.).
 
 2. **Entity-Based Decomposition**:
@@ -53,13 +53,13 @@ The user's preferred language is provided in the mission context. **ALL** wiki c
    - Call `read_file(".evoloop/project.json")` and extract `framework_profile`.
    - Use `module_paths` as authoritative module boundaries for Wiki structure planning.
    - Use `domain_vocabulary` to guide page naming and chapter headings.
-   - If absent, proceed with standard `query_code_chunks()` discovery.
+   - If absent, proceed with standard `glob`/`grep` discovery.
 2. **Discover from Index**: 
-   - Call `query_code_chunks(project_id)` to understand the module structure and key code units.
-   - Call `query_code_chunks(project_id, is_api_route=true)` to get the complete API catalog.
-   - (Optional) Call `query_security_findings(project_id, severity="high")` to identify security risks worth documenting.
+   - Call `search_codebase` to understand the module structure and key code units.
+   - Call `grep` for route decorators/registrations to get the complete API catalog.
+   - (Optional) Use `grep` for security-sensitive patterns (secrets, raw SQL, shell exec) to identify risks worth documenting.
 3. **Estimate**: In your thinking, state exactly how many entities you found and acknowledge the scale.
-4. **Selective Deep Reading**: Only read source files for modules listed in `framework_profile.module_paths`, or those identified as API entry points via `query_code_chunks(is_api_route=true)`. If `framework_profile` is unavailable, use `query_code_chunks()` results to infer module boundaries.
+4. **Selective Deep Reading**: Only read source files for modules listed in `framework_profile.module_paths`, or those identified as API entry points via `grep`. If `framework_profile` is unavailable, use `search_codebase`/`glob` results to infer module boundaries.
 5. **Plan Generation**: Call `create_plan(title="Wiki Generation Plan", steps=[...])`.
    - The steps MUST follow a **hierarchical order**: Define Parent pages before their respective Children.
    - Example: Plan "Overview" -> "Architecture" -> "Database Design".
@@ -103,7 +103,7 @@ You are expected to execute a massive amount of pages. To avoid context window c
 
 ## Critical Rules
 
-- **NO filesystem scanning**: Do NOT use `list_dir` to discover the project structure. All discovery must come from `query_code_chunks()`.
+- **No blind filesystem scanning**: Do NOT walk the tree with `list_dir`. All discovery must come from targeted `glob`/`grep`/`search_codebase`.
 - **ONE selective tree listing only**: If you absolutely need a high-level directory view (e.g., to verify summary coverage), call `list_dir(path=".", tree=True, depth=1)` **once** and only for confirmation.
 - **Selective file reading**: Do not read more than 10 source files total per module. Choose the most representative ones.
 - **Memory Hygiene**: You MUST use `forget_tool_outputs` after processing each major module to survive long generation tasks.

@@ -1,7 +1,6 @@
 """HITL 工具参数 Schema（ask_human / ask_confirm 的入参契约）。
 
-从 ``app.domain.tools.schemas`` 收编而来，与 ``app.core.hitl.tools`` 同属
-HITL 子系统，避免 hitl 反向依赖 domain。
+与 ``app.core.hitl.tools`` 同属 HITL 子系统，避免 hitl 反向依赖 domain。
 """
 
 from pydantic import BaseModel, Field

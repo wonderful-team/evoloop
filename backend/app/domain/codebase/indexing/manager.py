@@ -18,7 +18,6 @@ from app.domain.codebase.constants import (
     INDEXING_STATUS_DONE,
     INDEXING_STATUS_ERROR,
     INDEXING_STATUS_FAILED,
-    INDEXING_STATUS_IDLE,
     INDEXING_STATUS_IN_PROGRESS,
     INDEXING_STATUS_INDEXING,
     INDEXING_STATUS_QUEUED,
@@ -79,17 +78,6 @@ async def _clear_cancel_flag(repo_id: int) -> None:
         )
 
 
-async def _request_cancel(repo_id: int) -> None:
-    """Request cancellation of a repo indexing job via persistent cache flag."""
-    try:
-        await cache.set(_cancel_key(repo_id), "1")
-    except Exception as e:
-        logger.warning(
-            f"[IndexingManager] Failed to set cancel flag for repo {repo_id}: {e}",
-            exc_info=True,
-        )
-
-
 async def _is_cancel_requested(repo_id: int) -> bool:
     """Return True if cancellation has been requested for this repo."""
     try:
@@ -107,14 +95,9 @@ class IndexingManager:
     Manages active watchers for repositories and handles manual indexing triggers.
     Singleton-ish usage recommended.
 
-    Internal scheduling, status tracking and cancellation are keyed by repo_id.
+    Internal scheduling and status tracking are keyed by repo_id.
     project_id is only used for project-level side effects (summarization,
     standards, graph sync) and for frontend-facing events/status aggregation.
-
-    Cancellation:
-        Call ``cancel_repo_index(repo_id)`` (or ``cancel_indexing(project_id)``)
-        to set a persistent cancellation flag. ``trigger_full_index_repo`` checks
-        this flag between phases so cancellation is prompt but not immediate.
     """
 
     def __init__(self):
@@ -123,47 +106,8 @@ class IndexingManager:
         # singleton that may be accessed by multiple Huey worker threads.
         self._lock = threading.Lock()
 
-        # Track Active Jobs: repo_id -> status dict
-        # Status: "queuing", "indexing", "error", "done", "cancelled"
+        # Track Active Jobs: repo_id -> status string
         self._active_jobs: dict[int, str] = {}
-
-    def get_repo_status(self, repo_id: int) -> str:
-        """Get the current in-memory indexing status for a repository."""
-        with self._lock:
-            return self._active_jobs.get(repo_id, INDEXING_STATUS_IDLE)
-
-    async def cancel_repo_index(self, repo_id: int) -> None:
-        """Request cancellation of an active full-index job for a repository."""
-        await _request_cancel(repo_id)
-        with self._lock:
-            self._active_jobs[repo_id] = INDEXING_STATUS_CANCELLED
-        logger.info(f"[IndexingManager] Cancel requested for repo {repo_id}")
-
-    def cancel_indexing(self, project_id: int) -> None:
-        """
-        Request cancellation of active full-index job(s) for a project.
-
-        This synchronous wrapper schedules async cancellation for all repos
-        associated with the project. It exists for backward compatibility.
-        """
-        try:
-            loop = asyncio.get_running_loop()
-            loop.create_task(self._cancel_by_project(project_id))
-        except RuntimeError:
-            logger.warning(
-                f"[IndexingManager] No running event loop; cannot schedule cancellation for project {project_id}",
-                exc_info=True,
-            )
-
-    async def _cancel_by_project(self, project_id: int) -> None:
-        """Resolve active repo(s) for a project and request cancellation."""
-        repo = await resolve_project_to_repo(project_id)
-        if repo:
-            await self.cancel_repo_index(repo.id)
-        else:
-            logger.warning(
-                f"[IndexingManager] No active repo to cancel for project {project_id}"
-            )
 
     async def _check_cancelled(self, repo_id: int) -> bool:
         """Return True if cancellation has been requested for this repo."""
@@ -249,93 +193,100 @@ class IndexingManager:
             self._active_jobs[repo_id] = INDEXING_STATUS_INDEXING
         await _clear_cancel_flag(repo_id)
 
+        repo_name = ""
+        project_id = None
+        repo_path: str | None = None
+
         try:
+            # ---- Phase 0: Load repo metadata with a short DB session ----
             async with session_scope() as session:
                 repo = await session.get(Repository, repo_id)
-                if not repo:
-                    logger.warning(f"Repository {repo_id} not found")
-                    with self._lock:
-                        self._active_jobs[repo_id] = INDEXING_STATUS_ERROR
-                    await _set_indexing_status(repo_id, INDEXING_STATUS_ERROR)
-                    return
 
-                project_id = repo.project_id
-                repo_path = await self._resolve_repo_path(repo)
-                if not repo_path:
-                    logger.warning(
-                        f"[IndexingManager] Could not resolve local path for repo {repo_id}"
-                    )
-                    with self._lock:
-                        self._active_jobs[repo_id] = INDEXING_STATUS_ERROR
-                    await _set_indexing_status(repo_id, INDEXING_STATUS_ERROR)
-                    await self._update_indexing_status(repo_id, INDEXING_STATUS_FAILED)
-                    return
-
-                await self._update_indexing_status(
-                    repo_id, INDEXING_STATUS_IN_PROGRESS
-                )
-                await _set_indexing_status(repo_id, INDEXING_STATUS_INDEXING)
-                await self._publish_status(project_id, repo_id, INDEXING_STATUS_INDEXING)
-
-                if await self._check_cancelled(repo_id):
-                    return
-
-                await service.index_repository(repo_path, repo_id, force=rebuild)
-
-                if await self._check_cancelled(repo_id):
-                    return
-
-                # --- Phase 7: Auto-Hierarchy ---
-                if await self._check_cancelled(repo_id):
-                    return
-
-                # --- Project Cognitive Summary ---
-                try:
-                    from app.core.project.summarizer import project_summarizer
-
-                    await project_summarizer.add_project(repo.name, repo_path)
-                except Exception as e:
-                    logger.exception(f"Project Summarization Trigger Failed: {e}")
-
-                if await self._check_cancelled(repo_id):
-                    return
-
-                # --- Tier 4 Dynamic Indexing (Omniscience) ---
-                try:
-                    from app.domain.codebase.indexing.classifier import (
-                        ProjectType,
-                        project_classifier,
-                    )
-
-                    p_type = project_classifier.classify(repo_path)
-
-                    if p_type == ProjectType.SOFTWARE:
-                        logger.info(
-                            "Project classified as SOFTWARE. Running Semantic Extraction (API/DB)..."
-                        )
-                        await self._run_semantic_extraction(
-                            repo_id, repo_path, project_id
-                        )
-                    else:
-                        logger.info(
-                            f"Project classified as {p_type}. Skipping Semantic Extraction."
-                        )
-
-                except Exception as e:
-                    logger.exception(f"Semantic Extraction Failed: {e}")
-
+            if not repo:
+                logger.warning(f"Repository {repo_id} not found")
                 with self._lock:
-                    self._active_jobs[repo_id] = INDEXING_STATUS_DONE
-                await _set_indexing_status(repo_id, INDEXING_STATUS_DONE)
-                await self._publish_status(project_id, repo_id, INDEXING_STATUS_DONE)
-                await self._update_indexing_status(repo_id, INDEXING_STATUS_COMPLETED)
+                    self._active_jobs[repo_id] = INDEXING_STATUS_ERROR
+                await _set_indexing_status(repo_id, INDEXING_STATUS_ERROR)
+                return
 
-                if project_id is not None:
-                    from app.domain.codebase.event.publishers import (
-                        publish_indexing_completed,
+            project_id = repo.project_id
+            repo_name = repo.name
+            repo_path = await self._resolve_repo_path(repo)
+            if not repo_path:
+                logger.warning(
+                    f"[IndexingManager] Could not resolve local path for repo {repo_id}"
+                )
+                with self._lock:
+                    self._active_jobs[repo_id] = INDEXING_STATUS_ERROR
+                await _set_indexing_status(repo_id, INDEXING_STATUS_ERROR)
+                await self._update_indexing_status(repo_id, INDEXING_STATUS_FAILED)
+                return
+
+            await self._update_indexing_status(repo_id, INDEXING_STATUS_IN_PROGRESS)
+            await _set_indexing_status(repo_id, INDEXING_STATUS_INDEXING)
+
+            # ---- Phase 1: Heavy indexing work happens **outside** the DB session ----
+            await self._publish_status(project_id, repo_id, INDEXING_STATUS_INDEXING)
+
+            if await self._check_cancelled(repo_id):
+                return
+
+            await service.index_repository(repo_path, repo_id, force=rebuild)
+
+            if await self._check_cancelled(repo_id):
+                return
+
+            # --- Phase 7: Auto-Hierarchy ---
+            if await self._check_cancelled(repo_id):
+                return
+
+            # --- Project Cognitive Summary ---
+            try:
+                from app.core.project.summarizer import project_summarizer
+
+                await project_summarizer.add_project(repo_name, repo_path)
+            except Exception as e:
+                logger.exception(f"Project Summarization Trigger Failed: {e}")
+
+            if await self._check_cancelled(repo_id):
+                return
+
+            # --- Tier 4 Dynamic Indexing (Omniscience) ---
+            try:
+                from app.domain.codebase.indexing.classifier import (
+                    ProjectType,
+                    project_classifier,
+                )
+
+                p_type = project_classifier.classify(repo_path)
+
+                if p_type == ProjectType.SOFTWARE:
+                    logger.info(
+                        "Project classified as SOFTWARE. Running Semantic Extraction (API/DB)..."
+                    )
+                    await self._run_semantic_extraction(
+                        repo_id, repo_path, project_id
+                    )
+                else:
+                    logger.info(
+                        f"Project classified as {p_type}. Skipping Semantic Extraction."
                     )
 
-                    asyncio.create_task(publish_indexing_completed(project_id, repo_id))
+            except Exception as e:
+                logger.exception(f"Semantic Extraction Failed: {e}")
+
+            with self._lock:
+                self._active_jobs[repo_id] = INDEXING_STATUS_DONE
+            await _set_indexing_status(repo_id, INDEXING_STATUS_DONE)
+            await self._publish_status(project_id, repo_id, INDEXING_STATUS_DONE)
+            await self._update_indexing_status(repo_id, INDEXING_STATUS_COMPLETED)
+
+            if project_id is not None:
+                from app.domain.codebase.event.publishers import (
+                    publish_indexing_completed,
+                )
+
+                asyncio.create_task(publish_indexing_completed(project_id, repo_id))
 
         except asyncio.CancelledError:
             logger.info(f"Full Index Cancelled for Repo {repo_id}", exc_info=True)
@@ -346,7 +297,7 @@ class IndexingManager:
             await self._update_indexing_status(repo_id, INDEXING_STATUS_FAILED)
             raise
         except Exception as e:
-            logger.exception(f"Full Index Failed for Repo {repo_id}: {e}")
+            logger.exception(f"[IndexingManager] Full index failed for repo {repo_id}: {e}")
             with self._lock:
                 self._active_jobs[repo_id] = INDEXING_STATUS_ERROR
             await _set_indexing_status(repo_id, INDEXING_STATUS_ERROR)
@@ -730,14 +681,6 @@ class IndexingManager:
         if repo.local_path and os.path.isdir(repo.local_path):
             return repo.local_path
         return None
-
-    async def trigger_full_index_for_repo(self, repo_id: int):
-        """
-        Trigger full index for a specific repo by ID.
-
-        Deprecated: use trigger_full_index_repo instead.
-        """
-        await self.trigger_full_index_repo(repo_id)
 
     async def run_indexing_background(self, repo_id: int):
         """

@@ -1,101 +1,24 @@
 """
-Code Exploration Engine - Automatic Backend Selection
-
-Intelligently chooses between Knowledge Graph, LSP, and unified Search Center
-based on data availability and query characteristics.
+Code Exploration Engine - LSP-backed diagnostics for file edits.
 """
 
 import asyncio
 import logging
-import re
 from pathlib import Path
 from typing import Any
-
-from app.constants import DEFAULT_PROJECT_ID
-from app.core.file import FileSearcher
 
 logger = logging.getLogger(__name__)
 
 
 class CodeExplorationEngine:
     """
-    Unified code exploration with automatic backend selection.
-
-    Backend priority:
-    1. Knowledge Graph (fastest, pre-indexed)
-    2. LSP (real-time, language-aware)
-    3. Search Center (fallback, always available)
+    LSP-backed type checker for file edits.
     """
 
     def __init__(self):
         from app.infrastructure.solidlsp.manager import LSPManager
 
         self.lsp_manager = LSPManager.get_instance()
-
-    async def find_symbol(
-        self,
-        name: str,
-        project_id: int = DEFAULT_PROJECT_ID,
-        repo_path: str | None = None,
-    ) -> dict | None:
-        """
-        Find symbol definition using SQL retrieval, with grep fallback.
-        """
-        from app.domain.codebase.retrieval.service import RetrievalService
-
-        retriever = RetrievalService()
-        try:
-            results = await retriever.find_symbol_definition(name, project_id)
-            if results:
-                logger.info(f"[Engine] Found '{name}' via SQL retrieval")
-                return {"source": "sql", "results": results}
-        except Exception as e:
-            logger.debug(f"[Engine] SQL lookup failed: {e}", exc_info=True)
-
-        try:
-            results = await self._grep_find_symbol(name, repo_path)
-            if results:
-                logger.info(f"[Engine] Found '{name}' via Search Center fallback")
-                return {"source": "search_center", "results": results}
-        except Exception as e:
-            logger.debug(f"[Engine] Search center lookup failed: {e}", exc_info=True)
-
-        return None
-
-    async def search_code(
-        self, pattern: str, scope: str | None = None, repo_path: str | None = None
-    ) -> list[dict[str, Any]]:
-        """Search code using unified FileSearcher."""
-        if not repo_path:
-            from app.core.tools import get_working_directory
-
-            repo_path = get_working_directory(None)
-
-        results = await FileSearcher.search_content(pattern, repo_path, scope=scope)
-
-        return [
-            {"file_path": r["file"], "line": r["line"], "content": r["content"]}
-            for r in results
-        ]
-
-    async def _grep_find_symbol(
-        self, name: str, repo_path: str | None
-    ) -> list[dict[str, Any]]:
-        """Use unified FileSearcher to find symbol definition."""
-        if not repo_path:
-            from app.core.tools import get_working_directory
-
-            repo_path = get_working_directory(None)
-
-        # Pattern to match class/function definitions across common languages
-        pattern = f"(class|def|interface|function|struct|type)\\s+{re.escape(name)}\\b"
-
-        results = await FileSearcher.search_content(pattern, repo_path, limit=10)
-
-        return [
-            {"file_path": r["file"], "line": r["line"], "content": r["content"]}
-            for r in results
-        ]
 
     async def check_types(
         self, file_path: str, repo_path: str | None = None
@@ -128,20 +51,6 @@ class CodeExplorationEngine:
         except Exception as e:
             logger.exception(f"[Engine] Type check failed: {e}")
             return [{"error": str(e)}]
-
-    async def analyze_impact(
-        self, symbol: str, project_id: int = DEFAULT_PROJECT_ID
-    ) -> list[dict[str, Any]]:
-        """Analyze symbol impact using SQL retrieval."""
-        from app.domain.codebase.retrieval.service import RetrievalService
-
-        retriever = RetrievalService()
-        try:
-            usages = await retriever.find_usages(symbol, project_id)
-            return usages or []
-        except Exception as e:
-            logger.exception(f"[Engine] Impact analysis failed: {e}")
-            return []
 
     def _get_language_from_suffix(self, suffix: str) -> str | None:
         """Map file suffix to language name."""

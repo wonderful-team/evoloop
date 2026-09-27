@@ -211,40 +211,6 @@ class LLMFactory:
             config_type = "direct"
             base_url = config.base_url or ""
         else:
-            # Check if this model is a lightning (local) model
-            lightning_mode = SystemConfigService.get_value("LIGHTNING_MODE", "none")
-            if lightning_mode not in ("none", "") and SystemConfigService.get_value("LIGHTNING_LLM_MODEL"):
-                lightning_base = SystemConfigService.get_value("LIGHTNING_BASE_URL", "")
-                use_lightning = lightning_mode == "llama.cpp" or (
-                    lightning_base
-                    and config.model_name
-                    == SystemConfigService.get_value("LIGHTNING_LLM_MODEL", "")
-                )
-                if use_lightning:
-                    if lightning_mode == "llama.cpp":
-                        # llama.cpp mode: use LlamaCppChatModel directly
-                        from app.infrastructure.llm.lightning import (
-                            get_lightning_service,
-                        )
-
-                        llm = await get_lightning_service().get_llm()
-                        if llm is not None:
-                            logger.info("[LLMFactory] Llama.cpp model from LightningService")
-                            return llm
-                    if not lightning_base:
-                        from app.infrastructure.llm.lightning import _LIGHTNING_DEFAULTS
-
-                        defaults = _LIGHTNING_DEFAULTS.get(lightning_mode, {})
-                        lightning_base = defaults.get("base_url", "http://localhost:1234/v1")
-                        lightning_api_key = defaults.get("api_key", "lm-studio")
-                    else:
-                        lightning_api_key = SystemConfigService.get_value("LIGHTNING_API_KEY")
-                    config.base_url = lightning_base
-                    config.api_key = lightning_api_key or "lm-studio"
-                    config_type = "direct"
-                    base_url = lightning_base
-                    logger.info(f"[LLMFactory] Lightning model auto-detected: model={config.model_name}, mode={lightning_mode}")
-
             # Fallback: check if custom LLM is configured in the database.
             # Only applies in custom mode. In platform mode the request goes to
             # the EvoLoop Gateway which assigns a default model when none is

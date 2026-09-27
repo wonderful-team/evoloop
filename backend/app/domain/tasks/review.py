@@ -35,34 +35,48 @@ from app.domain.tasks.service import (
 logger = logging.getLogger(__name__)
 
 
-async def _latest_executor_reply(thread_id: str) -> str:
-    """The run's final assistant reply on this thread (prose text only).
+async def _latest_ai_reply(thread_id: str, *, assistant_categories_only: bool) -> str:
+    """该线程最后一条非空 ai 回复（单一查询实现，2026-09-25 合并）。
 
-    The messages table stores tool-call carrier rows (empty content) and
-    tool outputs under role=ai/assistant too — filter to the assistant
-    response category so the reviewer verdict is not read from an empty
-    carrier row.
+    messages 表在 role=ai 下还存 tool-call 载体行（空 content）与工具
+    输出——``assistant_categories_only=True`` 时过滤到 assistant 响应类目，
+    评审结论不会从空载体行读出（执行者汇报读取用）；False 时取任意类目
+    的最后一条非空 ai 消息（评审者结论回退读取用）。
+
+    排序必须用 ``sequence_number``（线程内单调序）：``id`` 是随机 UUID，
+    按 id 降序取到的是"随机一条"而非"最新一条"——评审结论行会时有时无，
+    曾致无结论=不通过的间歇性误判（2026-09-27 实测：同一回复有时读得到
+    有时读不到）。
     """
     from sqlalchemy import select
 
     from app.infrastructure.database import session_scope
     from app.models.conversation import Message
 
+    conditions = [
+        Message.thread_id == thread_id,
+        Message.role == "ai",
+        Message.content.isnot(None),
+        Message.content != "",
+    ]
+    if assistant_categories_only:
+        conditions.append(
+            Message.category.in_(("assistant_response", "assistant_text"))
+        )
     async with session_scope() as session:
         stmt = (
             select(Message.content)
-            .where(
-                Message.thread_id == thread_id,
-                Message.role == "ai",
-                Message.category.in_(("assistant_response", "assistant_text")),
-                Message.content.isnot(None),
-                Message.content != "",
-            )
-            .order_by(Message.id.desc())
+            .where(*conditions)
+            .order_by(Message.sequence_number.desc())
             .limit(1)
         )
         row = (await session.execute(stmt)).scalar()
         return str(row or "")
+
+
+async def _latest_executor_reply(thread_id: str) -> str:
+    """执行者最终汇报（assistant 响应类目过滤，见 _latest_ai_reply）。"""
+    return await _latest_ai_reply(thread_id, assistant_categories_only=True)
 
 
 async def _dispatch_to_thread(
@@ -87,7 +101,9 @@ async def _dispatch_to_thread(
         },
     )
     if result.status == DispatchStatus.FAILED:
-        logger.error("[TaskReview] dispatch failed for task %s: %s", source_task_id, result.error)
+        logger.error(
+            "[TaskReview] dispatch failed for task %s: %s", source_task_id, result.error
+        )
         return False
     if result.inputs:
         asyncio.create_task(run_agent_background(thread_id, result.inputs))
@@ -158,6 +174,16 @@ async def notify_arbitration(task, feedback: str) -> None:
         member_id=await TaskQueueService.resolve_member_id(task),
         source_task_id=task.id,
     )
+
+
+async def latest_reviewer_reply(thread_id: str) -> str:
+    """从落库消息里取评审者最后一条 ai 回复。
+
+    SESSION_COMPLETED 的内存 summary 存在与消息落库的竞态窗口（评审回复
+    已落库但 summary 未含结论行曾致"无结论=不通过"误判，两轮烧完转仲裁）。
+    verdict 判定必须以落库事实为准：优先 summary，无结论行时回退本函数。
+    """
+    return await _latest_ai_reply(thread_id, assistant_categories_only=False)
 
 
 async def resolve_review_verdict(task_id: str, reviewer_reply: str) -> None:

@@ -57,14 +57,6 @@ class GlobalObserverManager:
                 except Exception as e:
                     logger.exception(f"Failed to start Global Observer: {e}")
 
-    def stop_observer(self):
-        with self._lock:
-            if self._started:
-                self._observer.stop()
-                self._observer.join()
-                self._started = False
-                logger.info("Global Watchdog Observer stopped.")
-
     def schedule(self, event_handler, path: str, recursive: bool = True):
         # Normalize path
         path = os.path.abspath(path)

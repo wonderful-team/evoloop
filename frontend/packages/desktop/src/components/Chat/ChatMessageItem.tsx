@@ -1,19 +1,19 @@
-import {Button} from "@evoloop/shared/components/ui/button"
-import {ThinkingBlock, ToolCallItem} from "@evoloop/shared"
-import {motion} from "framer-motion"
-import {Brain, Copy, Quote, RotateCcw, Undo,} from "lucide-react"
-import {memo, useEffect, useState} from "react"
-import {useTranslation} from "react-i18next"
-import {toast} from "sonner"
-import {useAutoSpeak, useTTS} from "@/hooks/useTTS"
-import {previewFile} from "@/utils/fileLinkHandler"
-import {resolveReferencePreview} from "@/utils/fileUtils"
-import {ChangesetSnapshot} from "./ChangesetSnapshotView"
-import {type GalleryImage, ImageGalleryViewer} from "./ImageGalleryViewer"
-import {MessageContent} from "./MessageContent"
-import {MessageReferences} from "./MessageReferences"
-import {TaskProposalCard} from "./TaskProposalCard"
-import {TTSButton} from "./TTSButton"
+import { ThinkingBlock, ToolCallItem } from "@evoloop/shared"
+import { Button } from "@evoloop/shared/components/ui/button"
+import { motion } from "framer-motion"
+import { Brain, Copy, Quote, RotateCcw, Undo } from "lucide-react"
+import { memo, useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
+import { toast } from "sonner"
+import { useAutoSpeak, useTTS } from "@/hooks/useTTS"
+import { previewFile } from "@/utils/fileLinkHandler"
+import { resolveReferencePreview } from "@/utils/fileUtils"
+import { ChangesetSnapshot } from "./ChangesetSnapshotView"
+import { type GalleryImage, ImageGalleryViewer } from "./ImageGalleryViewer"
+import { MessageContent } from "./MessageContent"
+import { MessageReferences } from "./MessageReferences"
+import { TaskProposalCard } from "./TaskProposalCard"
+import { TTSButton } from "./TTSButton"
 
 export interface MessageReference {
   id: string
@@ -45,6 +45,7 @@ export interface Message {
     | "completed"
     | "failed"
     | "waiting_human"
+  sequence_number?: number
   run_id?: string
   tool_name?: string
   input?: any
@@ -187,9 +188,7 @@ const ChatMessageItem = memo(
         images={gallery?.images || []}
         index={gallery?.index || 0}
         open={!!gallery}
-        onIndexChange={(index) =>
-          setGallery((g) => (g ? { ...g, index } : g))
-        }
+        onIndexChange={(index) => setGallery((g) => (g ? { ...g, index } : g))}
         onClose={() => setGallery(null)}
       />
     )
@@ -198,8 +197,12 @@ const ChatMessageItem = memo(
         ? msg.effective_content
         : msg.content
     const onBehalfRender =
-      isSystemOnBehalf && (actionContent || "").trim().startsWith(SYSTEM_ON_BEHALF_PREFIX)
-        ? (actionContent || "").trim().slice(SYSTEM_ON_BEHALF_PREFIX.length).trim()
+      isSystemOnBehalf &&
+      (actionContent || "").trim().startsWith(SYSTEM_ON_BEHALF_PREFIX)
+        ? (actionContent || "")
+            .trim()
+            .slice(SYSTEM_ON_BEHALF_PREFIX.length)
+            .trim()
         : actionContent
 
     // Render Tool Message (Flat & Compact)
@@ -213,7 +216,11 @@ const ChatMessageItem = memo(
         proposalInput.action === "create" &&
         proposalInput.source === "agent"
       ) {
-        return <TaskProposalCard msg={{ id: msg.id, content: msg.content, input: proposalInput }} />
+        return (
+          <TaskProposalCard
+            msg={{ id: msg.id, content: msg.content, input: proposalInput }}
+          />
+        )
       }
 
       // 后端 display_name 是单行摘要模板，长值（命令/正则/SQL/提示词等）会被
@@ -229,7 +236,8 @@ const ChatMessageItem = memo(
         t("chat.toolMessage.fallbackName")
       ).trim()
       const toolInput = proposalInput
-      const rawAction = typeof toolInput.action === "string" ? toolInput.action : ""
+      const rawAction =
+        typeof toolInput.action === "string" ? toolInput.action : ""
 
       const actionLabel =
         rawAction && msg.tool_name
@@ -271,7 +279,10 @@ const ChatMessageItem = memo(
         }
         const images = (msg.references || [])
           .filter((r) => r.type === "image" && r.target_id)
-          .map((r) => ({ url: r.target_id, name: r.target_name || r.target_id }))
+          .map((r) => ({
+            url: r.target_id,
+            name: r.target_name || r.target_id,
+          }))
         if (images.length > 0) {
           const idx = images.findIndex((im) => im.url === ref.target_id)
           setGallery({ images, index: Math.max(idx, 0) })
@@ -320,84 +331,84 @@ const ChatMessageItem = memo(
               isUser={true}
               content={msg.content}
               onReferenceClick={handleReferenceClick}
-          />
+            />
 
-          {/* Absolute Hover Action Pill (Folded into top-right corner on hover, saving vertical space) */}
-          <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150 bg-background/90 backdrop-blur-sm px-1 py-0.5 rounded-md shadow-sm border border-border/40 z-10">
-            {/* Copy */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 rounded hover:bg-muted text-muted-foreground/80 hover:text-foreground"
-              onClick={() => {
-                navigator.clipboard.writeText(actionContent || "")
-                toast.success(t("chat.interface.copied"))
-              }}
-              title={t("chat.interface.copy")}
-            >
-              <Copy className="h-3 w-3" />
-            </Button>
-            {/* Quote */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 rounded hover:bg-muted text-muted-foreground/80 hover:text-foreground"
-              onClick={onQuote}
-              title={t("chat.interface.quote")}
-            >
-              <Quote className="h-3 w-3" />
-            </Button>
-            {/* Memorize */}
-            {onAddToMemory && actionContent && (
+            {/* Absolute Hover Action Pill (Folded into top-right corner on hover, saving vertical space) */}
+            <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150 bg-background/90 backdrop-blur-sm px-1 py-0.5 rounded-md shadow-sm border border-border/40 z-10">
+              {/* Copy */}
               <Button
                 variant="ghost"
                 size="icon"
-                className={`h-6 w-6 rounded hover:bg-muted ${
-                  msg.is_remembered
-                    ? "text-primary fill-primary"
-                    : "text-muted-foreground/80 hover:text-foreground"
-                }`}
-                onClick={() =>
-                  onAddToMemory(actionContent, msg.id, msg.is_remembered)
-                }
-                title={
-                  msg.is_remembered
-                    ? t("chat.interface.forget")
-                    : t("chat.interface.memorize")
-                }
+                className="h-6 w-6 rounded hover:bg-muted text-muted-foreground/80 hover:text-foreground"
+                onClick={() => {
+                  navigator.clipboard.writeText(actionContent || "")
+                  toast.success(t("chat.interface.copied"))
+                }}
+                title={t("chat.interface.copy")}
               >
-                <Brain
-                  className={`h-3 w-3 ${msg.is_remembered ? "fill-current" : ""}`}
-                />
+                <Copy className="h-3 w-3" />
               </Button>
-            )}
-            {/* Rewind */}
-            {onRewind && (
+              {/* Quote */}
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-6 w-6 rounded hover:bg-warning/10 text-muted-foreground/80 hover:text-warning"
-                onClick={() => onRewind(msg)}
-                title={t("chat.interface.rewind")}
+                className="h-6 w-6 rounded hover:bg-muted text-muted-foreground/80 hover:text-foreground"
+                onClick={onQuote}
+                title={t("chat.interface.quote")}
               >
-                <Undo className="h-3 w-3" />
+                <Quote className="h-3 w-3" />
               </Button>
-            )}
-            {/* Retry */}
-            {onRetry && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 rounded hover:bg-primary/10 text-muted-foreground/80 hover:text-primary"
-                onClick={() => onRetry(msg)}
-                title={t("chat.interface.retry")}
-              >
-                <RotateCcw className="h-3 w-3" />
-              </Button>
-            )}
-          </div>
-        </motion.div>
-        {galleryUI}
+              {/* Memorize */}
+              {onAddToMemory && actionContent && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={`h-6 w-6 rounded hover:bg-muted ${
+                    msg.is_remembered
+                      ? "text-primary fill-primary"
+                      : "text-muted-foreground/80 hover:text-foreground"
+                  }`}
+                  onClick={() =>
+                    onAddToMemory(actionContent, msg.id, msg.is_remembered)
+                  }
+                  title={
+                    msg.is_remembered
+                      ? t("chat.interface.forget")
+                      : t("chat.interface.memorize")
+                  }
+                >
+                  <Brain
+                    className={`h-3 w-3 ${msg.is_remembered ? "fill-current" : ""}`}
+                  />
+                </Button>
+              )}
+              {/* Rewind */}
+              {onRewind && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 rounded hover:bg-warning/10 text-muted-foreground/80 hover:text-warning"
+                  onClick={() => onRewind(msg)}
+                  title={t("chat.interface.rewind")}
+                >
+                  <Undo className="h-3 w-3" />
+                </Button>
+              )}
+              {/* Retry */}
+              {onRetry && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 rounded hover:bg-primary/10 text-muted-foreground/80 hover:text-primary"
+                  onClick={() => onRetry(msg)}
+                  title={t("chat.interface.retry")}
+                >
+                  <RotateCcw className="h-3 w-3" />
+                </Button>
+              )}
+            </div>
+          </motion.div>
+          {galleryUI}
         </>
       )
     }

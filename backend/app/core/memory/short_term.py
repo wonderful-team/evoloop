@@ -2,7 +2,7 @@
 
 import logging
 
-from sqlalchemy import delete, or_, select
+from sqlalchemy import delete, func, or_, select
 
 from app.core.engine.message.native_classes import (
     AIMessage,
@@ -72,57 +72,61 @@ class SqlShortTermMemory(IShortTermMemory):
         logger.debug(f"SqlShortTermMemory: Added {role} message to thread {thread_id}")
 
     async def get_context(self, thread_id: str, limit: int = 50) -> list[BaseMessage]:
+        # Phase 1: load visible messages (short session)
         async with session_scope() as db:
             visible_stmt = (
                 select(Message)
                 .where(
                     Message.thread_id == thread_id,
-                    Message.is_visible == True,
+                    Message.is_visible.is_(True),
                 )
                 .order_by(Message.id.desc())
                 .limit(limit)
             )
 
             result = await db.execute(visible_stmt)
-            visible_messages = result.scalars().all()
-            visible_messages = list(reversed(visible_messages))
+            visible_messages = list(reversed(result.scalars().all()))
 
-            recent_run_ids = set()
-            ai_count = 0
-            for msg in reversed(visible_messages):
-                if msg.role == "ai" and msg.run_id:
-                    recent_run_ids.add(msg.run_id)
-                    ai_count += 1
-                    if ai_count >= 2:
-                        break
+        # Phase 2: determine recent run IDs outside any session
+        recent_run_ids = set()
+        ai_count = 0
+        for msg in reversed(visible_messages):
+            if msg.role == "ai" and msg.run_id:
+                recent_run_ids.add(msg.run_id)
+                ai_count += 1
+                if ai_count >= 2:
+                    break
 
-            latest_run_stmt = (
-                select(Message.run_id)
-                .where(Message.thread_id == thread_id, Message.run_id.is_not(None))
-                .order_by(Message.id.desc())
-                .limit(1)
-            )
-            latest_run_id = (await db.execute(latest_run_stmt)).scalar_one_or_none()
-            if latest_run_id:
-                recent_run_ids.add(latest_run_id)
+        # Phase 3: latest run ID (short session)
+        async with session_scope() as db:
+            latest_run_id = (
+                await db.execute(
+                    select(Message.run_id)
+                    .where(Message.thread_id == thread_id, Message.run_id.is_not(None))
+                    .order_by(Message.id.desc())
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+        if latest_run_id:
+            recent_run_ids.add(latest_run_id)
 
-            invisible_messages = []
-            if recent_run_ids:
+        # Phase 4: associated invisible messages (short session)
+        invisible_messages = []
+        if recent_run_ids:
+            async with session_scope() as db:
                 invisible_stmt = (
                     select(Message)
                     .where(
                         Message.thread_id == thread_id,
-                        Message.is_visible == False,
+                        Message.is_visible.is_(False),
                         Message.run_id.in_(recent_run_ids),
                     )
                     .order_by(Message.sequence_number.asc())
                 )
+                invisible_messages = (await db.execute(invisible_stmt)).scalars().all()
 
-                invisible_result = await db.execute(invisible_stmt)
-                invisible_messages = invisible_result.scalars().all()
-
-            all_messages = visible_messages + list(invisible_messages)
-            all_messages.sort(key=lambda m: m.id)
+        all_messages = list(visible_messages) + list(invisible_messages)
+        all_messages.sort(key=lambda m: m.id)
 
         lc_messages: list[BaseMessage] = []
         pending_tool_calls: dict[int, list[dict]] = {}
@@ -165,10 +169,11 @@ class SqlShortTermMemory(IShortTermMemory):
     async def prune(self, thread_id: str) -> None:
 
         async with session_scope() as db:
-            count_stmt = select(Message).where(Message.thread_id == thread_id)
-            result = await db.execute(count_stmt)
-            all_messages = result.scalars().all()
-            total_count = len(all_messages)
+            count_stmt = (
+                select(func.count(Message.id))
+                .where(Message.thread_id == thread_id)
+            )
+            total_count = (await db.execute(count_stmt)).scalar() or 0
 
             if total_count <= SHORT_TERM_MAX_MESSAGES:
                 return
@@ -182,7 +187,7 @@ class SqlShortTermMemory(IShortTermMemory):
             )
 
             result = await db.execute(oldest_stmt)
-            ids_to_delete = [r for r in result.scalars().all()]
+            ids_to_delete = list(result.scalars().all())
 
             if ids_to_delete:
                 delete_stmt = delete(Message).where(Message.id.in_(ids_to_delete))
@@ -212,7 +217,7 @@ class SqlShortTermMemory(IShortTermMemory):
             if thread_id:
                 stmt = stmt.where(Message.thread_id == thread_id)
 
-            stmt = stmt.where(Message.is_visible == True)
+            stmt = stmt.where(Message.is_visible.is_(True))
             stmt = stmt.order_by(Message.created_at.desc()).limit(limit)
 
             result = await db.execute(stmt)

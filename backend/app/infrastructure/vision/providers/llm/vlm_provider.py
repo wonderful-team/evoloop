@@ -47,6 +47,21 @@ class MultimodalVLMProvider(VisionProvider):
         """Process vision task using VLM."""
         start_time = time.time()
 
+        # 无可用视觉模型时给 Agent 明确的引导性错误（而非裸 ValueError），
+        # 便于其降级（如像素统计/OCR 代码方案）或提示用户配置
+        try:
+            await get_vision_llm_async()
+        except ValueError as e:
+            return VisionResult(
+                task=task,
+                success=False,
+                summary=(
+                    f"Error: 视觉理解不可用：{e}。"
+                    "请配置 VISION_MODEL 为平台目录中 supports_vision 的模型，"
+                    "或由 Agent 使用 bash 像素统计等代码方案降级处理。"
+                ),
+            )
+
         # Default prompt if none provided
         if not prompt:
             if task == VisionTask.CAPTION:

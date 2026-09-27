@@ -124,7 +124,7 @@ def shared_task(
                     from app.infrastructure.database.resource_manager import (
                         db_resource_manager,
                     )
-                    await db_resource_manager.initialize(create_tables=False, seed_data=False)
+                    await db_resource_manager.initialize(create_tables=False)
                     return await f(*args, **kwargs)
 
                 try:

@@ -22,7 +22,6 @@ def get_global_mode_message(tool_category: str = "default") -> str:
 
 
 async def resolve_project_with_hitl(
-    tool_name: str,
     prompt: str | None = None,
     tool_category: str = "default",
     temporary: bool = True,
@@ -36,7 +35,6 @@ async def resolve_project_with_hitl(
     3. Returns project_id if available, None if user cancelled
 
     Args:
-        tool_name: Name of the tool for logging
         prompt: Custom prompt message (optional)
         tool_category: Category for default message (code_search/wiki/architecture/etc.)
         temporary: Whether this is a temporary project switch (Scheme C)
@@ -81,7 +79,7 @@ async def resolve_project_with_hitl(
 
 
 async def require_project_for_tool(
-    tool_name: str, tool_category: str = "default", prompt: str | None = None
+    tool_category: str = "default", prompt: str | None = None
 ) -> int | str:
     """
     Require a project for tool execution in global mode.
@@ -91,7 +89,6 @@ async def require_project_for_tool(
     - str: Error message to return to LLM (user cancelled)
 
     Args:
-        tool_name: Name of the tool being called
         tool_category: Category for default message
         prompt: Custom prompt message (optional)
 
@@ -99,7 +96,6 @@ async def require_project_for_tool(
         Project ID (int) if successful, error message (str) if cancelled
     """
     project_id = await resolve_project_with_hitl(
-        tool_name=tool_name,
         prompt=prompt,
         tool_category=tool_category,
         temporary=True,  # Always use Scheme C (temporary) for tool calls

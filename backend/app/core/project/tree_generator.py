@@ -239,52 +239,53 @@ class AnnotatedTreeGenerator:
                 stmt = stmt.options(selectinload(SourceFile.chunks))
             result = await session.execute(stmt)
             source_files = result.scalars().all()
-            if not source_files:
-                return None
 
-            root_node = TreeNode(name=os.path.basename(self.root_path), type="dir")
-            nodes_map = {self.root_path: root_node}
+        if not source_files:
+            return None
 
-            for sf in source_files:
-                full_path = os.path.join(repo_path, sf.path)
-                if not full_path.startswith(self.root_path):
-                    continue
-                if self._is_path_ignored(full_path, ignored_paths):
-                    continue
+        root_node = TreeNode(name=os.path.basename(self.root_path), type="dir")
+        nodes_map = {self.root_path: root_node}
 
-                rel_path = os.path.relpath(full_path, self.root_path)
-                parts = rel_path.split(os.sep)
-                if len(parts) > self.max_depth:
-                    continue
+        for sf in source_files:
+            full_path = os.path.join(repo_path, sf.path)
+            if not full_path.startswith(self.root_path):
+                continue
+            if self._is_path_ignored(full_path, ignored_paths):
+                continue
 
-                filename = os.path.basename(full_path)
-                if self.pattern and not fnmatch.fnmatch(filename, self.pattern):
-                    continue
-                if not self.file_filter.should_include(full_path):
-                    continue
+            rel_path = os.path.relpath(full_path, self.root_path)
+            parts = rel_path.split(os.sep)
+            if len(parts) > self.max_depth:
+                continue
 
-                current_node = root_node
-                current_abs = self.root_path
-                for i, part in enumerate(parts):
-                    is_last_part = i == len(parts) - 1
-                    current_abs = os.path.join(current_abs, part)
-                    if current_abs in nodes_map:
-                        current_node = nodes_map[current_abs]
-                    else:
-                        node_type = "file" if is_last_part else "dir"
-                        new_node = TreeNode(name=part, type=node_type)
-                        current_node.add_child(new_node)
-                        nodes_map[current_abs] = new_node
-                        current_node = new_node
+            filename = os.path.basename(full_path)
+            if self.pattern and not fnmatch.fnmatch(filename, self.pattern):
+                continue
+            if not self.file_filter.should_include(full_path):
+                continue
 
-                file_node = current_node
-                if self.with_symbols:
-                    self._add_symbols_to_file_node(file_node, sf.chunks)
+            current_node = root_node
+            current_abs = self.root_path
+            for i, part in enumerate(parts):
+                is_last_part = i == len(parts) - 1
+                current_abs = os.path.join(current_abs, part)
+                if current_abs in nodes_map:
+                    current_node = nodes_map[current_abs]
+                else:
+                    node_type = "file" if is_last_part else "dir"
+                    new_node = TreeNode(name=part, type=node_type)
+                    current_node.add_child(new_node)
+                    nodes_map[current_abs] = new_node
+                    current_node = new_node
 
-            if self.pattern:
-                self._prune_empty_dirs(root_node)
-            root_node.sort_children()
-            return root_node
+            file_node = current_node
+            if self.with_symbols:
+                self._add_symbols_to_file_node(file_node, sf.chunks)
+
+        if self.pattern:
+            self._prune_empty_dirs(root_node)
+        root_node.sort_children()
+        return root_node
 
     async def _find_repository_by_path(
         self, session, root_path: str
@@ -380,9 +381,9 @@ class AnnotatedTreeGenerator:
             result = await session.execute(stmt)
             files = result.scalars().all()
 
-            mapping = {}
-            for sf in files:
-                full_path = os.path.join(repo_path, sf.path)
-                rel_path = os.path.relpath(full_path, self.root_path)
-                mapping[rel_path] = sf.chunks
-            return mapping
+        mapping = {}
+        for sf in files:
+            full_path = os.path.join(repo_path, sf.path)
+            rel_path = os.path.relpath(full_path, self.root_path)
+            mapping[rel_path] = sf.chunks
+        return mapping

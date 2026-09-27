@@ -77,11 +77,6 @@ def current_member_id() -> int:
         return 0
 
 
-def member_workspace_root_or_fail(member_id: int | None = None) -> str:
-    """解析当前（或指定）member 的工作根；多租户下无身份返回空串（fail-closed）。"""
-    return resolve_member_workspace_root(member_id if member_id else current_member_id())
-
-
 def get_evoloop_dir(project_path: str) -> Path:
     """
     返回 {project}/.evoloop/ 目录，不存在则创建。
@@ -95,11 +90,6 @@ def get_evoloop_dir(project_path: str) -> Path:
     p = Path(project_path) / ".evoloop"
     p.mkdir(parents=True, exist_ok=True)
     return p
-
-
-def get_graph_path(project_path: str) -> Path:
-    """返回项目的 code_graph.json 路径"""
-    return get_evoloop_dir(project_path) / "code_graph.json"
 
 
 def get_vectors_path(project_path: str) -> Path:
@@ -199,33 +189,35 @@ async def get_project_path(project_id: int, member_id: int | None = None) -> str
     # This is a transitional fallback for projects that haven't written their
     # project_id into .evoloop/project.json yet. We intentionally do NOT mutate
     # project.json here to keep local-first authority intact.
+    repo: Repository | None = None
     try:
         async with session_scope() as session:
             stmt = select(Repository).where(Repository.project_id == project_id)
             result = await session.execute(stmt)
             repo = result.scalar_one_or_none()
-            if repo:
-                # Prefer relative_path (stable against renames/moves of WORKSPACE_ROOT)
-                if repo.relative_path and scan_root:
-                    candidate = os.path.join(scan_root, repo.relative_path)
-                    if os.path.isdir(candidate):
-                        return candidate
-
-                if repo.local_path and os.path.isdir(repo.local_path):
-                    # 多租户下 local_path 必须落在该 member 根内，防止 DB 脏数据
-                    # 越界到其他用户目录/宿主任意路径。
-                    if not _settings.MULTI_TENANT_MODE:
-                        return repo.local_path
-                    if member_root and os.path.realpath(repo.local_path).startswith(
-                        os.path.realpath(member_root) + os.sep
-                    ):
-                        return repo.local_path
-                    logger.debug(
-                        f"[ProjectUtils] repo.local_path {repo.local_path!r} outside "
-                        f"member root {member_root!r}; denied"
-                    )
     except Exception as e:
         logger.debug(f"DB lookup failed for {project_id}: {e}", exc_info=True)
+
+    if repo:
+        # Prefer relative_path (stable against renames/moves of WORKSPACE_ROOT)
+        if repo.relative_path and scan_root:
+            candidate = os.path.join(scan_root, repo.relative_path)
+            if os.path.isdir(candidate):
+                return candidate
+
+        if repo.local_path and os.path.isdir(repo.local_path):
+            # 多租户下 local_path 必须落在该 member 根内，防止 DB 脏数据
+            # 越界到其他用户目录/宿主任意路径。
+            if not _settings.MULTI_TENANT_MODE:
+                return repo.local_path
+            if member_root and os.path.realpath(repo.local_path).startswith(
+                os.path.realpath(member_root) + os.sep
+            ):
+                return repo.local_path
+            logger.debug(
+                f"[ProjectUtils] repo.local_path {repo.local_path!r} outside "
+                f"member root {member_root!r}; denied"
+            )
 
     return ""
 

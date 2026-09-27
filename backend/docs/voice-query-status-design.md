@@ -180,7 +180,6 @@ POST /chat "完了吗？"
 |---|------|------|
 | 1 | `supervisor_builder.py` | 传入 `has_running_task` + `task_description` |
 | 2 | `supervisor.prompt.j2` | `{% if has_running_task %}` 判断 query/new 规则 |
-| 3 | `supervisor_lightning.prompt.j2` | 同上 |
 
 ### Phase 3：现有路径接入
 

@@ -99,7 +99,7 @@ def _map_mc_user_to_user(data: dict) -> User:
 
 
 @router.get("/me", response_model=UserPublic)
-async def read_user_me(current_user: CurrentUser, token: TokenDepOptional = None) -> Any:
+async def read_user_me(_current_user: CurrentUser, token: TokenDepOptional = None) -> Any:
     """
     Get current user info from Member Center.
     Reads from the profile cache populated by IdentityService to avoid a redundant
@@ -151,7 +151,7 @@ async def read_user_me(current_user: CurrentUser, token: TokenDepOptional = None
 @router.put("/password", response_model=BaseAPIResponse)
 async def change_password(
     data: ChangePasswordRequest,
-    current_user: CurrentUser,
+    _current_user: CurrentUser,
     token: TokenDepOptional = None,
 ) -> EvoCloudProxyResponse:
     """
@@ -167,7 +167,7 @@ async def change_password(
 @router.put("/me", response_model=UserPublic)
 async def update_user_me(
     data: UpdateUserRequest,
-    current_user: CurrentUser,
+    _current_user: CurrentUser,
     token: TokenDepOptional = None,
 ) -> EvoCloudProxyResponse:
     """

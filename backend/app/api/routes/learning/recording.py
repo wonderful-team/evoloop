@@ -44,7 +44,7 @@ async def _count_persisted_events(session_ids: list[str]) -> dict[str, int]:
 
 
 @router.post("/traces/stop", response_model=StopRecordingResponse)
-async def stop_recording(session_id: str, current_user: CurrentUserOptional = None):
+async def stop_recording(session_id: str, _current_user: CurrentUserOptional = None):
     """Stop a recording session."""
     if session_id not in _active_sessions:
         raise HTTPException(status_code=404, detail="Recording session not found")
@@ -60,7 +60,7 @@ async def stop_recording(session_id: str, current_user: CurrentUserOptional = No
 
 
 @router.get("/traces/sessions", response_model=RecordingSessionsResponse)
-async def list_recording_sessions(thread_id: str | None = None, current_user: CurrentUserOptional = None):
+async def list_recording_sessions(thread_id: str | None = None, _current_user: CurrentUserOptional = None):
     """List active recording sessions."""
     counts = await _count_persisted_events(list(_active_sessions))
     sessions = []

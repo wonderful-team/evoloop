@@ -1,7 +1,7 @@
 """共享的 Agent 执行构建函数 — 单发（run_agent_background）与会话（run_agent_session）复用。
 
 消除两套执行路径各自重复的 config/callback/state 构建：
-- ``build_execution_config``：config + callbacks（lightning 两档模型、message_handler、trace）
+- ``build_execution_config``：config + callbacks（model、message_handler、trace）
 - ``build_agent_state``：历史消息加载 + AgentState 构建
 - ``build_ctx``：加载/构建 EvoContext
 """
@@ -124,22 +124,6 @@ def build_execution_config(
             **inputs.metadata,
         },
     }
-
-    # Lightning 本地模型作为主模型：配置后完整取代默认模型（含 LLM 调用兜底）。
-    from app.infrastructure.config.service import SystemConfigService
-
-    lightning_mode = SystemConfigService.get_value("LIGHTNING_MODE", "none")
-    if lightning_mode not in ("none", ""):
-        lightning_model = SystemConfigService.get_value("LIGHTNING_LLM_MODEL", "")
-        lightning_base = SystemConfigService.get_value("LIGHTNING_BASE_URL", "")
-        lightning_ctx = SystemConfigService.get_value("LIGHTNING_CTX", "8192")
-        if lightning_model:
-            config["configurable"]["lightning_model"] = lightning_model
-            config["configurable"]["lightning_base_url"] = lightning_base
-            config["configurable"]["lightning_api_key"] = SystemConfigService.get_value(
-                "LIGHTNING_API_KEY", ""
-            )
-            config["configurable"]["lightning_ctx"] = lightning_ctx
 
     callbacks = build_callbacks(
         thread_id,

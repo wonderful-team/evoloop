@@ -2,77 +2,14 @@
 Codebase Indexing Background Tasks.
 
 Runs in Huey (embedded mode) or Celery (full mode) worker.
-All tasks have a built-in timeout so a single hanging file can't
-stall the entire worker queue.
 """
 
 import asyncio
 import logging
 
-from app.domain.codebase.constants import INDEX_FILE_TIMEOUT
 from app.infrastructure.queue.factory import shared_task
 
 logger = logging.getLogger(__name__)
-
-
-@shared_task(name="codebase_index_file")
-async def index_file_task(file_path: str, repo_id: int) -> None:
-    """Background task to index a single modified file."""
-    from app.domain.codebase.indexing.service import IndexingService
-
-    service = IndexingService()
-    try:
-        await asyncio.wait_for(
-            service.index_file(file_path, repo_id),
-            timeout=INDEX_FILE_TIMEOUT,
-        )
-    except asyncio.TimeoutError:
-        logger.warning(
-            f"[Task] index_file timed out after {INDEX_FILE_TIMEOUT}s: {file_path}",
-            exc_info=True,
-        )
-    except Exception:
-        logger.exception(f"[Task] index_file failed: {file_path}")
-
-
-@shared_task(name="codebase_remove_file")
-async def remove_file_task(file_path: str, repo_id: int) -> None:
-    """Background task to remove a single file from the index."""
-    from app.domain.codebase.indexing.service import IndexingService
-
-    service = IndexingService()
-    try:
-        await asyncio.wait_for(
-            service.remove_file(file_path, repo_id),
-            timeout=INDEX_FILE_TIMEOUT,
-        )
-    except asyncio.TimeoutError:
-        logger.warning(
-            f"[Task] remove_file timed out after {INDEX_FILE_TIMEOUT}s: {file_path}",
-            exc_info=True,
-        )
-    except Exception:
-        logger.exception(f"[Task] remove_file failed: {file_path}")
-
-
-@shared_task(name="codebase_move_file")
-async def move_file_task(src_path: str, dest_path: str, repo_id: int) -> None:
-    """Background task to move/rename a single file in the index."""
-    from app.domain.codebase.indexing.service import IndexingService
-
-    service = IndexingService()
-    try:
-        await asyncio.wait_for(
-            service.move_file(src_path, dest_path, repo_id),
-            timeout=INDEX_FILE_TIMEOUT,
-        )
-    except asyncio.TimeoutError:
-        logger.warning(
-            f"[Task] move_file timed out after {INDEX_FILE_TIMEOUT}s: {src_path} -> {dest_path}",
-            exc_info=True,
-        )
-    except Exception:
-        logger.exception(f"[Task] move_file failed: {src_path} -> {dest_path}")
 
 
 @shared_task(name="run_full_indexing")

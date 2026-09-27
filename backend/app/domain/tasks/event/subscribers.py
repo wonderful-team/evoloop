@@ -45,9 +45,10 @@ class InboundMessageSubscriber:
         # 会话类客服消息（有 contact）→ 值守对话直通：不落任务队列，
         # 独立 kf_ 线程即时推理（画布/任务列表不可见，智能体对话可见）。
         # 纯工作项（无 contact）与其他 source 照旧入任务队列。
-        if str(event.channel or "") == "mcp_message" and str(
-            event.contact or ""
-        ).strip():
+        if (
+            str(event.channel or "") == "mcp_message"
+            and str(event.contact or "").strip()
+        ):
             from app.domain.tasks.runtime.conversation import (
                 dispatch_conversation_message,
             )
@@ -135,15 +136,17 @@ class SessionReplyRouter:
         if not contact or not channel:
             return  # 纯工作项：无回复语义
 
-        await system_bus.publish(OutboundReplyEvent(
-            source="domain.tasks",
-            channel=channel,
-            recipient=contact,
-            content=summary,
-            project_id=task.project_id or 0,
-            source_system=str(source_ref.get("source_system") or ""),
-            thread_id=thread_id,
-        ))
+        await system_bus.publish(
+            OutboundReplyEvent(
+                source="domain.tasks",
+                channel=channel,
+                recipient=contact,
+                content=summary,
+                project_id=task.project_id or 0,
+                source_system=str(source_ref.get("source_system") or ""),
+                thread_id=thread_id,
+            )
+        )
         logger.info(
             "[SessionReplyRouter] reply routed (task=%s, channel=%s, contact=%s)",
             task.id,
@@ -186,15 +189,17 @@ class KfReplyRouter:
         if not contact or not channel:
             return
 
-        await system_bus.publish(OutboundReplyEvent(
-            source="domain.tasks",
-            channel=channel,
-            recipient=contact,
-            content=summary,
-            project_id=int(meta.get("project_id") or 0),
-            source_system=str(meta.get("source_system") or ""),
-            thread_id=thread_id,
-        ))
+        await system_bus.publish(
+            OutboundReplyEvent(
+                source="domain.tasks",
+                channel=channel,
+                recipient=contact,
+                content=summary,
+                project_id=int(meta.get("project_id") or 0),
+                source_system=str(meta.get("source_system") or ""),
+                thread_id=thread_id,
+            )
+        )
         logger.info(
             "[KfReplyRouter] reply routed (thread=%s, channel=%s, contact=%s)",
             thread_id,
@@ -227,7 +232,8 @@ class DutyWakeupSubscriber:
 
             pause_duty_until(
                 _quota_reset_time(event)
-                or datetime.now(timezone.utc) + timedelta(minutes=QUOTA_COOLDOWN_MINUTES)
+                or datetime.now(timezone.utc)
+                + timedelta(minutes=QUOTA_COOLDOWN_MINUTES)
             )
         notify_duty_wakeup()
 
@@ -286,14 +292,41 @@ class TaskReviewSubscriber:
         if data is None:
             return
         thread_id = str(getattr(data, "thread_id", "") or "")
-        if not thread_id or thread_id.startswith("wakeup_"):
+        if not thread_id:
             return
+        # 注意：不排除 wakeup_ 前缀——Agent 规划/连环创建的任务，其 origin
+        # 就是派生它们的值守 run 线程（wakeup_），评审 run 也回灌到该线程；
+        # 此前排除了 wakeup_ 导致这类任务的评审 verdict 永远无法落库。
+        # 误触发由 find_review_pending_by_thread 的精确匹配兜住（只命中
+        # review_pending=1 且 origin 恰为该线程的任务）。
         task = await TaskQueueService.find_review_pending_by_thread(thread_id)
         if task is None:
             return
         summary = str(getattr(data, "summary", "") or "").strip()
-        if not summary:
-            summary = ""
+        # 内存 summary 与消息落库存在竞态窗口：评审回复已落库但 summary
+        # 未含结论行曾致"无结论=不通过"误判。verdict 以落库事实为准——
+        # summary 缺结论行时回退读 origin 线程最后一条 ai 消息。
+        if "结论:" not in summary and "结论：" not in summary:
+            from app.domain.tasks.review import latest_reviewer_reply
+
+            # 内存 summary 与落库消息可能双双赶不上 SESSION_COMPLETED：
+            # 评审回复的最终落库晚于事件数毫秒，回退读库也拿不到结论行
+            # → "无结论=不通过"误判，白白烧掉一次返工轮次。结论行落库
+            # 存在竞态窗口时短暂重试等待；真无结论行（评审忘写）时
+            # 4s 后照旧按不通过收敛（2 轮上限兜底）。
+            for attempt in range(4):
+                if attempt:
+                    await asyncio.sleep(1.0)
+                fallback = await latest_reviewer_reply(thread_id)
+                if fallback and ("结论:" in fallback or "结论：" in fallback):
+                    logger.info(
+                        "[TaskReview] summary lacks verdict, using DB reply "
+                        "for task %s (attempt %d)",
+                        task.id,
+                        attempt,
+                    )
+                    summary = fallback
+                    break
         logger.info(
             "[TaskReview] reviewer session completed: task=%s (reply %d chars)",
             task.id,

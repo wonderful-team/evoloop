@@ -21,6 +21,3 @@ class EventType(str, Enum):
     # Device Events
     DEVICE_CONNECTED = "environment.device_connected"
     DEVICE_DISCONNECTED = "environment.device_disconnected"
-
-    # Perception
-    UI_TREE_OBSERVED = "ui.tree_observed"

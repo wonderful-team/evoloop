@@ -7,12 +7,13 @@
    - 左右磁吸端口交互手柄：支持从右端口按住拖拽连线到下游节点
    ========================================================================== */
 
-import React from "react"
-import type {DutyTask} from "../core/types"
-import {stripMarkdownTokens} from "../core/mdText"
-import {ArrowDownLeft} from "lucide-react"
-import {DutyNodePageContent} from "./DutyNodePageContent"
-import {PlanProgressInline} from "../detail/PlanPanel"
+import { ArrowDownLeft } from "lucide-react"
+import type React from "react"
+import { stripMarkdownTokens } from "../core/mdText"
+import { statusMeta } from "../core/statusMeta"
+import type { DutyTask } from "../core/types"
+import { PlanProgressInline } from "../detail/PlanPanel"
+import { DutyNodePageContent } from "./DutyNodePageContent"
 
 export const EXPANDED_CARD_WIDTH = 1040
 export const EXPANDED_CARD_HEIGHT = 660
@@ -33,12 +34,18 @@ interface DutyNodeCardProps {
   onSelect?: () => void
   onFocus: () => void
   onUnfocus: () => void
-  onPortPointerDown?: (e: React.PointerEvent, taskId: string, side: "left" | "right" | "top" | "bottom") => void
+  onPortPointerDown?: (
+    e: React.PointerEvent,
+    taskId: string,
+    side: "left" | "right" | "top" | "bottom",
+  ) => void
   onTaskFission?: (taskId: string) => void
   onPickOption?: (taskId: string, index: number) => void
   onApprove?: (taskId: string, grantMode?: "once" | "always") => void
   onReject?: (taskId: string, reason?: string) => void
-  onArbitrate?: (action: "retry_upstream" | "cancel_downstream" | "reopen_modified") => void
+  onArbitrate?: (
+    action: "retry_upstream" | "cancel_downstream" | "reopen_modified",
+  ) => void
   onConfirmHitl?: (taskId: string, grantMode?: "once" | "always") => void
   onCancelHitl?: (taskId: string) => void
   onSubmitTextHitl?: (taskId: string, value: string) => void
@@ -80,41 +87,19 @@ export const DutyNodeCard = ({
 }: DutyNodeCardProps) => {
   const isExpanded = isFocused
 
-
-
-  const statusDotClass =
-    task.status === "completed"
-      ? "done"
-      : task.status === "in_progress"
-      ? "run"
-      : task.status === "proposed"
-      ? "proposed"
-      : task.status === "waiting_acceptance" || task.status === "confirm"
-      ? "wait"
-      : task.status === "failed" || task.status === "blocked"
-      ? "fail"
-      : "lock"
-
-  const statusGlyph =
-    task.status === "completed"
-      ? "✓"
-      : task.status === "in_progress"
-      ? "⟳"
-      : task.status === "proposed"
-      ? "💡"
-      : task.status === "waiting_acceptance" || task.status === "confirm"
-      ? "⏸"
-      : task.status === "failed"
-      ? "⛔"
-      : task.status === "blocked"
-      ? "🔒"
-      : "○"
+  const meta = statusMeta(task.status)
+  const statusDotClass = meta.cardCls
+  const statusGlyph = meta.glyph
 
   /* 在画布坐标系中，计算原地中心对称展开后的坐标与宽高 */
   const cardWidth = isExpanded ? EXPANDED_CARD_WIDTH : task.w
-  const cardHeight = isExpanded ? EXPANDED_CARD_HEIGHT : (task.h || 280)
-  const cardLeft = isExpanded ? task.x - (EXPANDED_CARD_WIDTH - task.w) / 2 : task.x
-  const cardTop = isExpanded ? task.y - (EXPANDED_CARD_HEIGHT - (task.h || 280)) / 2 : task.y
+  const cardHeight = isExpanded ? EXPANDED_CARD_HEIGHT : task.h || 280
+  const cardLeft = isExpanded
+    ? task.x - (EXPANDED_CARD_WIDTH - task.w) / 2
+    : task.x
+  const cardTop = isExpanded
+    ? task.y - (EXPANDED_CARD_HEIGHT - (task.h || 280)) / 2
+    : task.y
 
   // 查找并汇聚所有直接上游依赖任务的数据产物 Payload
   const upstreamPayloads = (task.dependencies || [])
@@ -129,9 +114,7 @@ export const DutyNodeCard = ({
     <div
       className={`dc-card ${task.status} ${isExpanded ? "expanded focused" : ""} ${
         isSelected ? "selected" : ""
-      } ${isDragging ? "dragging" : ""} ${
-        isDimmed ? "dimmed" : ""
-      }`}
+      } ${isDragging ? "dragging" : ""} ${isDimmed ? "dimmed" : ""}`}
       data-task-id={task.id}
       style={{
         left: cardLeft,
@@ -250,25 +233,40 @@ export const DutyNodeCard = ({
               {task.source === "chat"
                 ? "💬 对话"
                 : task.source === "agent_proposal"
-                ? "🤖 提案"
-                : task.source === "cron"
-                ? "⏰ 巡检"
-                : task.source === "event"
-                ? "🔗 事件"
-                : task.source === "chain"
-                ? "⛓ 派生"
-                : "👤 手动"}
+                  ? "🤖 提案"
+                  : task.source === "cron"
+                    ? "⏰ 巡检"
+                    : task.source === "event"
+                      ? "🔗 事件"
+                      : task.source === "chain"
+                        ? "⛓ 派生"
+                        : "👤 手动"}
             </span>
 
-            <span className={`dc-badge-risk risk-${(task.riskLevel || "T3").toLowerCase()}`}>
+            <span
+              className={`dc-badge-risk risk-${(task.riskLevel || "T3").toLowerCase()}`}
+            >
               {task.riskLevel}
             </span>
 
-            {task.status === "proposed" && <span className="dc-badge-proposal">待确认提案</span>}
+            {task.status === "proposed" && (
+              <span className="dc-badge-proposal">待确认提案</span>
+            )}
+            {task.workflowId && (
+              <span
+                className="dc-badge-proposal"
+                title={`周期流水线归属：${task.workflowName || task.workflowId}`}
+              >
+                周期流水线{task.workflowName ? `·${task.workflowName}` : ""}
+                {task.workflowRound ? `·第${task.workflowRound}轮` : ""}
+              </span>
+            )}
             {task.signoff && <span className="dc-badge-signoff">需拍板</span>}
             {task.hitl && (
               <span className="dc-badge-hitl">
-                {task.humanRequest?.type === "choice" ? "待决策选择" : "安全授权"}
+                {task.humanRequest?.type === "choice"
+                  ? "待决策选择"
+                  : "安全授权"}
               </span>
             )}
             {task.humanRequest && task.humanRequest.type === "acceptance" && (
@@ -282,9 +280,7 @@ export const DutyNodeCard = ({
           </div>
 
           {/* ── 任务标题 ── */}
-          <div className="dc-card-title">
-            {task.title}
-          </div>
+          <div className="dc-card-title">{task.title}</div>
 
           {/* ── 计划推进进度条 (核心要素：计划；仅活任务拉取，防 N+1) ── */}
           {task.rawQueueTask && (
@@ -310,7 +306,9 @@ export const DutyNodeCard = ({
                 <ArrowDownLeft size={11} /> 流入数据:
               </span>
               <span className="dc-inflow-val">
-                {upstreamPayloads.map((p) => `#T-${p.taskNo} ${p.title}`).join(" · ")}
+                {upstreamPayloads
+                  .map((p) => `#T-${p.taskNo} ${p.title}`)
+                  .join(" · ")}
               </span>
             </div>
           )}
@@ -325,9 +323,15 @@ export const DutyNodeCard = ({
                       key={idx}
                       className={`dc-preview-choice-row ${opt.picked ? "picked" : ""}`}
                     >
-                      <span className="dc-preview-radio">{opt.picked && <i />}</span>
-                      <span className="dc-preview-choice-text">{opt.label}</span>
-                      {opt.margin && <span className="dc-preview-margin">{opt.margin}</span>}
+                      <span className="dc-preview-radio">
+                        {opt.picked && <i />}
+                      </span>
+                      <span className="dc-preview-choice-text">
+                        {opt.label}
+                      </span>
+                      {opt.margin && (
+                        <span className="dc-preview-margin">{opt.margin}</span>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -339,7 +343,9 @@ export const DutyNodeCard = ({
                     {task.artifact.matrixData.slice(0, 2).map((row, idx) => (
                       <tr key={idx}>
                         <td>{row.tier}</td>
-                        <td style={{ color: "var(--pri)", fontWeight: 700 }}>{row.price}</td>
+                        <td style={{ color: "var(--pri)", fontWeight: 700 }}>
+                          {row.price}
+                        </td>
                         <td style={{ color: "var(--green)" }}>{row.margin}</td>
                       </tr>
                     ))}
@@ -376,11 +382,16 @@ export const DutyNodeCard = ({
                 </div>
               )}
 
-              {!task.humanRequest && !task.signoff && !task.artifact?.matrixData && !task.artifact?.images && (
-                <div className="dc-preview-text">
-                  {stripMarkdownTokens(task.artifact?.summary || task.description) || "任务已由调度引擎接入脑图拓扑"}
-                </div>
-              )}
+              {!task.humanRequest &&
+                !task.signoff &&
+                !task.artifact?.matrixData &&
+                !task.artifact?.images && (
+                  <div className="dc-preview-text">
+                    {stripMarkdownTokens(
+                      task.artifact?.summary || task.description,
+                    ) || "任务已由调度引擎接入脑图拓扑"}
+                  </div>
+                )}
             </div>
           </div>
 
@@ -388,23 +399,7 @@ export const DutyNodeCard = ({
           <div className="dc-card-footer">
             <span className="dc-footer-stage">{task.stage}</span>
             <span className="dc-footer-status">
-              {task.status === "completed"
-                ? "✓ 评审通过"
-                : task.status === "in_progress"
-                ? "✦ 正在执行…"
-                : task.status === "proposed"
-                ? "💡 待确认提案"
-                : task.status === "waiting_acceptance"
-                ? "⏸ 需拍板"
-                : task.status === "confirm"
-                ? "⏸ 资金授权"
-                : task.status === "blocked"
-                ? "🔒 断链锁定"
-                : task.status === "failed"
-                ? "⛔ 异常"
-                : task.status === "cancelled"
-                ? "⊘ 已取消"
-                : "○ 待调度"}
+              {statusMeta(task.status).glyph} {statusMeta(task.status).label}
             </span>
           </div>
         </>

@@ -29,12 +29,9 @@ logger = logging.getLogger(__name__)
 def list_directory(
     path: str,
     exclude_dirs: list[str] | None = None,
-    recursive: bool = False,
-    max_depth: int | None = None,
-    filter_pattern: str | None = None,
 ) -> Iterator[DirectoryEntry]:
     """
-    List directory entries with optional recursion and filtering.
+    List directory entries.
     Now delegated to TreeService for consistency.
     """
     # Note: list_directory usually returns DirectoryEntry objects

@@ -83,7 +83,7 @@ async def emit_llm_new_token(
                 run_id=run_id,
             )
         except _CALLBACK_EXCEPTIONS as e:
-            logger.debug(
+            logger.warning(
                 f"[CallbackBridge] on_llm_new_token failed: {e}", exc_info=True
             )
 
@@ -150,7 +150,6 @@ async def emit_tool_end(
 
 async def emit_tool_error(
     callbacks: list,
-    tool_name: str,
     error: Exception,
     run_id: str,
     parent_run_id: str | None = None,

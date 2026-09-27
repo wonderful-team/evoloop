@@ -44,7 +44,7 @@ def _build_allowed_roots(working_dir: str | None, project_path: str | None = Non
     return get_allowed_roots(working_dir=working_dir, project_path=project_path)
 
 
-def _member_id_for(config: RunnableConfig | None) -> int:
+def _member_id_for() -> int:
     """从当前执行上下文解析归属会员（沙箱按用户隔离需要）。
 
     仅读 ctx.member_id（dispatch/build_ctx 链路已保证写入）；缺失返回 0，
@@ -165,7 +165,6 @@ async def execute_in_background(command: str, timeout: int, config: RunnableConf
         f"任务ID: `{task.task_id}`\n"
         f"命令: `{command}`\n"
         f"超时: {timeout}秒\n\n"
-        f"查询状态: `query_command_status('{task.task_id}')`\n"
         f"取消任务: `cancel_command('{task.task_id}')`"
     )
 
@@ -178,7 +177,7 @@ async def run_command_background(task, command: str, timeout: int, config: Runna
             await task_manager.fail_task(task.task_id, error=error_msg)
             return
 
-        sandbox = await SandboxFactory.get_sandbox(_member_id_for(config))
+        sandbox = await SandboxFactory.get_sandbox(_member_id_for())
         process = await sandbox.spawn(
             command,
             working_dir=working_dir,
@@ -215,7 +214,7 @@ async def execute_smart(command: str, timeout: int, config: RunnableConfig | Non
 
     stdout_buf: list[str] = []
     stderr_buf: list[str] = []
-    sandbox = await SandboxFactory.get_sandbox(_member_id_for(config))
+    sandbox = await SandboxFactory.get_sandbox(_member_id_for())
     process = await sandbox.spawn(
         command,
         working_dir=working_dir,
@@ -259,6 +258,5 @@ async def execute_smart(command: str, timeout: int, config: RunnableConfig | Non
         return (
             f"Command continues running in background (exceeded quick timeout {quick_timeout}s)\n\n"
             f"任务ID: `{task.task_id}`\n\n"
-            f"当前输出:\n```\n{output}```\n\n"
-            f"查询完整状态: `query_command_status('{task.task_id}')`"
+            f"当前输出:\n```\n{output}```"
         )

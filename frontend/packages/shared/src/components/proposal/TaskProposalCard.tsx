@@ -187,12 +187,14 @@ export function TaskProposalCard({
   }
 
   // --- Default (Standard / Card) Variant ---
+  // 无框设计：外层无 border/shadow，仅 header 用 muted 底色分区；内容区靠
+  // 间距分层（嵌套在节点页/聊天气泡内时避免框中框噪音）。
   return (
     <div
-      className="my-3 w-full overflow-hidden rounded-xl border bg-background shadow-sm"
+      className="my-3 w-full overflow-hidden rounded-xl bg-background"
       data-task-id={id || undefined}
     >
-      <div className="flex items-start gap-3 border-b bg-muted/40 px-4 py-3">
+      <div className="flex items-start gap-3 bg-muted/40 px-4 py-3">
         <CalendarClock className="mt-0.5 h-4 w-4 text-primary" />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
@@ -221,24 +223,24 @@ export function TaskProposalCard({
 
       <div className="space-y-4 px-4 py-4">
         {description && (
-          <div className="rounded-lg border bg-muted/20 p-3 text-sm break-words min-w-0 text-muted-foreground">
+          <div className="rounded-lg bg-muted/20 p-3 text-sm break-words min-w-0 text-muted-foreground">
             <MarkdownText content={description} />
           </div>
         )}
 
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          <Badge variant="outline">
+          <Badge variant="secondary">
             {taskType === "once" ? "一次性" : "周期"}
           </Badge>
-          {priority && <Badge variant="outline">{priority}</Badge>}
+          {priority && <Badge variant="secondary">{priority}</Badge>}
           {riskLevel && !category && (
-            <Badge variant="outline">风险 {riskLevel}</Badge>
+            <Badge variant="secondary">风险 {riskLevel}</Badge>
           )}
-          {source && <Badge variant="outline">来源 {source}</Badge>}
+          {source && <Badge variant="secondary">来源 {source}</Badge>}
         </div>
 
         {isProposed ? (
-          <div className="space-y-3 rounded-lg border p-3">
+          <div className="space-y-3">
             {allowScheduleEdit && (
               <>
                 <div className="flex gap-2">
@@ -368,7 +370,7 @@ export function TaskProposalCard({
             )}
           </div>
         ) : (
-          <div className="flex items-center justify-between gap-2 rounded-lg border p-3 text-xs">
+          <div className="flex items-center justify-between gap-2 rounded-lg bg-muted/40 px-3 py-2.5 text-xs">
             <span className="text-muted-foreground">
               {status === "pending" && "已进入值守队列"}
               {status === "in_progress" && "Agent 正在执行"}

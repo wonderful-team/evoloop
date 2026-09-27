@@ -97,7 +97,7 @@ async def main() -> None:
 
     from app.infrastructure.database.resource_manager import db_resource_manager
 
-    await db_resource_manager.initialize(create_tables=False, seed_data=False)
+    await db_resource_manager.initialize(create_tables=False)
 
     from app.core.evocloud import evocloud_manager
     from app.core.identity import identity_service

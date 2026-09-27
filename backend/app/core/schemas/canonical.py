@@ -24,9 +24,6 @@ class MessageType(str, Enum):
     HITL_RESPONSE = "hitl.response"
     HITL_CANCEL = "hitl.cancel"
     MESSAGE_SYNC = "message.sync"
-    MESSAGE_DELETED = "message.deleted"
-    DEVICE_STATUS = "device.status"
-    DEVICE_HEARTBEAT = "device.heartbeat"
     AGENT_STATUS = "agent.status"
     SYSTEM_INIT = "system.init"
     SYSTEM_ERROR = "system.error"
@@ -135,15 +132,6 @@ class SyncMessage(BaseModel):
     source: str | None = None
     is_visible: bool | None = None
     metadata: dict[str, Any] | None = None
-
-
-# ============ message.deleted ============
-
-
-# ============ device.status ============
-
-
-# ============ device.heartbeat ============
 
 
 # ============ agent.status ============

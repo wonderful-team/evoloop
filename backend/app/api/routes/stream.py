@@ -6,6 +6,7 @@ Streams tokens and activity updates as they happen.
 import asyncio
 import json
 import logging
+from collections.abc import AsyncIterator
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
@@ -23,6 +24,55 @@ from app.models.codebase import Repository
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/stream", tags=["stream"])
+
+
+def _parse_last_event_seq(request: Request) -> int:
+    """Parse SSE Last-Event-ID from header (browser auto-reconnect) or query param (manual reconnect)."""
+    leid = request.headers.get("last-event-id") or request.query_params.get("last_event_id")
+    if leid and leid.isdigit():
+        return int(leid)
+    return 0
+
+
+async def _replay_buffered(
+    channel_id: str,
+    floor_seq: int,
+    baseline_seq: int,
+    label: str,
+) -> AsyncIterator[str]:
+    """Yield buffered events in (floor_seq, baseline_seq] for resumable SSE."""
+    try:
+        replay_count = 0
+        for seq, raw in event_replay_buffer.snapshot_since(channel_id, floor_seq):
+            if seq > baseline_seq:
+                continue
+            try:
+                ev_type = json.loads(raw).get("type", "unknown")
+            except Exception:
+                ev_type = "unknown"
+            yield f"id: {seq}\nevent: {ev_type}\ndata: {raw}\n\n"
+            replay_count += 1
+        if replay_count:
+            logger.info(
+                "[SSE] Replayed %d buffered events for %s (floor=%d, baseline=%d)",
+                replay_count,
+                label,
+                floor_seq,
+                baseline_seq,
+            )
+    except Exception:
+        logger.exception("[SSE] Replay buffer drain failed for %s", label)
+
+
+async def _unwrap_broker_message(raw_data: str) -> tuple[str | None, str]:
+    """Unwrap broker seq envelope and return (seq, raw_json)."""
+    try:
+        envelope = json.loads(raw_data)
+        if isinstance(envelope, dict) and "_evt_seq" in envelope:
+            return str(envelope["_evt_seq"]), envelope["_evt_raw"]
+    except Exception:
+        pass
+    return None, raw_data
 
 
 async def _workflow_stream_user(
@@ -92,29 +142,9 @@ async def stream_chat(thread_id: str, request: Request):
             # SSE 原生 Last-Event-ID：EventSource 自动重连时浏览器带
             # Last-Event-ID header（每条事件已带 id: seq）；首次连接无
             # header → 回放整个订阅前窗口。区间 (last_seq, baseline_seq]。
-            try:
-                last_event_id = request.headers.get("last-event-id")
-                floor_seq = (
-                    int(last_event_id)
-                    if last_event_id and last_event_id.isdigit()
-                    else 0
-                )
-                replay_count = 0
-                for seq, raw in event_replay_buffer.snapshot_since(thread_id, floor_seq):
-                    if seq > baseline_seq:
-                        continue
-                    try:
-                        ev_type = json.loads(raw).get("type", "unknown")
-                    except Exception:
-                        ev_type = "unknown"
-                    yield f"id: {seq}\nevent: {ev_type}\ndata: {raw}\n\n"
-                    replay_count += 1
-                if replay_count:
-                    logger.info(
-                        f"[SSE] Replayed {replay_count} buffered events for {thread_id} (floor={floor_seq}, baseline={baseline_seq})"
-                    )
-            except Exception:
-                logger.exception(f"[SSE] Replay buffer drain failed for {thread_id}")
+            floor_seq = _parse_last_event_seq(request)
+            async for chunk in _replay_buffered(thread_id, floor_seq, baseline_seq, thread_id):
+                yield chunk
 
             # 2. Bootstrap: Send Initial Full State (once)
             try:
@@ -259,22 +289,9 @@ async def stream_workflow(
             channel = f"workflow:{workflow_id}:events"
             await pubsub.subscribe(channel)
 
-            last_event_id = request.headers.get("last-event-id")
-            floor_seq = (
-                int(last_event_id)
-                if last_event_id and last_event_id.isdigit()
-                else 0
-            )
-            for seq, raw in event_replay_buffer.snapshot_since(
-                workflow_id, floor_seq
-            ):
-                if seq > baseline_seq:
-                    continue
-                try:
-                    event_type = json.loads(raw).get("type", "unknown")
-                except Exception:
-                    event_type = "unknown"
-                yield f"id: {seq}\nevent: {event_type}\ndata: {raw}\n\n"
+            floor_seq = _parse_last_event_seq(request)
+            async for chunk in _replay_buffered(workflow_id, floor_seq, baseline_seq, f"workflow:{workflow_id}"):
+                yield chunk
 
             yield (
                 "event: workflow_updated\n"
@@ -326,20 +343,13 @@ async def stream_workflow(
                     raw_data = message["data"]
                     if isinstance(raw_data, bytes):
                         raw_data = raw_data.decode("utf-8", errors="replace")
-                    event_seq = None
-                    terminal_event = False
-                    try:
-                        envelope = json.loads(raw_data)
-                        if isinstance(envelope, dict) and "_evt_seq" in envelope:
-                            event_seq = envelope["_evt_seq"]
-                            raw_data = envelope["_evt_raw"]
-                    except Exception:
-                        pass
+
+                    seq_str, raw_data = await _unwrap_broker_message(raw_data)
 
                     try:
                         event_data = json.loads(raw_data)
                         event_type = event_data.get("type", "unknown")
-                        seq_line = f"id: {event_seq}\n" if event_seq else ""
+                        seq_line = f"id: {seq_str}\n" if seq_str else ""
                         yield f"{seq_line}event: {event_type}\ndata: {raw_data}\n\n"
                         terminal_event = (
                             event_data.get("event") == "workflow_status_changed"
@@ -378,6 +388,7 @@ async def stream_workflow(
 @router.get("/tasks")
 async def stream_tasks(
     current_user: CurrentUserOptional,
+    request: Request,
     token: str | None = Query(None),
     project_id: int | None = Query(None),
 ):
@@ -402,13 +413,19 @@ async def stream_tasks(
         if project_id is not None and project_id > 0
         else "tasks:all:events"
     )
+    channel_id = str(project_id) if project_id is not None and project_id > 0 else "all"
 
     async def event_generator():
         pubsub = None
         try:
             broker = get_message_broker()
+            baseline_seq = event_replay_buffer.current_seq(channel_id)
             pubsub = broker.pubsub()
             await pubsub.subscribe(channel)
+
+            floor_seq = _parse_last_event_seq(request)
+            async for chunk in _replay_buffered(channel_id, floor_seq, baseline_seq, channel):
+                yield chunk
 
             yield (
                 "event: task_queue_updated\n"
@@ -459,19 +476,12 @@ async def stream_tasks(
                     if isinstance(raw_data, bytes):
                         raw_data = raw_data.decode("utf-8", errors="replace")
 
-                    event_seq = None
-                    try:
-                        envelope = json.loads(raw_data)
-                        if isinstance(envelope, dict) and "_evt_seq" in envelope:
-                            event_seq = envelope["_evt_seq"]
-                            raw_data = envelope["_evt_raw"]
-                    except Exception:
-                        pass
+                    seq_str, raw_data = await _unwrap_broker_message(raw_data)
 
                     try:
                         event_data = json.loads(raw_data)
                         event_type = event_data.get("type", "unknown")
-                        seq_line = f"id: {event_seq}\n" if event_seq else ""
+                        seq_line = f"id: {seq_str}\n" if seq_str else ""
                         yield f"{seq_line}event: {event_type}\ndata: {raw_data}\n\n"
                     except Exception as exc:
                         yield (
@@ -501,7 +511,7 @@ async def stream_tasks(
 
 
 @router.get("/thread/{thread_id}", dependencies=[Depends(verify_guest_access)])
-async def stream_thread(thread_id: str):
+async def stream_thread(thread_id: str, request: Request):
     """
     SSE endpoint for thread-level realtime updates (duty workbench).
 
@@ -515,9 +525,14 @@ async def stream_thread(thread_id: str):
         pubsub = None
         try:
             broker = get_message_broker()
+            baseline_seq = event_replay_buffer.current_seq(thread_id)
             pubsub = broker.pubsub()
             channel = f"thread:{thread_id}:events"
             await pubsub.subscribe(channel)
+
+            floor_seq = _parse_last_event_seq(request)
+            async for chunk in _replay_buffered(thread_id, floor_seq, baseline_seq, f"thread:{thread_id}"):
+                yield chunk
 
             yield (
                 "event: thread_updated\n"
@@ -546,7 +561,9 @@ async def stream_thread(thread_id: str):
                     data = data.decode("utf-8", "replace")
                 if not data:
                     continue
-                yield f"event: thread_updated\ndata: {data}\n\n"
+                seq_str, raw_data = await _unwrap_broker_message(data)
+                seq_line = f"id: {seq_str}\n" if seq_str else ""
+                yield f"{seq_line}event: thread_updated\ndata: {raw_data}\n\n"
         except asyncio.CancelledError:
             pass
         finally:
@@ -569,7 +586,7 @@ async def stream_thread(thread_id: str):
 
 
 @router.get("/system", dependencies=[Depends(verify_guest_access)])
-async def stream_system():
+async def stream_system(request: Request):
     """
     SSE endpoint for system-wide public events.
 
@@ -587,13 +604,19 @@ async def stream_system():
 
     async def event_generator():
         pubsub = None
+        channel = "system:events"
+        channel_id = "system"
 
         try:
             broker = get_message_broker()
+            baseline_seq = event_replay_buffer.current_seq(channel_id)
             pubsub = broker.pubsub()
-            channel = "system:events"
             await pubsub.subscribe(channel)
-            logger.info(f"[SSE] Subscribed to system Pub/Sub channel via MessageBroker: {channel}")
+            logger.info("[SSE] Subscribed to system Pub/Sub channel via MessageBroker: %s", channel)
+
+            floor_seq = _parse_last_event_seq(request)
+            async for chunk in _replay_buffered(channel_id, floor_seq, baseline_seq, channel):
+                yield chunk
 
             reconnect_attempts = 0
             MAX_RECONNECT_ATTEMPTS = 10
@@ -618,7 +641,7 @@ async def stream_system():
                         yield f"event: error\ndata: {json.dumps({'error': 'System stream connection lost after maximum retries'})}\n\n"
                         break
                     backoff = min(BASE_BACKOFF * (2 ** (reconnect_attempts - 1)), 30.0)
-                    logger.warning(f"[SSE] PubSub read error for system stream: {e}. Re-subscribing in {backoff}s...", exc_info=True)
+                    logger.warning("[SSE] PubSub read error for system stream: %s. Re-subscribing in %ss...", e, backoff, exc_info=True)
                     await asyncio.sleep(backoff)
                     await pubsub.subscribe(channel)
                     continue
@@ -630,7 +653,7 @@ async def stream_system():
                             yield f"event: error\ndata: {json.dumps({'error': 'System stream connection lost after maximum retries'})}\n\n"
                             break
                         backoff = min(BASE_BACKOFF * (2 ** (reconnect_attempts - 1)), 30.0)
-                        logger.exception(f"[SSE] System stream cache buffer is closed. Re-initializing in {backoff}s...")
+                        logger.exception("[SSE] System stream cache buffer is closed. Re-initializing in %ss...", backoff)
                         await asyncio.sleep(backoff)
                         await pubsub.subscribe(channel)
                         continue
@@ -638,10 +661,15 @@ async def stream_system():
 
                 if message and message["type"] == "message":
                     raw_data = message["data"]
+                    if isinstance(raw_data, bytes):
+                        raw_data = raw_data.decode("utf-8", errors="replace")
 
+                    seq_str, raw_data = await _unwrap_broker_message(raw_data)
                     try:
-                        json.loads(raw_data)
-                        yield f"data: {raw_data}\n\n"
+                        event_data = json.loads(raw_data)
+                        event_type = event_data.get("type", "unknown")
+                        seq_line = f"id: {seq_str}\n" if seq_str else ""
+                        yield f"{seq_line}event: {event_type}\ndata: {raw_data}\n\n"
                     except Exception as e:
                         yield f"event: error\ndata: {json.dumps({'error': 'Failed to process system event', 'details': str(e)})}\n\n"
 
@@ -650,7 +678,7 @@ async def stream_system():
         except asyncio.CancelledError:
             logger.info("System stream cancelled")
         except Exception as e:
-            logger.error(f"System stream error: {e}", exc_info=True)
+            logger.error("System stream error: %s", e, exc_info=True)
             yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
         finally:
             if pubsub:

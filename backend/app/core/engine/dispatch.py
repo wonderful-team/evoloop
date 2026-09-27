@@ -319,6 +319,12 @@ async def dispatch_agent_run(
     # 4. DB persistence & EvoCloud sync
     # ------------------------------------------------------------------
     persisted_msg_id: str | None = None
+    publish_created = False
+    publish_updated = False
+    conversation_title = ""
+    conversation_project_id = project_id
+    conversation_member_id = member_id
+
     async with session_scope() as session:
         if not skip_message_persistence:
             # Upsert Conversation (only for interactive sessions that persist messages)
@@ -334,26 +340,14 @@ async def dispatch_agent_run(
                     title=first_line[:200] or "未知话题",
                 )
                 session.add(conversation)
-                # Notify frontends (system channel) so conversation lists
-                # refresh in real-time for sessions started from other
-                # devices/channels (voice, mobile, wecom, etc.).
-                await publish_conversation_created(
-                    thread_id=thread_id,
-                    project_id=project_id,
-                    member_id=member_id,
-                    title=conversation.title,
-                )
+                publish_created = True
             else:
                 conversation.updated_at = datetime.now(timezone.utc)
-                # Notify frontends (system channel) so conversation lists
-                # refresh in real-time when an existing session is continued
-                # from another device/channel (voice, mobile, wecom, etc.).
-                await publish_conversation_updated(
-                    thread_id=thread_id,
-                    project_id=project_id,
-                    member_id=member_id,
-                    title=conversation.title,
-                )
+                publish_updated = True
+
+            conversation_title = conversation.title
+            conversation_project_id = conversation.project_id
+            conversation_member_id = conversation.member_id
 
             # New message: persist to DB via Repository to ensure parent_id linkage
             from app.core.engine.message.repository import MessageRepository
@@ -373,25 +367,40 @@ async def dispatch_agent_run(
             )
             persisted_msg_id = msg_id
 
-            if msg_id:
-                from app.core.engine.message.factory import MessageBlockFactory
-                from app.core.engine.message.publisher import MessagePublisher
+    # Publish system events and outbound message blocks **outside** the DB
+    # session so the connection is returned to the pool before doing IO.
+    if publish_created:
+        await publish_conversation_created(
+            thread_id=thread_id,
+            project_id=conversation_project_id,
+            member_id=conversation_member_id,
+            title=conversation_title,
+        )
+    elif publish_updated:
+        await publish_conversation_updated(
+            thread_id=thread_id,
+            project_id=conversation_project_id,
+            member_id=conversation_member_id,
+            title=conversation_title,
+        )
 
-                block = MessageBlockFactory.from_event(
-                    thread_id=thread_id,
-                    sequence_number=seq,
-                    role="human",
-                    content=message_content,
-                    category=MessageCategory.USER,
-                    status=MessageStatus.COMPLETED,
-                    references=references_list,
-                    message_id=msg_id,
-                    source=source,
-                )
-                publisher = MessagePublisher(thread_id=thread_id, project_id=project_id)
-                # OutputChannelPolicy uses EvoContext.metadata.source to exclude mobile
-                # for mobile-source human messages (Gateway already syncs them).
-                await publisher.publish(block)
+    if persisted_msg_id and not skip_message_persistence:
+        from app.core.engine.message.factory import MessageBlockFactory
+        from app.core.engine.message.publisher import MessagePublisher
+
+        block = MessageBlockFactory.from_event(
+            thread_id=thread_id,
+            sequence_number=seq,
+            role="human",
+            content=message_content,
+            category=MessageCategory.USER,
+            status=MessageStatus.COMPLETED,
+            references=references_list,
+            message_id=persisted_msg_id,
+            source=source,
+        )
+        publisher = MessagePublisher(thread_id=thread_id, project_id=project_id)
+        await publisher.publish(block)
 
     # ------------------------------------------------------------------
     # 5. Build BackgroundAgentInputs
@@ -455,6 +464,12 @@ async def persist_user_message(
     Returns the persisted ``Message.id``, or ``None`` if the conversation
     does not exist (caller decides whether to treat this as fatal).
     """
+    conversation_title = ""
+    conversation_project_id = project_id
+    conversation_member_id = member_id
+    msg_id: str | None = None
+    seq: int | None = None
+
     async with session_scope() as session:
         conversation = await session.get(Conversation, thread_id)
         if not conversation:
@@ -464,23 +479,16 @@ async def persist_user_message(
             return None
 
         conversation.updated_at = datetime.now(timezone.utc)
-
-        # Notify frontends (system channel) so conversation lists
-        # refresh in real-time when a session is continued from
-        # another device/channel (voice, mobile, wecom, etc.).
-        await publish_conversation_updated(
-            thread_id=thread_id,
-            project_id=conversation.project_id,
-            member_id=conversation.member_id,
-            title=conversation.title,
-        )
+        conversation_title = conversation.title
+        conversation_project_id = conversation.project_id
+        conversation_member_id = conversation.member_id
 
         from app.core.engine.message.repository import MessageRepository
 
         repo = MessageRepository(
             thread_id,
-            project_id if project_id is not None else conversation.project_id,
-            member_id=member_id if member_id != 0 else conversation.member_id,
+            project_id if project_id is not None else conversation_project_id,
+            member_id=member_id if member_id != 0 else conversation_member_id,
         )
         msg_id, seq = await repo.persist(
             role="human",
@@ -491,25 +499,35 @@ async def persist_user_message(
             session=session,
         )
 
-        if msg_id:
-            from app.core.engine.message.factory import MessageBlockFactory
-            from app.core.engine.message.publisher import MessagePublisher
+    # Notify frontends (system channel) so conversation lists refresh in
+    # real-time when a session is continued from another device/channel.
+    # Kept outside the DB session to avoid holding a pool connection during IO.
+    await publish_conversation_updated(
+        thread_id=thread_id,
+        project_id=conversation_project_id,
+        member_id=conversation_member_id,
+        title=conversation_title,
+    )
 
-            block = MessageBlockFactory.from_event(
-                thread_id=thread_id,
-                sequence_number=seq,
-                role="human",
-                content=content,
-                category=MessageCategory.USER,
-                status=MessageStatus.COMPLETED,
-                message_id=msg_id,
-            )
-            resolved_project_id = (
-                project_id if project_id is not None else conversation.project_id
-            )
-            publisher = MessagePublisher(
-                thread_id=thread_id, project_id=resolved_project_id
-            )
-            await publisher.publish(block)
+    if msg_id:
+        from app.core.engine.message.factory import MessageBlockFactory
+        from app.core.engine.message.publisher import MessagePublisher
 
-        return msg_id
+        block = MessageBlockFactory.from_event(
+            thread_id=thread_id,
+            sequence_number=seq,
+            role="human",
+            content=content,
+            category=MessageCategory.USER,
+            status=MessageStatus.COMPLETED,
+            message_id=msg_id,
+        )
+        resolved_project_id = (
+            project_id if project_id is not None else conversation_project_id
+        )
+        publisher = MessagePublisher(
+            thread_id=thread_id, project_id=resolved_project_id
+        )
+        await publisher.publish(block)
+
+    return msg_id

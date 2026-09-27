@@ -17,7 +17,6 @@ class ContextMetadata(DynamicBaseModel):
     project_concepts: Any | None = None
     active_skills: Any | None = None
     active_macros: Any | None = None
-    operation_map: str | None = None
     shared_context: dict[str, Any] = Field(default_factory=dict)
     tool_memory: dict | None = None
     iteration_count: int | None = None

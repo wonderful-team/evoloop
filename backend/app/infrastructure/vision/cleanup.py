@@ -14,7 +14,6 @@ from app.infrastructure.vision.schemas import (
     CombinedCleanupResult,
     RecordingCleanupResult,
     ScreenshotCleanupResult,
-    StorageReport,
 )
 from app.infrastructure.vision.storage import (
     screen_recording_storage,
@@ -94,43 +93,6 @@ def cleanup_all(dry_run: bool = False) -> CombinedCleanupResult:
         screenshots=screenshot_stats,
         recordings=recording_stats,
         total_cleaned=screenshot_stats.total + recording_stats.total,
-        timestamp=datetime.now().isoformat(),
-    )
-
-
-def get_storage_report() -> StorageReport:
-    """Get full storage statistics report."""
-    screenshot_stats = screenshot_storage.get_stats()
-    recording_stats = screen_recording_storage.get_stats()
-
-    total_screenshot_files = sum(s["file_count"] for s in screenshot_stats.values())
-    total_screenshot_size_mb = sum(s["total_size_mb"] for s in screenshot_stats.values())
-
-    total_recording_files = sum(s["file_count"] for s in recording_stats.values())
-    total_recording_size_mb = sum(s["total_size_mb"] for s in recording_stats.values())
-
-    return StorageReport(
-        screenshots={
-            "categories": screenshot_stats,
-            "summary": {
-                "total_files": total_screenshot_files,
-                "total_size_mb": round(total_screenshot_size_mb, 2),
-                "total_size_gb": round(total_screenshot_size_mb / 1024, 2),
-            },
-        },
-        recordings={
-            "categories": recording_stats,
-            "summary": {
-                "total_files": total_recording_files,
-                "total_size_mb": round(total_recording_size_mb, 2),
-                "total_size_gb": round(total_recording_size_mb / 1024, 2),
-            },
-            "limits": screen_recording_storage.check_storage_limits(),
-        },
-        total={
-            "total_files": total_screenshot_files + total_recording_files,
-            "total_size_gb": round((total_screenshot_size_mb + total_recording_size_mb) / 1024, 2),
-        },
         timestamp=datetime.now().isoformat(),
     )
 

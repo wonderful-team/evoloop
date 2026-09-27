@@ -280,7 +280,14 @@ class TestStopHysteresis:
         # 第二次运行：简单短任务，验证旧标记不会导致取消
         short_prompt = "请使用 execute_command 工具运行命令 `echo hello-after-stop`。"
         sse_task2 = asyncio.create_task(
-            observe_agent_run(http_client, thread_id, timeout=120.0, expect_start=False)
+            observe_agent_run(
+                http_client,
+                thread_id,
+                timeout=120.0,
+                expect_start=False,
+                # 断点续传：跳过 run1 缓冲的旧终态，只观察 run2
+                after_seq=result1.last_seq,
+            )
         )
         await asyncio.sleep(0)
 

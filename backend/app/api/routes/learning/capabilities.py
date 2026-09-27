@@ -9,6 +9,6 @@ router = APIRouter()
 
 
 @router.get("/capabilities/actions", response_model=list[ActionDef])
-async def get_action_registry(current_user: CurrentUserOptional = None):
+async def get_action_registry(_current_user: CurrentUserOptional = None):
     """Export the centralized action registry for frontend sync."""
     return ActionRegistry.list_actions()

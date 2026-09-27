@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime
+from typing import Any
 
 from app.core.evocloud import evocloud_manager
 from app.core.evocloud.constants import SYNC_STATUS_FAILED, SYNC_STATUS_SYNCED
@@ -31,7 +32,7 @@ async def sync_project_to_cloud_task(_self, repo_id: int):
 
     from app.infrastructure.database.resource_manager import db_resource_manager
 
-    await db_resource_manager.initialize(create_tables=False, seed_data=False)
+    await db_resource_manager.initialize(create_tables=False)
 
     try:
         indexing_service = IndexingService()
@@ -88,72 +89,111 @@ async def sync_tasks_to_evocloud_task(
     Background task to sync requirement tasks to EvoCloud.
     Called automatically after requirement analysis is confirmed.
     """
+    from sqlalchemy import select
+
     from app.infrastructure.database import session_scope
     from app.infrastructure.database.resource_manager import db_resource_manager
     from app.models.project import ProjectTask
 
-    await db_resource_manager.initialize(create_tables=False, seed_data=False)
+    await db_resource_manager.initialize(create_tables=False)
 
+    logger.info(
+        f"[ReqSync] Starting sync for analysis {analysis_id}, {len(task_ids)} tasks"
+    )
+
+    # Phase 1: load tasks with a short DB session
+    task_snapshots: list[dict[str, Any]] = []
     try:
-        logger.info(
-            f"[ReqSync] Starting sync for analysis {analysis_id}, {len(task_ids)} tasks"
-        )
-
         async with session_scope() as session:
-            from sqlalchemy import select
-
-            # Get all tasks to sync
             stmt = select(ProjectTask).where(ProjectTask.id.in_(task_ids))
             result = await session.execute(stmt)
-            tasks = result.scalars().all()
+            task_snapshots = [
+                {
+                    "id": t.id,
+                    "project_id": t.project_id,
+                    "task_data": t.task_data,
+                }
+                for t in result.scalars().all()
+            ]
+    except Exception as e:
+        logger.exception(f"[ReqSync] Failed to load tasks for analysis {analysis_id}: {e}")
+        return
 
-            if not tasks:
-                logger.warning(f"[ReqSync] No tasks found for analysis {analysis_id}")
-                return
+    if not task_snapshots:
+        logger.warning(f"[ReqSync] No tasks found for analysis {analysis_id}")
+        return
 
-            synced_count = 0
-            failed_count = 0
+    # Phase 2: render description + call EvoCloud API **outside** DB session
+    synced_count = 0
+    failed_count = 0
+    updates: list[dict[str, Any]] = []
 
-            for task in tasks:
-                try:
-                    task_data = task.task_data
+    for snap in task_snapshots:
+        task_id = snap["id"]
+        task_data = snap["task_data"]
+        try:
+            payload = {
+                "project_id": snap["project_id"],
+                "task_name": task_data.get("title", "Untitled"),
+                "task_desc": _format_task_description(task_data),
+                "priority": _map_priority(task_data.get("priority", TASK_PRIORITY_MEDIUM)),
+                "estimated_time": task_data.get("estimated_hours", 0),
+                "tags": task_data.get("tags", []),
+            }
 
-                    # Prepare EvoCloud payload
-                    payload = {
-                        "project_id": task.project_id,
-                        "task_name": task_data.get("title", "Untitled"),
-                        "task_desc": _format_task_description(task_data),
-                        "priority": _map_priority(task_data.get("priority", TASK_PRIORITY_MEDIUM)),
-                        "estimated_time": task_data.get("estimated_hours", 0),
-                        "tags": task_data.get("tags", []),
-                    }
+            result = await evocloud_manager.api.create_task(payload)
 
-                    # Call EvoCloud API
-                    result = await evocloud_manager.api.create_task(payload)
+            if result.get("code") == 0:
+                updates.append({
+                    "id": task_id,
+                    "evocloud_task_id": result["data"]["task_id"],
+                    "sync_status": SYNC_STATUS_SYNCED,
+                    "sync_error": None,
+                })
+                synced_count += 1
+                logger.info(f"[ReqSync] Task {task_id} synced: {result['data']['task_id']}")
+            else:
+                error_msg = result.get("message", "Unknown error")
+                updates.append({
+                    "id": task_id,
+                    "evocloud_task_id": None,
+                    "sync_status": SYNC_STATUS_FAILED,
+                    "sync_error": error_msg,
+                })
+                failed_count += 1
+                logger.error(f"[ReqSync] Task {task_id} failed: {error_msg}")
+        except Exception as e:
+            updates.append({
+                "id": task_id,
+                "evocloud_task_id": None,
+                "sync_status": SYNC_STATUS_FAILED,
+                "sync_error": str(e),
+            })
+            failed_count += 1
+            logger.exception(f"[ReqSync] Task {task_id} exception: {e}")
 
-                    if result.get("code") == 0:
-                        task.evocloud_task_id = result["data"]["task_id"]
-                        task.sync_status = SYNC_STATUS_SYNCED
-                        task.synced_at = datetime.now()
-                        synced_count += 1
-                        logger.info(
-                            f"[ReqSync] Task {task.id} synced: {task.evocloud_task_id}"
-                        )
-                    else:
-                        task.sync_status = SYNC_STATUS_FAILED
-                        task.sync_error = result.get("message", "Unknown error")
-                        failed_count += 1
-                        logger.error(
-                            f"[ReqSync] Task {task.id} failed: {task.sync_error}"
-                        )
-
-                except Exception as e:
-                    task.sync_status = SYNC_STATUS_FAILED
-                    task.sync_error = str(e)
-                    failed_count += 1
-                    logger.exception(f"[ReqSync] Task {task.id} exception: {e}")
+    # Phase 3: persist sync results in another short DB session
+    try:
+        async with session_scope() as session:
+            for upd in updates:
+                task = await session.get(ProjectTask, upd["id"])
+                if task is None:
+                    continue
+                task.evocloud_task_id = upd["evocloud_task_id"]
+                task.sync_status = upd["sync_status"]
+                task.sync_error = upd["sync_error"]
+                if upd["sync_status"] == SYNC_STATUS_SYNCED:
+                    task.synced_at = datetime.now()
+    except Exception as e:
+        logger.exception(f"[ReqSync] Failed to persist sync results for analysis {analysis_id}: {e}")
+        return
     finally:
         await flush_loop_bound_resources()
+
+    logger.info(
+        f"[ReqSync] Sync complete for analysis {analysis_id}: "
+        f"{synced_count} synced, {failed_count} failed"
+    )
 
 
 def _map_priority(priority: str) -> int:
@@ -192,7 +232,7 @@ async def sync_cloud_projects_task() -> None:
     """
     from app.infrastructure.database.resource_manager import db_resource_manager
 
-    await db_resource_manager.initialize(create_tables=False, seed_data=False)
+    await db_resource_manager.initialize(create_tables=False)
 
     try:
         from app.core.project.sync_service import project_sync_service

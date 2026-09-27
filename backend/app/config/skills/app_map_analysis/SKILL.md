@@ -79,7 +79,7 @@ Do NOT survey entity-by-entity with manual grep/read loops (too slow, burns the 
 
    This persists all AppMap records and generates macros in one pass. The script reports written/skipped/failed counts.
 
-5. **Verify** — read back 2-3 written AppMaps via `read_app_map` to confirm. If failures exist, fix the JSON file and re-run step 4.
+5. **Verify** — read back 2-3 written AppMap JSON files (e.g. with `read`) to confirm. If failures exist, fix the JSON file and re-run step 4.
 
 ## Hard Rules
 

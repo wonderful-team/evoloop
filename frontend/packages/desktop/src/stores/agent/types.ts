@@ -1,4 +1,4 @@
-import type {MacroStepEntry} from "@/components/Learning/macroRun"
+import type { MacroStepEntry } from "@/components/Learning/macroRun"
 
 export interface AgentState {
   // Activity State
@@ -76,6 +76,10 @@ export interface AgentState {
 
   isConnected: boolean
   connectionStatus: string
+
+  // Track finalized run_ids to prevent duplicate finalize/status updates
+  // when run_end / session_completed / status events arrive multiple times.
+  _finalizedRunIds: Set<string>
 
   // Internal Handlers for WebSocket events
   _setConnectionStatus: (connected: boolean, status: string) => void

@@ -4,17 +4,6 @@ from __future__ import annotations
 
 # ── 状态机 ────────────────────────────────────────────────
 
-QUEUE_STATUSES = (
-    "proposed",
-    "pending",
-    "in_progress",
-    "self_checked",
-    "waiting_acceptance",
-    "completed",
-    "failed",
-    "cancelled",
-)
-
 # 合法状态转移（所有写操作必须受此约束）
 QUEUE_TRANSITIONS: dict[str, tuple[str, ...]] = {
     "proposed": ("pending", "cancelled"),
@@ -55,6 +44,9 @@ RECONCILE_INTERVAL_SECONDS = 300.0
 RESTART_GRACE_SECONDS = 0.0
 # 稳态：running 超过该时长且无 pending HumanRequest → 判死（watchdog 截止 + 余量）
 STALE_RUNNING_MINUTES = 35.0
+# 认领 → run 启动（activity 落库）之间的宽限窗（秒）：reconciler 扫过该窗口
+# 时不得把"无 activity 记录"的刚认领任务判死回队（否则反复重派→熔断误杀）
+NO_ACTIVITY_GRACE_SECONDS = 120.0
 # 单 run 硬截止（看门狗）：网络抖动/工具挂起导致 run 永不终态时强制取消
 WAKEUP_RUN_DEADLINE_SECONDS = 1800.0
 # 配额熔断：quota_exhausted 后暂停值守派发的时长（分钟）。
@@ -62,17 +54,27 @@ WAKEUP_RUN_DEADLINE_SECONDS = 1800.0
 QUOTA_COOLDOWN_MINUTES = 15.0
 
 # run 终态集合（reconcile 据此判定"run 已死"）
-RUN_TERMINAL_STATUSES = frozenset({
-    "done",
-    "cancelled",
-    "failed",
-    "quota_exhausted",
-    "error",
-})
+RUN_TERMINAL_STATUSES = frozenset(
+    {
+        "done",
+        "cancelled",
+        "failed",
+        "quota_exhausted",
+        "error",
+    }
+)
 # 这些状态下任务现场仍在推进/等待，不得回队
 RUN_SKIP_STATUSES = frozenset({"running", "stopping", "human_interrupt"})
 
-WORKFLOW_RETRY_LIMIT = 2
+# ── 周期工作流（轮次化：触发/编排/执行三分离） ─────────────
+# 工作流下仍有"活"阶段任务（未终态）= 上一轮未收口 → skip-on-busy，
+# 不 spawn 新轮（轮次绝不并发；HITL/signoff 卡住本轮即顺延下一拍重查）。
+WORKFLOW_LIVE_TASK_STATUSES = frozenset(
+    {"proposed", "pending", "in_progress", "self_checked", "waiting_acceptance"}
+)
+# 允许自动 spawn 新轮的工作流状态（armed=已确认待触发；
+# completed/failed=上一轮已收口，周期性由触发器延续，单轮失败不杀死周期）。
+WORKFLOW_SPAWNABLE_STATUSES = ("armed", "completed", "failed")
 
 # 这些错误重试也不会好：内容审查拦截 / 配置缺模型等确定性失败
 # failed 任务自动重跑预算（仅瞬时错误，审查/配置类永不）；耗时 10 分钟退避
@@ -84,5 +86,3 @@ NON_RETRYABLE_ERROR_MARKERS = (
     "must provide a model parameter",
     "invalid_request_error",
 )
-
-WORKFLOW_RETRY_DELAY_SECONDS = 60.0

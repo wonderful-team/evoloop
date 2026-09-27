@@ -38,18 +38,18 @@ class TextUtils:
         """
         Returns the zero-indexed line and column number of the given index in the given text
         """
-        l = 0
-        c = 0
+        line = 0
+        col = 0
         idx = 0
         while idx < index:
             if text[idx] == "\n":
-                l += 1
-                c = 0
+                line += 1
+                col = 0
             else:
-                c += 1
+                col += 1
             idx += 1
 
-        return l, c
+        return line, col
 
     @staticmethod
     def get_index_from_line_col(text: str, line: int, col: int) -> int:
@@ -67,17 +67,17 @@ class TextUtils:
         return idx
 
     @staticmethod
-    def _get_updated_position_from_line_and_column_and_edit(l: int, c: int, text_to_be_inserted: str) -> tuple[int, int]:
+    def _get_updated_position_from_line_and_column_and_edit(line: int, col: int, text_to_be_inserted: str) -> tuple[int, int]:
         """
         Utility function to get the position of the cursor after inserting text at a given line and column.
         """
         num_newlines_in_gen_text = text_to_be_inserted.count("\n")
         if num_newlines_in_gen_text > 0:
-            l += num_newlines_in_gen_text
-            c = len(text_to_be_inserted.split("\n")[-1])
+            line += num_newlines_in_gen_text
+            col = len(text_to_be_inserted.split("\n")[-1])
         else:
-            c += len(text_to_be_inserted)
-        return (l, c)
+            col += len(text_to_be_inserted)
+        return (line, col)
 
     @staticmethod
     def delete_text_between_positions(text: str, start_line: int, start_col: int, end_line: int, end_col: int) -> tuple[str, str]:

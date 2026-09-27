@@ -131,17 +131,19 @@ class SkillSyncService:
 
             # Also try resource_path
             if not actual_namespace and not actual_name:
+                resource_path: str | None = None
                 async with session_scope() as db:
                     stmt = select(LearnedSkill).where(LearnedSkill.id == skill_id)
                     skill = (await db.execute(stmt)).scalar_one_or_none()
-                    if skill and skill.resource_path:
-                        path = skill.resource_path
-                        if os.path.isdir(path):
-                            shutil.rmtree(path)
-                            logger.info(
-                                f"[Sync] Deleted skill directory by resource_path: {path}"
-                            )
-                            return True
+                    if skill:
+                        resource_path = skill.resource_path
+
+                if resource_path and os.path.isdir(resource_path):
+                    shutil.rmtree(resource_path)
+                    logger.info(
+                        f"[Sync] Deleted skill directory by resource_path: {resource_path}"
+                    )
+                    return True
 
             return False
         except Exception as e:

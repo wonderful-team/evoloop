@@ -331,10 +331,11 @@ class McpClientManager:
         Returns:
             ConnectionResult
         """
+        config: McpServerConfig | None = None
         async with session_scope() as session:
             result = await session.execute(
                 # 不按 enabled 过滤：enabled=0 语义是「不随启动常驻」，显式
-                # 按名连接（ensure_connected/use_mcp_server/包预挂）是按需拉起
+                # 按名连接（ensure_connected/包预挂）是按需拉起
                 select(McpServer).where(McpServer.name == server_name)
             )
             server = result.scalars().first()
@@ -377,7 +378,8 @@ class McpClientManager:
                 enabled=server.enabled,
             )
 
-            return await self.connect(config)
+        # Actual network/subprocess connection happens **outside** the DB session
+        return await self.connect(config)
 
     async def connect_all(self) -> list[ConnectionResult]:
         """
@@ -392,51 +394,28 @@ class McpClientManager:
         # 1. Migrate legacy config if needed
         await self._seed_legacy_config()
 
-        # 2. Fetch and connect all enabled servers
+        # 2. Fetch enabled server names with a short DB session
+        server_names: list[str] = []
         async with session_scope() as session:
             result = await session.execute(select(McpServer).where(McpServer.enabled))
-            servers = result.scalars().all()
+            server_names = [s.name for s in result.scalars().all()]
 
-            for server in servers:
-                try:
-                    result = await self.connect_from_db(server.name)
-                    results.append(result)
-                except Exception as e:
-                    logger.exception(
-                        f"Failed to connect to MCP server '{server.name}': {e}"
+        # 3. Connect outside any DB session
+        for name in server_names:
+            try:
+                result = await self.connect_from_db(name)
+                results.append(result)
+            except Exception as e:
+                logger.exception(
+                    f"Failed to connect to MCP server '{name}': {e}"
+                )
+                results.append(
+                    ConnectionResult(
+                        success=False, server_name=name, error=str(e)
                     )
-                    results.append(
-                        ConnectionResult(
-                            success=False, server_name=server.name, error=str(e)
-                        )
-                    )
+                )
 
         return results
-
-    async def connect_all_with_logging(self, mcp_results: list | None = None) -> None:
-        """
-        Run ``connect_all()`` in the background and log the summary.
-
-        Called from APP_STARTED without awaiting, so a slow/hanging MCP server
-        never blocks the core service startup. Each connection is still bounded
-        by ``MCP_CONNECT_TIMEOUT``.
-        """
-        try:
-            connect_results = await self.connect_all()
-            connected = sum(1 for r in connect_results if r.success)
-            logger.info(
-                "[MCP] ✓ Servers initialized: %d, connected: %d/%d",
-                len(mcp_results or []),
-                connected,
-                len(connect_results),
-            )
-            for r in connect_results:
-                if not r.success:
-                    logger.warning(
-                        f"[MCP] Server '{r.server_name}' not connected: {r.error}"
-                    )
-        except Exception:
-            logger.exception("[MCP] Background connect_all failed")
 
     def _build_message_handler(self, server_name: str):
         """构造 mcp ClientSession 的入站消息处理器。
@@ -661,21 +640,6 @@ class McpClientManager:
             f"Server '{server_name}' not connected or resources not available"
         )
 
-    def get_resources_formatted(self, server_name: str) -> str:
-        """
-        Get formatted markdown list of resources.
-
-        Args:
-            server_name: Server name
-
-        Returns:
-            Markdown formatted string
-        """
-        feature = self._resources_feature.get(server_name)
-        if feature:
-            return feature.format_resources_list()
-        return "*Server not connected*"
-
     # ═══════════════════════════════════════════════════════════
     # Prompts Access
     # ═══════════════════════════════════════════════════════════
@@ -731,21 +695,6 @@ class McpClientManager:
         raise RuntimeError(
             f"Server '{server_name}' not connected or prompts not available"
         )
-
-    def get_prompts_formatted(self, server_name: str) -> str:
-        """
-        Get formatted markdown list of prompts.
-
-        Args:
-            server_name: Server name
-
-        Returns:
-            Markdown formatted string
-        """
-        feature = self._prompts_feature.get(server_name)
-        if feature:
-            return feature.format_prompts_list()
-        return "*Server not connected*"
 
     # ═══════════════════════════════════════════════════════════
     # Server Management
@@ -879,27 +828,32 @@ class McpClientManager:
             if result.first() is not None:
                 return
 
-            if not os.path.exists(self._legacy_config_path):
-                return
+        if not os.path.exists(self._legacy_config_path):
+            return
 
-            logger.info("Migrating legacy MCP config to database...")
-            try:
-                with open(self._legacy_config_path, encoding="utf-8") as f:
-                    config = json.load(f)
-                    servers = config.get("mcpServers", {})
+        logger.info("Migrating legacy MCP config to database...")
+        try:
+            with open(self._legacy_config_path, encoding="utf-8") as f:
+                config = json.load(f)
+                servers = config.get("mcpServers", {})
+        except Exception as e:
+            logger.exception(f"Failed to migrate legacy config: {e}")
+            return
 
-                    for name, details in servers.items():
-                        new_server = McpServer(
-                            name=name,
-                            command=details.get("command"),
-                            args=json.dumps(details.get("args", [])),
-                            env=json.dumps(details.get("env", {})),
-                            enabled=True,
-                        )
-                        session.add(new_server)
-                logger.info("Legacy MCP config migrated successfully.")
-            except Exception as e:
-                logger.exception(f"Failed to migrate legacy config: {e}")
+        if not servers:
+            return
+
+        async with session_scope() as session:
+            for name, details in servers.items():
+                new_server = McpServer(
+                    name=name,
+                    command=details.get("command"),
+                    args=json.dumps(details.get("args", [])),
+                    env=json.dumps(details.get("env", {})),
+                    enabled=True,
+                )
+                session.add(new_server)
+        logger.info("Legacy MCP config migrated successfully.")
 
     @staticmethod
     def _parse_json_field(value: Any, default: Any) -> Any:

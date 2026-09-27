@@ -164,11 +164,26 @@ async def get_projects(
     ignored_project_ids = set()
     duty_task_by_project: dict[int, dict[str, Any]] = {}
 
+    repo_infos: list[dict[str, Any]] = []
     try:
+        # Phase 1: read-only DB snapshot (short session)
         async with session_scope() as session:
             stmt = select(Repository).where(Repository.sync_status != REPO_SYNC_STATUS_IGNORED)
             result = await session.execute(stmt)
             repos = result.scalars().all()
+            repo_infos = [
+                {
+                    "id": r.id,
+                    "project_id": r.project_id,
+                    "name": r.name,
+                    "local_path": r.local_path,
+                    "sync_status": r.sync_status,
+                    "indexing_status": r.indexing_status,
+                    "last_indexed_at": r.last_indexed_at,
+                    "description": r.description,
+                }
+                for r in repos
+            ]
 
             # 批量预加载值守任务（供项目列表注入运行状态，避免逐个开 session）
             try:
@@ -185,142 +200,172 @@ async def get_projects(
             except Exception as e:
                 logger.warning("[ProjectsAPI] 加载值守任务失败: %s", e)
 
-            matched_count = 0
-
-            if projects:
-                from app.core.config import settings as _settings
-                from app.core.project.utils import (
-                    current_member_id,
-                    resolve_member_workspace_root,
-                )
-
-                if _settings.MULTI_TENANT_MODE:
-                    # 多租户：索引扫描锁定在当前 member 的工作根
-                    workspace_root = resolve_member_workspace_root(current_member_id())
-                else:
-                    workspace_root = get_workspace_root()
-                local_index = local_project_index.refresh(workspace_root) if workspace_root else {}
-                repo_by_project_id = {repo.project_id: repo for repo in repos if repo.project_id}
-
-                for cloud_project in projects:
-                    raw_pid = cloud_project.get("project_id")
-                    project_id = raw_pid if raw_pid is not None else cloud_project.get("id")
-                    project_name = cloud_project.get("name") or cloud_project.get("project_name", "")
-
-                    entry = local_index.get(project_id)
-                    actual_path = entry.path if entry else None
-                    if not actual_path:
-                        repo = repo_by_project_id.get(project_id)
-                        if repo:
-                            actual_path = repo.local_path
-                    if not actual_path:
-                        continue
-
-                    matched_count += 1
-                    exists = os.path.exists(actual_path)
-                    repo = repo_by_project_id.get(project_id)
-                    last_indexed_at = repo.last_indexed_at.isoformat() if repo and repo.last_indexed_at else None
-
-                    if repo and repo.project_id == project_id:
-                        local_status_map[project_id] = {
-                            "status": REPO_SYNC_STATUS_SYNCED if exists else REPO_SYNC_STATUS_DISCONNECTED,
-                            "exists_locally": exists,
-                            "local_path": actual_path,
-                            "repo_id": repo.id,
-                            "indexing_status": repo.indexing_status,
-                            "last_indexed_at": last_indexed_at,
-                        }
-                    elif repo and repo.project_id is None:
-                        repo.project_id = project_id
-                        repo.sync_status = REPO_SYNC_STATUS_SYNCED
-                        repo.imported_at = utcnow()
-                        local_status_map[project_id] = {
-                            "status": REPO_SYNC_STATUS_SYNCED,
-                            "exists_locally": True,
-                            "local_path": actual_path,
-                            "repo_id": repo.id,
-                            "indexing_status": repo.indexing_status,
-                            "last_indexed_at": last_indexed_at,
-                        }
-                    elif repo and repo.project_id != project_id:
-                        repo.project_id = project_id
-                        repo.sync_status = REPO_SYNC_STATUS_SYNCED
-                        repo.imported_at = utcnow()
-                        local_status_map[project_id] = {
-                            "status": REPO_SYNC_STATUS_SYNCED,
-                            "exists_locally": True,
-                            "local_path": actual_path,
-                            "repo_id": repo.id,
-                            "indexing_status": repo.indexing_status,
-                            "last_indexed_at": last_indexed_at,
-                        }
-                    else:
-                        new_repo = Repository(
-                            name=project_name,
-                            url="local",
-                            local_path=actual_path,
-                            sync_status=REPO_SYNC_STATUS_SYNCED,
-                            indexing_status=INDEXING_STATUS_PENDING,
-                            detected_at=utcnow(),
-                            imported_at=utcnow(),
-                            project_id=project_id,
-                        )
-                        session.add(new_repo)
-                        await session.flush()
-                        logger.info("[ProjectsAPI] Created and linked new repo for '%s'", project_name)
-                        local_status_map[project_id] = {
-                            "status": REPO_SYNC_STATUS_SYNCED,
-                            "exists_locally": True,
-                            "local_path": actual_path,
-                            "repo_id": new_repo.id,
-                            "indexing_status": INDEXING_STATUS_PENDING,
-                            "last_indexed_at": None,
-                        }
-
-                logger.info("[ProjectsAPI] Matched %d cloud projects with local workspace", matched_count)
-            else:
-                logger.warning("[ProjectsAPI] Cloud returned empty project list, using DB fallback for linked projects")
-                workspace_projects = _scan_workspace_projects()
-                if filter_type == "switchable":
-                    for repo in repos:
-                        if repo.project_id and repo.name and repo.name in workspace_projects:
-                            actual_path = workspace_projects[repo.name]
-                            last_indexed_at = repo.last_indexed_at.isoformat() if repo.last_indexed_at else None
-                            if os.path.exists(actual_path):
-                                projects.append({
-                                    "project_id": repo.project_id,
-                                    "name": repo.name,
-                                    "project_name": repo.name,
-                                    "project_desc": repo.description or "",
-                                    "description": repo.description or "",
-                                    "external_path": actual_path,
-                                    "status": 1,
-                                    "status_text": "正常",
-                                    "local_status": REPO_SYNC_STATUS_SYNCED,
-                                    "exists_locally": True,
-                                    "local_path": actual_path,
-                                    "db_indexing_status": repo.indexing_status,
-                                    "last_indexed_at": last_indexed_at,
-                                    "has_wiki": False,
-                                })
-                                local_status_map[repo.project_id] = {
-                                    "status": REPO_SYNC_STATUS_SYNCED,
-                                    "exists_locally": True,
-                                    "local_path": actual_path,
-                                    "repo_id": repo.id,
-                                    "indexing_status": repo.indexing_status,
-                                    "last_indexed_at": last_indexed_at,
-                                }
-                    if projects:
-                        logger.info("[ProjectsAPI] Built %d projects from DB fallback", len(projects))
-
             ignored_stmt = select(Repository).where(
                 Repository.project_id.isnot(None),
                 Repository.sync_status == REPO_SYNC_STATUS_IGNORED
             )
             ignored_result = await session.execute(ignored_stmt)
-            for ignored_repo in ignored_result.scalars().all():
-                ignored_project_ids.add(ignored_repo.project_id)
+            ignored_project_ids = {
+                r.project_id for r in ignored_result.scalars().all()
+                if r.project_id is not None
+            }
+
+        # Phase 2: filesystem scan + matching decision **outside** DB session
+        now = utcnow()
+        repo_updates: list[dict[str, Any]] = []
+        new_repo_requests: list[dict[str, Any]] = []
+        matched_count = 0
+
+        if projects:
+            from app.core.config import settings as _settings
+            from app.core.project.utils import (
+                current_member_id,
+                resolve_member_workspace_root,
+            )
+
+            if _settings.MULTI_TENANT_MODE:
+                # 多租户：索引扫描锁定在当前 member 的工作根
+                workspace_root = resolve_member_workspace_root(current_member_id())
+            else:
+                workspace_root = get_workspace_root()
+            local_index = local_project_index.refresh(workspace_root) if workspace_root else {}
+            repo_by_project_id = {r["project_id"]: r for r in repo_infos if r["project_id"]}
+
+            for cloud_project in projects:
+                raw_pid = cloud_project.get("project_id")
+                project_id = raw_pid if raw_pid is not None else cloud_project.get("id")
+                project_name = cloud_project.get("name") or cloud_project.get("project_name", "")
+
+                entry = local_index.get(project_id)
+                actual_path = entry.path if entry else None
+                if not actual_path:
+                    repo = repo_by_project_id.get(project_id)
+                    if repo:
+                        actual_path = repo["local_path"]
+                if not actual_path:
+                    continue
+
+                matched_count += 1
+                exists = os.path.exists(actual_path)
+                repo = repo_by_project_id.get(project_id)
+                last_indexed_at = repo["last_indexed_at"].isoformat() if repo and repo["last_indexed_at"] else None
+
+                if repo and repo["project_id"] == project_id:
+                    local_status_map[project_id] = {
+                        "status": REPO_SYNC_STATUS_SYNCED if exists else REPO_SYNC_STATUS_DISCONNECTED,
+                        "exists_locally": exists,
+                        "local_path": actual_path,
+                        "repo_id": repo["id"],
+                        "indexing_status": repo["indexing_status"],
+                        "last_indexed_at": last_indexed_at,
+                    }
+                elif repo and repo["project_id"] is None:
+                    repo_updates.append({
+                        "id": repo["id"],
+                        "project_id": project_id,
+                        "sync_status": REPO_SYNC_STATUS_SYNCED,
+                        "imported_at": now,
+                    })
+                    local_status_map[project_id] = {
+                        "status": REPO_SYNC_STATUS_SYNCED,
+                        "exists_locally": True,
+                        "local_path": actual_path,
+                        "repo_id": repo["id"],
+                        "indexing_status": repo["indexing_status"],
+                        "last_indexed_at": last_indexed_at,
+                    }
+                elif repo and repo["project_id"] != project_id:
+                    repo_updates.append({
+                        "id": repo["id"],
+                        "project_id": project_id,
+                        "sync_status": REPO_SYNC_STATUS_SYNCED,
+                        "imported_at": now,
+                    })
+                    local_status_map[project_id] = {
+                        "status": REPO_SYNC_STATUS_SYNCED,
+                        "exists_locally": True,
+                        "local_path": actual_path,
+                        "repo_id": repo["id"],
+                        "indexing_status": repo["indexing_status"],
+                        "last_indexed_at": last_indexed_at,
+                    }
+                else:
+                    new_repo_requests.append({
+                        "project_id": project_id,
+                        "project_name": project_name,
+                        "actual_path": actual_path,
+                    })
+                    local_status_map[project_id] = {
+                        "status": REPO_SYNC_STATUS_SYNCED,
+                        "exists_locally": True,
+                        "local_path": actual_path,
+                        "repo_id": None,
+                        "indexing_status": INDEXING_STATUS_PENDING,
+                        "last_indexed_at": None,
+                    }
+
+            logger.info("[ProjectsAPI] Matched %d cloud projects with local workspace", matched_count)
+        else:
+            logger.warning("[ProjectsAPI] Cloud returned empty project list, using DB fallback for linked projects")
+            workspace_projects = _scan_workspace_projects()
+            if filter_type == "switchable":
+                for repo in repo_infos:
+                    if repo["project_id"] and repo["name"] and repo["name"] in workspace_projects:
+                        actual_path = workspace_projects[repo["name"]]
+                        last_indexed_at = repo["last_indexed_at"].isoformat() if repo["last_indexed_at"] else None
+                        if os.path.exists(actual_path):
+                            projects.append({
+                                "project_id": repo["project_id"],
+                                "name": repo["name"],
+                                "project_name": repo["name"],
+                                "project_desc": repo["description"] or "",
+                                "description": repo["description"] or "",
+                                "external_path": actual_path,
+                                "status": 1,
+                                "status_text": "正常",
+                                "local_status": REPO_SYNC_STATUS_SYNCED,
+                                "exists_locally": True,
+                                "local_path": actual_path,
+                                "db_indexing_status": repo["indexing_status"],
+                                "last_indexed_at": last_indexed_at,
+                                "has_wiki": False,
+                            })
+                            local_status_map[repo["project_id"]] = {
+                                "status": REPO_SYNC_STATUS_SYNCED,
+                                "exists_locally": True,
+                                "local_path": actual_path,
+                                "repo_id": repo["id"],
+                                "indexing_status": repo["indexing_status"],
+                                "last_indexed_at": last_indexed_at,
+                            }
+                if projects:
+                    logger.info("[ProjectsAPI] Built %d projects from DB fallback", len(projects))
+
+        # Phase 3: apply DB mutations in another short session
+        if repo_updates or new_repo_requests:
+            async with session_scope() as session:
+                for upd in repo_updates:
+                    repo = await session.get(Repository, upd["id"])
+                    if repo is not None:
+                        repo.project_id = upd["project_id"]
+                        repo.sync_status = upd["sync_status"]
+                        repo.imported_at = upd["imported_at"]
+
+                for nr in new_repo_requests:
+                    new_repo = Repository(
+                        name=nr["project_name"],
+                        url="local",
+                        local_path=nr["actual_path"],
+                        sync_status=REPO_SYNC_STATUS_SYNCED,
+                        indexing_status=INDEXING_STATUS_PENDING,
+                        detected_at=now,
+                        imported_at=now,
+                        project_id=nr["project_id"],
+                    )
+                    session.add(new_repo)
+                    await session.flush()
+                    local_status_map[nr["project_id"]]["repo_id"] = new_repo.id
+                    logger.info("[ProjectsAPI] Created and linked new repo for '%s'", nr["project_name"])
 
     except Exception as e:
         logger.warning("[ProjectsAPI] Failed to fetch local repository status: %s", e)

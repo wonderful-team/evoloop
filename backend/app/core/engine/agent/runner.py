@@ -43,6 +43,7 @@ async def run_agent_background(
                 )
 
                 ctx = await build_ctx(thread_id, inputs, run_id=run_id)
+                ctx.run_id = run_id
                 config = build_execution_config(
                     thread_id, project_id, inputs, run_id, ctx
                 )

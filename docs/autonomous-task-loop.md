@@ -1,6 +1,6 @@
 # 自主任务循环（Autonomous Task Loop）设计方案
 
-> 状态：**已实现**（阶段〇-八全部落地；阶段八=2026-09-23 全局设计收敛，新契约以 §阶段八 为准）
+> 状态：**已实现**（阶段〇-九全部落地；阶段八=2026-09-23 全局设计收敛，阶段九=2026-09-25 轮次化周期工作流；新契约以 §阶段九/§阶段八 为准）
 > 范围：evoloop 引擎侧任务/调度/执行机制 + 界面设计（通用能力，不绑定任何业务项目；商城 mall 仅作为首个接入项目贯穿举例）
 > 关联文档：`docs/capability-packages-refactor.md`（能力包）、mall 侧 `mcp-server/AGENTS.md`（原子能力矩阵，项目侧示例）；`docs/task-system-fullflow.md` 已并入本文档（§9 界面 / §13 断层），仅存指针
 
@@ -531,6 +531,8 @@ wakeup run 领取任务后，用 plan 工具（挂 task_id）生成执行计划�
 | D3 | 仲裁结构化三键 | 画布已承载（同上；**逐项验收待做**） |
 | D4 | signoff 卡内嵌拍板对象（产出摘要/方案全文） | 未闭环 |
 | D5 | 任务卡与产物割裂 | 画布已承载产物卡；ExecutionPanel 另有 artifacts 预览 |
+| D6 | 工作流提案/确认入口（提案 tab 分组 + WorkflowProposalCard） | **已闭环（2026-09-25，阶段九.5）**；画布可见性归 D7 |
+| D7 | 画布工作流容器节点（模板树 + 轮次挂载 + 历史轮折叠） | 未闭环（阶段九.5，本轮刻意不做） |
 
 ### 体验层（手机）
 
@@ -575,7 +577,7 @@ wakeup run 领取任务后，用 plan 工具（挂 task_id）生成执行计划�
 
 ### 派发架构（Codex 接线 + 评审收敛后的终态）
 - **单 drainer**：`domain/tasks/runtime/supervisor.py`（事件驱动 + 60s 兜底）→ `dispatcher.dispatch_due_tasks` 串行 drain——**scheduler 旧 tick 已不再派发 project_tasks**（只剩 autonomous_tasks 纯定时器职责），无双 drainer。
-- **真实执行链**：`EvoloopAgentRuntimeAdapter.run` → `dispatch_agent_run`（注入 `source_task_id` 进 ContextManager）→ `run_agent_background`（ReAct 真实 LLM + 真实工具）——mockLLM 仅存于 docstring DI 示例与 `scripts/mock_llm_server.py`（测试资产）。
+- **真实执行链**：`EvoloopAgentRuntimeAdapter.run` → `dispatch_agent_run`（注入 `source_task_id` 进 ContextManager）→ `run_agent_background`（ReAct 真实 LLM + 真实工具）——mockLLM 统一为 `app/core/engine/sdk_adapter/mock_llm.py`（进程内规则引擎，`EVOLOOP_SDK_LLM_MOCK=1` 开关；2026-09-24 删除了旧的 `scripts/mock_llm_server.py` 进程级 mock 及其 DB custom 指向）。
 - **工作流体系**：`task_workflows` 表（goal/inputs 数据层）+ `roles.py` 角色注册表（stage/system_prompt/output_artifact_type/allowed_packages）+ `task_artifacts` 表（产物权威源）+ 依赖链（dependencies 全 completed 才 ready）。
 - **失败语义**：`failed → pending/cancelled` 状态机放开（人工重跑回队）；`NON_RETRYABLE_ERROR_MARKERS`（DataInspectionFailed/model parameter/invalid_request_error）→ 直接终态不烧重试；`GET /queue/{id}/rerun`（仅 failed 可重跑，409 守卫）。
 
@@ -674,3 +676,59 @@ wakeup run 领取任务后，用 plan 工具（挂 task_id）生成执行计划�
 - **deploy.sh 迁移命令**：`bin/migrate.py`（不存在的文件名）→ `bin/migrate`，并移除 `|| echo` 失败吞噬——迁移失败现在中止部署而非伪装成功。
 - **HOST 守卫冲突**：`main.py` lifespan 的 loopback 强制与生产 `HOST=0.0.0.0` 直接冲突（启动即炸）。新增显式豁免 `ALLOW_REMOTE_BIND=1`（默认仍 fail-closed）；语音路由的逐请求 loopback 守卫（`routing/deps.py` 403/4403）不依赖绑定地址，防御纵深不因豁免失效。`.env.prod.*` 已补该开关。
 - **遗留待运维决策**：`WORKERS=4` 与进程内单 supervisor 矛盾——多 worker 下 supervisor 重复派发（in-flight 状态是进程内存态）。要么生产 `WORKERS=1`（最简），要么做 DB lease 选主（未实施）；`.env.prod` 凭据轮换同待运维。
+
+---
+
+## 阶段九（轮次化周期工作流：触发/编排/执行三分离）✅ 已完成（2026-09-25）
+
+> 源起：Agent 用「recurring 根任务 + one-shot 依赖子树」编排每日流水线（#T-1 事故）——队列没有编排原语，Agent 用幻觉承诺兜底（"由根任务驱动"/"执行顺序由编排保证"），文本意图不进状态机：子任务与父任务时序脱钩、根任务每天空转重跑全流程、子任务一次性跑完躺尸。修复不是补丁，是把语义层一次性摆正。
+
+### 九.1 概念模型（本节为最新契约，与上文冲突处以此为准）
+
+**触发 / 编排 / 执行三正交**：
+
+| 原语 | 载体 | 语义 |
+|---|---|---|
+| Task | `project_tasks` | 一次派发/一个线程/一条状态机；once/recurring；version 乐观锁 |
+| Workflow | `task_workflows` | 编排容器：阶段模板（`inputs.stage_template`，key+deps+角色）+ artifact 交接 + 状态聚合；**触发器上移至此**（`trigger_spec`/`next_run_at`/`round_no`，迁移 `a7c3e9d2f4b8`） |
+| Trigger | workflow.trigger_spec | cron / interval:秒；armed 后 supervisor 每拍自动实例化轮次 |
+
+**红线**：recurring 与任务图（parent_id/dependencies）互斥——周期流水线只有工作流一种正确形态。护栏在两处落地：`tasks` 工具 create 双向拦截（recurring 带图 / 上游 recurring）；`create_workflow` action 成为 Agent 建周期流水线的唯一合法路径（stages_json 模板 + trigger_spec）。
+
+### 九.2 运行模型：轮次实例化（round-based spawning）
+
+- **轮次**：`spawn_round(workflow_id)` 按 `inputs.stage_template`（拓扑序强校验：Kahn 环检测 + deps 先于引用者落行）实例化一轮阶段 ProjectTask——`workflow_round` 一等列标轮，deps 接**同轮真实任务 id**；`dedup_key="wf:{workflow_id}:{round}:{stage_key}"` 幂等（spawn 中途崩溃恢复安全）。
+- **skip-on-busy**：工作流下任一阶段任务未终态（proposed/pending/in_progress/self_checked/waiting_acceptance）→ 本拍不 spawn，`next_run_at` 保持到期，空闲后下一拍立即补跑（同日追赶，轮次绝不并发）。单轮失败不杀周期（failed/completed 均可再 spawn）。
+- **触发上膛**：`proposed →（用户 confirm）→ armed（next_run_at=下个 cron）→ supervisor 每拍 spawn_due_rounds`；cancel 切断触发器 + 终态化在飞阶段（含 agent stop）。
+- **门控语义简化**：阶段依赖=「同轮上游 completed」，**lineage-only 豁免只留给存量 recurring 任务**，新编排不再需要任何豁免。
+- **聚合联动**：`advance_task`/`submit_acceptance` 内嵌 `WorkflowService.refresh_status`（否则普通阶段终态后 workflow 永远 running，skip-on-busy 永久忙）；cancelled 是人工终态不被聚合覆盖。
+- supervisor 循环：`reconcile → auto_retry → spawn_due_rounds → dispatch_due_tasks → wait(wakeup, 60s)`。
+
+### 九.3 API 与工具面
+
+- `POST /api/v1/tasks/workflows`（通用编排提案，替代「recurring 根 + 依赖子树」表达）/ `POST /workflows/{id}/confirm`（上膛）/ `PUT /workflows/{id}`（cancel）；`GET /workflows`（project_id 可选，全局视图可见提案；summary 含 stage_template 链）。
+- `tasks` 工具新增 `create_workflow` action（stages_json + trigger_spec）；recurring×DAG 互斥护栏同步落地。
+- 工具 summary i18n：`evoloop.tool_summary.tasks` zh/en 补齐（此前缺键，UI 显示原始 key）。
+- 前端：提案 tab 新增「周期流水线提案」分组（proposed/armed 渲染 `WorkflowProposalCard`：阶段缩进链 + 确认上膛/取消）；项目内列表按 `task_no` 链序排序（uuid 兜底序观感事故修正）；generate-client 已刷新三端点。
+
+### 九.4 实测锚点（2026-09-25，本地实链路）
+
+工作流 `bb6ab0e0`（每日需求挖掘流水线，cron `0 9 * * *`，六阶段 collect_hn/reddit/v2ex → aggregate → draft_outreach ∥ calibrate_rules）：确认上膛 → 手动拨快 `next_run_at` → supervisor 60s 兜底拍内 spawn round=1 六阶段落库（deps 全部为同轮真实 id）→ #T-9 派发即认领（wakeup 线程 + task_runs attempt=1）→ 门控正确（#T-10~14 pending 等上游）。存量 7 条坏提案 cancelled（`workflow_migrated:` 留痕），幂等重跑验证。回归：backend 1774 passed / frontend 189 passed。
+
+### 九.5 已知边界与下一步
+
+| # | 项 | 状态 |
+|---|---|---|
+| D6 | 工作流提案/确认入口（提案 tab 分组 + WorkflowProposalCard） | **已闭环（2026-09-25）**；画布上工作流实体仍不可见 |
+| D7 | 画布工作流容器节点（模板树常驻 + 当前轮任务挂载其下 + 历史轮折叠） | **未闭环（本轮刻意不做）**——layoutEngine 需加节点类型，属画布形态级改动；`workflow_round` 一等列已就绪，UI 待接。触发时机：多轮运行后画布节点堆积成为实际痛点时 |
+| D8 | dashboard 无 workflow 维度（轮次战报/运行中工作流聚合位） | 未闭环 |
+| D9 | `workflow_stage`（growth 遗留字段）与 `workflow_round` 前端类型命名对齐 | 未闭环（防消费混乱） |
+| — | SSE 无 workflow 频道（spawn/confirm/cancel 事件不进 `/stream/tasks`，提案卡依赖聚焦/切换刷新） | 未闭环（低成本补：workflow 事件并入 tasks:all:events） |
+
+
+### 九.6 单点收敛（2026-09-25 同日第二轮：消除冗余路径）
+
+1. **依赖门控单一化**：`TaskQueueService.evaluate_dependency_gate` 成为规则唯一本体（无依赖放行 / recurring lineage-only 豁免 / 依赖缺失不放行 / 非 recurring 上游全 completed 放行，返回 failed_upstreams 供派发侧告警）。`claim_due_tasks` 与 `dispatcher._deps_satisfied` 都消费它——此前两份逐字级相似实现（含 recurring 豁免两份、断链告警只在 dispatcher 侧）是"改语义必须两处"的温床。dispatcher 现在只承担表现层副作用（断链手机推送）。
+2. **growth 流水线迁通用轮次机制，专属执行器退役**：`create_growth_workflow` = `create_workflow`（roles.py → stage_template，system_prompt+JSON 产出契约+tasks 执行协议进 stage description）→ confirm → spawn_round；阶段任务=普通 pending 任务（`workflow_round=1`，阶段 key 在 source_ref）。退役：`runtime/agent.py`（EvoloopAgentRuntimeAdapter/parse_structured_output）、`build_task_prompt`/`ensure_task_plan`/`complete_task_plan`/`complete_task`、`requeue_workflow_task`（+`WORKFLOW_RETRY_LIMIT/DELAY` 常量）、dispatcher 的 `workflow_runtime=evoloop` 特权分支（失败重试/refresh/事件分支整段）。T2 文案阶段的 waiting_acceptance 语义不变（advance 风险闸门统一承接）。`task_artifacts` 表与读取端点保留（历史数据），growth 不再产生新 artifact——下游交接统一走 `_build_upstream_context`（同轮上游 last_result，第 1 轮真实流水线已实证够用）。
+3. **两套周期语义边界（记账不动）**：recurring 任务（自触发、无子树）合法保留；周期编排必须走工作流。task_data 簿记键（requeue_count/workflow_auto_retry/dep_failure_notified/signoff_reminded）下次一等列迁移顺带清。
+

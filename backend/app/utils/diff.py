@@ -39,27 +39,6 @@ def read_text_or_binary(path: str) -> str:
         return f"{BINARY_FILE_MARKER}:{len(raw)}"
 
 
-class DiffStats:
-    """Statistics about the difference between two texts."""
-
-    lines_added: int
-    lines_removed: int
-    lines_unchanged: int
-    chars_changed: int
-
-    def __init__(self, lines_added: int, lines_removed: int, lines_unchanged: int, chars_changed: int):
-        self.lines_added = lines_added
-        self.lines_removed = lines_removed
-        self.lines_unchanged = lines_unchanged
-        self.chars_changed = chars_changed
-
-    def __getitem__(self, key: str):
-        return getattr(self, key)
-
-    def get(self, key: str, default=None):
-        return getattr(self, key, default)
-
-
 class DiffTracker:
     """
     Tracks file changes to generate precise memory of what actually changed.
@@ -234,96 +213,6 @@ class DiffTracker:
                 return len(self._snapshots)
             prefix = f"{thread_id}:"
             return sum(1 for k in self._snapshots if k.startswith(prefix))
-
-
-def compute_text_diff(
-    old_text: str,
-    new_text: str,
-    old_label: str = "original",
-    new_label: str = "modified",
-    context_lines: int = 3,
-) -> str:
-    """
-    Compute unified diff between two text strings.
-
-    Args:
-        old_text: Original text
-        new_text: Modified text
-        old_label: Label for original text in diff header
-        new_label: Label for modified text in diff header
-        context_lines: Number of context lines
-
-    Returns:
-        Unified diff text
-
-    Example:
-        >>> diff = compute_text_diff("hello\\nworld", "hello\\npython")
-        >>> print(diff)
-        --- original
-        +++ modified
-        @@ -1,2 +1,2 @@
-         hello
-        -world
-        +python
-    """
-    diff = difflib.unified_diff(
-        old_text.splitlines(keepends=True),
-        new_text.splitlines(keepends=True),
-        fromfile=old_label,
-        tofile=new_label,
-        n=context_lines,
-    )
-    return "".join(diff)
-
-
-def get_diff_stats(old_text: str, new_text: str) -> DiffStats:
-    """
-    Get statistics about the difference between two texts.
-
-    Args:
-        old_text: Original text
-        new_text: Modified text
-
-    Returns:
-        DiffStats with diff statistics:
-        - lines_added: Number of lines added
-        - lines_removed: Number of lines removed
-        - lines_unchanged: Number of unchanged lines
-        - chars_changed: Total characters changed
-    """
-    old_lines = old_text.splitlines()
-    new_lines = new_text.splitlines()
-
-    sm = difflib.SequenceMatcher(None, old_lines, new_lines)
-
-    lines_added = 0
-    lines_removed = 0
-    lines_unchanged = 0
-    chars_changed = 0
-
-    for tag, i1, i2, j1, j2 in sm.get_opcodes():
-        if tag == "equal":
-            lines_unchanged += i2 - i1
-        elif tag == "delete":
-            lines_removed += i2 - i1
-            chars_changed += sum(len(line) for line in old_lines[i1:i2])
-        elif tag == "insert":
-            lines_added += j2 - j1
-            chars_changed += sum(len(line) for line in new_lines[j1:j2])
-        elif tag == "replace":
-            lines_removed += i2 - i1
-            lines_added += j2 - j1
-            chars_changed += (
-                sum(len(line) for line in old_lines[i1:i2]) +
-                sum(len(line) for line in new_lines[j1:j2])
-            )
-
-    return DiffStats(
-        lines_added=lines_added,
-        lines_removed=lines_removed,
-        lines_unchanged=lines_unchanged,
-        chars_changed=chars_changed,
-    )
 
 
 # Global singleton for convenience

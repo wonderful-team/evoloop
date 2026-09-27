@@ -1,10 +1,9 @@
-import {useEffect} from "react"
-
-import {AgentService, ConversationsService, OpenAPI} from "@/client"
-import {useQuery, useQueryClient} from "@tanstack/react-query"
-import {Bot} from "lucide-react"
-import type {QueueTask} from "@/lib/tasksQueueApi"
-import {HumanRequestCard as SharedHumanRequestCard} from "@evoloop/shared"
+import { HumanRequestCard as SharedHumanRequestCard } from "@evoloop/shared"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { Bot } from "lucide-react"
+import { useEffect } from "react"
+import { AgentService, ConversationsService, OpenAPI } from "@/client"
+import type { QueueTask } from "@/lib/tasksQueueApi"
 
 /**
  * 监察评审进度卡（渲染在执行时间线下方）。
@@ -48,7 +47,8 @@ export function ReviewProgressCard({
       }
       return (res.data ?? []).filter(
         (m) =>
-          m.category === "assistant_response" || m.category === "assistant_tool_call",
+          m.category === "assistant_response" ||
+          m.category === "assistant_tool_call",
       )
     },
     enabled: !!origin,
@@ -62,18 +62,27 @@ export function ReviewProgressCard({
     if (!origin) return
     let source: EventSource | null = null
     let cancelled = false
+    let lastEventId = ""
+    const captureEventId = (e: MessageEvent) => {
+      const id = (e as any).lastEventId as string | undefined
+      if (id) lastEventId = id
+    }
 
     const connect = (token?: string) => {
       if (cancelled) return
-      const qs = token ? `?token=${encodeURIComponent(token)}` : ""
+      const params = new URLSearchParams()
+      if (token) params.set("token", token)
+      if (lastEventId) params.set("last_event_id", lastEventId)
+      const qs = params.toString()
       source = new EventSource(
-        `${OpenAPI.BASE}/api/v1/stream/thread/${origin}${qs}`,
+        `${OpenAPI.BASE}/api/v1/stream/thread/${origin}${qs ? `?${qs}` : ""}`,
         { withCredentials: true },
       )
       source.onopen = () => {
         void qc.invalidateQueries({ queryKey: ["dutyReview", origin] })
       }
-      source.addEventListener("thread_updated", () => {
+      source.addEventListener("thread_updated", (ev) => {
+        captureEventId(ev)
         void qc.invalidateQueries({ queryKey: ["dutyReview", origin] })
       })
     }
@@ -165,4 +174,3 @@ export function ReviewProgressCard({
     </div>
   )
 }
-

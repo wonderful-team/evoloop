@@ -27,6 +27,7 @@ class AgentSessionStartedEvent(AgentEvent):
     event_type: str = "system.session_started"
     thread_id: str = ""
     project_id: int | None = None
+    run_id: str | None = None
 
     # Governance: Map to frontend RunStartEvent
     is_public: bool = True
@@ -36,6 +37,7 @@ class AgentSessionStartedEvent(AgentEvent):
         self.data = EventData(
             thread_id=self.thread_id,
             project_id=self.project_id,
+            run_id=self.run_id,
         )
 
 

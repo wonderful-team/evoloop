@@ -56,10 +56,6 @@ def __getattr__(name):
     raise AttributeError(f"module {__name__} has no attribute {name}")
 
 
-# For backward compatibility
-get_engine = lambda: db_resource_manager.engine
-
-
 # Base Model
 class Base(DeclarativeBase):
     # Suppress warnings about delete operations that match 0 rows

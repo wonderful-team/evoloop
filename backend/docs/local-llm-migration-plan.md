@@ -7,7 +7,7 @@
 | Tab | 子分区 | 配置项数 | 用户理解成本 |
 |-----|--------|---------|------------|
 | General | 语言、设备名、工作区 | ~5 | ✅ 低 |
-| **Models** | **AI Assistant / Advanced(Heavy+Lightning+Embedding)** | **~25** | **⚠️ 中（已简化）** |
+| **Models** | **AI Assistant / Advanced(Heavy+Embedding)** | **~25** | **⚠️ 中（已简化）** |
 | Voice | TTS / Advanced(STT+WakeWord+Shortcut) | ~15 | ✅ 低（已简化） |
 | Profile | 昵称、邮箱、密码 | ~5 | ✅ 低 |
 | Appearance | 主题、思考显示 | ~3 | ✅ 低 |
@@ -36,16 +36,16 @@
 ### 后端已做
 
 - `embedder factory.py` 改为 3 级优先级链（gguf → local → remote）
-- `lightning.py` 移除嵌入管理，纯 LLM
+- ~~`lightning.py` 移除嵌入管理，纯 LLM~~（Lightning 通道已整链路删除，不再维护）
 - `local.py` 从 `sentence-transformers` 迁移到 `llama-cpp-python`
 - 移除 `torch` / `transformers` 依赖
 - 新增 `GET /system/models/discover` API
-- 新增 `GET /system/lightning/status` / `POST /system/lightning/apply` / `POST /system/lightning/test`
+- ~~新增 `GET /system/lightning/status` / `POST /system/lightning/apply` / `POST /system/lightning/test`~~（接口随 Lightning 通道删除）
 - 新增 `GET /system/embedding/tier-status` / `POST /system/embedding/tier-apply` / `POST /system/embedding/tier-test`
 
 ### 前端已做
 
-- `LightningSettings.tsx` — 仅 LLM 配置（mode, llm_model, ctx, base_url）
+- ~~`LightningSettings.tsx` — 仅 LLM 配置（mode, llm_model, ctx, base_url）~~（已删除）
 - `EmbeddingSettings.tsx` — Mode 选择器（none/gguf/local/remote）
 - `ModelSettings.tsx` — AI Assistant 默认视图 + Advanced Settings 折叠
 - `VoiceControlSettings.tsx` — TTS 默认视图 + Advanced 折叠
@@ -56,7 +56,7 @@
 - [x] Phase 1: 自动发现 API
 - [x] Phase 2: 前端简化
 - [ ] Phase 3: 移除 `provider`/`provider_type` 字段
-- [ ] 设置页合并 `getSystemConfig()` 请求（Lightning/Embedding/Heavy 3 次独立加载）
+- [ ] 设置页合并 `getSystemConfig()` 请求（Embedding/Heavy 2 次独立加载）
 - [ ] 嵌入模式状态指示（当前走 GGUF/Local/Remote 哪个）
 - [ ] GGUF 路径输入无下载引导
 - [ ] 对话 `ModelSelector` 集成发现 API（现在只用旧模型列表）

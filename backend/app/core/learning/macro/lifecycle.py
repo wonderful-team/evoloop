@@ -86,7 +86,7 @@ async def create_macro_from_synthesis(
     return macro
 
 
-def invalidate_macro_cache(macro_id: int | None = None) -> None:
+def invalidate_macro_cache(_macro_id: int | None = None) -> None:
     """No-op cache invalidation.
 
     宏缓存已移除（进程内缓存曾导致 "DB 已更新但执行旧脚本" 问题）：宏每次

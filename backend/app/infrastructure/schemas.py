@@ -1,31 +1,10 @@
 """Schemas for infrastructure module."""
 
-import asyncio
-from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import ConfigDict, Field
+from pydantic import Field
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
-
-
-class ToolRequest(DynamicBaseModel):
-    """Represents a pending tool execution request."""
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    request_id: str
-    thread_id: str
-    tool: str
-    params: dict[str, Any]
-    status: str = "pending"  # pending, executing, completed, failed
-    result: Any | None = None
-    error: str | None = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    completed_at: datetime | None = None
-    # Async event for waiting
-    event: asyncio.Event = Field(default_factory=asyncio.Event, exclude=True)
-    future: asyncio.Future | None = Field(default=None, exclude=True)
 
 
 class LLMCacheStats(DynamicBaseModel):

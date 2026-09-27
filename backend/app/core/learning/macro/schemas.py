@@ -259,7 +259,7 @@ def compute_max_risk(steps: list[Any]) -> str:
     as ACTION steps still yield "escape".
     """
     max_risk = "observe"
-    for family, step_type, event_type in iter_macro_steps(steps):
+    for family, _step_type, event_type in iter_macro_steps(steps):
         if family == "observe":
             risk = "data" if event_type == _mc.RUN_JS else "observe"
         else:

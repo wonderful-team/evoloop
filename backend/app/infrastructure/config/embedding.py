@@ -19,22 +19,16 @@ class EmbeddingConfigService:
         try:
             # We temporarily override factory logic by instantiating directly or using a temp override
             # Easier to just instantiate based on provider
-            from app.infrastructure.embeddings.ollama import OllamaEmbedder
             from app.infrastructure.embeddings.openai import GenericOpenAIEmbedder
 
-            embedder = None
-            if provider == "ollama":
-                # Ollama uses its own native API format
-                embedder = OllamaEmbedder(base_url=base_url, model=model)
-            else:
-                # All other providers (openai, generic, qwen, lmstudio, vllm, etc.)
-                # use OpenAI-compatible API format
-                embedder = GenericOpenAIEmbedder(
-                    api_key=api_key or "dummy",
-                    base_url=base_url,
-                    model=model,
-                    dimensions=settings.EMBEDDING_DIMENSIONS,
-                )
+            # All configured providers (openai, ollama, generic, qwen, lmstudio, vllm, etc.)
+            # are expected to expose an OpenAI-compatible /embeddings endpoint.
+            embedder = GenericOpenAIEmbedder(
+                api_key=api_key or "dummy",
+                base_url=base_url,
+                model=model,
+                dimensions=settings.EMBEDDING_DIMENSIONS,
+            )
 
             # Test Embedding
             vec = await embedder.embed_query("test connection")

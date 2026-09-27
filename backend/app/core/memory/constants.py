@@ -9,9 +9,6 @@ this module exposes the memory-facing defaults derived from or aligned with them
 
 from app.core.config import settings
 
-#: 遗忘安全窗口：只能遗忘超过 N 步的工具输出。
-FORGET_SAFETY_WINDOW = 5
-
 # ====================== Search / Retrieval Defaults ======================
 #: Default number of memory results returned by search/list interfaces.
 DEFAULT_SEARCH_LIMIT: int = settings.MEMORY_SEARCH_LIMIT
@@ -25,8 +22,6 @@ DEFAULT_RETRIEVAL_RESULTS = 5
 SELECTION_SKIP_THRESHOLD = 5.0
 
 # ====================== Quality Analysis ======================
-#: Overall quality score below which a memory is considered low quality.
-QUALITY_THRESHOLD = 0.4
 #: Freshness half-life (days) used in exponential decay.
 FRESHNESS_HALF_LIFE = 30
 
@@ -41,12 +36,6 @@ SHORT_TERM_MAX_MESSAGES = 100
 MAX_TOTAL_LINES = 200
 #: Maximum total byte size for the two-tier memory summary.
 MAX_TOTAL_BYTES = 25 * 1024  # 25KB
-
-# ====================== Tool operation result statuses ======================
-#: Tool operation reported a successful outcome.
-OP_STATUS_SUCCESS = "success"
-#: Tool operation reported a failure.
-OP_STATUS_ERROR = "error"
 
 # ====================== Maintenance / Governance statuses ======================
 #: Maintenance skipped because the memory count is below threshold.

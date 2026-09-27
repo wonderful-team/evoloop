@@ -44,7 +44,9 @@ class ProjectTask(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
 
     # Optional link to requirement analysis (for historical compatibility or future trace)
-    analysis_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    analysis_id: Mapped[str | None] = mapped_column(
+        String(36), nullable=True, index=True
+    )
     project_id: Mapped[int] = mapped_column(Integer, index=True)
     member_id: Mapped[int] = mapped_column(Integer, default=0, index=True)
 
@@ -52,7 +54,9 @@ class ProjectTask(Base):
     evocloud_task_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     # Hierarchy support for subtasks
-    parent_id: Mapped[str | None] = mapped_column(ForeignKey("project_tasks.id"), nullable=True, index=True)
+    parent_id: Mapped[str | None] = mapped_column(
+        ForeignKey("project_tasks.id"), nullable=True, index=True
+    )
 
     # Task execution status
     # Queue lifecycle: proposed, pending, in_progress, self_checked,
@@ -71,15 +75,21 @@ class ProjectTask(Base):
     # Derivation path: {kind: message|patrol_run|agent_run|event, ref: ...}
     source_ref: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     # Idempotency key for external events: "{source}:{event_id}"
-    dedup_key: Mapped[str | None] = mapped_column(String(255), nullable=True, unique=True, index=True)
+    dedup_key: Mapped[str | None] = mapped_column(
+        String(255), nullable=True, unique=True, index=True
+    )
     # Acceptance tier inherited from MCP risk annotations: T1-T4
     risk_level: Mapped[str | None] = mapped_column(String(4), nullable=True)
     # Due time for one-shot tasks (scheduling scan key)
-    due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    due_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
     # Recurring spec (cron or "interval:seconds"); non-null = recurring task
     trigger_spec: Mapped[str | None] = mapped_column(String(255), nullable=True)
     # Next run for recurring tasks (advanced on claim to prevent re-dispatch)
-    next_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    next_run_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
     # Structured self-check report: {verdict, checks, deviations}
     self_check: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     # Acceptance receipt: {by, at, verdict, feedback}
@@ -101,14 +111,17 @@ class ProjectTask(Base):
     tags: Mapped[list | None] = mapped_column(JSON, nullable=True)
     dependencies: Mapped[list | None] = mapped_column(JSON, nullable=True)
     acceptance_criteria: Mapped[list | None] = mapped_column(JSON, nullable=True)
-    workflow_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    workflow_id: Mapped[str | None] = mapped_column(
+        String(36), nullable=True, index=True
+    )
+    # 所属轮次（周期工作流每轮实例化的阶段任务标记；0/None = 非轮次任务）
+    workflow_round: Mapped[int | None] = mapped_column(Integer, nullable=True)
     dispatch_count: Mapped[int] = mapped_column(Integer, default=0)
     last_result: Mapped[str | None] = mapped_column(Text, nullable=True)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     review_pending: Mapped[bool] = mapped_column(Boolean, default=False)
     workflow_retry_count: Mapped[int] = mapped_column(Integer, default=0)
     version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
-
 
     # Task data (JSON)
     # {
@@ -125,7 +138,9 @@ class ProjectTask(Base):
     # Sync status
     sync_status: Mapped[str] = mapped_column(String(50), default="pending")
     sync_error: Mapped[str | None] = mapped_column(Text, nullable=True)
-    synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    synced_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow
@@ -136,12 +151,8 @@ class ProjectTask(Base):
 
     # Relationships
     parent: Mapped["ProjectTask | None"] = relationship(
-        "ProjectTask",
-        remote_side="ProjectTask.id",
-        back_populates="subtasks"
+        "ProjectTask", remote_side="ProjectTask.id", back_populates="subtasks"
     )
     subtasks: Mapped[list["ProjectTask"]] = relationship(
-        "ProjectTask",
-        back_populates="parent",
-        cascade="all, delete-orphan"
+        "ProjectTask", back_populates="parent", cascade="all, delete-orphan"
     )

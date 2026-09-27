@@ -60,4 +60,4 @@ class McpFeature(ABC):
 
     def reset(self) -> None:
         """Reset feature state (called on disconnect)."""
-        pass
+        return None

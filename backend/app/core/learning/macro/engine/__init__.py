@@ -492,7 +492,6 @@ class MacroEngine(
                                 target_selector,
                                 payload,
                                 disable_ocr,
-                                expected_pkg=active_bundle_id,
                             )
                         elif source == MacroSource.DESKTOP:
                             await cls._execute_desktop_step(

@@ -99,7 +99,7 @@ async def create_resource(project_id: int, req: ResourceCreate, current_user: Cu
 
 
 @router.delete("/{resource_id}", response_model=OperationResponse)
-async def delete_resource(project_id: int, resource_id: int, current_user: CurrentUserOptional = None):
+async def delete_resource(project_id: int, resource_id: int, _current_user: CurrentUserOptional = None):
     """Remove a resource."""
     try:
         async with session_scope() as session:

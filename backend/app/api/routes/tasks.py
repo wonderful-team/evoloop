@@ -32,7 +32,7 @@ async def get_project_tasks(
     page: int = 1,
     page_size: int = 50,
     status: int | None = None,
-    token: TokenDepOptional = None,
+    _token: TokenDepOptional = None,
 ):
     """
     Get a list of tasks for a specific project.
@@ -66,7 +66,7 @@ async def get_task_detail(task_id: int, token: TokenDep):
 
 
 @router.post("/")
-async def create_task(req: TaskCreateRequest, authorization: str | None = Header(None)):
+async def create_task(req: TaskCreateRequest, _authorization: str | None = Header(None)):
     """
     Create a new task.
     """
@@ -84,7 +84,7 @@ async def create_task(req: TaskCreateRequest, authorization: str | None = Header
 
 @router.put("/{task_id}")
 async def update_task(
-    task_id: int, req: TaskUpdateRequest, authorization: str | None = Header(None)
+    task_id: int, req: TaskUpdateRequest, _authorization: str | None = Header(None)
 ):
     """
     Update a task.
@@ -102,7 +102,7 @@ async def update_task(
 
 
 @router.delete("/{task_id}")
-async def delete_task(task_id: int, authorization: str | None = Header(None)):
+async def delete_task(task_id: int, _authorization: str | None = Header(None)):
     """
     Delete a task.
     """
@@ -117,7 +117,7 @@ async def delete_task(task_id: int, authorization: str | None = Header(None)):
 
 @router.put("/{task_id}/status")
 async def update_task_status_endpoint(
-    task_id: int, req: TaskStatusUpdate, authorization: str | None = Header(None)
+    task_id: int, req: TaskStatusUpdate, _authorization: str | None = Header(None)
 ):
     """
     Update task status and progress.
@@ -135,7 +135,7 @@ async def update_task_status_endpoint(
 
 @router.post("/{task_id}/execute")
 async def execute_task(
-    task_id: int, bg_tasks: BackgroundTasks, authorization: str | None = Header(None)
+    task_id: int, bg_tasks: BackgroundTasks, _authorization: str | None = Header(None)
 ):
     """
     Trigger Autonomous Agent to execute the task.

@@ -170,6 +170,18 @@ class AgentToolExecutor:
                             wd = get_working_directory(self.config)
                             abs_path = os.path.abspath(os.path.join(wd, abs_path))
 
+                        # 与工具执行侧同规则解析（uploads/ 切根、绝对路径剥前缀
+                        # 重定向到沙箱 workspace）：记账路径若停留在原始输入，
+                        # 绝对路径写操作的 diff/回滚会因 stat 不到文件而静默失效。
+                        from app.core.file.tools.utils import (
+                            resolve_and_validate_path,
+                        )
+
+                        abs_path = await resolve_and_validate_path(
+                            abs_path,
+                            self.config,  # type: ignore[arg-type]
+                        )
+
                         resolved_abs_paths.append(abs_path)
                         if not file_change_tracker.has_snapshot(abs_path, thread_id):
                             file_change_tracker.capture(abs_path, thread_id)
@@ -299,7 +311,7 @@ class AgentToolExecutor:
             tool_callbacks = locals().get("tool_callbacks")
             tool_run_id = locals().get("tool_run_id", "")
             if tool_callbacks:
-                await emit_tool_error(tool_callbacks, tool_name, e, tool_run_id)
+                await emit_tool_error(tool_callbacks, e, tool_run_id)
 
             fail_ctx = HookContext(
                 thread_id=thread_id,
@@ -379,29 +391,6 @@ class AgentToolExecutor:
                 )
             except OSError as e:
                 logger.exception(f"Failed to process diff for {path}: {e}")
-
-    async def execute_batch(
-        self,
-        tool_calls: list[dict],
-        local_tool_history: list[str],
-        parallel: bool = False,
-    ) -> list[BaseMessage]:
-        async def _run_one(tc: dict) -> BaseMessage:
-            result = await self.execute_tool(
-                tool_name=tc["name"],
-                tool_args=tc["args"],
-                tool_id=tc["id"],
-                local_tool_history=local_tool_history,
-            )
-            return result.message
-
-        if parallel:
-            return list(await asyncio.gather(*[_run_one(tc) for tc in tool_calls]))
-
-        results: list[BaseMessage] = []
-        for tc in tool_calls:
-            results.append(await _run_one(tc))
-        return results
 
     def _create_tool_message(
         self,

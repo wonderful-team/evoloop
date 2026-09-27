@@ -66,7 +66,6 @@ class HookEvent(Enum):
     PERMISSION_DENIED = auto()  # Tool call denied
 
     # Context management
-    PRE_COMPACT = auto()  # Before context compression (CRITICAL)
     POST_COMPACT = auto()  # After context compression
 
     # Task/Agent lifecycle
@@ -334,7 +333,6 @@ def setup_default_hooks():
         notification_handler,
         post_tool_use_failure_logging,
         post_tool_use_logging,
-        pre_compact_save_state,
         user_prompt_submit_handler,
     )
 
@@ -349,9 +347,6 @@ def setup_default_hooks():
     hook_system.register(
         HookEvent.POST_TOOL_USE_FAILURE, post_tool_use_failure_logging, priority=100
     )
-
-    # Context management
-    hook_system.register(HookEvent.PRE_COMPACT, pre_compact_save_state, priority=10)
 
     # Error handling
     hook_system.register(HookEvent.ERROR, error_handler, priority=10)

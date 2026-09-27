@@ -239,6 +239,7 @@ class ProjectSyncService:
                 f"[ProjectSync] Found .evoloop/project.json with project_id={recovered_project_id}. "
                 f"Recovering cloud link for directory: {path}"
             )
+            recovered_repo: Repository | None = None
             try:
                 async with session_scope() as session:
                     # Check if a Repository with this project_id already exists
@@ -258,18 +259,7 @@ class ProjectSyncService:
                             f"[ProjectSync] Updated existing Repository {existing_repo.id} "
                             f"to new path {path} (project_id={recovered_project_id})"
                         )
-                        write_project_json(
-                            abs_path,
-                            {
-                                "project_id": recovered_project_id,
-                                "repo_id": existing_repo.id,
-                            },
-                        )
-                        await self._update_cloud_project_path(
-                            recovered_project_id, abs_path
-                        )
-                        await self._trigger_auto_indexing(existing_repo, path)
-                        return
+                        recovered_repo = existing_repo
                     else:
                         repo = Repository(
                             name=repo_name,
@@ -289,21 +279,33 @@ class ProjectSyncService:
                             f"[ProjectSync] Created new Repository {repo.id} recovering "
                             f"project_id={recovered_project_id} at path {path}"
                         )
-                        write_project_json(
-                            abs_path,
-                            {
-                                "project_id": recovered_project_id,
-                                "repo_id": repo.id,
-                            },
-                        )
-                        await self._update_cloud_project_path(
-                            recovered_project_id, abs_path
-                        )
-                        await self._trigger_auto_indexing(repo, path)
-                        return
+                        recovered_repo = repo
             except Exception as e:
                 logger.warning(
                     f"[ProjectSync] Failed to recover project from project.json: {e}",
+                    exc_info=True,
+                )
+                return
+
+            if recovered_repo is None:
+                return
+
+            # 文件写回与云同步/索引触发放在 session 外，避免长时间占用连接池连接。
+            write_project_json(
+                abs_path,
+                {
+                    "project_id": recovered_project_id,
+                    "repo_id": recovered_repo.id,
+                },
+            )
+            try:
+                await self._update_cloud_project_path(
+                    recovered_project_id, abs_path
+                )
+                await self._trigger_auto_indexing(recovered_repo, path)
+            except Exception as e:
+                logger.warning(
+                    f"[ProjectSync] Post-recovery cloud/indexing steps failed: {e}",
                     exc_info=True,
                 )
 
@@ -322,6 +324,7 @@ class ProjectSyncService:
         await validate_project_path(abs_path, workspace_root)
 
         repo_name = name or os.path.basename(abs_path)
+        relative_path = os.path.relpath(abs_path, workspace_root)
 
         async with session_scope() as session:
             stmt = select(Repository).where(Repository.local_path == abs_path)
@@ -347,7 +350,7 @@ class ProjectSyncService:
                     name=repo_name,
                     url="local",
                     local_path=abs_path,
-                    relative_path=os.path.relpath(abs_path, workspace_root),
+                    relative_path=relative_path,
                     sync_status=REPO_SYNC_STATUS_PENDING_CREATION,
                     indexing_status=INDEXING_STATUS_PENDING,
                     detected_at=utcnow(),
@@ -454,35 +457,6 @@ class ProjectSyncService:
                 f"[ProjectSync] Failed to update cloud path for project {project_id}: {e}",
                 exc_info=True,
             )
-
-    async def _find_matching_cloud_project(
-        self, repo_name: str, local_path: str
-    ) -> dict | None:
-        """
-        Find matching cloud project by local path.
-        """
-        try:
-            cloud_projects = await evocloud_manager.scan_projects()
-            abs_local_path = os.path.abspath(local_path)
-
-            for project in cloud_projects:
-                cloud_path = project.get("path", "")
-                if cloud_path and os.path.abspath(cloud_path) == abs_local_path:
-                    logger.info(
-                        f"[ProjectSync] Matched cloud project by path: {abs_local_path}"
-                    )
-                    return project
-
-            logger.info(
-                f"[ProjectSync] No cloud project matched local path: {abs_local_path}"
-            )
-            return None
-        except Exception as e:
-            logger.warning(
-                f"[ProjectSync] Failed to scan cloud projects: {e}. Treating as new project.",
-                exc_info=True,
-            )
-            return None
 
     async def _trigger_auto_indexing(self, repo: Repository, path: str):
         """
@@ -609,19 +583,7 @@ class ProjectSyncService:
         # Start New Watch
         await indexing_manager.start_watching(dest_path, repo.id)
 
-    async def _resolve_existing_project_id(self, path: str) -> int | None:
-        """Try to resolve Project ID from Cache."""
-        try:
-            projects = await evocloud_manager.scan_projects()
-            abs_path = os.path.abspath(path)
-            for p in projects:
-                if p.get("path") and os.path.abspath(p.get("path")) == abs_path:
-                    return p.get("id")
-        except Exception as e:
-            logger.debug("Suppressed error: %s", e)
-        return None
-
-    async def reconcile_projects(self, root_path: str, force: bool = False):
+    async def reconcile_projects(self, root_path: str):
         """
         Reconcile known local projects in DB with the filesystem.
         Restart watchers for imported projects.

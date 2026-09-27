@@ -31,6 +31,7 @@ from app.api.routes import (
     voice_ws,
     wiki,
 )
+from app.api.routes.modules import router as code_modules_router
 
 api_router = APIRouter()
 # Account & Auth logic (Username, Mobile, WeChat, Logout)
@@ -66,8 +67,6 @@ api_router.include_router(tasks.router, prefix="/evocloud/tasks")
 api_router.include_router(projects.modules_router, prefix="/project-modules", tags=["project-modules"])
 
 # Code Module Graph (Leiden)
-from app.api.routes.modules import router as code_modules_router
-
 api_router.include_router(code_modules_router, prefix="/api/v1", tags=["code-modules"])
 
 # Learning & Human-in-Loop (Phase 0.2)

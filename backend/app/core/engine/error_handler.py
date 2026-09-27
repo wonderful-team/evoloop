@@ -1,18 +1,11 @@
-import asyncio
-import functools
 import logging
-from collections.abc import Callable
-from typing import Any, TypeVar
 
 import openai
 
-from app.core.engine.constants import LLM_EXCEPTIONS
 from app.core.engine.schemas import ErrorClassification
 from app.core.exceptions import InferenceError
 
 logger = logging.getLogger(__name__)
-
-T = TypeVar("T")
 
 
 class LLMErrorHandler:
@@ -200,42 +193,4 @@ class LLMErrorHandler:
         )
 
 
-def with_llm_retry(
-    max_attempts: int = 3, base_delay: float = 2.0, backoff: float = 2.0
-):
-    """
-    Standardized retry decorator for LLM API calls.
-    Automatically classifies exceptions via LLMErrorHandler.
-    Bypasses retries for terminal errors (auth, quota, context limit).
-    """
 
-    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
-        @functools.wraps(func)
-        async def wrapper(*args, **kwargs) -> Any:
-            delay = base_delay
-            for attempt in range(1, max_attempts + 1):
-                try:
-                    return await func(*args, **kwargs)
-                except LLM_EXCEPTIONS as e:
-                    # Classify exception to see if it's terminal
-                    classification = LLMErrorHandler.classify_exception(e)
-
-                    if classification.is_terminal or attempt == max_attempts:
-                        logger.exception(
-                            f"[LLMRetry] Terminal error or max attempts reached ({attempt}/{max_attempts}): {classification.error_type}"
-                        )
-                        raise
-
-                    logger.warning(
-                        f"[LLMRetry] Attempt {attempt}/{max_attempts} failed: {classification.error_type}. "
-                        f"Retrying in {delay}s...",
-                        exc_info=True,
-                    )
-                    await asyncio.sleep(delay)
-                    delay *= backoff
-
-            raise RuntimeError("Unexpected end of LLM retry loop")
-
-        return wrapper
-
-    return decorator

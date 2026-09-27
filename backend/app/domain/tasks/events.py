@@ -49,7 +49,9 @@ async def publish_task_queue_event(
         "task_id": task.id,
         "project_id": task.project_id or 0,
         "status": task.status,
-        "title": task.title if task.title is not None else (task.task_data or {}).get("title"),
+        "title": task.title
+        if task.title is not None
+        else (task.task_data or {}).get("title"),
         "at": utcnow().isoformat(),
     }
     if extra:
@@ -58,3 +60,22 @@ async def publish_task_queue_event(
     broker = get_message_broker()
     await broker.publish(f"tasks:{task.project_id or 0}:events", payload)
     await broker.publish("tasks:all:events", payload)
+
+
+async def publish_queue_drained(
+    *, completed: int, failed: int, waiting: int, pending: int
+) -> None:
+    """值守排空：本轮活动任务全部终态（无 in_progress）——一次性战报。
+
+    前端状态条据此展示"本轮值守完成"汇总（见 AutonomousDutyPage）。
+    """
+    payload = {
+        "type": "queue_drained",
+        "event": "queue_drained",
+        "completed": completed,
+        "failed": failed,
+        "waiting": waiting,
+        "pending": pending,
+        "at": utcnow().isoformat(),
+    }
+    await get_message_broker().publish("tasks:all:events", payload)

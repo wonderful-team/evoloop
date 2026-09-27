@@ -65,7 +65,9 @@ async def generate_app_map(
 
     skill = await _ensure_app_map_analysis_skill()
     if not skill:
-        logger.warning("[Atlas] AppMap Analysis skill not found; falling back to generic mission.")
+        logger.warning(
+            "[Atlas] AppMap Analysis skill not found; falling back to generic mission."
+        )
 
     message = (
         f"**Mission Goal**: Survey the project at {path} and produce a complete "
@@ -128,75 +130,3 @@ async def list_app_maps(project_id: int, _token: TokenDep):
             }
         )
     return out
-
-
-class OperationMapTrainRequest(BaseModel):
-    project_id: int
-    entity: str | None = None
-    base_url: str | None = None
-    skip_static_seed: bool = False
-
-
-@router.post("/operation-maps/train", response_model=TaskAcceptedResponse)
-async def train_operation_maps(
-    req: OperationMapTrainRequest,
-    bg_tasks: BackgroundTasks,
-    _token: TokenDep,
-) -> TaskAcceptedResponse:
-    """Train a project's operation library (AppMap seed).
-
-    Dispatched as a background task: indexing -> AppMap (deterministic pipeline).
-    """
-    from app.core.atlas.source.train_orchestrator import train_project
-
-    path = await get_project_path(req.project_id)
-    if not path:
-        raise HTTPException(404, "Project not found or has no local path")
-
-    task_id = unique_id("operation-train", req.project_id)
-    bg_tasks.add_task(
-        train_project,
-        project_id=req.project_id,
-        entity=req.entity,
-        skip_static_seed=req.skip_static_seed,
-    )
-    logger.info(
-        "[AtlasAPI] Dispatched operation-map training: project=%s entity=%s task=%s",
-        req.project_id,
-        req.entity,
-        task_id,
-    )
-    return TaskAcceptedResponse(status="accepted", task_id=task_id)
-
-
-@router.get("/operation-maps/status")
-async def operation_map_status(
-    project_id: int,
-    _token: TokenDep,
-) -> dict:
-    """Summarize the project's verified operation library.
-
-    Per-entity verified/pending macro counts plus runtime element repair
-    markers (runtime_fixed / runtime_absent), showing training completeness.
-    """
-
-    maps = await persistence.list_app_maps(project_id, status="active")
-    entities = []
-    for m in maps:
-        macros = await list_macros(app_map_id=m.id)
-        entities.append(
-            {
-                "entity": m.entity,
-                "platform": m.platform,
-                "map_version": m.map_version,
-                "verified_macros": sum(1 for x in macros if x.status == "verified"),
-                "pending_macros": sum(1 for x in macros if x.status == "pending_review"),
-                "elements_runtime_fixed": sum(
-                    1 for el in (m.elements or []) if el.get("runtime_fixed")
-                ),
-                "elements_runtime_absent": sum(
-                    1 for el in (m.elements or []) if el.get("runtime_absent")
-                ),
-            }
-        )
-    return {"project_id": project_id, "entities": entities}

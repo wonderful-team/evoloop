@@ -185,28 +185,6 @@ class MemoryRetriever:
     # Context Injection Methods (migrated from MemoryRetrievalService)
     # ==========================================================================
 
-    def _sort_by_relevance(
-        self,
-        entries: list[MemoryEntry],
-        query: str,
-    ) -> list[MemoryEntry]:
-        """Sort entries by relevance to query (with freshness boost)."""
-        query_words = set(query.lower().split())
-        now = datetime.utcnow()
-
-        def score(entry: MemoryEntry) -> float:
-            # Base relevance score
-            text = f"{entry.title} {entry.description} {entry.content}".lower()
-            relevance = sum(1 for word in query_words if word in text)
-
-            # Freshness boost (exponential decay, 30-day half-life)
-            age_days = (now - entry.updated_at).days
-            freshness_boost = 2.0 * math.exp(-age_days / FRESHNESS_HALF_LIFE)
-
-            return relevance + freshness_boost
-
-        return sorted(entries, key=score, reverse=True)
-
     async def format_for_prompt(
         self,
         memories: dict[str, list[MemoryEntry]],

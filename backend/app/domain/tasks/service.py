@@ -19,10 +19,9 @@ from app.domain.tasks.constants import (
     QUEUE_TRANSITIONS,
     REQUEUE_LIMIT,
     RESULT_MAX,
-    WORKFLOW_RETRY_DELAY_SECONDS,
-    WORKFLOW_RETRY_LIMIT,
 )
 from app.domain.tasks.events import publish_task_queue_event
+from app.domain.tasks.notify import push_hitl_notice, task_label
 from app.domain.tasks.runtime.wakeup import notify_duty_wakeup
 from app.infrastructure.database.sql.database import session_scope
 from app.models.project import ProjectTask
@@ -41,7 +40,9 @@ VALID_TASK_TYPES = frozenset({"once", "recurring"})
 CATEGORY_MAX_LENGTH = 100
 
 
-def _legacy_value(task: ProjectTask, value: object, key: str, default: object = None) -> object:
+def _legacy_value(
+    task: ProjectTask, value: object, key: str, default: object = None
+) -> object:
     """Read a promoted field from its column, then from legacy task_data."""
     if value is not None:
         return value
@@ -61,19 +62,9 @@ def task_category(task: ProjectTask) -> str | None:
     return str(value) if value is not None else None
 
 
-def task_tags(task: ProjectTask) -> list:
-    value = _legacy_value(task, task.tags, "tags", [])
-    return list(value) if isinstance(value, list) else []
-
-
 def task_dependencies(task: ProjectTask) -> list[str]:
     value = _legacy_value(task, task.dependencies, "dependencies", [])
     return [str(item) for item in value] if isinstance(value, list) else []
-
-
-def task_acceptance_criteria(task: ProjectTask) -> list:
-    value = _legacy_value(task, task.acceptance_criteria, "acceptance_criteria", [])
-    return list(value) if isinstance(value, list) else []
 
 
 def task_workflow_id(task: ProjectTask) -> str | None:
@@ -100,7 +91,9 @@ def task_review_pending(task: ProjectTask) -> bool:
 
 
 def task_workflow_retry_count(task: ProjectTask) -> int:
-    return int(_legacy_value(task, task.workflow_retry_count, "workflow_retry_count", 0) or 0)
+    return int(
+        _legacy_value(task, task.workflow_retry_count, "workflow_retry_count", 0) or 0
+    )
 
 
 def task_number(task: ProjectTask) -> int | None:
@@ -140,7 +133,9 @@ def _normalize_category(category: str | None) -> str | None:
     if not normalized:
         raise TaskQueueError("category must not be empty")
     if len(normalized) > CATEGORY_MAX_LENGTH:
-        raise TaskQueueError(f"category must be at most {CATEGORY_MAX_LENGTH} characters")
+        raise TaskQueueError(
+            f"category must be at most {CATEGORY_MAX_LENGTH} characters"
+        )
     return normalized
 
 
@@ -148,7 +143,9 @@ def _normalize_priority(priority: str | None) -> str:
     normalized = str(priority or "medium").strip().lower()
     if normalized not in PRIORITY_ORDER:
         allowed = ", ".join(PRIORITY_ORDER)
-        raise TaskQueueError(f"invalid priority: {priority!r}; expected one of {allowed}")
+        raise TaskQueueError(
+            f"invalid priority: {priority!r}; expected one of {allowed}"
+        )
     return normalized
 
 
@@ -187,7 +184,6 @@ def _clamp_result(text: str | None) -> str | None:
     if text is None:
         return None
     return text[:RESULT_MAX]
-
 
 
 class TaskQueueService:
@@ -270,6 +266,7 @@ class TaskQueueService:
         tags: list | None = None,
         acceptance_criteria: list | None = None,
         workflow_id: str | None = None,
+        workflow_round: int | None = None,
     ) -> ProjectTask:
         """Insert a task row. Entry semantics:
         - source=user → pending (user-planned, accepted as-is)
@@ -294,11 +291,20 @@ class TaskQueueService:
         if trigger:
             task_type = "recurring"
         dependencies = _normalize_list(dependencies, "dependencies")
-        dependencies = [str(item) for item in dependencies] if dependencies is not None else []
+        dependencies = (
+            [str(item) for item in dependencies] if dependencies is not None else []
+        )
+        # 拆解不变量：parent_id 记血统，dependencies 是画布连线与派发顺序的
+        # 唯一权威（前端 deriveDutyEdges/布局只认 dependencies）。带 parent_id
+        # 创建的子任务自动补父依赖（幂等：显式传入不重复）。recurring 上游
+        # 没有 completed 终态，gating 侧按 lineage-only 豁免（见
+        # get_due_pending_tasks 与 dispatcher._deps_satisfied）。
+        if parent_id and parent_id not in dependencies:
+            dependencies.append(str(parent_id))
         tags = _normalize_list(tags, "tags") or []
-        acceptance_criteria = _normalize_list(
-            acceptance_criteria, "acceptance_criteria"
-        ) or []
+        acceptance_criteria = (
+            _normalize_list(acceptance_criteria, "acceptance_criteria") or []
+        )
         workflow_id = str(workflow_id).strip() if workflow_id else None
         if dedup_key:
             existing = await TaskQueueService.get_by_dedup_key(dedup_key)
@@ -349,6 +355,7 @@ class TaskQueueService:
                     dependencies=dependencies,
                     acceptance_criteria=acceptance_criteria,
                     workflow_id=workflow_id,
+                    workflow_round=workflow_round,
                     dispatch_count=0,
                     last_result=None,
                     last_error=None,
@@ -371,8 +378,10 @@ class TaskQueueService:
                     # （session_scope 干净退出只 commit，脏 session 会让
                     # commit 抛 PendingRollbackError），下一轮循环重算
                     await session.rollback()
-                    await asyncio.sleep(0)
-                    continue
+            if task is not None:
+                break
+            if _attempt < 2:
+                await asyncio.sleep(0)
         if task is None:
             # 3 轮仍冲突：要么 dedup 并发重复（回读幂等），要么 task_no 竞态
             # 撞车——前者返回已有行，后者罕见到值得显式失败
@@ -392,9 +401,7 @@ class TaskQueueService:
         from sqlalchemy import select
 
         async with session_scope() as session:
-            stmt = select(ProjectTask).where(
-                ProjectTask.dedup_key == dedup_key
-            )
+            stmt = select(ProjectTask).where(ProjectTask.dedup_key == dedup_key)
             res = await session.execute(stmt)
             return res.scalar_one_or_none()
 
@@ -407,9 +414,7 @@ class TaskQueueService:
         from sqlalchemy import select
 
         async with session_scope() as session:
-            stmt = select(ProjectTask).where(
-                ProjectTask.last_thread_id == thread_id
-            )
+            stmt = select(ProjectTask).where(ProjectTask.last_thread_id == thread_id)
             res = await session.execute(stmt)
             return res.scalars().first()
 
@@ -607,13 +612,17 @@ class TaskQueueService:
 
         async with session_scope() as session:
             rows = (
-                await session.execute(
-                    select(TaskRun)
-                    .where(TaskRun.task_id == task_id)
-                    .order_by(TaskRun.attempt.desc())
-                    .limit(limit)
+                (
+                    await session.execute(
+                        select(TaskRun)
+                        .where(TaskRun.task_id == task_id)
+                        .order_by(TaskRun.attempt.desc())
+                        .limit(limit)
+                    )
                 )
-            ).scalars().all()
+                .scalars()
+                .all()
+            )
             return list(rows)
 
     @staticmethod
@@ -621,7 +630,10 @@ class TaskQueueService:
         """System-side claim at dispatch (pending→in_progress, atomic).
 
         派发即认领：one-shot 任务派发前落持久化占位（in_progress + 绑线程
-        + dispatch_count 递增），与 recurring「认领即推进 next_run_at」对齐。
+        + dispatch_count 递增）。recurring 任务在真正被认领的同时才推进
+        ``next_run_at``，避免「扫描候选时提前推进、后续实际未派发」导致任务
+        被跳过（2026-09-24 mock 全量测试暴露）。
+
         修复「run 完成 × 任务仍 pending」被 DutyWakeupSubscriber 立即重派发
         的紧派发环。认领失败（并发/状态已变）返回 None，调用方跳过本轮。
 
@@ -630,8 +642,26 @@ class TaskQueueService:
         task = await TaskQueueService.get_task(task_id)
         if task is None:
             return None
+        import time as _time
+
+        claim_t0 = _time.monotonic()
         next_dispatch_count = task_dispatch_count(task) + 1
         version = task_version(task)
+
+        update_values: dict[str, Any] = {
+            "status": "in_progress",
+            "last_thread_id": thread_id,
+            "dispatch_count": next_dispatch_count,
+            "version": version + 1,
+        }
+        # recurring 任务：真正认领成功时才推进 next_run_at
+        if task.trigger_spec:
+            from app.infrastructure.scheduler.service import SchedulerService
+
+            update_values["next_run_at"] = SchedulerService.calculate_next_run(
+                task.trigger_spec, _now()
+            )
+
         async with session_scope() as session:
             res = await session.execute(
                 update(ProjectTask)
@@ -640,22 +670,20 @@ class TaskQueueService:
                     ProjectTask.status == "pending",
                     ProjectTask.version == version,
                 )
-                .values(
-                    status="in_progress",
-                    last_thread_id=thread_id,
-                    dispatch_count=next_dispatch_count,
-                    version=version + 1,
-                )
+                .values(**update_values)
             )
             if res.rowcount == 0:
                 return None
         claimed = await TaskQueueService.get_task(task_id)
         assert claimed is not None
         # 过程记录：本次派发尝试开 run 行（attempt=dispatch_count）
-        await TaskQueueService.open_task_run(
-            task_id, thread_id, next_dispatch_count
-        )
+        await TaskQueueService.open_task_run(task_id, thread_id, next_dispatch_count)
         await publish_task_queue_event(claimed, event="task_taken")
+        logger.info(
+            "[TaskQueueService] claim_for_dispatch took %.3fs (task=%s)",
+            _time.monotonic() - claim_t0,
+            task_id,
+        )
         return claimed
 
     @staticmethod
@@ -666,6 +694,9 @@ class TaskQueueService:
         队列由下一拍重试；``dispatch_count`` 保留——累计到
         ``DISPATCH_CLAIM_CIRCUIT_LIMIT`` 由熔断强制终态。不 notify_duty_wakeup：
         派发失败是确定性问题，立即重试只会形成无意义热循环，60s 兜底即可。
+
+        对 recurring 任务，若 claim_for_dispatch 已推进 next_run_at，这里把它
+        重置为 60s 后，确保失败任务能在近期重试，而不是被跳过到下一次 cron。
         """
         current = await TaskQueueService.get_task(task_id)
         if current is None:
@@ -682,6 +713,7 @@ class TaskQueueService:
                 .values(
                     status="pending",
                     last_thread_id=None,
+                    next_run_at=_now() + timedelta(seconds=60),
                     version=task_version(current) + 1,
                 )
             )
@@ -724,12 +756,34 @@ class TaskQueueService:
         cur = current.status
         # 执行权隔离：提案的确认是用户决策（confirm API），Agent 只能推进
         if cur == "proposed" and by != "user":
-            raise TaskQueueError("proposed tasks are confirmed by the user, not the agent")
+            raise TaskQueueError(
+                "proposed tasks are confirmed by the user, not the agent"
+            )
+        # 人体工学：Agent 常把 "任务做完了" 直接表达为 in_progress → completed。
+        # 先把 completed 重定向为 self_checked（带 self_check 时与显式两步语义一致），
+        # 避免无意义报错浪费轮次；随后再走下方 risk/origin 裁决终态。
+        if cur == "in_progress" and status == "completed":
+            status = "self_checked"
         # completed 必须留痕：干了什么、结果如何（先于转移合法性，错误信息更有用）
         if status == "completed" and not (result or "").strip():
             raise TaskQueueError("completed requires result (what was done, outcome)")
+        # 人体工学（2026-09-25 实测：SDK 内核下 Agent 习惯携带完整 self_check
+        # 一次性申请 waiting_acceptance，被状态机拒后经常弃收口直接文本收尾
+        # → 回队重派空烧周期）。self_checked 本就是瞬态不落库——把
+        # "in_progress + waiting_acceptance + 有效 self_check" 视作
+        # self_checked 上报，终态由下方风险档逻辑裁决（机器决定，不由
+        # Agent 指定），语义与两步走完全一致。
+        if cur == "in_progress" and status == "waiting_acceptance" and self_check:
+            status = "self_checked"
         if status not in QUEUE_TRANSITIONS.get(cur, ()):
-            raise TaskQueueError(f"illegal transition {cur} → {status}")
+            # 错误信息必须可行动：列出当前状态的合法目标，Agent 读到即可
+            # 自我纠正（2026-09-25 实测：SDK 内核下 Agent 反复盲目跳转
+            # in_progress→waiting_acceptance / pending→completed，每次非法
+            # 跳转浪费 1-2 个重派周期逼近派发熔断——裸报 "illegal transition"
+            # 无救场信息是直接诱因）。
+            valid = QUEUE_TRANSITIONS.get(cur, ())
+            hint = f"；{cur} 的合法目标: {', '.join(valid)}" if valid else ""
+            raise TaskQueueError(f"illegal transition {cur} → {status}{hint}")
 
         # Acceptance pre-authorization on self-check (Agent reports done):
         # - T3/T4 with an origin conversation: NOT auto-completed — the result
@@ -811,6 +865,31 @@ class TaskQueueService:
             )
             if result_update.rowcount == 0:
                 raise TaskQueueError(f"task {task_id} version conflict")
+        # 转移留痕：每次状态推进记一行（from → to, by, thread）——并发派发
+        # 场景下"任务在 run 活着时被错位回队"这类竞态靠它定位写入者
+        # （2026-09-25 实测事故：错位回队真凶找不到，证据全靠猜）。
+        logger.info(
+            "[TaskQueue] advance: %s %s → %s (by=%s, task=%s)",
+            cur,
+            status,
+            effective,
+            by,
+            task_id,
+        )
+        # 工作流聚合状态刷新：阶段任务每次状态推进都要回写所属 workflow
+        # （否则 refresh_status 只在 growth 适配器路径被调，普通阶段任务
+        # 终态后 workflow 永远停在 running → 周期 spawn 的 skip-on-busy
+        # 判定永久忙）。失败不阻断任务推进（聚合层降级）。
+        if str(task_workflow_id(current) or ""):
+            try:
+                from app.domain.tasks.workflows import WorkflowService
+
+                await WorkflowService.refresh_status(str(task_workflow_id(current)))
+            except Exception:
+                logger.exception(
+                    "[TaskQueue] workflow status refresh failed (workflow=%s)",
+                    task_workflow_id(current),
+                )
         # 过程记录：本轮 run 终态化（失败=failed；其余有效推进=succeeded，
         # 含 self_checked→waiting_acceptance/pending 回队——对任务而言非
         # 终态，但对"这一次派发尝试"而言是成功交付）
@@ -823,7 +902,12 @@ class TaskQueueService:
                     status="failed",
                     error_message=result or None,
                 )
-            elif effective in ("completed", "waiting_acceptance", "pending", "cancelled"):
+            elif effective in (
+                "completed",
+                "waiting_acceptance",
+                "pending",
+                "cancelled",
+            ):
                 await TaskQueueService.close_task_run(
                     task_id,
                     run_thread,
@@ -849,24 +933,14 @@ class TaskQueueService:
         elif effective == "waiting_acceptance" and not review_requested:
             # signoff / T1/T2 等人拍板 → 推送手机触达（否则用户不开看板就
             # 无从知道链路停在自己这里）
-            try:
-                from app.core.channel.base import ChannelContext
-                from app.core.channel.output.mobile_channel import MobileChannel
-                from app.core.config import settings as _settings
-
-                if _settings.MOBILE_SYNC_ENABLED:
-                    no = task_number(updated)
-                    label = f"#T-{no}" if no else updated.id[:8]
-                    title = task_title(updated) or ""
-                    await MobileChannel().send_hitl_request(
-                        request_id=updated.id,
-                        request_type="confirmation",
-                        prompt=f"任务 {label}「{title[:40]}」执行完成，等你拍板（在看板验收，批准后链路继续）",
-                        ctx=ChannelContext(thread_id=updated.origin_thread_id or updated.id, project_id=updated.project_id),
-                        metadata={"kind": "task_signoff", "task_id": updated.id},
-                    )
-            except Exception:
-                logger.exception("[TaskQueue] signoff mobile push failed")
+            label = task_label(updated)
+            title = task_title(updated) or ""
+            await push_hitl_notice(
+                updated,
+                request_id=updated.id,
+                kind="task_signoff",
+                prompt=f"任务 {label}「{title[:40]}」执行完成，等你拍板（在看板验收，批准后链路继续）",
+            )
         return updated
 
     @staticmethod
@@ -895,8 +969,164 @@ class TaskQueueService:
         return task
 
     @staticmethod
+    async def pending_requests_by_threads(
+        thread_ids: list[str],
+    ) -> dict[str, Any]:
+        """pending HumanRequest → thread map（hitl-pending 与
+        dashboard.awaiting_human 共用的单一查询，2026-09-25 收敛）。
+
+        同线程多条 pending 时取最新一条（created_at desc）。
+        """
+        from sqlalchemy import select
+
+        from app.infrastructure.database.sql.database import session_scope
+        from app.models.conversation import HumanRequest
+
+        if not thread_ids:
+            return {}
+        async with session_scope() as session:
+            rows = (
+                (
+                    await session.execute(
+                        select(HumanRequest)
+                        .where(
+                            HumanRequest.status == "pending",
+                            HumanRequest.thread_id.in_(thread_ids),
+                        )
+                        .order_by(HumanRequest.created_at.desc())
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        req_by_thread: dict[str, Any] = {}
+        for req in rows:
+            req_by_thread.setdefault(req.thread_id, req)
+        return req_by_thread
+
+    @staticmethod
+    async def pending_hitl_requests(
+        member_scope: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """值守线程上的待处理 HITL 请求（`/tasks/queue/hitl-pending` 数据层）。
+
+        覆盖三类线程：agent_*（growth 阶段 run）/ wakeup_*（值守 run）/
+        duty_*（渠道值守）；原对话线程（origin_thread_id 上挂着
+        review_pending 任务）一并纳入。多租户 fail-closed：无法归属到
+        调用方的请求不暴露。
+        """
+        from sqlalchemy import select
+
+        from app.infrastructure.database.sql.database import session_scope
+        from app.models import Repository
+        from app.models.conversation import HumanRequest
+
+        prefixes = ("agent_", "wakeup_", "duty_")
+        async with session_scope() as session:
+            rows = (
+                (
+                    await session.execute(
+                        select(HumanRequest)
+                        .where(HumanRequest.status == "pending")
+                        .order_by(HumanRequest.created_at.desc())
+                        .limit(100)
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            review_pending = (
+                (
+                    await session.execute(
+                        select(ProjectTask).where(
+                            ProjectTask.status == "waiting_acceptance",
+                            ProjectTask.origin_thread_id.isnot(None),
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        origin_map: dict[str, ProjectTask] = {}
+        for t in review_pending:
+            if task_review_pending(t):
+                origin_map[str(t.origin_thread_id)] = t
+
+        candidate_thread_ids = [
+            r.thread_id
+            for r in rows
+            if str(r.thread_id).startswith(prefixes) or str(r.thread_id) in origin_map
+        ]
+        tasks_map: dict[str, ProjectTask] = {}
+        repo_member_map: dict[int, int] = {}
+        if candidate_thread_ids:
+            async with session_scope() as session:
+                task_rows = (
+                    (
+                        await session.execute(
+                            select(ProjectTask).where(
+                                ProjectTask.last_thread_id.in_(candidate_thread_ids)
+                            )
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
+                tasks_map = {t.last_thread_id: t for t in task_rows}
+                project_ids = {
+                    t.project_id
+                    for t in list(tasks_map.values()) + list(origin_map.values())
+                    if t and not t.member_id
+                }
+                if project_ids:
+                    repo_rows = (
+                        await session.execute(
+                            select(Repository.project_id, Repository.member_id).where(
+                                Repository.project_id.in_(project_ids)
+                            )
+                        )
+                    ).all()
+                    repo_member_map = {pid: int(mid or 0) for pid, mid in repo_rows}
+
+        items: list[dict[str, Any]] = []
+        for r in rows:
+            is_origin_thread = str(r.thread_id) in origin_map
+            if not str(r.thread_id).startswith(prefixes) and not is_origin_thread:
+                continue
+            task = (
+                origin_map[str(r.thread_id)]
+                if is_origin_thread
+                else tasks_map.get(r.thread_id)
+            )
+            if member_scope is not None:
+                if task is None:
+                    continue  # fail-closed：无法归属的请求不暴露
+                owner = task.member_id or repo_member_map.get(task.project_id or 0, 0)
+                if owner != member_scope:
+                    continue
+            items.append(
+                {
+                    "request_id": r.id,
+                    "thread_id": r.thread_id,
+                    "type": r.type,
+                    "description": r.description,
+                    "context": r.context,
+                    "options": r.options or [],
+                    "created_at": r.created_at.isoformat() if r.created_at else None,
+                    "task_id": task.id if task else None,
+                    "task_title": task_title(task) if task else None,
+                    "task_no": task.task_no if task else None,
+                }
+            )
+        return items
+
+    @staticmethod
     async def submit_acceptance(
-        task_id: str, *, by: str, verdict: Literal["accepted", "rejected"], feedback: str = ""
+        task_id: str,
+        *,
+        by: str,
+        verdict: Literal["accepted", "rejected"],
+        feedback: str = "",
     ) -> ProjectTask:
         """User acceptance. accepted → completed; rejected → pending (requeued).
 
@@ -916,7 +1146,12 @@ class TaskQueueService:
             raise TaskQueueError(f"invalid acceptance verdict: {verdict}")
         if verdict == "accepted" and not (task_last_result(task) or "").strip():
             raise TaskQueueError("completed requires result (what was done, outcome)")
-        receipt = {"by": by, "at": _now().isoformat(), "verdict": verdict, "feedback": feedback}
+        receipt = {
+            "by": by,
+            "at": _now().isoformat(),
+            "verdict": verdict,
+            "feedback": feedback,
+        }
         target = "completed" if verdict == "accepted" else "pending"
 
         # 评审收敛纪律：reviewer 不通过最多 2 轮。第 2 轮仍不通过 → 任务转
@@ -952,6 +1187,18 @@ class TaskQueueService:
             )
             if result_update.rowcount == 0:
                 raise TaskQueueError(f"task {task_id} version conflict")
+        # 工作流聚合状态刷新（同 advance_task：验收裁决改变阶段终态，
+        # 所属 workflow 的 running/completed 聚合必须跟着走）。
+        if str(task_workflow_id(task) or ""):
+            try:
+                from app.domain.tasks.workflows import WorkflowService
+
+                await WorkflowService.refresh_status(str(task_workflow_id(task)))
+            except Exception:
+                logger.exception(
+                    "[TaskQueue] workflow status refresh failed (workflow=%s)",
+                    task_workflow_id(task),
+                )
         if verdict == "rejected":
             if target == "failed":
                 # 两轮评审未通过：升级原对话转人工仲裁（终态，不再回队）
@@ -961,7 +1208,9 @@ class TaskQueueService:
 
                 await notify_arbitration(updated, feedback)
                 await publish_task_queue_event(
-                    updated, event="task_rejected", extra={"by": by, "feedback": feedback}
+                    updated,
+                    event="task_rejected",
+                    extra={"by": by, "feedback": feedback},
                 )
                 return updated
             notify_duty_wakeup()
@@ -1015,9 +1264,7 @@ class TaskQueueService:
         )
 
     @staticmethod
-    async def dashboard(
-        project_id: int | None = None, member_id: int | None = None
-    ):
+    async def dashboard(project_id: int | None = None, member_id: int | None = None):
         """看板聚合（原 API 路由内的业务逻辑归位 service 层）。
 
         ``member_id``（多租户）与 ``project_id`` 同传时以 project_id 归属为准
@@ -1028,11 +1275,12 @@ class TaskQueueService:
         from sqlalchemy import func, select
 
         from app.domain.tasks.schemas import DashboardPayload
-        from app.models import HumanRequest
         from app.models.conversation import AgentActivity
         from app.utils.time import utcnow
 
-        member_scope = member_id if member_id is not None and project_id is None else None
+        member_scope = (
+            member_id if member_id is not None and project_id is None else None
+        )
 
         activity_filter: list[Any] = []
         if project_id is not None:
@@ -1089,27 +1337,48 @@ class TaskQueueService:
         week_tokens = {"input": 0, "output": 0, "llm_calls": 0}
         current_run = None
         today_window: dict[str, Any] = {"since": None, "until": None}
+
+        now = utcnow()
+        day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        week_start = day_start - timedelta(days=now.weekday())
+        token_cols = (
+            func.coalesce(func.sum(AgentActivity.input_tokens), 0),
+            func.coalesce(func.sum(AgentActivity.output_tokens), 0),
+            func.coalesce(func.sum(AgentActivity.llm_calls), 0),
+        )
+
+        # Today tokens
         async with session_scope() as session:
-            now = utcnow()
-            day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-            week_start = day_start - timedelta(days=now.weekday())
-            base = select(
-                func.coalesce(func.sum(AgentActivity.input_tokens), 0),
-                func.coalesce(func.sum(AgentActivity.output_tokens), 0),
-                func.coalesce(func.sum(AgentActivity.llm_calls), 0),
-            ).where(
-                AgentActivity.updated_at >= week_start,
-                *activity_filter,
-            )
             res = await session.execute(
-                base.where(AgentActivity.updated_at >= day_start)
+                select(*token_cols).where(
+                    AgentActivity.updated_at >= day_start,
+                    *activity_filter,
+                )
             )
             r = res.one()
-            today_tokens = {"input": int(r[0]), "output": int(r[1]), "llm_calls": int(r[2])}
-            r = await session.execute(base)
-            r = r.one()
-            week_tokens = {"input": int(r[0]), "output": int(r[1]), "llm_calls": int(r[2])}
-            # today active window (approximate work span): min/max activity time
+            today_tokens = {
+                "input": int(r[0]),
+                "output": int(r[1]),
+                "llm_calls": int(r[2]),
+            }
+
+        # Week tokens
+        async with session_scope() as session:
+            res = await session.execute(
+                select(*token_cols).where(
+                    AgentActivity.updated_at >= week_start,
+                    *activity_filter,
+                )
+            )
+            r = res.one()
+            week_tokens = {
+                "input": int(r[0]),
+                "output": int(r[1]),
+                "llm_calls": int(r[2]),
+            }
+
+        # Today active window + currently running activity
+        async with session_scope() as session:
             win = await session.execute(
                 select(
                     func.min(AgentActivity.updated_at),
@@ -1137,7 +1406,9 @@ class TaskQueueService:
                 current_run = {
                     "thread_id": act.thread_id,
                     "goal": (act.main_goal or "")[:80],
-                    "started_at": act.updated_at.isoformat() if act.updated_at else None,
+                    "started_at": act.updated_at.isoformat()
+                    if act.updated_at
+                    else None,
                     "input_tokens": int(act.input_tokens or 0),
                     "output_tokens": int(act.output_tokens or 0),
                 }
@@ -1159,8 +1430,7 @@ class TaskQueueService:
                 .group_by(func.date(AgentActivity.updated_at))
             )
             tok_map = {
-                str(r[0]): {"input": int(r[1]), "output": int(r[2])}
-                for r in tok_rows
+                str(r[0]): {"input": int(r[1]), "output": int(r[2])} for r in tok_rows
             }
             done_rows = await session.execute(
                 select(
@@ -1227,37 +1497,32 @@ class TaskQueueService:
         awaiting_human: list[dict[str, Any]] = []
         async with session_scope() as session:
             busy_tasks = (
-                await session.execute(
-                    select(ProjectTask).where(
-                        ProjectTask.status == "in_progress",
-                        ProjectTask.last_thread_id.isnot(None),
-                        *(
-                            [ProjectTask.project_id == project_id]
-                            if project_id is not None
-                            else [
-                                TaskQueueService._member_task_filter(member_scope)
-                            ]
-                            if member_scope is not None
-                            else []
-                        ),
+                (
+                    await session.execute(
+                        select(ProjectTask).where(
+                            ProjectTask.status == "in_progress",
+                            ProjectTask.last_thread_id.isnot(None),
+                            *(
+                                [ProjectTask.project_id == project_id]
+                                if project_id is not None
+                                else [
+                                    TaskQueueService._member_task_filter(member_scope)
+                                ]
+                                if member_scope is not None
+                                else []
+                            ),
+                        )
                     )
                 )
-            ).scalars().all()
+                .scalars()
+                .all()
+            )
             if busy_tasks:
                 thread_ids = [t.last_thread_id for t in busy_tasks]
-                pending_reqs = (
-                    await session.execute(
-                        select(HumanRequest)
-                        .where(
-                            HumanRequest.status == "pending",
-                            HumanRequest.thread_id.in_(thread_ids),
-                        )
-                        .order_by(HumanRequest.created_at.desc())
-                    )
-                ).scalars().all()
-                req_by_thread: dict[str, HumanRequest] = {}
-                for req in pending_reqs:
-                    req_by_thread.setdefault(req.thread_id, req)
+                # pending HumanRequest 查询单一来源（hitl-pending 路由共用）
+                req_by_thread = await TaskQueueService.pending_requests_by_threads(
+                    thread_ids
+                )
                 for t in busy_tasks:
                     req = req_by_thread.get(t.last_thread_id or "")
                     if req is None:
@@ -1270,7 +1535,9 @@ class TaskQueueService:
                             "question": (req.description or "")[:200],
                             "options": req.options or [],
                             "default_value": req.default_value,
-                            "at": req.created_at.isoformat() if req.created_at else None,
+                            "at": req.created_at.isoformat()
+                            if req.created_at
+                            else None,
                         }
                     )
 
@@ -1336,50 +1603,66 @@ class TaskQueueService:
                 error_code="requeued_stuck",
                 error_message=reason,
             )
+        # 事件补全：reconciler 回队/判死此前静默无事件，UI（节点页收缩、
+        # 看板刷新）完全无感知——按 advance 语义广播
+        requeued = await TaskQueueService.get_task(task_id)
+        if requeued is not None:
+            await publish_task_queue_event(
+                requeued,
+                event="task_advanced",
+                extra={"reason": reason[:120]},
+            )
         notify_duty_wakeup()
-        return await TaskQueueService.get_task(task_id)
+        return requeued
 
     @staticmethod
-    async def requeue_workflow_task(task_id: str, reason: str) -> ProjectTask | None:
-        """Requeue a failed workflow stage until its retry budget is exhausted."""
-        task = await TaskQueueService.get_task(task_id)
-        if task is None or task.status != "in_progress":
-            return None
-        retry_count = task_workflow_retry_count(task) + 1
-        target = "failed" if retry_count > WORKFLOW_RETRY_LIMIT else "pending"
-        version = task_version(task)
-        values: dict[str, Any] = {
-            "status": target,
-            "workflow_retry_count": retry_count,
-            "last_error": reason[:RESULT_MAX],
-            "last_result": f"retry {retry_count}: {reason}"[:RESULT_MAX],
-            "version": version + 1,
-        }
-        if target == "pending":
-            values["due_at"] = utcnow() + timedelta(seconds=WORKFLOW_RETRY_DELAY_SECONDS)
+    async def evaluate_dependency_gate(
+        task: ProjectTask,
+    ) -> tuple[bool, list[ProjectTask]]:
+        """依赖门控（单一实现，2026-09-25 收敛：claim 扫描与 dispatcher 派发闸共用）。
+
+        规则：
+        - 无依赖 → 放行；
+        - recurring 上游 = lineage-only 边：它没有 completed 终态（轮次完成
+          回队 pending），不参与完成度 gating、失败不触发断链（血统与上游
+          上下文注入仍生效）——否则提案子任务会被 recurring 父任务永久卡死；
+        - 依赖缺失/删除 → 不放行（数据被清理时不放行，防孤儿任务乱跑）；
+        - 非 recurring 上游全部 completed → 放行。
+
+        返回 ``(satisfied, failed_upstreams)``：failed_upstreams 供派发侧
+        触发断链告警（通知是表现层副作用，不进规则本体）。
+        """
+        dep_ids = task_dependencies(task)
+        if not dep_ids:
+            return True, []
         async with session_scope() as session:
-            result_update = await session.execute(
-                update(ProjectTask)
-                .where(
-                    ProjectTask.id == task_id,
-                    ProjectTask.status == "in_progress",
-                    ProjectTask.version == version,
+            rows = (
+                await session.execute(
+                    select(ProjectTask.id, ProjectTask.status, ProjectTask.type).where(
+                        ProjectTask.id.in_([str(d) for d in dep_ids])
+                    )
                 )
-                .values(**values)
-            )
-            if result_update.rowcount == 0:
-                raise TaskQueueError(f"task {task_id} version conflict")
-        # 过程记录：workflow 阶段回队 → run 判失败
-        if task.last_thread_id:
-            await TaskQueueService.close_task_run(
-                task_id,
-                task.last_thread_id,
-                status="failed",
-                error_code="workflow_retry",
-                error_message=reason,
-            )
-        notify_duty_wakeup()
-        return await TaskQueueService.get_task(task_id)
+            ).all()
+        status_by_id = {r[0]: r[1] for r in rows}
+        recurring_ids = {r[0] for r in rows if r[2] == "recurring"}
+        gate_ids = [str(d) for d in dep_ids if str(d) not in recurring_ids]
+        failed_ids = [
+            gate_id for gate_id in gate_ids if status_by_id.get(gate_id) == "failed"
+        ]
+        failed_upstreams: list[ProjectTask] = []
+        if failed_ids:
+            async with session_scope() as session:
+                failed_upstreams = list(
+                    (
+                        await session.execute(
+                            select(ProjectTask).where(ProjectTask.id.in_(failed_ids))
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
+        satisfied = all(status_by_id.get(d) == "completed" for d in gate_ids)
+        return satisfied, failed_upstreams
 
     @staticmethod
     async def claim_due_tasks(now: datetime | None = None) -> list[ProjectTask]:
@@ -1387,99 +1670,82 @@ class TaskQueueService:
 
         - one-shot: status=pending AND (due_at IS NULL -> dispatchable
           immediately, OR due_at <= now when a start time was given)
-        - recurring: trigger_spec set AND next_run_at <= now (advanced on
-          claim; claim-then-persist prevents re-dispatch across restarts)
+        - recurring: trigger_spec set AND next_run_at <= now
         - proposed / waiting_acceptance / terminal tasks are never dispatched.
+
+        注意：recurring 任务的 next_run_at 推进不再在扫描候选时做，而是移到
+        ``claim_for_dispatch`` 真正认领成功时，防止候选被扫描后实际未派发导致
+        任务被跳过（2026-09-24 mock 全量测试暴露）。
+
+        Each candidate is claimed in its own short DB session to avoid holding
+        a connection across the entire dispatch window.
         """
 
         now = now or _now()
-        async with session_scope() as session:
-            from sqlalchemy import and_, or_
+        from sqlalchemy import and_, or_
 
-            stmt = select(ProjectTask).where(
-                ProjectTask.status == "pending",
-                or_(
-                    # one-shot（无 trigger_spec）：due_at IS NULL → 立即可派发，
-                    # 或给定开始时间已到。recurring 的到期判定只能走 next_run_at
-                    # 分支——due_at 恒为 NULL，若不限定 trigger_spec，该分支会
-                    # 永远命中，next_run_at 门控形同虚设（2026-09-21 实测：
-                    # 明天首跑的每日巡检被判"到期"，开闸后爆发式连跑）。
-                    and_(
-                        ProjectTask.trigger_spec.is_(None),
-                        or_(
-                            ProjectTask.due_at.is_(None),
-                            ProjectTask.due_at <= now,
+        # Phase 1: take a lightweight snapshot of candidate task IDs only
+        candidate_ids: list[str] = []
+        async with session_scope() as session:
+            stmt = (
+                select(ProjectTask.id)
+                .where(
+                    ProjectTask.status == "pending",
+                    or_(
+                        and_(
+                            ProjectTask.trigger_spec.is_(None),
+                            or_(
+                                ProjectTask.due_at.is_(None),
+                                ProjectTask.due_at <= now,
+                            ),
+                        ),
+                        and_(
+                            ProjectTask.trigger_spec.isnot(None),
+                            ProjectTask.next_run_at <= now,
                         ),
                     ),
-                    and_(
-                        ProjectTask.trigger_spec.isnot(None),
-                        ProjectTask.next_run_at <= now,
-                    ),
-                ),
-            ).order_by(*_queue_ordering())
-            rows = (await session.execute(stmt)).scalars().all()
-            # claim: advance recurring next_run_at immediately (persist on scope exit)
-            claimed_rows: list[ProjectTask] = []
-            for t in rows:
-                if t.trigger_spec:
-                    from app.infrastructure.scheduler.service import SchedulerService
-
-                    version = task_version(t)
-                    next_run_at = SchedulerService.calculate_next_run(t.trigger_spec, now)
-                    result_update = await session.execute(
-                        update(ProjectTask)
-                        .where(
-                            ProjectTask.id == t.id,
-                            ProjectTask.status == "pending",
-                            ProjectTask.version == version,
-                        )
-                        .values(next_run_at=next_run_at, version=version + 1)
-                    )
-                    if result_update.rowcount == 0:
-                        continue
-                    t.next_run_at = next_run_at
-                    t.version = version + 1
-                claimed_rows.append(t)
-            rows = claimed_rows
-
-            ready_rows: list[ProjectTask] = []
-            for task in rows:
-                dependencies = task_dependencies(task)
-                # 依赖门控对所有带 dependencies 的任务生效（2026-09-23 修订：
-                # 原实现要求 workflow_id 前提，画布连线持久化 dependencies 后
-                # 普通链式任务不设 workflow_id，无此前提则门控形同虚设——
-                # 「深挖验收通过才解锁触达」等漏斗语义依赖此处）。
-                if not dependencies:
-                    ready_rows.append(task)
-                    continue
-                dependency_result = await session.execute(
-                    select(ProjectTask.id, ProjectTask.status).where(
-                        ProjectTask.id.in_(dependencies)
-                    )
                 )
-                dependency_statuses = dict(dependency_result.all())
-                if len(dependency_statuses) != len(set(dependencies)):
-                    continue
-                if any(status != "completed" for status in dependency_statuses.values()):
-                    continue
-                ready_rows.append(task)
-            rows = ready_rows
+                .order_by(*_queue_ordering())
+            )
+            candidate_ids = list((await session.execute(stmt)).scalars().all())
 
-        # 值守开关接管（分闸，opt-in）：仅 customer_service_duty.enabled=true
-        # 的项目派发；false/未配置/无本地路径均不派发（任务保持 pending，
-        # 开启值守后自动恢复）。与 load_duty_config 自身缺省语义一致。
-        # 例外：project_id=0 = 工作空间任务（无"项目参与"概念），不受分闸
-        # 约束，只受托盘总闸约束（dispatcher 的全局总闸检查）。
-        if rows:
+        # Phase 2: claim each candidate in a short session
+        ready_rows: list[ProjectTask] = []
+        for task_id in candidate_ids:
+            try:
+                async with session_scope() as session:
+                    task = await session.get(ProjectTask, task_id)
+                    if task is None or task.status != "pending":
+                        continue
+
+                    # 注意：recurring 任务的 next_run_at 推进已移到 claim_for_dispatch，
+                    # 只在真正被认领时才推进，防止候选扫描后实际未派发导致任务被跳过。
+
+                    # 依赖门控：单一实现（evaluate_dependency_gate），dispatcher
+                    # 派发闸共用同一规则——历史上 claim 与 dispatcher 各写一份
+                    # （含 recurring 豁免），改语义必须两处同步，2026-09-25 收敛。
+                    (
+                        satisfied,
+                        _failed_up,
+                    ) = await TaskQueueService.evaluate_dependency_gate(task)
+                    if not satisfied:
+                        continue
+
+                    ready_rows.append(task)
+            except Exception as e:
+                logger.exception(f"[TaskQueue] Failed to claim task {task_id}: {e}")
+
+        # Phase 3: duty switch filter (outside any DB session)
+        if ready_rows:
             from app.core.channel.duty.config import load_duty_config
 
             by_project: dict[int, list[ProjectTask]] = {}
-            for t in rows:
+            for t in ready_rows:
                 by_project.setdefault(t.project_id or 0, []).append(t)
-            rows = []
+            ready_rows = []
             for pid, group in by_project.items():
                 if pid == 0:
-                    rows.extend(group)
+                    ready_rows.extend(group)
                     continue
                 cfg = await load_duty_config(pid)
                 if not cfg or not cfg.get("enabled"):
@@ -1489,9 +1755,9 @@ class TaskQueueService:
                         len(group),
                     )
                     continue
-                rows.extend(group)
+                ready_rows.extend(group)
 
-        return rows
+        return ready_rows
 
     @staticmethod
     async def _validate_dependencies(
@@ -1506,22 +1772,17 @@ class TaskQueueService:
 
         async with session_scope() as session:
             rows = (
-                (
-                    await session.execute(
-                        select(ProjectTask.id, ProjectTask.project_id).where(
-                            ProjectTask.id.in_(deps)
-                        )
+                await session.execute(
+                    select(ProjectTask.id, ProjectTask.project_id).where(
+                        ProjectTask.id.in_(deps)
                     )
                 )
-                .all()
-            )
+            ).all()
         found = {r[0]: r[1] for r in rows}
         missing = [d for d in deps if d not in found]
         if missing:
             raise TaskQueueError(f"dependency task(s) not found: {missing}")
-        cross_project = [
-            d for d in deps if found[d] != task.project_id
-        ]
+        cross_project = [d for d in deps if found[d] != task.project_id]
         if cross_project:
             raise TaskQueueError(
                 f"cross-project dependencies not allowed: {cross_project}"
@@ -1530,15 +1791,12 @@ class TaskQueueService:
         # 环检测：以新依赖表沿下游走，若回到自身即成环
         async with session_scope() as session:
             all_rows = (
-                (
-                    await session.execute(
-                        select(ProjectTask.id, ProjectTask.dependencies).where(
-                            ProjectTask.project_id == task.project_id
-                        )
+                await session.execute(
+                    select(ProjectTask.id, ProjectTask.dependencies).where(
+                        ProjectTask.project_id == task.project_id
                     )
                 )
-                .all()
-            )
+            ).all()
         dep_map = {r[0]: list(r[1] or []) for r in all_rows}
         dep_map[task.id] = deps  # 模拟更新后的依赖表
         queue = list(deps)
@@ -1587,7 +1845,9 @@ class TaskQueueService:
                 try:
                     from app.core.engine.session.manager import session_manager
 
-                    await session_manager.stop_agent(task.last_thread_id, "task_cancelled")
+                    await session_manager.stop_agent(
+                        task.last_thread_id, "task_cancelled"
+                    )
                 except Exception:
                     logger.warning(
                         "[TaskQueueService] failed to stop agent for cancelled task %s",
@@ -1614,7 +1874,9 @@ class TaskQueueService:
             normalized_type = str(task_type).strip().lower()
             if normalized_type not in VALID_TASK_TYPES:
                 raise TaskQueueError(f"invalid task type: {task_type}")
-            if normalized_type == "recurring" and not (trigger_spec or task.trigger_spec):
+            if normalized_type == "recurring" and not (
+                trigger_spec or task.trigger_spec
+            ):
                 raise TaskQueueError("recurring tasks require trigger_spec")
             updates["type"] = normalized_type
         if due_at is not None:
@@ -1653,5 +1915,70 @@ class TaskQueueService:
                 raise TaskQueueError(f"task {task_id} version conflict")
         updated = await TaskQueueService.get_task(task_id)
         assert updated is not None
+        if cancel and updated.status == "cancelled":
+            await TaskQueueService._cancel_subtree(updated.id)
         await publish_task_queue_event(updated, event="task_updated")
         return updated
+
+    @staticmethod
+    async def _cancel_subtree(root_id: str) -> int:
+        """根任务被用户取消 → 级联取消整棵子树。
+
+        此前 cancel 只停任务自己的 agent，子任务变孤儿继续等派发。
+        BFS 按 parent_id 遍历整棵子树：终态任务（completed/failed/
+        cancelled）跳过取消但仍继续向下遍历（可能挂着非终态孙任务）；
+        运行中的 agent 一并 stop；每个被取消任务按 advance 语义广播
+        事件（UI 节点收缩/看板移除即时感知）。
+        """
+        terminal = ("completed", "failed", "cancelled")
+        frontier = [root_id]
+        cancelled = 0
+        while frontier:
+            parent_ids = frontier
+            frontier = []
+            async with session_scope() as session:
+                rows = (
+                    await session.execute(
+                        select(
+                            ProjectTask.id,
+                            ProjectTask.status,
+                            ProjectTask.last_thread_id,
+                        ).where(ProjectTask.parent_id.in_(parent_ids))
+                    )
+                ).all()
+            for tid, status, thread_id in rows:
+                frontier.append(tid)
+                if status in terminal:
+                    continue
+                async with session_scope() as session:
+                    await session.execute(
+                        update(ProjectTask)
+                        .where(
+                            ProjectTask.id == tid,
+                            ProjectTask.status.notin_(terminal),
+                        )
+                        .values(status="cancelled", version=ProjectTask.version + 1)
+                    )
+                cancelled += 1
+                if thread_id:
+                    try:
+                        from app.core.engine.session.manager import session_manager
+
+                        await session_manager.stop_agent(thread_id, "task_cancelled")
+                    except Exception:
+                        logger.warning(
+                            "[TaskQueueService] failed to stop agent for "
+                            "cascade-cancelled task %s",
+                            tid,
+                            exc_info=True,
+                        )
+                t = await TaskQueueService.get_task(tid)
+                if t is not None:
+                    await publish_task_queue_event(
+                        t,
+                        event="task_advanced",
+                        extra={"reason": "cascade_cancelled"},
+                    )
+        if cancelled:
+            notify_duty_wakeup()
+        return cancelled

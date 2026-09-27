@@ -2230,10 +2230,9 @@
   grid-template-columns: 1fr;
 }
 
-/* 左栏：执行时间线 / 计划 */
+/* 左栏：执行时间线 / 计划（无框：节点内页面靠 gap 分隔，不再套面板边框） */
 .dc-timeline-panel {
   background: var(--panel);
-  border: 1px solid var(--line);
   border-radius: 12px;
   padding: 12px 12px;
   flex: 1;
@@ -2330,10 +2329,9 @@
   font-weight: 600;
 }
 
-/* 右栏：产物与治理台 */
+/* 右栏：产物与治理台（无框：与左栏同层，靠 gap 分隔） */
 .dc-artifact-panel {
   background: var(--panel);
-  border: 1px solid var(--line);
   border-radius: 12px;
   padding: 14px 18px;
   flex: 1;

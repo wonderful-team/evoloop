@@ -8,9 +8,8 @@ Create Date: 2026-09-11
 {domain, tools: [{mcp_server, include?}], preload, route_patterns}
 null = 普通技能。
 """
-from alembic import op
 import sqlalchemy as sa
-
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "c8d2e4f6a8b0"

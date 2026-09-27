@@ -11,14 +11,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from datetime import datetime, timedelta, timezone
 
 from app.domain.tasks.constants import (
     DISPATCH_CLAIM_CIRCUIT_LIMIT,
     WAKEUP_RUN_DEADLINE_SECONDS,
 )
-from app.domain.tasks.events import publish_workflow_event
-from app.domain.tasks.runtime.agent import AgentRuntimeError, EvoloopAgentRuntimeAdapter
+from app.domain.tasks.events import publish_queue_drained
 from app.domain.tasks.service import (
     TaskQueueService,
     task_category,
@@ -30,14 +30,20 @@ from app.domain.tasks.service import (
     task_priority,
     task_title,
     task_version,
-    task_workflow_id,
 )
-from app.domain.tasks.workflows import WorkflowError, WorkflowService
 
 logger = logging.getLogger(__name__)
 
+# 全局并发护栏：值守 drain 一次只跑一个 wakeup run。
+# 当前 supervisor 单循环已天然串行，此 semaphore 把契约显式化，防止未来改
+# 动把 run 改成 fire-and-forget 后破坏“任务一个一个执行”的用户心智。
+MAX_CONCURRENT_WAKEUP_RUNS = 1
+_wakeup_run_semaphore = asyncio.Semaphore(MAX_CONCURRENT_WAKEUP_RUNS)
 
-async def resolve_wakeup_domain(project_id: int, instruction: str) -> tuple[str | None, str]:
+
+async def resolve_wakeup_domain(
+    project_id: int, instruction: str
+) -> tuple[str | None, str]:
     """值守唤醒的域解析（供派发 hint）。
 
     0. 工作空间任务（pid=0）不绑定任何项目域 → 直接 fail-open：L1 按
@@ -85,6 +91,7 @@ async def resolve_wakeup_domain(project_id: int, instruction: str) -> tuple[str 
     )
     return None, ""
 
+
 # ── 配额熔断（账号级）────────────────────────────────────
 # quota_exhausted 的 run 终态后，暂停值守派发一段时间：否则串行 drain 会把
 # 队列里所有任务挨个打一遍 429（实测：每 ~6s 烧一次），配额重置前纯烧日志。
@@ -127,8 +134,14 @@ async def _run_wakeup_with_deadline(thread_id: str, inputs: dict) -> None:
     await agent_run_registry.register_run(
         thread_id, run_task, description=f"wakeup:{thread_id}"
     )
+    t0 = time.monotonic()
     try:
         await asyncio.wait_for(run_task, timeout=WAKEUP_RUN_DEADLINE_SECONDS)
+        logger.info(
+            "[DutyDispatcher] run_task completed in %.3fs (thread=%s)",
+            time.monotonic() - t0,
+            thread_id,
+        )
     except asyncio.TimeoutError:
         logger.error(
             "[DutyDispatcher] wakeup run %s 超过 %ss 硬截止，强制取消（任务由 reconciler 回队）",
@@ -141,7 +154,9 @@ async def _run_wakeup_with_deadline(thread_id: str, inputs: dict) -> None:
         except (asyncio.CancelledError, Exception):
             pass
     except asyncio.CancelledError:
-        logger.info("[DutyDispatcher] wakeup run %s was cancelled by request", thread_id)
+        logger.info(
+            "[DutyDispatcher] wakeup run %s was cancelled by request", thread_id
+        )
         if not run_task.done():
             run_task.cancel()
             try:
@@ -212,6 +227,63 @@ async def auto_retry_failed_tasks() -> None:
         )
 
 
+_prev_attempted = 0
+
+
+async def _maybe_publish_queue_drained(attempted: int) -> None:
+    """值守排空沿检测：上一轮有派发、本轮无派发 → 本轮值守结束。
+
+    串行 drain 下每轮结束时 in_progress 必为 0，故不能拿 in_progress==0
+    当条件（每拍都成立）；以"派发活动沿"为准：prev>0 且 now==0 才是真正
+    的收尾沿，空闲轮（prev==0）不重复广播。发布前再查一次 in_progress
+    兜底（派发失败回滚/依赖阻塞轮的误报）。
+
+    前端收到 queue_drained 后在状态条展示"本轮值守完成"一次性汇总。
+    """
+    global _prev_attempted
+    try:
+        if attempted > 0:
+            _prev_attempted = attempted
+            return
+
+        from sqlalchemy import func, select
+
+        from app.infrastructure.database.sql.database import session_scope
+        from app.models.project import ProjectTask
+
+        async with session_scope() as session:
+            rows = (
+                await session.execute(
+                    select(ProjectTask.status, func.count()).group_by(
+                        ProjectTask.status
+                    )
+                )
+            ).all()
+        counts = {r[0]: int(r[1]) for r in rows}
+        # 仍有活动 run（并发收尾/依赖阻塞轮）：保持沿状态不清零，下一拍
+        # in_progress 归零时照常触发——若在此清零，并发收尾的第一个完成沿
+        # 被吞掉后沿状态丢失，最后一个任务结束时战报永远不发（实测）。
+        if counts.get("in_progress", 0) > 0:
+            return
+        if _prev_attempted > 0:
+            _prev_attempted = 0
+        else:
+            return
+        await publish_queue_drained(
+            completed=counts.get("completed", 0),
+            failed=counts.get("failed", 0),
+            waiting=counts.get("waiting_acceptance", 0),
+            pending=counts.get("pending", 0),
+        )
+        logger.info(
+            "[DutyDispatcher] queue drained: completed=%s failed=%s waiting=%s pending=%s",
+            counts.get("completed", 0),
+            counts.get("failed", 0),
+            counts.get("waiting_acceptance", 0),
+            counts.get("pending", 0),
+        )
+    except Exception:
+        logger.exception("[DutyDispatcher] queue_drained publish failed")
 
 
 async def _notify_dep_failure(task, failed_up: list) -> None:
@@ -232,76 +304,32 @@ async def _notify_dep_failure(task, failed_up: list) -> None:
         await session.execute(
             update(ProjectTask).where(ProjectTask.id == task.id).values(task_data=td)
         )
-    try:
-        from app.core.channel.base import ChannelContext
-        from app.core.channel.output.mobile_channel import MobileChannel
-        from app.core.config import settings as _settings
+    from app.domain.tasks.notify import push_hitl_notice, task_label
 
-        if _settings.MOBILE_SYNC_ENABLED:
-            no = task_number(task)
-            label = f"#T-{no}" if no else task.id[:8]
-            names = ", ".join(
-                f"#{task_number(u) or u.id[:8]}"
-                for u in failed_up
-            )
-            await MobileChannel().send_hitl_request(
-                request_id=f"dep-blocked-{task.id}",
-                request_type="confirmation",
-                prompt=f"任务链断在「{names}」（失败），{len(failed_up) and ''}下游任务 {label}「{td.get('title', '')[:36]}」已阻塞待裁决：修复重跑上游 / 调整链路。",
-                ctx=ChannelContext(thread_id=task.origin_thread_id or task.id, project_id=task.project_id),
-                metadata={"kind": "dep_blocked", "task_id": task.id},
-            )
-    except Exception:
-        logger.exception("[DutyDispatcher] dep-blocked push failed")
+    names = ", ".join(task_label(u) for u in failed_up)
+    label = task_label(task)
+    await push_hitl_notice(
+        task,
+        request_id=f"dep-blocked-{task.id}",
+        kind="dep_blocked",
+        prompt=f"任务链断在「{names}」（失败），{len(failed_up) and ''}下游任务 {label}「{td.get('title', '')[:36]}」已阻塞待裁决：修复重跑上游 / 调整链路。",
+    )
 
 
 async def _deps_satisfied(task) -> bool:
-    """依赖链 gating：task_data.dependencies 里的上游任务未全部 completed
-    则暂不派发（pending 依赖的声明性记录在此变为执行顺序约束）。依赖任务
-    缺失/删除视为不满足（数据被清理时不放行，避免孤儿任务乱跑）。
-
-    上游存在 failed 时触发断链告警（手机推送一次），下游保持 blocked 等
-    人工裁决（rerun 修复上游 / 调整链路）。
+    """依赖链 gating（单一实现）：规则本体在
+    ``TaskQueueService.evaluate_dependency_gate``（claim 扫描与派发闸共用，
+    含 recurring lineage-only 豁免与"依赖缺失不放行"）。本函数只承担
+    派发侧副作用——上游 failed 时触发一次断链告警（手机推送一次，防重
+    标记），下游保持 blocked 等人工裁决（rerun 修复上游 / 调整链路）。
     """
     dep_ids = task_dependencies(task)
     if not dep_ids:
         return True
-    from sqlalchemy import select
-
-    from app.infrastructure.database.sql.database import session_scope
-    from app.models.project import ProjectTask
-
-    async with session_scope() as session:
-        rows = (
-            await session.execute(
-                select(ProjectTask.id, ProjectTask.status).where(
-                    ProjectTask.id.in_([str(d) for d in dep_ids])
-                )
-            )
-        ).all()
-    status_by_id = dict(rows)
-    failed_up = [t for t in rows if t[1] == "failed"]
+    satisfied, failed_up = await TaskQueueService.evaluate_dependency_gate(task)
     if failed_up and not (task.task_data or {}).get("dep_failure_notified"):
-        objs = []
-        async with session_scope() as session:
-            objs = (
-                (
-                    await session.execute(
-                        select(ProjectTask).where(
-                            ProjectTask.id.in_([f[0] for f in failed_up])
-                        )
-                    )
-                )
-                .scalars()
-                .all()
-            )
-        await _notify_dep_failure(task, list(objs))
-    return all(
-        status_by_id.get(str(d)) == "completed"
-        for d in (str(x) for x in dep_ids)
-    )
-
-
+        await _notify_dep_failure(task, failed_up)
+    return satisfied
 
 
 async def _build_upstream_context(task) -> str:
@@ -334,7 +362,7 @@ async def _build_upstream_context(task) -> str:
         for a in arts:
             arts_by_task.setdefault(str(a.task_id), []).append(a)
         lines = ["## 上游任务产出（本任务执行时应直接引用，勿重复调研）"]
-        for up in sorted(rows, key=lambda x: (task_number(x) or 0)):
+        for up in sorted(rows, key=lambda x: task_number(x) or 0):
             no = task_number(up)
             label = f"#T-{no}" if no else up.id[:8]
             result = task_last_result(up) or ""
@@ -342,7 +370,9 @@ async def _build_upstream_context(task) -> str:
                 f"- {label}「{(task_title(up) or '')[:40]}」结论：{result[:300]}"
             )
             for a in arts_by_task.get(up.id, [])[:3]:
-                lines.append(f"  · 产物：{getattr(a, 'file_path', '') or getattr(a, 'name', '')}")
+                lines.append(
+                    f"  · 产物：{getattr(a, 'file_path', '') or getattr(a, 'name', '')}"
+                )
         return "\n".join(lines)
     except Exception:
         logger.exception("[DutyDispatcher] upstream context build failed")
@@ -373,8 +403,17 @@ async def dispatch_due_tasks() -> None:
     if not load_global_duty_config().get("enabled"):
         return
     attempted: set[str] = set()
+    dispatch_start = time.monotonic()
     while True:
+        t0 = time.monotonic()
         due = await TaskQueueService.claim_due_tasks()
+        claim_dt = time.monotonic() - t0
+        if due:
+            logger.info(
+                "[DutyDispatcher] claim_due_tasks found %d task(s) in %.3fs",
+                len(due),
+                claim_dt,
+            )
         deps_blocked = 0
         t = None
         for cand in due:
@@ -391,67 +430,18 @@ async def dispatch_due_tasks() -> None:
                     "[DutyDispatcher] %d due task(s) waiting on upstream dependencies",
                     deps_blocked,
                 )
+            await _maybe_publish_queue_drained(len(attempted))
+            logger.info(
+                "[DutyDispatcher] dispatch_due_tasks returning after %.3fs (attempted %d)",
+                time.monotonic() - dispatch_start,
+                len(attempted),
+            )
             return
         attempted.add(t.id)
 
-        if (t.task_data or {}).get("workflow_runtime") == "evoloop":
-            try:
-                await EvoloopAgentRuntimeAdapter.run(t)
-            except (AgentRuntimeError, WorkflowError) as exc:
-                logger.exception(
-                    "[DutyDispatcher] Evoloop Agent workflow task failed: %s", t.id
-                )
-                from app.domain.tasks.constants import NON_RETRYABLE_ERROR_MARKERS
-
-                reason = str(exc)
-                if any(marker in reason for marker in NON_RETRYABLE_ERROR_MARKERS):
-                    # 确定性失败（内容审查/配置缺失）：重试不会好，直接终态
-                    logger.warning(
-                        "[DutyDispatcher] non-retryable error, failing task %s directly",
-                        t.id,
-                    )
-                    await TaskQueueService.advance_task(
-                        t.id,
-                        "failed",
-                        result=reason,
-                        thread_id=t.last_thread_id,
-                        by="system",
-                    )
-                    workflow_id = str(task_workflow_id(t) or "")
-                    if workflow_id:
-                        await WorkflowService.refresh_status(workflow_id)
-                        await publish_workflow_event(
-                            workflow_id,
-                            event="task_retry_scheduled",
-                            task_id=t.id,
-                            stage=str((t.task_data or {}).get("workflow_stage") or ""),
-                            status="failed",
-                        )
-                    continue
-                requeued_task = await TaskQueueService.requeue_workflow_task(
-                    t.id,
-                    str(exc),
-                )
-                fresh_task = requeued_task or await TaskQueueService.get_task(t.id)
-                if fresh_task is not None and fresh_task.status == "in_progress":
-                    await TaskQueueService.advance_task(
-                        t.id,
-                        "failed",
-                        result=str(exc),
-                        thread_id=(fresh_task or t).last_thread_id,
-                        by="system",
-                    )
-                workflow_id = str(task_workflow_id(t) or "")
-                if workflow_id:
-                    await WorkflowService.refresh_status(workflow_id)
-                    await publish_workflow_event(
-                        workflow_id,
-                        event="task_retry_scheduled",
-                        task_id=t.id,
-                        stage=str((t.task_data or {}).get("workflow_stage") or ""),
-                        status=(fresh_task.status if fresh_task else "failed"),
-                    )
-            continue
+        # growth 适配器特权分支已退役（阶段九.6：growth 流水线迁通用轮次
+        # 机制，阶段任务=普通 pending 任务走标准 duty 派发），无任何
+        # task_data 驱动的执行路径分叉。
 
         project_id = t.project_id or 0
         category = task_category(t) or "default"
@@ -478,9 +468,7 @@ async def dispatch_due_tasks() -> None:
         # 熔断（认领后判定，走合法转移 in_progress→failed）：认领次数达阈值
         # 仍无终态 = agent 未履约 take/update_status 或派发反复失败 → 强制
         # 终态，把毒任务显式炸出来而不是无限烧 LLM。
-        if task_dispatch_count(claimed) >= (
-            DISPATCH_CLAIM_CIRCUIT_LIMIT
-        ):
+        if task_dispatch_count(claimed) >= (DISPATCH_CLAIM_CIRCUIT_LIMIT):
             await TaskQueueService.advance_task(
                 t.id,
                 "failed",
@@ -511,6 +499,7 @@ async def dispatch_due_tasks() -> None:
         # （id/风险档/截止/评审反馈）走系统提示词层（main.duty.task.txt，
         # 经 metadata.duty_task 注入，prompts.py 渲染）。
         try:
+            t0 = time.monotonic()
             result = await dispatch_agent_run(
                 thread_id=thread_id,
                 message_content=instruction_text,
@@ -559,6 +548,11 @@ async def dispatch_due_tasks() -> None:
             # 任务回队由下一拍重试；dispatch_count 已累计，反复失败会走熔断。
             await TaskQueueService.release_dispatch_claim(t.id, thread_id)
             raise
+        logger.info(
+            "[DutyDispatcher] dispatch_agent_run prepared in %.3fs (status=%s)",
+            time.monotonic() - t0,
+            result.status,
+        )
         if result.status == DispatchStatus.FAILED:
             logger.error(
                 f"[DutyDispatcher] wakeup dispatch failed for task {t.id}: {result.error}"
@@ -566,9 +560,26 @@ async def dispatch_due_tasks() -> None:
             # 派发失败：回滚认领（pending），60s 兜底重试；连续失败由熔断收敛。
             await TaskQueueService.release_dispatch_claim(t.id, thread_id)
             return  # avoid tight-loop redispatching a broken dispatch
+        if not result.inputs:
+            # QUEUED 但 inputs 为空 = 派发内部异常吞掉了错误：任务已认领却
+            # 永远不会 run（无日志悬挂 in_progress，只能等 reconciler 收尸）。
+            # 显式失败并回滚认领，把问题炸出来而不是静默丢任务。
+            logger.error(
+                f"[DutyDispatcher] wakeup dispatch returned empty inputs for task {t.id} "
+                f"(status={result.status}, error={result.error}) — releasing claim"
+            )
+            await TaskQueueService.release_dispatch_claim(t.id, thread_id)
+            return
         if result.inputs:
             logger.info(
                 f"[DutyDispatcher] wakeup run started (task={t.id}, thread={thread_id})"
             )
-            await _run_wakeup_with_deadline(thread_id, result.inputs)
+            t0 = time.monotonic()
+            async with _wakeup_run_semaphore:
+                await _run_wakeup_with_deadline(thread_id, result.inputs)
+            logger.info(
+                "[DutyDispatcher] wakeup run finished in %.3fs (task=%s)",
+                time.monotonic() - t0,
+                t.id,
+            )
             # loop continues: run finished (or HITL-suspended) -> claim next

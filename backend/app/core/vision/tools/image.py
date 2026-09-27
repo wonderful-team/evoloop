@@ -51,7 +51,7 @@ async def image(
     question: str = "Describe this image in detail.",
     include_ax_tree: bool = False,
     model: str | None = None,
-    config: Annotated[RunnableConfig, InjectedToolArg] = None,
+    config: Annotated[RunnableConfig, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> str:
     """统一图像入口——分析一张图片或生成一张图片。
 
@@ -173,7 +173,11 @@ async def _generate(
                 await llm_platform_service.fetch_platform_models(force_refresh=True)
                 image_models = llm_platform_service.get_image_models()
             if image_models:
-                model = image_models[0].model_id
+                # 网关目录可能含未实际接通的条目（如 5.0-lite 曾被 Ark 拒
+                # UnsupportedModel）；已验证可用的优先，目录序兜底
+                preferred = [m for m in image_models if "pro" in (m.model_id or "").lower()]
+                pick = (preferred or image_models)[0]
+                model = pick.model_id
                 logger.info("[Image] auto-selected image model: %s", model)
 
         # 图生图：参考图统一转为公网 URL（Ark 直接拉取；本地路径先上传 MC）

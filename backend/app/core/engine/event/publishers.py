@@ -22,12 +22,14 @@ from .schemas import (
 async def publish_agent_session_started(
     thread_id: str,
     project_id: int | None = None,
+    run_id: str | None = None,
 ) -> None:
     """Publish an event to request context hydration at the start of a session."""
     await system_bus.publish(
         AgentSessionStartedEvent(
             thread_id=thread_id,
             project_id=project_id,
+            run_id=run_id,
         )
     )
 

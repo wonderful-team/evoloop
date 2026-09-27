@@ -25,8 +25,6 @@ SOFTWARE_MARKERS = SOFTWARE_INDICATORS | SOFTWARE_DIRECTORIES
 # ====================== Indexing job statuses (Repository.indexing_status) ======================
 #: Job queued for dispatch.
 INDEXING_STATUS_QUEUED = "queued"
-#: Job queuing (transient in-memory state).
-INDEXING_STATUS_QUEUING = "queuing"
 #: Index not yet started.
 INDEXING_STATUS_PENDING = "pending"
 #: Index is actively running.
@@ -57,12 +55,7 @@ SCAN_STATUS_COMPLETED = "completed"
 #: File scan failed.
 SCAN_STATUS_FAILED = "failed"
 
-#: Canonical set of file scan statuses.
-SCAN_STATUSES = frozenset({SCAN_STATUS_PENDING, SCAN_STATUS_COMPLETED, SCAN_STATUS_FAILED})
-
 # ====================== Repository cloud sync statuses (Repository.sync_status) ======================
-#: Newly detected, awaiting user confirmation.
-REPO_SYNC_STATUS_DETECTED = "DETECTED"
 #: User chose to ignore this repository.
 REPO_SYNC_STATUS_IGNORED = "IGNORED"
 #: User confirmed, awaiting cloud sync.
@@ -88,24 +81,6 @@ REPO_SYNC_INACTIVE_STATUSES = (
 # File extensions recognized as source code.
 CODE_EXTENSIONS = set(EXTENSION_MAP.keys())
 
-# Seconds of inactivity before accumulated changes are dispatched.
-BATCH_DEBOUNCE = 180.0
-
-# Max seconds a single index_file task may run before being abandoned.
-PER_FILE_TIMEOUT = 120.0
-
-# Maximum number of modified files dispatched in one handler cycle.
-MAX_PER_CYCLE = 20
-
-# Number of files dispatched in each chunk within a handler cycle.
-BATCH_SIZE = 10
-
-# Seconds to wait between dispatch chunks.
-BATCH_INTERVAL = 1.0
-
-# Seconds before re-scheduling leftover files that exceed MAX_PER_CYCLE.
-LEFTOVER_RETRY_DEBOUNCE = 5.0
-
 # Semaphore limit for concurrent file extraction during full indexing.
 EXTRACT_CONCURRENCY = max(4, (os.cpu_count() or 4) * 2)
 
@@ -123,9 +98,6 @@ FILE_SUMMARY_MAX_LENGTH = 15000
 
 # Minimum non-empty content length to trigger a safe-indexing warning.
 MIN_CONTENT_LENGTH_FOR_SAFE_INDEXING = 50
-
-# Max seconds a single background index task may run before timing out.
-INDEX_FILE_TIMEOUT = 120.0
 
 # Shared Tree-sitter queries for code analysis and extraction.
 TREE_SITTER_QUERIES = {

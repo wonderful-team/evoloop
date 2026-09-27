@@ -138,7 +138,7 @@ def _read_journal_highlights() -> str:
             lines = f.readlines()
 
         # Get last 10 non-empty lines
-        recent_lines = [l.strip() for l in lines if l.strip()][-10:]
+        recent_lines = [line.strip() for line in lines if line.strip()][-10:]
         return "\n".join(recent_lines)
 
     except Exception as e:

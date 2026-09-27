@@ -67,7 +67,6 @@ SCROLLABLE_CLASSES = [
 # ---------------------------------------------------------------------------
 # AppMap source schemas
 # ---------------------------------------------------------------------------
-ACTION_KINDS = ("read", "write")
 RISK_TIERS = ("ui", "data", "money")
 SELECTOR_TYPES = ("id", "name", "class", "css", "lay-filter", "text", "data-attr")
 

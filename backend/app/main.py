@@ -102,6 +102,19 @@ async def lifespan(app: FastAPI):  # noqa: ARG001
     await publish_app_started(startup_time)
     logger.info("[Startup] APP_STARTED event published")
 
+    # SDK conversation store TTL 清理（正常完结会话的 EventLog 会永久留存，
+    # 启动时清一次陈旧 store，见 sdk_adapter/store_cleanup.py）
+    try:
+        from app.core.engine.sdk_adapter.store_cleanup import (
+            cleanup_stale_conversation_stores,
+        )
+
+        removed = cleanup_stale_conversation_stores()
+        if removed:
+            logger.info("[Startup] cleaned %d stale SDK conversation stores", removed)
+    except Exception:
+        logger.exception("[Startup] SDK store cleanup failed")
+
     # --- 值守双循环已迁至各自模块的生命周期订阅者（模块自治）---
     # 触发器层心跳（SchedulerLifecycleSubscriber，infrastructure/scheduler/lifecycle.py）
     # 与工作项层 supervisor（SupervisorLifecycleSubscriber，domain/tasks/event/subscribers.py）

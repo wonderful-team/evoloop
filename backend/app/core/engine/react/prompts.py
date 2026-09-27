@@ -28,7 +28,6 @@ logger = logging.getLogger(__name__)
 # 有「另有 N 项」尾注 + skill(name) 按需加载提示，能力不丢失只省 token）。
 MAX_SKILLS = 20
 MAX_MACROS = 20
-MAX_MCP = 10
 MAX_AGENTS = 10
 
 #: <available_agents> 远端设备索引的短时缓存（避免每次组装 system prompt 都打网关）
@@ -75,7 +74,9 @@ def _environment_block(ctx: Any, state: Any) -> str:
     if ctx.project_id:
         lines.insert(0, f"项目 ID: {ctx.project_id}")
     # 计划状态（若有）
-    plan = getattr(state, "structured_plan", None) or getattr(state, "current_plan", None)
+    plan = getattr(state, "structured_plan", None) or getattr(
+        state, "current_plan", None
+    )
     if plan:
         lines.append(f"当前计划: {plan}")
     return "\n".join(lines)
@@ -159,10 +160,6 @@ def _capability_index(ctx: Any, domain_pkgs: set[str] | None = None) -> str:
             + "\n</available_macros>"
         )
 
-    operation_map = metadata.get("operation_map")
-    if operation_map:
-        parts.append(f"<operation_map>\n{str(operation_map)[:2000]}\n</operation_map>")
-
     return "\n\n".join(parts) if parts else "（当前无按需加载的能力索引）"
 
 
@@ -186,9 +183,7 @@ def _format_macro_lines(macros: Any) -> list[str]:
             return lines
     # legacy 字符串形态（dict/getattr 兼容路径）
     return [
-        s.strip().lstrip("- ").strip()
-        for s in str(macros).splitlines()
-        if s.strip()
+        s.strip().lstrip("- ").strip() for s in str(macros).splitlines() if s.strip()
     ]
 
 
@@ -207,13 +202,17 @@ async def _capability_index_async(ctx: Any) -> str:
                 p.name for p in await skill_discovery.get_packages_for_domain(domain)
             } or None
     except Exception:
-        logger.warning("[ReactPrompt] domain packages for ranking unavailable", exc_info=True)
+        logger.warning(
+            "[ReactPrompt] domain packages for ranking unavailable", exc_info=True
+        )
     static = _capability_index(ctx, domain_pkgs)
     if static and not static.startswith("（当前无"):
         parts.append(static)
     agents = await _available_agents_block()
     if agents:
-        parts.append(f"<available_agents>\n{agents[:MAX_AGENTS * 200]}\n</available_agents>")
+        parts.append(
+            f"<available_agents>\n{agents[: MAX_AGENTS * 200]}\n</available_agents>"
+        )
     return "\n\n".join(parts) if parts else "（当前无按需加载的能力索引）"
 
 
@@ -292,9 +291,8 @@ async def build_system_prompt(state: Any, config: dict[str, Any]) -> str:
     # 子代理：使用子代理类型专用人格（对齐 OpenCode 每子代理类型专属 prompt），
     # 且不注入主 Agent 的 main.txt 人格，避免子代理被主 Agent 话术污染。
     meta = config.get("metadata", {}) or {}
-    subagent_prompt = (
-        getattr(ctx.metadata, "subagent_prompt", None)
-        or meta.get("subagent_prompt")
+    subagent_prompt = getattr(ctx.metadata, "subagent_prompt", None) or meta.get(
+        "subagent_prompt"
     )
     if subagent_prompt and prompt_exists(subagent_prompt):
         return render_prompt(subagent_prompt, placeholders)
@@ -311,7 +309,11 @@ async def build_system_prompt(state: Any, config: dict[str, Any]) -> str:
         )
 
         hint = (config or {}).get("metadata", {}).get("intent_hint") or {}
-        domain = hint.get("domain") if isinstance(hint, dict) else getattr(hint, "domain", None)
+        domain = (
+            hint.get("domain")
+            if isinstance(hint, dict)
+            else getattr(hint, "domain", None)
+        )
         if not domain:
             domain = hint_domain_of(ctx)
         wd = ctx.working_directory or ""
@@ -321,11 +323,17 @@ async def build_system_prompt(state: Any, config: dict[str, Any]) -> str:
             for fragment in profile.prompt_fragments or []:
                 if fragment.startswith("project:"):
                     base = home_wd or wd
-                    frag_path = Path(base) / fragment[len("project:"):] if base else Path(fragment[len("project:"):])
+                    frag_path = (
+                        Path(base) / fragment[len("project:") :]
+                        if base
+                        else Path(fragment[len("project:") :])
+                    )
                     if base and frag_path.is_file():
                         main += "\n\n" + frag_path.read_text(encoding="utf-8").strip()
                     else:
-                        logger.warning(f"[ReactPrompt] project fragment missing: {frag_path}")
+                        logger.warning(
+                            f"[ReactPrompt] project fragment missing: {frag_path}"
+                        )
                 elif prompt_exists(fragment):
                     main += "\n\n" + render_prompt(fragment)
     except Exception as e:
@@ -345,24 +353,21 @@ async def build_system_prompt(state: Any, config: dict[str, Any]) -> str:
         # autonomous duty: expose channel marker; only customer-facing
         # channels get the hard-limit section (main.duty.customer.txt).
         meta = ctx.metadata if isinstance(ctx.metadata, dict) else {}
-        channel_name = meta.get("channel_name") or config.get(
-            "metadata", {}
-        ).get("channel_name") or ""
+        channel_name = (
+            meta.get("channel_name")
+            or config.get("metadata", {}).get("channel_name")
+            or ""
+        )
         if channel_name in CUSTOMER_FACING_CHANNEL_NAMES:
             main += '\n\n<duty_channel customer_facing="true" />'
             if prompt_exists("core/agent/main.duty.customer.txt"):
-                main += (
-                    "\n\n"
-                    + render_prompt("core/agent/main.duty.customer.txt")
-                )
+                main += "\n\n" + render_prompt("core/agent/main.duty.customer.txt")
         else:
             main += '\n\n<duty_channel customer_facing="false" />'
         # 任务值守：任务元信息走系统提示词块（human 消息保持任务描述原文，
         # 不经模板包装）。wecom_duty 渠道轮巡无任务上下文，仅在携带
         # duty_task 时注入。
-        duty_task = meta.get("duty_task") or config.get("metadata", {}).get(
-            "duty_task"
-        )
+        duty_task = meta.get("duty_task") or config.get("metadata", {}).get("duty_task")
         if duty_task and prompt_exists("core/agent/main.duty.task.txt"):
             task_block = (
                 meta.get("duty_task")

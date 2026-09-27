@@ -1,7 +1,7 @@
+import { Loader2, Wrench } from "lucide-react"
 import * as React from "react"
-import {Loader2, Wrench} from "lucide-react"
-import {Badge} from "../ui/badge"
-import type {ToolCallTraceData} from "./types"
+import { Badge } from "../ui/badge"
+import type { ToolCallTraceData } from "./types"
 
 const TOOL_DETAIL_KEYS = [
   "command",
@@ -13,7 +13,15 @@ const TOOL_DETAIL_KEYS = [
   "content",
 ]
 
+/* 内联键与折叠键的分工（2026-09-25 补 command/action）：
+ * - 同时在两个名单的键（command/pattern/...）= 短值(≤48 无换行)内联、
+ *   长值折叠——此前 command 只在折叠名单，短命令参数彻底不可见；
+ * - 只在内联名单的键（path/url/...）= 任何长度都内联；
+ * - 两边都不在的键（tasks 的 action/status/task_id 等）= 永不可见——
+ *   故 action 入内联名单（值守审计最常看的"动了哪个动作"）。 */
 const TOOL_INLINE_PARAM_KEYS = [
+  "action",
+  "command",
   "prompt",
   "url",
   "path",

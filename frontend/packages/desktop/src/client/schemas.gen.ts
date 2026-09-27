@@ -8446,6 +8446,142 @@ export const WikiPageReadSchema = {
     title: 'WikiPageRead'
 } as const;
 
+export const WorkflowCreateRequestSchema = {
+    properties: {
+        project_id: {
+            type: 'integer',
+            title: 'Project Id',
+            default: 0
+        },
+        title: {
+            type: 'string',
+            title: 'Title'
+        },
+        goal: {
+            type: 'string',
+            title: 'Goal'
+        },
+        trigger_spec: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Trigger Spec'
+        },
+        origin_thread_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Origin Thread Id'
+        },
+        stages: {
+            items: {
+                '$ref': '#/components/schemas/WorkflowStageSpecRequest'
+            },
+            type: 'array',
+            title: 'Stages'
+        }
+    },
+    additionalProperties: true,
+    type: 'object',
+    required: ['title', 'goal', 'stages'],
+    title: 'WorkflowCreateRequest',
+    description: `POST /tasks/workflows — 通用周期工作流提案（编排/触发上移到本层）。
+
+创建后 status=proposed，需 POST /workflows/{id}/confirm 上膛触发器；
+每轮由 supervisor 按模板实例化阶段任务（dedup 幂等，skip-on-busy）。`
+} as const;
+
+export const WorkflowEditRequestSchema = {
+    properties: {
+        trigger_spec: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Trigger Spec'
+        },
+        cancel: {
+            type: 'boolean',
+            title: 'Cancel',
+            default: false
+        }
+    },
+    additionalProperties: true,
+    type: 'object',
+    title: 'WorkflowEditRequest',
+    description: 'PUT /tasks/workflows/{id} — 取消（唯一合法写操作）/ 改触发器。'
+} as const;
+
+export const WorkflowStageSpecRequestSchema = {
+    properties: {
+        key: {
+            type: 'string',
+            title: 'Key'
+        },
+        title: {
+            type: 'string',
+            title: 'Title'
+        },
+        description: {
+            type: 'string',
+            title: 'Description',
+            default: ''
+        },
+        category: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Category'
+        },
+        priority: {
+            '$ref': '#/components/schemas/TaskPriority',
+            default: 'medium'
+        },
+        risk_level: {
+            anyOf: [
+                {
+                    '$ref': '#/components/schemas/TaskRiskLevel'
+                },
+                {
+                    type: 'null'
+                }
+            ]
+        },
+        deps: {
+            items: {
+                type: 'string'
+            },
+            type: 'array',
+            title: 'Deps',
+            default: []
+        }
+    },
+    additionalProperties: true,
+    type: 'object',
+    required: ['key', 'title'],
+    title: 'WorkflowStageSpecRequest',
+    description: '周期工作流阶段模板项（deps 用阶段 key 引用，须为拓扑序）。'
+} as const;
+
 export const app__api__schemas__tasks__TaskCreateRequestSchema = {
     properties: {
         project_id: {

@@ -92,7 +92,7 @@ def format_event_for_frontend(event: Any) -> dict:
         return {
             "type": "run_start",
             "thread_id": event.thread_id,
-            "run_id": None,  # Session start doesn't have a run_id yet
+            "run_id": event.run_id,
             "goal": "",
         }
     elif isinstance(event, AgentRunCompletedEvent):

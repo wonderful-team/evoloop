@@ -6,7 +6,6 @@ from enum import Enum
 class MessageStatus(str, Enum):
     """Persisted/streamed message lifecycle status."""
 
-    PENDING = "pending"
     RUNNING = "running"
     STREAMING = "streaming"
     COMPLETED = "completed"
@@ -28,9 +27,7 @@ class MessageContentType(str, Enum):
     """Message content representation format."""
 
     TEXT = "text"
-    MARKDOWN = "markdown"
     JSON = "json"
-    MULTIPART = "multipart"
 
 
 class MessageActionType(str, Enum):

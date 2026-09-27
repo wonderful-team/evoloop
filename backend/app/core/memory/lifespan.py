@@ -1,34 +1,14 @@
 """
 Memory System Lifespan Management
 
-Provides application-level lifecycle management for the memory system.
-This ensures a single MemoryContainer instance is created at app startup
-and properly shutdown at app exit.
-
-Usage:
-    # In main.py or application entry point
-    from app.core.memory.lifespan import memory_lifespan
-
-    @asynccontextmanager
-    async def lifespan(app: FastAPI):
-        async with memory_lifespan(app):
-            yield
-
-    app = FastAPI(lifespan=lifespan)
-
-    # In routes or services
-    from app.core.memory.lifespan import get_memory_manager
-
-    manager = get_memory_manager()
-    await manager.save_memory(entry)
+Provides the MemoryLifespanManager singleton for lazy initialization
+and shutdown of the memory system. Consumers call
+``MemoryLifespanManager.ainitialize()`` / ``get_container()`` on demand
+rather than relying on a FastAPI lifespan context manager.
 """
 
 import asyncio
 import logging
-from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
-
-from fastapi import FastAPI
 
 from app.core.memory.config import MemoryConfig
 from app.core.memory.container import MemoryContainer
@@ -158,32 +138,3 @@ class MemoryLifespanManager:
         return cls._instance is not None and cls._instance._initialized
 
 
-# FastAPI lifespan context manager
-
-
-@asynccontextmanager
-async def memory_lifespan(
-    app: FastAPI | None = None,
-) -> AsyncGenerator[MemoryContainer, None]:
-    """
-    FastAPI lifespan context manager for memory system.
-
-    Usage:
-        @asynccontextmanager
-        async def lifespan(app: FastAPI):
-            async with memory_lifespan(app):
-                yield
-
-        app = FastAPI(lifespan=lifespan)
-
-    Args:
-        app: Optional FastAPI application instance
-
-    Yields:
-        The initialized MemoryContainer
-    """
-    container = await MemoryLifespanManager.ainitialize()
-    try:
-        yield container
-    finally:
-        await MemoryLifespanManager.shutdown()

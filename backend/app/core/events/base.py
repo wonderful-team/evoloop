@@ -77,7 +77,6 @@ class AsyncEventBus(Generic[E]):
         self._name = name
         self._handlers: dict[str, list[EventHandler]] = {}
         self._global_handlers: list[EventHandler] = []
-        self._initialized = False
 
     @property
     def name(self) -> str:
@@ -164,16 +163,6 @@ class AsyncEventBus(Generic[E]):
         else:
             # Execute concurrently
             await asyncio.gather(*[safe_handle(h) for h in handlers])
-
-    def clear(self) -> None:
-        """Clear all handlers (for testing)."""
-        self._handlers.clear()
-        self._global_handlers.clear()
-        self._initialized = False
-
-    @property
-    def is_initialized(self) -> bool:
-        return self._initialized
 
 
 # ============================================================

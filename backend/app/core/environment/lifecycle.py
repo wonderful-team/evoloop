@@ -93,7 +93,7 @@ async def awaken(project_id: int | None = None) -> AwakenedState:
         pref_context,
     ) = results
 
-    boundaries = _compute_capability_boundaries(host, android_devices, network)
+    boundaries = _compute_capability_boundaries(android_devices, network)
     boundary_manager.set_static_boundaries(boundaries)
 
     state = AwakenedState(
@@ -124,7 +124,7 @@ async def awaken(project_id: int | None = None) -> AwakenedState:
     return state
 
 
-async def _refresh_state(project_id: int | None = None) -> AwakenedState:
+async def _refresh_state() -> AwakenedState:
     logger.debug("Refreshing environment state...")
 
     results = await asyncio.gather(
@@ -148,7 +148,7 @@ async def _refresh_state(project_id: int | None = None) -> AwakenedState:
 
     host, android_devices, network, docker_containers = results
 
-    boundaries = _compute_capability_boundaries(host, android_devices, network)
+    boundaries = _compute_capability_boundaries(android_devices, network)
     boundary_manager.set_static_boundaries(boundaries)
 
     platforms = []
@@ -176,44 +176,7 @@ async def _refresh_state(project_id: int | None = None) -> AwakenedState:
     return state
 
 
-async def _refresh_network_state() -> None:
-    from app.core.environment.boundaries import boundary_manager
-
-    prev_state = get_awakened_state()
-    if not prev_state:
-        logger.debug("No previous state, skipping network refresh")
-        return
-
-    network = await EnvironmentProbe.probe_network()
-
-    boundaries = _compute_capability_boundaries(
-        prev_state.host,
-        prev_state.android_devices,
-        network,
-    )
-    boundary_manager.set_static_boundaries(boundaries)
-
-    state = AwakenedState(
-        timestamp=datetime.now(),
-        host=prev_state.host,
-        android_devices=prev_state.android_devices,
-        network=network,
-        recent_episodes=prev_state.recent_episodes,
-        relevant_concepts=prev_state.relevant_concepts,
-        journal_highlights=prev_state.journal_highlights,
-        user_preferences=prev_state.user_preferences,
-        available_platforms=prev_state.available_platforms,
-        capability_boundaries=boundaries,
-    )
-    set_awakened_state(state)
-
-    logger.debug(
-        f"Network state refreshed: {'online' if network.internet_connected else 'offline'}"
-    )
-
-
 def _compute_capability_boundaries(
-    host: object | None,
     android_devices: list,
     network: object,
 ) -> list[str]:

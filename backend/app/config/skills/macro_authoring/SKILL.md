@@ -35,8 +35,8 @@ parameters: []
 - 适合：可重复的固定操作（打开 App→进页面→点按钮→等待→收集→落盘）。
 - 不适合：需要即兴推理/随机应变的活——那种直接用你的交互工具现做，不要硬塞进宏。
 
-创建：用统一入口 `macro create`（React 主 Agent 的工具面只有 `macro` 这一把，不是
-`create_macro`/`run_macro` 那组独立工具）。两种模式：
+创建：用统一入口 `macro create`（React 主 Agent 的工具面只有 `macro` 这一把，
+`create_macro`/`run_macro` 独立工具已删除并入了它）。两种模式：
 - **Script 模式**（传 `script_steps` + 必带 `rationale`）：你手写步骤 dict 列表。管线 =
   解析 → 规范化(cleanup_macro_steps) → 风险门(scan_step_families) → **真实执行验证**
   (MacroService.run：会真的打开页面/点击/采集，仅限滚动深度 max_scrolls=2) → 计算 risk_tier。

@@ -199,12 +199,11 @@
 
 ### 5.1 架构说明
 
-**两级 LLM 策略**（由 `LIGHTNING_MODE` 系统配置控制）：
+**LLM 策略**（Lightning 本地模型二级策略已移除，Supervisor/Worker/Finish 统一走云端 LLM，不再维护 Lightning）：
 
-| 模式 | Supervisor 模型 | Worker/Finish 模型 | 首 token 延迟 |
-|------|---------------|-------------------|-------------|
-| `none`（默认） | 云端 deepseek-chat | 云端 deepseek-chat | ~2s |
-| `lm-studio`（闪电） | 本地 Qwen3-4B | 云端 deepseek-chat | ~500ms |
+| Supervisor/Worker/Finish 模型 | 首 token 延迟 |
+|------------------------------|--------------|
+| 云端 deepseek-chat（EvoLoop Gateway） | ~2s |
 
 语音链路的完整流程：
 
@@ -212,8 +211,7 @@
 voice.route → L0 检查
   → 未命中 → dispatch_agent_run(metadata={"source": "voice"})
     → Supervisor
-      ├── LIGHTNING_MODE=none → supervisor.prompt.j2 + 云端 LLM
-      └── LIGHTNING_MODE=lm-studio → supervisor_lightning.prompt.j2 + 本地 LLM
+      └── supervisor.prompt.j2 + 云端 LLM
       │
       ├── 直接回答 → 自发布 SessionCompletedEvent
       │   → VoiceChannel → TTS（1-2 句）
@@ -223,7 +221,7 @@ voice.route → L0 检查
           → VoiceChannel → TTS（tts_summary）
 ```
 
-闪电模式下 Supervisor 用本地模型快速响应，复杂任务路由到 Worker 时仍由云端模型保证质量。详见 `docs/two-tier-llm-strategy.md`。
+
 
 - **Tauri Rust 原生层负责所有音频和语音处理**：麦克风持续采集、AEC 回声消除、VAD 快速端点检测、流式 ASR、流式 TTS 播放、听写 LLM 调用。这些功能在 Rust 层实现，通过 FFI 调用 Sherpa-ONNX 等原生库，不在 React/JS 层运行。
 - **Tauri React UI 层仅负责界面渲染**：设置界面、聊天界面、状态指示。通过 Tauri IPC/Events 与 Rust 层通信。
@@ -258,7 +256,7 @@ voice.route → L0 检查
 **选型**：
 - Agent 图（Supervisor/Worker/Finish）的 LLM 调用走 **EvoLoop Gateway**，模型为 `deepseek-chat`。
 - 本地 Qwen3-4B-Instruct-2507 via LM Studio 只用于**听写模式**的本地润色——Tauri Rust 层通过 HTTP 直接调 LM Studio 本地接口（`127.0.0.1:1234`），流式接收 token，不经过 Python 后端。
-- 旧路由系统（macro/skill 分类）的快速分类使用 `LightningService`，由 `LIGHTNING_MODE` 配置决定后端（当前为 `lm-studio`）。
+- ~~旧路由系统（macro/skill 分类）的快速分类使用 `LightningService`，由 `LIGHTNING_MODE` 配置决定后端~~（已随 Lightning 通道删除，不再维护）。
 - ~~Gemma-4 E4B~~：已测试，效果不好，弃用。
 
 **关键**：LLM 必须支持 `stream=true`（OpenAI 兼容 API）。Python 收到 token 立即通过 WS 推送 `voice.token`，不等完整回复。Tauri 听写模式直接调 LM Studio，不经过 Python。
@@ -302,7 +300,7 @@ Tauri React UI 层（packages/desktop/）：
 Python 后端（本地子进程）：
   路由LLM → deepseek-chat（EvoLoop Gateway，stream=true，`https://evoloop.cn/gateway/v1`）
   TTS 提供者 → 火山引擎实时对话 API
-  Lightning → 本地 LM Studio Qwen3-4B（旧路由快速分类，由 LIGHTNING_MODE 控制）
+  ~~Lightning（本地 LM Studio 快速分类）~~ → 已移除，不再维护
   Embedding → bge-base-zh-v1.5
   检索    → LanceDB route_index
   通信    → WebSocket 127.0.0.1（文本信令 + token 流）
@@ -743,14 +741,13 @@ Layer 0（`LocalMatcher`）放后端 `router.py`，不放客户端。原因：
 
 #### 10.9.3 语音专用行为指令
 
-语音行为规则在两个 Supervisor 模板中分别注入：
+语音行为规则在标准 Supervisor 模板中注入：
 
 | 模板 | 路径 | 使用场景 |
 |------|------|---------|
 | `supervisor.prompt.j2` | 标准 | 默认 Agent 图（云端模型） |
-| `supervisor_lightning.prompt.j2` | 轻量 | 闪电模式（本地模型） |
 
-两个模板的语音规则逻辑一致：简短回复、禁 markdown、长任务先确认、完成后一句话通知、复杂结果引导看屏幕。轻量模板额外包含本地模型自知规则（不确定时 route_to worker）。
+语音规则逻辑：简短回复、禁 markdown、长任务先确认、完成后一句话通知、复杂结果引导看屏幕。
 
 ```
 {% if is_voice %}
@@ -1533,7 +1530,7 @@ L0 未命中后，不再调 `router.route_many()` 做 LLM 路由，直接走 Age
 |------|------|------|
 | 语音入口 | L0 未命中 → 直接 Agent 快速路径（跳过 LLM 路由） | `voice_ws.py` |
 | Agent 上下文 | `source=voice` 传入 Agent 上下文元数据 | `runner.py` |
-| Supervisor 提示词 | `is_voice` 注入语音行为规则（标准模板 + 轻量模板） | `supervisor_builder.py`, `supervisor.prompt.j2`, `supervisor_lightning.prompt.j2` |
+| Supervisor 提示词 | `is_voice` 注入语音行为规则 | `supervisor_builder.py`, `supervisor.prompt.j2` |
 | Finish 提示词 | 始终生成完整审计报告（去掉 `is_voice` 分支） | `finish.prompt.j2`, `finish_builder.py` |
 | 语音结果通道 | `VoiceChannel`（channel 架构）替代 `VoiceResultSubscriber` | `voice_channel.py`, `registry.py`, `bridge.py` |
 | 即时响应 | 移除硬编码 routed 推送，改由 Supervisor AI 消息自然下发 | `voice_ws.py` |
@@ -1713,7 +1710,6 @@ tts_summary=ai_content if source == "voice" else ""
 |------|------|
 | `lifecycle.py` | `SessionCompletedData` 加 `tts_summary: str = ""` |
 | `supervisor.prompt.j2` | `{% if is_voice %}` 注入语音行为规则（简短回复、禁 markdown） |
-| `supervisor_lightning.prompt.j2` | 同上 |
 | `finish.prompt.j2` | `{% if is_voice %}` 要求输出 `<evoloop_tts_summary>` |
 | `finish_builder.py` | `template_vars` 加 `is_voice` |
 | `finish.py` | 从 LLM 输出提取 `tts_summary` 填入事件 |
@@ -1726,7 +1722,7 @@ tts_summary=ai_content if source == "voice" else ""
 | 组件 | 状态 |
 |------|------|
 | `tts_summary` 字段 | ✅ 已加入 `SessionCompletedData` |
-| Supervisor 语音行为规则 | ✅ 标准模板 + 轻量模板均已注入 `is_voice` |
+| Supervisor 语音行为规则 | ✅ 标准模板已注入 `is_voice` |
 | Finish 双输出 | ✅ `finish.prompt.j2` 支持 `{% if is_voice %}`，`finish.py` 提取 tts_summary |
 | VoiceChannel 优先使用 tts_summary | ✅ 已实现 |
 | Supervisor 直接回答填充 tts_summary | ✅ 已实现 |
@@ -1921,7 +1917,7 @@ data: {"model_id": "qwen3_asr", "progress": 1.0, "status": "completed"}
 1. ✅ `SessionCompletedData` 新增 `tts_summary` 字段，区分文字回复和语音摘要。
 2. ✅ `voice_channel.py` 优先使用 `tts_summary` 做 TTS，`summary` 给前端显示。
 3. ✅ `finish.prompt.j2` 在 `is_voice` 时要求输出 `<evoloop_tts_summary>`。
-4. ✅ 标准 Supervisor 模板 + 轻量模板均注入 `is_voice` 语音行为规则。
+4. ✅ 标准 Supervisor 模板注入 `is_voice` 语音行为规则，模板不变式对齐新架构。
 5. ✅ `WorkerRegistry` 跟踪 Worker 状态，新请求可查询运行中的 Worker 进度。
 6. ✅ `_handle_route` 锁策略变更：锁只覆盖 L0 + dispatch，Worker 执行在锁外。
 7. ✅ 新请求可检查 WorkerRegistry → Supervisor 判断 query/new，不误杀旧任务。

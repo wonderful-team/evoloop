@@ -97,9 +97,6 @@ class BenefitService:
     def get_benefit_label(self, feature_code: str) -> str:
         return self._definitions.get(feature_code, {}).get("name", feature_code)
 
-    def get_benefit_description(self, feature_code: str) -> str:
-        return self._definitions.get(feature_code, {}).get("desc", "")
-
     async def has_benefit(self, member_id: int, feature_code: str, token: str = None) -> bool:
         data = await self.get_member_entitlements(member_id, token)
 

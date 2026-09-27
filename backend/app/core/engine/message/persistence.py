@@ -26,18 +26,18 @@ class MessagePersistencePolicy:
     """
 
     @classmethod
-    def should_persist(cls, category: MessageCategory) -> bool:
+    def should_persist(_cls, category: MessageCategory) -> bool:
         """判断消息是否应该持久化到数据库"""
         return category.should_persist_to_db
 
     @classmethod
-    def should_store_tool_calls(cls, category: MessageCategory) -> bool:
+    def should_store_tool_calls(_cls, category: MessageCategory) -> bool:
         """判断是否应该存储 tool_calls"""
         return category.should_store_tool_calls
 
     @classmethod
     def apply_policy(
-        cls,
+        _cls,
         category: MessageCategory,
         content: str,
         tool_calls: list | None = None,
@@ -93,6 +93,6 @@ class MessagePersistencePolicy:
         return result
 
     @classmethod
-    def get_persisted_categories(cls) -> list[MessageCategory]:
+    def get_persisted_categories(_cls) -> list[MessageCategory]:
         """获取会持久化的分类列表"""
         return [cat for cat in MessageCategory if cat.should_persist_to_db]

@@ -3,16 +3,13 @@
 from __future__ import annotations
 
 import asyncio
-import glob
 import logging
-import os
 from dataclasses import dataclass, field
 
 import httpx
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_GGUF_DIR = os.path.join(os.path.expanduser("~"), ".evoloop", "models", "gguf")
 _DEFAULT_TIMEOUT = 3.0  # seconds per probe
 
 
@@ -20,7 +17,7 @@ _DEFAULT_TIMEOUT = 3.0  # seconds per probe
 class DiscoveredModel:
     id: str
     name: str
-    source: str              # "lm-studio" | "ollama" | "gguf" | "custom"
+    source: str              # "lm-studio" | "ollama" | "custom"
     model_name: str
     base_url: str | None = None
     api_key: str | None = None
@@ -37,7 +34,6 @@ class ModelDiscoveryService:
         tasks = [
             ModelDiscoveryService._probe_lm_studio(),
             ModelDiscoveryService._probe_ollama(),
-            ModelDiscoveryService._probe_gguf_dir(),
             ModelDiscoveryService._probe_custom_config(),
         ]
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -122,37 +118,6 @@ class ModelDiscoveryService:
                     capabilities=["chat", "embedding"],
                     status="available",
                     context_window=8192,
-                )
-            )
-        return models
-
-    @staticmethod
-    async def _probe_gguf_dir() -> list[DiscoveredModel]:
-        """Scan GGUF directory for model files."""
-        gguf_dir = os.environ.get("LIGHTNING_GGUF_DIR", _DEFAULT_GGUF_DIR)
-        if not os.path.isdir(gguf_dir):
-            logger.debug("[Discovery] GGUF dir not found: %s", gguf_dir)
-            return []
-
-        pattern = os.path.join(gguf_dir, "*.gguf")
-        files = sorted(glob.glob(pattern))
-        if not files:
-            logger.debug("[Discovery] No GGUF files in %s", gguf_dir)
-            return []
-
-        models: list[DiscoveredModel] = []
-        for fpath in files:
-            name = os.path.splitext(os.path.basename(fpath))[0]
-            is_embedding = "bge" in name.lower() or "embed" in name.lower()
-            models.append(
-                DiscoveredModel(
-                    id=f"gguf:{name}",
-                    name=f"{name} (GGUF)",
-                    source="gguf",
-                    model_name=fpath,
-                    capabilities=["embedding"] if is_embedding else ["chat"],
-                    status="available",
-                    context_window=512 if is_embedding else 8192,
                 )
             )
         return models

@@ -187,7 +187,7 @@ async def _run_appmap(project_id: int) -> None:
             # If no recent files are found, we fallback to all to be safe.
             changed_entities: set[str] = set()
             now = time.time()
-            for rel_path, repo_id in all_completed_files:
+            for rel_path, _repo_id in all_completed_files:
                 file_abs = os.path.join(path, rel_path)
                 try:
                     mtime = os.path.getmtime(file_abs)
@@ -307,7 +307,7 @@ def _classify_action(name: str) -> tuple[str, str]:
     return "write", "ui"
 
 
-async def build_entities_from_index(project_id: int, groups: dict) -> dict:
+async def build_entities_from_index(_project_id: int, groups: dict) -> dict:
     """Build AppMap entities dict from Tree-sitter parsed code chunks."""
     from app.core.atlas.constants import APPMAP_ACTION_CATEGORIES
     from app.core.atlas.source.skeleton.generator import (

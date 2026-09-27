@@ -15,12 +15,7 @@ class AgentEventType(str, Enum):
     Events related to agent runs and interactions.
     """
 
-    RUN_STARTED = "agent.run_started"
     RUN_COMPLETED = "agent.run_completed"
-    RUN_CANCELLED = "agent.run_cancelled"
-    TOOL_EXECUTED = "agent.tool_executed"
-    HITL_REQUESTED = "agent.hitl_requested"
-    HITL_RESPONDED = "agent.hitl_responded"
 
 
 class ConversationEventType(str, Enum):

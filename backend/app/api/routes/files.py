@@ -37,6 +37,7 @@ from app.core.file import (
 from app.core.file.traverser import TraverseOptions
 from app.core.project.utils import get_project_path, get_workspace_root
 from app.core.security.path import get_allowed_roots, is_under_allowed_root
+from app.infrastructure.database import session_scope
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["files"])

@@ -75,6 +75,8 @@ function mapSourceKind(
   if (ref?.kind === "chain") return "chain"
   if (ref?.kind === "event") return "event"
   if (ref?.kind === "message") return "chat"
+  // 周期流水线阶段任务（WorkflowService.spawn_round 派发）→ 周期巡检语义
+  if (ref?.kind === "workflow_round") return "cron"
   if (source === "external") return "event"
   return "manual"
 }
@@ -115,6 +117,22 @@ function buildFourQuestions(
 ): FourQuestions {
   // 1. 💬 因谁而生（血统）
   let sourceRef = "自主循环派生"
+  // 周期流水线阶段：回溯所属流水线（名 · 轮次 · 阶段键）
+  const wfRaw = current as {
+    workflow_name?: string | null
+    provenance?: { sourceRef?: { round?: number; stage?: string } }
+  }
+  if (
+    wfRaw.workflow_name &&
+    (current as { provenance?: { sourceRef?: { round?: number } } }).provenance
+      ?.sourceRef &&
+    typeof (current as { provenance?: { sourceRef?: { round?: number } } })
+      .provenance?.sourceRef === "object"
+  ) {
+    const rd = (current.provenance!.sourceRef as { round?: number }).round
+    const st = (current.provenance!.sourceRef as { stage?: string }).stage
+    sourceRef = `周期流水线「${wfRaw.workflow_name}」第 ${rd ?? "?"} 轮${st ? ` · 阶段 ${st}` : ""}`
+  }
   const rawRef = current.provenance?.sourceRef || (current as { source_ref?: unknown }).source_ref
   if (rawRef) {
     if (typeof rawRef === "object" && (rawRef as { ref?: string }).ref) {
@@ -300,7 +318,15 @@ export function adaptQueueTaskToDutyTask(
     hitl,
     humanRequest,
     lastThreadId: task.last_thread_id,
+    workflowId: task.workflow_id ?? null,
+    workflowName: (task as { workflow_name?: string | null }).workflow_name ?? null,
+    workflowRound:
+      (
+        task.provenance as { round?: number } | null | undefined
+      )?.round ?? null,
     projectId: task.project_id,
+    dueAt: task.due_at,
+    createdAt: task.created_at,
     rawQueueTask: task,
   }
 }

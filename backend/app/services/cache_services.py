@@ -43,15 +43,6 @@ class UserCacheService:
                 return None
         return data if isinstance(data, dict) else None
 
-    async def set_user(self, member_id: str | int, user_data: dict, ttl: int | None = None) -> bool:
-        return await self._cache.set(
-            self._key(member_id),
-            user_data,
-            ex=ttl or self.DEFAULT_TTL
-        )
-
-    async def delete_user(self, member_id: str | int) -> bool:
-        return await self._cache.delete(self._key(member_id)) > 0
 
 
 class RateLimitService:
@@ -78,12 +69,6 @@ class RateLimitService:
             await self._cache.expire(key, window or self.DEFAULT_WINDOW)
         return count
 
-    async def get_count(self, endpoint: str, identifier: str) -> int:
-        count = await self._cache.get(self._key(endpoint, identifier))
-        return int(count) if count else 0
-
-    async def reset(self, endpoint: str, identifier: str) -> bool:
-        return await self._cache.delete(self._key(endpoint, identifier)) > 0
 
 
 class LinkTokenService:

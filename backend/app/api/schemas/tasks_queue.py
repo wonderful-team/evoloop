@@ -67,3 +67,38 @@ class TaskEditRequest(DynamicBaseModel):
     # cancel 是 status="cancelled" 的布尔简写（既有前端契约）
     status: str | None = None
     cancel: bool = False
+
+
+class WorkflowStageSpecRequest(DynamicBaseModel):
+    """周期工作流阶段模板项（deps 用阶段 key 引用，须为拓扑序）。"""
+
+    key: str
+    title: str
+    description: str = ""
+    category: str | None = None
+    priority: TaskPriority = TaskPriority.MEDIUM
+    risk_level: TaskRiskLevel | None = None
+    deps: list[str] = []
+
+
+class WorkflowCreateRequest(DynamicBaseModel):
+    """POST /tasks/workflows — 通用周期工作流提案（编排/触发上移到本层）。
+
+    创建后 status=proposed，需 POST /workflows/{id}/confirm 上膛触发器；
+    每轮由 supervisor 按模板实例化阶段任务（dedup 幂等，skip-on-busy）。
+    """
+
+    project_id: int = 0
+    title: str
+    goal: str
+    # cron 或 "interval:秒"；非空 = 周期流水线（每轮自动实例化）
+    trigger_spec: str | None = None
+    origin_thread_id: str | None = None
+    stages: list[WorkflowStageSpecRequest]
+
+
+class WorkflowEditRequest(DynamicBaseModel):
+    """PUT /tasks/workflows/{id} — 取消（唯一合法写操作）/ 改触发器。"""
+
+    trigger_spec: str | None = None
+    cancel: bool = False

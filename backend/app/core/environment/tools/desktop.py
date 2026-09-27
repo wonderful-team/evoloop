@@ -1,7 +1,7 @@
 """
 Desktop Control Tool — Agent-facing thin wrapper over DesktopController.
 
-This module exposes `desktop`, `verify_ui_state`, `quick_check_screen`
+This module exposes `desktop`
 as @evoloop_tools so the Agent can call them via function calling.
 All actual logic lives in:
   app.core.environment.controllers.desktop.DesktopController
@@ -81,51 +81,3 @@ async def desktop(
     if target and not element_name:
         element_name = target
     return await DesktopController.execute(**locals())
-
-
-@evoloop_tool(summary_template="evoloop.tool_summary.verify_ui_state")
-async def verify_ui_state(
-    expected_element: str | None = None,
-    expected_role: str | None = None,
-    expected_text: str | None = None,
-    timeout_seconds: int = 5,
-) -> str:
-    """
-    用 AX Tree 验证屏幕上是否存在某个 UI 元素或文本。
-    在 'click' 或 'type_text' 后用本工具确保 UI 按预期响应。
-
-    Args:
-        expected_element: 要查找的 UI 元素的部分名称。
-        expected_role: 元素的可选角色（如 'AXWindow'、'AXButton'）。
-        expected_text: 应出现在树中任意位置的可选文本。
-        timeout_seconds: （当前未实现轮询，只做一次立即检查）。
-    """
-    return await DesktopController.verify_ui_state(**locals())
-
-
-@evoloop_tool(summary_template="evoloop.tool_summary.quick_check_screen")
-async def quick_check_screen(
-    check_type: Literal["has_text", "has_element", "is_loaded"] = "is_loaded",
-    target: str | None = None,
-    timeout_seconds: int = 5,
-) -> str:
-    """
-    用 AX Tree 快速检查屏幕状态（无 LLM，~500ms 对比 image(analyze) 的 ~12s）。
-
-    简单的检查用本工具而非 image(analyze)，如：
-    - "页面加载了吗？" -> quick_check_screen("is_loaded")
-    - "显示了 'AI news' 吗？" -> quick_check_screen("has_text", "AI news")
-    - "有 Search 按钮吗？" -> quick_check_screen("has_element", "Search")
-
-    Args:
-        check_type: 要检查什么：
-            - "has_text": 检查目标文本是否出现在屏幕上任意位置
-            - "has_element": 检查是否存在名为 target 的元素
-            - "is_loaded": 检查 UI 是否已稳定（元素已出现、无加载指示器）
-        target: 要搜索的文本或元素名（用于 has_text/has_element）
-        timeout_seconds: 轮询超时（每 500ms 检查一次直到超时）
-
-    Returns:
-        快速检查结果（比 image(analyze) 快得多）
-    """
-    return await DesktopController.quick_check_screen(**locals())

@@ -50,5 +50,3 @@ async def wait_duty_wakeup(timeout: float) -> None:
         pass
     finally:
         event.clear()
-
-

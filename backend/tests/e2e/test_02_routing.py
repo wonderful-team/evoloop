@@ -23,6 +23,24 @@ from .conftest import wait_until
 pytestmark = pytest.mark.e2e
 
 
+async def _delete_macros_bound_to_trigger(http_client: httpx.AsyncClient, trigger: str) -> None:
+    """删除占住该 trigger 的历史宏（跨运行脏数据）。
+
+    init_spec 对 trigger 是 first-bind-wins：历史残留宏会永久占住触发词，
+    导致新宏被 "already bound" 跳过、L0 命中到内容已过时的旧宏。夹具创建
+    前必须先清理。
+    """
+    init = (await http_client.get("/api/v1/route/init")).json()
+    for tpl in init.get("templates", []):
+        if trigger not in (tpl.get("patterns") or []):
+            continue
+        action = tpl.get("action") or ""
+        if not action.startswith("macro:"):
+            continue
+        old_id = action.split(":", 1)[1]
+        await http_client.delete(f"/api/v1/macros/{old_id}")
+
+
 async def _create_routable_macro(
     http_client: httpx.AsyncClient, name: str, trigger: str
 ) -> int:
@@ -40,6 +58,8 @@ async def _create_routable_macro(
         "  payload:\n"
         "    duration_ms: 1\n"
     )
+    await _delete_macros_bound_to_trigger(http_client, trigger)
+
     create_resp = await http_client.post(
         "/api/v1/macros/",
         json={

@@ -165,6 +165,15 @@ export interface DutyTask {
   w: number
   h?: number
 
+  // 周期流水线归属（WorkflowService 阶段任务；画布徽标/血统回溯用）
+  workflowId?: string | null
+  workflowName?: string | null
+  workflowRound?: number | null
+
+  // 执行排序锚点（对齐后端 _queue_ordering）
+  dueAt?: string | null
+  createdAt?: string | null
+
   stage?: string
   provenance: FourQuestions
   fourQuestions?: FourQuestions

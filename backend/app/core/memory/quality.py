@@ -215,7 +215,7 @@ class MemoryQualityAnalyzer:
 
         recommendations = []
 
-        for mem_id, entry in entry_map.items():
+        for _mem_id, entry in entry_map.items():
             # Filter by project (though already filtered in list_all, double check)
             if project_id is not None and entry.project_id != project_id:
                 continue

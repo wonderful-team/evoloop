@@ -104,7 +104,10 @@ class AiMessageMixin:
                     references=extracted_refs,
                 )
 
-        if stream_data.should_stream:
+        # 流式 token 由 stream_token() / stream_mixin 单独推送；handle_ai_message
+        # 收到的是已生成完毕的完整消息，再发一次 streaming 块会造成前端同一
+        # 条消息出现 completed + streaming 两次事件。
+        if stream_data.should_stream and not persist_data.should_persist:
             await self._dispatch_block(
                 role=MessageRole.AI,
                 content=stream_data.content,
@@ -112,9 +115,8 @@ class AiMessageMixin:
                 metadata=metadata,
                 tool_calls=persist_data.tool_calls,
                 thinking=thinking,
-                sequence_number=seq if persist_data.should_persist else 0,
-                status=MessageStatus.STREAMING if persist_data.should_persist else MessageStatus.COMPLETED,
-                references=extracted_refs if persist_data.should_persist else None,
+                sequence_number=0,
+                status=MessageStatus.COMPLETED,
                 parent_id=effective_parent_id,
                 message_id=msg_id,
                 is_visible=is_visible,

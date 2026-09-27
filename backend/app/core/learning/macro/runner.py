@@ -273,7 +273,7 @@ def _scan_steps_risk(steps: list[Any], policy: ExecutionPolicy) -> str | None:
 
     Returns None if all steps pass, or a human-readable rejection reason.
     """
-    for family, step_type, event_type in iter_macro_steps(steps):
+    for family, _step_type, event_type in iter_macro_steps(steps):
         if (
             policy.allowed_families is not None
             and family not in policy.allowed_families

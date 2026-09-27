@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import uuid
 from dataclasses import dataclass, field
@@ -20,8 +21,6 @@ import pytest
 
 from app.core.config import settings
 from tests.e2e.conftest import SSEEmitter, collect_sse_until
-
-import logging
 
 logger = logging.getLogger(__name__)
 

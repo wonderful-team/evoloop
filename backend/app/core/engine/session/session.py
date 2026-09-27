@@ -215,6 +215,8 @@ async def _run_delivery(
 
             # 上下文水合（望远镜加载：intent 门控的 skills/macros/记忆）
             ctx = ContextManager.current()
+            if ctx is not None:
+                ctx.run_id = scope_run_id
             lc_config = {
                 "configurable": config["configurable"],
                 "metadata": config["metadata"],

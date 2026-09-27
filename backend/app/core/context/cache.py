@@ -40,7 +40,6 @@ class StaticContextLayer(DynamicBaseModel):
     project_concepts: str | None = None
     active_skills_index: list = Field(default_factory=list)
     active_macros_index: list = Field(default_factory=list)
-    operation_map: str = ""
     system_preferences: dict = Field(default_factory=dict)
 
     # Memory pipeline fields — populated by AgentContextHydrator
@@ -122,7 +121,6 @@ class LayeredContextCache:
             project_concepts=static_data.get("project_concepts"),
             active_skills_index=_coerce_to_list(static_data.get("active_skills", [])),
             active_macros_index=_coerce_to_list(static_data.get("active_macros", [])),
-            operation_map=static_data.get("operation_map", ""),
             system_preferences=static_data.get("preferences", {}) or {},
             # Memory pipeline — carry through from loader_fn output
             hot_memory=static_data.get("hot_memory"),

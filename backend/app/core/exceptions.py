@@ -74,11 +74,3 @@ class InferenceError(Exception):
         super().__init__(raw_error)
 
 
-class DoomLoopException(Exception):
-    """
-    Raised when the code-level doom-loop detector finds repeated identical
-    tool invocations (§3 防循环：代码层检测替代 prompt 反循环协议)。
-    由 react 主循环捕获并转为确定性的文本收尾，避免无限循环消耗 token。
-    """
-
-    pass

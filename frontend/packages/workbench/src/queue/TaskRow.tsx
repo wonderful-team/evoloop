@@ -1,12 +1,19 @@
-import {memo} from "react"
-import {useNavigate} from "@tanstack/react-router"
-import {ArrowRight, Bell, Bot, Loader2, PauseCircle, Scale} from "lucide-react"
-import {useTranslation} from "react-i18next"
-
-import {Badge} from "@evoloop/shared/components/ui/badge"
-import type {QueueTask} from "@/lib/tasksQueueApi"
-import {RISK_STYLES} from "../core/styleConstants"
-import {stripMarkdownTokens} from "../core/mdText"
+import { Badge } from "@evoloop/shared/components/ui/badge"
+import { useNavigate } from "@tanstack/react-router"
+import {
+  ArrowRight,
+  Bell,
+  Bot,
+  Loader2,
+  PauseCircle,
+  Scale,
+} from "lucide-react"
+import { memo } from "react"
+import { useTranslation } from "react-i18next"
+import type { QueueTask } from "@/lib/tasksQueueApi"
+import { stripMarkdownTokens } from "../core/mdText"
+import { statusMeta } from "../core/statusMeta"
+import { RISK_STYLES } from "../core/styleConstants"
 
 export const TaskRow = memo(function TaskRow({
   task,
@@ -42,12 +49,7 @@ export const TaskRow = memo(function TaskRow({
     d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
   const created = task.created_at ? new Date(task.created_at) : null
   const updated = task.updated_at ? new Date(task.updated_at) : null
-  const ended =
-    (task.status === "completed" ||
-      task.status === "failed" ||
-      task.status === "cancelled") &&
-    created &&
-    updated
+  const ended = statusMeta(task.status).terminal && created && updated
   const timeSpan = ended
     ? day(created!) === day(updated!)
       ? `${day(created!)} ${hm(created!)} → ${hm(updated!)}`
@@ -65,19 +67,21 @@ export const TaskRow = memo(function TaskRow({
         selected
           ? "bg-primary/10 border-primary/40 shadow-xs"
           : "bg-card/40 border-border/40 hover:bg-card/80 hover:border-border/80 shadow-2xs"
-      } ${suspended
-        ? "border-l-2 border-l-amber-500"
-        : isRunning
-          ? "border-l-2 border-l-primary"
-          : isReviewing
-            ? "border-l-2 border-l-violet-500"
-            : isWaiting
-              ? "border-l-2 border-l-amber-400"
-              : isFailed
-                ? "border-l-2 border-l-destructive/70"
-                : isCancelled
-                  ? "border-l-2 border-l-muted-foreground/40 opacity-70"
-                  : ""}`}
+      } ${
+        suspended
+          ? "border-l-2 border-l-amber-500"
+          : isRunning
+            ? "border-l-2 border-l-primary"
+            : isReviewing
+              ? "border-l-2 border-l-violet-500"
+              : isWaiting
+                ? "border-l-2 border-l-amber-400"
+                : isFailed
+                  ? "border-l-2 border-l-destructive/70"
+                  : isCancelled
+                    ? "border-l-2 border-l-muted-foreground/40 opacity-70"
+                    : ""
+      }`}
     >
       {/* 头：编号 + 徽标 */}
       <div className="flex items-center justify-between gap-2 w-full min-w-0">
@@ -91,7 +95,10 @@ export const TaskRow = memo(function TaskRow({
             </span>
           )}
           {task.type === "recurring" && (
-            <Badge variant="outline" className="h-4 px-1.5 text-[9px] tracking-wide">
+            <Badge
+              variant="outline"
+              className="h-4 px-1.5 text-[9px] tracking-wide"
+            >
               {t("dutyBoard.recurring")}
             </Badge>
           )}
@@ -110,7 +117,9 @@ export const TaskRow = memo(function TaskRow({
         ) : isRunning ? (
           <Loader2 className="h-3 w-3 animate-spin text-primary shrink-0 mt-0.5" />
         ) : null}
-        <span className="min-w-0 flex-1 break-words break-all">{task.title}</span>
+        <span className="min-w-0 flex-1 break-words break-all">
+          {task.title}
+        </span>
       </div>
 
       {/* 描述放宽到两行（摘要脱壳：markdown 符号不进列表行） */}
@@ -132,12 +141,15 @@ export const TaskRow = memo(function TaskRow({
             </span>
           </div>
         )}
-        {(task.dependencies?.length ?? 0) > 0 && !(task.subtasks_count && task.subtasks_count > 0) && (
-          <div className="flex items-center gap-1.5 text-[10px] font-mono text-muted-foreground/80 w-full min-w-0">
-            <ArrowRight className="h-3 w-3 shrink-0 rotate-90" />
-            <span className="truncate">依赖 {task.dependencies!.length} 项 · 上游完成后自动推进</span>
-          </div>
-        )}
+        {(task.dependencies?.length ?? 0) > 0 &&
+          !(task.subtasks_count && task.subtasks_count > 0) && (
+            <div className="flex items-center gap-1.5 text-[10px] font-mono text-muted-foreground/80 w-full min-w-0">
+              <ArrowRight className="h-3 w-3 shrink-0 rotate-90" />
+              <span className="truncate">
+                依赖 {task.dependencies!.length} 项 · 上游完成后自动推进
+              </span>
+            </div>
+          )}
         <div className="flex items-center justify-between gap-2 text-[10px] font-mono text-muted-foreground whitespace-nowrap overflow-hidden w-full min-w-0">
           <span className="shrink-0">{timeSpan}</span>
           {isReviewing ? (
@@ -169,10 +181,12 @@ export const TaskRow = memo(function TaskRow({
               <ArrowRight className="h-3 w-3" />
             </button>
           ) : isFailed ? (
-            <span className="text-destructive font-sans shrink-0">失败</span>
+            <span className="text-destructive font-sans shrink-0">
+              {statusMeta(task.status).label}
+            </span>
           ) : isCancelled ? (
             <span className="text-muted-foreground/80 font-sans shrink-0">
-              已取消
+              {statusMeta(task.status).label}
             </span>
           ) : (
             <span className="shrink-0 opacity-0 group-hover:opacity-60 transition-opacity text-[10px]">

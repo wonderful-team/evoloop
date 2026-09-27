@@ -7,14 +7,20 @@ performed via this API (TaskQueueService enforces the status machine).
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.api.deps import CurrentUser
-from app.api.schemas.tasks_queue import TaskCreateRequest, TaskEditRequest
+from app.api.schemas.tasks_queue import (
+    TaskCreateRequest,
+    TaskEditRequest,
+    WorkflowCreateRequest,
+    WorkflowEditRequest,
+)
 from app.core.config import settings
+from app.domain.tasks.schemas import WorkflowStageSpec
 from app.domain.tasks.service import (
     TaskQueueError,
     TaskQueueService,
@@ -56,20 +62,11 @@ async def _ensure_project_access(project_id: int, user: User) -> None:
         return
     async with session_scope() as session:
         result = await session.execute(
-            select(Repository.member_id).where(
-                Repository.project_id == project_id
-            )
+            select(Repository.member_id).where(Repository.project_id == project_id)
         )
         owner_id = result.scalar_one_or_none()
     if owner_id != _member_id(user):
         raise HTTPException(status_code=404, detail="project not found")
-
-
-async def _refresh_task_workflow(task: ProjectTask) -> None:
-    """Recompute workflow status after a user-side task transition."""
-    workflow_id = task_workflow_id(task)
-    if workflow_id:
-        await WorkflowService.refresh_status(str(workflow_id))
 
 
 @router.post("/queue")
@@ -99,7 +96,12 @@ async def create_task(
         )
     except TaskQueueError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
-    return {"success": True, "id": task.id, "parent_id": task.parent_id, "status": task.status}
+    return {
+        "success": True,
+        "id": task.id,
+        "parent_id": task.parent_id,
+        "status": task.status,
+    }
 
 
 @router.get("/queue/{task_id}/artifacts")
@@ -229,12 +231,15 @@ async def accept_task(task_id: str, current_user: CurrentUser) -> dict[str, Any]
         )
     except TaskQueueError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
-    await _refresh_task_workflow(task)
+    # workflow 聚合刷新已内嵌 submit_acceptance（advance/acceptance 单点，
+    # 路由层不再二次 refresh——2026-09-25 冗余清理）
     return {"success": True, "id": task.id, "status": task.status}
 
 
 @router.post("/queue/{task_id}/reject")
-async def reject_task(task_id: str, current_user: CurrentUser, body: dict[str, Any] | None = None) -> dict[str, Any]:
+async def reject_task(
+    task_id: str, current_user: CurrentUser, body: dict[str, Any] | None = None
+) -> dict[str, Any]:
     """User rejects: -> in_progress (rework loop) with mandatory feedback."""
     task = await TaskQueueService.get_task(task_id)
     if task is None:
@@ -249,19 +254,26 @@ async def reject_task(task_id: str, current_user: CurrentUser, body: dict[str, A
         )
     except TaskQueueError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
-    await _refresh_task_workflow(task)
+    # workflow 聚合刷新已内嵌 submit_acceptance（advance/acceptance 单点，
+    # 路由层不再二次 refresh——2026-09-25 冗余清理）
     return {"success": True, "id": task.id, "status": task.status}
 
 
 @router.get("/queue/dashboard")
-async def queue_dashboard(current_user: CurrentUser, project_id: int | None = None) -> dict[str, Any]:
+async def queue_dashboard(
+    current_user: CurrentUser, project_id: int | None = None
+) -> dict[str, Any]:
     """Aggregated KPIs for the autonomous duty dashboard (counts + tokens + state)."""
     if project_id is not None:
         await _ensure_project_access(project_id, current_user)
     member_id = (
-        _member_id(current_user) if settings.MULTI_TENANT_MODE and project_id is None else None
+        _member_id(current_user)
+        if settings.MULTI_TENANT_MODE and project_id is None
+        else None
     )
-    return (await TaskQueueService.dashboard(project_id, member_id=member_id)).model_dump()
+    return (
+        await TaskQueueService.dashboard(project_id, member_id=member_id)
+    ).model_dump()
 
 
 @router.get("/queue/hitl-pending")
@@ -272,85 +284,12 @@ async def hitl_pending_tasks(current_user: CurrentUser) -> dict[str, Any]:
     aggregates them here; the chat page owns the interactive approval card.
     Multi-tenant: fail-closed — only requests whose task resolves to the
     caller are returned (unattributable requests are dropped, not exposed).
+    查询/归属逻辑在 TaskQueueService.pending_hitl_requests（与 dashboard
+    awaiting_human 共用 pending_requests_by_threads，2026-09-25 收敛）。
     """
-    from app.models.conversation import HumanRequest
-
-    prefixes = ("agent_", "wakeup_", "duty_")
-    async with session_scope() as session:
-        rows = (
-            (
-                await session.execute(
-                    select(HumanRequest)
-                    .where(HumanRequest.status == "pending")
-                    .order_by(HumanRequest.created_at.desc())
-                    .limit(100)
-                )
-            )
-            .scalars()
-            .all()
-        )
-        # 评审 run（origin thread）的审批也聚合：执行者的审批卡在看板，
-        # 评审者挂在原对话的审批同样要看板可见（否则评审中被审批链卡死
-        # 而用户毫无感知——实测缺口）
-        origin_map: dict[str, ProjectTask] = {}
-        review_pending = (
-            (
-                await session.execute(
-                    select(ProjectTask).where(
-                        ProjectTask.status == "waiting_acceptance",
-                        ProjectTask.origin_thread_id.isnot(None),
-                    )
-                )
-            )
-            .scalars()
-            .all()
-        )
-        for t in review_pending:
-            if task_review_pending(t):
-                origin_map[str(t.origin_thread_id)] = t
-
-        items = []
-        member_scope = _member_id(current_user) if settings.MULTI_TENANT_MODE else None
-        for r in rows:
-            is_origin_thread = str(r.thread_id) in origin_map
-            if not str(r.thread_id).startswith(prefixes) and not is_origin_thread:
-                continue
-            task = None
-            if is_origin_thread:
-                task = origin_map[str(r.thread_id)]
-            else:
-                task = (
-                    (
-                        await session.execute(
-                            select(ProjectTask).where(
-                                ProjectTask.last_thread_id == r.thread_id
-                            )
-                        )
-                    )
-                    .scalars()
-                    .first()
-                )
-            if member_scope is not None:
-                if task is None:
-                    continue  # fail-closed：无法归属的请求不暴露
-                owner = task.member_id or await TaskQueueService.resolve_member_id(task)
-                if owner != member_scope:
-                    continue
-            items.append(
-                {
-                    "request_id": r.id,
-                    "thread_id": r.thread_id,
-                    "type": r.type,
-                    "description": r.description,
-                    "context": r.context,
-                    "options": r.options or [],
-                    "created_at": r.created_at.isoformat() if r.created_at else None,
-                    "task_id": task.id if task else None,
-                     "task_title": task_title(task) if task else None,
-                    "task_no": task.task_no if task else None,
-                }
-            )
-        return {"success": True, "count": len(items), "items": items}
+    member_scope = _member_id(current_user) if settings.MULTI_TENANT_MODE else None
+    items = await TaskQueueService.pending_hitl_requests(member_scope)
+    return {"success": True, "count": len(items), "items": items}
 
 
 @router.get("/queue")
@@ -361,11 +300,17 @@ async def list_queue(
     root_only: bool = False,
     limit: int = 50,
     offset: int = 0,
+    order: Literal["queue", "recent"] = "recent",
 ) -> dict[str, Any]:
     """Queue listing for the task board (stage 4 UI reads the same data).
 
     分页：``limit``（≤200）+ ``offset``；多取 1 行探测 ``has_more``——
     此前超 50 条静默消失（审计 9.4）。
+
+    ``order``：
+    - ``recent``：看板序（updated_at desc），任务一有更新就冒顶；
+    - ``queue``：派发序（priority → due → category），与 supervisor 同款，
+      适合值守工作台这种需要稳定执行视图的界面。
     """
     if project_id is not None:
         await _ensure_project_access(project_id, current_user)
@@ -383,7 +328,7 @@ async def list_queue(
         limit=limit + 1,
         offset=offset,
         member_id=member_id,
-        order="recent",
+        order=order,
     )
     has_more = len(rows) > limit
     rows = rows[:limit]
@@ -407,6 +352,39 @@ async def list_queue(
                     .order_by(TaskRun.attempt.desc())
                 )
             ).scalars().all()
+
+            result = await session.execute(
+                select(TaskArtifact)
+                .where(TaskArtifact.task_id.in_(task_ids))
+                .order_by(TaskArtifact.created_at.asc())
+            )
+            for artifact in result.scalars():
+                artifacts_by_task.setdefault(artifact.task_id, []).append(artifact)
+
+            if thread_ids:
+                result = await session.execute(
+                    select(AgentActivity).where(AgentActivity.thread_id.in_(thread_ids))
+                )
+                for activity in result.scalars():
+                    metrics_by_thread[str(activity.thread_id)] = activity
+
+                span_rows = (
+                    await session.execute(
+                        select(
+                            Message.thread_id,
+                            func.min(Message.created_at).label("mn"),
+                            func.max(Message.created_at).label("mx"),
+                        )
+                        .where(Message.thread_id.in_(thread_ids))
+                        .group_by(Message.thread_id)
+                    )
+                ).all()
+                for tid, mn, mx in span_rows:
+                    if mn and mx:
+                        elapsed_by_thread[str(tid)] = max(
+                            0, int((mx - mn).total_seconds())
+                        )
+
         for run in run_rows:
             runs_by_task.setdefault(run.task_id, []).append(
                 {
@@ -427,41 +405,21 @@ async def list_queue(
             )
         for task_id in runs_by_task:
             runs_by_task[task_id] = runs_by_task[task_id][:5]
+    # 阶段任务的流水线归属名（wf: 任务在画布/节点页要能回溯所属流水线；
+    # TaskWorkflow 是独立表，容器实体此前对前端不可见）
+    wf_ids = {tid for t in rows if (tid := task_workflow_id(t))}
+    wf_names: dict[str, str] = {}
+    if wf_ids:
         async with session_scope() as session:
-            result = await session.execute(
-                select(TaskArtifact)
-                .where(TaskArtifact.task_id.in_(task_ids))
-                .order_by(TaskArtifact.created_at.asc())
-            )
-            for artifact in result.scalars():
-                artifacts_by_task.setdefault(artifact.task_id, []).append(artifact)
-        if thread_ids:
-            result = await session.execute(
-                select(AgentActivity).where(
-                    AgentActivity.thread_id.in_(thread_ids)
-                )
-            )
-            for activity in result.scalars():
-                metrics_by_thread[str(activity.thread_id)] = activity
-            # per-thread elapsed = first→last message span
-            from sqlalchemy import func
-
-            span_rows = (
+            wf_rows = (
                 await session.execute(
-                    select(
-                        Message.thread_id,
-                        func.min(Message.created_at).label("mn"),
-                        func.max(Message.created_at).label("mx"),
+                    select(TaskWorkflow.id, TaskWorkflow.title).where(
+                        TaskWorkflow.id.in_(wf_ids)
                     )
-                    .where(Message.thread_id.in_(thread_ids))
-                    .group_by(Message.thread_id)
                 )
             ).all()
-            for tid, mn, mx in span_rows:
-                if mn and mx:
-                    elapsed_by_thread[str(tid)] = max(
-                        0, int((mx - mn).total_seconds())
-                    )
+            wf_names = dict(wf_rows)
+
     return {
         "success": True,
         "count": len(rows),
@@ -471,37 +429,36 @@ async def list_queue(
             {
                 "project_id": t.project_id,
                 "parent_id": t.parent_id,
+                "workflow_name": wf_names.get(str(task_workflow_id(t) or "")),
                 "subtasks_count": subtasks_counts.get(t.id, {}).get("total", 0),
                 "subtasks_completed": subtasks_counts.get(t.id, {}).get("completed", 0),
                 "elapsed_sec": elapsed_by_thread.get(t.last_thread_id),
-                 "workflow_id": task_workflow_id(t),
-                 "dependencies": task_dependencies(t),
+                "workflow_id": task_workflow_id(t),
+                "dependencies": task_dependencies(t),
                 "id": t.id,
                 "task_no": t.task_no,
-                 "title": task_title(t),
+                "title": task_title(t),
                 "description": t.description,
                 "type": t.type,
                 "status": t.status,
-                 "category": task_category(t),
-                 "priority": task_priority(t),
+                "category": task_category(t),
+                "priority": task_priority(t),
                 "risk_level": t.risk_level,
                 "source": t.source,
                 "provenance": t.source_ref,
                 "self_check": t.self_check,
                 "acceptance": t.acceptance,
                 "review_count": t.review_count,
-                 "review_pending": task_review_pending(t),
+                "review_pending": task_review_pending(t),
                 "escalated": bool((t.acceptance or {}).get("escalated")),
                 "origin_thread_id": t.origin_thread_id,
                 "due_at": t.due_at.isoformat() if t.due_at else None,
-                "next_run_at": (
-                    t.next_run_at.isoformat() if t.next_run_at else None
-                ),
+                "next_run_at": (t.next_run_at.isoformat() if t.next_run_at else None),
                 "last_thread_id": t.last_thread_id,
                 "runs": runs_by_task.get(t.id, []),
                 "created_at": t.created_at.isoformat() if t.created_at else None,
                 "updated_at": t.updated_at.isoformat() if t.updated_at else None,
-                 "workflow_stage": (t.task_data or {}).get("workflow_stage"),
+                "workflow_stage": (t.source_ref or {}).get("stage") or (t.task_data or {}).get("workflow_stage"),
                 "run": (
                     {
                         "thread_id": activity.thread_id,
@@ -522,6 +479,79 @@ async def list_queue(
             for t in rows
         ],
     }
+
+
+@router.post("/workflows")
+async def create_workflow_any(
+    body: WorkflowCreateRequest, current_user: CurrentUser
+) -> dict[str, Any]:
+    """通用周期工作流提案（编排/触发住 workflow，轮次实例化阶段任务）。
+
+    与 /workflows/growth（硬编码五阶段商城流水线）并列的通用入口：
+    Agent/用户建"周期流水线"必须走这里，而不是 recurring 根任务 + 依赖子树
+    （该组合没有编排语义，是 2026-09-25 #T-1 事故的根因）。
+    """
+    await _ensure_project_access(body.project_id, current_user)
+    try:
+        workflow = await WorkflowService.create_workflow(
+            project_id=body.project_id,
+            member_id=_member_id(current_user),
+            title=body.title,
+            goal=body.goal,
+            trigger_spec=body.trigger_spec,
+            origin_thread_id=body.origin_thread_id,
+            stages=[
+                WorkflowStageSpec(
+                    key=s.key,
+                    title=s.title,
+                    description=s.description,
+                    category=s.category,
+                    priority=s.priority.value,
+                    risk_level=s.risk_level.value if s.risk_level else None,
+                    deps=s.deps,
+                )
+                for s in body.stages
+            ],
+        )
+    except WorkflowError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"success": True, "workflow": _workflow_summary_payload(workflow)}
+
+
+@router.post("/workflows/{workflow_id}/confirm")
+async def confirm_workflow(
+    workflow_id: str, current_user: CurrentUser
+) -> dict[str, Any]:
+    """用户确认编排提案：proposed → armed（触发器上膛）。"""
+    try:
+        workflow = await WorkflowService.get_workflow(workflow_id)
+        await _ensure_project_access(workflow.project_id, current_user)
+        armed = await WorkflowService.confirm_workflow(workflow_id)
+    except WorkflowError as exc:
+        status_code = 404 if "not found" in str(exc) else 409
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    return {"success": True, "id": armed.id, "status": armed.status}
+
+
+@router.put("/workflows/{workflow_id}")
+async def edit_workflow(
+    workflow_id: str, body: WorkflowEditRequest, current_user: CurrentUser
+) -> dict[str, Any]:
+    """取消工作流（切断触发器 + 终态化在飞阶段任务）。"""
+    try:
+        workflow = await WorkflowService.get_workflow(workflow_id)
+        await _ensure_project_access(workflow.project_id, current_user)
+        if body.cancel:
+            cancelled = await WorkflowService.cancel_workflow(workflow_id)
+            return {"success": True, "id": cancelled.id, "status": cancelled.status}
+        if body.trigger_spec is not None:
+            raise HTTPException(
+                status_code=422,
+                detail="trigger_spec edit not supported yet; cancel and recreate",
+            )
+        raise HTTPException(status_code=422, detail="nothing to update")
+    except WorkflowError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.post("/workflows/growth")
@@ -546,11 +576,21 @@ async def create_growth_workflow(
 
 @router.get("/workflows")
 async def list_workflows(
-    project_id: int, current_user: CurrentUser
+    project_id: int | None = None, current_user: CurrentUser = None
 ) -> dict[str, Any]:
-    """List recent workflows so history survives browser sessions."""
-    await _ensure_project_access(project_id, current_user)
-    workflows = await WorkflowService.list_workflows(project_id)
+    """List recent workflows so history survives browser sessions.
+
+    ``project_id`` 可选：全局视图（工作空间）不传时返回全量最近工作流
+    （提案 tab 需要在全局 scope 下也能看到工作流提案；多租户下按归属过滤）。
+    """
+    if project_id is not None:
+        await _ensure_project_access(project_id, current_user)
+    member_id = (
+        _member_id(current_user)
+        if settings.MULTI_TENANT_MODE and project_id is None
+        else None
+    )
+    workflows = await WorkflowService.list_workflows(project_id, member_id=member_id)
     return {
         "success": True,
         "count": len(workflows),
@@ -559,15 +599,15 @@ async def list_workflows(
 
 
 @router.get("/workflows/{workflow_id}")
-async def get_workflow(
-    workflow_id: str, current_user: CurrentUser
-) -> dict[str, Any]:
+async def get_workflow(workflow_id: str, current_user: CurrentUser) -> dict[str, Any]:
     try:
         workflow = await WorkflowService.get_workflow(workflow_id)
     except WorkflowError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     await _ensure_project_access(workflow.project_id, current_user)
-    tasks = await WorkflowService.list_tasks(workflow_id, project_id=workflow.project_id)
+    tasks = await WorkflowService.list_tasks(
+        workflow_id, project_id=workflow.project_id
+    )
     return {"success": True, "workflow": _workflow_payload(workflow, tasks)}
 
 
@@ -590,7 +630,9 @@ async def list_workflow_artifacts(
     }
 
 
-def _workflow_payload(workflow: TaskWorkflow, tasks: list[ProjectTask]) -> dict[str, Any]:
+def _workflow_payload(
+    workflow: TaskWorkflow, tasks: list[ProjectTask]
+) -> dict[str, Any]:
     return {
         "id": workflow.id,
         "project_id": workflow.project_id,
@@ -599,16 +641,22 @@ def _workflow_payload(workflow: TaskWorkflow, tasks: list[ProjectTask]) -> dict[
         "type": workflow.workflow_type,
         "status": workflow.status,
         "inputs": workflow.inputs,
+        "trigger_spec": workflow.trigger_spec,
+        "next_run_at": workflow.next_run_at.isoformat()
+        if workflow.next_run_at
+        else None,
+        "round_no": workflow.round_no,
         "tasks": [
             {
                 "id": task.id,
-                "stage": (task.task_data or {}).get("workflow_stage"),
-                "role": (task.task_data or {}).get("workflow_role"),
-                "runtime": (task.task_data or {}).get("workflow_runtime"),
+                # 阶段 key 在 source_ref（通用轮次路径）；task_data.workflow_stage
+                # 仅为 growth 存量行的只读兜底
+                "stage": (task.source_ref or {}).get("stage")
+                or (task.task_data or {}).get("workflow_stage"),
+                "round": (task.source_ref or {}).get("round"),
                 "status": task.status,
                 "risk_level": task.risk_level,
                 "dependencies": task_dependencies(task),
-                "allowed_packages": (task.task_data or {}).get("allowed_packages") or [],
                 "last_error": task_last_error(task),
                 "retry_count": task_workflow_retry_count(task),
             }
@@ -625,6 +673,20 @@ def _workflow_summary_payload(workflow: TaskWorkflow) -> dict[str, Any]:
         "goal": workflow.goal,
         "type": workflow.workflow_type,
         "status": workflow.status,
+        "trigger_spec": workflow.trigger_spec,
+        "next_run_at": workflow.next_run_at.isoformat()
+        if workflow.next_run_at
+        else None,
+        "round_no": workflow.round_no,
+        # 阶段模板（提案卡渲染 DAG 链用；growth 流水线无模板则空）
+        "stages": [
+            {
+                "key": s.get("key"),
+                "title": s.get("title"),
+                "deps": s.get("deps") or [],
+            }
+            for s in (workflow.inputs or {}).get("stage_template") or []
+        ],
         "created_at": workflow.created_at.isoformat(),
         "updated_at": workflow.updated_at.isoformat(),
     }
