@@ -64,15 +64,15 @@ EvoLoop 是一个**自主值守式任务智能体**：它不像聊天机器人�
 
 **EvoLoop 完整功能演示**
 
-<video src="https://www.evoloop.cn/assets/video/demo.mp4" controls preload="metadata" width="860"></video>
+https://www.evoloop.cn/assets/video/demo.mp4
 
 **值守任务系统演示 1**
 
-<video src="https://www.evoloop.cn/assets/video/duty1.webm" controls preload="metadata" width="860"></video>
+https://www.evoloop.cn/assets/video/duty1.webm
 
 **值守任务系统演示 2**
 
-<video src="https://www.evoloop.cn/assets/video/duty2.webm" controls preload="metadata" width="860"></video>
+https://www.evoloop.cn/assets/video/duty2.webm
 
 <table>
   <tr>
