@@ -34,3 +34,17 @@ mobile/ios/EvoLoopMobile/Resources/sherpa-kokoro/model.onnx
 
 # 本地模型文件（体积过大，不入库）
 backend/models/
+
+# 移动端二进制 / 模型 / 构建产物（体积过大，不入库）
+backend/*.pkg
+mobile/android/app/src/main/assets/sherpa-asr/
+mobile/android/app/src/main/assets/sherpa-kokoro/
+mobile/android/app/src/main/jniLibs/
+mobile/android/app/src/main/assets/index.android.bundle
+mobile/ios/EvoLoopMobile/Resources/sherpa-kokoro/
+mobile/ios/Frameworks/sherpa-onnx.xcframework/
+mobile/harmony/entry/src/main/resources/rawfile/sherpa-kokoro/
+mobile/harmony/entry/src/main/resources/rawfile/hermes_bundle.hbc
+mobile/harmony/entry/src/main/resources/rawfile/diagnostic_bundle.js
+frontend/src-tauri/libs/libvosk.dylib
+skill_cells/crawl4ai/src/docs/examples/assets/instagram_grid_result.png
