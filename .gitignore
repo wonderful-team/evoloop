@@ -31,3 +31,6 @@ frontend/src-tauri/resources/*.app/
 mobile/android/app/src/main/assets/sherpa-kokoro/model.onnx
 mobile/harmony/entry/src/main/resources/rawfile/sherpa-kokoro/model.onnx
 mobile/ios/EvoLoopMobile/Resources/sherpa-kokoro/model.onnx
+
+# 本地模型文件（体积过大，不入库）
+backend/models/
