@@ -13,7 +13,7 @@
 <p align="center">
   <a href="https://github.com/wonderful-team/evoloop/releases">Releases</a> &nbsp;·&nbsp;
   <a href="https://www.evoloop.cn">Website</a> &nbsp;·&nbsp;
-  <a href="https://www.evoloop.cn/agent_multi">Try Online</a> &nbsp;·&nbsp;
+  <a href="https://www.evoloop.cn/agent">Try Online</a> &nbsp;·&nbsp;
   <a href="https://github.com/wonderful-team/evoloop/issues">Issues</a>
 </p>
 
