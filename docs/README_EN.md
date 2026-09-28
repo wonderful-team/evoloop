@@ -217,14 +217,22 @@ cp .env.prod.web.multi .env
 
 ## 🤝 Cooperation & Community
 
-We take on **custom agent projects** of all kinds — building duty agents for your business with EvoLoop (e-commerce ops, customer-service reception, patrol bots, and more), full-service from pilot to delivery. Get in touch:
+I am taking on Agent-related customization and go-to-market cooperation.
 
-**We also warmly welcome anyone interested to join this project and build it with us** — filing requirements, reporting bugs, writing code, or sharing playbooks all make you a builder of this ecosystem.
+If you have steps in enterprise production, operations, marketing, investment research, data processing, content processing, or other business processes that you'd like to automate with Agents, feel free to add me on WeChat to discuss.
+
+No need to have a plan figured out already. As long as you have a real process, a real problem, or a real need, we can figure out together whether an Agent can solve it — and how.
+
+When adding me as a friend, please note: **Business + what you want the Agent to do for you**
+
+**We also welcome anyone interested to join this project and build it together** — filing requirements, reporting bugs, writing code, or sharing playbooks all make you a builder of this ecosystem.
+
+Builders are welcome too, with the note: **Builder + what you are working on**
 
 - **Website**: [evoloop.cn](https://evoloop.cn)
 - **GitHub**: [wonderful-team/evoloop](https://github.com/wonderful-team/evoloop)
 - **Issues**: [GitHub Issues](https://github.com/wonderful-team/evoloop/issues)
-- **Email**: [preterchan@gmail.com](mailto:preterchan@gmail.com)
+- **Email**: [wonderful@develop-assistant.cn](mailto:wonderful@develop-assistant.cn)
 - **WeChat**: scan to reach me
 
 <p align="center">

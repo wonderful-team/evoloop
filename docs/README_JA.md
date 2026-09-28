@@ -217,14 +217,22 @@ cp .env.prod.web.multi .env
 
 ## 🤝 連携と共創
 
-あらゆる **Agent カスタマイズ案件** をお引き受けします — EvoLoop であなたのビジネス向けの值守 Agent（EC 運用托管、カスタマーサービス受付、巡回ボットなど）をカスタム構築し、試験から納品までフルサポート。お気軽にご連絡ください：
+Agent 関連のカスタマイズ・落地協力を引き受けています。
 
-**同時に、本プロジェクトへの参加と共に建设を楽しむ仲間も大歓迎です** — 要件提起、バグ報告、コード貢献、活用シェア、どれもこのエコシステムの建設者です。
+企業の生産・運営・マーケティング・インベストメントリサーチ・データ処理・コンテンツ処理など、業務フローの中で Agent による自動化を望む部分があれば、微信でご連絡ください。
+
+すでに方針が固まっている必要はありません。実際のフロー、実際の問題、実際のニーズがあれば、Agent で解決できるか・どうやるかを一緒に判断します。
+
+友だち追加時の備考：**業務 + Agent に何を手伝ってほしいか**
+
+**本プロジェクトへの参加と共同交流・構築にも歓迎します** — 要件提起、バグ報告、コード貢献、活用シェア、どれもこのエコシステムの建設者です。
+
+Builder も歓迎です。備考：**Builder + 何をやっているか**
 
 - **公式サイト**：[evoloop.cn](https://evoloop.cn)
 - **GitHub**：[wonderful-team/evoloop](https://github.com/wonderful-team/evoloop)
 - **Issues**：[GitHub Issues](https://github.com/wonderful-team/evoloop/issues)
-- **メール**：[preterchan@gmail.com](mailto:preterchan@gmail.com)
+- **メール**：[wonderful@develop-assistant.cn](mailto:wonderful@develop-assistant.cn)
 - **微信**：QR コードでご連絡を
 
 <p align="center">

@@ -217,14 +217,22 @@ cp .env.prod.web.multi .env
 
 ## 🤝 협력과 공건
 
-각종 **Agent 커스텀 요구 프로젝트**를 수주합니다 — EvoLoop로 당신의 비즈니스에 맞는 당직 Agent(이커머스 운영 위탁, 고객센터 응대, 순찰 봇 등)를 커스텀 구축하고, 파일럿부터 인도까지 풀 서비스로 지원합니다. 언제든 연락 주세요:
+Agent 관련 커스터마이징 및 현장 적용 협력을 수주하고 있습니다.
 
-**동시에 본 프로젝트에 관심 있는 분들의 참여와 공동 교류·구축을 환영합니다** — 요구 제기, 버그 보고, 코드 기여, 활용 공유, 무엇이든 이 생태계의 건설자입니다.
+기업 생산, 운영, 마케팅, 투자 리서치, 데이터 처리, 콘텐츠 처리 등 업무 프로세스에서 Agent 자동화를 원하는 부분이 있다면 위챗으로 연락해 주세요.
+
+방안이 이미 정리되어 있지 않아도 됩니다. 실제 프로세스, 실제 문제, 실제 니즈만 있다면 Agent로 해결할 수 있는지, 어떻게 할지 함께 판단해 드립니다.
+
+친구 추가 시 비고: **업무 + Agent에게 뭘 도와주길 원하는지**
+
+**본 프로젝트에 관심 있는 분들의 참여와 공동 교류·구축도 환영합니다** — 요구 제기, 버그 보고, 코드 기여, 활용 공유, 무엇이든 이 생태계의 건설자입니다.
+
+Builder도 환영합니다. 비고: **Builder + 지금 하고 있는 일**
 
 - **공식 사이트**: [evoloop.cn](https://evoloop.cn)
 - **GitHub**: [wonderful-team/evoloop](https://github.com/wonderful-team/evoloop)
 - **Issues**: [GitHub Issues](https://github.com/wonderful-team/evoloop/issues)
-- **이메일**: [preterchan@gmail.com](mailto:preterchan@gmail.com)
+- **이메일**: [wonderful@develop-assistant.cn](mailto:wonderful@develop-assistant.cn)
 - **위챗**: QR 코드로 연락 가능
 
 <p align="center">

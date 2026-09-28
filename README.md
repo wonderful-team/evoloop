@@ -217,14 +217,22 @@ cp .env.prod.web.multi .env
 
 ## 🤝 合作与共建
 
-我们承接各类**智能体定制需求项目**——用 EvoLoop 为你的业务定制值守 Agent（电商托管、客服接待、巡检机器人等），从试点到交付全流程服务。欢迎联系：
+我正在承接 Agent 相关的定制与落地合作。
 
-**我们更欢迎有兴趣的朋友加入本项目共同交流建设**——无论是提需求、报 Bug、写代码还是分享玩法，都是这个生态的建设者。
+如果你在企业生产、运营、市场、投研、数据处理、内容处理或其他业务流程里，有希望用 Agent 自动化的环节，欢迎加我微信交流。
+
+不需要你已经想清楚方案。只要你有真实流程、真实问题或真实需求，我可以一起判断 Agent 能不能解决、怎么做。
+
+加好友请备注：**业务 + 你想让 Agent 帮你做什么**
+
+**我们也欢迎有兴趣的朋友加入本项目，共同交流建设**——提需求、报 Bug、写代码、分享玩法，都是这个生态的建设者。
+
+Builder 也欢迎备注：**Builder + 你在做什么**
 
 - **官网**: [evoloop.cn](https://evoloop.cn)
 - **GitHub**: [wonderful-team/evoloop](https://github.com/wonderful-team/evoloop)
 - **Issues**: [GitHub Issues](https://github.com/wonderful-team/evoloop/issues)
-- **邮件**: [preterchan@gmail.com](mailto:preterchan@gmail.com)
+- **邮件**: [wonderful@develop-assistant.cn](mailto:wonderful@develop-assistant.cn)
 - **微信**: 扫码可以联系到我
 
 <p align="center">
