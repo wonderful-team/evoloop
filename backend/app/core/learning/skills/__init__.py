@@ -21,7 +21,7 @@ from app.core.learning.skills.repository import SkillRepository, skill_repositor
 from app.core.learning.skills.sync_service import SkillSyncService, skill_sync_service
 from app.core.learning.skills.validator import SkillValidator
 from app.core.learning.skills.visibility import is_routable, is_visible, visible_filter
-from app.core.learning.skills.watcher import SkillsFileWatcher, skills_file_watcher
+from app.core.learning.skills.watcher import SkillsFileWatcher
 
 __all__ = [
     "SkillDiscovery",
@@ -43,5 +43,4 @@ __all__ = [
     "is_visible",
     "visible_filter",
     "SkillsFileWatcher",
-    "skills_file_watcher",
 ]

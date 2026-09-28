@@ -159,9 +159,7 @@ async def run_agent_session(session: AgentSession) -> None:
             session.thread_id, e, project_id=session.state.project_id if session.state else None
         )
     finally:
-        session.lifecycle = "closed"
-        _notify_delivery_done(session)
-        logger.info(f"[Session] {session.thread_id} session closed")
+        await _close_session(session)
 
 
 def _notify_delivery_done(session: AgentSession) -> None:

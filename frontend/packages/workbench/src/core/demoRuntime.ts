@@ -124,27 +124,6 @@ let msgCursor = 0
 let tickCount = 0
 let running = false
 const shownMessages = new Set<string>()
-const pulse: number[] = []
-const toolCounts: Record<string, number> = {
-  list_goods: 14,
-  check_stock: 12,
-  update_stock: 9,
-  text2image: 6,
-  write_report: 11,
-  list_orders: 16,
-  send_payment_reminder: 5,
-}
-
-export function getDemoPulse(): number[] {
-  return [...pulse]
-}
-export function getDemoToolCounts(): Record<string, number> {
-  return { ...toolCounts }
-}
-export function getDemoTaskCounter(): number {
-  return taskCounter
-}
-let taskCounter = 3
 
 export function getDemoRunning() {
   return running
@@ -235,12 +214,6 @@ export function getDemoPlan(threadId: string | null) {
   return JSON.parse(JSON.stringify(plan))
 }
 
-function guessTool(script: Script, msgId: string): string {
-  const m = script.messages.find((x) => String(x.id) === msgId)
-  const name = (m as { name?: string } | undefined)?.name
-  return name ?? ""
-}
-
 function nowIso() {
   return new Date().toISOString()
 }
@@ -292,7 +265,6 @@ function completeCurrentScript(s: RuntimeState, script: Script) {
     script.taskId,
     "自检通过，自动验收完成",
   )
-  taskCounter += 1
   // advance: next pending task becomes in_progress with its script
   const nextIdx = scriptIdx + 1
   msgCursor = 0
@@ -341,8 +313,6 @@ function tick() {
   // 1) tokens accumulate every tick (both KPI and current run)
   const dIn = 280 + Math.floor(Math.random() * 640)
   const dOut = 90 + Math.floor(Math.random() * 320)
-  pulse.push(dIn + dOut)
-  if (pulse.length > 60) pulse.shift()
   s.dashboard.tokens.today.input += dIn
   s.dashboard.tokens.today.output += dOut
   s.dashboard.tokens.today.llm_calls += 1
@@ -370,8 +340,6 @@ function tick() {
       thread.push(m)
       s.messagesByThread[script.threadId] = thread
       if (m.role === "tool") {
-        const tool = guessTool(script, String(m.id))
-        if (tool) toolCounts[tool] = (toolCounts[tool] ?? 0) + 1
         pushEvent(
           "progress",
           s.tasks.find((t) => t.id === script.taskId)?.title ?? "",
@@ -414,51 +382,6 @@ function tick() {
   // 5) duty window: ensure "since" is set
   if (!s.dashboard.today_window.since) {
     s.dashboard.today_window.since = nowIso()
-  }
-
-}
-
-/** demo mode: create a task from the form */
-export function addDemoTask(input: {
-  title: string
-  description: string
-  category: string
-  priority: string
-  risk_level: string
-  type: string
-}) {
-  const s = snap()
-  const id = `t-demo-new-${Date.now()}`
-  s.tasks.unshift({
-    id,
-    title: input.title,
-    description: input.description,
-    type: input.type,
-    status: "pending",
-    category: input.category,
-    priority: input.priority,
-    risk_level: input.risk_level,
-    source: "user",
-    provenance: null,
-    self_check: null,
-    acceptance: null,
-    due_at: null,
-    last_thread_id: null,
-  })
-  recomputeCounts(s)
-  pushEvent("proposal", input.title, "pending", id, "运营者手动创建")
-  return id
-}
-
-/** Idempotent start (page mounts). ~0.45s heartbeat. */
-export function startDemoRuntime() {
-  if (timer) return
-  timer = setInterval(tick, 2500)
-}
-export function stopDemoRuntime() {
-  if (timer) {
-    clearInterval(timer)
-    timer = null
   }
 }
 

@@ -10,7 +10,6 @@ from typing import Any
 import lancedb
 import pyarrow as pa
 
-from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
 from app.core.file import compute_md5
 from app.infrastructure.database.vector.base import BaseVectorStore
@@ -269,27 +268,6 @@ class LanceVectorStore(BaseVectorStore):
             for r in results
         ]
 
-    def full_text_search_code(
-        self,
-        query_text: str,
-        top_k: int = 10
-    ) -> list[dict[str, Any]]:
-        """
-        Full-text search on code content.
-        Requires LanceDB FTS index.
-        """
-        results = self.code_table.search(query_text, query_type="fts").limit(top_k).to_list()
-        return [
-            {
-                "id": r["id"],
-                "content": r["content"],
-                "file_path": r["file_path"],
-                "identifier": r["identifier"],
-                "score": r.get("_score", 0),
-            }
-            for r in results
-        ]
-
     def delete_by_repository(self, repository_id: str) -> int:
         """Delete all chunks for a repository."""
         try:
@@ -302,32 +280,6 @@ class LanceVectorStore(BaseVectorStore):
             return 0
 
     # -- memories -----------------------------------------------------------
-
-    def upsert_memory_chunks(self, records: list[dict[str, Any]]) -> int:
-        """Upsert memory chunk records."""
-        if not records:
-            return 0
-
-        now = utcnow().replace(microsecond=0)
-
-        with self._lock:
-            # Delete existing memories for these IDs first
-            ids = {r["id"] for r in records}
-            for mid in ids:
-                self.memory_table.delete(f"id = '{mid.replace(chr(39), chr(39)+chr(39))}'")
-
-            table_data = pa.table({
-                "id": [r["id"] for r in records],
-                "vector": [r["vector"] for r in records],
-                "text": [r.get("text", "") or r.get("content", "") for r in records],
-                "project_id": [r.get("project_id") if r.get("project_id") is not None else DEFAULT_PROJECT_ID for r in records],
-                "member_id": [r.get("member_id") for r in records],
-                "created_at": [r.get("created_at", now).replace(microsecond=0) for r in records],
-            })
-
-            self.memory_table.add(table_data)
-            logger.debug(f"[LanceVectorStore] Upserted {len(records)} memory chunks")
-            return len(records)
 
     def search_memory(
         self,
@@ -361,42 +313,7 @@ class LanceVectorStore(BaseVectorStore):
             for r in results
         ]
 
-    def delete_memory_by_id(self, memory_id: str) -> bool:
-        """Remove a specific memory entry by its ID."""
-        with self._lock:
-            self.memory_table.delete(f"id = '{memory_id.replace(chr(39), chr(39)+chr(39))}'")
-        return True
-
-    def delete_all_memories(self) -> int:
-        """Wipe all memory entries."""
-        with self._lock:
-            count = self.memory_table.count_rows()
-            self.memory_table.delete("true")
-        return count
-
     # -- skills -----------------------------------------------------------
-
-    def upsert_skill_chunks(self, records: list[dict[str, Any]]) -> int:
-        """Upsert skill chunk records."""
-        now = utcnow()
-
-        table_data = pa.Table.from_pydict({
-            "id": [r["id"] for r in records],
-            "vector": [r["vector"] for r in records],
-            "name": [r.get("name", "") for r in records],
-            "description": [r.get("description", "") for r in records],
-            "bundle_id": [r.get("bundle_id", "") for r in records],
-            "platform": [r.get("platform", "android") for r in records],
-            "x": [r.get("x", -1) for r in records],
-            "y": [r.get("y", -1) for r in records],
-            "state_id": [r.get("state_id", "") for r in records],
-            "label": [r.get("label", "") for r in records],
-            "created_at": [r.get("created_at", now).replace(microsecond=0) for r in records],
-        })
-
-        with self._lock:
-            self.skills_table.add(table_data)
-        return len(records)
 
     def search_skills(
         self,
@@ -435,23 +352,6 @@ class LanceVectorStore(BaseVectorStore):
         ]
 
     # -- concepts ---------------------------------------------------------
-
-    def upsert_concept_chunks(self, records: list[dict[str, Any]]) -> int:
-        """Upsert concept records."""
-        now = utcnow()
-
-        table_data = pa.Table.from_pydict({
-            "id": [r["id"] for r in records],
-            "vector": [r["vector"] for r in records],
-            "name": [r.get("name", "") for r in records],
-            "description": [r.get("description", "") for r in records],
-            "project_id": [r.get("project_id", DEFAULT_PROJECT_ID) for r in records],
-            "created_at": [r.get("created_at", now).replace(microsecond=0) for r in records],
-        })
-
-        with self._lock:
-            self.concepts_table.add(table_data)
-        return len(records)
 
     def search_concepts(self, query_vector: list[float], top_k: int = 10) -> list[dict[str, Any]]:
         """Semantic search over graph concepts."""

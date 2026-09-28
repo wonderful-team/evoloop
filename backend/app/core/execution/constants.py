@@ -9,7 +9,6 @@ MAX_TRUNCATED_STDERR_LINES = 100
 
 # Background task output / query limits
 DEFAULT_OUTPUT_LINES = 50
-MAX_QUERY_OUTPUT_LINES = 200
 MAX_OUTPUT_BUFFER_LINES = 1000
 
 # Background task manager lifecycle limits

@@ -29,6 +29,7 @@ else:
     class pwd:  # type: ignore
         @staticmethod
         def getpwuid(uid: Any) -> Any:
+            _ = uid
             return type("obj", (), {"pw_name": os.environ.get("USERNAME", "unknown")})()
 
 

@@ -62,6 +62,3 @@ class SchedulerLifecycleSubscriber:
             except Exception:
                 logger.exception("[Scheduler] tick 执行失败")
             await asyncio.sleep(TICK_INTERVAL_SECONDS)
-
-
-scheduler_lifecycle_subscriber = SchedulerLifecycleSubscriber()

@@ -12,8 +12,4 @@ class SDKAdapterError(RuntimeError):
     """Base error for SDK adapter failures."""
 
 
-class SDKToolExecutionError(SDKAdapterError):
-    """Raised when an SDK tool wrapper cannot execute a native tool."""
-
-
-__all__ = ["SDKAdapterError", "SDKToolExecutionError"]
+__all__ = ["SDKAdapterError"]

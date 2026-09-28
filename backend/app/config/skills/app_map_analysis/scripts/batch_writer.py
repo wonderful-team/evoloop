@@ -92,7 +92,7 @@ async def main() -> None:
 
     if not entities:
         logger.warning("Empty entity data — nothing to write")
-        print(json.dumps({"status": "ok", "total": 0, "written": 0, "skipped": 0, "failed": 0}))
+        print(json.dumps({"status": "ok", "total": 0, "written": 0, "skipped": 0, "failed": 0}))  # noqa: T201
         return
 
     from app.infrastructure.database.resource_manager import db_resource_manager
@@ -110,7 +110,7 @@ async def main() -> None:
     logger.info("Starting batch write for %d entities (project=%s)", len(entities), args.project_id)
 
     result = await batch_write(project_id=args.project_id, entities=entities, member_id=member_id)
-    print(json.dumps({"status": "ok" if not result["failed"] else "partial", **result}))
+    print(json.dumps({"status": "ok" if not result["failed"] else "partial", **result}))  # noqa: T201
 
     await db_resource_manager.shutdown()
 

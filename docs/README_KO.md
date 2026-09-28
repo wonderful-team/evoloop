@@ -1,7 +1,7 @@
 <p align="center">
   <img src="https://www.evoloop.cn/assets/images/WoodenRobot.png" alt="EvoLoop" width="120" />
 </p>
-<p align="center"><b>EvoLoop - 자율 당직형 태스크 에이전트</b></p>
+<p align="center"><b>EvoLoop Agent - 자율 당직 에이전트, 태스크 편성 가능, 야근 전문</b></p>
 
 <p align="center">
   <img src="https://img.shields.io/github/stars/wonderful-team/evoloop" alt="GitHub stars" />
@@ -18,188 +18,178 @@
 </p>
 
 <p align="center">
-  <a href="README_EN.md">English</a> | <a href="../README.md">中文</a> | <a href="README_JA.md">日本語</a> | <a href="README_KO.md">한국어</a>
+  <a href="README_EN.md">English</a> | <a href="README_CN.md">中文</a> | <a href="README_JA.md">日本語</a> | <a href="README_KO.md">한국어</a>
 </p>
 
 ---
 
-EvoLoop은 **자율 당직형 태스크 에이전트**입니다. 챗봇처럼 일문일답하는 것이 아니라, 24/7 당신의 비즈니스 곁을 지키며 — 태스크를 큐에 넣고, 실행하고, 감시·검수하며, 애매하면 사람에게 묻습니다. 사용자가 할 일은 단 세 가지뿐입니다: **태스크 계획, 결과 검수, 예외 처리**.
+EvoLoop은 **태스크 편성이 가능한 자율 당직 에이전트**입니다. 에이전트 내부에 삼권 소통 메커니즘 — **의사결정자, 실행자, 심사감찰자** — 을 두어 태스크의 모든 항목이 확실하게 이행되도록 합니다.
 
-웹, 데스크톱, 모바일 3단말 커버, 웨이크워드 기반 자연어 음성 대화 지원. 에이전트 코어는 [OpenHands](https://github.com/All-Hands-AI/OpenHands) 기반.
+Agent를 쓰다 보면 이런 경험 있으신가요: 장기 태스크 계획은 완벽해 보이는데, SKILL 제약이 있어도 실제 실행은 **불완전하고, 뒤끝이 남고, 심지어 방향을 이탈** — 반복해서 검사하고, 몇 판씩 소통하면서 고쳐야만 했던 경험 말입니다.
+
+EvoLoop은 바로 이 문제를 해결하기 위해 새롭게 **당직식 태스크 시스템**을 설계했습니다: 태스크는 시간이 되면 자동 실행, 매 단계 진행률을 실시간 기록. 완료 후에는 **심사감찰자**가 당신의 입장에서 검증합니다 — 실행자의 "다 했습니다"는 통하지 않고, 불완전하면 되돌려 재작업. 자금과 불가역 작업은 **의사결정자**(당신)가 결재합니다. 당신은 태스크를 계획하고 결과를 검수하기만 하면 됩니다.
+
+웹, 데스크톱, 모바일 3단말 커버, 웨이크워드 기반 자연어 음성 대화 지원.
 
 🌐 공식 사이트 [evoloop.cn](https://evoloop.cn) · 💻 [GitHub](https://github.com/wonderful-team/evoloop)
-
-## 🌟 주요 기능
-
-| 기능 | 설명 |
-|---|---|
-| **장시간 실행** | 단일 태스크 300+ 연속 스텝, 수시간 안정적 실행, 자동 오류 복구 |
-| **크로스 디바이스 A2A 협업** | 디바이스 간 에이전트가 비동기적으로 발견·위임·결과 반환 |
-| **당직 실행** | 태스크가 기한 되면 자동 큐잉·실행; 모든 단계 진행률 실시간 기록, 완료 시 검증 가능한 증거 첨부. 실행자의 "완료"만으로는 부족 — 결과를 당신의 이름으로 원 요청 대화에 되돌려 **감시 리뷰어**가 "제대로 했는가"를 대리 검증. 자금·불가역 작업은 반드시 사람 승인 |
-| **모방 학습** | 당신이 한 번 시연하면 한 세트 습득 — 마우스 클릭으로 궤적 기록, 화면 녹화 던지면 프레임 단위 이해 후 재사용 가능한 스킬·'매크로'로 증류. 이후 같은 일은 기계적 재실행(모델 연산 비용 제로); 환경 변화 시 자동 AI 폴백; AI가 작성한 워크플로는 실측 테스트 통과 후만 배포 |
-| **통합 라우팅** | 음성·웹·기업위챗/위챗 고객센터·모바일 — 모든 입력을 동일 처리. 빈번 명령은 LLM 거치지 않고 초 단위 실행; 애매하거나 복잡한 것만 AI가 신중히 추론 |
-| **음성 대화** | "你好Evo"로 깨우기, 말하는 중 끼어들기 가능, 음성 받아쓰기 대행, 음성은 디바이스 밖으로 나가지 않음 |
-| **대신 조작** | 당신이 가진 기기 위에서 실행 — 브라우저 웹페이지, 데스크톱 앱, Android / iOS / HarmonyOS 폰. PC 앞을 비워도 폰으로 승인·검수 |
-| **도움 요청 (A2A)** | 이 머신의 에이전트가 당신의 다른 기기 에이전트에게 일을 넘길 수 있음 — 태스크 내보낼 때 메인 플로 자동 대기, 결과 돌아오면 즉시 재개. 전체 위임 과정이 UI에서 실시간 가시화 |
-| **안전 장치** | 확신 없으면 멈추고 사람에게 묻고, 절대 답을 꾸며내지 않음; 위험 조작은 권한 게이트로 차단, 비밀정보 출력에 노출 안 함, 폭주 루프 즉각 차단 |
-| **생태계 연동** | 외부 도구 MCP 프로토콜로 즉시 접속/해제; 도메인 지식은 능력 패키지로 패키징 — 오늘은 쇼핑몰, 내일은 CRM으로 교체, 코어 코드 수정 불필요 |
-
----
-
-## 📋 목차
-
-- [제품 데모](#제품-데모)
-- [시스템 아키텍처](#시스템-아키텍처)
-- [당직 태스크 시스템](#당직-태스크-시스템-autonomous-duty)
-- [설치 및 배포](#설치-및-배포)
-- [빌드 및 릴리스](#빌드-및-릴리스)
-- [개발 가이드](#개발-가이드)
 
 ---
 
 ## 🎬 제품 데모
 
-**EvoLoop 전체 기능 데모**
-
-<video src="https://www.evoloop.cn/assets/video/demo.mp4" controls preload="metadata" width="860"></video>
-
-**당직 태스크 시스템 데모 1**
-
-<video src="https://www.evoloop.cn/assets/video/duty1.webm" controls preload="metadata" width="860"></video>
-
-**당직 태스크 시스템 데모 2**
-
-<video src="https://www.evoloop.cn/assets/video/duty2.webm" controls preload="metadata" width="860"></video>
-
 <table>
   <tr>
     <td valign="top">
-      <img src="https://www.evoloop.cn/assets/images/screenshots/hero-desktop.png" alt="EvoLoop Desktop" height="500" />
+      <img src="images/evoloop-ui.png" alt="EvoLoop Desktop" height="500" />
       <p align="center"><em>Desktop</em></p>
     </td>
     <td valign="top">
-      <img src="https://www.evoloop.cn/assets/images/screenshots/mobile-app.jpg" alt="EvoLoop Mobile" height="500" />
+      <img src="images/evoloop-mobile.jpg" alt="EvoLoop Mobile" height="500" />
       <p align="center"><em>Mobile</em></p>
     </td>
   </tr>
+<tr>
+<td colspan="2" align="center">
+<img src="images/evoloop-duty.png" alt="EvoLoop Duty" height="500" />
+<p align="center"><em>Duty</em></p>
+
+<img src="images/evoloop-duty-2.png" alt="EvoLoop Duty" height="500" />
+<p align="center"><em>Duty HITL</em></p>
+</td>
+</tr>
 </table>
+
+**EvoLoop 전체 기능 데모**
+
+https://www.evoloop.cn/assets/video/demo.mp4
+
+**당직 태스크 시스템 데모 1**
+
+https://www.evoloop.cn/assets/video/duty1.webm
+
+**당직 태스크 시스템 데모 2**
+
+https://www.evoloop.cn/assets/video/duty2.webm
 
 ---
 
 ## 🏗 시스템 아키텍처
 
+<p><img src="images/arch.png" alt="EvoLoop Architecture" /></p>
+
 | 계층 | 구성 |
 |------|------|
-| 클라이언트 | Web (React + Vite), 데스크톱 (Tauri + Rust 음성 파이프라인), 모바일 (React Native, 원격 승인/검수 지원) |
+| 클라이언트 | Web(React + Vite), 데스크톱(Tauri + Rust 음성 파이프라인), 모바일(React Native, 원격 결재/검수 지원) |
 | 서비스 | FastAPI: REST + SSE + 음성 WebSocket 채널 |
-| 엔진 | [OpenHands](https://github.com/All-Hands-AI/OpenHands) SDK 기반 Agent 엔진: 계획 → 도구 실행 → 구조화된 자체 검사 → 의심 시 중단 |
-| 라우팅 | 명령 디스패처: 빈번 명령 즉시 실행, 불확실한 것만 에이전트 위임 |
+| 엔진 | [OpenHands](https://github.com/All-Hands-AI/OpenHands) SDK 기반 Agent 엔진: 계획 → 도구 실행 → 구조화 셀프 체크 → 의심되면 중단하고 질문 |
+| 라우팅 | 명령 분류: 일반 명령 즉시 실행, 불확실한 것만 Agent에게 위임 |
 | 당직 | 태스크 큐 + Supervisor 스케줄링: 기한 실행, 크래시 수렴, 서킷 브레이커 가드레일 |
-| 확장 | MCP 도구 서비스, 능력 팩 (SOP), 런타임 도구 생성, 매크로 엔진 (결정적 재생 + 자가 치유) |
-| 데이터 | 데스크톱 내장 (SQLite + LanceDB, 데이터는 머신 밖으로 나가지 않음) / SaaS 서버 (PostgreSQL + Redis) |
+| 확장 | MCP 도구 서비스, 능력 팩(SOP), 런타임 도구 생성, 매크로 엔진(결정론적 리플레이 + 자가 치유) |
+| 데이터 | 데스크톱 내장(SQLite + LanceDB, 데이터는 머신 밖으로 나가지 않음) / SaaS 서버(PostgreSQL + Redis) |
 
 ---
 
 ## ⏱ 당직 태스크 시스템 (Autonomous Duty)
 
-### 해결하는 문제
+### 어떤 문제를 해결하는가
 
-긴 호흡·복잡한 태스크를 대화형 에이전트에게 맡기면 흔히 겪는 결말: 컨텍스트가 소음으로 뒤덮여 "썩음", 모델이 지쳐 조기 종료, 완료 허위 보고, 회피적 답변, 산출물이 목표에서 이탈. 기존 "고정 프롬프트 + 고정 간격" 자동 순찰은 상태·검수·의존성 없고, 에이전트가 작업 중 발견한 새 To-Do가 돌아갈 곳 없음 — "비즈니스를 에이전트에게 자동 운영 맡기기"는 성립되지 않음.
+LLM은 요구사항을 **불완전하게 이행하거나 부분적으로 이탈**합니다 — 장기 태스크를 절반쯤 진행하면 컨텍스트가 소음에 잠겨 썩고, 모델은 지쳐 조기 종료하며, 완료를 허위 보고하고, 정면 답변을 회피하고, 산출물은 목표에서 표류합니다. 결국 당신은 **반복 검사와 여러 판의 소통**으로 수정해야 하고, 실행 디테일에 끌려 들어갑니다.
+
+당직 태스크 시스템은 바로 이 수정 비용을 없애기 위해 설계되었습니다: 태스크 생성 시 시나리오·목표·검수 기준을 먼저 명확히 합니다. 실행 상태는 전량 영속화되어 중단 후 이어서 재개합니다. 완료 후에는 결과를 **당신의 명의로 최초 요청 대화에 되돌려**, 당초 당신의 요구를 이해했던 Agent가 당신의 입장에서 검증합니다 — 실행자의 입에서 나온 "완료"는 통하지 않고, 되돌림 2회를 넘기면 인간 중재로 에스컬레이션합니다.
 
 ### 목표
 
-에이전트가 비즈니스를 장기적으로 확실하게 돌게 만들기: 모든 태스크는 생성 시 시나리오·목표·검수 기준을 가짐; 실행 결과는 **감시 리뷰어**가 사용자 입장에서 검증 — "다 했다"는 허위 보고는 통하지 않음; 자금·불가역 조작은 반드시 사람 승인. 사람은 "승인·검수·중재" 세 순간에만 개입.
+Agent가 비즈니스를 장기적으로 안정적으로 운영하게 만드는 것: 요구는 한 번만 말하고, 수정은 제도에 맡깁니다. 사람은 결재·검수·중재 세 순간에만 등장합니다.
 
 ### 태스크 실행 플로우
 
-```mermaid
-flowchart TD
-    A["📋 태스크 생성<br/>목표와 검수 기준 명시"] --> B["🔔 기한 되면 자동 디스패치"]
-    A2["💬 메시지 / 이벤트 / 에이전트 제안"] --> B
-    B --> C["🧠 실행자<br/>계획 → 실행 → 증거 기반 자체 검사"]
-    C --> D{"리스크 게이트"}
-    D -- "자금 / 불가역" --> E["⏸ 사람 승인<br/>캔버스 · 모바일 · 기업위챗"]
-    D -- "일반 태스크" --> F["🧐 감시 리뷰어<br/>원래 대화로 회수, 사용자 입장에서 검증"]
-    F -- 통과 --> G["✅ 완료, 하류 태스크 언락"]
-    F -- "불합격 · ≤2 회 리워크" --> C
-    E -- 승인 --> G
-    C -. "새 To-Do 발견 → 제안이 큐로" .-> A
-```
+<p><img src="images/duty-workflow.png" alt="Duty Workflow" height="500" /></p>
 
 ### 적합한 시나리오
 
-- **이커머스/리테일 운영 위탁**: 선발조사 → 가격결정 → 상장 → 일일 순찰(품절·악평·이상 주문) — 첫 파일럿 시나리오는 "쇼핑몰 한 곳 접수"
-- **콘텐츠·그로스 파이프라인**: 기획 → 집필 → 소재 제작 → 멀티 플랫폼 발행 → 투자 회고, 단계마다 흔적·검수
-- **데이터·순찰 봇**: 일일 경영 보고, 재고/자금/지표 정기 순찰, 이상 즉시 알람·즉시 제안
+- **이커머스 / 리테일 운영 위탁**: 선정 리서치 → 가격 책정 → 상장 → 일일 순찰(품절·악평·이상 주문) — 첫 파일럿 시나리오는 "몰 한 곳 접수"
+- **콘텐츠·그로스 파이프라인**: 기획 → 집필 → 소재 제작 → 멀티 플랫폼 발행 → 집행 회고, 단계마다 흔적·검수
+- **데이터·순찰 봇**: 경영 일보, 재고 / 자금 / 지표 정기 순찰, 이상 발생 시 즉시 알림·즉시 제안
 - **서드파티 이벤트 지속 응답**: 주문·티켓·심사 메시지 자동 큐잉 처리, 전 과정 감사 가능
-- **기업 백오피스 SOP**: 승인 보조, 대사, 재고조사 등 반복 가능·검수 가능 프로세스
-- **R&D 프로젝트 집사**: 코드베이스 순찰, 의존성 취약점 점검, 백업 검증, 백로그 정리
-- **고객 서비스 응대**: 기업위챗/위챗 고객센터 순찰 자동 응답, 자금류 이슈는 사람으로 에스컬레이션
-- **무인 운영**: 7×24 당직 루프, 사람은 "승인·검수·중재" 세 순간에만 등장
+- **기업 백오피스 SOP**: 승인 보조, 대사, 재고 실사 등 반복 가능·검수 가능한 프로세스
+- **R&D 프로젝트 집사**: 코드베이스 순찰, 의존성 보안 점검, 백업 검증, 백로그 정리
+- **고객 서비스 응대**: 기업위챗 / 위챗 고객센터 순찰 자동 응대, 자금 관련은 인간에게 에스컬레이션
+- **눈 떼고 방치**: 7×24 당직 루프, 사람은 결재·검수·중재 세 순간에만 등장
 
-접수 대상을 교체(쇼핑몰 → CRM → 공급망 → 콘텐츠 사이트)할 때, 능력 팩과 태스크 데이터만 교체하면 스케줄링·실행 계층은 제로 변경.
+접수 대상을 교체(몰 → CRM → 공급망 → 콘텐츠 사이트)할 때는 능력 팩과 태스크 데이터만 바꾸면 되고, 스케줄링·실행 계층은 제로 변경입니다.
 
 ### 워크벤치
 
-무한 캔버스를 메인 뷰로: 이종 딜리버러블 카드 + 의존성 선, 시각적 포커스가 에이전트 현재 노드를 자동 추적; 승인/검수/리뷰 카드가 노드 내에 임베디드. 사람은 언제든 세 가지 질문에 답할 수 있음 — **에이전트가 지금 뭘 하는가, 지금까지 뭘 했는가, 다음에 뭘 할 것인가**.
+무한 캔버스를 메인 뷰로: 이종 산출물 카드 + 의존성 라인, 시각 포커스가 Agent의 현재 노드를 자동 추적. 결재 / 검수 / 심사 카드는 노드 안에 내장. 언제든 세 가지 질문에 답할 수 있습니다 — **Agent가 지금 뭘 하는가, 이전에 뭘 했는가, 다음에 뭘 할 것인가**.
+
+---
+
+## 🌟 주요 기능
+
+| 기능 | 설명 |
+|---|---|
+| **장시간 실행** | 단일 태스크 300+ 연속 스텝, 수시간 안정 실행, 자동 오류 복구 |
+| **크로스 디바이스 A2A 협업** | 디바이스 간 에이전트가 비동기로 발견·위임·결과 반환 |
+| **당직 실행** | 태스크는 기한이 되면 자동 큐잉·실행, 매 단계 진행률 실시간 기록, 완료 시 검증 가능한 증거 첨부. 실행자의 "완료"는 통하지 않음 — 결과는 당신의 명의로 요청 원래 대화에 되돌려져 심사감찰자가 "제대로 했는가"를 검증. 자금과 불가역 작업은 반드시 사람 결재 대기 |
+| **모방 학습** | 당신이 한 번 시연하면 한 세트 습득 — 마우스 클릭 과정은 궤적을 기록하고, 녹화 영상은 프레임 단위로 이해하여 재사용 가능한 스킬·'매크로'로 증류. 이후 같은 일은 기계적으로 재실행하며 연산을 태우지 않음. 환경 변화 시 자동으로 AI에 반환해 방법을 강구. AI가 자체 작성한 플로우는 실측 통과 후에만 가동 허가 |
+| **수시 호출** | 음성, 웹, 기업위챗 / 위챗 고객센터, 모바일 — 어디서 오든 동등하게 취급. 일반 명령은 LLM을 깨우지 않고 초 단위 처리, 불명확하거나 복잡한 것만 AI가 신중히 사고 |
+| **음성 대화** | "你好Evo" 한마디면 대화 시작, 말하는 중 끼어들기와 받아쓰기 대필 가능, 음성은 기기를 벗어나지 않음 |
+| **대신 손쓰기** | 이미 가진 기기 위에서 작업 — 브라우저의 웹페이지, 데스크톱 앱, Android / iOS / HarmonyOS 폰. PC 앞을 비워도 폰으로 결재·검수 |
+| **도움 요청(A2A)** | 이 머신의 Agent는 당신의 다른 기기 Agent에게 일을 넘길 수 있음 — 위임 중에는 메인 플로가 자동 대기하고, 결과가 돌아오면 즉시 재개. 위임 전 과정이 UI에 실시간 표시 |
+| **안전 퓨즈** | 확신이 없으면 멈추고 물어봄, 결코 답을 꾸며내지 않음. 위험 조작은 권한 게이트로 차단, 비밀키는 출력에 노출되지 않음, 제자리 맴돌이 루프는 결단적으로 차단 |
+| **생태계 연결** | 외부 도구는 MCP 프로토콜로 수시 접속·해제. 업무 지식은 능력 팩으로 필요에 따라 조립 — 오늘은 몰을 접수, 내일은 다른 시스템으로 교체, 코어 코드 변경 없음 |
 
 ---
 
 ## 🚀 설치 및 배포
 
-EvoLoop는 세 가지 배포 형태를 제공합니다. 용도에 맞게 선택하세요.
+EvoLoop은 세 가지 배포 형태를 제공합니다. 용도에 맞게 선택하세요.
 
 | 모드 | 시나리오 | 스택 | 설정 파일 |
 |---|---|---|---|
 | **데스크톱 내장** | 개인 PC·로컬 사용 | SQLite + LanceDB + Huey | `.env.prod.desktop` |
 | **웹 단일 사용자** | 개인 서버 | SQLite + LanceDB + Huey | `.env.prod.web.single` |
-| **웹 다중 사용자** | 팀/엔터프라이즈 프로덕션 | PostgreSQL + Redis + Meilisearch + Neo4j + Celery | `.env.prod.web.multi` |
+| **웹 다중 사용자** | 팀 / 엔터프라이즈 프로덕션 | PostgreSQL + Redis + Meilisearch + Neo4j + Celery | `.env.prod.web.multi` |
 
-### 개발 모드 (권장)
+### 데스크톱 내장 모드(개인 PC, 외부 의존성 제로)
 
-```bash
-git clone https://github.com/wonderful-team/evoloop.git
-cd evoloop
-./deploy/dev.sh
-```
-
-시작 후 `http://localhost:20160/docs`에서 인터랙티브 API 문서 확인.
-
-### 데스크톱 내장 모드 (개인 PC, 외부 의존성 제로)
-
-백엔드에 SQLite + LanceDB + Huey 내장, 데스크톱 앱과 함께 기동, 데이터는 머신 밖으로 나가지 않음:
+백엔드에 SQLite + LanceDB + Huey 내장. 데스크톱 앱과 함께 단독 기동하며 데이터는 머신 밖으로 나가지 않습니다:
 
 ```bash
+# 저장소 클론
 git clone https://github.com/wonderful-team/evoloop.git
 cd evoloop
 
-# 백엔드
+# 백엔드: 의존성 설치 + 원커맨드 기동
 cd backend
+./bin/evo install
 cp .env.prod.desktop .env      # LLM API Key 입력
-uv sync
-uv run python bin/run.py api
+./bin/evo start                # API + Worker 동시 기동(evo stop 으로 중지)
 
-# 데스크톱 (Tauri, 음성 웨이크 포함; 백엔드는 사이드카로 동시 기동)
+# 데스크톱(Tauri, 음성 웨이크 포함. 백엔드는 sidecar 로 동봉 기동)
 cd frontend
 npm install
 npm run tauri dev
 ```
 
-### 웹 단일 사용자 모드 (개인 서버)
+### 웹 단일 사용자 모드(개인 서버)
 
 ```bash
+cd backend
 cp .env.prod.web.single .env
-uv run python bin/run.py api
-# 프론트엔드: npm run dev
+./bin/evo start
 ```
 
-### 웹 다중 사용자 모드 (팀/엔터프라이즈 프로덕션)
+### 웹 다중 사용자 모드(팀 / 엔터프라이즈 프로덕션)
 
 ```bash
+cd backend
 cp .env.prod.web.multi .env
-# PostgreSQL / Redis / Meilisearch / Neo4j 구성
-docker compose up -d
+# PostgreSQL / Redis / Meilisearch / Neo4j 구성, 또는 ./bin/evo install full
+./bin/evo start
 ```
+
+`evo` 명령어 요약: `evo start / stop / status / logs` 서비스 관리, `evo test` 테스트, `evo check` 코드 점검 — 전체 목록은 `./bin/evo help`.
 
 ---
 
@@ -209,7 +199,12 @@ docker compose up -d
 # 데스크톱 패키징
 ./deploy/build.sh macos-arm64 --env-file=.env.prod.desktop
 ./deploy/build.sh macos-x86_64 --env-file=.env.prod.desktop
-./deploy/build.sh windows --env-file=.env.prod.desktop
+
+# 모바일 패키징(Android APK / AAB, iOS, HarmonyOS HAP)
+./deploy/build.sh android --env-file=.env.prod.desktop   # APK. Google Play 는 --aab
+./deploy/build.sh ios --env-file=.env.prod.desktop
+./deploy/build.sh harmony --env-file=.env.prod.desktop
+./deploy/build.sh mobile --env-file=.env.prod.desktop    # 3 플랫폼 일괄 빌드
 
 # 웹 정적 애셋 빌드
 ./deploy/build.sh web --env-file=.env.prod.web.multi
@@ -220,45 +215,20 @@ docker compose up -d
 
 ---
 
-## 🔧 개발 가이드
+## 🤝 협력과 공건
 
-```bash
-# 백엔드: 테스트 / 포맷 / 타입 체크
-cd backend
-uv run pytest
-uv run ruff format . && uv run ruff check . --fix
-uv run pyright
+각종 **Agent 커스텀 요구 프로젝트**를 수주합니다 — EvoLoop로 당신의 비즈니스에 맞는 당직 Agent(이커머스 운영 위탁, 고객센터 응대, 순찰 봇 등)를 커스텀 구축하고, 파일럿부터 인도까지 풀 서비스로 지원합니다. 언제든 연락 주세요:
 
-# 프론트엔드: 테스트 / 린트 / 타입 체크
-cd frontend
-npm run test
-npm run lint && npm run typecheck
-```
-
-도구 추가: `backend/app/domain/tools/`에 파일 생성 후 `@evoloop_tool` 데코레이터로 등록; 비즈니스 역량(SOP)은 능력 팩/스킬로 마운트, 엔진 수정 불필요.
-
----
-
-## 🤝 기여
-
-1. 저장소 포크
-2. 기능 브랜치 생성: `git checkout -b feature/my-feature`
-3. 변경 사항 커밋: `git commit -am 'Add new feature'`
-4. 브랜치 푸시: `git push origin feature/my-feature`
-5. 풀 리퀘스트 생성
-
----
-
-## 💬 커뮤니티 및 지원
+**동시에 본 프로젝트에 관심 있는 분들의 참여와 공동 교류·구축을 환영합니다** — 요구 제기, 버그 보고, 코드 기여, 활용 공유, 무엇이든 이 생태계의 건설자입니다.
 
 - **공식 사이트**: [evoloop.cn](https://evoloop.cn)
 - **GitHub**: [wonderful-team/evoloop](https://github.com/wonderful-team/evoloop)
 - **Issues**: [GitHub Issues](https://github.com/wonderful-team/evoloop/issues)
 - **이메일**: [preterchan@gmail.com](mailto:preterchan@gmail.com)
-- **微信**: QR 코드를 스캔하여 커뮤니티 그룹에 가입
+- **위챗**: QR 코드로 연락 가능
 
 <p align="center">
-  <img src="https://www.evoloop.cn/assets/images/wechat.png" alt="EvoLoop WeChat" width="200" />
+  <img src="images/wechat.png" alt="EvoLoop WeChat" width="200" />
 </p>
 
 ---

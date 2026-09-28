@@ -154,8 +154,10 @@ class TestObsoleteToolScan:
 
     def test_scan_covers_all_templates(self, templates):
         # 图架构 .j2 已删除（supervisor/worker/finish），react 改为 .txt；
+        # 2026-09-28 级联清理删除 15 个零引用孤儿模板（compaction/planning/
+        # project-content/codebase/vision 旧模板等）；
         # 阈值按实际模板数校验，防意外删减。
-        assert len(templates) >= 50, f"Unexpectedly few templates, found {len(templates)}"
+        assert len(templates) >= 40, f"Unexpectedly few templates, found {len(templates)}"
 
 
 class TestToolNameConsistency:

@@ -20,41 +20,6 @@ export interface Msg {
 const ARTIFACT_RE = /(已写入|已创建|已下架|已更新|已发布|已上架|已生成|已完成)/
 const ERROR_RE = /(error|failed|失败|异常|超时|timeout)/i
 
-/** single-line summary for tool outputs: JSON gives key facts, text gives first line */
-export function summarizeOutput(raw: string): string {
-  const one = raw.replace(/\s+/g, " ").trim()
-  const trimmed = one
-  if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
-    try {
-      const parsed = JSON.parse(trimmed) as Record<string, unknown>
-      if (parsed && typeof parsed === "object") {
-        if (typeof parsed.summary === "string") return parsed.summary
-        const keys = Object.keys(parsed)
-        if (keys.length <= 4) {
-          const kv = keys
-            .map((k) => {
-              const v = parsed[k]
-              const sv =
-                typeof v === "string"
-                  ? v.slice(0, 40)
-                  : Array.isArray(v)
-                    ? `[${v.length} items]`
-                    : typeof v === "object" && v
-                      ? `{${Object.keys(v).length} keys}`
-                      : String(v)
-              return `${k}: ${sv}`
-            })
-            .join(" | ")
-          return kv || trimmed.slice(0, 120)
-        }
-        return `${keys.length} fields`
-      }
-    } catch {
-      /* fall through */
-    }
-  }
-  return one.slice(0, 160)
-}
 
 /** strip MCP python-repr shells:
  *  ...content=[TextContent(type='text', text='...')] / variants with trailing kwargs */

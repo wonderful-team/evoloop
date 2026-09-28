@@ -33,8 +33,6 @@ class BoundaryCategory(str, Enum):
 # Device / cache keys
 # ---------------------------------------------------------------------------
 
-CACHE_KEY_DEVICE_LOCK_PREFIX = "device:lock:"
-
 
 # ---------------------------------------------------------------------------
 # Mirror session

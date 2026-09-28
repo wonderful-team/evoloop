@@ -262,12 +262,3 @@ class CompatibleChatAnthropic:
             tool_calls=tool_calls,
             additional_kwargs=additional_kwargs,
         )
-
-    def with_structured_output(self, output_schema: type, method: str = "function_calling"):
-        """
-        Bind a Pydantic schema for structured output via function calling.
-        Returns a wrapper whose ainvoke() yields a parsed instance of output_schema.
-        """
-        from app.infrastructure.llm.adaptive import _StructuredOutputWrapper
-
-        return _StructuredOutputWrapper(self, output_schema, method=method)

@@ -27,9 +27,6 @@ class _GraphEngine:
     async def delete(self, entry_id: str) -> bool:
         return False
 
-    async def find_by_hash(self, content_hash: str, project_id=None):
-        return None
-
     async def search(self, query: str, **kwargs) -> list:
         return []
 
@@ -43,32 +40,13 @@ class _GraphEngine:
     ) -> list:
         return []
 
-    async def get_recent(self, count: int = 5, project_id=None) -> list:
-        return []
-
     async def get_multi(self, entry_ids: list) -> dict:
         return {}
-
-    async def search_similar(
-        self, query_embedding: list, top_k: int = DEFAULT_SEARCH_LIMIT, project_id=None
-    ) -> list:
-        return []
-
-    async def get_related(
-        self, entry_id: str, relation_type=None, limit: int = DEFAULT_SEARCH_LIMIT
-    ) -> list:
-        return []
-
-    async def link_concept_to_episode(self, concept_name: str, episode_id: str) -> None:
-        pass
 
     async def find_episodes_by_concept(
         self, concept_name: str, limit: int = DEFAULT_SEARCH_LIMIT
     ) -> list:
         return []
-
-    async def get_all_concept_counts(self) -> dict:
-        return {}
 
     async def health_check(self):
         return StorageHealthCheck(status="not_available", backend="_GraphEngine (stub)")
@@ -81,9 +59,6 @@ class _GraphEngine:
 
     async def find_by_source_message_ids(self, message_ids: list) -> list:
         return []
-
-    async def delete_by_source_message_ids(self, message_ids: list) -> int:
-        return 0
 
     async def deduplicate_checkpoints(self, dry_run: bool = True):
         return CheckpointDedupResult(

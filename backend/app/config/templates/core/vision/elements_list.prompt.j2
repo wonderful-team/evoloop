@@ -1,8 +1,0 @@
-{# UI 元素项 #}
-{% macro ui_element_item(element_line) %}
-{{ element_line }}
-{% endmacro %}
-
-屏幕元素列表 (Screen Elements):
-{% for element in elements %}{{ ui_element_item(element.line) }}{% endfor %}
-{% if has_more %}... and {{ more_count }} more elements{% endif %}

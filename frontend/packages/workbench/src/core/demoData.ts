@@ -323,19 +323,6 @@ export const demoPlanMap: Record<string, Record<string, unknown>> = {
   },
 }
 
-export const demoPlanFor = (threadId: string | null) =>
-  (threadId && demoPlanMap[threadId]) || demoPlanMap["thread-demo"]
-
-
-export interface DemoAttachment {
-  type: "image" | "video"
-  label: string
-  w: number
-  h: number
-  duration?: number
-  hue: number
-}
-
 export const demoGenMessages: Record<string, Record<string, unknown>[]> = {
   "thread-gen-img": [
     { id: "g01", role: "ai", content: "开始生成秋季上新主图：解析需求——暖橙色调、丰收氛围、主体为新品南瓜燕麦粥，输出 1:1 商业主图 4 张候选。" },
@@ -377,5 +364,3 @@ export const demoMessagesOld2 = [
   { id: "o06", role: "tool", name: "draft_reply", content: '2 条回复话术已生成' },
   { id: "o07", role: "ai", content: "话术已按客服规范 v2 生成，并完成敏感词自检：通过。提交人工验收，确认后自动回复。" },
 ]
-export const demoMessagesFor = (threadId: string | null) =>
-  threadId === "thread-demo-old2" ? demoMessagesOld2 : demoMessages

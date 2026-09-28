@@ -442,21 +442,6 @@ class LLMFactory:
         LLMFactory._cache_misses = 0
         logger.info("[LLMFactory] Cache cleared")
 
-    @staticmethod
-    def create_completion_client(
-        base_url: str, api_key: str, model_name: str, temperature: float = 0.7
-    ):
-        """
-        Create a raw Completion client (Legacy/Text-Generation) for SSM/Flash Brain.
-        Useful for endpoints that strictly use /v1/completions.
-        """
-        import openai
-
-        return openai.AsyncOpenAI(
-            api_key=api_key,
-            base_url=base_url.rstrip("/"),
-        )
-
 
 # Global instance for easy import if needed, or prefer using Factory.create()
 def get_default_llm(model_name: str | None = None, temperature: float = 0.3, **kwargs):

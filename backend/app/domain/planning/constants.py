@@ -4,11 +4,10 @@ from enum import Enum
 
 
 class PlanStatus(str, Enum):
-    """High-level status of a ``Plan`` (active / completed / archived)."""
+    """High-level status of a ``Plan`` (active / completed)."""
 
     ACTIVE = "active"
     COMPLETED = "completed"
-    ARCHIVED = "archived"
 
 
 class PlanStepStatus(str, Enum):

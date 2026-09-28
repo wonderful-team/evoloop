@@ -68,7 +68,6 @@ SCROLLABLE_CLASSES = [
 # AppMap source schemas
 # ---------------------------------------------------------------------------
 RISK_TIERS = ("ui", "data", "money")
-SELECTOR_TYPES = ("id", "name", "class", "css", "lay-filter", "text", "data-attr")
 
 # ---------------------------------------------------------------------------
 # Native factory (macOS native macro generation)

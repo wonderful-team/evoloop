@@ -27,7 +27,7 @@ def _is_skill_relevant(path: str) -> bool:
     """Watcher filter: SKILL.md files plus extension-less paths (skill
     directories) so DIRECTORY_DELETED for a skill folder still reaches the
     handler while unrelated file noise is dropped early."""
-    if path.endswith(_SKILL_MD):
+    if _is_skill_md(path):
         return True
     return "." not in os.path.basename(path.rstrip(os.sep))
 
@@ -36,7 +36,7 @@ async def _handle_file_created(event):
     """Handle FILE_CREATED events for SKILL.md files."""
     path = event.data.get("path", "")
 
-    if not path.endswith(_SKILL_MD):
+    if not _is_skill_md(path):
         return
 
     logger.info(f"[Watcher] SKILL.md created: {path}")
@@ -47,7 +47,7 @@ async def _handle_file_modified(event):
     """Handle FILE_MODIFIED events for SKILL.md files."""
     path = event.data.get("path", "")
 
-    if not path.endswith(_SKILL_MD):
+    if not _is_skill_md(path):
         return
     if not os.path.exists(path):
         return
@@ -60,7 +60,7 @@ async def _handle_file_deleted(event):
     """Handle FILE_DELETED events for SKILL.md files."""
     path = event.data.get("path", "")
 
-    if not path.endswith(_SKILL_MD):
+    if not _is_skill_md(path):
         return
 
     logger.info(f"[Watcher] SKILL.md deleted: {path}")
@@ -150,6 +150,3 @@ class SkillsFileWatcher:
     @property
     def is_running(self) -> bool:
         return self._watcher is not None and self._watcher.is_running
-
-
-skills_file_watcher = SkillsFileWatcher()

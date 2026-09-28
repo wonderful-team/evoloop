@@ -110,14 +110,6 @@ def resolve_element_alias(target: str | None, element_name: str | None) -> str |
     return element_name if element_name else target
 
 
-async def run_with_timeout(coro, timeout: float, default: Any = None):
-    """Run a coroutine with timeout, return default on timeout."""
-    try:
-        return await asyncio.wait_for(coro, timeout=timeout)
-    except asyncio.TimeoutError:
-        return default
-
-
 class BatchExecutor:
     """Helper for executing batch actions with error handling."""
 
@@ -198,6 +190,5 @@ __all__ = [
     "normalize_text",
     "render_template",
     "resolve_element_alias",
-    "run_with_timeout",
     "truncate_output",
 ]

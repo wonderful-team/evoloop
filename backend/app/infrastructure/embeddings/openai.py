@@ -55,6 +55,3 @@ class GenericOpenAIEmbedder(BaseEmbedder):
     # Compatibility aliases
     aembed_documents = embed_documents
     aembed_query = embed_query
-
-
-OpenAIEmbedder = GenericOpenAIEmbedder

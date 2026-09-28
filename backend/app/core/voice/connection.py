@@ -20,7 +20,6 @@ logger = logging.getLogger(__name__)
 # Terminal voice.route_result bodies keyed by message_id. Allows duplicate route
 # requests to be answered with the final result once the original execution has
 # finished. TTL matches the idempotency window (5 minutes default).
-_TERMINAL_RESULT_TTL = 300
 _TERMINAL_RESULTS: dict[str, tuple[float, dict[str, Any]]] = {}
 _TERMINAL_RESULTS_LOCK = asyncio.Lock()
 

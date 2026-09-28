@@ -21,15 +21,6 @@ class MessageNormalizer:
     """
 
     @classmethod
-    def normalize_dict(cls, msg: Any) -> dict:
-        """
-        Legacy support for callers expecting a dict.
-        Normalizes a single message by mapping it to a MessageBlock and dumping it.
-        """
-        block = MessageBlockFactory.from_orm(msg)
-        return block.model_dump()
-
-    @classmethod
     def normalize(cls, messages: list[Any]) -> list[MessageBlock]:
         """
         Maps a list of raw messages (DB records or dicts) directly to MessageBlock.

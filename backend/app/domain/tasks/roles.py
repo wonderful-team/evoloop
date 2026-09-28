@@ -7,9 +7,7 @@ class WorkflowRole:
     stage: str
     title: str
     system_prompt: str
-    output_artifact_type: str
     risk_level: str = "T4"
-    allowed_packages: tuple[str, ...] = ()
 
 
 GROWTH_WORKFLOW_ROLES: tuple[WorkflowRole, ...] = (
@@ -21,8 +19,6 @@ GROWTH_WORKFLOW_ROLES: tuple[WorkflowRole, ...] = (
             "你是市场调研 Agent。只研究目标市场和用户需求，不选品，不定价，不发布。"
             "输出必须包含市场规模信号、增长信号、竞品格局、价格带、好评主题、差评主题和风险。"
         ),
-        output_artifact_type="MarketScan",
-        allowed_packages=("mall-research", "haodanku"),
     ),
     WorkflowRole(
         role="opportunity_agent",
@@ -32,8 +28,6 @@ GROWTH_WORKFLOW_ROLES: tuple[WorkflowRole, ...] = (
             "你是机会发现 Agent。基于市场扫描提炼具体产品机会，每个机会都要有需求来源、"
             "目标人群、使用场景、初步差异化、价格带和优先级。"
         ),
-        output_artifact_type="OpportunityCandidateList",
-        allowed_packages=("mall-research", "mall-selection"),
     ),
     WorkflowRole(
         role="selection_agent",
@@ -43,8 +37,6 @@ GROWTH_WORKFLOW_ROLES: tuple[WorkflowRole, ...] = (
             "你是选品评估 Agent。评估候选品是否值得继续推进，给出需求、竞争、差异化、利润、"
             "内容潜力、供应链、物流、售后、合规和复购维度的结论。"
         ),
-        output_artifact_type="SelectionDossier",
-        allowed_packages=("mall-research", "mall-selection", "haodanku"),
     ),
     WorkflowRole(
         role="brief_agent",
@@ -54,8 +46,6 @@ GROWTH_WORKFLOW_ROLES: tuple[WorkflowRole, ...] = (
             "你是商品理解 Agent。把已通过初筛的候选品转成商品知识卡，说明目标用户、核心问题、"
             "使用场景、核心卖点、参数、包装、售后和表达禁区。"
         ),
-        output_artifact_type="ProductBrief",
-        allowed_packages=("mall-selection", "mall-product-brief"),
     ),
     WorkflowRole(
         role="copy_agent",
@@ -65,9 +55,7 @@ GROWTH_WORKFLOW_ROLES: tuple[WorkflowRole, ...] = (
             "你是文案 Agent。基于商品知识卡生成商品标题、详情卖点、社媒文案和广告文案草稿。"
             "先讲用户得到什么，再讲产品参数，并检查夸张宣传风险。"
         ),
-        output_artifact_type="ListingCopy",
         risk_level="T2",
-        allowed_packages=("mall-product-brief", "mall-copy"),
     ),
 )
 

@@ -17,13 +17,11 @@ from sqlalchemy import (
     String,
     Text,
     create_engine,
-    func,
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
-from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
 from app.core.file import compute_md5
 from app.infrastructure.database.vector.base import BaseVectorStore
@@ -204,32 +202,6 @@ class PgVectorStore(BaseVectorStore):
                 for r in rows
             ]
 
-    def full_text_search_code(
-        self,
-        query_text: str,
-        top_k: int = 10,
-    ) -> list[dict[str, Any]]:
-        with self._session() as session:
-            rows = (
-                session.query(VectorEmbedding)
-                .filter(VectorEmbedding.source_type == "code_chunk")
-                .filter(
-                    VectorEmbedding.content_tsv.op("@@")(func.plainto_tsquery("simple", query_text))
-                )
-                .limit(top_k)
-                .all()
-            )
-            return [
-                {
-                    "id": r.source_id,
-                    "content": r.content,
-                    "file_path": r.metadata_.get("file_path", ""),
-                    "identifier": r.metadata_.get("identifier", ""),
-                    "score": 1.0,
-                }
-                for r in rows
-            ]
-
     def delete_by_repository(self, repository_id: str) -> int:
         with self._session() as session:
             count = (
@@ -243,37 +215,6 @@ class PgVectorStore(BaseVectorStore):
             return count
 
     # -- memories -----------------------------------------------------------
-
-    def upsert_memory_chunks(self, records: list[dict[str, Any]]) -> int:
-        if not records:
-            return 0
-
-        now = utcnow()
-        with self._session() as session:
-            # Delete existing memories for these IDs first
-            ids = {r["id"] for r in records}
-            for mid in ids:
-                session.query(VectorEmbedding).filter(
-                    VectorEmbedding.source_type == "memory",
-                    VectorEmbedding.source_id == mid,
-                ).delete(synchronize_session=False)
-
-            for rec in records:
-                session.add(
-                    VectorEmbedding(
-                        source_type="memory",
-                        source_id=rec["id"],
-                        collection=str(rec.get("project_id", DEFAULT_PROJECT_ID)),
-                        embedding=rec["vector"],
-                        content=rec.get("text", "") or rec.get("content", ""),
-                        metadata_=rec,
-                        created_at=rec.get("created_at", now),
-                    )
-                )
-            session.commit()
-
-        logger.debug(f"[PgVectorStore] Upserted {len(records)} memory chunks")
-        return len(records)
 
     def search_memory(
         self,
@@ -313,54 +254,7 @@ class PgVectorStore(BaseVectorStore):
                 for r in rows
             ]
 
-    def delete_memory_by_id(self, memory_id: str) -> bool:
-        with self._session() as session:
-            count = (
-                session.query(VectorEmbedding)
-                .filter(VectorEmbedding.source_type == "memory")
-                .filter(VectorEmbedding.source_id == memory_id)
-                .delete(synchronize_session=False)
-            )
-            session.commit()
-            return count > 0
-
-    def delete_all_memories(self) -> int:
-        with self._session() as session:
-            count = (
-                session.query(VectorEmbedding)
-                .filter(VectorEmbedding.source_type == "memory")
-                .delete(synchronize_session=False)
-            )
-            session.commit()
-            return count
-
     # -- skills -----------------------------------------------------------
-
-    def upsert_skill_chunks(self, records: list[dict[str, Any]]) -> int:
-        if not records:
-            return 0
-
-        now = utcnow()
-        with self._session() as session:
-            for rec in records:
-                # Delete existing skill with same ID (usually skill name)
-                session.query(VectorEmbedding).filter(
-                    VectorEmbedding.source_type == "skill",
-                    VectorEmbedding.source_id == rec["id"],
-                ).delete(synchronize_session=False)
-
-                session.add(
-                    VectorEmbedding(
-                        source_type="skill",
-                        source_id=rec["id"],
-                        embedding=rec["vector"],
-                        content=rec.get("description", ""),
-                        metadata_=rec,
-                        created_at=rec.get("created_at", now),
-                    )
-                )
-            session.commit()
-        return len(records)
 
     def search_skills(
         self,
@@ -401,32 +295,6 @@ class PgVectorStore(BaseVectorStore):
             ]
 
     # -- concepts ---------------------------------------------------------
-
-    def upsert_concept_chunks(self, records: list[dict[str, Any]]) -> int:
-        if not records:
-            return 0
-
-        now = utcnow()
-        with self._session() as session:
-            for rec in records:
-                session.query(VectorEmbedding).filter(
-                    VectorEmbedding.source_type == "concept",
-                    VectorEmbedding.source_id == rec["id"],
-                ).delete(synchronize_session=False)
-
-                session.add(
-                    VectorEmbedding(
-                        source_type="concept",
-                        source_id=rec["id"],
-                        collection=str(rec.get("project_id", DEFAULT_PROJECT_ID)),
-                        embedding=rec["vector"],
-                        content=rec.get("description", ""),
-                        metadata_=rec,
-                        created_at=rec.get("created_at", now),
-                    )
-                )
-            session.commit()
-        return len(records)
 
     def search_concepts(self, query_vector: list[float], top_k: int = 10) -> list[dict[str, Any]]:
         with self._session() as session:

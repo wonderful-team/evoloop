@@ -552,11 +552,6 @@ class McpClientManager:
         """Access sessions dict (for backward compatibility)."""
         return self._sessions
 
-    @property
-    def _server_configs(self) -> dict[str, McpServerConfig]:
-        """Access configs (for backward compatibility)."""
-        return self._configs
-
     async def get_tools(self, server_name: str | None = None) -> list[EvoLoopTool]:
         """
         Get tools for a specific server, or all tools if no server specified.

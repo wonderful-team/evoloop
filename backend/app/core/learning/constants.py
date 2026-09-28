@@ -241,9 +241,6 @@ RAW_MOBILE_EVENT_TYPES = frozenset(
     }
 )
 
-# Event types that can be turned into deterministic macro steps
-REPLAYABLE_EVENT_TYPES = ALLOWED_UI_ACTIONS | RAW_MOBILE_EVENT_TYPES
-
 # ---- Action Family & Risk Model (migrated from macro/schemas.py) ----
 # Risk tiers ordered from lowest to highest
 RISK_TIERS: list[str] = ["observe", "act", "data", "money", "escape"]

@@ -288,19 +288,6 @@ class _FileEngine:
             logger.info(f"[FileEngine] Deleted {entry_id}")
             return True
 
-    async def find_by_hash(
-        self, content_hash: str, project_id: int | None = None
-    ) -> MemoryEntry | None:
-        if not self._initialized:
-            await self.initialize()
-        entry_id = self._hash_index.get(content_hash)
-        if not entry_id:
-            return None
-        entry = await self.get(entry_id)
-        if entry and project_id is not None and entry.project_id != project_id:
-            return None
-        return entry
-
     async def get_multi(self, entry_ids: list[str]) -> dict[str, MemoryEntry]:
         results: dict[str, MemoryEntry] = {}
         for eid in entry_ids:
@@ -416,20 +403,6 @@ class _FileEngine:
             )
         return results
 
-    async def get_recent(
-        self, count: int = 5, project_id: int | None = None
-    ) -> list[MemoryEntry]:
-        if not self._initialized:
-            await self.initialize()
-        filters = {"project_id": project_id} if project_id is not None else {}
-        rows = await self._db_search(filters, limit=count)
-        results: list[MemoryEntry] = []
-        for row in rows:
-            entry = await self.get(row["id"])
-            if entry:
-                results.append(entry)
-        return results
-
     async def find_by_source_message_ids(
         self, message_ids: list[str]
     ) -> list[MemoryEntry]:
@@ -443,14 +416,6 @@ class _FileEngine:
                 if e:
                     results.append(e)
         return results
-
-    async def delete_by_source_message_ids(self, message_ids: list[str]) -> int:
-        entries = await self.find_by_source_message_ids(message_ids)
-        count = 0
-        for e in entries:
-            if await self.delete(e.id):
-                count += 1
-        return count
 
     async def health_check(self) -> StorageHealthCheck:
         try:
@@ -503,32 +468,10 @@ class _FileEngine:
             duplicates_removed=total_removed,
         )
 
-    async def search_similar(
-        self,
-        query_embedding: list[float],
-        top_k: int = DEFAULT_SEARCH_LIMIT,
-        project_id: int | None = None,
-    ) -> list[MemoryEntry]:
-        return []
-
-    async def get_related(
-        self,
-        entry_id: str,
-        relation_type: str | None = None,
-        limit: int = DEFAULT_SEARCH_LIMIT,
-    ) -> list[MemoryEntry]:
-        return []
-
-    async def link_concept_to_episode(self, concept_name: str, episode_id: str) -> None:
-        return
-
     async def find_episodes_by_concept(
         self, concept_name: str, limit: int = DEFAULT_SEARCH_LIMIT
     ) -> list[dict[str, Any]]:
         return []
-
-    async def get_all_concept_counts(self) -> dict[str, int]:
-        return {}
 
     async def _db_upsert(self, entry: MemoryEntry, file_path: str):
         async with session_scope() as session:

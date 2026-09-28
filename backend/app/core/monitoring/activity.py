@@ -407,32 +407,6 @@ class ActivityMonitor:
         """Get full activity state for a thread."""
         return await self._state_service.get_state(thread_id)
 
-    async def update_goal(self, thread_id: str, new_goal: str):
-        """Update the main goal for a thread and publish the update to the UI."""
-        if not thread_id:
-            logger.warning(
-                "[ActivityMonitor] update_goal called with empty/None thread_id — skipping."
-            )
-            return
-        # 1. Update SQLite/database state
-        await self._state_service.update_field(thread_id, "main_goal", new_goal)
-
-        # 2. Publish the full activity state via the system event bus
-        activity = await self.get_activity(thread_id)
-        if activity:
-            snapshot = (
-                activity.model_dump() if hasattr(activity, "model_dump") else activity
-            )
-            from app.core.monitoring.event import ActivityStateRefreshedEvent
-
-            event = ActivityStateRefreshedEvent(
-                thread_id=thread_id, activity_state=snapshot
-            )
-            await system_bus.publish(event)
-            logger.info(
-                f"[ActivityMonitor] Session goal updated and state refreshed for thread {thread_id}: {new_goal}"
-            )
-
     async def get_statuses(self, thread_ids: list[str]) -> dict[str, dict[str, str]]:
         """Batch fetch statuses and goals for multiple threads efficiently."""
         if not thread_ids:

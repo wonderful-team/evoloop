@@ -36,7 +36,6 @@ from app.core.memory.constants import (
 )
 from app.core.memory.models import MemoryEntry, MemoryType
 from app.core.memory.schemas import RetrievalContext
-from app.utils.template import render_template
 from app.utils.time import elapsed_ms
 
 logger = logging.getLogger(__name__)
@@ -180,31 +179,6 @@ class MemoryRetriever:
         }.get(entry.type, 1.0)
 
         return (keyword_score + freshness_boost) * type_multiplier
-
-    # ==========================================================================
-    # Context Injection Methods (migrated from MemoryRetrievalService)
-    # ==========================================================================
-
-    async def format_for_prompt(
-        self,
-        memories: dict[str, list[MemoryEntry]],
-    ) -> str:
-        """
-        Format memories for injection into system prompt.
-
-        Args:
-            memories: Dictionary of memories by type
-
-        Returns:
-            Formatted string for prompt
-        """
-        return render_template(
-            "core/memory/context_injection.prompt.j2",
-            user_memories=memories.get("user", []),
-            feedback_memories=memories.get("feedback", []),
-            project_memories=memories.get("project", []),
-            reference_memories=memories.get("reference", []),
-        )
 
 
 async def _get_global_memory_container() -> Any:

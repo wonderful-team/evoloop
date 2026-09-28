@@ -79,26 +79,7 @@ def get_vector_store(project_path: str | None = None) -> BaseVectorStore:
             return _vector_stores[cache_key]
 
 
-def get_skills_store() -> BaseVectorStore:
-    """
-    Get the global skills vector store.
-
-    Skills 是用户级数据，跨项目共享，始终使用全局 vector store。
-    """
-    return get_vector_store(project_path=None)
-
-
-def reset_vector_store() -> None:
-    """Reset all vector store instances (useful for testing)."""
-    global _vector_stores
-    with _vector_store_lock:
-        _vector_stores.clear()
-    logger.debug("[VectorStore] All vector stores reset")
-
-
 __all__ = [
     "BaseVectorStore",
     "get_vector_store",
-    "get_skills_store",
-    "reset_vector_store",
 ]

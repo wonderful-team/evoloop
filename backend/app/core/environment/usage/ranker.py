@@ -10,7 +10,6 @@ injected into the AwakenedState so that ActiveExplorer can prioritize
 without re-running shell commands.
 """
 
-import asyncio
 import logging
 import os
 import subprocess
@@ -231,107 +230,6 @@ class UsageRanker:
         except Exception as e:
             logger.debug("Suppressed error: %s", e, exc_info=True)
             return None
-
-    # ---------------------------------------------------------------- Android
-
-    @classmethod
-    async def rank_android_apps(
-        cls,
-        device_id: str,
-        package_names: list[str],
-        top_n: int = DEFAULT_TOP_N,
-    ) -> list[AppUsageRecord]:
-        """
-        Query Android ADB usagestats for foreground time per package.
-
-        Args:
-            device_id: ADB device serial.
-            package_names: List of package names to evaluate.
-            top_n: How many apps to return.
-
-        Returns:
-            Sorted list of AppUsageRecord (highest priority first).
-        """
-        records: list[AppUsageRecord] = []
-        raw_stats = await cls._dump_android_usagestats(device_id)
-
-        for pkg in package_names:
-            stats = raw_stats.get(pkg, {})
-            last_used_ms = stats.get("lastTimeUsed", 0)
-            total_ms = stats.get("totalTimeInForeground", 0)
-
-            last_used_at: datetime | None = None
-            if last_used_ms:
-                try:
-                    last_used_at = datetime.fromtimestamp(
-                        last_used_ms / 1000, tz=timezone.utc
-                    )
-                except Exception as e:
-                    logger.debug("Suppressed error: %s", e, exc_info=True)
-
-            records.append(
-                AppUsageRecord(
-                    app_name=pkg.split(".")[-1],  # Friendly name from package
-                    bundle_id=pkg,
-                    platform="android",
-                    last_used_at=last_used_at,
-                    total_foreground_ms=total_ms,
-                )
-            )
-
-        cls._compute_priority_scores(records)
-        records.sort(key=lambda r: r.priority_score, reverse=True)
-        return records[:top_n]
-
-    @staticmethod
-    async def _dump_android_usagestats(device_id: str) -> dict[str, dict]:
-        """
-        Parse output of `adb shell dumpsys usagestats` for the last 7 days.
-        Returns: { "com.example.app": {"lastTimeUsed": ms, "totalTimeInForeground": ms} }
-        """
-        raw: dict[str, dict] = {}
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                "adb",
-                "-s",
-                device_id,
-                "shell",
-                "dumpsys",
-                "usagestats",
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=15)
-            lines = stdout.decode(errors="replace").splitlines()
-
-            current_pkg: str | None = None
-            for line in lines:
-                line = line.strip()
-                if line.startswith("package="):
-                    current_pkg = line.split("=", 1)[1].strip()
-                    raw.setdefault(current_pkg, {})
-                elif current_pkg:
-                    if "lastTimeUsed=" in line:
-                        try:
-                            val = line.split("lastTimeUsed=")[1].split()[0]
-                            raw[current_pkg]["lastTimeUsed"] = int(val)
-                        except (ValueError, IndexError):
-                            pass
-                    if "totalTimeInForeground=" in line:
-                        try:
-                            val = line.split("totalTimeInForeground=")[1].split()[0]
-                            raw[current_pkg]["totalTimeInForeground"] = int(val)
-                        except (ValueError, IndexError):
-                            pass
-        except asyncio.TimeoutError:
-            logger.warning(
-                f"[UsageRanker] ADB usagestats timed out for device {device_id}",
-                exc_info=True,
-            )
-        except Exception as e:
-            logger.warning(f"[UsageRanker] ADB usagestats failed: {e}", exc_info=True)
-
-        return raw
 
     # -------------------------------------------------------- Scoring logic
 

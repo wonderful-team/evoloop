@@ -10,8 +10,6 @@ event/types.py, rewind/event/types.py) and are intentionally NOT moved here.
 Cross-subsystem (global) contract constants belong in ``app.constants``.
 """
 
-import openai
-
 # ====================== Goal distillation ======================
 #: 会话目标归一化后最大长度（字符）
 GOAL_MAX_LENGTH = 500
@@ -33,28 +31,6 @@ ENGINE_ACTIONS: set[str] = {
     "a2a_task",
     "a2a_callback",
 }
-
-# ====================== LLM error handling ======================
-#: 视为可重试/兜底处理的 LLM 异常集合
-LLM_EXCEPTIONS: tuple[type[BaseException], ...] = (
-    ValueError,
-    OSError,
-    RuntimeError,
-    TypeError,
-    KeyError,
-    AttributeError,
-    openai.APIError,
-    openai.APIConnectionError,
-    openai.APITimeoutError,
-    openai.AuthenticationError,
-    openai.BadRequestError,
-    openai.ConflictError,
-    openai.InternalServerError,
-    openai.NotFoundError,
-    openai.PermissionDeniedError,
-    openai.RateLimitError,
-    openai.UnprocessableEntityError,
-)
 
 # ====================== Token filtering ======================
 #: 应隐藏的审计标签起始标记

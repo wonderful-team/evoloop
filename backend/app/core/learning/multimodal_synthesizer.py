@@ -27,15 +27,12 @@ import time
 from pathlib import Path
 
 import app.core.learning.constants as _mc
-from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
 from app.core.engine.message.native_classes import HumanMessage, SystemMessage
 from app.core.learning.constants import DEFAULT_VIDEO_FPS
 from app.core.learning.macro import (
     MacroScriptCompiler,
-    MacroVerificationResult,
     cleanup_macro_steps,
-    verify_macro_script,
 )
 from app.core.learning.prompts.builder import LearningPromptBuilder
 from app.core.learning.schemas import RecordingSession
@@ -289,17 +286,6 @@ class MultimodalSkillSynthesizer:
             except YAMLError:
                 return []
         return macro_script if isinstance(macro_script, list) else []
-
-    async def verify_macro(
-        self, macro_script: str, project_id: int = DEFAULT_PROJECT_ID
-    ) -> MacroVerificationResult:
-        """验证宏脚本的可执行性——真实执行（限滚动深度 max_scrolls）"""
-        return await verify_macro_script(
-            macro_script=macro_script,
-            thread_id="multimodal_dryrun",
-            _project_id=project_id,
-            params={"max_scrolls": 2, "verify_mode": True},
-        )
 
     async def _extract_audio(self, video_path: str) -> str | None:
         """FFmpeg 提取视频中的音频轨并存为临时 WAV 文件"""

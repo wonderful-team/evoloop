@@ -393,6 +393,3 @@ class SupervisorLifecycleSubscriber:
             pass
         logger.info("[DutySupervisor] 已随 APP_STOPPING 停止")
         self.supervisor_task = None
-
-
-supervisor_lifecycle_subscriber = SupervisorLifecycleSubscriber()

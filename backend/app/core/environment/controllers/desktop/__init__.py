@@ -31,7 +31,6 @@ from .app_mixin import DesktopAppMixin
 from .element_mixin import DesktopElementMixin
 from .interaction_mixin import DesktopInteractionMixin
 from .utils import _async_literal_eval
-from .verification_mixin import DesktopVerificationMixin
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +44,6 @@ class DesktopController(
     DesktopElementMixin,
     DesktopInteractionMixin,
     DesktopAppMixin,
-    DesktopVerificationMixin,
 ):
     """
     Core macOS desktop automation logic.

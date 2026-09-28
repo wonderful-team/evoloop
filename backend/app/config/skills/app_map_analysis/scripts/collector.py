@@ -509,7 +509,7 @@ async def collect(
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: collect_appmaps.py <project_root> [--sql <sql_path>]")
+        print("Usage: collect_appmaps.py <project_root> [--sql <sql_path>]")  # noqa: T201
         sys.exit(1)
 
     root = sys.argv[1]
@@ -525,7 +525,7 @@ def main():
     total_routes = sum(len(e["routes"]) for e in entities.values())
     total_tables = sum(len(e["db_tables"]) for e in entities.values())
 
-    print(
+    print(  # noqa: T201
         f"✅ Collected {len(entities)} entities, "
         f"{total_actions} actions, {total_elements} elements, "
         f"{total_routes} routes, {total_tables} db_tables "

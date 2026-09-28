@@ -428,21 +428,6 @@ class MemoryManager:
             member_id=member_id,
         )
 
-    async def find_by_hash(
-        self, content_hash: str, project_id: int | None = None
-    ) -> MemoryEntry | None:
-        """
-        Find a memory entry by its content hash.
-
-        Args:
-            content_hash: SHA-256 hash of the content
-            project_id: Optional project scope
-
-        Returns:
-            Matching MemoryEntry or None
-        """
-        return await self._storage.find_by_hash(content_hash, project_id)
-
     # ========================================================================
     # Two-Tier Memory Operations
     # ========================================================================
@@ -479,31 +464,6 @@ class MemoryManager:
             project_id=project_id,
         )
         return await two_tier.get_hot_memory()
-
-    async def search_cold_memory(
-        self,
-        query: str,
-        max_results: int = memory_constants.DEFAULT_RETRIEVAL_RESULTS,
-    ) -> list[MemoryEntry]:
-        """
-        Search Tier 2 cold memory (full storage).
-
-        This is searched on demand when hot memory is insufficient.
-        Uses smart retrieval for semantic relevance.
-
-        Args:
-            query: Search query
-            max_results: Maximum number of results
-
-        Returns:
-            List of relevant memory entries
-        """
-        from app.core.memory.two_tier import TwoTierMemoryManager
-
-        two_tier = TwoTierMemoryManager(
-            storage=self._storage, config=self.config, analyzer=self.quality
-        )
-        return await two_tier.search_cold_memory(query, max_results)
 
     async def regenerate_memory_md(self, project_id: int | None = None) -> None:
         """

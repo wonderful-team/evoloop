@@ -78,12 +78,6 @@ class UIElement(DynamicBaseModel):
             self.y + half_h,
         )
 
-    def to_prompt_line(self) -> str:
-        """Format element for LLM prompt."""
-        type_str = self.element_type.value
-        text_preview = self.text[:30] + "..." if len(self.text) > 30 else self.text
-        return f'[{self.id}] "{text_preview}" ({self.x}, {self.y}) [{type_str}]'
-
 
 class VisionMetadata(DynamicBaseModel):
     provider: str | None = None

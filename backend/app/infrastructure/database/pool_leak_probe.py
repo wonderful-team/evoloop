@@ -154,6 +154,7 @@ def _on_task_done(task: asyncio.Task) -> None:
 def _on_checkout(  # noqa: ARG001 - arg names must match PoolEvents.checkout dispatch
     dbapi_connection, connection_record, connection_proxy  # noqa: ARG001
 ) -> None:
+    _ = (dbapi_connection, connection_proxy)
     stack = _capture_checkout()
     task = asyncio.current_task()
     task_id = id(task) if task is not None else None

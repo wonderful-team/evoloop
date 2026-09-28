@@ -21,7 +21,7 @@ class Plan(Base):
         ForeignKey("project_tasks.id"), nullable=True, index=True
     )
     title: Mapped[str] = mapped_column(String(255))
-    status: Mapped[str] = mapped_column(String(50), default="active")  # active, completed, archived
+    status: Mapped[str] = mapped_column(String(50), default="active")  # active, completed
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 

@@ -39,6 +39,7 @@ class VoiceInputChannel(InputChannel):
         agent_run_registry: Any,
     ) -> None:
         """Inject runtime dependencies from voice_ws.py (kept for compat; agent_run_registry used)."""
+        _ = (executor, state_machine, state_enum)
         self._run_registry = agent_run_registry
 
     async def receive(self, raw: dict[str, Any], **kwargs: Any) -> IncomingMessage | None:

@@ -136,14 +136,3 @@ class MemoryConfig(DynamicBaseModel):
         return get_project_memory_root(project_path)
 
 
-# Default configuration instance (for backward compatibility)
-# Lazily resolved so that module-level import does not bypass settings.
-default_memory_config: MemoryConfig | None = None
-
-
-def get_default_memory_config() -> MemoryConfig:
-    """Get the lazily-initialized default memory config."""
-    global default_memory_config
-    if default_memory_config is None:
-        default_memory_config = MemoryConfig.from_settings()
-    return default_memory_config

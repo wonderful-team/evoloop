@@ -41,15 +41,11 @@ INDEXING_STATUS_ERROR = "error"
 INDEXING_STATUS_DONE = "done"
 #: Index was cancelled.
 INDEXING_STATUS_CANCELLED = "cancelled"
-#: No active index job.
-INDEXING_STATUS_IDLE = "idle"
 
 #: Indexing statuses that count as "terminal" (persist last_indexed_at).
 INDEXING_TERMINAL_STATUSES = frozenset({INDEXING_STATUS_COMPLETED, INDEXING_STATUS_FAILED})
 
 # ====================== Source file scan statuses (SourceFile.scan_status / security_scan_status) ======================
-#: File scan pending.
-SCAN_STATUS_PENDING = "pending"
 #: File scan completed.
 SCAN_STATUS_COMPLETED = "completed"
 #: File scan failed.

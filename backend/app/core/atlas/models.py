@@ -130,7 +130,3 @@ class AtlasApp(DynamicBaseModel):
     def add_state(self, state: AtlasState) -> None:
         """Add a new state to the app model."""
         self.states[state.state_id] = state
-
-    def to_json(self) -> str:
-        """Export to JSON string."""
-        return self.model_dump_json(indent=2)

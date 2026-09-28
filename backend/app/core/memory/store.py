@@ -51,11 +51,6 @@ class MemoryStore:
     async def delete(self, entry_id: str) -> bool:
         return await self._engine.delete(entry_id)
 
-    async def find_by_hash(
-        self, content_hash: str, project_id: int | None = None
-    ) -> MemoryEntry | None:
-        return await self._engine.find_by_hash(content_hash, project_id)
-
     async def search(
         self,
         query: str,
@@ -88,11 +83,6 @@ class MemoryStore:
             type_filter, privacy_filter, project_id, limit, member_id
         )
 
-    async def get_recent(
-        self, count: int = 5, project_id: int | None = None
-    ) -> list[MemoryEntry]:
-        return await self._engine.get_recent(count, project_id)
-
     async def get_multi(self, entry_ids: list[str]) -> dict[str, MemoryEntry]:
         return await self._engine.get_multi(entry_ids)
 
@@ -104,35 +94,10 @@ class MemoryStore:
     ) -> list[MemoryEntry]:
         return await self._engine.find_by_source_message_ids(message_ids)
 
-    async def delete_by_source_message_ids(self, message_ids: list[str]) -> int:
-        return await self._engine.delete_by_source_message_ids(message_ids)
-
-    async def search_similar(
-        self,
-        query_embedding: list[float],
-        top_k: int = DEFAULT_SEARCH_LIMIT,
-        project_id: int | None = None,
-    ) -> list[MemoryEntry]:
-        return await self._engine.search_similar(query_embedding, top_k, project_id)
-
-    async def get_related(
-        self,
-        entry_id: str,
-        relation_type: str | None = None,
-        limit: int = DEFAULT_SEARCH_LIMIT,
-    ) -> list[MemoryEntry]:
-        return await self._engine.get_related(entry_id, relation_type, limit)
-
-    async def link_concept_to_episode(self, concept_name: str, episode_id: str) -> None:
-        await self._engine.link_concept_to_episode(concept_name, episode_id)
-
     async def find_episodes_by_concept(
         self, concept_name: str, limit: int = DEFAULT_SEARCH_LIMIT
     ) -> list[dict[str, Any]]:
         return await self._engine.find_episodes_by_concept(concept_name, limit)
-
-    async def get_all_concept_counts(self) -> dict[str, int]:
-        return await self._engine.get_all_concept_counts()
 
     async def truncate_all(self) -> None:
         await self._engine.truncate_all()

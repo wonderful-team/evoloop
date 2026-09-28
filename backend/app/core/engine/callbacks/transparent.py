@@ -14,13 +14,13 @@ from app.core.engine.callbacks.base import AsyncCallbackHandler, LLMResult
 from app.core.engine.callbacks.token_filter import TokenFilter
 from app.core.engine.message import MessageHandler, MessagePublisher
 from app.core.engine.message.constants import MessageStatus
-from app.core.engine.message.reasoning import extract_reasoning_from_kwargs
 from app.core.tools.registry import (
     get_tool_affected_paths,
     get_tool_metadata,
     is_state_mutating_tool,
 )
 from app.i18n.service import i18n
+from app.infrastructure.llm.thinking_adapter import extract_reasoning_from_kwargs
 from app.utils.extract import safe_parse_json
 
 logger = logging.getLogger(__name__)

@@ -16,15 +16,12 @@ from app.core.engine.hooks.core import (
 )
 from app.core.engine.hooks.schemas import HookContext, HookResult, ToolInput, ToolResult
 
-ToolOutput = ToolResult
-
 __all__ = [
     "HookEvent",
     "HookContext",
     "HookResult",
     "HookSystem",
     "ToolInput",
-    "ToolOutput",
     "ToolResult",
     "hook_system",
     "setup_default_hooks",

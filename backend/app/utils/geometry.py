@@ -44,15 +44,6 @@ class Bounds(NamedTuple):
         """Check if point (x, y) is within bounds."""
         return self.x1 <= x <= self.x2 and self.y1 <= y <= self.y2
 
-    def intersects(self, other: "Bounds") -> bool:
-        """Check if this bounds intersects with another."""
-        return not (
-            self.x2 < other.x1
-            or other.x2 < self.x1
-            or self.y2 < other.y1
-            or other.y2 < self.y1
-        )
-
     def to_dict(self) -> dict:
         """Convert to dictionary representation."""
         return {

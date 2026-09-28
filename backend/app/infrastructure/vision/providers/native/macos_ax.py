@@ -156,7 +156,3 @@ class MacOSAxProvider(VisionProvider):
             elements.append(element)
 
         return elements
-
-
-# Singleton
-macos_ax_provider = MacOSAxProvider()

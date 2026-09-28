@@ -110,8 +110,6 @@ async def _present_voice_outcome(thread_id: str, outcome: ActionOutcome) -> None
             await maybe_push_tts(thread_id, outcome.message)
 
 
-_thread_modes: dict[str, str] = {}
-
 _voice_input_bound = False
 
 

@@ -12,7 +12,7 @@ This module provides:
 
 # Services
 # Configuration and Dependency Injection
-from app.core.memory.config import MemoryConfig, get_default_memory_config
+from app.core.memory.config import MemoryConfig
 from app.core.memory.container import MemoryContainer
 
 # Maintenance
@@ -56,7 +56,6 @@ __all__ = [
     "MemoryManager",
     # Configuration & Dependency Injection
     "MemoryConfig",
-    "get_default_memory_config",
     "MemoryContainer",
     # Models
     "MemoryEntry",

@@ -54,12 +54,10 @@ from pydantic import Field
 from app.core.config import settings
 from app.core.memory.constants import MAX_TOTAL_BYTES, MAX_TOTAL_LINES
 from app.core.memory.models import (
-    MemoryEntry,
     MemorySearchResult,
     MemoryTier,
     MemoryType,
 )
-from app.core.memory.retrieval import MemoryRetriever
 from app.core.memory.schemas import MemorySectionEntry
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
@@ -142,7 +140,6 @@ class TwoTierMemoryManager:
         self._storage = storage
         self._config = config
         self._analyzer = analyzer
-        self._retriever: Any = None
         self._project_id = project_id
 
         if root_path is not None:
@@ -168,30 +165,6 @@ class TwoTierMemoryManager:
 
         content = await self._read_truncated()
         return content
-
-    async def search_cold_memory(
-        self,
-        query: str,
-        max_results: int = 5,
-    ) -> list[MemoryEntry]:
-        """
-        Search Tier 2 cold memory (full storage) using smart retrieval.
-
-        Args:
-            query: Search query
-            max_results: Maximum number of results
-
-        Returns:
-            List of relevant memory entries
-        """
-        if self._retriever is None:
-            self._retriever = MemoryRetriever(
-                self._storage,
-                config=self._config,
-                max_results=max_results,
-            )
-        self._retriever.max_results = max_results
-        return await self._retriever.find_relevant(query)
 
     async def regenerate_memory_md(self) -> None:
         """
