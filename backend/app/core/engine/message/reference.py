@@ -66,14 +66,18 @@ class ReferenceService:
                 if note:
                     reference_notes.append(note)
 
-                # 为数据库持久化记录引用
+                # 为数据库持久化记录引用（调用方传入的 metadata 必须保留——
+                # 值守评审引用携带 thread_id/task_id，前端胶囊点击定位依赖它）
                 references.append(
                     {
                         "id": gen_uuid(),
                         "type": "message",
                         "target_id": att_id,
                         "target_name": att_name,
-                        "metadata": {"snippet": snippet},
+                        "metadata": {
+                            **(att.get("metadata") or att.get("meta_data") or {}),
+                            "snippet": snippet,
+                        },
                     }
                 )
 

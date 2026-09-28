@@ -7,12 +7,14 @@ state_schema: "app.core.engine.state.AgentState"
 
 # =====================================================================
 # 🎯 REACT 主 Agent 工具面（单 Agent ReAct 主循环，重构目标架构）
-# 声明面 18 个（运行时按门控/权益收窄，实测默认面 17——remember 随
+# 声明面 15 个（运行时按门控/权益收窄，实测默认面 14——remember 随
 # ENABLE_MEMORY=False 整组不注册）：
-#   核心 13：bash/read/glob/grep/edit/write（文件/执行）+ task（子代理/A2A）
+#   核心 11：bash/file/glob/grep（文件/执行；file = read/write/edit/list/
+#           move/delete 六合一 facade）+ agent（子代理/A2A）
 #           + webfetch/websearch（检索）+ plan（计划 facade）+ tasks（任务队列 facade）
 #           + skill（技能索引+按需加载）+ question（交互）
-#   具身 2：image / video（视觉分析 facade，非 CDP 操控；VISION_MODEL 未配置时被过滤）
+#   具身 1：media（image+video 收敛的视觉 facade，kind 自动识别；VISION_MODEL
+#           未配置时被过滤）
 #   其他 3：vault（密码箱 facade）/ macro（一体式宏入口，list/read/run/create/update/
 #           delete/debug）/ remember（记忆，**ENABLE_MEMORY=False 时整组记忆工具不注册**，
 #           默认部署即为关——registry 对声明面缺失按"门控/禁用"预期处理，不算悬空引用）
@@ -25,19 +27,18 @@ agents:
   - id: "react"
     path: "app.core.engine.react.loop"
     tools:
-      # 核心文件/执行
+      # 核心文件/执行（2026-09 收敛：read/write/edit/list_dir/move_file/delete_file
+      # 六件套并入 file facade，action=read/write/edit/list/move/delete 分发）
       - "bash"
-      - "read"
+      - "file"
       - "glob"
       - "grep"
-      - "edit"
-      - "write"
-      # 子代理（新）
-      - "task"
+      # 子代理（新；2026-09 由 task 改名 agent，与任务队列 tasks 消歧义）
+      - "agent"
       # 检索
       - "webfetch"
       - "websearch"
-      # 计划 facade（Agent 唯一工作清单：plan create / update_step / status）
+      # 计划 facade（Agent 唯一工作清单：plan create / update_steps / status）
       - "plan"
       # 任务队列 facade（自主值守：tasks list/create/take/update_status/submit_acceptance；
       # 周期任务 = create + task_type=recurring + trigger_spec，由 supervisor 统一排空）
@@ -46,16 +47,16 @@ agents:
       - "skill"
       # 交互
       - "question"
-      # 具身探索（图像&视频 facade；mobile/desktop 由 required_benefit 调用时门控）
+      # 具身探索（media facade：image+video 收敛，kind 自动识别；mobile/desktop
+      # 由 required_benefit 调用时门控）
       # browser/mobile/desktop 已从声明面移除（2026-09-22）：三者均为 CDP 操控型
       # 工具，直连受控浏览器实例，直面各平台"验真人"类风控。替代路径：Agent
       # Reach 技能（opencli 走用户本机浏览器 + 插件登录态，天然规避风控）。
       # 如某部署确需 CDP 操控，取消注释即可恢复。
       # - "browser"
-      - "image"
-      - "video"
       # - "mobile"
       # - "desktop"
+      - "media"
       # 密码箱（Secure Vault facade：list 列凭据 / request 请求录入；占位符 {{vault.id.key}} 由安全钩子解密）
       - "vault"
       # 一等公民：宏（单一 macro 工具，list/read/run/create/update/delete 一体，§5.7）

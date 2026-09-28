@@ -114,7 +114,7 @@ Let an Agent reliably run a business long-term: state the requirement once, and 
 - **Enterprise Back-Office SOPs**: approval assistance, reconciliation, stocktaking — repeatable, auditable workflows
 - **R&D Project Steward**: codebase patrols, dependency security checks, backup verification, backlog grooming
 - **Customer Service Reception**: WeCom / WeChat customer service auto-replies; money-related issues escalate to humans
-- **Eyes-Off Operation**: a 7×24 duty loop where humans only appear at three moments — approve, accept, arbitrate
+- **Eyes-Off Operation**: a duty loop that runs day and night, where humans only appear at three moments — approve, accept, arbitrate
 
 Swap the takeover target (mall → CRM → supply chain → content site) by only swapping capability packs and task data — the scheduling and execution layers stay unchanged.
 

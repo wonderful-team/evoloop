@@ -1,7 +1,7 @@
-"""React engine `task` tool — unified delegation & A2A entry (OpenCode `tool/task.ts`).
+"""React engine `agent` tool — unified delegation & A2A entry (OpenCode `tool/task.ts`).
 
 §4.3 / §10.2.2：本地子代理、A2A 远程委派、A2A Worker 回传、远端设备发现
-全部收敛到单一 ``task`` 工具：
+全部收敛到单一 ``agent`` 工具（2026-09 由 ``task`` 改名，与 ``tasks`` 任务队列消歧义）：
 - ``action='run'``（默认）：本地 spawn 子代理；传 ``remote={'agent_id': ...}`` 则
   A2A 远程委派并挂起主循环等回调恢复。
 - ``action='complete'``：当前线程是 A2A 子任务时把结果回传给 Caller 并结束
@@ -26,8 +26,8 @@ logger = logging.getLogger(__name__)
 MAX_SUBAGENT_DEPTH = 1
 
 
-@evoloop_tool(is_hidden=False)
-async def task(
+@evoloop_tool(name="agent", is_hidden=False)
+async def agent(
     action: Literal["run", "complete", "list_agents"] = "run",
     subagent_type: str | None = None,
     description: str | None = None,

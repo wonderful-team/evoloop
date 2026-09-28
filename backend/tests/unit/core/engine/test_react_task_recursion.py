@@ -1,16 +1,16 @@
-"""React `task` tool recursion guard tests (对齐 OpenCode 子代理默认 deny task)."""
+"""React `agent` tool recursion guard tests (对齐 OpenCode 子代理默认 deny task)."""
 
 from unittest.mock import AsyncMock, patch
 
-from app.core.engine.tools.react_task import MAX_SUBAGENT_DEPTH, task
+from app.core.engine.tools.react_task import MAX_SUBAGENT_DEPTH, agent
 
 
-async def test_task_rejects_spawn_at_max_depth():
+async def test_agent_rejects_spawn_at_max_depth():
     cfg = {"metadata": {"subagent_depth": MAX_SUBAGENT_DEPTH}}
     with patch(
         "app.core.engine.react.subagent.spawner.spawn_subagent", AsyncMock()
     ) as spawn:
-        out = await task(
+        out = await agent(
             action="run",
             subagent_type="general",
             description="d",
@@ -29,7 +29,7 @@ async def test_task_allows_spawn_below_depth():
         "app.core.engine.react.subagent.spawner.spawn_subagent",
         AsyncMock(return_value={"content": "done"}),
     ) as spawn:
-        out = await task(
+        out = await agent(
             action="run",
             subagent_type="general",
             description="d",
@@ -45,7 +45,7 @@ async def test_task_default_depth_zero_allows_spawn():
         "app.core.engine.react.subagent.spawner.spawn_subagent",
         AsyncMock(return_value={"content": "ok"}),
     ) as spawn:
-        out = await task(
+        out = await agent(
             action="run", subagent_type="general", description="d", prompt="p"
         )
     assert out == "ok"

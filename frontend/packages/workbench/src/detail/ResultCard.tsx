@@ -1,15 +1,20 @@
 import {useMemo, useState} from "react"
 import {useNavigate} from "@tanstack/react-router"
 import {
+    AlertCircle,
     BadgeCheck,
+    CheckCircle2,
     ExternalLink,
     FileText,
+    ListChecks,
     Loader2,
     MessageSquareX,
     Package,
     Play,
     RotateCcw,
     Scale,
+    ShieldCheck,
+    XCircle,
 } from "lucide-react"
 
 import {Button} from "@evoloop/shared/components/ui/button"
@@ -55,8 +60,56 @@ export function ResultCard({
   // 评审中（原对话 Agent 核验）不是人工验收：此时开放验收/驳回按钮会让
   // 用户打断 reviewer 流程（审计断层 3.1）——只读呈现，等评审收敛
   const isReviewing = isWaiting && !!task.review_pending
-  const selfNotes =
-    (task.self_check as { notes?: string } | null)?.notes ?? ""
+
+  const selfCheck = useMemo(() => {
+    if (!task.self_check || typeof task.self_check !== "object") return null
+    const raw = task.self_check as Record<string, any>
+    const checks = Array.isArray(raw.checks)
+      ? raw.checks.filter(
+          (c): c is { name?: string; title?: string; pass?: boolean; evidence?: string } =>
+            Boolean(c && typeof c === "object"),
+        )
+      : []
+    const deviations = Array.isArray(raw.deviations)
+      ? raw.deviations.join("；")
+      : typeof raw.deviations === "string"
+        ? raw.deviations
+        : undefined
+    return {
+      verdict: typeof raw.verdict === "string" ? raw.verdict : undefined,
+      summary: typeof raw.summary === "string" ? raw.summary : undefined,
+      checks,
+      deviations,
+      notes: typeof raw.notes === "string" ? raw.notes : undefined,
+    }
+  }, [task.self_check])
+
+  const acceptanceCriteria = useMemo<string[]>(() => {
+    const raw = task.acceptance_criteria
+    if (Array.isArray(raw)) {
+      return raw.map(String).filter((s) => s.trim().length > 0)
+    }
+    if (typeof raw === "string") {
+      try {
+        const parsed = JSON.parse(raw)
+        if (Array.isArray(parsed)) {
+          return parsed.map(String).filter((s) => s.trim().length > 0)
+        }
+      } catch {
+        return [raw]
+      }
+    }
+    return []
+  }, [task.acceptance_criteria])
+
+  const hasSelfCheckOrCriteria = Boolean(
+    selfCheck?.checks?.length ||
+      selfCheck?.summary ||
+      selfCheck?.notes ||
+      selfCheck?.deviations ||
+      acceptanceCriteria.length > 0 ||
+      (task.review_count && task.review_count > 0),
+  )
 
   // 构造标准的 ChatMessageItem 实体：融合最终文本、思维链、文件引用、改动快照与附件
   const chatMessage = useMemo<Message>(() => {
@@ -163,6 +216,11 @@ export function ResultCard({
                 <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">
                   任务已执行完毕 · 请验收下方的最终交付结果
                 </span>
+                {Boolean(task.review_count && task.review_count > 0) && (
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+                    已打回 {task.review_count} 次
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <Button
@@ -294,11 +352,135 @@ export function ResultCard({
         </div>
       )}
 
-      {/* ── 自检报告 ── */}
-      {selfNotes && (
-        <div className="text-xs text-muted-foreground bg-muted/25 rounded-lg p-2.5 border border-border/30">
-          <span className="font-semibold text-foreground">自检报告：</span>
-          {selfNotes}
+      {/* ── 执行自检逐条核对与验收基准对照 ── */}
+      {hasSelfCheckOrCriteria && (
+        <div className="pt-3 border-t border-border/40 space-y-3">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+              <ShieldCheck className="h-4 w-4 text-emerald-500" />
+              <span>自检核对与基准对照</span>
+            </div>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {selfCheck?.verdict && (
+                <span
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-semibold border ${
+                    selfCheck.verdict.toLowerCase().includes("pass")
+                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                      : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
+                  }`}
+                >
+                  {selfCheck.verdict.toLowerCase().includes("pass") ? (
+                    <CheckCircle2 className="h-3 w-3" />
+                  ) : (
+                    <XCircle className="h-3 w-3" />
+                  )}
+                  {selfCheck.verdict.toLowerCase().includes("pass")
+                    ? "自检通过"
+                    : "自检未通过"}
+                </span>
+              )}
+              {Boolean(task.review_count && task.review_count > 0) && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+                  已打回 {task.review_count} 次
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-border/50 bg-muted/20 p-3 space-y-3 text-xs">
+            {/* 验收基准对照 */}
+            {acceptanceCriteria.length > 0 && (
+              <div className="space-y-1.5">
+                <div className="text-[11px] font-semibold text-foreground/80 flex items-center gap-1">
+                  <ListChecks className="h-3.5 w-3.5 text-primary" />
+                  <span>验收基准要求 ({acceptanceCriteria.length})</span>
+                </div>
+                <ul className="space-y-1 pl-1">
+                  {acceptanceCriteria.map((criterion, idx) => (
+                    <li
+                      key={idx}
+                      className="flex items-start gap-2 text-muted-foreground text-[11.5px] leading-relaxed"
+                    >
+                      <span className="text-[10px] font-mono text-muted-foreground/60 shrink-0 mt-0.5">
+                        {idx + 1}.
+                      </span>
+                      <span className="flex-1">{criterion}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* 自检逐条核对 */}
+            {selfCheck?.checks && selfCheck.checks.length > 0 && (
+              <div
+                className={`space-y-2 ${
+                  acceptanceCriteria.length > 0 ? "pt-2 border-t border-border/30" : ""
+                }`}
+              >
+                <div className="text-[11px] font-semibold text-foreground/80 flex items-center justify-between">
+                  <span>逐条自检核对 ({selfCheck.checks.length} 项)</span>
+                  <span className="text-[10px] text-muted-foreground font-normal">
+                    通过{" "}
+                    {selfCheck.checks.filter((c) => c.pass).length} /{" "}
+                    {selfCheck.checks.length}
+                  </span>
+                </div>
+                <div className="grid gap-1.5">
+                  {selfCheck.checks.map((chk, idx) => {
+                    const isPassed = Boolean(chk.pass)
+                    const label =
+                      chk.name || chk.title || `检查项 ${idx + 1}`
+                    return (
+                      <div
+                        key={idx}
+                        className={`rounded-md p-2 border flex flex-col gap-1 text-[11px] ${
+                          isPassed
+                            ? "bg-emerald-500/[0.03] border-emerald-500/20 text-foreground"
+                            : "bg-rose-500/[0.04] border-rose-500/20 text-foreground"
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5 font-medium">
+                          {isPassed ? (
+                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                          ) : (
+                            <XCircle className="h-3.5 w-3.5 text-rose-500 shrink-0" />
+                          )}
+                          <span>{label}</span>
+                        </div>
+                        {chk.evidence && (
+                          <div className="pl-5 text-[10.5px] text-muted-foreground font-mono leading-relaxed bg-muted/40 rounded px-1.5 py-0.5 border border-border/20">
+                            证据：{chk.evidence}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* 偏差说明 */}
+            {selfCheck?.deviations && (
+              <div className="pt-2 border-t border-border/30 flex items-start gap-1.5 text-amber-600 dark:text-amber-400 text-[11px]">
+                <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                <div className="leading-relaxed">
+                  <span className="font-semibold">偏差说明：</span>
+                  {selfCheck.deviations}
+                </div>
+              </div>
+            )}
+
+            {/* 自检备注 */}
+            {selfCheck?.notes && (
+              <div className="pt-2 border-t border-border/30 text-[11px] text-muted-foreground leading-relaxed">
+                <span className="font-semibold text-foreground/80">
+                  自检备注：
+                </span>
+                {selfCheck.notes}
+              </div>
+            )}
+          </div>
         </div>
       )}
 

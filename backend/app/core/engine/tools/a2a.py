@@ -1,13 +1,13 @@
 """
-A2A (Agent-to-Agent) runtime helpers — unified under the `task` tool (§4.3/§10.2.2).
+A2A (Agent-to-Agent) runtime helpers — unified under the `agent` tool (§4.3/§10.2.2).
 
 远端委派 / 结果回传 / 设备发现全部收敛到 ``engine/tools/react_task.py`` 的
-``task`` 工具：
-- ``task(action='run', remote={'agent_id': ...})`` → 本模块 ``dispatch_a2a_task``
+``agent`` 工具：
+- ``agent(action='run', remote={'agent_id': ...})`` → 本模块 ``dispatch_a2a_task``
   （派发 + 挂起主循环等回调恢复）；
-- ``task(action='complete')`` → 本模块 ``complete_a2a_task``（远端 Worker 侧把
+- ``agent(action='complete')`` → 本模块 ``complete_a2a_task``（远端 Worker 侧把
   结果回传给 Caller，替代原 ``complete_task`` 工具）；
-- ``task(action='list_agents')`` / system prompt ``<available_agents>`` 索引 →
+- ``agent(action='list_agents')`` / system prompt ``<available_agents>`` 索引 →
   本模块 ``list_available_agents``。
 """
 
@@ -198,7 +198,7 @@ async def dispatch_a2a_task(
         content=f"Waiting for A2A subtask callback from device {target_device_key}...",
         category=MESSAGE_CATEGORY_HITL_REQUEST,
         tool_call_id=tool_call_id,
-        tool_name="task",
+        tool_name="agent",
         is_visible=True,
     )
 

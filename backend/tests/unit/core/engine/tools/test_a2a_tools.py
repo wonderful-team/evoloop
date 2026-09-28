@@ -194,7 +194,7 @@ async def test_dispatch_a2a_task_success_pauses_and_persists():
 
     repo_cls.assert_called_once_with("caller-thread", project_id=7, run_id="run-1")
     persist_kwargs = repo_cls.return_value.persist.await_args.kwargs
-    assert persist_kwargs["tool_name"] == "task"
+    assert persist_kwargs["tool_name"] == "agent"
     assert persist_kwargs["tool_call_id"] == f"call-{task_id}"
 
     pub_mock.assert_awaited_once()
@@ -317,7 +317,7 @@ async def test_complete_a2a_task_rejects_non_worker_thread():
 
 
 async def test_task_tool_forwards_attachments_and_real_tool_call_id():
-    from app.core.engine.tools.react_task import task
+    from app.core.engine.tools.react_task import agent
 
     ctx = EvoContext(
         thread_id="caller-thread", project_id=7, current_tool_call_id="call-42"
@@ -327,7 +327,7 @@ async def test_task_tool_forwards_attachments_and_real_tool_call_id():
         ContextManager.use(ctx),
         patch("app.core.engine.tools.a2a.dispatch_a2a_task", dispatch_mock),
     ):
-        out = await task(
+        out = await agent(
             action="run",
             remote={"agent_id": "dev-target"},
             prompt="do it",
@@ -344,7 +344,7 @@ async def test_task_tool_forwards_attachments_and_real_tool_call_id():
 
 
 async def test_task_tool_remote_without_ctx_tool_call_id_passes_none():
-    from app.core.engine.tools.react_task import task
+    from app.core.engine.tools.react_task import agent
 
     ctx = EvoContext(thread_id="caller-thread")
     dispatch_mock = AsyncMock(return_value="dispatched")
@@ -352,7 +352,7 @@ async def test_task_tool_remote_without_ctx_tool_call_id_passes_none():
         ContextManager.use(ctx),
         patch("app.core.engine.tools.a2a.dispatch_a2a_task", dispatch_mock),
     ):
-        await task(action="run", remote={"agent_id": "dev-target"}, prompt="p", config={})
+        await agent(action="run", remote={"agent_id": "dev-target"}, prompt="p", config={})
 
     kwargs = dispatch_mock.await_args.kwargs
     assert kwargs["tool_call_id"] is None

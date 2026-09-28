@@ -11,6 +11,7 @@
    ========================================================================== */
 
 import { useEffect, useMemo, useRef, useState } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { TasksQueueApi } from "@/lib/tasksQueueApi"
 import type { DutyTask } from "../core/types"
@@ -35,6 +36,11 @@ export interface AutonomousDutyCanvasAppProps {
   onRejectTask?: (taskId: string, feedback: string) => void | Promise<void>
   onConfirmProposalTask?: (taskId: string) => void | Promise<void>
   onRerunTask?: (taskId: string) => void | Promise<void>
+  onArbitrateTask?: (
+    action: "retry_upstream" | "cancel_downstream" | "reopen_modified",
+    taskId: string,
+    modifiedParams?: { description?: string },
+  ) => void | Promise<void>
   onConfirmHitl?: (
     taskId: string,
     grantMode?: "once" | "always",
@@ -65,13 +71,16 @@ export default function AutonomousDutyCanvasApp({
   onApproveTask,
   onRejectTask,
   onConfirmProposalTask,
-  onRerunTask: _onRerunTask,
+  onRerunTask,
+  onArbitrateTask,
   onConfirmHitl,
   onCancelHitl,
   onNodeChat,
   className = "",
   renderInputBar,
 }: AutonomousDutyCanvasAppProps = {}) {
+  const qc = useQueryClient()
+
   /* 布局方向：默认纵向瀑布排列（Top-to-Bottom，契合鼠标滚轮自然滚动） */
   const [layoutDirection, setLayoutDirection] =
     useState<LayoutDirection>("vertical")
@@ -109,13 +118,52 @@ export default function AutonomousDutyCanvasApp({
 
   /* 任务与连线：支持自由拖拽实时响应与边自适应动态推导 */
   const tasks = rawTasks
-  const edges = useMemo(() => deriveDutyEdges(tasks), [tasks])
+
+  /* 轮次投影（阶段九 D7 的 v1 解法）：周期工作流每拍实例化一轮阶段任务，
+     全量平铺会让画布节点 O(轮数×阶段数) 爆炸。投影透镜——画布只渲染
+     选中轮（缺省=最新轮）的节点，历史轮经轮次控制器秒切，恒定 O(S)。
+     非工作流任务（散装/提案）不受投影影响。 */
+  const workflowRounds = useMemo(() => {
+    const rounds = new Set<number>()
+    for (const t of tasks) {
+      if (t.workflowId && t.workflowRound != null) rounds.add(t.workflowRound)
+    }
+    return Array.from(rounds).sort((a, b) => b - a) // 最新轮在前
+  }, [tasks])
+  const [projectedRound, setProjectedRound] = useState<number | null>(null) // null=最新轮
+  const effectiveRound = projectedRound ?? workflowRounds[0] ?? null
+  const projectedTasks = useMemo(() => {
+    if (effectiveRound == null) return tasks
+    return tasks.filter(
+      (t) =>
+        !t.workflowId ||
+        t.workflowRound == null ||
+        t.workflowRound === effectiveRound,
+    )
+  }, [tasks, effectiveRound])
+  const edges = useMemo(() => deriveDutyEdges(projectedTasks), [projectedTasks])
 
   /* 状态与控制 */
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null)
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set())
-  const [focusTaskId, setFocusTaskId] = useState<string | null>(null)
+  /* Chat→Canvas 互链：会话里点 TaskStateChip 时 sessionStorage 一次性
+     交接目标任务 id，挂载即消费并清除（防下次进入画布误飞） */
+  const [focusTaskId, setFocusTaskId] = useState<string | null>(() => {
+    try {
+      return sessionStorage.getItem("duty:focus-task")
+    } catch {
+      return null
+    }
+  })
+  useEffect(() => {
+    if (!focusTaskId) return
+    try {
+      sessionStorage.removeItem("duty:focus-task")
+    } catch {
+      // ignore
+    }
+  }, [focusTaskId])
   const [activeFlowEdge] = useState<string | null>(null)
   const [stepIndexMap, _setStepIndexMap] = useState<Record<string, number>>({})
 
@@ -177,10 +225,18 @@ export default function AutonomousDutyCanvasApp({
         taskId: string
         status?: string
       }
-      if (!taskId || !status || status === "in_progress" || status === "waiting_acceptance") return
+      if (
+        !taskId ||
+        !status ||
+        status === "in_progress" ||
+        status === "waiting_acceptance"
+      )
+        return
       // 现场审核通过打绿勾或失败红标：先就地定格，保留 500ms 视觉确认期后再平滑收缩
       setRawTasks((prev) =>
-        prev.map((t) => (t.id === taskId ? { ...t, status: status as DutyTask["status"] } : t)),
+        prev.map((t) =>
+          t.id === taskId ? { ...t, status: status as DutyTask["status"] } : t,
+        ),
       )
       setTimeout(() => {
         setActiveTaskId((cur) => (cur === taskId ? null : cur))
@@ -457,36 +513,184 @@ export default function AutonomousDutyCanvasApp({
     )
   }
 
-  /* 仲裁三键操作 (闭环 D3) */
-  function handleArbitration(
+  /* 仲裁三键操作真实闭环 (闭环 D3) */
+  async function handleArbitration(
     action: "retry_upstream" | "cancel_downstream" | "reopen_modified",
+    targetTaskId?: string,
+    modifiedParams?: { description?: string },
   ) {
-    if (action === "retry_upstream") {
-      setStatusText("仲裁生效：重新调度上游执行，下游已复位")
-    } else if (action === "cancel_downstream") {
-      setStatusText("仲裁生效：已截断下游阻塞分支")
-    } else if (action === "reopen_modified") {
-      setStatusText("仲裁生效：微调参数通过，下游已解锁就绪")
+    const taskId = targetTaskId || activeTaskId || selectedTaskId
+    if (!taskId) {
+      toast.error("未找到仲裁目标任务")
+      return
     }
-  }
 
-  /* 拍板方案选项勾选回流 (闭环 D2) */
-  function handlePickOption(taskId: string, index: number) {
-    const task = rawTasksRef.current.find((t) => t.id === taskId)
-    if (!task || !task.signoff) return
+    const currentTask = rawTasksRef.current.find((t) => t.id === taskId)
+    if (!currentTask) {
+      toast.error("目标任务不存在")
+      return
+    }
 
-    const updatedOptions = (task.signoff.options || []).map((opt, i) => ({
-      ...opt,
-      picked: i === index,
-    }))
+    try {
+      if (onArbitrateTask) {
+        await onArbitrateTask(action, taskId, modifiedParams)
+      }
 
-    patchTask(taskId, {
-      signoff: {
-        ...task.signoff,
-        options: updatedOptions,
-        pickedIndex: index,
-      },
-    })
+      if (action === "retry_upstream") {
+        const deps = currentTask.dependencies || []
+        // 查找所有受阻/失败的前序上游任务
+        const failedUpstream = rawTasksRef.current.filter(
+          (t) =>
+            deps.includes(t.id) &&
+            (t.status === "failed" ||
+              t.status === "blocked" ||
+              t.status === "cancelled"),
+        )
+
+        const tasksToRerun =
+          failedUpstream.length > 0
+            ? failedUpstream
+            : deps.length === 0
+              ? [currentTask]
+              : []
+
+        if (tasksToRerun.length > 0) {
+          for (const up of tasksToRerun) {
+            try {
+              if (onRerunTask) {
+                await onRerunTask(up.id)
+              } else {
+                await TasksQueueApi.rerun(up.id)
+              }
+            } catch (err) {
+              console.warn(
+                `API rerun failed for task ${up.id}, falling back to local patch:`,
+                err,
+              )
+            }
+          }
+        } else {
+          // 若上游无显式失败，则直接尝试重跑当前节点
+          try {
+            if (onRerunTask) {
+              await onRerunTask(taskId)
+            } else {
+              await TasksQueueApi.rerun(taskId)
+            }
+          } catch (err) {
+            console.warn(`API rerun failed for task ${taskId}:`, err)
+          }
+        }
+
+        // 本地状态级联复位：将上游及本节点置为 pending，清除阻断与仲裁标记
+        const rerunIds = new Set(tasksToRerun.map((t) => t.id).concat(taskId))
+        setRawTasks((prev) =>
+          prev.map((t) => {
+            if (rerunIds.has(t.id)) {
+              return {
+                ...t,
+                status: "pending",
+                arbitration: undefined,
+              }
+            }
+            return t
+          }),
+        )
+
+        await qc.invalidateQueries({ queryKey: ["dutyQueue"] })
+        await qc.invalidateQueries({ queryKey: ["dutyDashboard"] })
+        toast.success(
+          `仲裁生效：已重新调度上游节点，节点 #T-${currentTask.taskNo} 已复位待命中`,
+        )
+        setStatusText("仲裁生效：重新调度上游执行，下游已复位")
+      } else if (action === "cancel_downstream") {
+        // 递归遍历 DAG 寻找所有下游依赖子任务
+        const downstreamIds: string[] = []
+        const queue = [taskId]
+        const visited = new Set<string>([taskId])
+
+        while (queue.length > 0) {
+          const curr = queue.shift()!
+          for (const t of rawTasksRef.current) {
+            if (!visited.has(t.id) && t.dependencies?.includes(curr)) {
+              visited.add(t.id)
+              queue.push(t.id)
+              downstreamIds.push(t.id)
+            }
+          }
+        }
+
+        if (downstreamIds.length === 0) {
+          toast.info("该节点无下游依赖任务，无需截断")
+          return
+        }
+
+        // 批量通知后端取消下游任务
+        for (const downId of downstreamIds) {
+          try {
+            await TasksQueueApi.update(downId, { status: "cancelled" })
+          } catch (err) {
+            console.warn(`Failed to cancel downstream task ${downId}:`, err)
+          }
+        }
+
+        // 本地状态更新：级联置为 cancelled
+        const downSet = new Set(downstreamIds)
+        setRawTasks((prev) =>
+          prev.map((t) =>
+            downSet.has(t.id) ? { ...t, status: "cancelled" } : t,
+          ),
+        )
+
+        await qc.invalidateQueries({ queryKey: ["dutyQueue"] })
+        await qc.invalidateQueries({ queryKey: ["dutyDashboard"] })
+        toast.success(
+          `仲裁生效：已截断 ${downstreamIds.length} 个下游依赖任务，避免级联资源浪费`,
+        )
+        setStatusText(`仲裁生效：已截断下游 ${downstreamIds.length} 个阻塞分支`)
+      } else if (action === "reopen_modified") {
+        const newDescription =
+          modifiedParams?.description ?? currentTask.description
+
+        // 1. 保存修改后的参数/描述并置为 pending
+        try {
+          await TasksQueueApi.update(taskId, {
+            description: newDescription,
+            status: "pending",
+          })
+        } catch (err) {
+          console.warn(`Failed to update task description on backend:`, err)
+        }
+
+        // 2. 尝试调用 rerun
+        try {
+          if (onRerunTask) {
+            await onRerunTask(taskId)
+          } else {
+            await TasksQueueApi.rerun(taskId)
+          }
+        } catch (err) {
+          console.warn(`Rerun call after update:`, err)
+        }
+
+        // 本地状态更新：更新描述并置为 pending
+        patchTask(taskId, {
+          description: newDescription,
+          status: "pending",
+          arbitration: undefined,
+        })
+
+        await qc.invalidateQueries({ queryKey: ["dutyQueue"] })
+        await qc.invalidateQueries({ queryKey: ["dutyDashboard"] })
+        toast.success(
+          `仲裁生效：节点 #T-${currentTask.taskNo} 参数已微调更新，重新排队就绪`,
+        )
+        setStatusText("仲裁生效：微调参数通过，下游已解锁就绪")
+      }
+    } catch (err: any) {
+      toast.error(`仲裁操作失败: ${err?.message || "未知错误"}`)
+      console.error("handleArbitration error:", err)
+    }
   }
 
   /* 批准方案 (支持 grantMode) */
@@ -692,10 +896,43 @@ export default function AutonomousDutyCanvasApp({
   return (
     <div className={`dc-app ${className}`}>
       {/* ── 主工作区 ── */}
-      <div className="dc-main">
+      <div className="dc-main relative">
+        {/* 轮次控制器（画布浮岛）：多轮工作流的轮次切换与历史对账 */}
+        {workflowRounds.length > 1 && (
+          <div className="absolute left-1/2 top-3 z-30 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-border/60 bg-background/90 px-2.5 py-1.5 shadow-sm backdrop-blur-sm">
+            <span className="text-[10px] font-semibold text-muted-foreground">
+              轮次
+            </span>
+            {workflowRounds
+              .slice()
+              .sort((a, b) => a - b)
+              .map((round) => {
+                const isActive = round === effectiveRound
+                const isLatest = round === workflowRounds[0]
+                return (
+                  <button
+                    key={round}
+                    type="button"
+                    onClick={() => setProjectedRound(round)}
+                    className={`h-6 rounded-full px-2.5 text-[11px] font-medium transition-colors ${
+                      isActive
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                    }`}
+                    title={
+                      isLatest ? `第 ${round} 轮（最新）` : `第 ${round} 轮`
+                    }
+                  >
+                    {round}
+                    {isLatest ? " ·最新" : ""}
+                  </button>
+                )
+              })}
+          </div>
+        )}
         {/* 中央无限任务画布：节点卡片原地放大为页面 */}
         <DutyCanvas
-          tasks={tasks}
+          tasks={projectedTasks}
           edges={edges}
           activeTaskId={activeTaskId}
           selectedTaskId={selectedTaskId}
@@ -734,7 +971,6 @@ export default function AutonomousDutyCanvasApp({
           onNodeChat={handleNodeChat}
           onConfirmProposalTask={onConfirmProposalTask}
           onSendGlobalPrompt={handleSendPrompt}
-          onPickOption={handlePickOption}
           onApprove={handleApprove}
           onReject={handleReject}
           onArbitrate={handleArbitration}

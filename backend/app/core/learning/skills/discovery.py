@@ -159,7 +159,19 @@ class SkillDiscovery:
 
             # Populate Memory Maps for O(1) Lookup
             self._id_map = {s.id: s for s in items}
-            self._name_map = {s.name.lower(): s for s in items}
+            name_map = {}
+            for s in items:
+                name_map[s.name.lower()] = s
+                norm = s.name.lower().replace("-", " ").replace("_", " ")
+                name_map[norm] = s
+                slug = "-".join(norm.split())
+                name_map[slug] = s
+                res_path = getattr(s, "resource_path", None)
+                if res_path:
+                    base_name = os.path.basename(os.path.normpath(res_path)).lower()
+                    if base_name:
+                        name_map[base_name] = s
+            self._name_map = name_map
 
             self._skills_cache = items
 
@@ -287,10 +299,16 @@ class SkillDiscovery:
             target_id = int(query_clean)
             best_skill = self._id_map.get(target_id)
 
-        # 2. Try Exact Name lookup (O(1))
+        # 2. Try Exact Name lookup (O(1)) with slug/normalization fallback
         if not best_skill:
             query_lower = query_clean.lower()
-            best_skill = self._name_map.get(query_lower)
+            norm = query_lower.replace("-", " ").replace("_", " ")
+            slug = "-".join(norm.split())
+            best_skill = (
+                self._name_map.get(query_lower)
+                or self._name_map.get(norm)
+                or self._name_map.get(slug)
+            )
 
         # 3. Try Namespace-Prefix lookup (O(N) Fallback for specific tree traversal)
         if not best_skill and "/" in query_clean:
@@ -376,6 +394,7 @@ class SkillDiscovery:
                 name=s.name,
                 namespace=s.namespace or "general",
                 description=self._index_description(s),
+                project_id=getattr(s, "project_id", None),
             )
             for s in all_skills
         ]

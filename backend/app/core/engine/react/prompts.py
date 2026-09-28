@@ -91,6 +91,22 @@ def _capability_index(ctx: Any, domain_pkgs: set[str] | None = None) -> str:
         loaded_packages = set(metadata.get("loaded_packages") or [])
         preselected_packages = set(metadata.get("preselected_packages") or [])
         if isinstance(skills, list):
+            # 项目级技能隔离：仅保留全局通用技能 (project_id is None) 或归属当前项目的专属技能
+            current_pid = getattr(ctx, "project_id", None)
+            if current_pid:
+                skills = [
+                    s
+                    for s in skills
+                    if getattr(s, "project_id", None) is None
+                    or getattr(s, "project_id", None) == current_pid
+                ]
+            else:
+                skills = [
+                    s
+                    for s in skills
+                    if getattr(s, "project_id", None) is None
+                ]
+
             # 域裁剪（v3.1）：截断前按相关性稳定重排——
             # 已加载 > 已预挂 > 当前域包 > 其余（组内保持原序）。
             def _rank(item: Any) -> int:
@@ -122,7 +138,7 @@ def _capability_index(ctx: Any, domain_pkgs: set[str] | None = None) -> str:
                 skill_lines.append(f"{name}: {desc}")
             if dropped:
                 skill_lines.append(
-                    f"…（另有 {dropped} 项与当前域无关未显示；跨域任务可调用 skill(name) 按需加载）"
+                    f"…（另有 {dropped} 项与当前域无关未显示；可调用 skill(action=\"list\") 查看全部技能后按需加载）"
                 )
         else:
             # legacy 字符串形态（dict/getattr 兼容路径）
@@ -388,6 +404,14 @@ async def build_system_prompt(state: Any, config: dict[str, Any]) -> str:
                     f'- ⚠️ 上一轮尝试被用户驳回，评审反馈："{task_block.get("feedback", "")}"'
                     "——先响应反馈，不要盲目重试。"
                     if task_block.get("feedback")
+                    else ""
+                ),
+                "required_skills_block": (
+                    "- 🎯 **专用技能**：本任务已关联专用技能 "
+                    f"[{', '.join(f'`{s}`' for s in task_block.get('skills') or [])}]。"
+                    f"必须优先使用 `skill` 工具加载对应技能（如 `skill(\"{(task_block.get('skills') or [''])[0]}\")`），"
+                    "遵照技能指引执行，切勿自行编写并调试原生爬虫或临时脚本。"
+                    if task_block.get("skills")
                     else ""
                 ),
             }

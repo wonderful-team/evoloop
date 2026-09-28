@@ -6,17 +6,17 @@
    - 产物映射与人机回路（拍板 / 审批）转换
    ========================================================================== */
 
+import type { QueueArtifact, QueueTask } from "@/lib/tasksQueueApi"
 import type {
-    DutyArtifact,
-    DutyTask,
-    DutyTaskStatus,
-    FourQuestions,
-    ProvenanceKind,
-    SignoffSpec,
-    TaskPriority,
-    TaskRiskLevel,
+  DutyArtifact,
+  DutyTask,
+  DutyTaskStatus,
+  FourQuestions,
+  ProvenanceKind,
+  SignoffSpec,
+  TaskPriority,
+  TaskRiskLevel,
 } from "./types"
-import type {QueueArtifact, QueueTask} from "@/lib/tasksQueueApi"
 
 /**
  * 转换单个产物模型
@@ -133,7 +133,9 @@ function buildFourQuestions(
     const st = (current.provenance!.sourceRef as { stage?: string }).stage
     sourceRef = `周期流水线「${wfRaw.workflow_name}」第 ${rd ?? "?"} 轮${st ? ` · 阶段 ${st}` : ""}`
   }
-  const rawRef = current.provenance?.sourceRef || (current as { source_ref?: unknown }).source_ref
+  const rawRef =
+    current.provenance?.sourceRef ||
+    (current as { source_ref?: unknown }).source_ref
   if (rawRef) {
     if (typeof rawRef === "object" && (rawRef as { ref?: string }).ref) {
       sourceRef = (rawRef as { ref: string }).ref
@@ -231,35 +233,46 @@ export function adaptQueueTaskToDutyTask(
   // category 无值时保持空——UI 按缺省隐藏徽标，不再伪造"通用值守"假分类
   const category =
     task.category ||
-    (task as unknown as { task_data?: { category?: string } }).task_data?.category ||
+    (task as unknown as { task_data?: { category?: string } }).task_data
+      ?.category ||
     ""
 
   const rawSourceRef = (task as unknown as { source_ref?: unknown }).source_ref
-  const triggerSpec = (task as unknown as { trigger_spec?: string | null }).trigger_spec
+  const triggerSpec = (task as unknown as { trigger_spec?: string | null })
+    .trigger_spec
   const source = mapSourceKind(task.source, rawSourceRef, triggerSpec)
   let status = mapStatus(task.status)
   const priority = (task.priority?.toLowerCase() as TaskPriority) || "medium"
-  const riskLevel = ((task.risk_level || "T4").toUpperCase() as TaskRiskLevel) || "T4"
+  const riskLevel =
+    ((task.risk_level || "T4").toUpperCase() as TaskRiskLevel) || "T4"
   const dependencies = task.dependencies || []
 
   // 四问一屏关系计算
   const provenance = buildFourQuestions(task, allTasksMap, downstreamMap)
 
   // 真实产物提取：若后端无真实产物则为 undefined，绝不捏造
-  let artifact: DutyArtifact | undefined = undefined
+  let artifact: DutyArtifact | undefined
   if (task.artifacts && task.artifacts.length > 0) {
     artifact = adaptQueueArtifactToDutyArtifact(task.artifacts[0])
   }
 
-  // 商业拍板 / 验收数据：仅在真实 waiting_acceptance 且包含 signoff 数据时呈现
-  let signoff: SignoffSpec | undefined = undefined
-  if (status === "waiting_acceptance" && (task as unknown as { signoff?: SignoffSpec }).signoff) {
-    signoff = (task as unknown as { signoff: SignoffSpec }).signoff
+  // 商业拍板 / 验收数据：在 waiting_acceptance 或已有打回记录时派生真实门禁规格
+  let signoff: SignoffSpec | undefined
+  const rawSignoff = (task as unknown as { signoff?: SignoffSpec }).signoff
+  const reviewCount = task.review_count ?? rawSignoff?.rejectCount ?? 0
+  if (status === "waiting_acceptance" || reviewCount > 0 || rawSignoff) {
+    signoff = {
+      status: status === "waiting_acceptance" ? "pending" : "approved",
+      reviewerRole: "owner",
+      rejectCount: reviewCount,
+      requiresHuman: !task.review_pending,
+      ...rawSignoff,
+    }
   }
 
   // HITL 安全与资金审批门禁
-  let hitl: import("./types").HitlSpec | undefined = undefined
-  let humanRequest: import("./types").HumanRequestSpec | undefined = undefined
+  let hitl: import("./types").HitlSpec | undefined
+  let humanRequest: import("./types").HumanRequestSpec | undefined
   if (hitlItem) {
     if (status === "in_progress") {
       status = "confirm"
@@ -284,7 +297,38 @@ export function adaptQueueTaskToDutyTask(
   }
 
   // 执行步骤与时序：仅使用真实步骤，不伪造假进度
-  const steps: import("./types").ExecutionStep[] = (task as unknown as { steps?: import("./types").ExecutionStep[] }).steps || []
+  const steps: import("./types").ExecutionStep[] =
+    (task as unknown as { steps?: import("./types").ExecutionStep[] }).steps ||
+    []
+
+  // 仲裁门禁规格（执行失败、监察升级熔断或上游断链阻断）
+  let arbitration: import("./types").ArbitrationSpec | undefined
+  if (status === "failed" || status === "blocked" || task.escalated) {
+    arbitration = {
+      status: "needed",
+      failedTaskTitle: title,
+      options: [
+        {
+          key: "retry_upstream",
+          label: "重跑上游",
+          hint:
+            status === "blocked"
+              ? "重新触发导致断链的前序上游任务，解锁下游执行"
+              : "重新触发前序依赖节点执行，清空本节点阻断",
+        },
+        {
+          key: "cancel_downstream",
+          label: "截断下游",
+          hint: "终止后续受阻依赖子任务，避免级联资源浪费",
+        },
+        {
+          key: "reopen_modified",
+          label: "改参重开",
+          hint: "微调本任务提示词或入参后重新排队进入就绪态",
+        },
+      ],
+    }
+  }
 
   return {
     id: task.id,
@@ -317,13 +361,15 @@ export function adaptQueueTaskToDutyTask(
     signoff,
     hitl,
     humanRequest,
+    arbitration,
     lastThreadId: task.last_thread_id,
     workflowId: task.workflow_id ?? null,
-    workflowName: (task as { workflow_name?: string | null }).workflow_name ?? null,
+    workflowName:
+      (task as { workflow_name?: string | null }).workflow_name ?? null,
     workflowRound:
-      (
-        task.provenance as { round?: number } | null | undefined
-      )?.round ?? null,
+      (task as { workflow_round?: number | null }).workflow_round ??
+      (task.provenance as { round?: number } | null | undefined)?.round ??
+      null,
     projectId: task.project_id,
     dueAt: task.due_at,
     createdAt: task.created_at,

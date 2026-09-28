@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import timezone
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy import select, update
@@ -165,6 +165,7 @@ class WorkflowService:
                 category="growth_workflow",
                 priority="high",
                 risk_level=role.risk_level,
+                acceptance_criteria=list(role.acceptance_criteria),
                 deps=[GROWTH_WORKFLOW_ROLES[i - 1].stage] if i > 0 else [],
             )
             for i, role in enumerate(GROWTH_WORKFLOW_ROLES)
@@ -552,6 +553,8 @@ class WorkflowService:
                 workflow_round=round_no,
                 member_id=workflow.member_id,
                 dedup_key=f"wf:{workflow.id}:{round_no}:{stage.key}",
+                skills=stage.skills,
+                acceptance_criteria=stage.acceptance_criteria,
             )
             created_by_key[stage.key] = task
             tasks.append(task)
@@ -564,11 +567,34 @@ class WorkflowService:
             current.round_no = round_no
             current.status = "running"
             if workflow.trigger_spec:
+                from croniter import croniter
+
                 from app.infrastructure.scheduler.service import SchedulerService
 
-                current.next_run_at = SchedulerService.calculate_next_run(
-                    workflow.trigger_spec, utcnow()
-                )
+                now = utcnow()
+                spec = workflow.trigger_spec
+                if croniter.is_valid(spec):
+                    ci = croniter(spec, now)
+                    next_slot = ci.get_next(datetime)
+                    target = workflow.next_run_at
+                    if target:
+                        target_utc = (
+                            target
+                            if getattr(target, "tzinfo", None)
+                            else target.replace(tzinfo=timezone.utc)
+                        )
+                        cand = croniter(spec, target_utc).get_next(datetime)
+                        if cand <= now:
+                            cand = croniter(spec, now).get_next(datetime)
+                        if now < next_slot and cand <= next_slot:
+                            cand = croniter(spec, next_slot).get_next(datetime)
+                        current.next_run_at = cand
+                    else:
+                        current.next_run_at = croniter(spec, next_slot).get_next(datetime)
+                else:
+                    current.next_run_at = SchedulerService.calculate_next_run(
+                        spec, now
+                    )
         await publish_workflow_event(
             workflow_id,
             event="round_spawned",

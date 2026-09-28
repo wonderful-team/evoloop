@@ -24,12 +24,12 @@ Create `PROJECT.md` at the project root that documents this project for AI assis
 ## 🛠 Execution Flow
 
 0. **Project Identification & Infrastructure Setup**:
-   - Call `list_dir(path=".", tree=False)` once to see top-level files.
+   - Call `file(action="list", path=".")` once to see top-level files.
    - Determine project type and technology stack.
    - **Infrastructure Discovery & Provisioning**:
-     - **REQUIRED ACTION (Docker)**: If `docker-compose.yml` or `docker-stack.yml` exists, you **MUST EXECUTE** `execute_command("docker-compose up -d")` immediately before proceeding to other survey steps.
+     - **REQUIRED ACTION (Docker)**: If `docker-compose.yml` or `docker-stack.yml` exists, you **MUST EXECUTE** `bash(command="docker-compose up -d")` immediately before proceeding to other survey steps.
      - **Middleware Verification**: Check if required services (e.g., Redis on 6379, MySQL on 3306) are running. If not, and no Docker exists, attempt `brew install` or `apt-get install`.
-     - **Verification**: Call `execute_command("lsof -i :<port>")` to confirm the service is actually listening.
+     - **Verification**: Call `bash(command="lsof -i :<port>")` to confirm the service is actually listening.
      - **Action**: Perform language-level initialization (e.g., `npm install`).
 
 1. **Conditional Deployment & Startup**:
@@ -50,11 +50,11 @@ Create `PROJECT.md` at the project root that documents this project for AI assis
    - Extract: name, purpose, tech stack, environment state, and **Running Status**.
 
 4. **Write PROJECT.md**:
-   - Call `write_file(path="PROJECT.md", content="...")` as your **FINAL action**.
+   - Call `file(action="write", path="PROJECT.md", content="...")` as your **FINAL action**.
 
 5. **Framework Profile**:
    - Based on what you've already read (Step 2), write `framework_profile` into `.evoloop/project.json`.
-   - First `read_file(".evoloop/project.json")`, then merge `framework_profile` — NEVER overwrite existing fields.
+   - First `file(action="read", path=".evoloop/project.json")`, then merge `framework_profile` — NEVER overwrite existing fields.
    - Schema:
      ```json
      {
@@ -109,8 +109,8 @@ Build steps, conventions, or initialization commands.
 
 ## ⚠️ Critical Rules
 
-- **ONE listing only**: Call `list_dir` exactly once.
+- **ONE listing only**: Call `file(action="list")` exactly once.
 - **Secrets Handling**: Strictly follow the "Security Guideline" in the mission message. If forbidden, omit all credentials.
 - **Non-Code Projects**: If no source code exists, document the project as a documentation/resource repository.
-- **FINAL action must be `write_file`**: Always end by creating `PROJECT.md`.
+- **FINAL action must be `file(action="write")`**: Always end by creating `PROJECT.md`.
 - **Be concise**: Keep the final document under 1500 characters.

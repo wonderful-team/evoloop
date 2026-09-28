@@ -33,6 +33,7 @@ from app.domain.tasks.service import (
     task_version,
     task_workflow_id,
     task_workflow_retry_count,
+    task_workflow_round,
 )
 from app.domain.tasks.workflows import WorkflowError, WorkflowService
 from app.infrastructure.database.sql.database import session_scope
@@ -93,6 +94,8 @@ async def create_task(
             member_id=_member_id(current_user),
             parent_id=body.parent_id,
             dependencies=body.dependencies,
+            skills=body.skills,
+            acceptance_criteria=body.acceptance_criteria,
         )
     except TaskQueueError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
@@ -197,6 +200,7 @@ async def edit_task(
             trigger_spec=body.trigger_spec,
             clear_trigger_spec=body.clear_trigger_spec,
             dependencies=body.dependencies,
+            skills=body.skills,
             cancel=body.cancel or body.status == "cancelled",
         )
     except TaskQueueError as e:
@@ -448,7 +452,9 @@ async def list_queue(
                 "provenance": t.source_ref,
                 "self_check": t.self_check,
                 "acceptance": t.acceptance,
+                "acceptance_criteria": getattr(t, "acceptance_criteria", None),
                 "review_count": t.review_count,
+                "workflow_round": task_workflow_round(t),
                 "review_pending": task_review_pending(t),
                 "escalated": bool((t.acceptance or {}).get("escalated")),
                 "origin_thread_id": t.origin_thread_id,
@@ -458,7 +464,6 @@ async def list_queue(
                 "runs": runs_by_task.get(t.id, []),
                 "created_at": t.created_at.isoformat() if t.created_at else None,
                 "updated_at": t.updated_at.isoformat() if t.updated_at else None,
-                "workflow_stage": (t.source_ref or {}).get("stage") or (t.task_data or {}).get("workflow_stage"),
                 "run": (
                     {
                         "thread_id": activity.thread_id,

@@ -11,8 +11,8 @@ from sqlalchemy import select
 
 from app.core.engine.rewind import REWIND_REQUESTED, RewindRequestedEvent
 from app.core.events.decorators import event_register, event_subscribe
-from app.domain.planning.constants import PlanStatus, PlanStepStatus
-from app.domain.planning.event import PlanUpdatedEvent
+from app.core.planning.constants import PlanStatus, PlanStepStatus
+from app.core.planning.event import PlanUpdatedEvent
 from app.infrastructure.database import session_scope
 
 logger = logging.getLogger(__name__)
@@ -205,5 +205,3 @@ class PlanRewind:
                 steps[0].status = PlanStepStatus.IN_PROGRESS.value
             plan.status = PlanStatus.ACTIVE.value
             return len(steps)
-
-

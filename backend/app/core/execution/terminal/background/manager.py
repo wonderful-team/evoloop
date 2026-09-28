@@ -336,6 +336,15 @@ class BackgroundTaskManager:
 
         return success
 
+    async def cancel_thread_tasks(self, thread_id: str) -> int:
+        """Cancel all active tasks for a thread."""
+        tasks = self.get_active_tasks(thread_id)
+        cancelled = 0
+        for task in tasks:
+            if await self.cancel_task(task.task_id):
+                cancelled += 1
+        return cancelled
+
     # ==================== Output Management ====================
 
     def append_output(self, task_id: str, output: str) -> bool:

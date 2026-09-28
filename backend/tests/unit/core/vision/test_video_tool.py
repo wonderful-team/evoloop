@@ -22,12 +22,12 @@ from app.core.vision.tools import video as video_tool
 class TestValidation:
     @pytest.mark.asyncio
     async def test_analyze_requires_source(self):
-        text = await video_tool.video(action="analyze", source=None)
+        text = await video_tool._analyze(None)
         assert "requires `source`" in text
 
     @pytest.mark.asyncio
     async def test_generate_requires_prompt(self):
-        text = await video_tool.video(action="generate", prompt=None)
+        text = await video_tool._generate(None)
         assert "requires `prompt`" in text
 
 
@@ -55,9 +55,7 @@ class TestAnalyze:
             "app.core.vision.engine.vision_engine.process",
             _fake_process,
         )
-        text = await video_tool.video(
-            action="analyze", source="/tmp/clip.mp4", question="What happens?"
-        )
+        text = await video_tool._analyze("/tmp/clip.mp4", "What happens?")
         assert "Frame 1: waves crashing" in text
         assert processed["calls"] == 1
 
@@ -70,7 +68,7 @@ class TestAnalyze:
             "app.infrastructure.vision.video.service.VideoService.extract_keyframes",
             _fake_extract,
         )
-        text = await video_tool.video(action="analyze", source="/tmp/clip.mp4")
+        text = await video_tool._analyze("/tmp/clip.mp4")
         assert "any frames" in text
 
     @pytest.mark.asyncio
@@ -91,7 +89,7 @@ class TestAnalyze:
             "app.core.vision.engine.vision_engine.process",
             _fake_process,
         )
-        text = await video_tool.video(action="analyze", source="/tmp/clip.mp4")
+        text = await video_tool._analyze("/tmp/clip.mp4")
         assert "no summary" in text
 
 
@@ -163,7 +161,7 @@ class TestGenerate:
             "app.core.vision.tools.video.remove_file", _fake_remove
         )
 
-        text = await video_tool.video(action="generate", **kwargs)
+        text = await video_tool._generate(**kwargs)
         return text, created, polls
 
     @pytest.mark.asyncio
@@ -234,19 +232,5 @@ class TestGenerate:
             evo_pkg, "evocloud_manager",
             SimpleNamespace(get_token=AsyncMock(return_value="tok"), api=None),
         )
-        text = await video_tool.video(action="generate", prompt="x")
+        text = await video_tool._generate("x")
         assert "video generation failed" in text
-
-class TestToolSchema:
-    def test_facade_exposes_action_and_prompt(self):
-        import inspect
-
-        import app.core.tools.registry as registry
-
-        registry._ensure_scanned()
-        tool = registry.get_tool_map()["video"]
-        params = inspect.signature(tool.func).parameters
-        assert "action" in params
-        assert "prompt" in params
-        assert "source" in params
-        assert "seconds" in params

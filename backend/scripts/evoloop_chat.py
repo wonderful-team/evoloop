@@ -207,13 +207,13 @@ def stream_reply(cfg: dict, token: str, thread_id: str, state: dict, verbose: bo
     event_name = None
     current_seq = None
     buffer = ""
-    deadline = time.time() + 600
+    deadline = time.time() + 900
     done_at = None
     try:
-        with urllib.request.urlopen(req, timeout=600) as resp:
+        with urllib.request.urlopen(req, timeout=900) as resp:
             for raw_line in resp:
                 if time.time() > deadline:
-                    print("\n[超时] 会话处理超过 600 秒，已停止等待（会话仍在后台继续）", flush=True)
+                    print("\n[超时] 会话处理超过 900 秒，已停止等待（会话仍在后台继续）", flush=True)
                     return
                 if done_at is not None and time.time() - done_at >= 3:
                     return

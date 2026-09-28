@@ -21,10 +21,21 @@ class TestExtractResource:
         return ToolInput.model_validate(kwargs)
 
     def test_extracts_read_file_path(self):
-        assert _extract_resource("read", self._ti(path="/tmp/a")) == ("/tmp/a", "read")
+        assert _extract_resource("file", self._ti(args={"action": "read", "path": "/tmp/a"})) == (
+            "/tmp/a",
+            "read",
+        )
 
     def test_extracts_write_file_path(self):
-        assert _extract_resource("write_to_file", self._ti(path="/tmp/a")) == ("/tmp/a", "write")
+        assert _extract_resource("file", self._ti(args={"action": "write", "path": "/tmp/a"})) == (
+            "/tmp/a",
+            "write",
+        )
+
+    def test_legacy_engine_tool_names_not_authorized(self):
+        """旧引擎时代工具名不在授权范围（gate 只处理当前 registry 活工具）。"""
+        assert _extract_resource("write_to_file", self._ti(path="/tmp/a")) is None
+        assert _extract_resource("replace_file_content", self._ti(path="/tmp/a")) is None
 
     def test_extracts_grep_search_path(self):
         assert _extract_resource("grep", self._ti(args={"SearchPath": "/tmp"})) == (
@@ -47,7 +58,9 @@ class TestAuthorizationEvaluator:
             AsyncMock(return_value=[]),
         ):
             evaluator = AuthorizationEvaluator(project_id=120)
-            decision = await evaluator.evaluate("read", ToolInput(path=".env"))
+            decision = await evaluator.evaluate(
+                "file", ToolInput(path=".env", args={"action": "read"})
+            )
         assert decision.approved is True
         assert decision.requires_hitl is False
 
@@ -63,7 +76,7 @@ class TestAuthorizationEvaluator:
             AsyncMock(return_value=[policy]),
         ):
             evaluator = AuthorizationEvaluator(project_id=120)
-            decision = await evaluator.evaluate("read", ToolInput(path="public/info.txt"))
+            decision = await evaluator.evaluate("file", ToolInput(path="public/info.txt"))
         assert decision.approved is True
         assert decision.requires_hitl is False
 
@@ -83,7 +96,7 @@ class TestAuthorizationEvaluator:
             AsyncMock(return_value=[]),
         ):
             evaluator = AuthorizationEvaluator(project_id=120)
-            decision = await evaluator.evaluate("read", ToolInput(path="keys/.env"))
+            decision = await evaluator.evaluate("file", ToolInput(path="keys/.env"))
         assert decision.approved is False
         assert decision.requires_hitl is True
         assert decision.policy is policy
@@ -110,7 +123,7 @@ class TestAuthorizationEvaluator:
             AsyncMock(return_value=[grant]),
         ):
             evaluator = AuthorizationEvaluator(project_id=120)
-            decision = await evaluator.evaluate("read", ToolInput(path="keys/.env"))
+            decision = await evaluator.evaluate("file", ToolInput(path="keys/.env"))
         assert decision.approved is True
         assert decision.requires_hitl is False
 
@@ -136,13 +149,13 @@ class TestAuthorizationEvaluator:
             AsyncMock(return_value=[grant]),
         ):
             evaluator = AuthorizationEvaluator(project_id=120)
-            decision = await evaluator.evaluate("read", ToolInput(path="keys/.env"))
+            decision = await evaluator.evaluate("file", ToolInput(path="keys/.env"))
         assert decision.approved is False
         assert decision.requires_hitl is True
 
     async def test_no_project_approves_everything(self):
         evaluator = AuthorizationEvaluator(project_id=None)
-        decision = await evaluator.evaluate("read", ToolInput(path="/etc/passwd"))
+        decision = await evaluator.evaluate("file", ToolInput(path="/etc/passwd"))
         assert decision.approved is True
 
     async def test_evaluator_state_properties(self):
@@ -161,7 +174,7 @@ class TestAuthorizationEvaluator:
             AsyncMock(return_value=[grant]),
         ):
             evaluator = AuthorizationEvaluator(project_id=1)
-            await evaluator.evaluate("read", ToolInput(path="x"))
+            await evaluator.evaluate("file", ToolInput(path="x"))
         assert evaluator.policies == [policy]
         assert evaluator.granted == [grant]
         assert evaluator.get_granted() == [grant]

@@ -250,3 +250,21 @@ async def test_cancel_workflow_cuts_trigger_and_live_stages(_db):
     # 已取消工作流不再 spawn
     await _mark_due(workflow.id)
     assert await WorkflowService.spawn_due_rounds() == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("duty_enabled")
+async def test_spawn_round_advances_past_current_cycle_on_early_run(_db):
+    """早期触发时，next_run_at 必须推进到下一个自然周期，防止到达预定时刻时同日重复触发。"""
+    workflow = await _create_and_arm()
+    # 确认后初始 next_run_at 在今天 08:00 UTC（或明天 08:00 UTC）
+    assert workflow.next_run_at is not None
+    initial_target = workflow.next_run_at
+
+    # 实例化首轮
+    spawned = await WorkflowService.spawn_round(workflow.id)
+    assert len(spawned) == 4
+    fresh = await WorkflowService.get_workflow(workflow.id)
+    # 首轮生成后，next_run_at 必须严格推进，且大于初始 slot
+    assert fresh.next_run_at is not None
+    assert WorkflowService._to_utc(fresh.next_run_at) > WorkflowService._to_utc(initial_target)

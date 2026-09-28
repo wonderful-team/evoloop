@@ -71,8 +71,10 @@ def _schema_from_signature(func: Any) -> dict[str, Any]:
     required: list[str] = []
 
     try:
-        signature = inspect.signature(func)
-    except (TypeError, ValueError):
+        # eval_str=True 解析字符串化注解（``from __future__ import annotations``
+        # 的模块所有注解都是 str，Literal/类型映射会全部落空）。
+        signature = inspect.signature(func, eval_str=True)
+    except (TypeError, ValueError, NameError):
         return {"type": "object", "properties": {}, "additionalProperties": True}
 
     for name, param in signature.parameters.items():

@@ -38,3 +38,58 @@ def test_skill_tool_returns_not_found_without_guess(monkeypatch):
 
     out = asyncio.run(_run())
     assert "not found" in out or "不要猜名" in out
+
+
+def test_skill_tool_list_action_enumerates_all_skills(monkeypatch):
+    """action="list"：索引被裁/截断时的兜底发现路径，枚举全部活跃技能。"""
+    import asyncio
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from app.core.engine.tools.react_skill import skill
+
+    monkeypatch.setattr(
+        "app.core.learning.skills.discovery.skill_discovery.get_active_skills_list",
+        AsyncMock(
+            return_value=[
+                SimpleNamespace(id=1, name="Agent Reach", namespace="agentreach",
+                                description="互联网能力路由器"),
+                SimpleNamespace(id=2, name="deep_research", namespace="general",
+                                description="深度调研"),
+            ]
+        ),
+    )
+
+    async def _run():
+        return await skill(action="list")
+
+    out = asyncio.run(_run())
+    assert "Agent Reach: 互联网能力路由器" in out
+    assert "deep_research: 深度调研" in out
+    assert 'skill(action="load"' in out
+
+
+def test_skill_tool_load_without_name_points_to_list():
+    """load 缺 name → 指引先 list，不静默猜名。"""
+    import asyncio
+
+    from app.core.engine.tools.react_skill import skill
+
+    async def _run():
+        return await skill()
+
+    out = asyncio.run(_run())
+    assert 'action="list"' in out
+
+
+def test_skill_tool_schema_action_is_enum_and_name_optional():
+    """wire schema 契约：action 为 enum 且默认 load；name 非必填（向后兼容 skill(name=...)）。"""
+    from app.core.engine.sdk_adapter.tools import _schema_from_signature
+    from app.core.engine.tools import react_skill
+
+    schema = _schema_from_signature(react_skill.skill.func)
+    action = schema["properties"]["action"]
+    assert action["type"] == "string"
+    assert set(action["enum"]) == {"load", "list"}
+    assert "name" in schema["properties"]
+    assert "name" not in schema.get("required", [])

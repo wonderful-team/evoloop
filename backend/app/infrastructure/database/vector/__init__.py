@@ -32,7 +32,8 @@ def get_vector_store(project_path: str | None = None) -> BaseVectorStore:
     Returns:
         BaseVectorStore: LanceVectorStore (embedded) 或 PgVectorStore (full mode)
     """
-    if settings.EMBEDDED_MODE:
+    use_embedded_vector = settings.EMBEDDED_MODE or not settings.VECTOR_DATABASE_URI
+    if use_embedded_vector:
         from app.infrastructure.database.vector.lancedb_store import LanceVectorStore
 
         # 解析 db_path

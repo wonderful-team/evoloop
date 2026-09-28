@@ -28,6 +28,7 @@ from app.domain.tasks.service import (
     task_last_result,
     task_number,
     task_priority,
+    task_skills,
     task_title,
     task_version,
 )
@@ -172,6 +173,12 @@ async def _run_wakeup_with_deadline(thread_id: str, inputs: dict) -> None:
         session_manager._sessions.pop(thread_id, None)
         async with agent_run_registry._lock:
             agent_run_registry._records.pop(thread_id, None)
+        try:
+            from app.core.execution.terminal.background import task_manager
+
+            await task_manager.cancel_thread_tasks(thread_id)
+        except Exception:
+            pass
 
 
 async def auto_retry_failed_tasks() -> None:
@@ -497,6 +504,24 @@ async def dispatch_due_tasks() -> None:
         # 链式任务的执行者（独立 wakeup 线程）拿不到上游 thread 的消息，
         # 缺了这段它只能重新调研或编造（链式任务的命脉）。
         instruction_text = t.description or ""
+        assigned_skills = task_skills(t)
+        if assigned_skills:
+            canonical_names = []
+            try:
+                from app.core.learning.skills.discovery import skill_discovery
+
+                for s_name in assigned_skills:
+                    match, rel, _ = await skill_discovery.exact_search(s_name)
+                    canonical_names.append(rel[0].name if (match and rel) else s_name)
+            except Exception:
+                canonical_names = assigned_skills
+            skills_str = ", ".join(canonical_names)
+            first_skill = canonical_names[0]
+            skill_guide = (
+                f"【专用技能指引】：本任务已关联专用技能 [{skills_str}]。"
+                f"请在执行前优先调用 skill(\"{first_skill}\") 获取工具命令与执行路由，严禁自行编写并调试原生爬虫或临时脚本。\n\n"
+            )
+            instruction_text = skill_guide + instruction_text
         upstream_note = await _build_upstream_context(t)
         if upstream_note:
             instruction_text = f"{instruction_text}\n\n{upstream_note}"
@@ -534,6 +559,7 @@ async def dispatch_due_tasks() -> None:
                         if (t.due_at or t.next_run_at)
                         else "now",
                         "category": category,
+                        "skills": assigned_skills,
                         "feedback": (t.acceptance or {}).get("feedback") or "",
                     },
                     **(

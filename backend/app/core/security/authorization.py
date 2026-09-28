@@ -54,25 +54,21 @@ def _extract_resource(tool_name: str, tool_input: Any) -> tuple[str, str] | None
     if tool_input is None:
         return None
 
-    # File tools
-    if tool_name in ("read", "view_file"):
+    # File tools（2026-09 收敛：read/write/edit/list_dir/move_file/delete_file
+    # 六件套并入 file facade，按 action 分流读写语义。旧引擎时代工具名
+    # （view_file/write_to_file/replace_file_content 及收敛前的 read/write/edit）
+    # 不做映射——authorization gate 只处理当前 registry 的活工具调用，
+    # 历史消息不重放（messages 库实证：旧引擎名零留存）。
+    if tool_name == "file":
+        action = None
+        if tool_input.args:
+            action = tool_input.args.get("action")
         path = tool_input.path or (
             tool_input.args.get("path") if tool_input.args else None
         )
         if path:
-            return str(path), "read"
-        return None
-
-    if tool_name in (
-        "replace_file_content",
-        "multi_replace_file_content",
-        "write_to_file",
-    ):
-        path = tool_input.path or (
-            tool_input.args.get("path") if tool_input.args else None
-        )
-        if path:
-            return str(path), "write"
+            resource_action = "read" if action in (None, "read", "list") else "write"
+            return str(path), resource_action
         return None
 
     if tool_name == "grep":

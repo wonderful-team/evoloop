@@ -4,7 +4,7 @@ from fastapi import APIRouter
 from sqlalchemy import select
 
 from app.api.schemas.planning import PlanDataResponse, PlanResponse, PlanStepResponse
-from app.domain.planning.constants import PlanStepStatus
+from app.core.planning.constants import PlanStepStatus
 from app.infrastructure.database import session_scope
 from app.models.planning import Plan, PlanStep
 

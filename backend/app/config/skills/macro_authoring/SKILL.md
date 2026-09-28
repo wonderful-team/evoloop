@@ -217,7 +217,7 @@ parameters: []
 只有它失败才回退 native `uiautomator dump`。部分 App（尤其防自动化/Flutter 混合的）会
 **屏蔽 native `uiautomator dump`**（命令静默失败、无产物），但 uiautomator2 仍可读——所以：
 - 探索时**一律调 `mobile(action=dump_ui)`** 拿 XML，裸 adb dump 失败不代表读不到 UI；
-- 若 `mobile` 的 dump_ui 也不通，才考虑截图 + `analyze_image` / OCR 兜底（但那是最后手段，
+- 若 `mobile` 的 dump_ui 也不通，才考虑截图 + `media(action="analyze")` / OCR 兜底（但那是最后手段，
   能 dump 就 dump，视觉方案慢且结构信息少）；
 - collect_loop 内部逐屏 dump 也是同一 uiautomator2 路径，只要 `mobile` 能 dump，采集就能跑。
 
@@ -315,7 +315,7 @@ stdout 捕获进 `extracted_data[key]`，并并入参数，后续 `{{key}}` 可�
 **铁律：宏 = 把"真机/真页面验证过的确定性操作"固化下来，不是凭空编步骤。顺序永远是
 探索 → 打样 → 编排 → 提交 → 实跑自检。** 这套流程对 web / 桌面 / 移动任意一端、任意目标
 界面都适用——不管目标是电商列表、后台表格、聊天窗口还是 App 采集页。探索与打样用你的交互
-工具（`mobile`/`desktop`/`browser`/`analyze_image`）直接在目标上做，不靠猜。
+工具（`mobile`/`desktop`/`browser`/`media`）直接在目标上做，不靠猜。
 **闭环终点 = 宏创建并激活 + 实跑验证通过。** 中途写 YAML 文件、给用户"你自己提交"的指引，
 都只是半成品——**"完成"的定义是：`macro create` 成功落库激活，且 `macro run` 验证数据真实采到。**
 
@@ -349,7 +349,7 @@ examples/ 里的完整范例可 `read` 直接照抄。**注意范例可信度标
   `open_app`、`pull`（把设备数据拉到本地打样）。
 - `desktop`：`dump_ui`（AX 树）、`open_app`、`click/type_text`、`gui_extract`。
 - `browser`：`navigate/click/run_js`。
-- `analyze_image(image_source=<截图路径>, question=...)`：看截图布局、识别按钮/弹窗/坐标区。
+- `media(action="analyze", kind="image", source=<截图路径>, question=...)`：看截图布局、识别按钮/弹窗/坐标区。
 
 ### 阶段 B · 数据打样（写宏前先证明"数据可解析"）⚠️ 最容易跳过、也最容易翻车的一步
 目标：在写宏脚本**之前**，用一小份**真实样本**证明采集逻辑成立，避免宏写完才发现锚点/解析不对。

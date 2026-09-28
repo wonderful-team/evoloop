@@ -32,11 +32,8 @@ TOOL_CATEGORY_MAP = {
     "grep": ActionCategory.QUERY,
     "glob": ActionCategory.QUERY,
     "list_dir": ActionCategory.QUERY,
-    "search_codebase": ActionCategory.QUERY,
     "websearch": ActionCategory.QUERY,
     "bash": ActionCategory.COMMAND,
-    "git_operations": ActionCategory.COMMAND,
-    "navigate_directory": ActionCategory.NAVIGATION,
     "mobile": ActionCategory.SYSTEM_INTERACTION,
     "desktop": ActionCategory.SYSTEM_INTERACTION,
 }
@@ -225,8 +222,6 @@ EXCLUDED_EVENT_TYPES = frozenset(
         "grep",
         "glob",
         "question",
-        "ask_confirm",
-        "think",
     }
 )
 

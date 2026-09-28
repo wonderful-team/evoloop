@@ -4,17 +4,11 @@ from typing import Annotated
 from app.core.engine.message.native_classes import RunnableConfig
 from app.core.file import delete_directory
 from app.core.file import delete_file as core_delete_file
-from app.core.tools import evoloop_tool
 from app.core.tools.base import InjectedToolArg
 
 from .utils import resolve_and_validate_path
 
 
-@evoloop_tool(
-    is_state_mutating=True,
-    affected_path_keys=["path"],
-    summary_template="evoloop.tool_summary.delete_file",
-)
 async def delete_file(
     path: str,
     confirm: bool = False,

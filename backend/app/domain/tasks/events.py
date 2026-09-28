@@ -11,14 +11,35 @@ async def publish_workflow_event(
     workflow_id: str,
     *,
     event: str,
+    project_id: int | None = None,
     task_id: str | None = None,
     stage: str | None = None,
     status: str | None = None,
     extra: dict[str, Any] | None = None,
 ) -> None:
+    if project_id is None:
+        try:
+            from app.infrastructure.database.sql.session import session_scope
+            from app.models.task_workflow import TaskWorkflow
+            from sqlalchemy import select
+
+            async with session_scope() as session:
+                wf_pid = (
+                    await session.execute(
+                        select(TaskWorkflow.project_id).where(
+                            TaskWorkflow.id == workflow_id
+                        )
+                    )
+                ).scalar_one_or_none()
+                if wf_pid is not None:
+                    project_id = wf_pid
+        except Exception:
+            pass
+
     payload: dict[str, Any] = {
         "type": "workflow_updated",
         "workflow_id": workflow_id,
+        "project_id": project_id or 0,
         "event": event,
         "at": utcnow().isoformat(),
     }
@@ -31,10 +52,14 @@ async def publish_workflow_event(
     if extra:
         payload.update(extra)
 
-    await get_message_broker().publish(
+    broker = get_message_broker()
+    await broker.publish(
         f"workflow:{workflow_id}:events",
         payload,
     )
+    # 并发广播到任务事件频道，通知前端 AutonomousDutyPage 实时刷新工作流与队列
+    await broker.publish(f"tasks:{project_id or 0}:events", payload)
+    await broker.publish("tasks:all:events", payload)
 
 
 async def publish_task_queue_event(

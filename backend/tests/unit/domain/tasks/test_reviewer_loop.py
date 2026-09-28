@@ -172,7 +172,11 @@ async def test_review_no_verdict_line_counts_as_rejection(_db, monkeypatch):
 async def test_human_rejection_not_capped(_db):
     """用户拒绝不受 2 轮上限约束（T2 waiting_acceptance 人工路径）。"""
     task = await TaskQueueService.create_task(
-        project_id=1, title="t", description="d", risk_level="T2"
+        project_id=1,
+        title="t",
+        description="d",
+        risk_level="T2",
+        acceptance_criteria=["结果可核验"],
     )
     await TaskQueueService.take_task(task.id, "wakeup_6_x")
     await TaskQueueService.advance_task(task.id, "self_checked", result="ok")

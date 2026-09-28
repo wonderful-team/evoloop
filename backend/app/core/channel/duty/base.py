@@ -128,7 +128,8 @@ class DutyChannel(InputChannel, ABC):
         """按联系人统一回复：该联系人的多条新消息一次进 Agent（标准链路）。
 
         由子类实现：构造 IncomingMessage → dispatch_agent_run →
-        run_agent_background。Agent 回复经标准 Channel 机制（send()）到达。
+        session_manager.submit（会话主循环路径，与 voice/web/mobile 一致）。
+        Agent 回复经标准 Channel 机制（send()）到达。
         """
 
     # InputChannel.receive 不适用于主动轮巡，置为显式不可用

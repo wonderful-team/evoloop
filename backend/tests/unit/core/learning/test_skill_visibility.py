@@ -61,3 +61,64 @@ class TestVisibleFilter:
         # visible_filter should compile to an is_active == true predicate
         expr = visible_filter()
         assert expr is not None
+
+
+class TestProjectSkillScoping:
+    def test_capability_index_filters_foreign_project_skills(self):
+        from app.core.engine.react.prompts import _capability_index
+
+        global_skill = SimpleNamespace(
+            name="agent-reach",
+            display_name="Agent Reach",
+            description="Global web search and scrape",
+            project_id=None,
+        )
+        project_skill = SimpleNamespace(
+            name="order-refund",
+            display_name="Refund Handler",
+            description="Member center refund",
+            project_id=120,
+        )
+        foreign_skill = SimpleNamespace(
+            name="mall-marketing",
+            display_name="Mall Marketing",
+            description="Marketing tools",
+            project_id=999,
+        )
+
+        # Context for project 120
+        ctx_120 = SimpleNamespace(
+            project_id=120,
+            metadata={
+                "active_skills": [global_skill, project_skill, foreign_skill],
+            },
+        )
+        idx_120 = _capability_index(ctx_120)
+        assert "agent-reach" in idx_120
+        assert "order-refund" in idx_120
+        assert "mall-marketing" not in idx_120
+
+        # Context for project 122 (different project)
+        ctx_122 = SimpleNamespace(
+            project_id=122,
+            metadata={
+                "active_skills": [global_skill, project_skill, foreign_skill],
+            },
+        )
+        idx_122 = _capability_index(ctx_122)
+        assert "agent-reach" in idx_122
+        assert "order-refund" not in idx_122
+        assert "mall-marketing" not in idx_122
+
+        # Context with no project_id (workspace global)
+        ctx_none = SimpleNamespace(
+            project_id=None,
+            metadata={
+                "active_skills": [global_skill, project_skill, foreign_skill],
+            },
+        )
+        idx_none = _capability_index(ctx_none)
+        assert "agent-reach" in idx_none
+        assert "order-refund" not in idx_none
+        assert "mall-marketing" not in idx_none
+

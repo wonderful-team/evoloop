@@ -1,6 +1,6 @@
 """域词汇表文档同步契约（2026-09-18）。
 
-锁定 `docs/capability-packages-refactor.md`「域词汇表」小节与 L1 分类器
+锁定 `docs/backend/docs/capability-packages-refactor.md`「域词汇表」小节与 L1 分类器
 模型产物 `models/domain_classifier/labels.json` 的标签集一致：
 模型重训导致标签集变化时本测试变红，提醒更新文档——文档永不静默过期。
 """

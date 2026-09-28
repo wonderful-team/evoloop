@@ -72,6 +72,14 @@ def task_workflow_id(task: ProjectTask) -> str | None:
     return str(value) if value is not None else None
 
 
+def task_workflow_round(task: ProjectTask) -> int | None:
+    value = _legacy_value(task, task.workflow_round, "workflow_round")
+    try:
+        return int(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
 def task_dispatch_count(task: ProjectTask) -> int:
     return int(_legacy_value(task, task.dispatch_count, "dispatch_count", 0) or 0)
 
@@ -101,6 +109,13 @@ def task_number(task: ProjectTask) -> int | None:
     if value is None:
         value = (task.task_data or {}).get("task_no")
     return int(value) if value is not None else None
+
+
+def task_skills(task: ProjectTask) -> list[str]:
+    raw = (task.task_data or {}).get("skills")
+    if isinstance(raw, list):
+        return [str(s) for s in raw if s]
+    return []
 
 
 def task_version(task: ProjectTask) -> int:
@@ -267,6 +282,7 @@ class TaskQueueService:
         acceptance_criteria: list | None = None,
         workflow_id: str | None = None,
         workflow_round: int | None = None,
+        skills: list[str] | None = None,
     ) -> ProjectTask:
         """Insert a task row. Entry semantics:
         - source=user → pending (user-planned, accepted as-is)
@@ -305,6 +321,15 @@ class TaskQueueService:
         acceptance_criteria = (
             _normalize_list(acceptance_criteria, "acceptance_criteria") or []
         )
+        # 验收标准准入闸（fail-closed）：资金类任务（T1/T2）完结必须经
+        # 验收，而验收的可执行前提是"完成"被显式逐条编码——基准缺失 =
+        # 验收者只能凭执行者口头汇报放行 = 闸门放水。拒绝创建，错误信息
+        # 指明补救路径（Agent 读到即能在提案期补齐）。
+        if risk_level in ("T1", "T2") and not acceptance_criteria:
+            raise TaskQueueError(
+                "T1/T2（资金类）任务必须提供验收标准 acceptance_criteria："
+                "逐条列出可核验的完成定义（对照产物/数据/回执），缺失即不可验收"
+            )
         workflow_id = str(workflow_id).strip() if workflow_id else None
         if dedup_key:
             existing = await TaskQueueService.get_by_dedup_key(dedup_key)
@@ -343,7 +368,7 @@ class TaskQueueService:
                     progress=0,
                     description=description or None,
                     type=task_type,
-                    task_data={},
+                    task_data={"skills": [str(s) for s in skills if s]} if skills else {},
                     source=source,
                     source_ref=source_ref or {},
                     task_no=task_no,
@@ -1546,6 +1571,52 @@ class TaskQueueService:
                         }
                     )
 
+        # workflows KPI: active workflows with round & stage progress
+        from app.models.task_workflow import TaskWorkflow
+
+        workflows_kpi: list[dict[str, Any]] = []
+        async with session_scope() as session:
+            wf_stmt = (
+                select(TaskWorkflow)
+                .where(
+                    TaskWorkflow.status.in_(("running", "armed", "proposed")),
+                    *(
+                        [TaskWorkflow.project_id == project_id]
+                        if project_id is not None
+                        else [TaskWorkflow.member_id == member_scope]
+                        if member_scope is not None
+                        else []
+                    ),
+                )
+                .order_by(TaskWorkflow.updated_at.desc())
+                .limit(10)
+            )
+            wfs = (await session.execute(wf_stmt)).scalars().all()
+            for wf in wfs:
+                t_stats = await session.execute(
+                    select(
+                        func.count(ProjectTask.id),
+                        func.count(
+                            func.nullif(ProjectTask.status != "completed", True)
+                        ),
+                    ).where(
+                        ProjectTask.workflow_id == wf.id,
+                        ProjectTask.workflow_round == wf.round_no,
+                    )
+                )
+                t_total, t_completed = t_stats.one()
+                workflows_kpi.append(
+                    {
+                        "id": wf.id,
+                        "title": wf.title,
+                        "status": wf.status,
+                        "round_no": wf.round_no,
+                        "trigger_spec": wf.trigger_spec,
+                        "tasks_total": int(t_total or 0),
+                        "tasks_completed": int(t_completed or 0),
+                    }
+                )
+
         return DashboardPayload(
             counts=counts,
             duty_state=duty_state,
@@ -1556,6 +1627,7 @@ class TaskQueueService:
             daily=daily_days,
             recent_events=recent_events,
             awaiting_human=awaiting_human,
+            workflows=workflows_kpi,
         )
 
     @staticmethod
@@ -1830,6 +1902,7 @@ class TaskQueueService:
         trigger_spec: str | None = None,
         clear_trigger_spec: bool = False,
         dependencies: list[str] | None = None,
+        skills: list[str] | None = None,
         cancel: bool = False,
     ) -> ProjectTask:
         """User-facing edit: field updates + optional cancel.
@@ -1902,6 +1975,10 @@ class TaskQueueService:
             updates["trigger_spec"] = None
             updates["next_run_at"] = None
             updates["type"] = task_type or "once"
+        if skills is not None:
+            td = dict(task.task_data or {})
+            td["skills"] = [str(s) for s in skills if s]
+            updates["task_data"] = td
 
         if not updates:
             raise TaskQueueError("nothing to update")

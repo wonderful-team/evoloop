@@ -8,7 +8,7 @@ from app.core.file.editor import (
     FileEditOperation,
     FileEditorService,
 )
-from app.core.tools import evoloop_tool, get_working_directory
+from app.core.tools import get_working_directory
 from app.core.tools.base import InjectedToolArg
 from app.i18n.service import i18n
 
@@ -173,12 +173,6 @@ def format_preview_result(
     )
 
 
-@evoloop_tool(
-    name="edit",
-    is_state_mutating=True,
-    affected_path_keys=["path"],
-    summary_template="evoloop.tool_summary.edit",
-)
 async def edit_file(
     path: str,
     target: str | None = None,

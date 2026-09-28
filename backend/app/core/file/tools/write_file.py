@@ -15,7 +15,6 @@ from app.core.file import (
 from app.core.file import (
     write_file as core_write_file,
 )
-from app.core.tools import evoloop_tool
 from app.core.tools.base import InjectedToolArg
 from app.i18n.service import i18n
 
@@ -61,12 +60,6 @@ async def handle_write(
         return i18n.get("domain_tools.files.write_error", error=str(e))
 
 
-@evoloop_tool(
-    name="write",
-    is_state_mutating=True,
-    affected_path_keys=["path"],
-    summary_template="evoloop.tool_summary.write",
-)
 async def write_file(
     path: str,
     content: str,

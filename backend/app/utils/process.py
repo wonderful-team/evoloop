@@ -37,7 +37,11 @@ async def run_async_command(cmd: str | list[str], cwd: str | None = None, timeou
             program = cmd[0]
             args = cmd[1:]
 
-        logger.debug(f"Async running: {cmd} (cwd={cwd})")
+        import os
+        import signal
+
+        preexec = getattr(os, "setsid", None)
+        extra_kwargs = {"preexec_fn": preexec} if preexec else {}
 
         if isinstance(cmd, str):
             process = await create_proc(
@@ -45,6 +49,7 @@ async def run_async_command(cmd: str | list[str], cwd: str | None = None, timeou
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 cwd=cwd,
+                **extra_kwargs,
             )
         else:
             process = await create_proc(
@@ -53,6 +58,7 @@ async def run_async_command(cmd: str | list[str], cwd: str | None = None, timeou
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 cwd=cwd,
+                **extra_kwargs,
             )
 
         try:
@@ -62,8 +68,16 @@ async def run_async_command(cmd: str | list[str], cwd: str | None = None, timeou
                 )
             else:
                 stdout, stderr = await process.communicate()
-        except asyncio.TimeoutError:
-            process.kill()
+        except (asyncio.TimeoutError, asyncio.CancelledError) as exc:
+            try:
+                if preexec and process.pid:
+                    os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+                else:
+                    process.kill()
+            except Exception:
+                pass
+            if isinstance(exc, asyncio.CancelledError):
+                raise
             return CommandResult(-1, "", "Command timed out")
 
         return CommandResult(

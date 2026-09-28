@@ -1,19 +1,14 @@
-"""Image facade tool — single unified entry for image analyze & generation.
+"""Image business ops — analyze & generate implementation (no tool registration).
 
-把「图片分析」与「生图」收敛为单一 ``image`` 工具，按 ``action`` 分发，与
-``vault``/``schedule``/``task`` facade 对齐：
-- analyze:  用 VisionEngine 分析一张图片（原 ``analyze_image`` 能力）。
-- generate: 文生图 / 图生图，走 OpenAI 标准 ``images.generate`` / ``images.edit``
-            接口（经网关统一代理，模型由网关目录动态提供）。
+2026-09 工具面收敛：``image`` 工具并入 ``media`` facade（media.py 按 kind 分发），
+本模块保留纯业务函数 ``_analyze`` / ``_generate``，供 facade 与测试直接调用。
 """
 
 import logging
-from typing import Annotated, Literal, TypeAlias, cast
+from typing import Literal, TypeAlias, cast
 
 from app.core.context import ContextManager
 from app.core.engine.message.native_classes import RunnableConfig
-from app.core.tools import evoloop_tool
-from app.core.tools.base import InjectedToolArg
 from app.core.vision import vision_engine
 from app.core.vision.tools._media import (
     download_bytes,
@@ -34,50 +29,11 @@ ImageSize: TypeAlias = Literal[
 ]
 
 
-@evoloop_tool(
-    name="image",
-    is_state_mutating=True,
-    affected_path_keys=["source"],
-    summary_template="evoloop.tool_summary.image",
-)
-async def image(
-    action: Literal["analyze", "generate"] = "analyze",
-    prompt: str | None = None,
-    source: str | None = None,
-    size: str = "1024x1024",
+async def _analyze(
+    source: str | None,
     question: str = "Describe this image in detail.",
     include_ax_tree: bool = False,
-    model: str | None = None,
-    config: Annotated[RunnableConfig, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> str:
-    """统一图像入口——分析一张图片或生成一张图片。
-
-    Actions:
-    - analyze:  分析本地图片文件路径或公开 URL。可用 question 指定问题，
-                可选 include_ax_tree 注入 macOS/Android UI 树用于接地。
-    - generate: 文生图（prompt）或图生图（prompt + source 参考图），
-                经网关 OpenAI 标准接口调用图像模型，结果上传云端并返回公网链接。
-
-    WHEN TO USE:
-    - 用户发来图片问"这是什么 / 描述一下 / 看看布局问题" → analyze。
-    - 用户说"画一只猫 / 生成一张海报 / 基于这张图做个变体" → generate。
-
-    Args:
-        action: 执行的动作（analyze / generate）。
-        prompt: generate 时的文本提示词（文生图/图生图描述）。
-        source: analyze 时的图片来源（本地绝对路径、uploads/ 相对路径、/api/v1/files/raw 链接或公网 URL）；generate 时可选参考图（同格式，图生图）。
-        size: generate 输出尺寸（OpenAI 标准枚举，如 1024x1024 / 1024x1536 / 1536x1024）。
-        question: analyze 时对图片的问题或指令。
-        include_ax_tree: analyze 时是否注入当前平台 UI Accessibility 树。
-        model: 可选指定图像模型；缺省由网关默认图像模型路由。
-    """
-    if action == "generate":
-        return await _generate(prompt, source, size, model, config)
-
-    return await _analyze(source, question, include_ax_tree)
-
-
-async def _analyze(source: str | None, question: str, include_ax_tree: bool) -> str:
     """Analyze an image (originally analyze_image)."""
     if not source:
         return "Error: action=analyze requires `source` (local image path or URL)."
@@ -143,10 +99,10 @@ async def _analyze(source: str | None, question: str, include_ax_tree: bool) -> 
 
 async def _generate(
     prompt: str | None,
-    source: str | None,
-    size: str,
-    model: str | None,
-    config,
+    source: str | None = None,
+    size: str = "1024x1024",
+    model: str | None = None,
+    config: RunnableConfig | None = None,
 ) -> str:
     """Generate an image via OpenAI-standard images API (through the gateway)."""
     if not prompt:

@@ -8,6 +8,7 @@ class WorkflowRole:
     title: str
     system_prompt: str
     risk_level: str = "T4"
+    acceptance_criteria: tuple[str, ...] = ()
 
 
 GROWTH_WORKFLOW_ROLES: tuple[WorkflowRole, ...] = (
@@ -56,6 +57,11 @@ GROWTH_WORKFLOW_ROLES: tuple[WorkflowRole, ...] = (
             "先讲用户得到什么，再讲产品参数，并检查夸张宣传风险。"
         ),
         risk_level="T2",
+        acceptance_criteria=(
+            "文案草稿覆盖商品标题、详情卖点、社媒文案三类产出",
+            "内容不改动商品事实参数（价格/规格与知识卡一致）",
+            "无夸张宣传违禁表述",
+        ),
     ),
 )
 

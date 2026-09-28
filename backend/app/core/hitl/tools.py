@@ -16,7 +16,7 @@ from app.core.hitl.core import (
     raise_hitl_interrupt,
 )
 from app.core.hitl.prompts import build_approval_context, resolve_tool_context
-from app.core.hitl.schemas import RequestApprovalArgs, RequestHumanInputArgs
+from app.core.hitl.schemas import RequestHumanInputArgs
 from app.core.hitl.types import HITLDecision, HumanRequestType, RiskLevel
 from app.core.tools import evoloop_tool
 from app.i18n.service import i18n
@@ -146,13 +146,6 @@ async def ask_human(
     raise_hitl_interrupt(request.id, response_text)
 
 
-@evoloop_tool(
-    "ask_confirm",
-    args_schema=RequestApprovalArgs,
-    is_hitl=True,
-    summary_template="evoloop.tool_summary.ask_user",
-    handle_tool_error=False,  # HITL must propagate interrupt exception
-)
 async def ask_confirm(
     action_description: str,
     risk_level: RiskLevel = RiskLevel.MEDIUM,
@@ -160,18 +153,12 @@ async def ask_confirm(
     consequences: str | None = None,
 ) -> str:
     """
-    Request user approval before executing a potentially impactful action.
+    统一审批入口的业务实现（2026-09 摘除 ``@evoloop_tool`` 注册面）。
 
-    Use this tool before:
-    - Deleting or modifying important files
-    - Running commands that could have side effects
-    - Making irreversible changes
-    - Executing operations with significant cost
-
-    **注意**：若运营需要从多个候选中**挑选一部分**处理，应改用 ``ask_human``
-    的 ``input_type="multi_choice"`` 让运营勾选，不要用本工具。
-
-    The workflow will pause until the user responds.
+    审批由代码层授权门（``hooks/authorization.py``，PRE_TOOL_USE matcher=".*"）
+    按 confirm_tools/risk 规则自动触发，Agent 无需也无法主动调用本工具；
+    ``ask_confirm`` 保留为 HITL 归一化协议名（``orchestrator.py`` 兼容历史消息），
+    本函数仅供 HITL 单测直调。
 
     Returns "APPROVED" or "REJECTED" based on user decision.
     """

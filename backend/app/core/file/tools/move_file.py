@@ -3,17 +3,11 @@ from typing import Annotated
 
 from app.core.engine.message.native_classes import RunnableConfig
 from app.core.file import move_path
-from app.core.tools import evoloop_tool
 from app.core.tools.base import InjectedToolArg
 
 from .utils import resolve_and_validate_path
 
 
-@evoloop_tool(
-    is_state_mutating=True,
-    affected_path_keys=["source", "destination"],
-    summary_template="evoloop.tool_summary.move_file",
-)
 async def move_file(
     source: str,
     destination: str,

@@ -20,6 +20,8 @@ class WorkflowStageSpec(DynamicBaseModel):
     priority: str = "medium"
     risk_level: str | None = None
     deps: list[str] = []
+    skills: list[str] = []
+    acceptance_criteria: list[str] = []
 
 
 class DashboardPayload(DynamicBaseModel):
@@ -35,3 +37,4 @@ class DashboardPayload(DynamicBaseModel):
     daily: list[dict[str, Any]]
     recent_events: list[dict[str, Any]]
     awaiting_human: list[dict[str, Any]]
+    workflows: list[dict[str, Any]] = []

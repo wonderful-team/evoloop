@@ -340,6 +340,34 @@ async def reconcile_stranded(*, startup: bool = False) -> int:
         elif status not in _TERMINAL_STATUSES and status is not ActivityStatus.IDLE:
             continue
         else:
+            # 智能兜底：若 run 实际已成功执行完（done / idle），且未抛出崩溃异常，
+            # 检查是否已有产物落地或有效执行痕迹。若有，自动收敛推进至 waiting_acceptance，
+            # 避免因 Agent 未显式调用 update_status 工具而陷入 5 次回队死循环并熔断失败。
+            if status in (ActivityStatus.DONE, ActivityStatus.IDLE):
+                try:
+                    artifacts = await TaskQueueService.list_task_artifacts(t.id)
+                    # 只有在非回队测试桩（真实生产环境中产物或已标记产出）时才进行自动终态推进
+                    if artifacts or (t.task_data or {}).get("has_output"):
+                        auto_res = "执行完成，产物已归档（调度器自动终态收敛）"
+                        updated = await TaskQueueService.advance_task(
+                            t.id,
+                            "waiting_acceptance",
+                            result=auto_res,
+                            by="system",
+                            thread_id=tid,
+                        )
+                        if updated is not None:
+                            handled += 1
+                            logger.info(
+                                "[DutyReconciler] 产物兜底收敛待验收: task=%s (artifacts=%d) → %s",
+                                t.id,
+                                len(artifacts),
+                                updated.status,
+                            )
+                            continue
+                except Exception:
+                    logger.warning("[DutyReconciler] 产物兜底检查异常，降级走回队", exc_info=True)
+
             reason = f"run {status.value}; auto-requeued by duty reconciler"
             if status is ActivityStatus.QUOTA_EXHAUSTED:
                 # 配额熔断：暂停派发，避免串行 drain 把队列挨个打 429

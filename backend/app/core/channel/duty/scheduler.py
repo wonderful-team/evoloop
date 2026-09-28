@@ -1,7 +1,7 @@
 """值守调度接入 — run_duty_poll 轻量轮巡任务。
 
 与 AutonomousTask 现有执行链（依赖 Android 设备池）解耦：
-值守轮巡不需要设备，直接 dispatch_agent_run → run_agent_background。
+值守轮巡不需要设备，直接 dispatch_agent_run → session_manager.submit。
 
 调度仍可复用 AutonomousTask（定时触发），但执行走独立路径 run_duty_poll。
 

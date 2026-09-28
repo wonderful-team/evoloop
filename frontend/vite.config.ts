@@ -61,6 +61,7 @@ export default defineConfig(({ mode }) => {
         "/api": {
           target: env.VITE_API_URL || "http://127.0.0.1:20160", // 后端统一端口
           changeOrigin: true,
+          timeout: 0,
         },
       },
     },

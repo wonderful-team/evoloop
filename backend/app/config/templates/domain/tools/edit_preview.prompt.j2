@@ -15,7 +15,7 @@
 
 > [!TIP]
 > To apply this change, use:
-> `edit_file(path='{{ path }}', target='''{{ target_preview }}''', replacement='''{{ replacement_preview }}''')`
+> `file(action='edit', path='{{ path }}', target='''{{ target_preview }}''', replacement='''{{ replacement_preview }}''')`
 {%- else -%}
 ❌ {{ message or "Preview failed." }}
 {% if details %}

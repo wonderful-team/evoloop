@@ -22,6 +22,9 @@ def _skill(name, desc="d", capability=None):
     s.name = name
     s.description = desc
     s.capability = capability
+    # 项目级技能隔离过滤用 getattr(s, "project_id", None)：MagicMock 属性
+    # 是 Mock 对象而非 None，会被 "project_id is None" 分支误杀 → 显式置 None
+    s.project_id = None
     return s
 
 

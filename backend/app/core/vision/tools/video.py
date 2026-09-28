@@ -1,17 +1,12 @@
-"""Video facade tool — single unified entry for video analyze & generation.
+"""Video business ops — analyze & generate implementation (no tool registration).
 
-把「视频分析」与「生视频」收敛为单一 ``video`` 工具，按 ``action`` 分发，与
-``image``/``vault``/``schedule`` facade 对齐：
-- analyze:  提取视频关键帧交给 VisionEngine 分析内容（原视频引用分析能力）。
-- generate: 文生视频 / 图生视频，走 OpenAI 标准 ``videos.create_and_poll``
-            接口（经网关统一代理，模型由网关目录动态提供）。
+2026-09 工具面收敛：``video`` 工具并入 ``media`` facade（media.py 按 kind 分发），
+本模块保留纯业务函数 ``_analyze`` / ``_generate``，供 facade 与测试直接调用。
 """
 import logging
-from typing import TYPE_CHECKING, Annotated, Any, Literal, TypeAlias
+from typing import TYPE_CHECKING, Any, Literal, TypeAlias
 
 from app.core.engine.message.native_classes import RunnableConfig
-from app.core.tools import evoloop_tool
-from app.core.tools.base import InjectedToolArg
 from app.core.vision.tools._media import (
     load_source_bytes,
     remove_file,
@@ -28,50 +23,9 @@ if TYPE_CHECKING:
 VideoSize: TypeAlias = Literal["720x1280", "1280x720", "1024x1792", "1792x1024"]
 
 
-@evoloop_tool(
-    name="video",
-    is_state_mutating=True,
-    affected_path_keys=["source"],
-    summary_template="evoloop.tool_summary.video",
-)
-async def video(
-    action: Literal["analyze", "generate"] = "analyze",
-    prompt: str | None = None,
-    source: str | None = None,
-    seconds: int = 5,
-    size: str = "1920x1080",
-    question: str = "Describe this video in detail.",
-    model: str | None = None,
-    config: Annotated[RunnableConfig, InjectedToolArg] = None,  # type: ignore[assignment]
+async def _analyze(
+    source: str | None, question: str = "Describe this video in detail."
 ) -> str:
-    """统一视频入口——分析一段视频或生成一段视频。
-
-    Actions:
-    - analyze:  提取视频关键帧（VideoService.extract_keyframes）并交给 VisionEngine
-                分析内容。source 为本地视频路径或公开 URL。
-    - generate: 文生视频（prompt）或图生视频（prompt + source 参考图），
-                经网关 OpenAI 标准接口（videos.create_and_poll）生成，结果上传云端并返回公网链接。
-
-    WHEN TO USE:
-    - 用户发来视频问"这里面发生了什么 / 总结一下" → analyze。
-    - 用户说"生成一段海浪视频 / 基于这张图做一段视频" → generate。
-
-    Args:
-        action: 执行的动作（analyze / generate）。
-        prompt: generate 时的文本提示词（文生视频/图生视频描述）。
-        source: analyze 时的视频来源（本地绝对路径、uploads/ 相对路径、/api/v1/files/raw 链接或公网 URL）；generate 时可选参考图（同格式，图生视频）。
-        seconds: generate 视频时长（秒）。
-        size: generate 视频分辨率（OpenAI 标准，如 1920x1080 / 720x720）。
-        question: analyze 时对视频内容的问题。
-        model: 可选指定视频模型；缺省由网关默认视频模型路由。
-    """
-    if action == "generate":
-        return await _generate(prompt, source, seconds, size, model, config)
-
-    return await _analyze(source, question)
-
-
-async def _analyze(source: str | None, question: str) -> str:
     """Analyze a video by extracting keyframes and running vision analysis."""
     if not source:
         return "Error: action=analyze requires `source` (local video path or URL)."
@@ -118,11 +72,11 @@ def _new_http_client() -> "httpx.AsyncClient":
 
 async def _generate(
     prompt: str | None,
-    source: str | None,
-    seconds: int,
-    size: str,
-    model: str | None,
-    config,
+    source: str | None = None,
+    seconds: int = 5,
+    size: str = "1920x1080",
+    model: str | None = None,
+    config: RunnableConfig | None = None,
 ) -> str:
     """Generate a video via OpenAI-standard videos API (through the gateway)."""
     if not prompt:

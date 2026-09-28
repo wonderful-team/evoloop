@@ -19,7 +19,6 @@ from app.core.file import (
     read_file as core_read_file,
 )
 from app.core.file.constants import MAX_LINES_PER_CALL
-from app.core.tools import evoloop_tool
 from app.core.tools.base import InjectedToolArg
 from app.i18n.service import i18n
 
@@ -209,11 +208,6 @@ Use `read_file(path='{path}', start_line=N, end_line=M)` to read specific line r
         return i18n.get("domain_tools.files.read_error", error=str(e))
 
 
-@evoloop_tool(
-    name="read",
-    summary_template="evoloop.tool_summary.read",
-    affected_path_keys=["path"],
-)
 async def read_file(
     path: str,
     start_line: str | int | None = None,

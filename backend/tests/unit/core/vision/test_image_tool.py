@@ -19,12 +19,12 @@ from app.core.vision.tools import image as image_tool
 class TestValidation:
     @pytest.mark.asyncio
     async def test_analyze_requires_source(self):
-        text = await image_tool.image(action="analyze", source=None)
+        text = await image_tool._analyze(None)
         assert "requires `source`" in text
 
     @pytest.mark.asyncio
     async def test_generate_requires_prompt(self):
-        text = await image_tool.image(action="generate", prompt=None)
+        text = await image_tool._generate(None)
         assert "requires `prompt`" in text
 
 
@@ -43,9 +43,7 @@ class TestAnalyze:
             return result
 
         monkeypatch.setattr(image_tool.vision_engine, "process", _fake_process)
-        text = await image_tool.image(
-            action="analyze", source=str(img), question="What is this?"
-        )
+        text = await image_tool._analyze(str(img), "What is this?")
         assert text == "A red apple on a table."
         assert processed["called"] == 1
 
@@ -68,7 +66,7 @@ class TestAnalyze:
 
         monkeypatch.setattr(media, "resolve_media_source", _fake_resolve)
 
-        text = await image_tool.image(action="analyze", source="uploads/ref.jpg")
+        text = await image_tool._analyze("uploads/ref.jpg")
         assert text == "ok"
         assert processed["source"] == str(img)
 
@@ -81,7 +79,7 @@ class TestAnalyze:
 
         monkeypatch.setattr(media, "resolve_media_source", _fake_resolve)
 
-        text = await image_tool.image(action="analyze", source="uploads/ghost.jpg")
+        text = await image_tool._analyze("uploads/ghost.jpg")
         assert text.startswith("Error: cannot resolve image source")
 
     @pytest.mark.asyncio
@@ -94,7 +92,7 @@ class TestAnalyze:
             return result
 
         monkeypatch.setattr(image_tool.vision_engine, "process", _fake_process)
-        text = await image_tool.image(action="analyze", source=str(img))
+        text = await image_tool._analyze(str(img))
         assert text.startswith("Error:")
         assert "boom" in text
 
@@ -108,7 +106,7 @@ class TestAnalyze:
             return result
 
         monkeypatch.setattr(image_tool.vision_engine, "process", _fake_process)
-        text = await image_tool.image(action="analyze", source=str(img))
+        text = await image_tool._analyze(str(img))
         assert text == "Image analysis completed."
 
 
@@ -186,7 +184,7 @@ class TestGenerate:
             "app.core.vision.tools.image.remove_file", _fake_remove
         )
 
-        text = await image_tool.image(action="generate", **kwargs)
+        text = await image_tool._generate(**kwargs)
         client = fake_client_cls.last_instance
         return text, client
 
@@ -268,9 +266,7 @@ class TestGenerate:
             "app.infrastructure.vision.generation.create_generation_client",
             _raise,
         )
-        text = await image_tool.image(
-            action="generate", prompt="x"
-        )
+        text = await image_tool._generate("x")
         assert "Gateway URL not configured" in text
 
     @pytest.mark.asyncio
@@ -290,22 +286,5 @@ class TestGenerate:
             "app.infrastructure.vision.generation.create_generation_client",
             FakeClient,
         )
-        text = await image_tool.image(
-            action="generate", prompt="x"
-        )
+        text = await image_tool._generate("x")
         assert "no result" in text
-
-
-class TestToolSchema:
-    def test_facade_exposes_action_and_prompt(self):
-        import inspect
-
-        import app.core.tools.registry as registry
-
-        registry._ensure_scanned()
-        tool = registry.get_tool_map()["image"]
-        params = inspect.signature(tool.func).parameters
-        assert "action" in params
-        assert "prompt" in params
-        assert "source" in params
-        assert "size" in params

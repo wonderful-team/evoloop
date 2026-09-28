@@ -9,17 +9,21 @@ from app.core.tools.registry import get_tool_affected_paths
 
 
 class TestMetadataKeys:
-    def test_edit_file_affected_path_keys(self):
-        assert get_tool_affected_paths("edit", {"path": "/abs/x.py"}) == ["/abs/x.py"]
+    def test_file_edit_affected_path_keys(self):
+        assert get_tool_affected_paths(
+            "file", {"action": "edit", "path": "/abs/x.py"}
+        ) == ["/abs/x.py"]
 
-    def test_edit_file_ignores_other_keys(self):
-        assert get_tool_affected_paths("edit", {"target": "/other.py"}) == []
+    def test_file_edit_ignores_other_keys(self):
+        assert get_tool_affected_paths("file", {"action": "edit", "target": "/other.py"}) == []
 
-    def test_write_file_affected_path_keys(self):
-        assert get_tool_affected_paths("write", {"path": "x.py"}) == ["x.py"]
+    def test_file_write_affected_path_keys(self):
+        assert get_tool_affected_paths("file", {"action": "write", "path": "x.py"}) == ["x.py"]
 
-    def test_move_file_both_source_and_dest(self):
-        assert get_tool_affected_paths("move_file", {"source": "a", "destination": "b"}) == [
+    def test_file_move_both_source_and_dest(self):
+        assert get_tool_affected_paths(
+            "file", {"action": "move", "source": "a", "destination": "b"}
+        ) == [
             "a",
             "b",
         ]
@@ -50,5 +54,7 @@ class TestGenericFallback:
         """通用回退：mutating 工具参数含 path/file_path/TargetFile 时兜底。"""
         from app.core.tools.registry import is_state_mutating_tool
 
-        assert is_state_mutating_tool("write")
-        assert get_tool_affected_paths("write", {"path": "gen.py"}) == ["gen.py"]
+        assert is_state_mutating_tool("file")
+        assert get_tool_affected_paths("file", {"action": "write", "path": "gen.py"}) == [
+            "gen.py"
+        ]

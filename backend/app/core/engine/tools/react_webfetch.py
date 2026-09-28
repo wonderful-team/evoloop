@@ -79,6 +79,13 @@ async def webfetch(
         timeout: 请求超时秒数（默认 30）。
     """
     if not url or not is_http_url(url):
+        clean_url = (url or "").strip()
+        if clean_url.startswith("file://") or clean_url.startswith("/"):
+            path = clean_url[7:] if clean_url.startswith("file://") else clean_url
+            return (
+                f"Error: webfetch is only for HTTP/HTTPS URLs. "
+                f"To read local file {path!r}, use the `read` tool: read(path={path!r})."
+            )
         return f"Error: invalid URL: {url!r}. Must start with http:// or https://"
 
     # 多租户 SSRF 门：宿主进程发起的请求能直达回环/私网（宿主与内网服务，
@@ -106,6 +113,13 @@ async def webfetch(
         resp.raise_for_status()
     except Exception as e:
         logger.warning(f"[WebFetch] request failed for {url}: {e}")
+        status_code = getattr(getattr(e, "response", None), "status_code", None)
+        if status_code in (401, 403, 429):
+            return (
+                f"Error fetching {url}: HTTP {status_code} ({e}). "
+                f"Target enforces strict anti-crawling / authentication. "
+                f"DO NOT retry webfetch on this domain. Check specialized skills (like Agent Reach) or use other platforms/fallback data."
+            )
         return f"Error fetching {url}: {e}"
     finally:
         await client.aclose()

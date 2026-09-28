@@ -175,9 +175,9 @@ class TestToolNameConsistency:
 
     def test_dynamic_scan_discovers_tools(self):
         dynamic = _scan_registered_tools()
-        assert len(dynamic) >= 25, f"Dynamic scan found too few tools: {len(dynamic)}"
+        assert len(dynamic) >= 20, f"Dynamic scan found too few tools: {len(dynamic)}"
         # sanity: core tools must be discoverable dynamically
-        assert "list_dir" in dynamic
+        assert "file" in dynamic
         assert "macro" in dynamic
 
 

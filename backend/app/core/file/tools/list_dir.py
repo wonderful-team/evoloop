@@ -22,7 +22,6 @@ from app.core.file.constants import (
     FILE_TREE_FILE_LIMIT,
 )
 from app.core.project.utils import get_workspace_root
-from app.core.tools import evoloop_tool
 from app.core.tools.base import InjectedToolArg
 
 from .utils import resolve_and_validate_path
@@ -148,10 +147,6 @@ async def handle_list(
             return tree_output, {"count": tree_count, "recursive": max_depth > 1}
 
 
-@evoloop_tool(
-    summary_template="evoloop.tool_summary.list_files",
-    affected_path_keys=["path"],
-)
 async def list_dir(
     path: str,
     tree: bool = False,

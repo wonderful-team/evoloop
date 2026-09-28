@@ -39,6 +39,7 @@ export interface QueueTask {
   provenance: Record<string, unknown> | null
   self_check: Record<string, unknown> | null
   acceptance: Record<string, unknown> | null
+  acceptance_criteria?: string[] | null
   task_no?: number | null
   review_pending?: boolean
   review_count?: number
@@ -58,7 +59,7 @@ export interface QueueTask {
   created_at?: string | null
   updated_at?: string | null
   workflow_id?: string | null
-  workflow_stage?: string | null
+  workflow_round?: number | null
   run?: {
     thread_id: string
     status: string
@@ -127,6 +128,15 @@ export interface DashboardKpis {
     input_tokens: number
     output_tokens: number
   } | null
+  workflows?: Array<{
+    id: string
+    title: string
+    status: string
+    round_no: number
+    trigger_spec?: string | null
+    tasks_total: number
+    tasks_completed: number
+  }>
 }
 
 export const TasksQueueApi = {

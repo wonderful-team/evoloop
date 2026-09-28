@@ -38,6 +38,7 @@ class SkillListItem(DynamicBaseModel):
     name: str
     namespace: str = "general"
     description: str = ""
+    project_id: int | None = None
 
 
 class SkillMatch(DynamicBaseModel):

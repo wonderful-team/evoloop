@@ -48,33 +48,43 @@ def _grant(path: str, action: str = "read", ttl_days: int = 7) -> GrantedPermiss
     )
 
 
-def _file_input(path: str | None) -> SimpleNamespace:
-    return SimpleNamespace(path=path, args={})
+def _file_input(path: str | None, args: dict | None = None) -> SimpleNamespace:
+    return SimpleNamespace(path=path, args=args if args is not None else {})
 
 
 # ============ _extract_resource ============
 
 
 def test_extract_resource_read_file_path_attr():
-    assert _extract_resource("read", _file_input("/data/x.env")) == (
+    assert _extract_resource(
+        "file", _file_input("/data/x.env", args={"action": "read"})
+    ) == (
         "/data/x.env",
         "read",
     )
 
 
-def test_extract_resource_view_file_args_path():
+def test_extract_resource_legacy_read_names_not_authorized():
+    """收敛前旧工具名（read/view_file）不再映射——gate 只处理当前活工具。"""
+    assert _extract_resource("read", _file_input("/data/x.env")) is None
     tool_input = SimpleNamespace(path=None, args={"path": "/data/x.env"})
-    assert _extract_resource("view_file", tool_input) == ("/data/x.env", "read")
+    assert _extract_resource("view_file", tool_input) is None
 
 
 def test_extract_resource_file_without_path_returns_none():
-    assert _extract_resource("read", _file_input(None)) is None
+    assert _extract_resource("file", _file_input(None, args={"action": "read"})) is None
 
 
 def test_extract_resource_write_tools():
+    tool_input = SimpleNamespace(path=None, args={"action": "write", "path": "/data/x.env"})
+    assert _extract_resource("file", tool_input) == ("/data/x.env", "write")
+
+
+def test_extract_resource_legacy_engine_names_not_authorized():
+    """旧引擎时代工具名不映射（OpenHands 引擎时代遗留名，ReAct 引擎无此工具）。"""
     tool_input = SimpleNamespace(path=None, args={"path": "/data/x.env"})
     for tool in ("replace_file_content", "multi_replace_file_content", "write_to_file"):
-        assert _extract_resource(tool, tool_input) == ("/data/x.env", "write")
+        assert _extract_resource(tool, tool_input) is None
 
 
 def test_extract_resource_grep_search():
@@ -133,7 +143,7 @@ async def test_evaluate_unrelated_tool_always_approved():
 @pytest.mark.asyncio
 async def test_evaluate_no_matching_policy_approved():
     """无匹配策略 → 放行（默认开放语义，仅敏感模式需要确认）。"""
-    decision = await _evaluate("read", _file_input("/data/plain.txt"), policies=[])
+    decision = await _evaluate("file", _file_input("/data/plain.txt", args={"action": "read"}), policies=[])
     assert decision.approved is True
     assert decision.requires_hitl is False
 
@@ -142,8 +152,8 @@ async def test_evaluate_no_matching_policy_approved():
 async def test_evaluate_requires_approval_triggers_hitl():
     """匹配到 requires_approval 策略 → 需 HITL 确认。"""
     decision = await _evaluate(
-        "read",
-        _file_input("/proj/config/.env"),
+        "file",
+        _file_input("/proj/config/.env", args={"action": "read"}),
         policies=[_policy(patterns=["*.env"])],
     )
     assert decision.approved is False
@@ -156,8 +166,8 @@ async def test_evaluate_requires_approval_triggers_hitl():
 async def test_evaluate_policy_without_approval_passes():
     """匹配策略但 requires_approval=False → 放行。"""
     decision = await _evaluate(
-        "read",
-        _file_input("/proj/logs/app.log"),
+        "file",
+        _file_input("/proj/logs/app.log", args={"action": "read"}),
         policies=[_policy(patterns=["logs/*"], requires_approval=False)],
     )
     assert decision.approved is True
@@ -168,8 +178,8 @@ async def test_evaluate_policy_without_approval_passes():
 async def test_evaluate_wildcard_action_policy_matches():
     """action='*' 的策略匹配任意动作。"""
     decision = await _evaluate(
-        "read",
-        _file_input("/proj/keys/.env"),
+        "file",
+        _file_input("/proj/keys/.env", args={"action": "read"}),
         policies=[_policy(action="*", patterns=["*.env"])],
     )
     assert decision.requires_hitl is True
@@ -179,8 +189,8 @@ async def test_evaluate_wildcard_action_policy_matches():
 async def test_evaluate_action_mismatch_not_matched():
     """动作不匹配（write 策略 vs read 调用）→ 不命中，放行。"""
     decision = await _evaluate(
-        "read",
-        _file_input("/proj/keys/.env"),
+        "file",
+        _file_input("/proj/keys/.env", args={"action": "read"}),
         policies=[_policy(action="write", patterns=["*.env"])],
     )
     assert decision.requires_hitl is False
@@ -190,8 +200,8 @@ async def test_evaluate_action_mismatch_not_matched():
 async def test_evaluate_valid_grant_bypasses_hitl():
     """有效期内已授权（path+action 精确匹配）→ 放行，无需再次确认。"""
     decision = await _evaluate(
-        "read",
-        _file_input("/proj/keys/.env"),
+        "file",
+        _file_input("/proj/keys/.env", args={"action": "read"}),
         policies=[_policy(patterns=["*.env"])],
         grants=[_grant("keys/.env")],
         project_path="/proj",
@@ -205,8 +215,8 @@ async def test_evaluate_valid_grant_bypasses_hitl():
 async def test_evaluate_expired_grant_still_requires_hitl():
     """过期授权 → 仍需确认。"""
     decision = await _evaluate(
-        "read",
-        _file_input("/proj/keys/.env"),
+        "file",
+        _file_input("/proj/keys/.env", args={"action": "read"}),
         policies=[_policy(patterns=["*.env"])],
         grants=[_grant("keys/.env", ttl_days=-1)],
         project_path="/proj",
@@ -218,8 +228,8 @@ async def test_evaluate_expired_grant_still_requires_hitl():
 async def test_evaluate_normalizes_absolute_path_to_relative():
     """绝对路径归一化为项目相对路径后再匹配策略/授权。"""
     decision = await _evaluate(
-        "read",
-        _file_input("/proj/keys/.env"),
+        "file",
+        _file_input("/proj/keys/.env", args={"action": "read"}),
         policies=[_policy(patterns=["keys/*"])],
         project_path="/proj",
     )
@@ -247,8 +257,8 @@ async def test_evaluate_command_not_path_normalized():
 async def test_evaluate_path_outside_project_not_relativized():
     """项目外的绝对路径（relpath 以 .. 开头）不归一化，保持绝对形态参与匹配。"""
     decision = await _evaluate(
-        "read",
-        _file_input("/etc/passwd"),
+        "file",
+        _file_input("/etc/passwd", args={"action": "read"}),
         policies=[_policy(patterns=["passwd"])],
         project_path="/proj",
     )
@@ -275,7 +285,7 @@ async def test_evaluate_get_project_path_failure_keeps_path():
             AsyncMock(side_effect=RuntimeError("boom")),
         ),
     ):
-        decision = await service.evaluate("read", _file_input("/proj/keys/.env"))
+        decision = await service.evaluate("file", _file_input("/proj/keys/.env", args={"action": "read"}))
     # 路径未归一化，仍按绝对路径匹配 *.env 后缀 → 命中策略
     assert decision.requires_hitl is True
 
@@ -295,7 +305,7 @@ async def test_request_authorization_without_policy_raises():
         action="read",
     )
     with pytest.raises(ValueError):
-        await service.request_authorization("t-1", "read", "call-1", decision)
+        await service.request_authorization("t-1", "file", "call-1", decision)
 
 
 @pytest.mark.asyncio
@@ -316,7 +326,7 @@ async def test_request_authorization_delegates_to_orchestrator():
     ) as mock_ra:
         await service.request_authorization(
             "t-1",
-            "read",
+            "file",
             "call-1",
             decision,
             project_id=120,
@@ -330,7 +340,7 @@ async def test_request_authorization_delegates_to_orchestrator():
     assert kwargs["resource_path"] == "keys/.env"
     assert kwargs["risk_level"] == "high"
     assert kwargs["policy"] == decision.policy.to_dict()
-    assert kwargs["original_tool_name"] == "read"
+    assert kwargs["original_tool_name"] == "file"
     assert kwargs["original_tool_args"] == {"path": "/proj/keys/.env"}
 
 
@@ -390,8 +400,8 @@ async def test_evaluate_loads_policies_once_and_caches():
             AsyncMock(return_value="/proj"),
         ),
     ):
-        await service.evaluate("read", _file_input("/proj/a.env"))
-        await service.evaluate("read", _file_input("/proj/b.env"))
+        await service.evaluate("file", _file_input("/proj/a.env", args={"action": "read"}))
+        await service.evaluate("file", _file_input("/proj/b.env", args={"action": "read"}))
     assert mock_load.await_count == 1
 
 
@@ -399,7 +409,7 @@ async def test_evaluate_loads_policies_once_and_caches():
 async def test_evaluate_without_project_id_uses_empty_policies():
     """无 project_id → 空策略/空授权（无项目则无门控）。"""
     service = AuthorizationService(None)
-    decision = await service.evaluate("read", _file_input("/proj/a.env"))
+    decision = await service.evaluate("file", _file_input("/proj/a.env", args={"action": "read"}))
     assert decision.approved is True
     assert decision.requires_hitl is False
 
@@ -412,8 +422,8 @@ async def test_evaluate_reason_is_i18n_aware():
         return_value="zh",
     ):
         decision = await _evaluate(
-            "read",
-            _file_input("/proj/config/.env"),
+            "file",
+            _file_input("/proj/config/.env", args={"action": "read"}),
             policies=[_policy(patterns=["*.env"])],
         )
     assert decision.approved is False

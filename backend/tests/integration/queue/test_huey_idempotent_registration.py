@@ -31,4 +31,6 @@ def test_import_file_tools_after_tasks_does_not_raise():
     from app.core.file.tools import delete_file
 
     assert tasks.persist_file_operation_task
-    assert delete_file.name == "delete_file"
+    # 2026-09 工具面收敛：delete_file 撤 @evoloop_tool 壳并入 file facade，
+    # 本测试只验证 import 链（file tools ← engine.tasks）不炸
+    assert callable(delete_file)

@@ -45,6 +45,9 @@ class TaskCreateRequest(DynamicBaseModel):
     due_at: datetime | None = None
     parent_id: str | None = None
     dependencies: list[str] | None = None
+    skills: list[str] | None = None
+    # T1/T2 任务创建闸（service 层 fail-closed）：缺失 → 422
+    acceptance_criteria: list[str] | None = None
 
 
 class TaskEditRequest(DynamicBaseModel):
@@ -63,6 +66,7 @@ class TaskEditRequest(DynamicBaseModel):
     trigger_spec: str | None = None
     clear_trigger_spec: bool = False
     dependencies: list[str] | None = None
+    skills: list[str] | None = None
     # 唯一合法的状态写入：取消（其余状态转移全部系统驱动）。
     # cancel 是 status="cancelled" 的布尔简写（既有前端契约）
     status: str | None = None
@@ -79,6 +83,7 @@ class WorkflowStageSpecRequest(DynamicBaseModel):
     priority: TaskPriority = TaskPriority.MEDIUM
     risk_level: TaskRiskLevel | None = None
     deps: list[str] = []
+    skills: list[str] = []
 
 
 class WorkflowCreateRequest(DynamicBaseModel):

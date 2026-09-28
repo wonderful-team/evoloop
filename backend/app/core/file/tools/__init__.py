@@ -14,6 +14,7 @@ This module exports specialized file tools optimized for Agent cognition:
 
 from .delete_file import delete_file
 from .edit_file import edit_file
+from .facade import file
 from .find_files import find_files
 from .grep_search import grep_search
 from .list_dir import list_dir
@@ -23,6 +24,7 @@ from .utils import resolve_and_validate_path
 from .write_file import write_file
 
 __all__ = [
+    "file",
     "read_file",
     "write_file",
     "edit_file",

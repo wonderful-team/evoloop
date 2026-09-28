@@ -79,6 +79,7 @@ async def tasks(
     tags: list[Any] | None = None,
     acceptance_criteria: list[Any] | None = None,
     stages_json: str | None = None,
+    skills: list[str] | None = None,
     root_only: bool = False,
     result: str | None = None,
     self_check: str | None = None,
@@ -100,9 +101,9 @@ async def tasks(
       `self_checked`. `self_check` is the structured JSON report.
     - create_workflow: propose a RECURRING PIPELINE (每日/周期流水线的唯一正确
       形态)。stages_json = JSON array of {key, title, description, priority,
-      risk_level, deps:[stage keys]}（拓扑序）；trigger_spec = cron 或
-      interval:秒。编排住工作流：确认后每轮自动实例化阶段任务。禁止再用
-      "recurring 根任务 + 依赖子任务"表达周期流水线（无编排语义，必坏）。
+      risk_level, deps:[stage keys], skills:[skill names]}（拓扑序）；trigger_spec = cron 或
+      interval:秒。重要：阶段涉及网络调研、社交媒体、外部线索采集（如 Reddit/V2EX/Twitter/GitHub 等）
+      时，必须在对应阶段的 skills 中指定 ['agent-reach']，以便派发时自动装配专用技能，严禁手写爬虫。
     - submit_acceptance: RESERVED for the user API — the agent must NOT call it
       (acceptance verdicts are never self-recorded; reach waiting_acceptance via
       update_status instead).
@@ -257,6 +258,7 @@ async def tasks(
                 dependencies=resolved_dependencies,
                 tags=tags,
                 acceptance_criteria=acceptance_criteria,
+                skills=skills,
             )
             return json.dumps(
                 {
@@ -373,6 +375,7 @@ async def tasks(
                         priority=str(s.get("priority") or "medium"),
                         risk_level=s.get("risk_level"),
                         deps=[str(d) for d in (s.get("deps") or [])],
+                        skills=[str(x) for x in (s.get("skills") or [])],
                     )
                     for s in raw_stages
                 ]

@@ -15,9 +15,9 @@ from typing import Annotated, Any, Literal
 from sqlalchemy import delete, select
 
 from app.core.engine.message.native_classes import RunnableConfig
+from app.core.planning.constants import PlanStatus, PlanStepStatus
 from app.core.tools import evoloop_tool
 from app.core.tools.base import InjectedToolArg
-from app.domain.planning.constants import PlanStatus, PlanStepStatus
 from app.infrastructure.database.sql.database import session_scope
 from app.models.planning import Plan as DBPlan
 from app.models.planning import PlanStep as DBPlanStep
@@ -32,40 +32,38 @@ logger = logging.getLogger(__name__)
     summary_template="evoloop.tool_summary.plan",
 )
 async def plan(
-    action: Literal["create", "update_step", "status"] = "create",
+    action: Literal["create", "update_steps", "status"] = "create",
     title: str | None = None,
     steps: list[str | dict] | None = None,
     task_id: str | None = None,
     plan_id: str | None = None,
-    step_id: str | None = None,
-    status: str | None = None,
-    result: str = "",
     config: Annotated[RunnableConfig, InjectedToolArg] = None,
 ) -> str:
     """统一计划管理（Agent 唯一工作清单，用户经前端面板只读查验）。
 
     Actions:
-    - create:      新建/覆盖当前会话计划（title + steps 列表）。
-    - update_step: 更新计划某一步状态（pending / in_progress / completed / failed）。
-    - status:      查看当前计划及各步骤状态。
+    - create:       新建/覆盖当前会话计划（title + steps 列表）。
+    - update_steps: 批量更新多个步骤状态（一次调用可同时完成多项）。
+    - status:       查看当前计划及各步骤状态。
 
     WHEN TO USE:
-    - 长任务（>3 步）先用 plan create 落地结构化计划，再逐步 update_step 推进。
-    - 每完成一步必须调 update_step 标记 completed，并填 result（这步干了什么、结果如何）——
-      这是用户在面板上查验"此前干了什么"的唯一数据来源；正在开始下一步前先标 in_progress。
+    - 长任务（>3 步）先用 plan create 落地结构化计划，再随推进批量 update_steps。
+    - 每完成一步必须标 completed 并填 result（这步干了什么、结果如何）——
+      这是用户在面板上查验"此前干了什么"的唯一数据来源；开始下一步前先标 in_progress。
+    - 一次调用可混合多项：如一步 completed（带 result）+ 下一步 in_progress。
     - 前端计划面板会随调用实时刷新。
     - 收尾时发现非阻塞项（不影响本次任务的遗留问题/建议）不要自行记账，
       在收尾回复中列出并询问用户是否建为旁支任务（create_project_tasks）。
 
     Args:
-        action: create / update_step / status。
+        action: create / update_steps / status。
         title: create 时的计划标题。
-        steps: create 时的步骤列表。每项为字符串，或对象 ``{"title": "...", "status": "pending|in_progress"}``
-               （对象必须有 ``title`` 键——实测 agent 曾误用 ``description`` 键被拒重试）。
-        plan_id: update_step / status 时的计划 ID。
-        step_id: update_step 时的步骤 ID。
-        status: update_step 时的新状态（pending/in_progress/completed/failed）。
-        result: update_step 时的步骤结果描述（completed 时必填）。
+        steps: create 时为步骤列表（每项字符串，或对象 {"title": "...", "description": "..."}，
+               对象必须有 title 键）；update_steps 时为更新列表，每项
+               {"step_id": "...", "status": "pending|in_progress|completed|failed", "result": "..."}——
+               completed 必填 result；step_id 来自 create 返回表格或 status 输出。
+        task_id: create 时关联的任务 ID。
+        plan_id: update_steps / status 时的计划 ID（缺省自动解析当前会话最新计划）。
     """
     thread_id = config.get("configurable", {}).get("thread_id") if config else None
 
@@ -148,15 +146,44 @@ async def plan(
             lines.append("| :--- | :--- | :--- |")
             for s in db_steps:
                 lines.append(f"| `{s['id']}` | {s['title']} | {s['status']} |")
-            lines.append("\n*Tip: 用 plan(action='update_step', ...) 更新每步状态。*")
-            outcome = "\n".join(lines), {
-                "id": plan_id,
-                "steps": db_steps,
-                "is_complete": False,
-            }
+            lines.append(
+                "\n*Tip: 用 plan(action='update_steps', steps=[{step_id, status, result}, ...]) "
+                "批量更新步骤状态。*"
+            )
+            outcome = (
+                "\n".join(lines),
+                {
+                    "id": plan_id,
+                    "steps": db_steps,
+                    "is_complete": False,
+                },
+            )
             publish_kwargs = {"thread_id": thread_id, "plan_id": plan_id}
 
-    elif action == "update_step":
+    elif action == "update_steps":
+        if not steps:
+            return (
+                "Error: update_steps 需要 steps 列表，每项 "
+                '{"step_id": "...", "status": "pending|in_progress|completed|failed", "result": "..."}。'
+            )
+        updates: list[tuple[str, str, str]] = []
+        for i, item in enumerate(steps):
+            if not isinstance(item, dict):
+                return f"Error: steps[{i}] 必须是对象（step_id/status/result）。"
+            sid = str(item.get("step_id") or "").strip()
+            st = str(item.get("status") or "").strip()
+            res = str(item.get("result") or "").strip()
+            if not sid or not st:
+                return f"Error: steps[{i}] 缺少 step_id 或 status。"
+            if st == "completed" and not res:
+                return (
+                    f"Error: steps[{i}]（{sid}）completed 必须填写 result"
+                    "（这步做了什么、结果如何）。"
+                )
+            if len(res) > 500:
+                res = res[:500]
+            updates.append((sid, st, res))
+
         async with session_scope() as session:
             if not plan_id and thread_id:
                 stmt = (
@@ -168,51 +195,48 @@ async def plan(
                 if db_p:
                     plan_id = db_p.id
 
-            if not step_id and plan_id:
-                stmt = (
-                    select(DBPlanStep)
-                    .where(DBPlanStep.plan_id == plan_id)
-                    .order_by(DBPlanStep.order)
-                )
-                steps_list = (await session.execute(stmt)).scalars().all()
-                target_step = next(
-                    (s for s in steps_list if s.status == PlanStepStatus.IN_PROGRESS.value),
-                    None,
-                )
-                if not target_step:
-                    target_step = next(
-                        (s for s in steps_list if s.status == PlanStepStatus.PENDING.value),
-                        None,
-                    )
-                if target_step:
-                    step_id = target_step.id
+            if not plan_id:
+                return "Error: update_steps 需要 plan_id（或可自动解析的会话计划）。"
 
-            if not plan_id or not step_id or not status:
-                return "Error: update_step 需要 plan_id、step_id、status。"
-            if status == "completed" and not (result or "").strip():
+            stmt = (
+                select(DBPlanStep)
+                .where(DBPlanStep.plan_id == plan_id)
+                .order_by(DBPlanStep.order)
+            )
+            existing = {s.id: s for s in (await session.execute(stmt)).scalars().all()}
+            missing = [sid for sid, _, _ in updates if sid not in existing]
+            if missing:
                 return (
-                    "Error: completed 步骤必须填写 result（这步做了什么、结果如何）。"
-                    "请补充后再标记 completed。"
+                    f"Error: 步骤不存在: {', '.join(missing)}。"
+                    "请先用 plan(action='status') 查看有效 step_id。"
                 )
-            if result and len(result) > 500:
-                result = result[:500]
 
-            step = await session.get(DBPlanStep, step_id)
-            if not step:
-                return f"Error: Step {step_id} not found.", {"status": "error"}
-            step.status = status
-            if result:
-                step.result = result
+            for sid, st, res in updates:
+                step = existing[sid]
+                step.status = st
+                if res:
+                    step.result = res
+
+            lines = [f"### Steps Updated: {len(updates)}", ""]
+            lines.append("| Step ID | Status | Result |")
+            lines.append("| :--- | :--- | :--- |")
+            for sid, st, res in updates:
+                lines.append(f"| `{sid}` | {st} | {res or '-'} |")
             outcome = (
-                f"Successfully updated step {step_id} status to '{status}'.",
+                "\n".join(lines),
                 {
-                    "action": "update_step",
+                    "action": "update_steps",
                     "plan_id": plan_id,
-                    "step_id": step_id,
-                    "status": status,
+                    "updated": [
+                        {"step_id": sid, "status": st} for sid, st, _ in updates
+                    ],
                 },
             )
-            publish_kwargs = {"plan_id": plan_id, "step_id": step_id, "status": status}
+            publish_kwargs = {
+                "thread_id": thread_id,
+                "plan_id": plan_id,
+                "step_updates": [(sid, st) for sid, st, _ in updates],
+            }
 
     elif action == "status":
         if not plan_id:
@@ -247,19 +271,31 @@ async def _publish_plan_updated(
     plan_id: str | None = None,
     step_id: str | None = None,
     status: str | None = None,
+    step_updates: list[tuple[str, str]] | None = None,
 ) -> None:
     try:
         from app.core.events import system_bus
-        from app.domain.planning.event import PlanUpdatedEvent
+        from app.core.planning.event import PlanUpdatedEvent
 
-        await system_bus.publish(
-            PlanUpdatedEvent(
-                thread_id=thread_id or "",
-                plan_id=plan_id or "",
-                step_id=step_id,
-                status=status,
+        if step_updates:
+            for sid, st in step_updates:
+                await system_bus.publish(
+                    PlanUpdatedEvent(
+                        thread_id=thread_id or "",
+                        plan_id=plan_id or "",
+                        step_id=sid,
+                        status=st,
+                    )
+                )
+        else:
+            await system_bus.publish(
+                PlanUpdatedEvent(
+                    thread_id=thread_id or "",
+                    plan_id=plan_id or "",
+                    step_id=step_id,
+                    status=status,
+                )
             )
-        )
     except Exception as e:
         logger.warning(
             f"[plan] Failed to publish plan updated event: {e}", exc_info=True

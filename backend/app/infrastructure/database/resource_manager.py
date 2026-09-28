@@ -276,7 +276,12 @@ class DatabaseResourceManager:
                 db_file_path = sync_db_uri.replace("sqlite:///", "", 1)
                 Path(db_file_path).parent.mkdir(parents=True, exist_ok=True)
 
-            if settings.EMBEDDED_MODE:
+            is_sqlite = "sqlite" in sync_db_uri
+            if settings.EMBEDDED_MODE or is_sqlite:
+                connect_args = {
+                    "check_same_thread": False,
+                    "timeout": 30,
+                }
                 engine = create_async_engine(
                     db_uri,
                     echo=settings.DB_ECHO,
@@ -288,10 +293,7 @@ class DatabaseResourceManager:
                     pool_timeout=settings.DB_POOL_TIMEOUT,
                     pool_recycle=settings.DB_POOL_RECYCLE,
                     pool_pre_ping=True,
-                    connect_args={
-                        "check_same_thread": False,
-                        "timeout": 30,
-                    },
+                    connect_args=connect_args,
                 )
                 self._setup_sqlite_pragmas(engine)
                 if self._sync_engine is None:
@@ -303,13 +305,11 @@ class DatabaseResourceManager:
                         pool_timeout=settings.DB_POOL_TIMEOUT,
                         pool_recycle=settings.DB_POOL_RECYCLE,
                         pool_pre_ping=True,
-                        connect_args={
-                            "check_same_thread": False,
-                            "timeout": 30,
-                        },
+                        connect_args=connect_args,
                     )
                     self._setup_sqlite_pragmas(self._sync_engine)
             else:
+                connect_args = {"connect_timeout": settings.DB_CONNECT_TIMEOUT}
                 engine = create_async_engine(
                     db_uri,
                     echo=settings.DB_ECHO,
@@ -319,7 +319,7 @@ class DatabaseResourceManager:
                     max_overflow=settings.DB_MAX_OVERFLOW,
                     pool_timeout=settings.DB_POOL_TIMEOUT,
                     pool_recycle=settings.DB_POOL_RECYCLE,
-                    connect_args={"connect_timeout": settings.DB_CONNECT_TIMEOUT},
+                    connect_args=connect_args,
                 )
                 if self._sync_engine is None:
                     self._sync_engine = create_sync_engine(
@@ -328,7 +328,7 @@ class DatabaseResourceManager:
                         max_overflow=settings.DB_MAX_OVERFLOW,
                         pool_timeout=settings.DB_POOL_TIMEOUT,
                         pool_recycle=settings.DB_POOL_RECYCLE,
-                        connect_args={"connect_timeout": settings.DB_CONNECT_TIMEOUT},
+                        connect_args=connect_args,
                     )
 
             self._engines[loop] = engine
@@ -371,7 +371,7 @@ class DatabaseResourceManager:
 
         logger.info("[ResourceManager] Ensuring tables exist...")
         async with engine.begin() as conn:
-            if not settings.EMBEDDED_MODE:
+            if conn.dialect.name == "postgresql":
                 await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
 
             await conn.run_sync(Base.metadata.create_all)

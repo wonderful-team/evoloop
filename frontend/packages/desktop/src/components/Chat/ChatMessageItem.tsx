@@ -9,10 +9,12 @@ import { useAutoSpeak, useTTS } from "@/hooks/useTTS"
 import { previewFile } from "@/utils/fileLinkHandler"
 import { resolveReferencePreview } from "@/utils/fileUtils"
 import { ChangesetSnapshot } from "./ChangesetSnapshotView"
+import { ExecutionThreadDrawer } from "./ExecutionThreadDrawer"
 import { type GalleryImage, ImageGalleryViewer } from "./ImageGalleryViewer"
 import { MessageContent } from "./MessageContent"
 import { MessageReferences } from "./MessageReferences"
 import { TaskProposalCard } from "./TaskProposalCard"
+import { type DutyTaskMeta, TaskStateChip } from "./TaskStateChip"
 import { TTSButton } from "./TTSButton"
 
 export interface MessageReference {
@@ -47,6 +49,7 @@ export interface Message {
     | "waiting_human"
   sequence_number?: number
   run_id?: string
+  meta_data?: Record<string, any>
   tool_name?: string
   input?: any
   output?: any
@@ -183,6 +186,10 @@ const ChatMessageItem = memo(
       images: GalleryImage[]
       index: number
     } | null>(null)
+    const [execThread, setExecThread] = useState<{
+      threadId: string
+      title: string
+    } | null>(null)
     const galleryUI = (
       <ImageGalleryViewer
         images={gallery?.images || []}
@@ -192,6 +199,14 @@ const ChatMessageItem = memo(
         onClose={() => setGallery(null)}
       />
     )
+    const executionDrawerUI = execThread ? (
+      <ExecutionThreadDrawer
+        open
+        threadId={execThread.threadId}
+        title={execThread.title}
+        onClose={() => setExecThread(null)}
+      />
+    ) : null
     const actionContent =
       msg.effective_content !== undefined && msg.effective_content.trim() !== ""
         ? msg.effective_content
@@ -271,6 +286,23 @@ const ChatMessageItem = memo(
         return
       }
 
+      // 消息引用（值守评审的「执行会话 (#T-x)」胶囊）→ 轻量执行抽屉：
+      // thread_id 由评审链路注入 meta_data（process_references 直通契约）
+      if (ref.type === "message") {
+        const threadId = ref.meta_data?.thread_id
+        if (threadId) {
+          setExecThread({ threadId, title: ref.target_name || "" })
+        } else {
+          toast.error(
+            t(
+              "chat.reference.threadMissing",
+              "该引用缺少会话信息，无法定位执行线程",
+            ),
+          )
+        }
+        return
+      }
+
       // 图片引用 → Gallery 查看器（优先会话级：跨消息浏览全部图片）
       if (ref.type === "image") {
         if (onOpenImageGallery) {
@@ -316,6 +348,7 @@ const ChatMessageItem = memo(
                 : ""
             }`}
             data-run-id={msg.run_id}
+            data-message-id={String(msg.id)}
           >
             {isSystemOnBehalf && (
               <span className="inline-flex items-center gap-1 self-start shrink-0 mb-1 rounded-full bg-violet-500/10 text-violet-600 dark:text-violet-400 text-[9px] font-bold px-1.5 py-0.5">
@@ -409,6 +442,7 @@ const ChatMessageItem = memo(
             </div>
           </motion.div>
           {galleryUI}
+          {executionDrawerUI}
         </>
       )
     }
@@ -449,6 +483,18 @@ const ChatMessageItem = memo(
             />
           </div>
         )}
+
+        {/* 值守评审结论 → 任务画布互链（meta_data.duty_task 由评审链路落库） */}
+        {(msg.meta_data as Record<string, unknown> | undefined)?.duty_task ? (
+          <div className="mt-1.5">
+            <TaskStateChip
+              meta={
+                (msg.meta_data as Record<string, unknown>)
+                  .duty_task as DutyTaskMeta
+              }
+            />
+          </div>
+        ) : null}
 
         {/* Artifacts view */}
         {msg.changeset_count !== undefined && msg.changeset_count > 0 && (
@@ -534,6 +580,7 @@ const ChatMessageItem = memo(
           </div>
         )}
         {galleryUI}
+        {executionDrawerUI}
       </motion.div>
     )
   },

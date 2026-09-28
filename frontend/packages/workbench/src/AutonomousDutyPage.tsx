@@ -18,7 +18,7 @@ import {
 } from "@tanstack/react-query"
 import { useNavigate } from "@tanstack/react-router"
 import { motion } from "framer-motion"
-import { AlertTriangle, Bot, Inbox, Plus, X } from "lucide-react"
+import { AlertTriangle, Bot, Inbox, Plus, Workflow, X } from "lucide-react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
@@ -330,7 +330,18 @@ export function AutonomousDutyPage() {
         void qc.invalidateQueries({ queryKey: ["dutyHitl"] })
         void qc.invalidateQueries({ queryKey: ["dutyQueue"] })
         void qc.invalidateQueries({ queryKey: ["dutyDashboard"] })
+        void qc.invalidateQueries({ queryKey: ["dutyWorkflows"] })
       }
+      source.addEventListener("workflow_updated", (ev) => {
+        captureEventId(ev)
+        const payload = parseTaskQueueEvent((ev as MessageEvent).data)
+        if (payload) {
+          handleTaskQueueEvent(payload, {
+            setLiveRun,
+            invalidate: coalescedInvalidate,
+          })
+        }
+      })
       source.addEventListener("task_queue_updated", (ev) => {
         captureEventId(ev)
         // 事件解析与处置逻辑抽至 core/dutySse.ts（纯函数，可回归测试）
@@ -616,6 +627,31 @@ export function AutonomousDutyPage() {
                   <span className="flex-1" />
                 </div>
               </div>
+
+              {/* Active workflows strip (D8) */}
+              {dash.data?.workflows && dash.data.workflows.length > 0 && (
+                <div className="px-2 pb-1 shrink-0">
+                  <div className="rounded-md bg-primary/[0.06] border border-primary/20 px-2.5 py-1.5 flex items-center justify-between gap-2 text-[11px]">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <Workflow className="h-3.5 w-3.5 text-primary shrink-0" />
+                      <span className="font-semibold text-primary truncate">
+                        {dash.data.workflows[0].title}
+                      </span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-mono shrink-0">
+                        第 {dash.data.workflows[0].round_no} 轮 ({dash.data.workflows[0].tasks_completed}/{dash.data.workflows[0].tasks_total})
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      className="text-[10px] text-muted-foreground hover:text-foreground shrink-0 cursor-pointer"
+                      onClick={() => setActiveTab("proposed")}
+                    >
+                      流水线 →
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <Tabs
                 value={activeTab}
                 onValueChange={setActiveTab}
@@ -921,6 +957,26 @@ export function AutonomousDutyPage() {
                     await invalidate()
                   } catch (err) {
                     console.error("Failed to rerun task:", err)
+                  }
+                }}
+                onArbitrateTask={async (action, taskId, modifiedParams) => {
+                  try {
+                    if (action === "retry_upstream") {
+                      await TasksQueueApi.rerun(taskId)
+                    } else if (action === "cancel_downstream") {
+                      await TasksQueueApi.update(taskId, { status: "cancelled" })
+                    } else if (action === "reopen_modified") {
+                      if (modifiedParams?.description) {
+                        await TasksQueueApi.update(taskId, {
+                          description: modifiedParams.description,
+                          status: "pending",
+                        })
+                      }
+                      await TasksQueueApi.rerun(taskId)
+                    }
+                    await invalidate()
+                  } catch (err) {
+                    console.error("Failed to execute arbitrate task:", err)
                   }
                 }}
                 onConfirmHitl={async (taskId, grantMode) => {

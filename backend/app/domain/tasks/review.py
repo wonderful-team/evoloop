@@ -238,24 +238,62 @@ async def trigger_review(task) -> None:
         criteria_lines = "\n".join(f"- {c}" for c in criteria)
         criteria_block = f"【验收基准】\n{criteria_lines}\n\n"
 
+    import os
+    from datetime import datetime, timezone
+
     deliverables_block = ""
     file_refs = [r for r in refs if r.get("type") in ("file", "image", "artifact")]
     if file_refs:
-        paths = "\n".join(f"- {r.get('name')}: {r.get('target_id')}" for r in file_refs)
-        deliverables_block = f"【交付产物清单（请使用 view_file 等只读工具核查）】\n{paths}\n\n"
+        paths = []
+        for r in file_refs:
+            target = r.get("target_id") or ""
+            name = r.get("name") or "交付物"
+            fp_info = ""
+            if target and os.path.isfile(target):
+                try:
+                    sz = os.path.getsize(target)
+                    mtime = datetime.fromtimestamp(os.path.getmtime(target), tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+                    fp_info = f" (大小: {sz} 字节, 修改时间: {mtime})"
+                except Exception:
+                    pass
+            paths.append(f"- {name}: {target}{fp_info}")
+        deliverables_block = f"【交付产物清单与物理指纹（请使用 view_file 等只读工具核查）】\n" + "\n".join(paths) + "\n\n"
+
+    # 执行现场快照（时间窗 + 自检证据数值锚点）
+    start_time = task.created_at.strftime("%Y-%m-%d %H:%M:%S UTC") if getattr(task, "created_at", None) else "未知"
+    end_time = task.updated_at.strftime("%Y-%m-%d %H:%M:%S UTC") if getattr(task, "updated_at", None) else "未知"
+    snapshot_lines = [f"- 执行时间窗: {start_time} 至 {end_time}"]
+
+    self_check = getattr(task, "self_check", None)
+    if isinstance(self_check, dict):
+        checks = self_check.get("checks") or []
+        evidence_lines = []
+        for c in checks:
+            if isinstance(c, dict) and c.get("evidence"):
+                mark = "✓" if c.get("pass") else "✗"
+                c_name = c.get("name") or c.get("title") or "检查项"
+                evidence_lines.append(f"  * {mark} {c_name}: {c.get('evidence')}")
+        if evidence_lines:
+            snapshot_lines.append("- 执行者自检证据数值锚点:\n" + "\n".join(evidence_lines))
+        if self_check.get("deviations"):
+            snapshot_lines.append(f"- 偏差说明: {self_check.get('deviations')}")
+
+    snapshot_block = f"【执行现场快照】\n" + "\n".join(snapshot_lines) + "\n\n"
 
     content = (
         f"[值守系统代用户] 任务 {label}「{title}」已由值守执行完成，请核验交付结果。\n\n"
         f"【执行交付简报】\n"
         f"{result_summary}\n\n"
         f"{criteria_block}"
+        f"{snapshot_block}"
         f"{deliverables_block}"
         f"请你以我的立场评审核实该任务的完成情况（只评审，不实施；不要修改任何数据、"
         f"不要执行任何写操作，可通过只读文件工具查验关联交付物与执行记录）：\n"
         f"1) 回顾本对话中我最初提出这件事的意图与预期，以我的原始表述为准，"
         f"不要以执行报告的自我描述为准；\n"
-        f"2) 对照执行者的交付简报与关联产物，逐条核对目标是否达成；关键数据要交叉验证；\n"
-        f"3) 有无遗漏、漂移或只完成了一部分的迹象。\n\n"
+        f"2) 对照执行者的交付简报、自检证据数值与关联产物，逐条核对目标是否达成；关键数据要交叉验证；\n"
+        f"3) 有无遗漏、漂移或只完成了一部分的迹象；\n"
+        f"4) 评审意见中请在首行或末尾注明评审时点（校准环境漂移）。\n\n"
         f"最后一行必须是结论，格式严格如下：\n"
         f"结论：通过\n"
         f"或\n"
@@ -314,6 +352,65 @@ async def latest_reviewer_reply(thread_id: str) -> str:
     return await _latest_ai_reply(thread_id, assistant_categories_only=False)
 
 
+async def _latest_reviewer_message_id(thread_id: str) -> str | None:
+    """评审者最后一条 ai 消息的 id（与 _latest_ai_reply 同条件同排序）。"""
+    from sqlalchemy import select
+
+    from app.infrastructure.database import session_scope
+    from app.models.conversation import Message
+
+    async with session_scope() as session:
+        stmt = (
+            select(Message.id)
+            .where(
+                Message.thread_id == thread_id,
+                Message.role == "ai",
+                Message.content.isnot(None),
+                Message.content != "",
+            )
+            .order_by(Message.sequence_number.desc())
+            .limit(1)
+        )
+        row = (await session.execute(stmt)).scalar()
+        return str(row) if row else None
+
+
+async def _annotate_reviewer_message(
+    task, verdict: str, feedback: str, message_id: str | None
+) -> None:
+    """把评审结论结构化挂到评审回复消息上（Chat→Canvas 互链的数据源）。
+
+    前端在消息气泡下渲染 TaskStateChip（#T-x + 结论 + 跳画布），点击经
+    sessionStorage("duty:focus-task") 一次性交接给值守画布 flyToCard。
+    """
+    if not message_id:
+        return
+    try:
+        from datetime import datetime, timezone
+
+        from app.infrastructure.database import session_scope
+        from app.models.conversation import Message
+
+        async with session_scope() as session:
+            msg = await session.get(Message, message_id)
+            if msg is None:
+                return
+            meta = dict(msg.meta_data or {})
+            meta["duty_task"] = {
+                "task_id": str(task.id),
+                "task_no": task_number(task),
+                "task_title": task_title(task) or "",
+                "verdict": verdict,
+                "at": datetime.now(timezone.utc).isoformat(),
+            }
+            if feedback:
+                meta["duty_task"]["feedback"] = feedback[:200]
+            msg.meta_data = meta
+            session.add(msg)
+    except Exception as e:
+        logger.warning("[TaskReview] annotate reviewer message failed: %s", e)
+
+
 async def resolve_review_verdict(task_id: str, reviewer_reply: str) -> None:
     """Parse the reviewer's final reply and drive the acceptance state machine.
 
@@ -353,4 +450,11 @@ async def resolve_review_verdict(task_id: str, reviewer_reply: str) -> None:
 
     await TaskQueueService.submit_acceptance(
         task_id, by="reviewer:auto", verdict=verdict, feedback=feedback
+    )
+    # Chat→Canvas 互链：把结论结构化挂到评审回复消息（TaskStateChip 数据源）
+    await _annotate_reviewer_message(
+        task,
+        verdict,
+        feedback,
+        await _latest_reviewer_message_id(getattr(task, "origin_thread_id", "") or ""),
     )

@@ -62,10 +62,10 @@ async def triage_app_batch(app_ids: list[str], platform: str) -> dict[str, dict]
     from app.utils.template import render_template
 
     prompt = render_template(
-        "domain/planning/dynamic_app_triage.prompt.j2", app_ids=app_ids
+        "core/planning/dynamic_app_triage.prompt.j2", app_ids=app_ids
     )
     role_name = render_template(
-        "domain/planning/expert_roles.prompt.j2", role="ui_dynamics"
+        "core/planning/expert_roles.prompt.j2", role="ui_dynamics"
     ).strip()
 
     from app.infrastructure.llm import InternalLLMService

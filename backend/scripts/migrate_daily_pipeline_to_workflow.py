@@ -1,6 +1,6 @@
 """One-shot migration: "recurring 根 + 一次性依赖子树" 提案 → 周期工作流。
 
-背景（2026-09-25 #T-1 事故，docs/autonomous-task-loop.md 断层记录）：
+背景（2026-09-25 #T-1 事故，docs/root/autonomous-task-loop.md 断层记录）：
 Agent 用 recurring 根任务 + one-shot 子任务 + 依赖边表达"每日流水线"，
 但队列没有编排原语——根任务每天只驱动自己，子任务一次性跑完躺尸，
 且依赖接线与 Agent 自述的 DAG 不符（#5/6/7 全挂在 #T-2 上）。

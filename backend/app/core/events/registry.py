@@ -49,7 +49,6 @@ class SystemEventType(str, Enum):
     # Awakening / Environment Events
     AWAKENING_COMPLETE = "system.awakening_complete"
     STATE_REFRESHED = "system.state_refreshed"
-    ACTIVITY_STATE_REFRESHED = "system.activity_state_refreshed"
     BOUNDARY_LEARNED = "system.boundary_learned"
 
     # Authentication Events

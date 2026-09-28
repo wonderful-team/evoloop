@@ -125,15 +125,12 @@
     "tool_summary": {
       "running_tool": "Running {tool}...\nInput: {input}",
       "file_op_result": "File operation successful.",
-      "list_files": "List directory '{path}'",
       "ask_user": "Ask user: {prompt}",
       "bash": "Run command '{command}'",
       "remember": "Remember '{content}'",
       "recall": "Recall memory '{query}'",
       "forget_memory": "Forget memory '{memory_id}'",
       "search_history": "Search history '{query}'",
-      "image": "Image: {action}[[ '{prompt}' ]]",
-      "video": "Video: {action}[[ '{prompt}' ]]",
       "search_result": "Search completed[[, {count} results found]][[ ({pattern}) ]]",
       "list_wiki_pages": "List wiki pages",
       "read_wiki_page": "Read wiki page '{slug}'",
@@ -144,18 +141,14 @@
       "macro": "Macro: {action}[[ {name}]]",
       "plan": "Plan: {action}[[ {title}]]",
       "tasks": "Task: {action}[[ {title}]]",
-      "create_task_with_subtasks": "Creating hierarchical task '{title}'",
       "mobile": "Mobile control: {action}",
       "browser": "Browser control: {action}",
       "desktop": "Desktop control: {action}",
       "cancel_command": "Canceling command '{task_id}'",
-      "delete_file": "Delete file '{path}'",
       "vault": "Vault: {action}[[ {identifier} ]]",
-      "move_file": "Move file '{path}'",
-      "read": "Read file '{path}'",
-      "write": "Write file '{path}'",
-      "edit": "Edit file '{path}'",
-      "websearch": "Search completed[[, {count} results found]][[ ({pattern}) ]]"
+      "websearch": "Search completed[[, {count} results found]][[ ({pattern}) ]]",
+      "media": "Media: {kind} {action}[[ '{prompt}' ]]",
+      "file": "File: {action}[[ '{path}' ]]"
     }
   },
   "database_logger": {

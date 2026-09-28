@@ -125,7 +125,7 @@ _scan_lock = threading.Lock()
 
 # Critical tools that MUST be present after scanning
 # react 模式的核心委派工具（替代图模式的 route_to）
-_CRITICAL_TOOLS = ["task"]
+_CRITICAL_TOOLS = ["agent", "file"]
 
 
 def _validate_critical_tools():
@@ -164,6 +164,9 @@ def _ensure_scanned():
 
         # Scan all domain-specific application logic for @evoloop_tool
         REGISTRY.scan("app.domain")
+        # app.core.planning（自 domain 层迁入，2026-09 分层收敛）：plan facade
+        # 工具随 planning 模块迁入 core，显式加入扫描根
+        REGISTRY.scan("app.core.planning")
 
         # app.core.atlas.tools 已退役（2026-09 工具面收敛）：6 个 Atlas 工具
         # （app_atlas/app_maps 读写查）零内部接线，整体删除；Atlas 底层引擎与

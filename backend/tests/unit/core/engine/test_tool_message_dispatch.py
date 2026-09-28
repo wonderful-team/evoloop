@@ -85,16 +85,18 @@ async def test_tool_start_includes_resolved_affected_paths():
     """
     handler = _make_handler()
     result = await handler.handle_tool_start(
-        tool_name="edit",
+        tool_name="file",
         tool_call_id="call-1",
-        input_data={"path": "src/main.py", "target": "x", "replacement": "y"},
+        input_data={"action": "edit", "path": "src/main.py", "target": "x", "replacement": "y"},
     )
     assert result.persisted is True
 
     persisted_kwargs = handler._repository.persist.await_args.kwargs
     tool_meta = persisted_kwargs["metadata"]["tool_meta"]
     assert tool_meta["affected_paths"] == ["src/main.py"]
-    assert tool_meta["affected_path_keys"] == ["path"]
+    # file facade 合并六件套后声明面为 path/source/destination 并集，
+    # 实际受影响路径由 get_tool_affected_paths 按 action 过滤
+    assert tool_meta["affected_path_keys"] == ["path", "source", "destination"]
 
 
 async def test_tool_start_affected_paths_via_extractor():

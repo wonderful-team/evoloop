@@ -105,6 +105,23 @@ class SkillImporter:
         validation_report = validation.model_dump()
         skill_status = "verified" if validation.status == "healthy" else "candidate"
 
+        inferred_project_id: int | None = None
+        parts = skill_folder.resolve().parts
+        if ".evoloop" in parts:
+            idx = parts.index(".evoloop")
+            if idx > 0:
+                project_root = str(Path(*parts[:idx]))
+                from app.models.codebase import Repository
+
+                async with session_scope() as db_repo:
+                    repo = (
+                        await db_repo.execute(
+                            select(Repository).where(Repository.local_path == project_root)
+                        )
+                    ).scalar_one_or_none()
+                    if repo and repo.project_id:
+                        inferred_project_id = repo.project_id
+
         async with session_scope() as db:
             # Check if skill already exists
             stmt = select(LearnedSkill).where(LearnedSkill.name == metadata["name"])
@@ -126,6 +143,7 @@ class SkillImporter:
                 existing.namespace = metadata.get("namespace", namespace)
                 existing.instructions = instructions
                 existing.resource_path = str(skill_folder.absolute())
+                existing.project_id = inferred_project_id
                 existing.trigger_patterns = [metadata["name"]] + (
                     metadata.get("trigger_patterns", [])
                 )
@@ -143,6 +161,7 @@ class SkillImporter:
                     namespace=metadata.get("namespace", namespace),
                     instructions=instructions,
                     resource_path=str(skill_folder.absolute()),
+                    project_id=inferred_project_id,
                     trigger_patterns=[metadata["name"]]
                     + (metadata.get("trigger_patterns", [])),
                     parameters=metadata.get("parameters", []),

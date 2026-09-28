@@ -1,12 +1,12 @@
 """A2A delegation event schemas.
 
-Public lifecycle events (``is_public=True``) for remote A2A delegation, symmetric
-with ``SubagentLifecycleEvent`` (docs/worker-delegation-design.md Phase D).
+Public lifecycle events (``is_public=True``) for remote A2A delegation
+(docs/worker-delegation-design.md Phase D).
 
 ``A2ALifecycleEvent`` carries lifecycle status only (which device was delegated
 to, the instruction, and the terminal result) so the frontend can render a live
 "A2A 委派" panel without exposing internal execution details. Broadcast on the
-caller thread so the SSE stream shows it next to the subagent panel.
+caller thread so the SSE stream shows it.
 """
 
 from app.core.events.base import BaseEvent

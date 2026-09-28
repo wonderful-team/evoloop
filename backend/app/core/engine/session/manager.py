@@ -62,16 +62,24 @@ class SessionManager:
 
         返回 True = 存在可停止的会话或任务。
         """
+        stopped = False
         session = self._sessions.get(thread_id)
         if session is not None and session.lifecycle == "running":
             await session.stop(reason)
             self._sessions.pop(thread_id, None)
-            return True
-
-        stopped = False
-        if await agent_run_registry.cancel_run(thread_id):
             stopped = True
-        await activity_monitor.stop_run(thread_id)
+        else:
+            if await agent_run_registry.cancel_run(thread_id):
+                stopped = True
+            await activity_monitor.stop_run(thread_id)
+
+        try:
+            from app.core.execution.terminal.background import task_manager
+
+            await task_manager.cancel_thread_tasks(thread_id)
+        except Exception:
+            pass
+
         return stopped
 
     async def stop_all(

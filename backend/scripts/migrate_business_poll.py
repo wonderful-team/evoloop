@@ -1,6 +1,6 @@
 """One-shot migration: business_poll_prompts (project.json) -> recurring Tasks.
 
-Stage 3 of the autonomous task loop (docs/autonomous-task-loop.md §6.1/§11).
+Stage 3 of the autonomous task loop (docs/root/autonomous-task-loop.md §6.1/§11).
 
 Design notes:
 - description carries the FULL executable instruction (single source; the

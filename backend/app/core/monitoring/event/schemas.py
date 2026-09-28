@@ -37,15 +37,3 @@ class SystemLogEvent(BaseEvent):
     # Enable automatic bridging to UI
     is_public: bool = True
     broadcast_channel: str = "chat"
-
-
-class ActivityStateRefreshedEvent(BaseEvent):
-    """Event representing a full refresh/update of the agent activity state."""
-
-    event_type: str = SystemEventType.ACTIVITY_STATE_REFRESHED
-    activity_state: dict[str, Any] = Field(default_factory=dict)
-    thread_id: str
-
-    # Enable automatic bridging to UI
-    is_public: bool = True
-    broadcast_channel: str = "chat"

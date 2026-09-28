@@ -29,18 +29,16 @@ def format_event_for_frontend(event: Any) -> dict:
     from app.core.events.base import BaseEvent
     from app.core.events.schemas import SessionCompletedEvent
     from app.core.events.schemas.a2a import A2ALifecycleEvent
-    from app.core.events.schemas.subagent import SubagentLifecycleEvent
     from app.core.file.event.schemas import ChangesetUpdatedEvent
     from app.core.monitoring.event import (
-        ActivityStateRefreshedEvent,
         SystemLogEvent,
         SystemStatusEvent,
     )
+    from app.core.planning.event.schemas import PlanUpdatedEvent
     from app.core.tools.event.schemas import (
         BackgroundTaskEvent,
         BackgroundTaskOutputEvent,
     )
-    from app.domain.planning.event.schemas import PlanUpdatedEvent
 
     # Specific overrides matching historical to_frontend_payload outputs
     if isinstance(event, SessionCompletedEvent):
@@ -86,8 +84,6 @@ def format_event_for_frontend(event: Any) -> dict:
                 "operation": event.operation,
             },
         }
-    elif isinstance(event, ActivityStateRefreshedEvent):
-        return {"type": "activity", **event.activity_state}
     elif isinstance(event, AgentSessionStartedEvent):
         return {
             "type": "run_start",
@@ -103,18 +99,6 @@ def format_event_for_frontend(event: Any) -> dict:
             "status": event.status,
             "final_outcome": event.payload.get("outcome")
             or event.payload.get("summary"),
-        }
-    elif isinstance(event, SubagentLifecycleEvent):
-        return {
-            "type": "subagent",
-            "thread_id": event.thread_id,
-            "subagent_id": event.subagent_id,
-            "subagent_thread_id": event.subagent_thread_id,
-            "instruction": event.instruction,
-            "status": event.status,
-            "result": event.result,
-            "error": event.error,
-            "timestamp": event.timestamp.isoformat(),
         }
     elif isinstance(event, A2ALifecycleEvent):
         return {

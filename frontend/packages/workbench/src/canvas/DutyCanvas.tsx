@@ -47,13 +47,14 @@ interface DutyCanvasProps {
   onTaskFission?: (parentTaskId?: string) => void
   onNodeChat?: (taskId: string, message: string) => void
   onSendGlobalPrompt?: (text: string) => void
-  onPickOption?: (taskId: string, index: number) => void
   onApprove?: (taskId: string, grantMode?: "once" | "always") => void
   onConfirmProposalTask?: (taskId: string) => void | Promise<void>
   onReject?: (taskId: string, reason?: string) => void
   onArbitrate?: (
     action: "retry_upstream" | "cancel_downstream" | "reopen_modified",
-  ) => void
+    taskId?: string,
+    modifiedParams?: { description?: string },
+  ) => void | Promise<void>
   onConfirmHitl?: (taskId: string, grantMode?: "once" | "always") => void
   onCancelHitl?: (taskId: string) => void
   onSubmitTextHitl?: (taskId: string, value: string) => void
@@ -100,7 +101,6 @@ export const DutyCanvas = ({
   onTaskFission,
   onNodeChat: _onNodeChat,
   onSendGlobalPrompt: _onSendGlobalPrompt,
-  onPickOption,
   onApprove,
   onConfirmProposalTask,
   onReject,
@@ -1347,7 +1347,6 @@ export const DutyCanvas = ({
             }}
             onPortPointerDown={handlePortPointerDown}
             onTaskFission={onTaskFission}
-            onPickOption={onPickOption}
             onApprove={onApprove}
             onReject={onReject}
             onArbitrate={onArbitrate}
@@ -1382,7 +1381,6 @@ export const DutyCanvas = ({
                   setIsNodeFullscreen(false)
                   onCloseTask()
                 }}
-                onPickOption={onPickOption}
                 onApprove={onApprove}
                 onConfirmProposal={onConfirmProposalTask}
                 onReject={onReject}

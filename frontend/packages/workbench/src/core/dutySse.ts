@@ -92,5 +92,11 @@ export function handleTaskQueueEvent(
   if (payload.event && HITL_EVENTS.has(payload.event)) {
     actions.invalidate("dutyHitl")
   }
+  if (
+    (payload.event && payload.event.startsWith("workflow_")) ||
+    (payload as { type?: string }).type === "workflow_updated"
+  ) {
+    actions.invalidate("dutyWorkflows")
+  }
   actions.invalidate("dutyQueue", "dutyDashboard", "dutyPlan", "dutyExec")
 }

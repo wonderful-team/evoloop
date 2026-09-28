@@ -184,7 +184,7 @@ async def run_command_background(task, command: str, timeout: int, config: Runna
             on_output=lambda text: task_manager.append_output(task.task_id, text),
         )
         await task_manager.start_task(task.task_id, process.pid)
-        task.set_cancel_callback(process.terminate)
+        task.set_cancel_callback(process.kill)
 
         try:
             exit_code = await process.wait(timeout)
@@ -223,7 +223,7 @@ async def execute_smart(command: str, timeout: int, config: RunnableConfig | Non
         stderr_buf=stderr_buf,
     )
     await task_manager.start_task(task.task_id, process.pid)
-    task.set_cancel_callback(process.terminate)
+    task.set_cancel_callback(process.kill)
 
     try:
         exit_code = await process.wait(quick_timeout)

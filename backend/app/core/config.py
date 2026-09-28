@@ -1,3 +1,4 @@
+import logging
 import os
 import secrets
 import sys
@@ -15,6 +16,8 @@ from pydantic import (
 )
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing_extensions import Self
+
+logger = logging.getLogger(__name__)
 
 
 # PyInstaller support: Detect bundled environment
@@ -69,6 +72,26 @@ def _default_device_name() -> str:
     from app.core.device import get_hostname
 
     return get_hostname() or "EvoLoop-Desktop"
+
+
+def _ensure_litellm_env() -> None:
+    """litellm（OpenHands SDK 依赖）在 import 时经 ``os.getenv`` 读取自身开关，
+    而 pydantic-settings 的 ``env_file`` 只填充 Settings 字段、不写回 ``os.environ``。
+    这里在 litellm 首次导入前把 ``.env`` 中的 LITELLM_* 键显式注入真实环境
+    （真实环境变量优先，setdefault 不覆盖）。"""
+    try:
+        from dotenv import dotenv_values
+
+        values = dotenv_values(_get_env_file_path())
+        for key, value in values.items():
+            if key.startswith("LITELLM_") and value is not None:
+                os.environ.setdefault(key, value)
+    except Exception:
+        # .env 缺失/解析失败不应阻断启动；litellm 缺省行为为联网拉取（仅多一次 WARNING）
+        logger.warning("Failed to export LITELLM_* vars from .env", exc_info=True)
+
+
+_ensure_litellm_env()
 
 
 class Settings(BaseSettings):

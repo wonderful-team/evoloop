@@ -9,6 +9,3 @@ DEFAULT_SCAN_ROOTS = [
 
 #: A2A lifecycle event type
 A2A_LIFECYCLE = "a2a"
-
-#: Subagent lifecycle event types
-SUBAGENT_LIFECYCLE = "subagent"

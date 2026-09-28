@@ -1,37 +1,50 @@
-import {ResizableHandle, ResizablePanel, ResizablePanelGroup,} from "@evoloop/shared/components/ui/resizable"
-import {Sheet, SheetContent, SheetHeader, SheetTitle,} from "@evoloop/shared/components/ui/sheet"
-import {useInfiniteQuery, useMutation, useQueryClient,} from "@tanstack/react-query"
-import {useLocation} from "@tanstack/react-router"
-import {ArrowLeft} from "lucide-react"
-import {useCallback, useEffect, useMemo, useRef, useState} from "react"
-import {useTranslation} from "react-i18next"
-import {toast} from "sonner"
-import {AgentService, ConversationsService, MemoryService} from "@/client"
-import {isLoggedIn} from "@/hooks/useAuth"
-import {useSystemEvent} from "@/hooks/useSystemEvent"
-import type {SystemEvent} from "@/lib/SystemSSEClient"
-import {safeListen} from "@/lib/tauri"
-import {HITL_STATUS} from "@/stores/agent/hitlConstants"
-import {useAgentStore} from "@/stores/agentStore"
-import {useChangesetStore} from "@/stores/changesetStore"
-import {useChatStore} from "@/stores/chatStore"
-import {useProjectStore} from "@/stores/projectStore"
-import {useUIStore} from "@/stores/uiStore"
-import {useUnreadCompletionsStore} from "@/stores/unreadCompletionsStore"
-import {ChatInputArea, type ChatInputAreaHandle} from "./ChatInputArea"
-import type {Message} from "./ChatMessageItem"
-import {ChatSidebar, type Thread} from "./ChatSidebar"
-import {ContextPanel} from "./ContextPanel"
-import {DebugManager} from "./DebugManager"
-import {HITLBanner} from "./HITLBanner"
-import {HumanRequestCard} from "./HumanRequestCard"
-import {useChatMutations} from "./hooks/useChatMutations"
-import {MessageList} from "./MessageList"
-import {QuotaExhaustedBanner} from "./QuotaExhaustedBanner"
-import {QuotaExhaustedCard} from "./QuotaExhaustedCard"
-import {RewindConfirmDialog} from "./RewindConfirmDialog"
-import {RunningTasksDock} from "./RunningTasksDock"
-import {TerminalCanvas} from "./TerminalCanvas"
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@evoloop/shared/components/ui/resizable"
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@evoloop/shared/components/ui/sheet"
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query"
+import { useLocation } from "@tanstack/react-router"
+import { ArrowLeft } from "lucide-react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
+import { toast } from "sonner"
+import { AgentService, ConversationsService, MemoryService } from "@/client"
+import { isLoggedIn } from "@/hooks/useAuth"
+import { useSystemEvent } from "@/hooks/useSystemEvent"
+import type { SystemEvent } from "@/lib/SystemSSEClient"
+import { safeListen } from "@/lib/tauri"
+import { HITL_STATUS } from "@/stores/agent/hitlConstants"
+import { useAgentStore } from "@/stores/agentStore"
+import { useChangesetStore } from "@/stores/changesetStore"
+import { useChatStore } from "@/stores/chatStore"
+import { useProjectStore } from "@/stores/projectStore"
+import { useUIStore } from "@/stores/uiStore"
+import { useUnreadCompletionsStore } from "@/stores/unreadCompletionsStore"
+import { ChatInputArea, type ChatInputAreaHandle } from "./ChatInputArea"
+import type { Message } from "./ChatMessageItem"
+import { ChatSidebar, type Thread } from "./ChatSidebar"
+import { ContextPanel } from "./ContextPanel"
+import { DebugManager } from "./DebugManager"
+import { HITLBanner } from "./HITLBanner"
+import { HumanRequestCard } from "./HumanRequestCard"
+import { useChatMutations } from "./hooks/useChatMutations"
+import { MessageList } from "./MessageList"
+import { QuotaExhaustedBanner } from "./QuotaExhaustedBanner"
+import { QuotaExhaustedCard } from "./QuotaExhaustedCard"
+import { RewindConfirmDialog } from "./RewindConfirmDialog"
+import { RunningTasksDock } from "./RunningTasksDock"
+import { TerminalCanvas } from "./TerminalCanvas"
 
 // 会话"已完成"的终态集合（后端 run_end / conversation.updated 携带的 status）
 const TERMINAL_STATUSES = [
@@ -327,7 +340,7 @@ export function ChatInterface() {
     const params = getChatSearchParams()
     const tid = params.get("thread_id")
     const currentThreadId = useChatStore.getState().threadId
-    const initId = tid && tid.trim() !== "" ? tid : (currentThreadId || null)
+    const initId = tid && tid.trim() !== "" ? tid : currentThreadId || null
 
     // Check for message intent
     const pendingMessage = params.get("message")
@@ -768,6 +781,58 @@ export function ChatInterface() {
       handleSetActiveThreadId(threadIdFromLocation)
     }
   }, [threadIdFromLocation, handleSetActiveThreadId, projectId])
+
+  // Canvas→Chat 血统回跳高亮：值守画布「来源」点击时 sessionStorage 一次性
+  // 交接目标线程；历史加载后定位该线程最后一条 human 消息（产生任务的需求
+  // 语境），滚动居中 + 琥珀色闪烁。DOM 直查（与 locate-file 同款模式，
+  // 避免穿透 Virtuoso 列表逐层传参）。
+  useEffect(() => {
+    let focusThread: string | null = null
+    try {
+      focusThread = sessionStorage.getItem("chat:focus-thread")
+    } catch {
+      focusThread = null
+    }
+    if (!focusThread) return
+    if (projectId === undefined) return
+
+    try {
+      sessionStorage.removeItem("chat:focus-thread")
+    } catch {
+      // ignore
+    }
+
+    let cancelled = false
+    let attempts = 0
+    const tryFlash = () => {
+      if (cancelled) return
+      attempts += 1
+      const msgs = useChatStore.getState().messages
+      const lastHuman = [...msgs].reverse().find((m) => m.role === "human")
+      if (!lastHuman) {
+        if (attempts < 12) setTimeout(tryFlash, 500)
+        return
+      }
+      const el = document.querySelector<HTMLElement>(
+        `[data-message-id="${String(lastHuman.id)}"]`,
+      )
+      if (!el) {
+        if (attempts < 12) setTimeout(tryFlash, 500)
+        return
+      }
+      el.scrollIntoView({ behavior: "smooth", block: "center" })
+      el.style.transition = "background-color 600ms ease"
+      el.style.backgroundColor = "rgba(245, 158, 11, 0.16)"
+      setTimeout(() => {
+        el.style.backgroundColor = ""
+      }, 2400)
+    }
+    const kick = setTimeout(tryFlash, 600)
+    return () => {
+      cancelled = true
+      clearTimeout(kick)
+    }
+  }, [projectId])
 
   const handleSelectDiff = useCallback((path: string, diff: string) => {
     useUIStore.getState().setPreviewDiff({ path, diff })

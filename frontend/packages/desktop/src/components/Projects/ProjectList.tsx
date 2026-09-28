@@ -94,10 +94,6 @@ export function ProjectList() {
 
   const isLoading = isListLoading
 
-  if (isListLoading && projects.length === 0) {
-    return <div className="p-8">{t("projects.loading")}</div>
-  }
-
   return (
     <div className="flex-1 h-full overflow-y-auto p-6 md:p-8">
       <div className="flex items-center justify-between mb-8">
@@ -126,7 +122,26 @@ export function ProjectList() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {projects.map((proj: any) => (
+        {isListLoading && projects.length === 0 ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <Card key={`skeleton-${i}`} className="animate-pulse">
+              <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
+                <div className="h-9 w-9 bg-muted rounded-md" />
+                <div className="h-5 w-16 bg-muted rounded-full" />
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="h-5 w-3/4 bg-muted rounded" />
+                <div className="h-4 w-full bg-muted rounded" />
+                <div className="h-4 w-2/3 bg-muted rounded" />
+              </CardContent>
+              <CardFooter className="flex justify-between">
+                <div className="h-3 w-16 bg-muted rounded" />
+                <div className="h-3 w-20 bg-muted rounded" />
+              </CardFooter>
+            </Card>
+          ))
+        ) : (
+          projects.map((proj: any) => (
           <Card
             key={proj.id}
             className={`group relative hover:border-primary/50 transition-all cursor-pointer ${currentProject?.id === proj.id ? "border-primary ring-1 ring-primary" : ""}`}
@@ -202,10 +217,10 @@ export function ProjectList() {
               </span>
             </CardFooter>
           </Card>
-        ))}
+        )))}
 
         {/* Empty State */}
-        {projects.length === 0 && (
+        {!isListLoading && projects.length === 0 && (
           <div className="col-span-full text-center py-12 text-muted-foreground">
             {t("projects.emptyState")}
           </div>

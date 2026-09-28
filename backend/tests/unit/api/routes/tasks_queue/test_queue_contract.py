@@ -135,10 +135,24 @@ class TestTypedSchemas:
                     "priority": "high",
                     "risk_level": "T2",
                     "dependencies": [],
+                    "acceptance_criteria": ["结果可核验"],
                 },
             )
         assert resp.status_code == 200
         assert resp.json()["status"] == "pending"
+
+    async def test_create_rejects_t1_t2_without_criteria(self):
+        """验收标准准入闸（fail-closed）：T1/T2 缺 acceptance_criteria → 422"""
+        async with _client(_make_app(as_user=OWNER_ID)) as client:
+            resp = await client.post(
+                "/tasks/queue",
+                json={
+                    "title": "资金任务",
+                    "project_id": PROJECT_ID,
+                    "risk_level": "T1",
+                },
+            )
+        assert resp.status_code == 422
 
 
 @pytest.mark.usefixtures("_api_db", "_single_tenant")

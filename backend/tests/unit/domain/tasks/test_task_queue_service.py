@@ -30,6 +30,13 @@ async def _mk_task(**over):
     if "desc" in over:
         over["description"] = over.pop("desc")
     over.setdefault("project_id", 1)
+    # T1/T2 创建闸（验收标准 fail-closed）的测试缺省：单测关注其余行为，
+    # 闸门本身由 test_create_rejects_t1_t2_without_criteria 专门锁定
+    if (
+        over.get("risk_level") in ("T1", "T2")
+        and not over.get("acceptance_criteria")
+    ):
+        over["acceptance_criteria"] = ["测试缺省：结果可核验"]
     t = await TaskQueueService.create_task(
         title=over.pop("title", "t"), **over
     )
@@ -1686,6 +1693,36 @@ class TestTaskServiceExtended:
         assert task.status == "proposed"
         assert task.source == "external"
 
+    async def test_create_rejects_t1_t2_without_criteria(self, _db):
+        """验收标准准入闸：T1/T2 缺 acceptance_criteria 即拒绝创建（fail-closed）"""
+        from app.domain.tasks.service import TaskQueueError, TaskQueueService
+
+        for risk in ("T1", "T2"):
+            with pytest.raises(TaskQueueError) as exc:
+                await TaskQueueService.create_task(
+                    project_id=1,
+                    title=f"资金任务-{risk}",
+                    source="user",
+                    risk_level=risk,
+                )
+            assert "acceptance_criteria" in str(exc.value)
+
+        # T3/T4 不受闸约束（自动通过档）
+        t3 = await TaskQueueService.create_task(
+            project_id=1, title="低危", source="user", risk_level="T3"
+        )
+        assert t3.status == "pending"
+
+        # 补齐验收标准后 T1 可创建
+        t1 = await TaskQueueService.create_task(
+            project_id=1,
+            title="资金任务-达标",
+            source="user",
+            risk_level="T1",
+            acceptance_criteria=["退款流水号回执存在", "金额与订单一致"],
+        )
+        assert t1.status == "pending"
+
     async def test_take_is_cas(self, _db):
         """take 是原子 CAS：并发抢同一任务，只有一个成功（另一个 raise）"""
         from app.domain.tasks.service import TaskQueueError, TaskQueueService
@@ -2045,3 +2082,64 @@ class TestGlobalMasterSwitch:
             d["metadata"].get("source_task_id") == tid
             for d in captured.get("dispatches", [])
         )
+
+
+class TestSuspendedTaskEffects:
+    """验证'已挂起任务'对下游依赖任务、无依赖兄弟任务以及周期任务的精准影响范围"""
+
+    async def test_suspended_task_blocks_downstream_task(self, _db):
+        """已挂起(如等待 HITL/人机决策中)的任务，其直接下游任务必须被依赖门禁拦截，不能派发"""
+        # 1. 任务 A 挂起在 in_progress (等待人类输入)
+        task_a = await _mk_task(project_id=0, title="Task A (Suspended for HITL)")
+        await TaskQueueService.take_task(task_a.id, "wakeup_0_a")
+
+        # 2. 任务 B 依赖任务 A
+        task_b = await _mk_task(project_id=0, title="Task B (Downstream of A)")
+        task_b = await TaskQueueService.edit_task(task_b.id, dependencies=[task_a.id])
+
+        # 校验依赖门禁
+        satisfied, failed_ups = await TaskQueueService.evaluate_dependency_gate(task_b)
+        assert satisfied is False, "上游未完成(挂起中)时，下游任务依赖门禁必须不满足"
+        assert len(failed_ups) == 0, "挂起并非失败，不应产生 failed_upstreams 断链告警"
+
+        # 校验 claim_due_tasks 不会认领下游任务 B
+        due = await TaskQueueService.claim_due_tasks()
+        due_ids = [t.id for t in due]
+        assert task_b.id not in due_ids, "上游挂起时，下游任务不能被调度器认领"
+
+    async def test_suspended_task_does_not_block_independent_sibling_task(self, _db):
+        """任务 A 挂起，不影响与之平行的独立兄弟任务 C 的正常派发与认领"""
+        # 1. 任务 A 挂起在 in_progress
+        task_a = await _mk_task(project_id=0, title="Task A (Suspended)")
+        await TaskQueueService.take_task(task_a.id, "wakeup_0_a")
+
+        # 2. 任务 C 是独立的平行兄弟任务 (无依赖)
+        task_c = await _mk_task(project_id=0, title="Task C (Independent Sibling)")
+
+        # 门禁校验
+        satisfied, failed_ups = await TaskQueueService.evaluate_dependency_gate(task_c)
+        assert satisfied is True, "无依赖的兄弟任务依赖门禁必须满足"
+
+        # 调度器应能顺利认领兄弟任务 C
+        due = await TaskQueueService.claim_due_tasks()
+        due_ids = [t.id for t in due]
+        assert task_c.id in due_ids, "其他任务挂起时，无依赖的兄弟任务依然必须能被正常派发"
+
+    async def test_suspended_recurring_task_lineage_exemption(self, _db):
+        """若上游为周期性任务(recurring)，子任务仅继承血统，上游挂起不阻塞该子任务"""
+        # 1. 周期性父任务
+        task_parent = await TaskQueueService.create_task(
+            project_id=0,
+            title="Recurring Parent",
+            type="recurring",
+            trigger_spec='{"type": "interval", "interval_seconds": 3600}',
+        )
+        await TaskQueueService.take_task(task_parent.id, "wakeup_0_parent")
+
+        # 2. 子任务依赖该周期任务
+        task_child = await _mk_task(project_id=0, title="Child of recurring")
+        await TaskQueueService.edit_task(task_child.id, dependencies=[task_parent.id])
+
+        # 门禁校验：根据业务规范，recurring 上游为 lineage-only，不阻塞下游
+        satisfied, failed_ups = await TaskQueueService.evaluate_dependency_gate(task_child)
+        assert satisfied is True, "recurring 任务的上游属于 lineage-only，不卡死下游子任务"

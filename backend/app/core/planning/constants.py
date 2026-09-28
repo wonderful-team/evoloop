@@ -18,4 +18,3 @@ class PlanStepStatus(str, Enum):
     COMPLETED = "completed"
     FAILED = "failed"
     DELETED = "deleted"
-

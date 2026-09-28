@@ -13,11 +13,14 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useNavigate } from "@tanstack/react-router"
 import {
   AlertTriangle,
+  Ban,
+  Edit3,
   ExternalLink,
   FileText,
   ListTodo,
   Maximize2,
   Minimize2,
+  RotateCcw,
   Square,
   X,
 } from "lucide-react"
@@ -40,14 +43,15 @@ interface DutyNodePageContentProps {
   onClose: () => void
   isFullscreen?: boolean
   onToggleFullscreen?: () => void
-  onPickOption?: (taskId: string, index: number) => void
   onApprove?: (taskId: string, grantMode?: "once" | "always") => void
   /** proposed 提案确认（加入执行队列）——此前 UI 无确认入口，唯一出口是裸 API */
   onConfirmProposal?: (taskId: string) => void | Promise<void>
   onReject?: (taskId: string, reason?: string) => void
   onArbitrate?: (
     action: "retry_upstream" | "cancel_downstream" | "reopen_modified",
-  ) => void
+    taskId?: string,
+    modifiedParams?: { description?: string },
+  ) => void | Promise<void>
   onConfirmHitl?: (taskId: string, grantMode?: "once" | "always") => void
   onCancelHitl?: (taskId: string) => void
   onSubmitTextHitl?: (taskId: string, value: string) => void
@@ -62,6 +66,7 @@ export const DutyNodePageContent = ({
   isFullscreen,
   onToggleFullscreen,
   onConfirmProposal,
+  onArbitrate,
 }: DutyNodePageContentProps) => {
   const navigate = useNavigate()
   const qc = useQueryClient()
@@ -133,6 +138,26 @@ export const DutyNodePageContent = ({
   const targetThreadId =
     task.lastThreadId ||
     (task.source === "chat" ? provenance.originMessageId : null)
+
+  /* Canvas→Chat 血统回跳：origin 线程 id（消息转化类任务 provenance.kind==="message"
+     的 ref 即对话线程；评审/代发链路另存 origin_thread_id） */
+  const originThreadId = useMemo(() => {
+    const raw = queueTask as unknown as {
+      origin_thread_id?: string | null
+      provenance?: { kind?: string; ref?: string } | null
+    }
+    if (raw.origin_thread_id) return raw.origin_thread_id
+    const pv = raw.provenance
+    if (
+      pv &&
+      typeof pv === "object" &&
+      pv.kind === "message" &&
+      typeof pv.ref === "string"
+    ) {
+      return pv.ref
+    }
+    return null
+  }, [queueTask])
 
   const [isStopping, setIsStopping] = useState(false)
   const handleStopTask = async (e: React.MouseEvent) => {
@@ -221,6 +246,42 @@ export const DutyNodePageContent = ({
       ) ?? null
     )
   }, [hitlQ.data, task.id, targetThreadId])
+
+  /* 人工仲裁状态与交互逻辑 */
+  const [isModifying, setIsModifying] = useState(false)
+  const [modifyDescription, setModifyDescription] = useState(
+    task.description || "",
+  )
+  const [isArbitrating, setIsArbitrating] = useState(false)
+
+  useEffect(() => {
+    setModifyDescription(task.description || "")
+  }, [task.description])
+
+  const isArbitrationNeeded =
+    task.status === "failed" ||
+    task.status === "blocked" ||
+    Boolean(queueTask.escalated) ||
+    Boolean(task.arbitration)
+
+  const upstreamTasks = useMemo(() => {
+    if (!allTasks || !task.dependencies) return []
+    return allTasks.filter((t) => task.dependencies.includes(t.id))
+  }, [allTasks, task.dependencies])
+
+  const failedUpstream = useMemo(() => {
+    return upstreamTasks.filter(
+      (t) =>
+        t.status === "failed" ||
+        t.status === "blocked" ||
+        t.status === "cancelled",
+    )
+  }, [upstreamTasks])
+
+  const downstreamTasks = useMemo(() => {
+    if (!allTasks) return []
+    return allTasks.filter((t) => t.dependencies?.includes(task.id))
+  }, [allTasks, task.id])
 
   return (
     <div
@@ -316,21 +377,51 @@ export const DutyNodePageContent = ({
             </button>
           )}
 
-          {targetThreadId && (
+          {(targetThreadId || originThreadId) && (
             <button
               type="button"
               className="dc-open-chat-btn"
               onClick={(e) => {
                 e.stopPropagation()
-                useChatStore
-                  .getState()
-                  .setThread(targetThreadId, task.projectId ?? null)
-                navigate({ to: "/chat" })
+                // 单一会话入口（替代此前"接管会话/来源回跳"两个叠加入口）：
+                // 执行中 → 执行线程（接管指挥）；其余 → 来源对话（需求与
+                // 评审语境，锚点高亮）。目标重合时走原 setThread 直开。
+                const goExecutor =
+                  task.status === "in_progress" && !!targetThreadId
+                const target =
+                  goExecutor
+                    ? targetThreadId
+                    : originThreadId || targetThreadId
+                if (!target) return
+                if (target === originThreadId && originThreadId !== targetThreadId) {
+                  try {
+                    sessionStorage.setItem("chat:focus-thread", target)
+                  } catch {
+                    // ignore
+                  }
+                  navigate({
+                    to: "/chat",
+                    search: { thread_id: target } as any,
+                  })
+                } else {
+                  useChatStore
+                    .getState()
+                    .setThread(target, task.projectId ?? null)
+                  navigate({ to: "/chat" })
+                }
               }}
-              title="在对话面板中打开此任务并接管会话"
+              title={
+                task.status === "in_progress" && targetThreadId
+                  ? "在对话面板中打开执行会话并接管"
+                  : "在对话面板中打开来源对话（需求与评审现场）"
+              }
             >
               <ExternalLink size={12} />
-              <span>接管会话</span>
+              <span>
+                {task.status === "in_progress" && targetThreadId
+                  ? "接管会话"
+                  : "打开会话"}
+              </span>
             </button>
           )}
 
@@ -406,6 +497,177 @@ export const DutyNodePageContent = ({
 
       {/* ── 页面核心视口容器 ── */}
       <div className="dc-page-body">
+        {/* ★ 人工仲裁控制台（当任务阻断、失败、监察熔断或需要仲裁介入时常驻展示） */}
+        {isArbitrationNeeded && (
+          <div className="dc-governance-box arbitration shrink-0 mb-1 animate-in fade-in slide-in-from-top-2 duration-300">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-rose-500/15 flex items-center justify-center text-rose-600 shrink-0 mt-0.5">
+                  <AlertTriangle size={15} />
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-rose-700 flex items-center flex-wrap gap-2">
+                    <span>执行阻断 · 人工仲裁控制台</span>
+                    {queueTask.escalated && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 font-semibold border border-rose-200">
+                        监察评审未收敛 (2轮驳回)
+                      </span>
+                    )}
+                    {task.status === "blocked" && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-semibold border border-amber-200">
+                        上游断链阻断
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
+                    {queueTask.escalated
+                      ? "本任务在监察评审中经历连续 2 轮驳回未收敛，系统自主重试已熔断挂起，需由人工仲裁裁定走向。"
+                      : queueTask.last_error
+                        ? `阻断原因: ${queueTask.last_error}`
+                        : task.status === "blocked"
+                          ? "前序依赖任务执行异常，本任务已挂起等待前序决策恢复。"
+                          : "任务执行异常中断，已暂停后续自动化流转。"}
+                  </div>
+                </div>
+              </div>
+
+              {/* 去原对话查看完整上下文链接 */}
+              {originThreadId && (
+                <button
+                  type="button"
+                  className="text-[11px] text-rose-600 hover:text-rose-700 hover:underline shrink-0 flex items-center gap-1 font-medium mt-0.5"
+                  onClick={() => {
+                    sessionStorage.setItem("chat:focus-thread", originThreadId)
+                    navigate({
+                      to: "/chat",
+                      search: { thread_id: originThreadId } as any,
+                    })
+                  }}
+                  title="在对话面板中打开来源现场查看完整上下文"
+                >
+                  <span>查看对话现场</span>
+                  <ExternalLink size={11} />
+                </button>
+              )}
+            </div>
+
+            {/* DAG 影响诊断与流向统计 */}
+            <div className="mt-2.5 pt-2 border-t border-rose-200/60 flex items-center justify-between text-[11px] text-muted-foreground">
+              <div className="flex items-center gap-4">
+                <span>
+                  前序依赖:{" "}
+                  <strong className="text-foreground">
+                    {upstreamTasks.length} 个
+                    {failedUpstream.length > 0 &&
+                      ` (${failedUpstream.length} 异常)`}
+                  </strong>
+                </span>
+                <span>
+                  下游影响:{" "}
+                  <strong className="text-foreground">
+                    {downstreamTasks.length} 个子任务受阻
+                  </strong>
+                </span>
+              </div>
+              <span className="text-[10px] opacity-75">
+                执行仲裁后调度引擎将级联推导 DAG 拓扑状态
+              </span>
+            </div>
+
+            {/* 仲裁三键操作区 */}
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                disabled={isArbitrating}
+                className="h-7 px-3 rounded-md bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-medium transition-colors flex items-center gap-1.5 shadow-xs disabled:opacity-50"
+                onClick={async () => {
+                  setIsArbitrating(true)
+                  try {
+                    await onArbitrate?.("retry_upstream", task.id)
+                  } finally {
+                    setIsArbitrating(false)
+                  }
+                }}
+                title="重新触发前序依赖节点执行，清空本节点阻断"
+              >
+                <RotateCcw size={12} />
+                <span>重跑上游</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={isArbitrating}
+                className="h-7 px-3 rounded-md bg-white hover:bg-rose-50 border border-rose-300 text-rose-700 text-[11px] font-medium transition-colors flex items-center gap-1.5 shadow-xs disabled:opacity-50"
+                onClick={async () => {
+                  setIsArbitrating(true)
+                  try {
+                    await onArbitrate?.("cancel_downstream", task.id)
+                  } finally {
+                    setIsArbitrating(false)
+                  }
+                }}
+                title="终止后续受阻依赖子任务，避免级联资源浪费"
+              >
+                <Ban size={12} />
+                <span>截断下游</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={isArbitrating}
+                className="h-7 px-3 rounded-md bg-white hover:bg-muted border border-border text-foreground text-[11px] font-medium transition-colors flex items-center gap-1.5 shadow-xs disabled:opacity-50"
+                onClick={() => setIsModifying((prev) => !prev)}
+                title="微调任务参数/提示词并重新激活排队"
+              >
+                <Edit3 size={12} />
+                <span>{isModifying ? "取消改参" : "改参重开"}</span>
+              </button>
+            </div>
+
+            {/* 改参微调输入抽屉 */}
+            {isModifying && (
+              <div className="mt-3 pt-3 border-t border-rose-200/60 animate-in fade-in duration-200">
+                <div className="text-[11px] font-medium text-foreground mb-1.5">
+                  微调任务执行指令 / 需求参数:
+                </div>
+                <textarea
+                  className="w-full h-20 p-2 text-xs rounded-md bg-white border border-rose-200 focus:outline-none focus:ring-1 focus:ring-rose-500 font-mono resize-y text-foreground"
+                  value={modifyDescription}
+                  onChange={(e) => setModifyDescription(e.target.value)}
+                  placeholder="输入针对此任务的补充修正指令或调整后的参数描述..."
+                />
+                <div className="mt-2 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    className="h-6 px-2.5 rounded text-[11px] text-muted-foreground hover:bg-rose-100/50"
+                    onClick={() => setIsModifying(false)}
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isArbitrating}
+                    className="h-6 px-3 rounded bg-primary text-primary-foreground text-[11px] font-medium hover:bg-primary/90 disabled:opacity-50"
+                    onClick={async () => {
+                      setIsArbitrating(true)
+                      try {
+                        await onArbitrate?.("reopen_modified", task.id, {
+                          description: modifyDescription,
+                        })
+                        setIsModifying(false)
+                      } finally {
+                        setIsArbitrating(false)
+                      }
+                    }}
+                  >
+                    保存并重新排队
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ── 核心工作区：左栏计划与血统，右栏成果与执行流 ── */}
         <div className={`dc-page-columns ${!hasPlan ? "no-plan" : ""}`}>
           {/* 左栏：仅在有步骤计划时展示 */}

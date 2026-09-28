@@ -59,7 +59,7 @@ def test_react_tool_pool():
 
     tools = get_agent_tools("react")
     names = [t.name for t in tools]
-    assert "task" in names
+    assert "agent" in names
     assert "macro" in names
     # 宏收敛为单一 macro 工具（run/create/update/delete/list 一体），面内不应再出现
     # 单独的 run_macro / create_macro。
