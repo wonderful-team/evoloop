@@ -48,3 +48,5 @@ mobile/harmony/entry/src/main/resources/rawfile/hermes_bundle.hbc
 mobile/harmony/entry/src/main/resources/rawfile/diagnostic_bundle.js
 frontend/src-tauri/libs/libvosk.dylib
 skill_cells/crawl4ai/src/docs/examples/assets/instagram_grid_result.png
+mobile/ios/EvoLoopMobile/Resources/sherpa-asr/
+mobile/harmony/entry/src/main/resources/rawfile/sherpa-onnx-streaming-zipformer-zh-14M-2023-02-23/
