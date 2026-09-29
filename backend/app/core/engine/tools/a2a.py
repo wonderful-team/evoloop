@@ -7,7 +7,7 @@ A2A (Agent-to-Agent) runtime helpers — unified under the `agent` tool (§4.3/�
   （派发 + 挂起主循环等回调恢复）；
 - ``agent(action='complete')`` → 本模块 ``complete_a2a_task``（远端 Worker 侧把
   结果回传给 Caller，替代原 ``complete_task`` 工具）；
-- ``agent(action='list_agents')`` / system prompt ``<available_agents>`` 索引 →
+- ``agent(action='list')`` / system prompt ``<available_agents>`` 索引 →
   本模块 ``list_available_agents``。
 """
 

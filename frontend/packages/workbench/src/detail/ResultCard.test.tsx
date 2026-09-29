@@ -110,3 +110,37 @@ describe("ResultCard · 失败重跑", () => {
     expect(screen.queryByText(/重新执行/)).not.toBeInTheDocument()
   })
 })
+
+describe("ResultCard · 自检报告与验收基准对照", () => {
+  it("渲染验收基准列表、自检逐条结果、数值证据与打回次数徽标", () => {
+    const task = mkTask({
+      review_count: 2,
+      acceptance_criteria: ["响应时间 < 200ms", "测试覆盖率 > 80%"],
+      self_check: {
+        verdict: "pass",
+        checks: [
+          { name: "P99 响应耗时", pass: true, evidence: "实际 142ms" },
+          { name: "测试覆盖率", pass: false, evidence: "当前 76% 未达 80%" },
+        ],
+        deviations: "覆盖率略微不足，已记录技术债",
+        notes: "已手工抽查边界分支",
+      },
+    })
+    renderCard(task)
+
+    expect(screen.getByText("自检核对与基准对照")).toBeInTheDocument()
+    expect(screen.getByText("自检通过")).toBeInTheDocument()
+    expect(screen.getAllByText("已打回 2 次").length).toBeGreaterThan(0)
+    expect(screen.getByText("验收基准要求 (2)")).toBeInTheDocument()
+    expect(screen.getByText("响应时间 < 200ms")).toBeInTheDocument()
+    expect(screen.getByText("测试覆盖率 > 80%")).toBeInTheDocument()
+    expect(screen.getByText("逐条自检核对 (2 项)")).toBeInTheDocument()
+    expect(screen.getByText("P99 响应耗时")).toBeInTheDocument()
+    expect(screen.getByText(/证据：实际 142ms/)).toBeInTheDocument()
+    expect(screen.getByText("测试覆盖率")).toBeInTheDocument()
+    expect(screen.getByText(/证据：当前 76% 未达 80%/)).toBeInTheDocument()
+    expect(screen.getByText(/覆盖率略微不足，已记录技术债/)).toBeInTheDocument()
+    expect(screen.getByText(/已手工抽查边界分支/)).toBeInTheDocument()
+  })
+})
+

@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
     summary_template="evoloop.tool_summary.plan",
 )
 async def plan(
-    action: Literal["create", "update_steps", "status"] = "create",
+    action: Literal["create", "update_steps", "list"] = "create",
     title: str | None = None,
     steps: list[str | dict] | None = None,
     task_id: str | None = None,
@@ -44,7 +44,7 @@ async def plan(
     Actions:
     - create:       新建/覆盖当前会话计划（title + steps 列表）。
     - update_steps: 批量更新多个步骤状态（一次调用可同时完成多项）。
-    - status:       查看当前计划及各步骤状态。
+    - list:         查看当前计划及各步骤状态。
 
     WHEN TO USE:
     - 长任务（>3 步）先用 plan create 落地结构化计划，再随推进批量 update_steps。
@@ -56,14 +56,14 @@ async def plan(
       在收尾回复中列出并询问用户是否建为旁支任务（create_project_tasks）。
 
     Args:
-        action: create / update_steps / status。
+        action: create / update_steps / list。
         title: create 时的计划标题。
         steps: create 时为步骤列表（每项字符串，或对象 {"title": "...", "description": "..."}，
                对象必须有 title 键）；update_steps 时为更新列表，每项
                {"step_id": "...", "status": "pending|in_progress|completed|failed", "result": "..."}——
-               completed 必填 result；step_id 来自 create 返回表格或 status 输出。
+               completed 必填 result；step_id 来自 create 返回表格或 list 输出。
         task_id: create 时关联的任务 ID。
-        plan_id: update_steps / status 时的计划 ID（缺省自动解析当前会话最新计划）。
+        plan_id: update_steps / list 时的计划 ID（缺省自动解析当前会话最新计划）。
     """
     thread_id = config.get("configurable", {}).get("thread_id") if config else None
 
@@ -208,7 +208,7 @@ async def plan(
             if missing:
                 return (
                     f"Error: 步骤不存在: {', '.join(missing)}。"
-                    "请先用 plan(action='status') 查看有效 step_id。"
+                    "请先用 plan(action='list') 查看有效 step_id。"
                 )
 
             for sid, st, res in updates:
@@ -238,7 +238,7 @@ async def plan(
                 "step_updates": [(sid, st) for sid, st, _ in updates],
             }
 
-    elif action == "status":
+    elif action == "list":
         if not plan_id:
             return "Error: status 需要 plan_id。"
         async with session_scope() as session:

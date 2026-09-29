@@ -56,3 +56,7 @@ docs/软文-投稿/
 
 # macOS
 .DS_Store
+
+# 本地环境（含密钥）与录制证明文件
+.env
+videos_proof/

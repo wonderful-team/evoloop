@@ -1184,16 +1184,34 @@ class TaskQueueService:
         # 评审收敛纪律：reviewer 不通过最多 2 轮。第 2 轮仍不通过 → 任务转
         # failed 并升级原对话"转人工仲裁"，杜绝"评审-返工"无限循环导致的
         # 执行者过度实施。人工（user）拒绝不受此限——用户的裁决权优先。
+        values_extra: dict[str, Any] = {}
         if verdict == "rejected" and target == "pending":
             new_count = int(getattr(task, "review_count", 0) or 0) + 1
             if by.startswith("reviewer:") and new_count >= 2:
                 target = "failed"
                 receipt["escalated"] = True
-            values_extra: dict[str, Any] = {}
             if by.startswith("reviewer:"):
                 values_extra["review_count"] = new_count
-        else:
-            values_extra = {}
+        elif verdict == "accepted":
+            # 只有存在下游依赖的任务才触发原会话交接汇总；叶子节点任务零额外开销直接完成
+            try:
+                if await TaskQueueService.has_downstream_dependents(task):
+                    from app.domain.tasks.handover import generate_in_session_handover
+
+                    handover = await generate_in_session_handover(task)
+                    if handover:
+                        td = dict(task.task_data or {})
+                        td["handover_summary"] = handover
+                        values_extra["task_data"] = td
+                        orig_result = task_last_result(task) or ""
+                        values_extra["last_result"] = (
+                            f"{orig_result}\n\n### 交付交接清单\n{handover}".strip()
+                        )
+            except Exception:
+                logger.exception(
+                    "[TaskQueue] generate_in_session_handover failed for task %s",
+                    task_id,
+                )
 
         async with session_scope() as session:
             values = {
@@ -1740,6 +1758,34 @@ class TaskQueueService:
                 )
         satisfied = all(status_by_id.get(d) == "completed" for d in gate_ids)
         return satisfied, failed_upstreams
+
+    @staticmethod
+    async def has_downstream_dependents(task: ProjectTask, session=None) -> bool:
+        """DAG 拓扑判定：同工作流内是否有任意其他任务以本任务作为上游依赖。
+
+        叶子节点（如无下游依赖的收口任务）返回 False，跳过交接汇总，避免空耗 LLM 轮次。
+        """
+        w_id = task_workflow_id(task)
+        if not w_id:
+            return False
+
+        async def _check(s):
+            stmt = select(ProjectTask).where(
+                ProjectTask.workflow_id == w_id,
+                ProjectTask.id != task.id,
+            )
+            siblings = (await s.execute(stmt)).scalars().all()
+            task_id_str = str(task.id)
+            for sibling in siblings:
+                deps = task_dependencies(sibling)
+                if task_id_str in [str(d) for d in deps]:
+                    return True
+            return False
+
+        if session is not None:
+            return await _check(session)
+        async with session_scope() as s:
+            return await _check(s)
 
     @staticmethod
     async def claim_due_tasks(now: datetime | None = None) -> list[ProjectTask]:

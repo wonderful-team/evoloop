@@ -36,9 +36,9 @@ async def test_resolve_by_id():
         )
         out = await _resolve_explicit_skills([{"id": 123, "name": "Wiki Generation"}])
     assert len(out) == 1
-    assert out[0]["name"] == "Wiki Generation"
-    assert out[0]["namespace"] == "doc"
-    assert out[0]["description"] == "desc Wiki Generation"
+    assert out[0].name == "Wiki Generation"
+    assert out[0].namespace == "doc"
+    assert out[0].description == "desc Wiki Generation"
 
 
 @pytest.mark.asyncio
@@ -49,7 +49,7 @@ async def test_resolve_by_name():
         sd.exact_search = AsyncMock(return_value=(None, [skill], ""))
         out = await _resolve_explicit_skills([{"name": "Other"}])
     assert len(out) == 1
-    assert out[0]["name"] == "Other"
+    assert out[0].name == "Other"
 
 
 @pytest.mark.asyncio
@@ -78,4 +78,4 @@ async def test_ignores_non_dict_items():
         sd.exact_search = AsyncMock(return_value=(None, [], ""))
         out = await _resolve_explicit_skills(["junk", {"id": 1}, None])
     assert len(out) == 1
-    assert out[0]["name"] == "A"
+    assert out[0].name == "A"

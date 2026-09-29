@@ -38,7 +38,7 @@ agents:
       # 检索
       - "webfetch"
       - "websearch"
-      # 计划 facade（Agent 唯一工作清单：plan create / update_steps / status）
+      # 计划 facade（Agent 唯一工作清单：plan create / update_steps / list）
       - "plan"
       # 任务队列 facade（自主值守：tasks list/create/take/update_status/submit_acceptance；
       # 周期任务 = create + task_type=recurring + trigger_spec，由 supervisor 统一排空）

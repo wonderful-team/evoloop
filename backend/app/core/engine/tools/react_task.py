@@ -6,7 +6,7 @@
   A2A 远程委派并挂起主循环等回调恢复。
 - ``action='complete'``：当前线程是 A2A 子任务时把结果回传给 Caller 并结束
   （替代原 ``complete_task`` 工具）。
-- ``action='list_agents'``：列出可用的远端 Agent 设备（也可由系统提示词
+- ``action='list'``：列出可用的远端 Agent 设备（也可由系统提示词
   ``<available_agents>`` 索引提供，§4.3）。
 """
 
@@ -28,7 +28,7 @@ MAX_SUBAGENT_DEPTH = 1
 
 @evoloop_tool(name="agent", is_hidden=False)
 async def agent(
-    action: Literal["run", "complete", "list_agents"] = "run",
+    action: Literal["run", "complete", "list"] = "run",
     subagent_type: str | None = None,
     description: str | None = None,
     prompt: str | None = None,
@@ -45,7 +45,7 @@ async def agent(
     - 本机无法完成（缺少设备/能力）且 <available_agents> 有在线远端 Agent → action='run'
       + remote={'agent_id': '<device_key>'}（主循环挂起等远端回调后自动恢复）。
     - 当前线程是 A2A 子任务、需把结果回传给调用方 → action='complete'（status/summary）。
-    - 需要查看在线远端设备 → action='list_agents'。
+    - 需要查看在线远端设备 → action='list'。
 
     When NOT to use:
     - 读具体文件用 read / glob / grep 更快。
@@ -60,7 +60,7 @@ async def agent(
 
     Args:
         action: run（默认，本地子代理或 A2A 远程委派）/ complete（A2A Worker 回传结果）/
-                list_agents（列出在线远端 Agent 设备）。
+                list（列出在线远端 Agent 设备）。
         subagent_type: run + 本地模式时必填（explore / general / reviewer / researcher）。
         description: 任务短描述（3-5 词）。
         prompt: 给子代理/远端设备的完整自包含指令。
@@ -80,7 +80,7 @@ async def agent(
             status=status or "success", summary=summary or "", attachments=attachments or []
         )
 
-    if action == "list_agents":
+    if action == "list":
         return await list_available_agents()
 
     # action == "run"

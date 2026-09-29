@@ -47,15 +47,18 @@ _INTENTS_NEEDING_ACTIVE_MACROS = frozenset(
 _INTENTS_NEEDING_MEMORY = frozenset({INTENT_MEMORY_QUERY, DOMAIN_AMBIGUOUS})
 
 
-async def _resolve_explicit_skills(explicit: list[dict]) -> list[dict]:
-    """Resolve explicit skill_ids/names into SkillListItem-shaped dicts.
+async def _resolve_explicit_skills(explicit: list[dict]) -> list:
+    """Resolve explicit skill_ids/names into SkillListItem（与全量路径同构）。
 
     显式 skill_ids（前端勾选 / references 附带）→ 精确预加载，而非全量列表。
     按 id（数字优先）或 name 解析，保证 <available_skills> 只注入用户指定的技能。
+    返回 SkillListItem 对象而非 dict：渲染层（prompts._capability_index）按
+    getattr(item, "name") 取名，dict 条目会被静默丢弃（2026-09 全链路测试实证）。
     """
+    from app.core.learning.schemas import SkillListItem
     from app.core.learning.skills.discovery import skill_discovery
 
-    resolved: list[dict] = []
+    resolved: list[SkillListItem] = []
     for item in explicit:
         if not isinstance(item, dict):
             continue
@@ -73,18 +76,18 @@ async def _resolve_explicit_skills(explicit: list[dict]) -> list[dict]:
         if skill is None:
             continue
         resolved.append(
-            {
-                "id": skill.id,
-                "name": skill.name,
-                "namespace": skill.namespace or "general",
-                "description": (skill.description or "No description.").replace(
+            SkillListItem(
+                id=skill.id,
+                name=skill.name,
+                namespace=skill.namespace or "general",
+                description=(skill.description or "No description.").replace(
                     "\n", " "
                 ),
-            }
+            )
         )
     logger.info(
         "[ContextHydrator] Explicit skills preloaded: %s",
-        [r["name"] for r in resolved],
+        [r.name for r in resolved],
     )
     return resolved
 
@@ -313,11 +316,15 @@ class AgentContextHydrator:
             needs_macros = intent is None or intent in _INTENTS_NEEDING_ACTIVE_MACROS
 
             async def _load_active_skills() -> Any:
-                if not needs_skills:
-                    return ""
+                # 显式技能（前端勾选 / references 附带）优先于 intent 门控：
+                # 用户显式指定的技能必须可见，分类器意图不得静默丢弃用户选择
+                # （原实现 explicit 检查在 needs_skills 判假之后，勾选被裁——
+                # 2026-09 全链路测试 test_explicit_skills_bypass_intent_gate 实证）。
                 explicit = (config.get("metadata") or {}).get("explicit_skills")
                 if explicit:
                     return await _resolve_explicit_skills(explicit)
+                if not needs_skills:
+                    return ""
                 return await skill_discovery.get_active_skills_list()
 
             async def _load_active_macros() -> Any:

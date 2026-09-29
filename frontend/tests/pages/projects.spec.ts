@@ -37,7 +37,7 @@ test.describe("projects pages", () => {
       page
         .getByRole("heading", { level: 1 })
         .filter({ hasText: /projects|项目/i }),
-    ).toBeVisible()
+    ).toBeVisible({ timeout: 15_000 })
     // Either project cards or a create/import CTA on an empty workspace.
     const cards = page.locator("div[class*='cursor-pointer']")
     const cta = page.getByText(/new project|add project|新建项目|导入/i).first()

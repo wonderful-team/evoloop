@@ -143,7 +143,7 @@ pytest tests/e2e/test_02_routing.py -v  # 仅测试 L0 路由模块
    - 声明面缺工具按门控/禁用处理（`remember` 随 `ENABLE_MEMORY=False` 整组不注册，见 `registry.py` 注释），不算悬空引用。
    - browser/mobile/desktop 为 CDP 操控型，不在声明面（替代路径 Agent Reach 技能；确需恢复取消注释即可）。
    - **重工具渐进披露**：desktop/browser/mobile/macro 的长 SOP 不进 description，由引擎技能承载（`app/config/skills/`，tool description 内含指向），契约测试 `test_embodied_progressive_disclosure` 锁定。
- - **子代理与 A2A**：统一收敛到 `agent` 工具（2026-09 由 `task` 改名）——`action='run'`（本地 spawn / `remote={'agent_id': ...}` A2A 委派）、`action='complete'`（A2A Worker 回传）、`action='list_agents'`；A2A 派发后主循环挂起，回调经 `a2a_callback` 写回工具消息后恢复。
+ - **子代理与 A2A**：统一收敛到 `agent` 工具（2026-09 由 `task` 改名）——`action='run'`（本地 spawn / `remote={'agent_id': ...}` A2A 委派）、`action='complete'`（A2A Worker 回传）、`action='list'`；A2A 派发后主循环挂起，回调经 `a2a_callback` 写回工具消息后恢复。
 - **MCP server 故障隔离（强制约定）**：每个 MCP server 的 transport 生命周期在**独立长驻 runner 任务**里（`manager.py::_server_runner`，anyio scope 自包含），单 server 故障（502/超时/失联）只降级为 `ConnectionResult(success=False)`，**严禁向上传播**到 connect_all/safe_handle/lifespan——`except Exception` 接不住 anyio 混入 CancelledError 成分时的 **BaseExceptionGroup**（BaseException 子类）。`connect_from_db` 不按 enabled 过滤（enabled=0 = 不随启动常驻，显式按名连接是按需拉起）。新增 server 连接路径时必跑 `tests/unit/core/mcp/` + 人工验证「坏 server 下服务可启动」。
 - **防循环**：代码层 doom_loop 检测（`inference_engine.doom_loop_detected`，连续 3 次相同工具签名 → `DoomLoopException` → 问用户"停止/继续"：HITL 挂起等人，docker 模式豁免为确定性收尾，见「自主值守（任务队列）开发约束」）；已移除 prompt 反循环协议（verification_blocked/unverifiable/report_outcome）。
 - **上下文管理**：`ContextTrimmer` + executor 统一截断（`react/truncate.py` 超限输出折叠+落盘），节点级 filter 已删除。

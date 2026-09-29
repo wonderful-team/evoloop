@@ -376,18 +376,28 @@ async def _build_upstream_context(task) -> str:
         arts_by_task: dict[str, list] = {}
         for a in arts:
             arts_by_task.setdefault(str(a.task_id), []).append(a)
-        lines = ["## 上游任务产出（本任务执行时应直接引用，勿重复调研）"]
+        lines = [
+            "## 上游任务交付物与数据契约（本任务执行时必须直接引用，严禁盲目重新扫描环境）\n"
+            "以下为上游依赖任务正式交付的交接清单与产物信息，请直接基于已有文件与脚本开展工作："
+        ]
         for up in sorted(rows, key=lambda x: task_number(x) or 0):
             no = task_number(up)
             label = f"#T-{no}" if no else up.id[:8]
-            result = task_last_result(up) or ""
-            lines.append(
-                f"- {label}「{(task_title(up) or '')[:40]}」结论：{result[:300]}"
-            )
-            for a in arts_by_task.get(up.id, [])[:3]:
+            td = getattr(up, "task_data", None) or {}
+            handover = td.get("handover_summary")
+            if handover and str(handover).strip():
                 lines.append(
-                    f"  · 产物：{getattr(a, 'file_path', '') or getattr(a, 'name', '')}"
+                    f"\n### {label}「{(task_title(up) or '')[:40]}」交付清单：\n{str(handover).strip()}"
                 )
+            else:
+                result = task_last_result(up) or ""
+                lines.append(
+                    f"\n- {label}「{(task_title(up) or '')[:40]}」结论：\n{result.strip()}"
+                )
+            for a in arts_by_task.get(str(up.id), [])[:5]:
+                fp = getattr(a, "file_path", "") or getattr(a, "name", "")
+                if fp:
+                    lines.append(f"  · 产物文件：{fp}")
         return "\n".join(lines)
     except Exception:
         logger.exception("[DutyDispatcher] upstream context build failed")
