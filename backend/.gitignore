@@ -14,3 +14,6 @@ htmlcov
 /openapi.json
 /.solidlsp/
 /.claude/
+
+# macOS
+.DS_Store

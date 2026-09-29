@@ -53,3 +53,6 @@ mobile/harmony/entry/src/main/resources/rawfile/sherpa-onnx-streaming-zipformer-
 
 # 投稿软文（第三方视角，不入公开仓库）
 docs/软文-投稿/
+
+# macOS
+.DS_Store
